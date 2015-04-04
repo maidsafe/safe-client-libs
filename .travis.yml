@@ -2,6 +2,7 @@ os:
   - linux
   - osx
 language: rust
+rust: 1.0.0-beta
 env:
   global:
     secure: "g8lzQvNQYKdf/E7J29f/DCIyDFmj184qROzcShDO0ZsQNlnJPh26KdIx9paNgjh1Uo1myPUXjGvK6ZvammRSYhna0ZVvQPSnlpEGeDvRY7RrvxyrY45+SaaxWUqrc2XYwuhfL2ODIRrYGoIY+C+EKjGHchzzOTxeAgzwYSszlY8="
