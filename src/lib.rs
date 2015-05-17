@@ -86,20 +86,20 @@ impl From<crypto::symmetriccipher::SymmetricCipherError> for MaidsafeError {
 
 
 
-pub struct Client<'a> {
-  my_routing : RoutingClient<'a, RoutingInterface>,
+pub struct Client {
+  my_routing : RoutingClient<RoutingInterface>,
   my_account : Account,
   my_facade : Arc<Mutex<RoutingInterface>>,
   my_cvar : Arc<(Mutex<bool>, Condvar)>
 }
 
-impl<'a> Client<'a> {
-  pub fn new(username : &String, password : &[u8], pin : u32) -> Client<'a> {
+impl<'a> Client {
+  pub fn new(username : &String, password : &[u8], pin : u32) -> Client {
     let account = Account::create_account(username, password, pin).ok().unwrap();
     let cvar = Arc::new((Mutex::new(false), Condvar::new()));
     let facade = Arc::new(Mutex::new(RoutingInterface::new(cvar.clone())));
-    let mut client = Client { my_routing: RoutingClient::new(facade.clone(), account.get_account().clone(),
-                                                             (Random::generate_random(), Endpoint::Tcp(SocketAddr::from_str(&format!("127.0.0.1:5483")).unwrap()))),
+    // FIX ME: Krishna - below RoutingClient must use the interface object from facade
+    let mut client = Client { my_routing: RoutingClient::new(RoutingInterface::new(cvar.clone()), account.get_account().clone()),
                               my_account: account, my_facade: facade, my_cvar: cvar };
     let encrypted_account = ImmutableData::new(client.my_account.encrypt(&password, pin).ok().unwrap());
     // encrypted account data will be stored as ImmutableData across the network
@@ -112,15 +112,15 @@ impl<'a> Client<'a> {
     client
   }
 
-  pub fn log_in(username : &String, password : &[u8], pin : u32) -> Client<'a> {
+  pub fn log_in(username : &String, password : &[u8], pin : u32) -> Client {
     let mut fetched_encrypted : Vec<u8>;
     {
       let network_id = Account::generate_network_id(username, pin);
       let temp_account = Account::new();
       let temp_cvar = Arc::new((Mutex::new(false), Condvar::new()));
       let temp_facade = Arc::new(Mutex::new(RoutingInterface::new(temp_cvar.clone())));
-      let mut temp_routing = RoutingClient::new(temp_facade.clone(), temp_account.get_account().clone(),
-                                                (Random::generate_random(), Endpoint::Tcp(SocketAddr::from_str(&format!("127.0.0.1:5483")).unwrap())));
+      // FIX ME: Krishna
+      let mut temp_routing = RoutingClient::new(RoutingInterface::new(temp_cvar.clone()), temp_account.get_account().clone());
       let mut get_queue = temp_routing.get(102u64, NameType::new(network_id.0));
       let &(ref lock, ref cvar) = &*temp_cvar;
       let mut fetched = lock.lock().unwrap();
@@ -149,8 +149,8 @@ impl<'a> Client<'a> {
     let existing_account = Account::decrypt(&fetched_encrypted[..], &password, pin).ok().unwrap();
     let cvar = Arc::new((Mutex::new(false), Condvar::new()));
     let facade = Arc::new(Mutex::new(RoutingInterface::new(cvar.clone())));
-    Client { my_routing: RoutingClient::new(facade.clone(), existing_account.get_account().clone(),
-                                            (Random::generate_random(), Endpoint::Tcp(SocketAddr::from_str(&format!("127.0.0.1:5483")).unwrap()))),
+    // FIX ME: Krishna
+    Client { my_routing: RoutingClient::new(RoutingInterface::new(cvar.clone()), existing_account.get_account().clone()),
              my_account: existing_account, my_facade: facade, my_cvar: cvar }
   }
 

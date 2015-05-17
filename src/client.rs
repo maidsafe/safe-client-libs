@@ -22,33 +22,33 @@ use routing;
 use std::sync::{Mutex, Arc, Condvar};
 use lru_time_cache::LruCache;
 
-use routing::RoutingError;
+use routing::error::ResponseError;
 use routing::types::{MessageId};
 
 
 pub struct RoutingInterface {
   my_cvar : Arc<(Mutex<bool>, Condvar)>,
-  my_cache : LruCache<u32, Result<Vec<u8>, RoutingError>>
+  my_cache : LruCache<u32, Result<Vec<u8>, ResponseError>>
 }
 
 impl routing::client_interface::Interface for RoutingInterface {
   // fn handle_get(&mut self, type_id: u64, our_authority: Authority, from_authority: Authority,
-  //               from_address: NameType, data: Vec<u8>)->Result<Action, RoutingError> {
-  //   Err(RoutingError::InvalidRequest)
+  //               from_address: NameType, data: Vec<u8>)->Result<Action, ResponseError> {
+  //   Err(ResponseError::InvalidRequest)
   // }
 
   // fn handle_put(&mut self, our_authority: Authority, from_authority: Authority,
-  //               from_address: NameType, dest_address: DestinationAddress, data: Vec<u8>)->Result<Action, RoutingError> {
+  //               from_address: NameType, dest_address: DestinationAddress, data: Vec<u8>)->Result<Action, ResponseError> {
   //   ;
-  //   Err(RoutingError::InvalidRequest)
+  //   Err(ResponseError::InvalidRequest)
   // }
 
-  // fn handle_post(&mut self, our_authority: Authority, from_authority: Authority, from_address: NameType, data: Vec<u8>)->Result<Action, RoutingError> {
+  // fn handle_post(&mut self, our_authority: Authority, from_authority: Authority, from_address: NameType, data: Vec<u8>)->Result<Action, ResponseError> {
   //   ;
-  //   Err(RoutingError::InvalidRequest)
+  //   Err(ResponseError::InvalidRequest)
   // }
 
-  fn handle_get_response(&mut self, message_id: MessageId, response: Result<Vec<u8>, RoutingError>) {
+  fn handle_get_response(&mut self, message_id: MessageId, response: Result<Vec<u8>, ResponseError>) {
     self.my_cache.add(message_id, response);
     let &(ref lock, ref cvar) = &*self.my_cvar;
     let mut fetched = lock.lock().unwrap();
@@ -56,11 +56,11 @@ impl routing::client_interface::Interface for RoutingInterface {
     cvar.notify_one();
   }
 
-  fn handle_put_response(&mut self, message: MessageId, response: Result<Vec<u8>, RoutingError>) {
+  fn handle_put_response(&mut self, message: MessageId, response: Result<Vec<u8>, ResponseError>) {
     ;
   }
 
-  // fn handle_post_response(&mut self, from_authority: Authority, from_address: NameType, response: Result<Vec<u8>, RoutingError>) {
+  // fn handle_post_response(&mut self, from_authority: Authority, from_address: NameType, response: Result<Vec<u8>, ResponseError>) {
   //   ;
   // }
 
@@ -74,7 +74,7 @@ impl RoutingInterface {
     RoutingInterface { my_cvar: cvar, my_cache: LruCache::with_capacity(10000) }
   }
 
-  pub fn get_response(&mut self, message_id : u32) -> Result<Vec<u8>, RoutingError> {
+  pub fn get_response(&mut self, message_id : u32) -> Result<Vec<u8>, ResponseError> {
     let result = self.my_cache.remove(&message_id).unwrap();
     result
   }
