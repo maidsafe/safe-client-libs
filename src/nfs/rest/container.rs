@@ -359,3 +359,186 @@ impl Container {
     }
 
 }
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ::std::sync::Arc;
+    use ::std::sync::Mutex;
+    use ::std::collections::BTreeMap;
+    use std::thread::sleep_ms;
+    use ::client;
+    use ::client::Client;
+    use nfs::directory_listing::DirectoryListing;
+    use nfs::helper::DirectoryHelper;
+    use routing::NameType;
+
+    fn dummy_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+        let map = Arc::new(Mutex::new(BTreeMap::new()));
+
+        Client::create_account(&keyword, pin, &password, map).ok().unwrap()
+    }
+
+    fn store_based_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+        let data_store = client::non_networking_test_framework::get_new_data_store();
+
+        Client::create_account(&keyword, pin, &password, data_store.clone()).ok().unwrap()
+    }
+
+
+    #[test]
+    fn create() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let name = "directory".to_string();
+        let directory_listing = DirectoryListing::new(name.clone(), Vec::new());
+
+        let container = Container{ client: client.clone(), directory_listing: directory_listing.clone() };
+
+        assert_eq!(container.get_name(), &name.clone());
+    }
+
+    #[test]
+    fn create_from_directory_listing() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let name = "directory".to_string();
+        let directory_listing = DirectoryListing::new(name.clone(), Vec::new());
+        let container = Container::convert_from_directory_listing(client, directory_listing.clone());
+
+        assert_eq!(container.get_name(), directory_listing.get_name());
+        assert_eq!(container.get_created_time(), directory_listing.get_metadata().get_created_time());
+        assert_eq!(container.get_modified_time(), directory_listing.get_metadata().get_modified_time());
+        assert_eq!(NameType(container.get_id()), directory_listing.get_id().clone());
+        assert_eq!(container.get_blobs().len(), 0usize);
+    }
+
+    #[test]
+    fn convert_to_directory_listing() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let name = "directory".to_string();
+        let directory_listing = DirectoryListing::new(name.clone(), Vec::new());
+
+        let container = Container::convert_from_directory_listing(client, directory_listing.clone());
+
+        assert_eq!(container.get_name(), directory_listing.get_name());
+        assert_eq!(container.get_created_time(), directory_listing.get_metadata().get_created_time());
+        assert_eq!(container.get_modified_time(), directory_listing.get_metadata().get_modified_time());
+        assert_eq!(container.get_blobs().len(), 0usize);
+
+        let directory_listing = container.convert_to_directory_listing();
+
+        assert_eq!(container.get_name(), directory_listing.get_name());
+        assert_eq!(container.get_created_time(), directory_listing.get_metadata().get_created_time());
+        assert_eq!(container.get_modified_time(), directory_listing.get_metadata().get_modified_time());
+        assert_eq!(NameType(container.get_id()), directory_listing.get_id().clone());
+    }
+
+    #[test]
+    fn compare() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let first_name = "first_directory".to_string();
+        let first_directory_listing = DirectoryListing::new(first_name.clone(), Vec::new());
+
+        let first_container = Container::convert_from_directory_listing(
+                client.clone(), first_directory_listing.clone());
+        let second_container = Container{ client: client.clone(),
+                                          directory_listing: first_directory_listing.clone()
+                                        };
+
+        // allow 'times' to be sufficiently distinct
+        sleep_ms(1000u32);
+
+        let second_name = "second_directory".to_string();
+        let second_directory_listing = DirectoryListing::new(second_name.clone(), Vec::new());
+
+        let third_container = Container::convert_from_directory_listing(
+                client.clone(), second_directory_listing.clone());
+
+        assert_eq!(first_container.get_name(), second_container.get_name());
+        assert_eq!(first_container.get_created_time(), second_container.get_created_time());
+        assert_eq!(first_container.get_modified_time(), second_container.get_modified_time());
+        assert_eq!(NameType(first_container.get_id()), NameType(second_container.get_id()));
+
+        assert!(first_container.get_name() != third_container.get_name());
+        assert!(first_container.get_created_time() != third_container.get_created_time());
+        assert!(first_container.get_modified_time() != third_container.get_modified_time());
+        assert!(NameType(first_container.get_id()) != NameType(third_container.get_id()));
+    }
+
+    #[test]
+    fn create_blob() {
+        let client = Arc::new(Mutex::new(store_based_client()));
+        let mut directory_helper = DirectoryHelper::new(client.clone());
+        let directory_result = directory_helper.create("root".to_string(), Vec::new());
+        assert!(directory_result.is_ok());
+        let directory_id = directory_result.unwrap();
+
+        let container_result = Container::authorise(client.clone(), directory_id.0);
+        assert!(container_result.is_ok());
+        let mut container = container_result.unwrap();
+        assert_eq!(container.get_blobs().len(), 0usize);
+
+        let blob_name = "blob".to_string();
+        let blob_writer_result = container.create_blob(blob_name.clone(), None, 0u64);
+        assert!(blob_writer_result.is_ok());
+        let mut blob_writer = blob_writer_result.unwrap();
+        let content = "content".to_string();
+        blob_writer.write(content.as_bytes(), 0u64);
+        let blob_writer_close_result = blob_writer.close();
+        assert!(blob_writer_close_result.is_ok());
+
+        assert_eq!(container.get_blobs().len(), 1usize);
+        let blob_versions = container.get_blob_versions(&blob_name.clone());
+        assert!(blob_versions.is_ok());
+        let blob_result = container.get_blob(blob_name.clone(), Some(blob_versions.unwrap()[0]));
+        assert!(blob_result.is_ok());
+        let blob = blob_result.unwrap();
+        assert_eq!(blob_name.clone(), blob.get_name().clone());
+
+        let blob_reader_result = container.get_reader_for_blob(blob);
+        assert!(blob_reader_result.is_ok());
+        let mut blob_reader = blob_reader_result.unwrap();
+        let recovered_content = blob_reader.read(0u64, content.len() as u64);
+        assert!(recovered_content.is_ok());
+        assert_eq!(recovered_content.unwrap(), content.as_bytes().to_vec());
+    }
+
+    #[test]
+    fn delete_blob() {
+        let client = Arc::new(Mutex::new(store_based_client()));
+        let mut directory_helper = DirectoryHelper::new(client.clone());
+        let directory_result = directory_helper.create("root".to_string(), Vec::new());
+        assert!(directory_result.is_ok());
+        let directory_id = directory_result.unwrap();
+
+        let container_result = Container::authorise(client.clone(), directory_id.0);
+        assert!(container_result.is_ok());
+        let mut container = container_result.unwrap();
+        assert_eq!(container.get_blobs().len(), 0usize);
+
+        let blob_name = "blob".to_string();
+        let blob_writer_result = container.create_blob(blob_name.clone(), None, 0u64);
+        assert!(blob_writer_result.is_ok());
+        let mut blob_writer = blob_writer_result.unwrap();
+        let content = "content".to_string();
+        blob_writer.write(content.as_bytes(), 0u64);
+        let blob_writer_close_result = blob_writer.close();
+        assert!(blob_writer_close_result.is_ok());
+
+        assert_eq!(container.get_blobs().len(), 1usize);
+        let blob_result = container.get_blob(blob_name.clone(), None);
+        assert!(blob_result.is_ok());
+        let blob = blob_result.unwrap();
+        assert_eq!(blob_name.clone(), blob.get_name().clone());
+
+        let blob_delete_result = container.delete_blob(&blob_name.clone());
+        assert!(blob_delete_result.is_ok());
+        assert_eq!(container.get_blobs().len(), 0usize);
+    }
+}

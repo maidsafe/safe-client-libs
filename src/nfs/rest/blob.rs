@@ -68,3 +68,120 @@ impl Blob {
     }
 
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ::std::sync::Arc;
+    use ::std::sync::Mutex;
+    use ::std::collections::BTreeMap;
+    use std::thread::sleep_ms;
+    use ::client::Client;
+    use nfs::file::File;
+    use nfs::metadata::Metadata;
+    use self_encryption::datamap::DataMap;
+
+    fn dummy_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+
+        Client::create_account(&keyword, pin, &password, Arc::new(Mutex::new(BTreeMap::new())))
+                .ok().unwrap()
+    }
+
+
+    #[test]
+    fn create() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let datamap = DataMap::None;
+        let metadata = Metadata::new("blob".to_string(), Vec::new());
+        let file = File::new(metadata.clone(), datamap.clone());
+
+        let blob = Blob{ client: client.clone(), file: file.clone() };
+
+        assert_eq!(blob.get_name(), metadata.get_name());
+        assert_eq!(blob.get_created_time(), metadata.get_created_time());
+        assert_eq!(blob.get_modified_time(), metadata.get_modified_time());
+        assert_eq!(blob.get_size(), metadata.get_size());
+        assert!(blob.get_user_metadata().is_none());
+
+        let file = blob.convert_to_file();
+
+        assert_eq!(file.get_name(), metadata.get_name());
+        assert_eq!(file.get_metadata().get_created_time(), metadata.get_created_time());
+        assert_eq!(file.get_metadata().get_modified_time(), metadata.get_modified_time());
+        assert_eq!(file.get_metadata().get_size(), metadata.get_size());
+        assert_eq!(file.get_datamap().len(), datamap.len());
+        assert!(!file.get_datamap().has_chunks());
+    }
+
+    #[test]
+    fn create_from_file() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let datamap = DataMap::None;
+        let metadata = Metadata::new("blob".to_string(), Vec::new());
+        let file = File::new(metadata.clone(), datamap.clone());
+
+        let blob = Blob::convert_from_file(client, file.clone());
+
+        assert_eq!(blob.get_name(), file.get_name());
+        assert_eq!(blob.get_created_time(), file.get_metadata().get_created_time());
+        assert_eq!(blob.get_modified_time(), file.get_metadata().get_modified_time());
+        assert_eq!(blob.get_size(), file.get_metadata().get_size());
+        assert!(blob.get_user_metadata().is_none());
+    }
+
+    #[test]
+    fn convert_to_file() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let datamap = DataMap::None;
+        let metadata = Metadata::new("blob".to_string(), Vec::new());
+        let file = File::new(metadata.clone(), datamap.clone());
+
+        let blob = Blob{ client: client.clone(), file: file.clone() };
+
+        assert_eq!(blob.get_name(), file.get_name());
+        assert_eq!(blob.get_created_time(), file.get_metadata().get_created_time());
+        assert_eq!(blob.get_modified_time(), file.get_metadata().get_modified_time());
+        assert_eq!(blob.get_size(), file.get_metadata().get_size());
+        assert!(blob.get_user_metadata().is_none());
+        assert!(file.get_metadata().get_user_metadata().is_none());
+
+        let file = blob.convert_to_file();
+
+        assert_eq!(blob.get_name(), file.get_name());
+        assert_eq!(blob.get_created_time(), file.get_metadata().get_created_time());
+        assert_eq!(blob.get_modified_time(), file.get_metadata().get_modified_time());
+        assert_eq!(blob.get_size(), file.get_metadata().get_size());
+        assert!(file.get_metadata().get_user_metadata().is_none());
+    }
+
+    #[test]
+    fn compare() {
+        let client = Arc::new(Mutex::new(dummy_client()));
+        let first_datamap = DataMap::None;
+        let first_metadata = Metadata::new("first_blob".to_string(), Vec::new());
+        let first_file = File::new(first_metadata.clone(), first_datamap.clone());
+
+        let first_blob = Blob::convert_from_file(client.clone(), first_file.clone());
+        let second_blob = Blob{ client: client.clone(), file: first_file.clone() };
+
+        // allow 'times' to be sufficiently distinct
+        sleep_ms(1000u32);
+
+        let second_datamap = DataMap::None;
+        let second_metadata = Metadata::new("second_blob".to_string(), Vec::new());
+        let second_file = File::new(second_metadata.clone(), second_datamap.clone());
+
+        let third_blob = Blob::convert_from_file(client.clone(), second_file.clone());
+
+        assert_eq!(first_blob.get_name(), second_blob.get_name());
+        assert_eq!(first_blob.get_created_time(), second_blob.get_created_time());
+        assert_eq!(first_blob.get_modified_time(), second_blob.get_modified_time());
+
+        assert!(first_blob.get_name() != third_blob.get_name());
+        assert!(first_blob.get_created_time() != third_blob.get_created_time());
+        assert!(first_blob.get_modified_time() != third_blob.get_modified_time());
+    }
+}
