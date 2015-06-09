@@ -75,7 +75,6 @@ impl Blob {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ::std::ops::Index;
     use ::std::sync::Arc;
     use ::std::sync::Mutex;
     use ::std::collections::BTreeMap;

@@ -50,3 +50,47 @@ impl ContainerInfo {
     }
 
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use nfs::metadata::Metadata;
+    use nfs::directory_info::DirectoryInfo;
+
+    #[test]
+    fn create() {
+        let name = "directory".to_string();
+        let metadata = Metadata::new(name.clone(), Vec::new());
+        let container_info = ContainerInfo{ info: DirectoryInfo::new(metadata) };
+
+        assert_eq!(container_info.get_name(), &name.clone());
+    }
+
+    #[test]
+    fn convert_from() {
+        let name = "directory".to_string();
+        let metadata = Metadata::new(name.clone(), Vec::new());
+        let directory_info = DirectoryInfo::new(metadata);
+
+        assert_eq!(directory_info.get_name(), &name.clone());
+
+        let container_info = ContainerInfo::convert_from_directory_info(directory_info.clone());
+
+        assert_eq!(container_info.get_name(), directory_info.get_name());
+        assert_eq!(container_info.get_created_time(), directory_info.get_metadata().get_created_time());
+    }
+
+    #[test]
+    fn convert_to() {
+        let name = "directory".to_string();
+        let metadata = Metadata::new(name.clone(), Vec::new());
+        let container_info = ContainerInfo{ info: DirectoryInfo::new(metadata) };
+
+        assert_eq!(container_info.get_name(), &name.clone());
+
+        let directory_info = container_info.convert_to_directory_info();
+
+        assert_eq!(directory_info.get_name(), container_info.get_name());
+        assert_eq!(directory_info.get_metadata().get_created_time(), container_info.get_created_time());
+    }
+}
