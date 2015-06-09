@@ -94,7 +94,7 @@ impl DirectoryHelper {
     /// Return the DirectoryListing for the latest version
     pub fn get(&mut self, directory_id: &routing::NameType) -> Result<nfs::directory_listing::DirectoryListing, String> {
         let structured_data_type_id: maidsafe_types::data::StructuredDataTypeTag = unsafe { ::std::mem::uninitialized() };
-        let sdv_res = self.network_get(structured_data_type_id.type_tag(), directory_id);
+        let _ = self.network_get(structured_data_type_id.type_tag(), directory_id);
         match self.network_get(structured_data_type_id.type_tag(), directory_id) {
             Ok(serialised_sdv) => {
                 let sdv: maidsafe_types::StructuredData = nfs::utils::deserialise(serialised_sdv);

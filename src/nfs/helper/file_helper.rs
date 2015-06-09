@@ -119,7 +119,7 @@ impl FileHelper {
                 *file.get_name() == *file_name
             });
         match result {
-            Some(file) => Some(file_name.clone()),
+            Some(_) => Some(file_name.clone()),
             None => None
         }
     }

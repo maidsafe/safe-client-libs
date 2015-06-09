@@ -16,7 +16,6 @@
 // relating to use of the SAFE Network Software.
 use nfs;
 use time;
-use client;
 
 #[allow(dead_code)]
 pub struct Blob {

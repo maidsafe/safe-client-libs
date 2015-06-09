@@ -50,8 +50,8 @@ impl Client {
         let notifier = ::std::sync::Arc::new((::std::sync::Mutex::new(0), ::std::sync::Condvar::new()));
         let account_packet = user_account::Account::new(None);
         let callback_interface = ::std::sync::Arc::new(::std::sync::Mutex::new(callback_interface::CallbackInterface::new(notifier.clone())));
-        let client_id_packet = routing::routing_client::ClientIdPacket::new(account_packet.get_maid().public_keys().clone(),
-                                                                            account_packet.get_maid().secret_keys().clone());
+        let _ = routing::routing_client::ClientIdPacket::new(account_packet.get_maid().public_keys().clone(),
+                                                             account_packet.get_maid().secret_keys().clone());
 
         //TODO: Toggle depending on if using actual routing or non_networking_test_framework
         // let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), client_id_packet)));
@@ -79,7 +79,7 @@ impl Client {
         {
             let destination = client.account.get_public_maid().name();
             let boxed_public_maid = Box::new(client.account.get_public_maid().clone());
-            client.routing.lock().unwrap().unauthorised_put(destination, boxed_public_maid);
+            let _ = client.routing.lock().unwrap().unauthorised_put(destination, boxed_public_maid);
         }
 
         let encrypted_account = maidsafe_types::ImmutableData::new(client.account.encrypt(password, pin).ok().unwrap());
@@ -120,8 +120,8 @@ impl Client {
         let user_network_id = user_account::Account::generate_network_id(keyword, pin);
         let fake_account_packet = user_account::Account::new(None);
         let callback_interface = ::std::sync::Arc::new(::std::sync::Mutex::new(callback_interface::CallbackInterface::new(notifier.clone())));
-        let fake_client_id_packet = routing::routing_client::ClientIdPacket::new(fake_account_packet.get_maid().public_keys().clone(),
-                                                                                 fake_account_packet.get_maid().secret_keys().clone());
+        let _ = routing::routing_client::ClientIdPacket::new(fake_account_packet.get_maid().public_keys().clone(),
+                                                             fake_account_packet.get_maid().secret_keys().clone());
 
         //TODO: Toggle depending on if using actual routing or non_networking_test_framework
         // let fake_routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), fake_client_id_packet)));
@@ -181,8 +181,8 @@ impl Client {
                                                 }
                                                 let account_packet = decryption_result.ok().unwrap();
 
-                                                let client_id_packet = routing::routing_client::ClientIdPacket::new(account_packet.get_maid().public_keys().clone(),
-                                                                                                                    account_packet.get_maid().secret_keys().clone());
+                                                let _ = routing::routing_client::ClientIdPacket::new(account_packet.get_maid().public_keys().clone(),
+                                                                                                     account_packet.get_maid().secret_keys().clone());
 
                                                 //TODO: Toggle depending on if using actual routing or non_networking_test_framework
                                                 // let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), client_id_packet)));

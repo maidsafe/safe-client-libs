@@ -220,7 +220,7 @@ impl Container {
 
     /// Return a writter object for the Blob, through which the content of the blob can be updated
     /// This is useful while handling larger files, to enable writting content in parts
-    pub fn get_blob_writer(&mut self, blob: &nfs::rest::Blob, data: Vec<u8>) -> Result<nfs::io::Writer, String> {
+    pub fn get_blob_writer(&mut self, blob: &nfs::rest::Blob, _data: Vec<u8>) -> Result<nfs::io::Writer, String> {
         self.get_writer_for_blob(blob)
     }
 
@@ -246,7 +246,7 @@ impl Container {
         match self.find_file(&name, &self.directory_listing) {
             Some(blob) => {
                 let mut file_helper = nfs::helper::FileHelper::new(self.client.clone());
-                let versions = file_helper.get_versions(self.directory_listing.get_id(), &blob.convert_to_file());
+                let _ = file_helper.get_versions(self.directory_listing.get_id(), &blob.convert_to_file());
                 Ok(Vec::new())
             },
             None => Err("Blob not found".to_string())
