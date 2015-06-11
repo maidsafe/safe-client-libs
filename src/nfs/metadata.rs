@@ -44,6 +44,7 @@ impl Metadata {
         &self.name
     }
 
+    #[allow(dead_code)]
     pub fn set_name(&mut self, name: String) {
         self.name = name;
     }
@@ -66,10 +67,6 @@ impl Metadata {
 
     pub fn get_modified_time(&self) -> time::Tm {
         self.modified_time
-    }
-
-    pub fn set_created_time(&mut self, created_time: time::Tm) {
-        self.created_time = created_time
     }
 
     pub fn set_modified_time(&mut self, modified_time: time::Tm) {

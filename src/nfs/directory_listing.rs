@@ -49,17 +49,9 @@ impl DirectoryListing {
         self.info.get_metadata()
     }
 
-    pub fn get_user_metadata(&self) -> Option<&Vec<u8>> {
-        self.info.get_metadata().get_user_metadata()
-    }
-
     // pub fn get_parent_dir_id(&self) -> &routing::NameType {
     //     self.info.get_parent_dir_id()
     // }
-
-    pub fn add_file(&mut self, file: File) {
-        self.files.push(file);
-    }
 
     pub fn upsert_file(&mut self, file: File) {
         match self.files.iter().position(|entry| entry.get_name() == file.get_name()) {
@@ -88,29 +80,6 @@ impl DirectoryListing {
         self.info.get_id()
     }
 
-    pub fn get_name(&self) -> &String {
-        self.info.get_metadata().get_name()
-    }
-
-    pub fn set_metadata(&mut self, metadata: Metadata) {
-        self.info.set_metadata(metadata);
-    }
-
-    pub fn set_user_metadata(&mut self, user_metadata: Vec<u8>) {
-        self.info.get_mut_metadata().set_user_metadata(user_metadata);
-    }
-
-    pub fn set_files(&mut self, files: Vec<File>) {
-        self.files = files;
-    }
-
-    pub fn set_sub_directories(&mut self, dirs: Vec<DirectoryInfo>) {
-        self.sub_directories = dirs;
-    }
-
-    pub fn set_name(&mut self, name: String) {
-        self.info.get_mut_metadata().set_name(name);
-    }
 }
 
 impl fmt::Debug for DirectoryListing {
@@ -130,7 +99,6 @@ impl fmt::Display for DirectoryListing {
 mod test {
     use super::*;
     use cbor;
-    use routing;
 
     #[test]
     fn serialise() {

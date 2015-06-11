@@ -20,6 +20,7 @@ use super::network_storage::NetworkStorage;
 use self_encryption;
 use client;
 
+#[allow(dead_code)]
 pub struct Reader {
     file: nfs::file::File,
     self_encryptor: self_encryption::SelfEncryptor<NetworkStorage>,
@@ -38,10 +39,12 @@ impl Reader {
         }
     }
 
+    /// Returns the total size of the file/blob
     pub fn size(&self) -> u64 {
         self.self_encryptor.len()
     }
 
+    /// Read data from file/blob
     pub fn read(&mut self,  position: u64, length: u64) -> Result<Vec<u8>, String> {
         if (position + length) > self.size() {
             return Err("Invalid range specified".to_string());

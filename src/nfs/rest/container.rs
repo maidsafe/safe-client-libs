@@ -30,19 +30,90 @@ impl Container {
 
     /// Authorises the directory access and returns the Container, if authorisation is successful.
     /// Operations can be performed only after the authorisation is successful.
-    pub fn authorise(client: ::std::sync::Arc<::std::sync::Mutex<client::Client>>, dir_id: [u8;64]) -> Result<Container, String> {
+    pub fn authorise(client: ::std::sync::Arc<::std::sync::Mutex<client::Client>>, dir_id: Option<[u8;64]>) -> Result<Container, String> {
         let mut directory_helper = nfs::helper::DirectoryHelper::new(client.clone());
-        let result = directory_helper.get(&::routing::NameType(dir_id));
-        match result {
-            Ok(listing) => Ok(Container {
-                client: client,
-                directory_listing: listing
-            }),
-            Err(msg) => Err(msg)
+        let fake_id = ::routing::NameType([0u8; 64]);
+        let mut directory_id: ::routing::NameType = fake_id.clone();
+        match dir_id {
+            Some(id) => directory_id = ::routing::NameType(id),
+            None => {
+                let mut set_root_id = false;
+                 {
+                     if client.lock().unwrap().get_root_directory_id().is_none() {
+                         set_root_id = true;
+                     }
+                 }
+                 if set_root_id {
+                     match directory_helper.create("root".to_string(), Vec::new()) {
+                         Ok(dir_id) =>  {
+                             let _ = client.lock().unwrap().set_root_directory_id(dir_id.clone());
+                             directory_id = dir_id;
+                         },
+                         Err(msg) => println!("Error:: {}", msg)
+                     }
+                 } else {
+                     directory_id = client.lock().unwrap().get_root_directory_id().unwrap().clone();
+                 }
+            }
+        };
+        if directory_id == fake_id {
+            Err("Directory initialisation failed".to_string())
+        } else {
+            let result = directory_helper.get(&directory_id);
+            match result {
+               Ok(listing) => Ok(Container {
+                   client: client,
+                   directory_listing: listing
+               }),
+               Err(msg) => Err(msg)
+           }
         }
     }
 
-    /// Return the unique id of the conatiner
+    /// Creates a Container
+    pub fn create(&mut self, name: String) -> Result<(), String> {
+        if name.is_empty() {
+            return Err("Name can not be empty".to_string());
+        }
+        // TODO add metadata support to containers
+        let metadata = None;
+        match self.validate_metadata(metadata) {
+            Ok(user_metadata) => {
+                match self.directory_listing.get_sub_directories().iter().find(|&entry| *entry.get_name() == name) {
+                    Some(_) => Err("Container already exists".to_string()),
+                    None => {
+                        let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
+                        match directory_helper.create(name, user_metadata) {
+                            Ok(dir_id) => {
+                                let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
+                                match directory_helper.get(&dir_id) {
+                                    Ok(created_directory) => {
+                                        self.directory_listing.get_mut_sub_directories().push(created_directory.get_info().clone());
+                                        let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
+                                        match directory_helper.update(&self.directory_listing) {
+                                            Ok(_) => Ok(()),
+                                            Err(msg) => Err(msg)
+                                        }
+                                    },
+                                    Err(msg) => Err(msg)
+                                }
+                            },
+                            Err(msg) => Err(msg)
+                        }
+                    }
+                }
+            },
+            Err(err) => Err(err),
+        }
+    }
+
+
+    /// Returns the Created time of the container
+    pub fn get_created_time(&self) -> time::Tm {
+        self.directory_listing.get_metadata().get_created_time()
+    }
+
+    /// Return the unique id of the container
     pub fn get_id(&self) -> [u8;64] {
         self.directory_listing.get_id().0
     }
@@ -60,11 +131,6 @@ impl Container {
     /// Returns the name of the container
     pub fn get_name(&self) -> &String {
         self.directory_listing.get_metadata().get_name()
-    }
-
-    /// Returns the Created time of the container
-    pub fn get_created_time(&self) -> time::Tm {
-        self.directory_listing.get_metadata().get_created_time()
     }
 
     /// Returns the list of Blobs in the container
@@ -93,33 +159,6 @@ impl Container {
         }
     }
 
-    /// Creates a Conatiner
-    pub fn create(&mut self, name: String, metadata: Option<String>) -> Result<(), String> {
-        match self.validate_metadata(metadata) {
-            Ok(user_metadata) => {
-                let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
-                match directory_helper.create(name, user_metadata) {
-                    Ok(dir_id) => {
-                        let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
-                        match directory_helper.get(&dir_id) {
-                            Ok(created_directory) => {
-                                self.directory_listing.get_mut_sub_directories().push(created_directory.get_info().clone());
-                                let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
-                                match directory_helper.update(&created_directory) {
-                                    Ok(_) => Ok(()),
-                                    Err(msg) => Err(msg)
-                                }
-                            },
-                            Err(msg) => Err(msg)
-                        }
-                    },
-                    Err(msg) => Err(msg)
-                }
-            },
-            Err(err) => Err(err),
-        }
-    }
-
     /// Returns the list of child containers
     pub fn get_containers(&self) -> Vec<nfs::rest::ContainerInfo> {
         self.directory_listing.get_sub_directories().iter().map(|info| {
@@ -127,20 +166,20 @@ impl Container {
             }).collect()
     }
 
-    /// Updates the metadata of the container
-    pub fn update_metadata(&mut self, metadata: Option<String>) -> Result<(), String>{
-        match self.validate_metadata(metadata) {
-            Ok(user_metadata) => {
-                self.directory_listing.set_user_metadata(user_metadata);
-                let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
-                match directory_helper.update(&self.directory_listing) {
-                    Ok(_) => Ok(()),
-                    Err(msg) => Err(msg),
-                }
-            },
-            Err(err) => Err(err),
-        }
-    }
+    // /// Updates the metadata of the container
+    // pub fn update_metadata(&mut self, metadata: Option<String>) -> Result<(), String>{
+    //     match self.validate_metadata(metadata) {
+    //         Ok(user_metadata) => {
+    //             self.directory_listing.get_mut_metadata().set_user_metadata(user_metadata);
+    //             let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
+    //             match directory_helper.update(&self.directory_listing) {
+    //                 Ok(_) => Ok(()),
+    //                 Err(msg) => Err(msg),
+    //             }
+    //         },
+    //         Err(err) => Err(err),
+    //     }
+    // }
 
     /// Retrieves Versions for the container
     pub fn get_versions(&mut self) -> Result<Vec<[u8;64]>, String> {
@@ -148,7 +187,7 @@ impl Container {
         self.list_container_versions(&::routing::NameType(id))
     }
 
-    /// Retrieves Versions for the container being referred by the conatiner_id
+    /// Retrieves Versions for the container being referred by the container_id
     pub fn get_container_versions(&mut self, container_id: [u8;64]) -> Result<Vec<[u8;64]>, String> {
         self.list_container_versions(&::routing::NameType(container_id))
     }
@@ -197,11 +236,14 @@ impl Container {
     /// Returns a Writter object
     /// The content of the blob is written using the writter.
     /// The blob is created only after the writter.close() is invoked
-    pub fn create_blob(&mut self, name: String, metadata: Option<String>, size: u64) -> Result<nfs::io::Writer, String> {
+    pub fn create_blob(&mut self, name: String, metadata: Option<String>) -> Result<nfs::io::Writer, String> {
+        if name.is_empty() {
+            return Err("Name can not be empty".to_string());
+        }
         match self.validate_metadata(metadata) {
             Ok(user_metadata) => {
                 let mut file_helper = nfs::helper::FileHelper::new(self.client.clone());
-                file_helper.create(name, size, user_metadata, &self.directory_listing)
+                file_helper.create(name, user_metadata, &self.directory_listing)
             },
             Err(err) => Err(err),
         }
@@ -212,7 +254,7 @@ impl Container {
         match self.get_writer_for_blob(blob) {
             Ok(mut writer) => {
                 writer.write(data, 0);
-                Ok(())
+                writer.close()
             },
             Err(err) => Err(err),
         }
@@ -220,12 +262,12 @@ impl Container {
 
     /// Return a writter object for the Blob, through which the content of the blob can be updated
     /// This is useful while handling larger files, to enable writting content in parts
-    pub fn get_blob_writer(&mut self, blob: &nfs::rest::Blob, data: Vec<u8>) -> Result<nfs::io::Writer, String> {
+    pub fn get_blob_writer(&mut self, blob: &nfs::rest::Blob) -> Result<nfs::io::Writer, String> {
         self.get_writer_for_blob(blob)
     }
 
     /// Reads the content of the blob and returns the complete content
-    pub fn get_blob_content(&mut self, blob: nfs::rest::Blob) -> Result<Vec<u8>, String> {
+    pub fn get_blob_content(&mut self, blob: &nfs::rest::Blob) -> Result<Vec<u8>, String> {
         match self.get_reader_for_blob(blob) {
             Ok(mut reader) => {
                 let size = reader.size();
@@ -237,7 +279,7 @@ impl Container {
 
     /// Returns a reader for the blob
     /// Using a Reader helps in handling large file contents and also fetch data in a specific range
-    pub fn get_blob_reader(&mut self, blob: nfs::rest::blob::Blob) -> Result<nfs::io::reader::Reader, String> {
+    pub fn get_blob_reader(&mut self, blob: &nfs::rest::blob::Blob) -> Result<nfs::io::reader::Reader, String> {
         self.get_reader_for_blob(blob)
     }
 
@@ -246,14 +288,18 @@ impl Container {
         match self.find_file(&name, &self.directory_listing) {
             Some(blob) => {
                 let mut file_helper = nfs::helper::FileHelper::new(self.client.clone());
-                let versions = file_helper.get_versions(self.directory_listing.get_id(), &blob.convert_to_file());
-                Ok(Vec::new())
+                match file_helper.get_versions(self.directory_listing.get_id(), &blob.convert_to_file()) {
+                    Ok(versions) => {
+                        Ok(versions.iter().map(|x| x.0).collect())
+                    },
+                    Err(msg) => Err(msg)
+                }
             },
             None => Err("Blob not found".to_string())
         }
     }
 
-    /// Update the metadata of the Blob in the conatiner
+    /// Update the metadata of the Blob in the container
     pub fn update_blob_metadata(&mut self, name: String, metadata: Option<String>) ->Result<(), String> {
         match self.validate_metadata(metadata) {
             Ok(user_metadata) => {
@@ -269,7 +315,7 @@ impl Container {
         }
     }
 
-    /// Delete blob from the conatiner
+    /// Delete blob from the container
     pub fn delete_blob(&mut self, name: String) -> Result<(), String> {
         match self.directory_listing.get_files().iter().position(|file| *file.get_name() == name) {
             Some(pos) => {
@@ -284,16 +330,19 @@ impl Container {
         }
     }
 
-    /// Copies the latest blob version from the conatiner to the specified destination container
+    /// Copies the latest blob version from the container to the specified destination container
     pub fn copy_blob(&mut self, blob_name: String, to_container: [u8;64]) -> Result<(), String> {
         let to_dir_id = ::routing::NameType(to_container);
+        if *self.directory_listing.get_id() == to_dir_id {
+            return Err("Destination and Source containers are the same".to_string());
+        }
         let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
         match self.directory_listing.get_files().iter().position(|file| *file.get_name() == blob_name) {
             Some(file_pos) => {
                 match directory_helper.get(&to_dir_id) {
                     Ok(mut to_dir_listing) => {
                         match self.find_file(&blob_name, &to_dir_listing) {
-                            Some(_) => Err("File already exists in the destination Conatiner".to_string()),
+                            Some(_) => Err("File already exists in the destination Container".to_string()),
                             None => {
                                 let file = self.directory_listing.get_files()[file_pos].clone();
                                 to_dir_listing.get_mut_files().push(file);
@@ -319,7 +368,7 @@ impl Container {
         }
     }
 
-    fn get_reader_for_blob(&self, blob: nfs::rest::blob::Blob) -> Result<nfs::io::Reader, String> {
+    fn get_reader_for_blob(&self, blob: &nfs::rest::blob::Blob) -> Result<nfs::io::Reader, String> {
         match self.find_file(blob.get_name(), &self.directory_listing) {
             Some(_) => {
                 Ok(nfs::io::Reader::new(blob.convert_to_file().clone(), self.client.clone()))
@@ -358,4 +407,123 @@ impl Container {
         }
     }
 
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ::std::sync::Arc;
+    use ::std::sync::Mutex;
+    use ::std::collections::BTreeMap;
+    use std::thread::sleep_ms;
+    use ::client;
+    use ::client::Client;
+    use nfs::directory_listing::DirectoryListing;
+    use nfs::helper::DirectoryHelper;
+    use routing::NameType;
+
+    fn dummy_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+        let map = Arc::new(Mutex::new(BTreeMap::new()));
+
+        Client::create_account(&keyword, pin, &password, map).ok().unwrap()
+    }
+
+    fn test_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+        let data_store = client::non_networking_test_framework::get_new_data_store();
+
+        Client::create_account(&keyword, pin, &password, data_store.clone()).ok().unwrap()
+    }
+
+    #[test]
+    fn authorise_container() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        assert!(Container::authorise(client.clone(), None).is_ok(), true);
+    }
+
+
+    #[test]
+    fn create_container() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        let mut container = Container::authorise(client.clone(), None).unwrap();
+        container.create("Home".to_string()).unwrap();
+
+        assert_eq!(container.get_containers().len(), 1);
+        assert_eq!(container.get_containers()[0].get_name(), "Home");
+    }
+
+
+    #[test]
+    fn delete_container() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        let mut container = Container::authorise(client.clone(), None).unwrap();
+        container.create("Home".to_string()).unwrap();
+
+        assert_eq!(container.get_containers().len(), 1);
+        assert_eq!(container.get_containers()[0].get_name(), "Home");
+
+        container.delete_container("Home".to_string()).unwrap();
+
+        assert_eq!(container.get_containers().len(), 0);
+        assert_eq!(container.get_versions().unwrap().len(), 3);
+    }
+
+
+    #[test]
+    fn create_update_delete_blob() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        let mut container = Container::authorise(client.clone(), None).unwrap();
+        container.create("Home".to_string()).unwrap();
+
+        assert_eq!(container.get_containers().len(), 1);
+        assert_eq!(container.get_containers()[0].get_name(), "Home");
+
+        let mut home_container = container.get_container("Home".to_string(), None).unwrap();
+        let mut writer = home_container.create_blob("sample.txt".to_string(), None).unwrap();
+        let data = "Hello World!".to_string().into_bytes();
+        writer.write(&data[..], 0);
+        writer.close().unwrap();
+        home_container = container.get_container("Home".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob_versions("sample.txt".to_string()).unwrap().len(), 1);
+        let blob = home_container.get_blob("sample.txt".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob_content(&blob).unwrap(), data);
+
+
+        let data_updated = "Hello World updated!".to_string().into_bytes();
+        let _ = home_container.update_blob_content(&blob, &data_updated[..]).unwrap();
+        home_container = container.get_container("Home".to_string(), None).unwrap();
+        let blob = home_container.get_blob("sample.txt".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob_content(&blob).unwrap(), data_updated);
+
+        let versions = home_container.get_blob_versions("sample.txt".to_string()).unwrap();
+        assert_eq!(versions.len(), 2);
+        for i in 0..2 {
+            let blob = home_container.get_blob("sample.txt".to_string(), Some(versions[i])).unwrap();
+            if i == 0 {
+                assert_eq!(home_container.get_blob_content(&blob).unwrap(), data);
+            } else {
+                assert_eq!(home_container.get_blob_content(&blob).unwrap(), data_updated);
+            }
+        }
+        let metadata = "{\"purpose\": \"test\"}".to_string();
+        home_container.update_blob_metadata("sample.txt".to_string(), Some(metadata.clone())).unwrap();
+        home_container = container.get_container("Home".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob("sample.txt".to_string(), None).unwrap().get_metadata().unwrap(), metadata);
+
+        container.create("Public".to_string()).unwrap();
+        let mut public_container = container.get_container("Public".to_string(), None).unwrap();
+        assert_eq!(public_container.get_blobs().len(), 0);
+        home_container.copy_blob("sample.txt".to_string(), public_container.get_id());
+        public_container = container.get_container("Public".to_string(), None).unwrap();
+        assert_eq!(public_container.get_blobs().len(), 1);
+
+        home_container.delete_blob("sample.txt".to_string());
+        assert_eq!(home_container.get_blobs().len(), 0);
+    }
 }

@@ -52,14 +52,6 @@ impl File {
         self.datamap = datamap;
     }
 
-    pub fn set_metadata(&mut self, metadata: Metadata) {
-        self.metadata = metadata;
-    }
-
-    pub fn set_name(&mut self, name: String) {
-        self.metadata.set_name(name)
-    }
-
 }
 
 impl fmt::Debug for File {

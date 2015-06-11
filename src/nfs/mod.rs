@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-mod io;
+
 mod helper;
 mod file;
 mod metadata;
@@ -24,3 +24,4 @@ mod directory_listing;
 mod utils;
 
 pub mod rest;
+pub mod io;

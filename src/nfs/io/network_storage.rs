@@ -26,6 +26,7 @@ pub struct NetworkStorage {
 }
 
 impl NetworkStorage {
+    /// Create a new NetworkStorage instance
     pub fn new(client: ::std::sync::Arc<::std::sync::Mutex<client::Client>>) -> NetworkStorage {
         NetworkStorage {
             client: client
@@ -33,7 +34,7 @@ impl NetworkStorage {
     }
 }
 
-// FIXME There is no error handling mechanism in self_encryption::Storage?
+
 impl self_encryption::Storage for NetworkStorage {
 
     fn get(&self, name: Vec<u8>) -> Vec<u8> {
@@ -56,14 +57,13 @@ impl self_encryption::Storage for NetworkStorage {
         }
     }
 
-    #[allow(unused_must_use)]
     fn put(&self, _: Vec<u8>, data: Vec<u8>) {
         let sendable = maidsafe_types::ImmutableData::new(data);
         let client_mutex = self.client.clone();
         let mut client = client_mutex.lock().unwrap();
         let put_result = client.put(sendable);
         if put_result.is_ok() {
-            put_result.ok().unwrap().get();
+            let _ = put_result.ok().unwrap().get();
         }
     }
 

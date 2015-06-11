@@ -14,7 +14,6 @@
 //
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
-#[allow(dead_code)]
 use nfs;
 use std::sync;
 use super::network_storage::NetworkStorage;
@@ -30,6 +29,7 @@ pub struct Writer {
 
 impl Writer {
 
+    /// Create new instance of Writer
     pub fn new(directory: nfs::directory_listing::DirectoryListing, file: nfs::file::File,
         client: ::std::sync::Arc<::std::sync::Mutex<client::Client>>) -> Writer {
         let storage = sync::Arc::new(NetworkStorage::new(client.clone()));
@@ -41,10 +41,13 @@ impl Writer {
         }
     }
 
+    /// Data of a file/blob can be written in smaller chunks
     pub fn write(&mut self, data: &[u8], position: u64) {
         self.self_encryptor.write(data, position);
     }
 
+    /// close is invoked only after alll the data is completely written
+    /// The file/blob is saved only when the close is invoked.
     pub fn close(mut self) -> Result<(), String> {
         let ref mut file = self.file;
         let ref mut directory = self.directory;
@@ -55,14 +58,8 @@ impl Writer {
         file.get_mut_metadata().set_modified_time(::time::now_utc());
         file.get_mut_metadata().set_size(size);
 
-        match directory.get_files().iter().find(|entry| entry.get_name() == file.get_name()) {
-            Some(_) => {
-                directory.upsert_file(file.clone());
-            },
-            None => {
-                directory.add_file(file.clone());
-            }
-        };
+        directory.upsert_file(file.clone());
+
         let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
         match directory_helper.update(directory) {
             Ok(_) => Ok(()),

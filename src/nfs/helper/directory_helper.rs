@@ -93,8 +93,7 @@ impl DirectoryHelper {
 
     /// Return the DirectoryListing for the latest version
     pub fn get(&mut self, directory_id: &routing::NameType) -> Result<nfs::directory_listing::DirectoryListing, String> {
-        let structured_data_type_id: maidsafe_types::data::StructuredDataTypeTag = unsafe { ::std::mem::uninitialized() };
-        let sdv_res = self.network_get(structured_data_type_id.type_tag(), directory_id);
+        let structured_data_type_id: maidsafe_types::data::StructuredDataTypeTag = unsafe { ::std::mem::uninitialized() };        
         match self.network_get(structured_data_type_id.type_tag(), directory_id) {
             Ok(serialised_sdv) => {
                 let sdv: maidsafe_types::StructuredData = nfs::utils::deserialise(serialised_sdv);
@@ -233,7 +232,6 @@ mod test {
         let client = ::std::sync::Arc::new(::std::sync::Mutex::new(get_dummy_client()));
         let mut dir_helper = DirectoryHelper::new(client.clone());
 
-        let parent_id = ::routing::NameType::new([8u8; 64]);
         let created_dir_id: _;
         {
             let put_result = dir_helper.create("DirName".to_string(),
@@ -283,7 +281,7 @@ mod test {
         assert_eq!(versions.len(), 1);
 
         {
-            dir_listing.set_name("NewName".to_string());
+            dir_listing.get_mut_metadata().set_name("NewName".to_string());
             let update_result = dir_helper.update(&dir_listing);
             assert!(update_result.is_ok());
         }
@@ -312,7 +310,7 @@ mod test {
             let rxd_dir_listing = get_result.ok().unwrap();
 
             assert!(rxd_dir_listing != dir_listing);
-            assert_eq!(*rxd_dir_listing.get_name(), "DirName2".to_string());
+            assert_eq!(*rxd_dir_listing.get_metadata().get_name(), "DirName2".to_string());
         }
     }
 }
