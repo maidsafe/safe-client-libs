@@ -50,11 +50,11 @@ impl Client {
         let notifier = ::std::sync::Arc::new((::std::sync::Mutex::new(0), ::std::sync::Condvar::new()));
         let account_packet = user_account::Account::new(None);
         let callback_interface = ::std::sync::Arc::new(::std::sync::Mutex::new(callback_interface::CallbackInterface::new(notifier.clone())));
-        let client_id_packet = routing::routing_client::ClientIdPacket::new(account_packet.get_maid().public_keys().clone(),
-                                                                            account_packet.get_maid().secret_keys().clone());
+        let id_packet = routing::types::Id::with_keys(account_packet.get_maid().public_keys().clone(),
+                                                      account_packet.get_maid().secret_keys().clone());
 
         //TODO: Toggle depending on if using actual routing or non_networking_test_framework
-        // let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), client_id_packet)));
+        // let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), id_packet)));
         let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(non_networking_test_framework::RoutingClientMock::new(callback_interface.clone(), data_store)));
         let cloned_routing_client = routing_client.clone();
         let routing_stop_flag = ::std::sync::Arc::new(::std::sync::Mutex::new(false));
@@ -120,8 +120,8 @@ impl Client {
         let user_network_id = user_account::Account::generate_network_id(keyword, pin);
         let fake_account_packet = user_account::Account::new(None);
         let callback_interface = ::std::sync::Arc::new(::std::sync::Mutex::new(callback_interface::CallbackInterface::new(notifier.clone())));
-        let fake_client_id_packet = routing::routing_client::ClientIdPacket::new(fake_account_packet.get_maid().public_keys().clone(),
-                                                                                 fake_account_packet.get_maid().secret_keys().clone());
+        let fake_id_packet = routing::types::Id::with_keys(fake_account_packet.get_maid().public_keys().clone(),
+                                                           fake_account_packet.get_maid().secret_keys().clone());
 
         //TODO: Toggle depending on if using actual routing or non_networking_test_framework
         // let fake_routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), fake_client_id_packet)));
@@ -181,11 +181,11 @@ impl Client {
                                                 }
                                                 let account_packet = decryption_result.ok().unwrap();
 
-                                                let client_id_packet = routing::routing_client::ClientIdPacket::new(account_packet.get_maid().public_keys().clone(),
-                                                                                                                    account_packet.get_maid().secret_keys().clone());
+                                                let id_packet = routing::types::Id::with_keys(account_packet.get_maid().public_keys().clone(),
+                                                                                              account_packet.get_maid().secret_keys().clone());
 
                                                 //TODO: Toggle depending on if using actual routing or non_networking_test_framework
-                                                // let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), client_id_packet)));
+                                                // let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(routing::routing_client::RoutingClient::new(callback_interface.clone(), id_packet)));
                                                 let routing_client = ::std::sync::Arc::new(::std::sync::Mutex::new(non_networking_test_framework::RoutingClientMock::new(callback_interface.clone(), data_store)));
                                                 let cloned_routing_client = routing_client.clone();
                                                 let routing_stop_flag = ::std::sync::Arc::new(::std::sync::Mutex::new(false));
