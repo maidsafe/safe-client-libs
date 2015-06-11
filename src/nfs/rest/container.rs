@@ -170,20 +170,20 @@ impl Container {
             }).collect()
     }
 
-    /// Updates the metadata of the container
-    pub fn update_metadata(&mut self, metadata: Option<String>) -> Result<(), String>{
-        match self.validate_metadata(metadata) {
-            Ok(user_metadata) => {
-                self.directory_listing.get_mut_metadata().set_user_metadata(user_metadata);
-                let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
-                match directory_helper.update(&self.directory_listing) {
-                    Ok(_) => Ok(()),
-                    Err(msg) => Err(msg),
-                }
-            },
-            Err(err) => Err(err),
-        }
-    }
+    // /// Updates the metadata of the container
+    // pub fn update_metadata(&mut self, metadata: Option<String>) -> Result<(), String>{
+    //     match self.validate_metadata(metadata) {
+    //         Ok(user_metadata) => {
+    //             self.directory_listing.get_mut_metadata().set_user_metadata(user_metadata);
+    //             let mut directory_helper = nfs::helper::DirectoryHelper::new(self.client.clone());
+    //             match directory_helper.update(&self.directory_listing) {
+    //                 Ok(_) => Ok(()),
+    //                 Err(msg) => Err(msg),
+    //             }
+    //         },
+    //         Err(err) => Err(err),
+    //     }
+    // }
 
     /// Retrieves Versions for the container
     pub fn get_versions(&mut self) -> Result<Vec<[u8;64]>, String> {
@@ -258,7 +258,7 @@ impl Container {
         match self.get_writer_for_blob(blob) {
             Ok(mut writer) => {
                 writer.write(data, 0);
-                Ok(())
+                writer.close()
             },
             Err(err) => Err(err),
         }
@@ -411,4 +411,123 @@ impl Container {
         }
     }
 
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ::std::sync::Arc;
+    use ::std::sync::Mutex;
+    use ::std::collections::BTreeMap;
+    use std::thread::sleep_ms;
+    use ::client;
+    use ::client::Client;
+    use nfs::directory_listing::DirectoryListing;
+    use nfs::helper::DirectoryHelper;
+    use routing::NameType;
+
+    fn dummy_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+        let map = Arc::new(Mutex::new(BTreeMap::new()));
+
+        Client::create_account(&keyword, pin, &password, map).ok().unwrap()
+    }
+
+    fn test_client() -> Client {
+        let keyword = "keyword".to_string();
+        let password = "password".as_bytes();
+        let pin = 1234u32;
+        let data_store = client::non_networking_test_framework::get_new_data_store();
+
+        Client::create_account(&keyword, pin, &password, data_store.clone()).ok().unwrap()
+    }
+
+    #[test]
+    fn authorise_container() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        assert!(Container::authorise(client.clone(), None).is_ok(), true);
+    }
+
+
+    #[test]
+    fn create_container() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        let mut container = Container::authorise(client.clone(), None).unwrap();
+        container.create("Home".to_string(), None).unwrap();
+
+        assert_eq!(container.get_containers().len(), 1);
+        assert_eq!(container.get_containers()[0].get_name(), "Home");
+    }
+
+
+    #[test]
+    fn delete_container() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        let mut container = Container::authorise(client.clone(), None).unwrap();
+        container.create("Home".to_string(), None).unwrap();
+
+        assert_eq!(container.get_containers().len(), 1);
+        assert_eq!(container.get_containers()[0].get_name(), "Home");
+
+        container.delete_container("Home".to_string()).unwrap();
+
+        assert_eq!(container.get_containers().len(), 0);
+        assert_eq!(container.get_versions().unwrap().len(), 3);
+    }
+
+
+    #[test]
+    fn create_update_delete_blob() {
+        let mut client = Arc::new(Mutex::new(test_client()));
+        let mut container = Container::authorise(client.clone(), None).unwrap();
+        container.create("Home".to_string(), None).unwrap();
+
+        assert_eq!(container.get_containers().len(), 1);
+        assert_eq!(container.get_containers()[0].get_name(), "Home");
+
+        let mut home_container = container.get_container("Home".to_string(), None).unwrap();
+        let mut writer = home_container.create_blob("sample.txt".to_string(), None).unwrap();
+        let data = "Hello World!".to_string().into_bytes();
+        writer.write(&data[..], 0);
+        writer.close().unwrap();
+        home_container = container.get_container("Home".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob_versions("sample.txt".to_string()).unwrap().len(), 1);
+        let blob = home_container.get_blob("sample.txt".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob_content(&blob).unwrap(), data);
+
+
+        let data_updated = "Hello World updated!".to_string().into_bytes();
+        let _ = home_container.update_blob_content(&blob, &data_updated[..]).unwrap();
+        home_container = container.get_container("Home".to_string(), None).unwrap();
+        let blob = home_container.get_blob("sample.txt".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob_content(&blob).unwrap(), data_updated);
+
+        let versions = home_container.get_blob_versions("sample.txt".to_string()).unwrap();
+        assert_eq!(versions.len(), 2);
+        for i in 0..2 {
+            let blob = home_container.get_blob("sample.txt".to_string(), Some(versions[i])).unwrap();
+            if i == 0 {
+                assert_eq!(home_container.get_blob_content(&blob).unwrap(), data);
+            } else {
+                assert_eq!(home_container.get_blob_content(&blob).unwrap(), data_updated);
+            }
+        }
+        let metadata = "{\"purpose\": \"test\"}".to_string();
+        home_container.update_blob_metadata("sample.txt".to_string(), Some(metadata.clone())).unwrap();
+        home_container = container.get_container("Home".to_string(), None).unwrap();
+        assert_eq!(home_container.get_blob("sample.txt".to_string(), None).unwrap().get_metadata().unwrap(), metadata);
+
+        container.create("Public".to_string(), None).unwrap();
+        let mut public_container = container.get_container("Public".to_string(), None).unwrap();
+        assert_eq!(public_container.get_blobs().len(), 0);
+        home_container.copy_blob("sample.txt".to_string(), public_container.get_id());
+        public_container = container.get_container("Public".to_string(), None).unwrap();
+        assert_eq!(public_container.get_blobs().len(), 1);
+
+        home_container.delete_blob("sample.txt".to_string());
+        assert_eq!(home_container.get_blobs().len(), 0);
+    }
 }
