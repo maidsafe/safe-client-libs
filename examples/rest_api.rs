@@ -125,7 +125,7 @@ fn container_operation(option: u32, container: &mut nfs::rest::Container) {
     match option {
         1 => {// Create container
             let name = get_user_string("Container name");
-            match container.create(name.clone(), None) {
+            match container.create(name.clone()) {
                 Ok(_) => println!("Created Container - {}", name),
                 Err(msg) => println!("Failed :: {}", msg)
             }

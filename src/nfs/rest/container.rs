@@ -77,10 +77,12 @@ impl Container {
     }
 
     /// Creates a Container
-    pub fn create(&mut self, name: String, metadata: Option<String>) -> Result<(), String> {
+    pub fn create(&mut self, name: String) -> Result<(), String> {
         if name.is_empty() {
             return Err("Name can not be empty".to_string());
         }
+        // TODO add metadata support to containers
+        let metadata = None;
         match self.validate_metadata(metadata) {
             Ok(user_metadata) => {
                 match self.directory_listing.get_sub_directories().iter().find(|&entry| *entry.get_name() == name) {
@@ -456,7 +458,7 @@ mod test {
     fn create_container() {
         let mut client = Arc::new(Mutex::new(test_client()));
         let mut container = Container::authorise(client.clone(), None).unwrap();
-        container.create("Home".to_string(), None).unwrap();
+        container.create("Home".to_string()).unwrap();
 
         assert_eq!(container.get_containers().len(), 1);
         assert_eq!(container.get_containers()[0].get_name(), "Home");
@@ -467,7 +469,7 @@ mod test {
     fn delete_container() {
         let mut client = Arc::new(Mutex::new(test_client()));
         let mut container = Container::authorise(client.clone(), None).unwrap();
-        container.create("Home".to_string(), None).unwrap();
+        container.create("Home".to_string()).unwrap();
 
         assert_eq!(container.get_containers().len(), 1);
         assert_eq!(container.get_containers()[0].get_name(), "Home");
@@ -483,7 +485,7 @@ mod test {
     fn create_update_delete_blob() {
         let mut client = Arc::new(Mutex::new(test_client()));
         let mut container = Container::authorise(client.clone(), None).unwrap();
-        container.create("Home".to_string(), None).unwrap();
+        container.create("Home".to_string()).unwrap();
 
         assert_eq!(container.get_containers().len(), 1);
         assert_eq!(container.get_containers()[0].get_name(), "Home");
@@ -520,7 +522,7 @@ mod test {
         home_container = container.get_container("Home".to_string(), None).unwrap();
         assert_eq!(home_container.get_blob("sample.txt".to_string(), None).unwrap().get_metadata().unwrap(), metadata);
 
-        container.create("Public".to_string(), None).unwrap();
+        container.create("Public".to_string()).unwrap();
         let mut public_container = container.get_container("Public".to_string(), None).unwrap();
         assert_eq!(public_container.get_blobs().len(), 0);
         home_container.copy_blob("sample.txt".to_string(), public_container.get_id());
