@@ -39,26 +39,20 @@ impl Container {
             None => {
                 let mut set_root_id = false;
                  {
-                     let arc_client = client.clone();
-                     let mutex_client = arc_client.lock().unwrap();
-                     if mutex_client.get_root_directory_id().is_none() {
+                     if client.lock().unwrap().get_root_directory_id().is_none() {
                          set_root_id = true;
                      }
                  }
                  if set_root_id {
                      match directory_helper.create("root".to_string(), Vec::new()) {
                          Ok(dir_id) =>  {
-                             let arc_client = client.clone();
-                             let mut mutex_client = arc_client.lock().unwrap();
-                             let _ = mutex_client.set_root_directory_id(dir_id.clone());
+                             let _ = client.lock().unwrap().set_root_directory_id(dir_id.clone());
                              directory_id = dir_id;
                          },
                          Err(msg) => println!("Error:: {}", msg)
                      }
                  } else {
-                     let arc_client = client.clone();
-                     let mutex_client = arc_client.lock().unwrap();
-                     directory_id = mutex_client.get_root_directory_id().unwrap().clone();
+                     directory_id = client.lock().unwrap().get_root_directory_id().unwrap().clone();
                  }
             }
         };

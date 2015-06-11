@@ -74,7 +74,7 @@ impl fmt::Display for DirectoryInfo {
 mod test {
     use super::*;
     use nfs::metadata::Metadata;
-    use cbor;    
+    use cbor;
 
     #[test]
     fn serialise() {

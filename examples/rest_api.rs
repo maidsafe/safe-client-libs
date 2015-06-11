@@ -361,7 +361,7 @@ fn main() {
         Ok(authorised_client) => client = ::std::sync::Arc::new(::std::sync::Mutex::new(authorised_client)),
         Err(msg) => panic!(msg)
     }
-    println!("-- initializing storage ----\n");
+    println!("\n\t-- Preparing storage ----\n");
     let mut root_container = get_root_container(&client);
     println!("\n\n------  (Tip) Start by creating a container and then store blob, modify blob within the container --------------------");
     loop {

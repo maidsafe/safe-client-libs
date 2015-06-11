@@ -98,7 +98,7 @@ impl fmt::Display for DirectoryListing {
 #[cfg(test)]
 mod test {
     use super::*;
-    use cbor;    
+    use cbor;
 
     #[test]
     fn serialise() {
