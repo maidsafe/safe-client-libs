@@ -28,7 +28,7 @@
             - [X] [MAID-1083](https://maidsafe.atlassian.net/browse/MAID-1083) Get Versions
             - [X] [MAID-1084](https://maidsafe.atlassian.net/browse/MAID-1084) Read File
         - [X] [MAID-1085](https://maidsafe.atlassian.net/browse/MAID-1085) Unit test cases for Directory and File Helpers
-    - [ ] Implement REST DataTypes
+    - [X] Implement REST DataTypes
         - [X] [MAID-1086](https://maidsafe.atlassian.net/browse/MAID-1086) Container & Blob types
             - [X] Implement Blob and Container types
             - [X] Implement FileWrapper trait for Blob
@@ -53,5 +53,5 @@
     - [X] [MAID-1102](https://maidsafe.atlassian.net/browse/MAID-1102) Self authentication Example
     - [X] [MAID-1103](https://maidsafe.atlassian.net/browse/MAID-1103) Example to demonstrate Storage API
 
-## [0.1] Finish sprint
+    ## [0.1] Finish sprint
     - [ ] [MAID-1104](https://maidsafe.atlassian.net/browse/MAID-1104) Validate above example against Local network / droplet
