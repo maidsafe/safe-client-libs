@@ -10,6 +10,14 @@
 
 | [API Documentation](http://maidsafe.github.io/maidsafe_client/)| [SAFENetwork System Documention](http://systemdocs.maidsafe.net/) | [MaidSafe website](http://www.maidsafe.net) | [Safe Community site](https://forum.safenetwork.io) |
 
+
+###Pre-requisite:
+libsodium is a native dependency for [sodiumxoide](https://github.com/dnaq/sodiumoxide). Thus, install sodium by following the instructions [here](http://doc.libsodium.org/installation/index.html).
+
+For windows, download and use the [prebuilt mingw library](https://download.libsodium.org/libsodium/releases/libsodium-1.0.2-mingw.tar.gz).
+Extract and place the libsodium.a file in "bin\x86_64-pc-windows-gnu" for 64bit System, or "bin\i686-pc-windows-gnu" for a 32bit system.
+
+
 #Todo
 - [X] [MAID-1077](https://maidsafe.atlassian.net/browse/MAID-1077) Account Creation
     - [X] [MAID-1078](https://maidsafe.atlassian.net/browse/MAID-1078) Register
