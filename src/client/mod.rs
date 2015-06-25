@@ -24,7 +24,7 @@ use crypto::buffer::WriteBuffer;
 
 use routing;
 use maidsafe_types;
-use maidsafe_types::TypeTag;
+use maidsafe_types::{Payload, PayloadTypeTag, TypeTag};
 use routing::sendable::Sendable;
 
 mod user_account;
@@ -95,7 +95,7 @@ impl Client {
             routing_join_handle: Some(::std::thread::spawn(move || {
                 let _ = cloned_routing_client.lock().unwrap().bootstrap(None, None);
                 while !*routing_stop_flag_clone.lock().unwrap() {
-                    ::std::thread::sleep_ms(10);
+                    ::std::thread::sleep_ms(1);
                     cloned_routing_client.lock().unwrap().run();
                 }
             })),
@@ -103,36 +103,50 @@ impl Client {
 
         {
             let destination = client.account.get_public_maid().name();
-            let boxed_public_maid = Box::new(client.account.get_public_maid().clone());
-            let _ = client.routing.lock().unwrap().unauthorised_put(destination, boxed_public_maid);
+            let public_maid = client.account.get_public_maid().clone();
+            let payload = Payload::new(PayloadTypeTag::PublicMaid, &public_maid);
+            let _ = client.routing.lock().unwrap().unauthorised_put(destination, Box::new(payload));
         }
 
         let encrypted_account = maidsafe_types::ImmutableData::new(client.account.encrypt(password, pin).ok().unwrap());
-        let put_res = client.routing.lock().unwrap().put(encrypted_account.clone());
+        let payload = Payload::new(PayloadTypeTag::ImmutableData, &encrypted_account);
+        let put_res = client.routing.lock().unwrap().put(payload);
         match put_res {
-            Ok(id) => {
-                let mut response_getter = response_getter::ResponseGetter::new(client.response_notifier.clone(), client.callback_interface.clone(), Some(id), None);
-                match response_getter.get() {
-                    Ok(_) => {
-                        let account_versions = maidsafe_types::StructuredData::new(client.session_packet_id.clone(),
-                                                                                   client.account.get_public_maid().name(),
-                                                                                   vec![encrypted_account.name()]);
-
-                        let put_res = client.routing.lock().unwrap().put(account_versions);
-
-                        match put_res {
-                            Ok(id) => {
-                                let mut response_getter = response_getter::ResponseGetter::new(client.response_notifier.clone(), client.callback_interface.clone(), Some(id), None);
-                                match response_getter.get() {
-                                    Ok(_) => Ok(client),
-                                    Err(_) => Err(::IoError::new(::std::io::ErrorKind::Other, "Version-Packet PUT-Response Failure !!")),
-                                }
-                            },
-                            Err(io_error) => Err(io_error),
-                        }
-                    },
-                    Err(_) => Err(::IoError::new(::std::io::ErrorKind::Other, "Session-Packet PUT-Response Failure !!")),
+            Ok(_) => {
+                // Vault network does not guarantee to give a put response, the waiting for that shall not be blocking
+                // a put response will only be given when MaidManager reject the put request because of low allownance
+                let account_versions = maidsafe_types::StructuredData::new(client.session_packet_id.clone(),
+                                                                           client.account.get_public_maid().name(),
+                                                                           vec![encrypted_account.name()]);
+                let payload = Payload::new(PayloadTypeTag::StructuredData, &account_versions);
+                let put_res = client.routing.lock().unwrap().put(payload);
+                match put_res {
+                    Ok(_) => Ok(client),
+                    Err(io_error) => Err(io_error),
                 }
+
+                // let mut response_getter = response_getter::ResponseGetter::new(client.response_notifier.clone(), client.callback_interface.clone(), Some(id), None);
+                // match response_getter.get() {
+                //     Ok(_) => {
+                //         let account_versions = maidsafe_types::StructuredData::new(client.session_packet_id.clone(),
+                //                                                                    client.account.get_public_maid().name(),
+                //                                                                    vec![encrypted_account.name()]);
+
+                //         let put_res = client.routing.lock().unwrap().put(account_versions);
+
+                //         match put_res {
+                //             Ok(id) => {
+                //                 let mut response_getter = response_getter::ResponseGetter::new(client.response_notifier.clone(), client.callback_interface.clone(), Some(id), None);
+                //                 match response_getter.get() {
+                //                     Ok(_) => Ok(client),
+                //                     Err(_) => Err(::IoError::new(::std::io::ErrorKind::Other, "Version-Packet PUT-Response Failure !!")),
+                //                 }
+                //             },
+                //             Err(io_error) => Err(io_error),
+                //         }
+                //     },
+                //     Err(_) => Err(::IoError::new(::std::io::ErrorKind::Other, "Session-Packet PUT-Response Failure !!")),
+                // }
             },
             Err(io_error) => Err(io_error),
         }
@@ -173,12 +187,12 @@ impl Client {
             join_handle: Some(::std::thread::spawn(move || {
                 let _ = cloned_fake_routing_client.lock().unwrap().bootstrap(None, None);
                 while !*fake_routing_stop_flag_clone.lock().unwrap() {
-                    ::std::thread::sleep_ms(10);
+                    ::std::thread::sleep_ms(1);
                     cloned_fake_routing_client.lock().unwrap().run();
                 }
             })),
         };
-
+        ::std::thread::sleep_ms(10000);
         let structured_data_type_id = maidsafe_types::data::StructuredDataTypeTag;
         let get_result = fake_routing_client.lock().unwrap().get(structured_data_type_id.type_tag(), user_network_id);
 
@@ -188,8 +202,8 @@ impl Client {
                 match response_getter.get() {
                     Ok(raw_data) => {
                         let mut decoder = cbor::Decoder::from_bytes(raw_data);
-                        let account_versions: maidsafe_types::StructuredData = decoder.decode().next().unwrap().unwrap();
-
+                        let payload: Payload = decoder.decode().next().unwrap().unwrap();
+                        let account_versions: maidsafe_types::StructuredData = payload.get_data();
                         match account_versions.value().pop() {
                             Some(latest_version) => {
                                 let immutable_data_type_id = maidsafe_types::data::ImmutableDataTypeTag;
@@ -200,8 +214,8 @@ impl Client {
                                         match response_getter.get() {
                                             Ok(raw_data) => {
                                                 let mut decoder = cbor::Decoder::from_bytes(raw_data);
-                                                let encrypted_account_packet: maidsafe_types::ImmutableData = decoder.decode().next().unwrap().unwrap();
-
+                                                let payload: Payload = decoder.decode().next().unwrap().unwrap();
+                                                let encrypted_account_packet: maidsafe_types::ImmutableData = payload.get_data();
                                                 let decryption_result = user_account::Account::decrypt(&encrypted_account_packet.value()[..], password, pin);
                                                 if decryption_result.is_err() {
                                                     return Err(::IoError::new(::std::io::ErrorKind::Other, "Could Not Decrypt Session Packet !! (Probably Wrong Password)"));
@@ -215,7 +229,7 @@ impl Client {
                                                 let cloned_routing_client = routing_client.clone();
                                                 let routing_stop_flag = ::std::sync::Arc::new(::std::sync::Mutex::new(false));
                                                 let routing_stop_flag_clone = routing_stop_flag.clone();
-
+                                                println!("\n returning");
                                                 let client = Client {
                                                     account: account_packet,
                                                     session_packet_id: user_account::Account::generate_network_id(keyword, pin),
