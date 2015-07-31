@@ -2,7 +2,7 @@ os:
   - linux
 
 language: rust
-rust: 
+rust:
 #    - 1.0.0-beta
     - nightly
 sudo: true
@@ -33,7 +33,7 @@ after_success: |
     rm -rf .git*;
     # lines 27 - 31 is a patch script for handling old gh-pages structure
     OLD_FILE=$(ls | grep "main.js");
-    if [[ $OLD_FILE == main* ]]; then 
+    if [[ $OLD_FILE == main* ]]; then
       rm -rf * &&
       echo "<meta http-equiv=refresh content=0;url=master/`echo $TRAVIS_REPO_SLUG | cut -d '/' -f 2`/index.html>" > index.html;
     fi
@@ -61,5 +61,5 @@ after_success: |
     make &&
     sudo make install &&
     cd ../.. &&
-    kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/maidsafe_client-*;
+    kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/safe_client-*;
   fi

@@ -24,7 +24,7 @@
 /// ```
 /// // Generating public and secret keys using sodiumoxide
 /// // Create RevocationIdType
-/// let an_maid = ::maidsafe_client::id::RevocationIdType::new::<::maidsafe_client::id::MaidTypeTags>();
+/// let an_maid = ::safe_client::id::RevocationIdType::new::<::safe_client::id::MaidTypeTags>();
 /// ```
 ///
 

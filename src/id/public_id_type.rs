@@ -20,9 +20,9 @@
 /// #Examples
 ///
 /// ```
-/// use ::maidsafe_client::id::{IdType, RevocationIdType, MaidTypeTags, PublicIdType};
+/// use ::safe_client::id::{IdType, RevocationIdType, MaidTypeTags, PublicIdType};
 ///
-///  let revocation_maid = RevocationIdType::new::<::maidsafe_client::id::MaidTypeTags>();
+///  let revocation_maid = RevocationIdType::new::<::safe_client::id::MaidTypeTags>();
 ///  let maid = IdType::new(&revocation_maid);
 ///  let public_maid  = PublicIdType::new(&maid, &revocation_maid);
 /// ```

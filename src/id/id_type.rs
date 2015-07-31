@@ -19,7 +19,7 @@
 ///
 /// #Examples
 /// ```
-/// use ::maidsafe_client::id::{IdType, RevocationIdType, MaidTypeTags};
+/// use ::safe_client::id::{IdType, RevocationIdType, MaidTypeTags};
 /// // Creating new IdType
 /// let maid  = IdType::new(&RevocationIdType::new::<MaidTypeTags>());
 ///

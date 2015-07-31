@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-extern crate maidsafe_client;
+extern crate safe_client;
 
 fn main() {
     let mut keyword = String::new();
@@ -48,7 +48,7 @@ fn main() {
     {
         println!("\nTrying to create an account ...");
 
-        match maidsafe_client::client::Client::create_account(&keyword, pin, &password) {
+        match safe_client::client::Client::create_account(&keyword, pin, &password) {
             Ok(_) => println!("Account Created Successfully !!"),
             Err(error)  => println!("Account Creation Failed !! Reason: {}", error),
         }
@@ -60,7 +60,7 @@ fn main() {
     // Log into the created account
     {
         println!("\nTrying to log into the created account using supplied credentials ...");
-        match maidsafe_client::client::Client::log_in(&keyword, pin, &password) {
+        match safe_client::client::Client::log_in(&keyword, pin, &password) {
             Ok(_) => println!("Account Login Successful !!"),
             Err(error)  => println!("Account Login Failed !! Reason: {}", error),
         }
@@ -94,7 +94,7 @@ fn main() {
         // Log into the created account
         {
             println!("\nTrying to log in ...");
-            match maidsafe_client::client::Client::log_in(&keyword, pin, &password) {
+            match safe_client::client::Client::log_in(&keyword, pin, &password) {
                 Ok(_) => {
                     println!("Account Login Successful !!");
                     break;

@@ -1,10 +1,10 @@
 [package]
-name          = "maidsafe_client"
+name          = "safe_client"
 version       = "0.1.2"
 authors       = ["MaidSafe Developers <dev@maidsafe.net>"]
-description   = "Maidsafe Client API library"
-documentation = "http://maidsafe.github.io/maidsafe_client/latest/"
-repository    = "https://github.com/maidsafe/maidsafe_client"
+description   = "SAFE Client API library"
+documentation = "http://maidsafe.github.io/safe_client/latest/"
+repository    = "https://github.com/maidsafe/safe_client"
 readme        = "README.md"
 license       = "GPL-3.0"
 homepage      = "http://maidsafe.net"
