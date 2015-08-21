@@ -25,30 +25,31 @@
 ///
 /// ```
 
-#[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone)]
 pub struct IdType {
-    type_tag   : u64,
+    type_tag: u64,
     public_keys: (::sodiumoxide::crypto::sign::PublicKey, ::sodiumoxide::crypto::box_::PublicKey),
     secret_keys: (::sodiumoxide::crypto::sign::SecretKey, ::sodiumoxide::crypto::box_::SecretKey),
 }
 
 impl IdType {
+
     /// Invoked to create an instance of IdType
     pub fn new(revocation_id: &::id::RevocationIdType) -> IdType {
         let asym_keys = ::sodiumoxide::crypto::box_::gen_keypair();
         let signing_keys = ::sodiumoxide::crypto::sign::gen_keypair();
 
         IdType {
-            type_tag   : revocation_id.type_tags().1,
+            type_tag: revocation_id.type_tags().1,
             public_keys: (signing_keys.0, asym_keys.0),
             secret_keys: (signing_keys.1, asym_keys.1),
         }
-    }
 
+    }
     /// Returns name
     pub fn name(&self) -> ::routing::NameType {
         let combined_iter = (&self.public_keys.0).0.into_iter().chain((&self.public_keys.1).0.into_iter());
-        let mut combined = Vec::new();
+        let mut combined: Vec<u8> = Vec::new();
         for iter in combined_iter {
             combined.push(*iter);
         }
@@ -87,6 +88,76 @@ impl IdType {
                 from : &::sodiumoxide::crypto::box_::PublicKey) -> Result<Vec<u8>, ::errors::ClientError> {
         ::sodiumoxide::crypto::box_::open(&data, &nonce, &from, &self.secret_keys.1).map_err(|_| ::errors::ClientError::AsymmetricDecipherFailure)
     }
+
+}
+
+impl PartialEq for IdType {
+
+    fn eq(&self, other: &IdType) -> bool {
+        // Private keys are mathematically linked, so just check public keys
+        &self.type_tag == &other.type_tag &&
+        ::utility::slice_equal(&self.public_keys.0 .0, &other.public_keys.0 .0) &&
+        ::utility::slice_equal(&self.public_keys.1 .0, &other.public_keys.1 .0)
+    }
+
+}
+
+impl ::std::fmt::Debug for IdType {
+
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "IdType {{ type_tag:{}, public_keys: ({:?}, {:?}) }}", self.type_tag, self.public_keys.0 .0.to_vec(), self.public_keys.1 .0.to_vec())
+    }
+
+}
+
+impl ::rustc_serialize::Encodable for IdType {
+
+    fn encode<E: ::rustc_serialize::Encoder>(&self, e: &mut E) -> Result<(), E::Error> {
+        let (::sodiumoxide::crypto::sign::PublicKey(pub_sign_vec), ::sodiumoxide::crypto::box_::PublicKey(pub_asym_vec)) = self.public_keys;
+        let (::sodiumoxide::crypto::sign::SecretKey(sec_sign_vec), ::sodiumoxide::crypto::box_::SecretKey(sec_asym_vec)) = self.secret_keys;
+        let type_vec = self.type_tag.to_string().into_bytes();
+
+        ::cbor::CborTagEncode::new(self.type_tag, &(type_vec,
+                                                    pub_sign_vec.as_ref(),
+                                                    pub_asym_vec.as_ref(),
+                                                    sec_sign_vec.as_ref(),
+                                                    sec_asym_vec.as_ref())).encode(e)
+    }
+
+}
+
+impl ::rustc_serialize::Decodable for IdType {
+
+    fn decode<D: ::rustc_serialize::Decoder>(d: &mut D) -> Result<IdType, D::Error> {
+        let _ = try!(d.read_u64());
+        let (tag_type_vec, pub_sign_vec, pub_asym_vec, sec_sign_vec, sec_asym_vec) :
+            (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) = try!(::rustc_serialize::Decodable::decode(d));
+        let pub_sign_arr = convert_to_array!(pub_sign_vec, ::sodiumoxide::crypto::sign::PUBLICKEYBYTES);
+        let pub_asym_arr = convert_to_array!(pub_asym_vec, ::sodiumoxide::crypto::box_::PUBLICKEYBYTES);
+        let sec_sign_arr = convert_to_array!(sec_sign_vec, ::sodiumoxide::crypto::sign::SECRETKEYBYTES);
+        let sec_asym_arr = convert_to_array!(sec_asym_vec, ::sodiumoxide::crypto::box_::SECRETKEYBYTES);
+
+        if pub_sign_arr.is_none() || pub_asym_arr.is_none() || sec_sign_arr.is_none() || sec_asym_arr.is_none() {
+            return Err(d.error("Bad IdType size"));
+        }
+
+        let type_tag: u64 = match String::from_utf8(tag_type_vec) {
+            Ok(string) =>  {
+                match string.parse::<u64>() {
+                    Ok(type_tag) => type_tag,
+                    Err(_) => return Err(d.error("Bad Tag Type"))
+                }
+            },
+            Err(_) => return Err(d.error("Bad Tag Type"))
+        };
+
+        Ok(IdType {
+                type_tag: type_tag,
+                public_keys:(::sodiumoxide::crypto::sign::PublicKey(pub_sign_arr.unwrap()), ::sodiumoxide::crypto::box_::PublicKey(pub_asym_arr.unwrap())),
+                secret_keys: (::sodiumoxide::crypto::sign::SecretKey(sec_sign_arr.unwrap()), ::sodiumoxide::crypto::box_::SecretKey(sec_asym_arr.unwrap()))
+            })
+    }
+
 }
 
 #[cfg(test)]
@@ -101,9 +172,10 @@ mod test {
         fn generate_random() -> ::id::IdType {
             ::id::IdType::new(&::id::RevocationIdType::new::<::id::MaidTypeTags>())
         }
+
     }
 
-    #[test]
+#[test]
     fn serialisation_maid() {
         let obj_before = ::id::IdType::generate_random();
 
@@ -123,7 +195,7 @@ mod test {
         assert_eq!(sec_asym_arr_before, sec_asym_arr_after);
     }
 
-    #[test]
+#[test]
     fn generation() {
         let maid1 = ::id::IdType::generate_random();
         let maid2 = ::id::IdType::generate_random();
@@ -159,4 +231,5 @@ mod test {
             assert!(maid3.open(&encrypt2.0, &encrypt2.1, &maid1.public_keys().1).is_err());
         }
     }
+
 }
