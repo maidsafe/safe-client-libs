@@ -242,9 +242,10 @@ impl Client {
                request_for : ::routing::data::DataRequest,
                opt_location: Option<::routing::authority::Authority>) -> response_getter::ResponseGetter {
         if let ::routing::data::DataRequest::ImmutableData(..) = request_for {
+            let name = request_for.name();
             let mut msg_queue = self.message_queue.lock().unwrap();
-            if msg_queue.local_cache_check(&request_for.name()) {
-                return response_getter::ResponseGetter::new(None, self.message_queue.clone(), request_for)
+            if msg_queue.local_cache_check(&name) {
+                return response_getter::ResponseGetter::new(None, self.message_queue.clone(), name, request_for)
             }
         }
 
@@ -254,7 +255,7 @@ impl Client {
         };
 
         self.routing.get_request(location, request_for.clone());
-        response_getter::ResponseGetter::new(Some(self.response_notifier.clone()), self.message_queue.clone(), request_for)
+        response_getter::ResponseGetter::new(Some(self.response_notifier.clone()), self.message_queue.clone(), request_for.name(), request_for)
     }
 
     /// Put data onto the network. This is non-blocking.

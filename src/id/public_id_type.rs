@@ -27,7 +27,7 @@
 ///  let public_maid  = PublicIdType::new(&maid, &revocation_maid);
 /// ```
 
-#[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone)]
 pub struct PublicIdType {
     type_tag: u64,
     public_keys: (::sodiumoxide::crypto::sign::PublicKey, ::sodiumoxide::crypto::box_::PublicKey),
@@ -35,7 +35,30 @@ pub struct PublicIdType {
     signature: ::sodiumoxide::crypto::sign::Signature,
 }
 
+impl PartialEq for PublicIdType {
+
+    fn eq(&self, other: &PublicIdType) -> bool {
+        &self.type_tag == &other.type_tag &&
+        ::utility::slice_equal(&self.public_keys.0 .0, &other.public_keys.0 .0) &&
+        ::utility::slice_equal(&self.public_keys.1 .0, &other.public_keys.1 .0) &&
+        ::utility::slice_equal(&self.revocation_public_key.0, &other.revocation_public_key.0) &&
+        ::utility::slice_equal(&self.signature.0, &other.signature.0)
+    }
+
+}
+
+impl ::std::fmt::Debug for PublicIdType {
+
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        write!(f, "PublicIdType {{ type_tag:{}, public_keys:({:?}, {:?}), revocation_public_key:{:?}, signature:{:?}}}",
+            self.type_tag, self.public_keys.0 .0.to_vec(), self.public_keys.1 .0.to_vec(), self.revocation_public_key.0.to_vec(),
+            self.signature.0.to_vec())
+    }
+
+}
+
 impl PublicIdType {
+
     /// An instanstance of the PublicIdType can be created using the new()
     pub fn new(id_type: &::id::IdType, revocation_id: &::id::RevocationIdType) -> PublicIdType {
         let type_tag = revocation_id.type_tags().2;
@@ -77,16 +100,67 @@ impl PublicIdType {
     pub fn public_keys(&self) -> &(::sodiumoxide::crypto::sign::PublicKey, ::sodiumoxide::crypto::box_::PublicKey) {
         &self.public_keys
     }
-
     /// Returns revocation public key
     pub fn revocation_public_key(&self) -> &::sodiumoxide::crypto::sign::PublicKey {
         &self.revocation_public_key
     }
-
     /// Returns the Signature of PublicIdType
     pub fn signature(&self) -> &::sodiumoxide::crypto::sign::Signature {
         &self.signature
     }
+
+}
+
+impl ::rustc_serialize::Encodable for PublicIdType {
+
+    fn encode<E: ::rustc_serialize::Encoder>(&self, e: &mut E) -> Result<(), E::Error> {
+        let (::sodiumoxide::crypto::sign::PublicKey(ref pub_sign_vec), ::sodiumoxide::crypto::box_::PublicKey(pub_asym_vec)) = self.public_keys;
+        let ::sodiumoxide::crypto::sign::PublicKey(ref revocation_public_key_vec) = self.revocation_public_key;
+        let ::sodiumoxide::crypto::sign::Signature(ref signature) = self.signature;
+        let type_vec = self.type_tag.to_string().into_bytes();
+        ::cbor::CborTagEncode::new(self.type_tag, &(type_vec,
+                                                    pub_sign_vec.as_ref(),
+                                                    pub_asym_vec.as_ref(),
+                                                    revocation_public_key_vec.as_ref(),
+                                                    signature.as_ref())).encode(e)
+    }
+
+}
+
+impl ::rustc_serialize::Decodable for PublicIdType {
+
+    fn decode<D: ::rustc_serialize::Decoder>(d: &mut D) -> Result<PublicIdType, D::Error> {
+        let _ = try!(d.read_u64());
+        let (tag_type_vec, pub_sign_vec, pub_asym_vec, revocation_public_key_vec, signature_vec):
+            (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>) = try!(::rustc_serialize::Decodable::decode(d));
+        let pub_sign_arr = convert_to_array!(pub_sign_vec, ::sodiumoxide::crypto::sign::PUBLICKEYBYTES);
+        let pub_asym_arr = convert_to_array!(pub_asym_vec, ::sodiumoxide::crypto::box_::PUBLICKEYBYTES);
+        let revocation_public_key_arr = convert_to_array!(revocation_public_key_vec, ::sodiumoxide::crypto::box_::PUBLICKEYBYTES);
+        let signature_arr = convert_to_array!(signature_vec, ::sodiumoxide::crypto::sign::SIGNATUREBYTES);
+
+        if pub_sign_arr.is_none() || pub_asym_arr.is_none() || revocation_public_key_arr.is_none()
+            || signature_arr.is_none() {
+                 return Err(d.error("Bad PublicIdType size"));
+        }
+
+        let type_tag: u64 = match String::from_utf8(tag_type_vec) {
+            Ok(string) =>  {
+                match string.parse::<u64>() {
+                    Ok(type_tag) => type_tag,
+                    Err(_) => return Err(d.error("Bad Tag Type")),
+                }
+            },
+            Err(_) => return Err(d.error("Bad Tag Type")),
+        };
+
+        Ok(PublicIdType {
+                type_tag: type_tag,
+                public_keys: (::sodiumoxide::crypto::sign::PublicKey(pub_sign_arr.unwrap()), ::sodiumoxide::crypto::box_::PublicKey(pub_asym_arr.unwrap())),
+                revocation_public_key: ::sodiumoxide::crypto::sign::PublicKey(revocation_public_key_arr.unwrap()),
+                signature: ::sodiumoxide::crypto::sign::Signature(signature_arr.unwrap()),
+            })
+    }
+
 }
 
 #[cfg(test)]

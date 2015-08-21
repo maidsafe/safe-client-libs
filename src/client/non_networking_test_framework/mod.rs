@@ -304,10 +304,11 @@ mod test {
 
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     orig_data.name(),
                                                                                      data_request);
             match response_getter.get() {
                 Ok(data) => assert_eq!(data, orig_data),
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
 
@@ -335,10 +336,11 @@ mod test {
 
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     orig_data.name(),
                                                                                      data_request);
             match response_getter.get() {
                 Ok(data) => assert_eq!(data, orig_data),
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
     }
@@ -400,6 +402,7 @@ mod test {
             mock_routing.get_request(location_nae_mgr_struct.clone(), struct_data_request.clone());
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     struct_data_request.name(),
                                                                                      struct_data_request);
             match response_getter.get() {
                 Ok(data) => {
@@ -409,7 +412,7 @@ mod test {
                         _ => panic!("Unexpected!"),
                     }
                 },
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
 
@@ -422,10 +425,11 @@ mod test {
             mock_routing.get_request(location_nae_mgr_immut.clone(), immut_data_request.clone());
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     immut_data_request.name(),
                                                                                      immut_data_request);
             match response_getter.get() {
                 Ok(data) => assert_eq!(data, orig_data_immutable),
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
 
@@ -486,6 +490,7 @@ mod test {
             mock_routing.get_request(location_nae_mgr_struct, struct_data_request.clone());
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     struct_data_request.name(),
                                                                                      struct_data_request);
             match response_getter.get() {
                 Ok(data) => {
@@ -495,7 +500,7 @@ mod test {
                         _ => panic!("Unexpected!"),
                     }
                 },
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
 
@@ -510,10 +515,11 @@ mod test {
             mock_routing.get_request(location_nae_mgr_immut.clone(), immut_data_request.clone());
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     immut_data_request.name(),
                                                                                      immut_data_request);
             match response_getter.get() {
                 Ok(data) => assert_eq!(data, new_data_immutable),
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
 
@@ -525,10 +531,11 @@ mod test {
             mock_routing.get_request(location_nae_mgr_immut, immut_data_request.clone());
             let mut response_getter = ::client::response_getter::ResponseGetter::new(Some(notifier.clone()),
                                                                                      message_queue.clone(),
+                                                                                     immut_data_request.name(),
                                                                                      immut_data_request);
             match response_getter.get() {
                 Ok(data) => assert_eq!(data, orig_data_immutable),
-                Err(error) => panic!("Should have found data put before by a PUT {:?}", error),
+                Err(_) => panic!("Should have found data put before by a PUT"),
             }
         }
 
