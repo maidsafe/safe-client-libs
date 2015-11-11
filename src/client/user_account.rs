@@ -19,6 +19,7 @@
 /// supplied credentials to retrieve all the Maid/Mpid etc keys of the user and also his Root
 /// Directory ID if he has put data onto the network.
 #[derive(Clone, PartialEq, Debug, RustcEncodable, RustcDecodable)]
+#[allow(unused_results)] 
 pub struct Account {
     an_maid: ::id::RevocationIdType,
     maid: ::id::IdType,

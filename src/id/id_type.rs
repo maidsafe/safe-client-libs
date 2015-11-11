@@ -26,6 +26,7 @@
 ///
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
+#[allow(unused_results)] 
 pub struct IdType {
     type_tag   : u64,
     public_keys: (::sodiumoxide::crypto::sign::PublicKey, ::sodiumoxide::crypto::box_::PublicKey),

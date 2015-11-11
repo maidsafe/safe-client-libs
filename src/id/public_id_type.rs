@@ -27,6 +27,7 @@
 /// let _public_maid  = PublicIdType::new(&maid, &revocation_maid);
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
+#[allow(unused_results)] 
 pub struct PublicIdType {
     type_tag: u64,
     public_keys: (::sodiumoxide::crypto::sign::PublicKey, ::sodiumoxide::crypto::box_::PublicKey),

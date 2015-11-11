@@ -25,6 +25,7 @@
 /// let _an_maid = ::safe_core::id::RevocationIdType::new::<::safe_core::id::MaidTypeTags>();
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
+#[allow(unused_results)] 
 pub struct RevocationIdType {
     type_tags: (u64, u64, u64),  // type tags for revocation, id and public ids
     public_key: ::sodiumoxide::crypto::sign::PublicKey,
