@@ -11,9 +11,9 @@ homepage      = "http://maidsafe.net"
 
 [dependencies]
 # ---- MaidSafe -----
-routing         ={git="https://github.com/waynenilsen/routing.git", rev="3d6812d"} 
+routing         = "0.4.*"
 lru_time_cache  = "0.2.*"
-self_encryption = {git="https://github.com/waynenilsen/self_encryption.git", rev="7af256c"}
+self_encryption = "0.2.*"
 
 # ---- Others ----
 log             = "*"
