@@ -19,7 +19,7 @@ self_encryption = "0.2.*"
 log             = "*"
 cbor            = "*"
 rand            = "*"
-sodiumoxide     = "*"
+sodiumoxide     = "0.0.8"
 rustc-serialize = "*"
 
 [dev-dependencies]
