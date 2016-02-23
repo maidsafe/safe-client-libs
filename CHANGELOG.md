@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.5.1]
+- Migrated to Routing 0.7.0
+
 ## [0.5.0]
 - Refactored to comply with new routing API
 - Compiles and passes tests with Mock with stable Rust

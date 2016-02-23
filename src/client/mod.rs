@@ -43,7 +43,7 @@ use self::non_networking_test_framework::RoutingMock as Routing;
 use routing::Client as Routing;
 
 const LOGIC_ERROR: &'static str = "Logic Error !! Report as bug.";
-const LOGIN_PACKET_TYPE_TAG: u64 = ::CLIENT_STRUCTURED_DATA_TAG - 1;
+const LOGIN_PACKET_TYPE_TAG: u64 = 0;
 
 /// The main self-authentication client instance that will interface all the request from high
 /// level API's to the actual routing layer and manage all interactions with it. This is
