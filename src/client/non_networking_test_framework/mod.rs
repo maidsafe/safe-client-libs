@@ -132,12 +132,12 @@ impl RoutingMock {
                 Some(raw_data) => {
                     if let Ok(data) = deserialise::<Data>(raw_data) {
                         if match (&data, &request_for) {
-                            (&Data::ImmutableData(ref immut_data),
-                             &DataRequest::ImmutableData(_, ref tag)) => {
+                            (&Data::Immutable(ref immut_data),
+                             &DataRequest::Immutable(_, ref tag)) => {
                                 immut_data.get_type_tag() == tag
                             }
-                            (&Data::StructuredData(ref struct_data),
-                             &DataRequest::StructuredData(_, ref tag)) => {
+                            (&Data::Structured(ref struct_data),
+                             &DataRequest::Structured(_, ref tag)) => {
                                 struct_data.get_type_tag() == *tag
                             }
                             _ => false,
@@ -173,10 +173,10 @@ impl RoutingMock {
 
         let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
         let success = if data_store_mutex_guard.contains_key(&data_name) {
-            if let Data::ImmutableData(immut_data) = data {
+            if let Data::Immutable(immut_data) = data {
                 match deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
                                                  "Programming Error - Report this as a Bug.")) {
-                    Ok(Data::ImmutableData(immut_data_stored)) => {
+                    Ok(Data::Immutable(immut_data_stored)) => {
                         // Immutable data is de-duplicated so always allowed
                         immut_data_stored.get_type_tag() == immut_data.get_type_tag()
                     }
@@ -216,8 +216,8 @@ impl RoutingMock {
                    deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
                                               "Programming Error - Report this as a Bug."))) {
                 (Ok(raw_data),
-                 Data::StructuredData(struct_data_new),
-                 Ok(Data::StructuredData(struct_data_stored))) => {
+                 Data::Structured(struct_data_new),
+                 Ok(Data::Structured(struct_data_stored))) => {
                     if let Ok(_) =
                            struct_data_stored.validate_self_against_successor(&struct_data_new) {
                         let _ = data_store_mutex_guard.insert(data_name, raw_data);
@@ -256,8 +256,8 @@ impl RoutingMock {
                    deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
                                               "Programming Error - Report this as a Bug."))) {
                 (Ok(_),
-                 Data::StructuredData(struct_data_new),
-                 Ok(Data::StructuredData(struct_data_stored))) => {
+                 Data::Structured(struct_data_new),
+                 Ok(Data::Structured(struct_data_stored))) => {
                     if let Ok(_) =
                            struct_data_stored.validate_self_against_successor(&struct_data_new) {
                         let _ = data_store_mutex_guard.remove(&data_name);
@@ -336,7 +336,7 @@ mod test {
         let orig_raw_data: Vec<u8> = unwrap_result!(::utility::generate_random_vector(100));
         let orig_immutable_data = ImmutableData::new(ImmutableDataType::Normal,
                                                      orig_raw_data.clone());
-        let orig_data = Data::ImmutableData(orig_immutable_data);
+        let orig_data = Data::Immutable(orig_immutable_data);
 
         let location_nae_mgr = Authority::NaeManager(orig_data.name());
         let location_client_mgr = Authority::ClientManager(orig_data.name());
@@ -347,7 +347,7 @@ mod test {
 
         // GET ImmutableData should pass
         {
-            let data_request = DataRequest::ImmutableData(orig_data.name(),
+            let data_request = DataRequest::Immutable(orig_data.name(),
                                                           ImmutableDataType::Normal);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
@@ -373,7 +373,7 @@ mod test {
 
         // Construct Backup ImmutableData
         let new_immutable_data = ImmutableData::new(ImmutableDataType::Backup, orig_raw_data);
-        let new_data = Data::ImmutableData(new_immutable_data.clone());
+        let new_data = Data::Immutable(new_immutable_data.clone());
 
         // Subsequent PUTs for same ImmutableData of different type should fail
         unwrap_result!(mock_routing.send_put_request(location_client_mgr.clone(), new_data));
@@ -386,7 +386,7 @@ mod test {
 
         // GET ImmutableData should pass
         {
-            let data_request = DataRequest::ImmutableData(orig_data.name(),
+            let data_request = DataRequest::Immutable(orig_data.name(),
                                                           ImmutableDataType::Normal);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
@@ -432,7 +432,7 @@ mod test {
         // Construct ImmutableData
         let orig_raw_data: Vec<u8> = unwrap_result!(::utility::generate_random_vector(100));
         let orig_immutable_data = ImmutableData::new(ImmutableDataType::Normal, orig_raw_data);
-        let orig_data_immutable = Data::ImmutableData(orig_immutable_data);
+        let orig_data_immutable = Data::Immutable(orig_immutable_data);
 
         const TYPE_TAG: u64 = 999;
 
@@ -448,7 +448,7 @@ mod test {
                                                                      vec![account_packet.get_public_maid().public_keys().0.clone()],
                                                                      Vec::new(),
                                                                      Some(&account_packet.get_maid().secret_keys().0)));
-        let mut data_account_version = Data::StructuredData(account_version);
+        let mut data_account_version = Data::Structured(account_version);
 
 
         let location_nae_mgr_immut = Authority::NaeManager(orig_data_immutable.name());
@@ -469,7 +469,7 @@ mod test {
 
         // GET StructuredData should pass
         {
-            let struct_data_request = DataRequest::StructuredData(user_id.clone(), TYPE_TAG);
+            let struct_data_request = DataRequest::Structured(user_id.clone(), TYPE_TAG);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
             unwrap_result!(message_queue.lock())
@@ -487,7 +487,7 @@ mod test {
                 Ok(data) => {
                     assert_eq!(data, data_account_version);
                     match data {
-                        Data::StructuredData(struct_data) => received_structured_data = struct_data,
+                        Data::Structured(struct_data) => received_structured_data = struct_data,
                         _ => panic!("Unexpected!"),
                     }
                 }
@@ -499,7 +499,7 @@ mod test {
         {
             let mut location_vec =
                 unwrap_result!(deserialise::<Vec<XorName>>(received_structured_data.get_data()));
-            let immut_data_request = DataRequest::ImmutableData(unwrap_option!(location_vec.pop(),
+            let immut_data_request = DataRequest::Immutable(unwrap_option!(location_vec.pop(),
                                                                                "Value must \
                                                                                 exist !"),
                                                                 ImmutableDataType::Normal);
@@ -525,7 +525,7 @@ mod test {
         // Construct ImmutableData
         let new_data: Vec<u8> = unwrap_result!(::utility::generate_random_vector(100));
         let new_immutable_data = ImmutableData::new(ImmutableDataType::Normal, new_data);
-        let new_data_immutable = Data::ImmutableData(new_immutable_data);
+        let new_data_immutable = Data::Immutable(new_immutable_data);
 
         // PUT for new ImmutableData should succeed
         unwrap_result!(mock_routing.send_put_request(location_client_mgr_immut,
@@ -543,7 +543,7 @@ mod test {
                                                Vec::new(),
                                                Some(&account_packet.get_maid().secret_keys().0)));
         let invalid_version_data_account_version =
-            Data::StructuredData(invalid_version_account_version);
+            Data::Structured(invalid_version_account_version);
 
         // Construct StructuredData, 2nd version, for this ImmutableData - IVALID Signature
         let invalid_signature_account_version = unwrap_result!(StructuredData::new(TYPE_TAG,
@@ -557,7 +557,7 @@ mod test {
                                                Vec::new(),
                                                Some(&account_packet.get_mpid().secret_keys().0)));
         let invalid_signature_data_account_version =
-            Data::StructuredData(invalid_signature_account_version);
+            Data::Structured(invalid_signature_account_version);
 
         // Construct StructuredData, 2nd version, for this ImmutableData - Valid
         account_version = unwrap_result!(StructuredData::new(TYPE_TAG,
@@ -567,7 +567,7 @@ mod test {
                                                              vec![account_packet.get_public_maid().public_keys().0.clone()],
                                                              Vec::new(),
                                                              Some(&account_packet.get_maid().secret_keys().0)));
-        data_account_version = Data::StructuredData(account_version);
+        data_account_version = Data::Structured(account_version);
 
         // Subsequent PUTs for same StructuredData should fail
         unwrap_result!(mock_routing.send_put_request(location_client_mgr_struct.clone(),
@@ -587,7 +587,7 @@ mod test {
 
         // GET for new StructuredData version should pass
         {
-            let struct_data_request = DataRequest::StructuredData(user_id.clone(), TYPE_TAG);
+            let struct_data_request = DataRequest::Structured(user_id.clone(), TYPE_TAG);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
             unwrap_result!(message_queue.lock())
@@ -605,7 +605,7 @@ mod test {
                 Ok(data) => {
                     assert_eq!(data, data_account_version);
                     match data {
-                        Data::StructuredData(structured_data) => {
+                        Data::Structured(structured_data) => {
                             received_structured_data = structured_data
                         }
                         _ => panic!("Unexpected!"),
@@ -621,7 +621,7 @@ mod test {
 
         // GET new ImmutableData should pass
         {
-            let immut_data_request = DataRequest::ImmutableData(location_vec[1].clone(),
+            let immut_data_request = DataRequest::Immutable(location_vec[1].clone(),
                                                                 ImmutableDataType::Normal);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
@@ -644,7 +644,7 @@ mod test {
 
         // GET original ImmutableData should pass
         {
-            let immut_data_request = DataRequest::ImmutableData(location_vec[0].clone(),
+            let immut_data_request = DataRequest::Immutable(location_vec[0].clone(),
                                                                 ImmutableDataType::Normal);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
@@ -671,7 +671,7 @@ mod test {
 
         // GET for StructuredData version should still pass
         {
-            let struct_data_request = DataRequest::StructuredData(user_id.clone(), TYPE_TAG);
+            let struct_data_request = DataRequest::Structured(user_id.clone(), TYPE_TAG);
 
             let (data_event_sender, data_event_receiver) = mpsc::channel();
             unwrap_result!(message_queue.lock())
@@ -704,7 +704,7 @@ mod test {
                                                              Some(&account_packet.get_maid()
                                                                                  .secret_keys()
                                                                                  .0)));
-        data_account_version = Data::StructuredData(account_version);
+        data_account_version = Data::Structured(account_version);
 
         // DELETE of Structured Data with version bump should pass
         unwrap_result!(mock_routing.send_delete_request(location_client_mgr_struct,

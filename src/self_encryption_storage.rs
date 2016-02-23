@@ -42,12 +42,12 @@ impl ::self_encryption::Storage for SelfEncryptionStorage {
         }
 
         let mut client = unwrap_result!(self.client.lock());
-        let immutable_data_request = DataRequest::ImmutableData(XorName::new(name_id),
+        let immutable_data_request = DataRequest::Immutable(XorName::new(name_id),
                                                                 ImmutableDataType::Normal);
         match unwrap_result!(client.get(immutable_data_request, None)).get() {
             Ok(ref data) => {
                 match data {
-                    &Data::ImmutableData(ref rxd_data) => rxd_data.value().clone(),
+                    &Data::Immutable(ref rxd_data) => rxd_data.value().clone(),
                     _ => Vec::new(),
                 }
             }
@@ -58,6 +58,6 @@ impl ::self_encryption::Storage for SelfEncryptionStorage {
     fn put(&self, _: Vec<u8>, data: Vec<u8>) {
         let immutable_data = ImmutableData::new(ImmutableDataType::Normal, data);
         unwrap_result!(unwrap_result!(self.client.lock())
-                           .put(Data::ImmutableData(immutable_data), None));
+                           .put(Data::Immutable(immutable_data), None));
     }
 }

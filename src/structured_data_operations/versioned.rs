@@ -90,7 +90,7 @@ fn create_impl(client: &::client::Client,
                                                         owner_keys.clone(),
                                                         prev_owner_keys.clone())) {
         DataFitResult::DataFits => {
-            let data = Data::ImmutableData(immutable_data);
+            let data = Data::Immutable(immutable_data);
             try!(client.put(data, None));
 
             Ok(try!(StructuredData::new(tag_type,
@@ -109,12 +109,12 @@ fn get_immutable_data(client: &mut Client,
                       struct_data: &StructuredData)
                       -> Result<ImmutableData, CoreError> {
     let name = try!(deserialise(&struct_data.get_data()));
-    let response_getter = try!(client.get(DataRequest::ImmutableData(name,
+    let response_getter = try!(client.get(DataRequest::Immutable(name,
                                                                      ImmutableDataType::Normal),
                                           None));
     let data = try!(response_getter.get());
     match data {
-        Data::ImmutableData(immutable_data) => Ok(immutable_data),
+        Data::Immutable(immutable_data) => Ok(immutable_data),
         _ => Err(CoreError::ReceivedUnexpectedData),
     }
 }

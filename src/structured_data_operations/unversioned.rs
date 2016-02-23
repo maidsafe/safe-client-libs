@@ -85,7 +85,7 @@ pub fn create(client: ::std::sync::Arc<::std::sync::Mutex<::client::Client>>,
                 ::structured_data_operations::DataFitResult::DataDoesNotFit => {
                     let immutable_data = ImmutableData::new(ImmutableDataType::Normal, data_to_store);
                     let name = immutable_data.name();
-                    let data = Data::ImmutableData(immutable_data);
+                    let data = Data::Immutable(immutable_data);
                     try!(unwrap_result!(client.lock()).put(data, None));
 
                     let data_to_store = try!(get_encoded_data_to_store(DataTypeEncoding::ContainsDataMapName(name),
@@ -128,10 +128,10 @@ pub fn get_data(client: Arc<Mutex<Client>>,
             Ok(se.read(0, length))
         }
         DataTypeEncoding::ContainsDataMapName(data_map_name) => {
-            let request = DataRequest::ImmutableData(data_map_name, ImmutableDataType::Normal);
+            let request = DataRequest::Immutable(data_map_name, ImmutableDataType::Normal);
             let response_getter = try!(unwrap_result!(client.lock()).get(request, None));
             match try!(response_getter.get()) {
-                Data::ImmutableData(immutable_data) => {
+                Data::Immutable(immutable_data) => {
                     match try!(get_decoded_stored_data(&immutable_data.value(),
                                                        data_decryption_keys)) {
                         DataTypeEncoding::ContainsDataMap(data_map) => {

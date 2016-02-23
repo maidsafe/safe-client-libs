@@ -55,7 +55,7 @@ impl ResponseGetter {
                     let mut msg_queue = unwrap_result!(self.message_queue.lock());
                     let response = try!(msg_queue.get_response(&self.requested_name));
 
-                    if let DataRequest::ImmutableData(..) = self.requested_type {
+                    if let DataRequest::Immutable(..) = self.requested_type {
                         msg_queue.local_cache_insert(self.requested_name.clone(), response.clone());
                     }
 

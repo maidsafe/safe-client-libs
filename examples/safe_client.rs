@@ -187,7 +187,7 @@ fn receive_mpid_message(response_getter: &ResponseGetter) {
         match response_getter.get() {
             Ok(data) => {
                 match data {
-                    Data::PlainData(plain_data) => {
+                    Data::Plain(plain_data) => {
                         let mpid_message_wrapper : MpidMessageWrapper = unwrap_result!(deserialise(plain_data.value()));
                         match mpid_message_wrapper {
                             MpidMessageWrapper::PutMessage(mpid_message) => {

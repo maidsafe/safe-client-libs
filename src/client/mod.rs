@@ -143,7 +143,7 @@ impl Client {
                                                            vec![account.get_public_maid().public_keys().0.clone()],
                                                            Vec::new(),
                                                            Some(&account.get_maid().secret_keys().0)));
-            try!(client.put(Data::StructuredData(account_version), None));
+            try!(client.put(Data::Structured(account_version), None));
         }
 
         Ok(client)
@@ -156,12 +156,12 @@ impl Client {
         let mut unregistered_client = try!(Client::create_unregistered_client());
         let user_id = try!(Account::generate_network_id(keyword.as_bytes(), pin.as_bytes()));
 
-        let session_packet_request = DataRequest::StructuredData(user_id.clone(),
+        let session_packet_request = DataRequest::Structured(user_id.clone(),
                                                                  LOGIN_PACKET_TYPE_TAG);
 
         let response_getter = try!(unregistered_client.get(session_packet_request, None));
 
-        if let Data::StructuredData(session_packet) = try!(response_getter.get()) {
+        if let Data::Structured(session_packet) = try!(response_getter.get()) {
             let decrypted_session_packet = try!(Account::decrypt(session_packet.get_data(),
                                                                  password.as_bytes(),
                                                                  pin.as_bytes()));
@@ -317,7 +317,7 @@ impl Client {
                request_for: DataRequest,
                opt_dst: Option<Authority>)
                -> Result<ResponseGetter, CoreError> {
-        if let DataRequest::ImmutableData(..) = request_for {
+        if let DataRequest::Immutable(..) = request_for {
             let mut msg_queue = unwrap_result!(self.message_queue.lock());
             if msg_queue.local_cache_check(&request_for.name()) {
                 return Ok(ResponseGetter::new(None, self.message_queue.clone(), request_for));
@@ -359,7 +359,7 @@ impl Client {
         let request = MpidMessageWrapper::PutMessage(mpid_message.clone());
         let serialised_request = try!(serialise(&request));
         let name = try!(mpid_message.name());
-        let data = Data::PlainData(PlainData::new(name, serialised_request));
+        let data = Data::Plain(PlainData::new(name, serialised_request));
         self.put(data, Some(Authority::ClientManager(mpid_account.clone())))
     }
 
@@ -380,7 +380,7 @@ impl Client {
     fn messaging_delete_request(&self, account: &XorName, name: &XorName,
                                 request: MpidMessageWrapper) -> Result<(), CoreError> {
         let serialised_request = try!(serialise(&request));
-        let data = Data::PlainData(PlainData::new(name.clone(), serialised_request));
+        let data = Data::Plain(PlainData::new(name.clone(), serialised_request));
         self.delete(data, Some(Authority::ClientManager(account.clone())))
     }
 
@@ -405,7 +405,7 @@ impl Client {
     //       post requests, as all such request will bearing the same name - mpid_account
     fn messaging_post_request(&self, mpid_account: &XorName, request: MpidMessageWrapper)
             -> Result<ResponseGetter, CoreError> {
-        let data_request = DataRequest::PlainData(mpid_account.clone());
+        let data_request = DataRequest::Plain(mpid_account.clone());
 
         let mut msg_queue = unwrap_result!(self.message_queue.lock());
         if msg_queue.local_cache_check(mpid_account) {
@@ -413,7 +413,7 @@ impl Client {
         }
 
         let serialised_request = try!(serialise(&request));
-        let data = Data::PlainData(PlainData::new(mpid_account.clone(), serialised_request));
+        let data = Data::Plain(PlainData::new(mpid_account.clone(), serialised_request));
         try!(self.post(data, Some(Authority::ClientManager(mpid_account.clone()))));
 
         let (msg_event_sender, msg_event_receiver) = mpsc::channel();
@@ -515,7 +515,7 @@ impl Client {
                                          .as_ref()
                                          .ok_or(CoreError::OperationForbiddenForClient))
                                     .clone();
-        let session_packet_request = DataRequest::StructuredData(session_packet_id.clone(),
+        let session_packet_request = DataRequest::Structured(session_packet_id.clone(),
                                                                  LOGIN_PACKET_TYPE_TAG);
 
         let response_getter = try!(self.get(session_packet_request, None));
@@ -525,7 +525,7 @@ impl Client {
                                            .as_ref()
                                            .ok_or(CoreError::OperationForbiddenForClient));
 
-        if let Data::StructuredData(retrieved_session_packet) = try!(response_getter.get()) {
+        if let Data::Structured(retrieved_session_packet) = try!(response_getter.get()) {
             let encrypted_account = try!(account.encrypt(session_packet_keys.get_password(),
                                                          session_packet_keys.get_pin()));
 
@@ -536,7 +536,7 @@ impl Client {
                                          vec![account.get_public_maid().public_keys().0.clone()],
                                          Vec::new(),
                                          Some(&account.get_maid().secret_keys().0)));
-            self.post(Data::StructuredData(new_account_version), None)
+            self.post(Data::Structured(new_account_version), None)
         } else {
             Err(CoreError::ReceivedUnexpectedData)
         }
@@ -605,7 +605,7 @@ mod test {
     fn unregistered_client() {
         let immut_data = ImmutableData::new(ImmutableDataType::Normal,
                                             unwrap_result!(::utility::generate_random_vector(30)));
-        let orig_data = Data::ImmutableData(immut_data);
+        let orig_data = Data::Immutable(immut_data);
 
         // Registered Client PUTs something onto the network
         {
@@ -620,7 +620,7 @@ mod test {
 
         // Unregistered Client should be able to retrieve the data
         let mut unregistered_client = unwrap_result!(Client::create_unregistered_client());
-        let request = DataRequest::ImmutableData(orig_data.name(), ImmutableDataType::Normal);
+        let request = DataRequest::Immutable(orig_data.name(), ImmutableDataType::Normal);
         let rxd_data = unwrap_result!(unwrap_result!(unregistered_client.get(request, None)).get());
 
         assert_eq!(rxd_data, orig_data);
@@ -760,11 +760,11 @@ mod test {
             let immut_data =
                 ImmutableData::new(ImmutableDataType::Normal,
                                    unwrap_result!(::utility::generate_random_vector(10)));
-            let data = Data::ImmutableData(immut_data);
+            let data = Data::Immutable(immut_data);
 
             unwrap_result!(client.put(data.clone(), None));
 
-            let data_request = DataRequest::ImmutableData(data.name(), ImmutableDataType::Normal);
+            let data_request = DataRequest::Immutable(data.name(), ImmutableDataType::Normal);
 
             // Should not initially be in version cache
             {
@@ -800,11 +800,11 @@ mod test {
                                                                  Vec::new(),
                                                                  Vec::new(),
                                                                  None));
-            let data = Data::StructuredData(struct_data);
+            let data = Data::Structured(struct_data);
 
             unwrap_result!(client.put(data.clone(), None));
 
-            let data_request = DataRequest::StructuredData(id, TYPE_TAG);
+            let data_request = DataRequest::Structured(id, TYPE_TAG);
 
             // Should not initially be in version cache
             {
