@@ -20,7 +20,7 @@ use xor_name::XorName;
 use lru_time_cache::LruCache;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, mpsc};
-use routing::{Data, Event, ResponseContent};
+use routing::{Data, Event, ResponseContent, RequestContent};
 use maidsafe_utilities::thread::RaiiThreadJoiner;
 
 const EVENT_RECEIVER_THREAD_NAME: &'static str = "EventReceiverThread";
@@ -94,6 +94,33 @@ impl MessageQueue {
 
                         MessageQueue::purge_dead_senders(&mut queue_guard.network_event_senders,
                                                          dead_sender_positions);
+                    }
+                    // PostRequest used for messaging features
+                    Event::Request(msg) => {
+                        match msg.content {
+                            RequestContent::Post(data, _) => {
+                                let account_name = msg.src.name();
+                                let mut dead_sender_positions = Vec::<usize>::new();
+                                let mut queue_guard = unwrap_result!(message_queue_cloned.lock());
+                                // The generic ResponseGetter waiting on the account_name
+                                let _ = queue_guard.routing_message_cache
+                                                   .insert(account_name.clone(), data);
+                                if let Some(mut specific_data_senders) =
+                                       queue_guard.data_senders.get_mut(&account_name) {
+                                    for it in specific_data_senders.iter().enumerate() {
+                                        if it.1.send(::translated_events::DataReceivedEvent::DataReceived).is_err() {
+                                            dead_sender_positions.push(it.0);
+                                        }
+                                    }
+
+                                    MessageQueue::purge_dead_senders(&mut specific_data_senders,
+                                                                     dead_sender_positions);
+                                }
+                            }
+                            _ => {
+                                warn!("Received Request Message: {:?} ; This is currently not supported.", msg)
+                            }
+                        }
                     }
                     _ => {
                         debug!("Received Routing Event: {:?} ;; This is currently not supported.",

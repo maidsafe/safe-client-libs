@@ -43,6 +43,7 @@ use self::non_networking_test_framework::RoutingMock as Routing;
 use routing::Client as Routing;
 
 const LOGIC_ERROR: &'static str = "Logic Error !! Report as bug.";
+// MaidManager depends on the SD's type_tag equals to 0 to create account for the client
 const LOGIN_PACKET_TYPE_TAG: u64 = 0;
 
 /// The main self-authentication client instance that will interface all the request from high
@@ -410,10 +411,11 @@ impl Client {
     fn messaging_post_request(&self, mpid_account: &XorName, request: MpidMessageWrapper)
             -> Result<ResponseGetter, CoreError> {
         let data_request = DataRequest::Plain(mpid_account.clone());
-
-        let mut msg_queue = unwrap_result!(self.message_queue.lock());
-        if msg_queue.local_cache_check(mpid_account) {
-            return Ok(ResponseGetter::new(None, self.message_queue.clone(), data_request));
+        {  // avoiding dead_lock of messag_quese.lock() in add_data_receive_event_observer
+            let mut msg_queue = unwrap_result!(self.message_queue.lock());
+            if msg_queue.local_cache_check(mpid_account) {
+                return Ok(ResponseGetter::new(None, self.message_queue.clone(), data_request));
+            }
         }
 
         let serialised_request = try!(serialise(&request));
