@@ -7,13 +7,13 @@ license = "GPL-3.0"
 name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_core"
-version = "0.12.0"
+version = "0.13.0"
 
 [dependencies]
+clippy = {version = "~0.0.54", optional = true}
 log = "~0.3.5"
 lru_time_cache = "~0.2.7"
-maidsafe_utilities = "~0.4.0"
-mpid_messaging = "~0.2.0"
+maidsafe_utilities = "~0.4.1"
 rand = "~0.3.14"
 routing = "~0.11.1"
 rustc-serialize = "~0.3.18"
@@ -22,10 +22,6 @@ self_encryption = "~0.3.0"
 sodiumoxide = "~0.0.9"
 time = "~0.1.34"
 xor_name = "~0.1.0"
-
-[dependencies.clippy]
-optional = true
-version = "~0.0.49"
 
 [dev-dependencies]
 docopt = "~0.6.78"
