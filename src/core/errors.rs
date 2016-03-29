@@ -143,6 +143,7 @@ impl Into<i32> for CoreError {
             CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. } => CLIENT_ERROR_START_RANGE - 24,
             CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. } => CLIENT_ERROR_START_RANGE - 25,
             CoreError::MutationFailure { reason: MutationError::Unknown, .. } => CLIENT_ERROR_START_RANGE - 26,
+            CoreError::MutationFailure { reason: MutationError::Timeout, .. } => CLIENT_ERROR_START_RANGE - 27,
         }
     }
 }
