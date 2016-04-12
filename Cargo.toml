@@ -7,7 +7,7 @@ license = "GPL-3.0"
 name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_core"
-version = "0.14.1"
+version = "0.14.2"
 
 [dependencies]
 clippy = {version = "~0.0.63", optional = true}
@@ -15,7 +15,7 @@ log = "~0.3.6"
 lru_time_cache = "~0.2.7"
 maidsafe_utilities = "~0.5.1"
 rand = "~0.3.14"
-routing = "~0.14.0"
+routing = "~0.15.0"
 rustc-serialize = "~0.3.19"
 safe_network_common = "~0.1.1"
 self_encryption = "~0.3.0"
@@ -48,5 +48,4 @@ bench = false
 name = "simulate_browser"
 
 [features]
-use-mock-crust = ["routing/use-mock-crust"]
 use-mock-routing = []

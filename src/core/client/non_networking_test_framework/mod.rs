@@ -94,8 +94,10 @@ pub struct RoutingMock {
 }
 
 impl RoutingMock {
-    pub fn new(sender: mpsc::Sender<Event>, _id: Option<FullId>, _use_data_cache: bool)
-        -> Result<RoutingMock, RoutingError> {
+    pub fn new(sender: mpsc::Sender<Event>,
+               _id: Option<FullId>,
+               _use_data_cache: bool)
+               -> Result<RoutingMock, RoutingError> {
         ::sodiumoxide::init();
 
         let cloned_sender = sender.clone();
