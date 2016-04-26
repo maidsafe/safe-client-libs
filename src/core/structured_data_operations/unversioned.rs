@@ -18,11 +18,12 @@
 use core::client::Client;
 use xor_name::XorName;
 use core::errors::CoreError;
+use core::immutable_data_operations;
 use std::sync::{Arc, Mutex};
 use self_encryption::{DataMap, SelfEncryptor};
 use sodiumoxide::crypto::{box_, sign};
 use maidsafe_utilities::serialisation::{serialise, deserialise};
-use routing::{StructuredData, ImmutableData, Data, DataIdentifier};
+use routing::{StructuredData, Data};
 use core::utility;
 use core::structured_data_operations;
 use core::structured_data_operations::DataFitResult;
@@ -84,7 +85,9 @@ pub fn create(client: Arc<Mutex<Client>>,
                                                 Some(private_signing_key))))
                 }
                 DataFitResult::DataDoesNotFit => {
-                    let immutable_data = ImmutableData::new(data_to_store);
+                    let immutable_data = try!(immutable_data_operations::create(client.clone(),
+                                                                                data,
+                                                                                data_encryption_keys));
                     let name = immutable_data.name();
                     let data = Data::Immutable(immutable_data);
                     try!(try!(unwrap_result!(client.lock()).put(data, None)).get());
@@ -128,21 +131,7 @@ pub fn get_data(client: Arc<Mutex<Client>>,
             Ok(se.read(0, length))
         }
         DataTypeEncoding::ContainsDataMapName(data_map_name) => {
-            let request = DataIdentifier::Immutable(data_map_name);
-            let response_getter = try!(unwrap_result!(client.lock()).get(request, None));
-            match try!(response_getter.get()) {
-                Data::Immutable(immutable_data) => {
-                    match try!(get_decoded_stored_data(&immutable_data.value(), data_decryption_keys)) {
-                        DataTypeEncoding::ContainsDataMap(data_map) => {
-                            let mut se = SelfEncryptor::new(SelfEncryptionStorage::new(client.clone()), data_map);
-                            let length = se.len();
-                            Ok(se.read(0, length))
-                        }
-                        _ => Err(CoreError::ReceivedUnexpectedData),
-                    }
-                }
-                _ => Err(CoreError::ReceivedUnexpectedData),
-            }
+            immutable_data_operations::get_data(client.clone(), data_map_name, data_decryption_keys)
         }
     }
 }
