@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.14.4]
+- Dependency update
+
 ## [0.14.3]
 - Dependency update
 
