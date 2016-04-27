@@ -15,16 +15,19 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use std::sync::{Arc, Mutex};
+
 use core::client::Client;
 use xor_name::XorName;
 use core::errors::CoreError;
+use core::immutable_data_operations;
 use sodiumoxide::crypto::sign;
 use maidsafe_utilities::serialisation::{serialise, deserialise};
-use routing::{StructuredData, ImmutableData, Data, DataIdentifier};
+use routing::{StructuredData, Data};
 use core::structured_data_operations::{DataFitResult, check_if_data_can_fit_in_structured_data};
 
 /// Create the StructuredData to manage versioned data.
-pub fn create(client: &Client,
+pub fn create(client: Arc<Mutex<Client>>,
               version_name_to_store: XorName,
               tag_type: u64,
               identifier: XorName,
@@ -44,20 +47,19 @@ pub fn create(client: &Client,
 }
 
 /// Get the complete version list
-pub fn get_all_versions(client: &mut Client, struct_data: &StructuredData) -> Result<Vec<XorName>, CoreError> {
-    let immut_data = try!(get_immutable_data(client, struct_data));
-    Ok(try!(deserialise(&immut_data.value())))
+pub fn get_all_versions(client: Arc<Mutex<Client>>, struct_data: &StructuredData) -> Result<Vec<XorName>, CoreError> {
+    let name = try!(deserialise(&struct_data.get_data()));
+    let value = try!(immutable_data_operations::get_data(client.clone(), name, None));
+    Ok(try!(deserialise(&value)))
 }
 
 /// Append a new version
-pub fn append_version(client: &mut Client,
+pub fn append_version(client: Arc<Mutex<Client>>,
                       struct_data: StructuredData,
                       version_to_append: XorName,
                       private_signing_key: &sign::SecretKey)
                       -> Result<StructuredData, CoreError> {
-    // let immut_data = try!(get_immutable_data(mut client, struct_data));
-    // client.delete(immut_data);
-    let mut versions = try!(get_all_versions(client, &struct_data));
+    let mut versions = try!(get_all_versions(client.clone(), &struct_data));
     versions.push(version_to_append);
     create_impl(client,
                 &versions,
@@ -69,7 +71,7 @@ pub fn append_version(client: &mut Client,
                 private_signing_key)
 }
 
-fn create_impl(client: &Client,
+fn create_impl(client: Arc<Mutex<Client>>,
                version_names_to_store: &Vec<XorName>,
                tag_type: u64,
                identifier: XorName,
@@ -78,7 +80,8 @@ fn create_impl(client: &Client,
                prev_owner_keys: Vec<sign::PublicKey>,
                private_signing_key: &sign::SecretKey)
                -> Result<StructuredData, CoreError> {
-    let immutable_data = ImmutableData::new(try!(serialise(version_names_to_store)));
+    let serialised_version_names = try!(serialise(version_names_to_store));
+    let immutable_data = try!(immutable_data_operations::create(client.clone(), serialised_version_names, None));
     let name_of_immutable_data = immutable_data.name();
 
     let encoded_name = try!(serialise(&name_of_immutable_data));
@@ -86,7 +89,7 @@ fn create_impl(client: &Client,
     match try!(check_if_data_can_fit_in_structured_data(&encoded_name, owner_keys.clone(), prev_owner_keys.clone())) {
         DataFitResult::DataFits => {
             let data = Data::Immutable(immutable_data);
-            try!(try!(client.put(data, None)).get());
+            try!(try!(unwrap_result!(client.lock()).put(data, None)).get());
 
             Ok(try!(StructuredData::new(tag_type,
                                         identifier,
@@ -100,37 +103,33 @@ fn create_impl(client: &Client,
     }
 }
 
-fn get_immutable_data(client: &mut Client, struct_data: &StructuredData) -> Result<ImmutableData, CoreError> {
-    let name = try!(deserialise(&struct_data.get_data()));
-    let response_getter = try!(client.get(DataIdentifier::Immutable(name), None));
-    let data = try!(response_getter.get());
-    match data {
-        Data::Immutable(immutable_data) => Ok(immutable_data),
-        _ => Err(CoreError::ReceivedUnexpectedData),
-    }
-}
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::sync::{Arc, Mutex};
     use xor_name::XorName;
     use core::utility;
 
     const TAG_ID: u64 = ::core::MAIDSAFE_TAG + 1001;
 
     #[test]
-    fn save_and_retrieve_immutable_data() {
-        let mut client = unwrap_result!(utility::test_utils::get_client());
+    fn create_and_get_versioned_structured_data() {
+        let client = Arc::new(Mutex::new(unwrap_result!(utility::test_utils::get_client())));
 
         let id = XorName::new(unwrap_result!(utility::generate_random_array_u8_64()));
         let owners = utility::test_utils::generate_public_keys(1);
         let prev_owners = Vec::new();
         let ref secret_key = utility::test_utils::generate_secret_keys(1)[0];
 
-        let version_0 = XorName::new(unwrap_result!(utility::generate_random_array_u8_64()));
+        let mut all_versions = vec![];
 
-        let mut structured_data_result = create(&client,
-                                                version_0.clone(),
+        for _ in 0..10 {
+            all_versions.push(XorName::new(unwrap_result!(utility::generate_random_array_u8_64())));
+        }
+
+        let mut structured_data_result = create(client.clone(),
+                                                all_versions[0].clone(),
                                                 TAG_ID,
                                                 id,
                                                 0,
@@ -139,19 +138,23 @@ mod test {
                                                 secret_key);
 
         let mut structured_data = unwrap_result!(structured_data_result);
-        let mut versions_res = get_all_versions(&mut client, &structured_data);
+        let mut versions_res = get_all_versions(client.clone(), &structured_data);
         let mut versions = unwrap_result!(versions_res);
         assert_eq!(versions.len(), 1);
 
-        let version_1 = XorName::new(unwrap_result!(utility::generate_random_array_u8_64()));
+        for i in 1..all_versions.len() {
+            structured_data_result = append_version(client.clone(),
+                                                    structured_data,
+                                                    all_versions[i].clone(),
+                                                    secret_key);
+            structured_data = unwrap_result!(structured_data_result);
+            versions_res = get_all_versions(client.clone(), &structured_data);
+            versions = unwrap_result!(versions_res);
+            assert_eq!(versions.len(), i + 1);
 
-        structured_data_result = append_version(&mut client, structured_data, version_1.clone(), secret_key);
-        structured_data = unwrap_result!(structured_data_result);
-        versions_res = get_all_versions(&mut client, &structured_data);
-        versions = unwrap_result!(versions_res);
-        assert_eq!(versions.len(), 2);
-
-        assert_eq!(versions[0], version_0);
-        assert_eq!(versions[1], version_1);
+            for j in 0..i {
+                assert_eq!(versions[j], all_versions[j]);
+            }
+        }
     }
 }
