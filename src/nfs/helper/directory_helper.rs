@@ -111,7 +111,7 @@ impl DirectoryHelper {
     /// Return the versions of the directory
     pub fn get_versions(&self, directory_id: &XorName, type_tag: u64) -> Result<Vec<XorName>, NfsError> {
         let structured_data = try!(self.get_structured_data(directory_id, type_tag));
-        Ok(try!(versioned::get_all_versions(&mut *unwrap_result!(self.client.lock()), &structured_data)))
+        Ok(try!(versioned::get_all_versions(self.client.clone(), &structured_data)))
     }
 
     /// Return the DirectoryListing for the specified version
@@ -262,7 +262,7 @@ impl DirectoryHelper {
                 AccessLevel::Public => try!(serialise(&directory)),
             };
             let version = try!(self.save_as_immutable_data(serialised_data));
-            Ok(try!(versioned::create(&*unwrap_result!(self.client.lock()),
+            Ok(try!(versioned::create(self.client.clone(),
                                       version,
                                       directory.get_key().get_type_tag(),
                                       directory.get_key().get_id().clone(),
@@ -307,7 +307,7 @@ impl DirectoryHelper {
                 AccessLevel::Public => try!(serialise(&directory)),
             };
             let version = try!(self.save_as_immutable_data(serialised_data));
-            try!(versioned::append_version(&mut *unwrap_result!(self.client.lock()),
+            try!(versioned::append_version(self.client.clone(),
                                            structured_data,
                                            version,
                                            &signing_key))
