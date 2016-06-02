@@ -16,14 +16,18 @@
 // relating to use of the SAFE Network Software.
 
 use rand;
+use std::env;
 use std::mem;
 use std::thread;
+use std::fs::File;
 use bincode::SizeLimit;
 use std::time::Duration;
 use std::io::{Read, Write};
 use std::collections::HashMap;
 use sodiumoxide::crypto::sign;
+use std::sync::{Once, ONCE_INIT};
 use std::sync::{Arc, Mutex, mpsc};
+use sodiumoxide::crypto::hash::sha256;
 use safe_network_common::TYPE_TAG_SESSION_PACKET;
 use safe_network_common::client_errors::{GetError, MutationError};
 use maidsafe_utilities::serialisation::{serialise, deserialise, serialise_with_limit,
@@ -31,63 +35,85 @@ use maidsafe_utilities::serialisation::{serialise, deserialise, serialise_with_l
 use routing::{FullId, Data, DataIdentifier, InterfaceError, Event, Authority, Response,
               RoutingError, MessageId, Request, XorName};
 
-type DataStore = Arc<Mutex<HashMap<XorName, Vec<u8>>>>;
-
 const STORAGE_FILE_NAME: &'static str = "VaultStorageSimulation";
 const NETWORK_CONNECT_DELAY_SIMULATION_THREAD: &'static str = "NetworkConnectDelaySimulation";
 
 // Activating these (ie., non-zero values) will require an update to all test cases. Once activated
 // the GET's should only be performed once success from PUT's/POST's/DELETE's have been obtained.
 //
-// These will allow to code properly for behavioral anomalies like GETs reaching the address faster
+// These will allow to code properly for behavioural anomalies like GETs reaching the address faster
 // than PUTs. So a proper delay will help code better logic against scenarios where it is required
 // to do a GET after a PUT/DELETE to confirm that action. So for example if a GET done immediately
 // after a PUT failed, it could mean that the PUT either failed or hasn't reached the address yet.
 const SIMULATED_NETWORK_DELAY_GETS_POSTS_MS: u64 = 0;
 const SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS: u64 = 2 * SIMULATED_NETWORK_DELAY_GETS_POSTS_MS;
 
+// This should ideally be replaced with `safe_vault::maid_manager::DEFAULT_ACCOUNT_SIZE`, but that's
+// not exported by Vault currently.
+const DEFAULT_CLIENT_ACCOUNT_SIZE: u64 = 100;
+
+#[derive(RustcEncodable, RustcDecodable)]
+pub struct ClientAccount {
+    data_stored: u64,
+    space_available: u64,
+}
+
+impl Default for ClientAccount {
+    fn default() -> ClientAccount {
+        ClientAccount {
+            data_stored: 0,
+            space_available: DEFAULT_CLIENT_ACCOUNT_SIZE,
+        }
+    }
+}
+
+#[derive(RustcEncodable, RustcDecodable)]
 struct PersistentStorageSimulation {
-    data_store: DataStore,
+    data_store: HashMap<XorName, Vec<u8>>,
+    client_accounts: HashMap<XorName, ClientAccount>,
 }
 
 #[allow(unsafe_code)]
-fn get_storage() -> DataStore {
-    static mut STORAGE: *const PersistentStorageSimulation =
-        0 as *const PersistentStorageSimulation;
-    static mut ONCE: ::std::sync::Once = ::std::sync::ONCE_INIT;
+fn get_storage() -> Arc<Mutex<PersistentStorageSimulation>> {
+    static mut STORAGE: *const Arc<Mutex<PersistentStorageSimulation>> =
+        0 as *const Arc<Mutex<PersistentStorageSimulation>>;
+    static mut ONCE: Once = ONCE_INIT;
 
     unsafe {
         ONCE.call_once(|| {
-            let mut memory_storage = HashMap::new();
+            let mut memory_storage = PersistentStorageSimulation {
+                data_store: HashMap::new(),
+                client_accounts: HashMap::new(),
+            };
 
-            let mut temp_dir_pathbuf = ::std::env::temp_dir();
+            let mut temp_dir_pathbuf = env::temp_dir();
             temp_dir_pathbuf.push(STORAGE_FILE_NAME);
 
-            if let Ok(mut file) = ::std::fs::File::open(temp_dir_pathbuf) {
+            if let Ok(mut file) = File::open(temp_dir_pathbuf) {
                 let mut raw_disk_data = Vec::with_capacity(unwrap_result!(file.metadata())
                     .len() as usize);
                 if let Ok(_) = file.read_to_end(&mut raw_disk_data) {
-                    if raw_disk_data.len() != 0 {
-                        memory_storage = unwrap_result!(deserialise_with_limit(&raw_disk_data,
-                                                                  SizeLimit::Infinite));
+                    if !raw_disk_data.is_empty() {
+                        if let Ok(parsed) = deserialise_with_limit(&raw_disk_data,
+                                                                   SizeLimit::Infinite) {
+                            memory_storage = parsed;
+                        }
                     }
                 }
             }
 
-            STORAGE = mem::transmute(Box::new(PersistentStorageSimulation {
-                data_store: Arc::new(Mutex::new(memory_storage)),
-            }));
+            STORAGE = mem::transmute(Box::new(Arc::new(Mutex::new(memory_storage))));
         });
 
-        (*STORAGE).data_store.clone()
+        (*STORAGE).clone()
     }
 }
 
-fn sync_disk_storage(memory_storage: &HashMap<XorName, Vec<u8>>) {
-    let mut temp_dir_pathbuf = ::std::env::temp_dir();
+fn sync_disk_storage(memory_storage: &PersistentStorageSimulation) {
+    let mut temp_dir_pathbuf = env::temp_dir();
     temp_dir_pathbuf.push(STORAGE_FILE_NAME);
 
-    let mut file = unwrap_result!(::std::fs::File::create(temp_dir_pathbuf));
+    let mut file = unwrap_result!(File::create(temp_dir_pathbuf));
     let _ =
         file.write_all(&unwrap_result!(serialise_with_limit(&memory_storage, SizeLimit::Infinite)));
     unwrap_result!(file.sync_all());
@@ -130,7 +156,7 @@ impl RoutingMock {
                             data_id: DataIdentifier,
                             msg_id: MessageId)
                             -> Result<(), InterfaceError> {
-        let data_store = get_storage();
+        let storage = get_storage();
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
@@ -140,7 +166,7 @@ impl RoutingMock {
             let nae_auth = Authority::NaeManager(data_name);
             let request = Request::Get(data_id.clone(), msg_id.clone());
 
-            match unwrap_result!(data_store.lock()).get(&data_name) {
+            match unwrap_result!(storage.lock()).data_store.get(&data_name) {
                 Some(raw_data) => {
                     if let Ok(data) = deserialise::<Data>(raw_data) {
                         if match (&data, &data_id) {
@@ -205,7 +231,7 @@ impl RoutingMock {
                             data: Data,
                             msg_id: MessageId)
                             -> Result<(), InterfaceError> {
-        let data_store = get_storage();
+        let storage = get_storage();
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
@@ -216,11 +242,12 @@ impl RoutingMock {
         let nae_auth = Authority::NaeManager(data_name);
         let request = Request::Put(data.clone(), msg_id.clone());
 
-        let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
+        let mut storage_mutex_guard = unwrap_result!(storage.lock());
+        let err = if storage_mutex_guard.data_store.contains_key(&data_name) {
             match data {
                 Data::Immutable(_) => {
-                    match deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
+                    match deserialise(unwrap_option!(storage_mutex_guard.data_store
+                                                         .get(&data_name),
                                                      "Programming Error - Report this as a Bug.")) {
                         // Immutable data is de-duplicated so always allowed
                         Ok(Data::Immutable(_)) => None,
@@ -238,12 +265,22 @@ impl RoutingMock {
                 _ => Some(MutationError::DataExists),
             }
         } else if let Ok(raw_data) = serialise(&data) {
-            let _ = data_store_mutex_guard.insert(data_name, raw_data);
-            sync_disk_storage(&*data_store_mutex_guard);
+            let _ = storage_mutex_guard.data_store.insert(data_name, raw_data);
             None
         } else {
             Some(MutationError::NetworkOther("Serialisation error".to_owned()))
         };
+
+        if err.is_none() {
+            {
+                let account = storage_mutex_guard.client_accounts
+                    .entry(self.client_name())
+                    .or_insert(ClientAccount::default());
+                account.data_stored += 1;
+                account.space_available -= 1;
+            }
+            sync_disk_storage(&*storage_mutex_guard);
+        }
 
         let _ = thread::spawn(move || {
             thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -281,7 +318,7 @@ impl RoutingMock {
                              data: Data,
                              msg_id: MessageId)
                              -> Result<(), InterfaceError> {
-        let data_store = get_storage();
+        let storage = get_storage();
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
@@ -290,16 +327,16 @@ impl RoutingMock {
         let nae_auth = Authority::NaeManager(data_name);
         let request = Request::Post(data.clone(), msg_id.clone());
 
-        let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
+        let mut storage_mutex_guard = unwrap_result!(storage.lock());
+        let err = if storage_mutex_guard.data_store.contains_key(&data_name) {
             if let Data::Structured(ref sd_new) = data {
                 match (serialise(&data),
-                       deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
+                       deserialise(unwrap_option!(storage_mutex_guard.data_store.get(&data_name),
                                                   "Programming Error - Report this as a Bug."))) {
                     (Ok(raw_data), Ok(Data::Structured(sd_stored))) => {
                         if let Ok(_) = sd_stored.validate_self_against_successor(&sd_new) {
-                            let _ = data_store_mutex_guard.insert(data_name, raw_data);
-                            sync_disk_storage(&*data_store_mutex_guard);
+                            let _ = storage_mutex_guard.data_store.insert(data_name, raw_data);
+                            sync_disk_storage(&*storage_mutex_guard);
                             None
                         } else {
                             Some(MutationError::InvalidSuccessor)
@@ -350,7 +387,7 @@ impl RoutingMock {
                                data: Data,
                                msg_id: MessageId)
                                -> Result<(), InterfaceError> {
-        let data_store = get_storage();
+        let storage = get_storage();
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
@@ -359,16 +396,16 @@ impl RoutingMock {
         let nae_auth = Authority::NaeManager(data_name);
         let request = Request::Delete(data.clone(), msg_id.clone());
 
-        let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
+        let mut storage_mutex_guard = unwrap_result!(storage.lock());
+        let err = if storage_mutex_guard.data_store.contains_key(&data_name) {
             if let Data::Structured(ref sd_new) = data {
                 match (serialise(&data),
-                       deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
+                       deserialise(unwrap_option!(storage_mutex_guard.data_store.get(&data_name),
                                                   "Programming Error - Report this as a Bug."))) {
                     (Ok(_), Ok(Data::Structured(sd_stored))) => {
                         if let Ok(_) = sd_stored.validate_self_against_successor(&sd_new) {
-                            let _ = data_store_mutex_guard.remove(&data_name);
-                            sync_disk_storage(&*data_store_mutex_guard);
+                            let _ = storage_mutex_guard.data_store.remove(&data_name);
+                            sync_disk_storage(&*storage_mutex_guard);
                             None
                         } else {
                             Some(MutationError::InvalidSuccessor)
@@ -414,6 +451,54 @@ impl RoutingMock {
         Ok(())
     }
 
+    pub fn send_get_account_info_request(&mut self,
+                                         dst: Authority,
+                                         msg_id: MessageId)
+                                         -> Result<(), InterfaceError> {
+        let storage = get_storage();
+        let cloned_sender = self.sender.clone();
+        let client_auth = self.client_auth.clone();
+        let client_name = self.client_name();
+
+        let _ = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_GETS_POSTS_MS));
+            let request = Request::GetAccountInfo(msg_id.clone());
+
+            match unwrap_result!(storage.lock()).client_accounts.get(&client_name) {
+                Some(account) => {
+                    let event = Event::Response {
+                        src: dst,
+                        dst: client_auth,
+                        response: Response::GetAccountInfoSuccess {
+                            id: msg_id,
+                            data_stored: account.data_stored,
+                            space_available: account.space_available,
+                        },
+                    };
+                    if let Err(error) = cloned_sender.send(event) {
+                        error!("GetAccountInfo-Response mpsc-send failure: {:?}", error);
+                    }
+                }
+                None => {
+                    let ext_err = match serialise(&GetError::NoSuchAccount) {
+                        Ok(serialised_err) => serialised_err,
+                        Err(err) => {
+                            warn!("Could not serialise client-vault error - {:?}", err);
+                            Vec::new()
+                        }
+                    };
+                    let event =
+                        RoutingMock::construct_failure_resp(dst, client_auth, request, ext_err);
+                    if let Err(error) = cloned_sender.send(event) {
+                        error!("Get-Response mpsc-send failure: {:?}", error);
+                    }
+                }
+            };
+        });
+
+        Ok(())
+    }
+
     fn construct_failure_resp(src: Authority,
                               dst: Authority,
                               request: Request,
@@ -448,6 +533,12 @@ impl RoutingMock {
                     external_error_indicator: ext_err,
                 }
             }
+            Request::GetAccountInfo(msg_id) => {
+                Response::GetAccountInfoFailure {
+                    id: msg_id,
+                    external_error_indicator: ext_err,
+                }
+            }
             _ => {
                 unreachable!("Cannot handle {:?} in this function. Report as bug",
                              request)
@@ -460,11 +551,19 @@ impl RoutingMock {
             response: response,
         }
     }
+
+    fn client_name(&self) -> XorName {
+        match self.client_auth {
+            Authority::Client { ref client_key, .. } => XorName(sha256::hash(&client_key[..]).0),
+            _ => panic!("This authority must be Client"),
+        }
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use super::DEFAULT_CLIENT_ACCOUNT_SIZE;
     use std::sync::mpsc;
     use std::collections::HashMap;
 
@@ -473,7 +572,8 @@ mod test {
     use core::client::user_account::Account;
     use core::translated_events::NetworkEvent;
     use core::client::message_queue::MessageQueue;
-    use core::client::response_getter::{GetResponseGetter, MutationResponseGetter};
+    use core::client::response_getter::{GetResponseGetter, GetAccountInfoResponseGetter,
+                                        MutationResponseGetter};
 
     use maidsafe_utilities::serialisation::{serialise, deserialise};
     use safe_network_common::client_errors::{GetError, MutationError};
@@ -580,6 +680,23 @@ mod test {
             assert_eq!(unwrap_result!(resp_getter.get()), orig_data);
         }
 
+        // GetAccountInfo should pass and show one chunk stored
+        {
+            let (tx, rx) = mpsc::channel();
+            let msg_id = MessageId::new();
+
+            unwrap_result!(message_queue.lock())
+                .register_response_observer(msg_id.clone(), tx.clone());
+
+            unwrap_result!(mock_routing.send_get_account_info_request(location_client_mgr.clone(),
+                                                                      msg_id));
+
+            let resp_getter = GetAccountInfoResponseGetter::new((tx, rx));
+
+            assert_eq!(unwrap_result!(resp_getter.get()),
+                       (1, DEFAULT_CLIENT_ACCOUNT_SIZE - 1));
+        }
+
         // Subsequent PUTs for same ImmutableData should succeed - De-duplication
         {
             let (tx, rx) = mpsc::channel();
@@ -623,7 +740,7 @@ mod test {
 
             unwrap_result!(message_queue.lock())
                 .register_response_observer(msg_id.clone(), tx.clone());
-            unwrap_result!(mock_routing.send_delete_request(location_client_mgr,
+            unwrap_result!(mock_routing.send_delete_request(location_client_mgr.clone(),
                                                             orig_data.clone(),
                                                             msg_id));
             let resp_getter = MutationResponseGetter::new((tx, rx));
@@ -655,6 +772,22 @@ mod test {
                 GetResponseGetter::new(Some((tx, rx)), message_queue.clone(), data_id);
 
             assert_eq!(unwrap_result!(resp_getter.get()), orig_data);
+        }
+
+        // GetAccountInfo should pass and show two chunks stored
+        {
+            let (tx, rx) = mpsc::channel();
+            let msg_id = MessageId::new();
+
+            unwrap_result!(message_queue.lock())
+                .register_response_observer(msg_id.clone(), tx.clone());
+
+            unwrap_result!(mock_routing.send_get_account_info_request(location_client_mgr, msg_id));
+
+            let resp_getter = GetAccountInfoResponseGetter::new((tx, rx));
+
+            assert_eq!(unwrap_result!(resp_getter.get()),
+                       (2, DEFAULT_CLIENT_ACCOUNT_SIZE - 2));
         }
     }
 
@@ -767,7 +900,25 @@ mod test {
             }
         }
 
-        // GET ImmutableData from lastest version of StructuredData should pass
+        // GetAccountInfo should pass and show two chunks stored
+        {
+            let (tx, rx) = mpsc::channel();
+            let msg_id = MessageId::new();
+
+            unwrap_result!(message_queue.lock())
+                .register_response_observer(msg_id.clone(), tx.clone());
+
+            unwrap_result!(mock_routing.send_get_account_info_request(
+                location_client_mgr_immut.clone(),
+                msg_id));
+
+            let resp_getter = GetAccountInfoResponseGetter::new((tx, rx));
+
+            assert_eq!(unwrap_result!(resp_getter.get()),
+                       (2, DEFAULT_CLIENT_ACCOUNT_SIZE - 2));
+        }
+
+        // GET ImmutableData from latest version of StructuredData should pass
         {
             let mut location_vec =
                 unwrap_result!(deserialise::<Vec<XorName>>(received_structured_data.get_data()));
@@ -802,7 +953,7 @@ mod test {
 
             unwrap_result!(message_queue.lock())
                 .register_response_observer(msg_id.clone(), tx.clone());
-            unwrap_result!(mock_routing.send_put_request(location_client_mgr_immut,
+            unwrap_result!(mock_routing.send_put_request(location_client_mgr_immut.clone(),
                                                          new_data_immutable.clone(),
                                                          msg_id));
             let resp_getter = MutationResponseGetter::new((tx, rx));
@@ -1095,6 +1246,23 @@ mod test {
                 Err(CoreError::GetFailure { reason: GetError::NoSuchData, .. }) => (),
                 Err(err) => panic!("Unexpected: {:?}", err),
             }
+        }
+
+        // GetAccountInfo should pass and show three chunks stored
+        {
+            let (tx, rx) = mpsc::channel();
+            let msg_id = MessageId::new();
+
+            unwrap_result!(message_queue.lock())
+                .register_response_observer(msg_id.clone(), tx.clone());
+
+            unwrap_result!(mock_routing.send_get_account_info_request(location_client_mgr_immut,
+                                                                      msg_id));
+
+            let resp_getter = GetAccountInfoResponseGetter::new((tx, rx));
+
+            assert_eq!(unwrap_result!(resp_getter.get()),
+                       (3, DEFAULT_CLIENT_ACCOUNT_SIZE - 3));
         }
     }
 }

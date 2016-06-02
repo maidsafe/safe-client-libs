@@ -129,6 +129,26 @@ fn handle_response(response: Response, mut queue_guard: MutexGuard<MessageQueue>
                 let _ = response_observer.send(ResponseEvent::MutationResp(err));
             }
         }
+        Response::GetAccountInfoSuccess { id, data_stored, space_available } => {
+            if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
+                let _ = response_observer.send(
+                    ResponseEvent::GetAccountInfoResp(Ok((data_stored, space_available))));
+            }
+        }
+        Response::GetAccountInfoFailure { id, external_error_indicator } => {
+            if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
+                let reason: GetError = match deserialise(&external_error_indicator) {
+                    Ok(err) => err,
+                    Err(err) => {
+                        let err_msg = format!("Couldn't obtain GET Failure reason: {:?}", err);
+                        warn!("{}", err_msg);
+                        GetError::NetworkOther(err_msg)
+                    }
+                };
+                let err = Err(CoreError::GetAccountInfoFailure { reason: reason });
+                let _ = response_observer.send(ResponseEvent::GetAccountInfoResp(err));
+            }
+        }
     }
 }
 

@@ -29,7 +29,8 @@ use std::sync::{Arc, Mutex, mpsc};
 
 use self::user_account::Account;
 use self::message_queue::MessageQueue;
-use self::response_getter::{MutationResponseGetter, GetResponseGetter};
+use self::response_getter::{MutationResponseGetter, GetResponseGetter,
+                            GetAccountInfoResponseGetter};
 
 use core::utility;
 use core::errors::CoreError;
@@ -406,6 +407,27 @@ impl Client {
         try!(self.routing.send_delete_request(dst, data, msg_id));
 
         Ok(MutationResponseGetter::new((tx, rx)))
+    }
+
+    /// Get data from the network. This is non-blocking.
+    pub fn get_account_info(&mut self,
+                            opt_dst: Option<Authority>)
+                            -> Result<GetAccountInfoResponseGetter, CoreError> {
+        let dst = match opt_dst {
+            Some(auth) => auth,
+            None => {
+                Authority::ClientManager(try!(self.get_default_client_manager_address()).clone())
+            }
+        };
+
+        let (tx, rx) = mpsc::channel();
+        let msg_id = MessageId::new();
+        unwrap_result!(self.message_queue.lock())
+            .register_response_observer(msg_id.clone(), tx.clone());
+
+        try!(self.routing.send_get_account_info_request(dst, msg_id));
+
+        Ok(GetAccountInfoResponseGetter::new((tx, rx)))
     }
 
     // TODO Redo this since response handling is integrated - For Qi right now

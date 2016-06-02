@@ -183,7 +183,7 @@ mod test {
     use nfs::AccessLevel;
 
     #[test]
-    fn serialise_directorty_metadata_without_parent_directory() {
+    fn serialise_directory_metadata_without_parent_directory() {
         let obj_before = unwrap_result!(DirectoryMetadata::new("hello.txt".to_string(),
                                                                99u64,
                                                                true,
@@ -196,7 +196,7 @@ mod test {
     }
 
     #[test]
-    fn serialise_directorty_metadata_with_parent_directory() {
+    fn serialise_directory_metadata_with_parent_directory() {
         let id: XorName = rand::random();
         let parent_directory = DirectoryKey::new(id, 100u64, false, AccessLevel::Private);
         let obj_before = unwrap_result!(DirectoryMetadata::new("hello.txt".to_string(),

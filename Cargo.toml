@@ -11,7 +11,7 @@ version = "0.15.0"
 
 [dependencies]
 bincode = "~0.5.6"
-clippy = {version = "~0.0.69", optional = true}
+clippy = {version = "~0.0.74", optional = true}
 libc = "~0.2.11"
 log = "~0.3.6"
 lru_time_cache = "~0.4.0"
