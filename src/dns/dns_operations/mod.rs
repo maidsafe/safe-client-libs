@@ -204,7 +204,7 @@ impl DnsOperations {
             Err(error) => return Err(error),
         };
         let (_, dns_record) =
-            try!(self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys));        
+            try!(self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys));
         dns_record.services
             .get(service_name)
             .map(|v| v.clone())
