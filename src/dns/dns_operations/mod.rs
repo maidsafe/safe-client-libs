@@ -200,9 +200,9 @@ impl DnsOperations {
             Err(DnsError::CoreError(CoreError::OperationForbiddenForClient)) => (),
             Err(DnsError::NfsError(NfsError::CoreError(
                 CoreError::OperationForbiddenForClient))) => (),
+            Err(DnsError::DnsRecordNotFound) => (),
             Err(error) => return Err(error),
         };
-
         let (_, dns_record) =
             try!(self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys));
         dns_record.services
