@@ -359,6 +359,42 @@ pub fn drop_null_ptr(ptr: *mut u8) {
     let _ = unsafe { libc::free(ptr as *mut c_void) };
 }
 
+#[no_mangle]
+#[allow(unsafe_code)]
+/// Return the amount of calls that were done to `get`
+pub extern "C" fn client_issued_gets(ffi_handle: *const c_void) -> u64 {
+    let client = cast_from_ffi_handle(ffi_handle);
+    let guard = client.lock().unwrap();
+    guard.issued_gets()
+}
+
+#[no_mangle]
+#[allow(unsafe_code)]
+/// Return the amount of calls that were done to `put`
+pub extern "C" fn client_issued_puts(ffi_handle: *const c_void) -> u64 {
+    let client = cast_from_ffi_handle(ffi_handle);
+    let guard = client.lock().unwrap();
+    guard.issued_puts()
+}
+
+#[no_mangle]
+#[allow(unsafe_code)]
+/// Return the amount of calls that were done to `post`
+pub extern "C" fn client_issued_posts(ffi_handle: *const c_void) -> u64 {
+    let client = cast_from_ffi_handle(ffi_handle);
+    let guard = client.lock().unwrap();
+    guard.issued_posts()
+}
+
+#[no_mangle]
+#[allow(unsafe_code)]
+/// Return the amount of calls that were done to `delete`
+pub extern "C" fn client_issued_deletes(ffi_handle: *const c_void) -> u64 {
+    let client = cast_from_ffi_handle(ffi_handle);
+    let guard = client.lock().unwrap();
+    guard.issued_deletes()
+}
+
 fn get_parameter_packet<D>(client: Arc<Mutex<Client>>,
                            json_decoder: &mut D)
                            -> Result<(String, String, ParameterPacket), FfiError>

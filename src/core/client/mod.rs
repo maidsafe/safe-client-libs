@@ -26,6 +26,7 @@ mod non_networking_test_framework;
 
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, mpsc};
+use std::cell::Cell;
 
 use self::user_account::Account;
 use self::message_queue::MessageQueue;
@@ -65,6 +66,10 @@ pub struct Client {
     session_packet_id: Option<XorName>,
     session_packet_keys: Option<SessionPacketEncryptionKeys>,
     client_manager_addr: Option<XorName>,
+    issued_gets: u64,
+    issued_puts: Cell<u64>,
+    issued_posts: Cell<u64>,
+    issued_deletes: Cell<u64>,
 }
 
 impl Client {
@@ -92,6 +97,10 @@ impl Client {
             session_packet_id: None,
             session_packet_keys: None,
             client_manager_addr: None,
+            issued_gets: 0,
+            issued_puts: Cell::new(0),
+            issued_posts: Cell::new(0),
+            issued_deletes: Cell::new(0),
         })
     }
 
@@ -131,6 +140,10 @@ impl Client {
                                                                       pin.as_bytes()))),
             session_packet_keys: Some(SessionPacketEncryptionKeys::new(password, pin)),
             client_manager_addr: Some(client_manager_addr),
+            issued_gets: 0,
+            issued_puts: Cell::new(0),
+            issued_posts: Cell::new(0),
+            issued_deletes: Cell::new(0),
         };
 
         {
@@ -215,6 +228,10 @@ impl Client {
                                                                           pin.as_bytes()))),
                 session_packet_keys: Some(SessionPacketEncryptionKeys::new(password, pin)),
                 client_manager_addr: Some(client_manager_addr),
+                issued_gets: 0,
+                issued_puts: Cell::new(0),
+                issued_posts: Cell::new(0),
+                issued_deletes: Cell::new(0),
             };
 
             Ok(client)
@@ -324,6 +341,8 @@ impl Client {
                request_for: DataIdentifier,
                opt_dst: Option<Authority>)
                -> Result<GetResponseGetter, CoreError> {
+        self.issued_gets +=1;
+
         if let DataIdentifier::Immutable(..) = request_for {
             let mut msg_queue = unwrap_result!(self.message_queue.lock());
             if msg_queue.local_cache_check(&request_for.name()) {
@@ -351,6 +370,8 @@ impl Client {
                data: Data,
                opt_dst: Option<Authority>)
                -> Result<MutationResponseGetter, CoreError> {
+        self.issued_puts.set(self.issued_puts.get() + 1);
+
         let dst = match opt_dst {
             Some(auth) => auth,
             None => {
@@ -373,6 +394,8 @@ impl Client {
                 data: Data,
                 opt_dst: Option<Authority>)
                 -> Result<MutationResponseGetter, CoreError> {
+        self.issued_posts.set(self.issued_posts.get() + 1);
+
         let dst = match opt_dst {
             Some(auth) => auth,
             None => Authority::NaeManager(data.name()),
@@ -393,6 +416,8 @@ impl Client {
                   data: Data,
                   opt_dst: Option<Authority>)
                   -> Result<MutationResponseGetter, CoreError> {
+        self.issued_deletes.set(self.issued_deletes.get() + 1);
+
         let dst = match opt_dst {
             Some(auth) => auth,
             None => Authority::NaeManager(data.name()),
@@ -588,6 +613,26 @@ impl Client {
         } else {
             Err(CoreError::ReceivedUnexpectedData)
         }
+    }
+
+    /// Return the amount of calls that were done to `get`
+    pub fn issued_gets(&self) -> u64 {
+        self.issued_gets
+    }
+
+    /// Return the amount of calls that were done to `put`
+    pub fn issued_puts(&self) -> u64 {
+        self.issued_puts.get()
+    }
+
+    /// Return the amount of calls that were done to `post`
+    pub fn issued_posts(&self) -> u64 {
+        self.issued_posts.get()
+    }
+
+    /// Return the amount of calls that were done to `delete`
+    pub fn issued_deletes(&self) -> u64 {
+        self.issued_deletes.get()
     }
 }
 
