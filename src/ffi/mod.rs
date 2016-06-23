@@ -151,7 +151,7 @@ pub extern "C" fn create_unregistered_client(ffi_handle: *mut *const c_void) -> 
 pub extern "C" fn create_account(c_keyword: *const c_char,
                                  c_pin: *const c_char,
                                  c_password: *const c_char,
-                                 ffi_handle: *mut *const c_void)
+                                 ffi_handle: *mut *mut c_void)
                                  -> int32_t {
     let client = ffi_try!(Client::create_account(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
                                         ffi_try!(helper::c_char_ptr_to_string(c_pin)),
@@ -172,7 +172,7 @@ pub extern "C" fn create_account(c_keyword: *const c_char,
 pub extern "C" fn log_in(c_keyword: *const c_char,
                          c_pin: *const c_char,
                          c_password: *const c_char,
-                         ffi_handle: *mut *const c_void)
+                         ffi_handle: *mut *mut c_void)
                          -> int32_t {
     let client = ffi_try!(Client::log_in(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
                                          ffi_try!(helper::c_char_ptr_to_string(c_pin)),
@@ -188,9 +188,12 @@ pub extern "C" fn log_in(c_keyword: *const c_char,
 /// core module
 #[no_mangle]
 #[allow(unsafe_code)]
-pub extern "C" fn register_network_event_observer(handle: *const c_void,
+pub extern "C" fn register_network_event_observer(handle: *mut c_void,
                                                   callback: extern "C" fn(i32)) {
-    let mut ffi_handle: Box<FfiHandle> = unsafe { mem::transmute(handle) };
+    let mut ffi_handle = unsafe {
+        let ffi_handle = handle as *mut FfiHandle;
+        Box::from_raw(ffi_handle)
+    };
 
     unwrap_result!(ffi_handle.network_event_observers.lock()).push(callback);
 
@@ -227,7 +230,7 @@ pub extern "C" fn get_app_dir_key(c_app_name: *const c_char,
                                   c_size: *mut int32_t,
                                   c_capacity: *mut int32_t,
                                   c_result: *mut int32_t,
-                                  ffi_handle: *const c_void)
+                                  ffi_handle: *mut c_void)
                                   -> *const u8 {
     let client = cast_from_ffi_handle(ffi_handle);
     let app_name: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_app_name), c_result);
@@ -256,7 +259,7 @@ pub extern "C" fn get_app_dir_key(c_app_name: *const c_char,
 pub extern "C" fn get_safe_drive_key(c_size: *mut int32_t,
                                      c_capacity: *mut int32_t,
                                      c_result: *mut int32_t,
-                                     ffi_handle: *const c_void)
+                                     ffi_handle: *mut c_void)
                                      -> *const u8 {
     let client = cast_from_ffi_handle(ffi_handle);
     let dir_key = ffi_ptr_try!(helper::get_safe_drive_key(client), c_result);
@@ -280,8 +283,11 @@ pub extern "C" fn get_safe_drive_key(c_size: *mut int32_t,
 /// undefined behaviour.
 #[no_mangle]
 #[allow(unsafe_code)]
-pub extern "C" fn drop_client(client_handle: *const c_void) {
-    let _ = unsafe { mem::transmute::<_, Box<Arc<Mutex<Client>>>>(client_handle) };
+pub extern "C" fn drop_client(client_handle: *mut c_void) {
+    unsafe {
+        let client_handle = client_handle as *mut Arc<Mutex<Client>>;
+        let _ = Box::from_raw(client_handle);
+    }
 }
 
 /// General function that can be invoked for performing a API specific operation that will return
@@ -291,7 +297,7 @@ pub extern "C" fn drop_client(client_handle: *const c_void) {
 /// The JSON string should have keys module, action, app_root_dir_key, safe_drive_dir_key,
 /// safe_drive_access and data. `data` refers to API specific payload.
 #[no_mangle]
-pub extern "C" fn execute(c_payload: *const c_char, ffi_handle: *const c_void) -> int32_t {
+pub extern "C" fn execute(c_payload: *const c_char, ffi_handle: *mut c_void) -> int32_t {
     let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
     let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload), "JSON parse error"));
     let mut json_decoder = json::Decoder::new(json_request);
@@ -314,7 +320,7 @@ pub extern "C" fn execute_for_content(c_payload: *const c_char,
                                       c_size: *mut int32_t,
                                       c_capacity: *mut int32_t,
                                       c_result: *mut int32_t,
-                                      ffi_handle: *const c_void)
+                                      ffi_handle: *mut c_void)
                                       -> *const u8 {
     let payload: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_payload), c_result);
     let json_request = ffi_ptr_try!(parse_result!(json::Json::from_str(&payload),
@@ -430,25 +436,23 @@ fn module_parser<D>(module: String,
 }
 
 #[allow(unsafe_code)]
-fn cast_to_ffi_handle(client: Client) -> *const c_void {
+fn cast_to_ffi_handle(client: Client) -> *mut c_void {
     let ffi_handle = Box::new(FfiHandle {
         client: Arc::new(Mutex::new(client)),
         network_thread_terminator: None,
         raii_joiner: None,
         network_event_observers: Arc::new(Mutex::new(Vec::with_capacity(3))),
     });
-
-    unsafe { mem::transmute(ffi_handle) }
+    let ffi_handle = Box::into_raw(ffi_handle);
+    ffi_handle as *mut c_void
 }
 
 #[allow(unsafe_code)]
-fn cast_from_ffi_handle(handle: *const c_void) -> Arc<Mutex<Client>> {
-    let ffi_handle: Box<FfiHandle> = unsafe { mem::transmute(handle) };
-
-    let client = ffi_handle.client.clone();
-    mem::forget(ffi_handle);
-
-    client
+fn cast_from_ffi_handle(handle: *mut c_void) -> Arc<Mutex<Client>> {
+    unsafe {
+        let ffi_handle = handle as *mut FfiHandle;
+        (*ffi_handle).client.clone()
+    }
 }
 
 #[cfg(test)]
@@ -464,6 +468,7 @@ mod test {
     use std::io::Read;
     use std::error::Error;
     use std::time::Duration;
+    use std::ptr;
 
     use libc::c_void;
 
@@ -487,8 +492,7 @@ mod test {
         let cstring_password = unwrap_result!(generate_random_cstring(10));
 
         {
-            let mut client_handle = 0 as *const c_void;
-            assert_eq!(client_handle, 0 as *const c_void);
+            let mut client_handle: *mut c_void = ptr::null_mut();
 
             {
                 let ptr_to_client_handle = &mut client_handle;
@@ -500,13 +504,12 @@ mod test {
                                    0);
             }
 
-            assert!(client_handle != 0 as *const c_void);
+            assert!(client_handle != ptr::null_mut());
             drop_client(client_handle);
         }
 
         {
-            let mut client_handle = 0 as *const c_void;
-            assert_eq!(client_handle, 0 as *const c_void);
+            let mut client_handle: *mut c_void = ptr::null_mut();
 
             {
                 let ptr_to_client_handle = &mut client_handle;
@@ -518,7 +521,7 @@ mod test {
                                    0);
             }
 
-            assert!(client_handle != 0 as *const c_void);
+            assert!(client_handle != ptr::null_mut());
             // let size_of_c_uint64 = ::std::mem::size_of::<::libc::int32_t>();
             // let c_size = unsafe { ::libc::malloc(size_of_c_uint64) } as *mut ::libc::int32_t;
             // let c_capacity = unsafe { ::libc::malloc(size_of_c_uint64) } as *mut ::libc::int32_t;
