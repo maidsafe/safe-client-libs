@@ -140,13 +140,13 @@ fn main() {
         {
             println!("\nTrying to log in ...");
             match Client::log_in(keyword, pin, password) {
-                Ok(client) => {
+                Ok(mut client) => {
                     println!("Account Login Successful !!");
                     if MOCK_NETWORK {
                         println!("Messaging feature has been skipped as mock routing is being \
                                   used !!");
                     } else {
-                        messaging(&client);
+                        messaging(&mut client);
                     }
                     break;
                 }
@@ -156,7 +156,7 @@ fn main() {
     }
 }
 
-fn messaging(client: &Client) {
+fn messaging(client: &mut Client) {
     println!("\nDo you want to continue with the mpid messaging feature (enter Y for yes) ?");
     let mut messaging_option = String::new();
     let _ = std::io::stdin().read_line(&mut messaging_option);
@@ -179,7 +179,7 @@ fn messaging(client: &Client) {
         if operation == "r" {
             receive_mpid_message(&response_getter);
         } else if operation == "s" {
-            send_mpid_message(&client, mpid_account);
+            send_mpid_message(client, mpid_account);
         } else if operation == "t" {
             break;
         }
@@ -211,7 +211,7 @@ fn receive_mpid_message(response_getter: &GetResponseGetter) {
     }
 }
 
-fn send_mpid_message(client: &Client, mpid_account: XorName) {
+fn send_mpid_message(client: &mut Client, mpid_account: XorName) {
     let mut receiver_name = String::new();
     let mut msg_metadata = String::new();
     let mut msg_content = String::new();
@@ -222,7 +222,7 @@ fn send_mpid_message(client: &Client, mpid_account: XorName) {
     let _ = std::io::stdin().read_line(&mut msg_metadata);
     println!("\n------------ enter content of the message ---------------");
     let _ = std::io::stdin().read_line(&mut msg_content);
-    let secret_key = unwrap_result!(client.get_secret_signing_key());
+    let secret_key = unwrap_result!(client.get_secret_signing_key()).clone();
     let _ = client.send_message(mpid_account,
                                 msg_metadata.into_bytes(),
                                 msg_content.into_bytes(),

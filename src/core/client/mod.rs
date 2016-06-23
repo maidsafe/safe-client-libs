@@ -26,7 +26,6 @@ mod non_networking_test_framework;
 
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, mpsc};
-use std::cell::Cell;
 
 use self::user_account::Account;
 use self::message_queue::MessageQueue;
@@ -67,9 +66,9 @@ pub struct Client {
     session_packet_keys: Option<SessionPacketEncryptionKeys>,
     client_manager_addr: Option<XorName>,
     issued_gets: u64,
-    issued_puts: Cell<u64>,
-    issued_posts: Cell<u64>,
-    issued_deletes: Cell<u64>,
+    issued_puts: u64,
+    issued_posts: u64,
+    issued_deletes: u64,
 }
 
 impl Client {
@@ -98,9 +97,9 @@ impl Client {
             session_packet_keys: None,
             client_manager_addr: None,
             issued_gets: 0,
-            issued_puts: Cell::new(0),
-            issued_posts: Cell::new(0),
-            issued_deletes: Cell::new(0),
+            issued_puts: 0,
+            issued_posts: 0,
+            issued_deletes: 0,
         })
     }
 
@@ -131,7 +130,7 @@ impl Client {
         let hash_sign_key = sha256::hash(&(account_packet.get_maid().public_keys().0).0);
         let client_manager_addr = XorName(hash_sign_key.0);
 
-        let client = Client {
+        let mut client = Client {
             account: Some(account_packet),
             routing: routing,
             _raii_joiner: raii_joiner,
@@ -141,26 +140,28 @@ impl Client {
             session_packet_keys: Some(SessionPacketEncryptionKeys::new(password, pin)),
             client_manager_addr: Some(client_manager_addr),
             issued_gets: 0,
-            issued_puts: Cell::new(0),
-            issued_posts: Cell::new(0),
-            issued_deletes: Cell::new(0),
+            issued_puts: 0,
+            issued_posts: 0,
+            issued_deletes: 0,
         };
 
         {
-            let account = unwrap_option!(client.account.as_ref(), LOGIC_ERROR);
-            let session_packet_keys = unwrap_option!(client.session_packet_keys.as_ref(),
-                                                     LOGIC_ERROR);
+            let account_version = {
+                let account = unwrap_option!(client.account.as_ref(), LOGIC_ERROR);
+                let session_packet_keys = unwrap_option!(client.session_packet_keys.as_ref(),
+                                                         LOGIC_ERROR);
 
-            let session_packet_id = unwrap_option!(client.session_packet_id.as_ref(), LOGIC_ERROR)
-                .clone();
-            let account_version = try!(StructuredData::new(TYPE_TAG_SESSION_PACKET,
+                let session_packet_id = unwrap_option!(client.session_packet_id.as_ref(), LOGIC_ERROR)
+                    .clone();
+                try!(StructuredData::new(TYPE_TAG_SESSION_PACKET,
                                          session_packet_id,
                                          0,
                                          try!(account.encrypt(session_packet_keys.get_password(),
-                                                      session_packet_keys.get_pin())),
+                                                              session_packet_keys.get_pin())),
                                          vec![account.get_public_maid().public_keys().0.clone()],
                                          Vec::new(),
-                                         Some(&account.get_maid().secret_keys().0)));
+                                         Some(&account.get_maid().secret_keys().0)))
+            };
 
             try!(try!(client.put(Data::Structured(account_version), None)).get());
         }
@@ -229,9 +230,9 @@ impl Client {
                 session_packet_keys: Some(SessionPacketEncryptionKeys::new(password, pin)),
                 client_manager_addr: Some(client_manager_addr),
                 issued_gets: 0,
-                issued_puts: Cell::new(0),
-                issued_posts: Cell::new(0),
-                issued_deletes: Cell::new(0),
+                issued_puts: 0,
+                issued_posts: 0,
+                issued_deletes: 0,
             };
 
             Ok(client)
@@ -366,11 +367,11 @@ impl Client {
     }
 
     /// Put data onto the network. This is non-blocking.
-    pub fn put(&self,
+    pub fn put(&mut self,
                data: Data,
                opt_dst: Option<Authority>)
                -> Result<MutationResponseGetter, CoreError> {
-        self.issued_puts.set(self.issued_puts.get() + 1);
+        self.issued_puts += 1;
 
         let dst = match opt_dst {
             Some(auth) => auth,
@@ -390,11 +391,11 @@ impl Client {
     }
 
     /// Post data onto the network
-    pub fn post(&self,
+    pub fn post(&mut self,
                 data: Data,
                 opt_dst: Option<Authority>)
                 -> Result<MutationResponseGetter, CoreError> {
-        self.issued_posts.set(self.issued_posts.get() + 1);
+        self.issued_posts += 1;
 
         let dst = match opt_dst {
             Some(auth) => auth,
@@ -412,11 +413,11 @@ impl Client {
     }
 
     /// Delete data from the network
-    pub fn delete(&self,
+    pub fn delete(&mut self,
                   data: Data,
                   opt_dst: Option<Authority>)
                   -> Result<MutationResponseGetter, CoreError> {
-        self.issued_deletes.set(self.issued_deletes.get() + 1);
+        self.issued_deletes += 1;
 
         let dst = match opt_dst {
             Some(auth) => auth,
@@ -435,7 +436,7 @@ impl Client {
 
     // TODO Redo this since response handling is integrated - For Qi right now
     /// Send a message to receiver via the network. This is non-blocking.
-    pub fn send_message(&self,
+    pub fn send_message(&mut self,
                         mpid_account: XorName,
                         msg_metadata: Vec<u8>,
                         msg_content: Vec<u8>,
@@ -457,7 +458,7 @@ impl Client {
     }
 
     /// Delete a message from own or sender's outbox. This is non-blocking.
-    pub fn delete_message(&self,
+    pub fn delete_message(&mut self,
                           target_account: XorName,
                           message_name: XorName)
                           -> Result<MutationResponseGetter, CoreError> {
@@ -467,7 +468,7 @@ impl Client {
     }
 
     /// Delete a header from own inbox. This is non-blocking.
-    pub fn delete_header(&self,
+    pub fn delete_header(&mut self,
                          mpid_account: XorName,
                          header_name: XorName)
                          -> Result<MutationResponseGetter, CoreError> {
@@ -476,7 +477,7 @@ impl Client {
                                       MpidMessageWrapper::DeleteHeader(header_name.clone()))
     }
 
-    fn messaging_delete_request(&self,
+    fn messaging_delete_request(&mut self,
                                 account: XorName,
                                 name: XorName,
                                 request: MpidMessageWrapper)
@@ -488,12 +489,12 @@ impl Client {
     }
 
     /// Register as an online mpid_messaging client to the network. This is non-blocking.
-    pub fn register_online(&self, mpid_account: XorName) -> Result<GetResponseGetter, CoreError> {
+    pub fn register_online(&mut self, mpid_account: XorName) -> Result<GetResponseGetter, CoreError> {
         self.messaging_post_request(mpid_account, MpidMessageWrapper::Online)
     }
 
     /// Query the targeted messages' header that still in the outbox. This is non-blocking.
-    pub fn query_outbox_headers(&self,
+    pub fn query_outbox_headers(&mut self,
                                 mpid_account: XorName,
                                 headers: Vec<XorName>)
                                 -> Result<GetResponseGetter, CoreError> {
@@ -501,7 +502,7 @@ impl Client {
     }
 
     /// Get the list of messages' headers that still in the outbox. This is non-blocking.
-    pub fn get_outbox_headers(&self,
+    pub fn get_outbox_headers(&mut self,
                               mpid_account: XorName)
                               -> Result<GetResponseGetter, CoreError> {
         self.messaging_post_request(mpid_account, MpidMessageWrapper::GetOutboxHeaders)
@@ -509,7 +510,7 @@ impl Client {
 
     // TODO - Qi to check if this is alright - Post something should not require version caching.
     // Should this not be a GET ? - Asked by Spandan
-    fn messaging_post_request(&self,
+    fn messaging_post_request(&mut self,
                               mpid_account: XorName,
                               request: MpidMessageWrapper)
                               -> Result<GetResponseGetter, CoreError> {
@@ -590,25 +591,30 @@ impl Client {
 
         let resp_getter = try!(self.get(session_packet_request, None));
 
-        let account = try!(self.account.as_ref().ok_or(CoreError::OperationForbiddenForClient));
-        let session_packet_keys = try!(self.session_packet_keys
-            .as_ref()
-            .ok_or(CoreError::OperationForbiddenForClient));
-
         if let Data::Structured(retrieved_session_packet) = try!(resp_getter.get()) {
-            let encrypted_account = try!(account.encrypt(session_packet_keys.get_password(),
-                                                         session_packet_keys.get_pin()));
+            let new_account_version = {
+                let account = try!(self.account.as_ref()
+                                   .ok_or(CoreError::OperationForbiddenForClient));
 
-            let new_account_version = try!(StructuredData::new(TYPE_TAG_SESSION_PACKET,
+                let encrypted_account = {
+                    let session_packet_keys = try!(self.session_packet_keys
+                                                   .as_ref()
+                                                   .ok_or(CoreError::OperationForbiddenForClient));
+                    try!(account.encrypt(session_packet_keys.get_password(),
+                                         session_packet_keys.get_pin()))
+                };
+
+                try!(StructuredData::new(TYPE_TAG_SESSION_PACKET,
                                          session_packet_id,
                                          retrieved_session_packet.get_version() + 1,
                                          encrypted_account,
                                          vec![account.get_public_maid()
-                                                  .public_keys()
-                                                  .0
-                                                  .clone()],
+                                              .public_keys()
+                                              .0
+                                              .clone()],
                                          Vec::new(),
-                                         Some(&account.get_maid().secret_keys().0)));
+                                         Some(&account.get_maid().secret_keys().0)))
+            };
             try!(self.post(Data::Structured(new_account_version), None)).get()
         } else {
             Err(CoreError::ReceivedUnexpectedData)
@@ -622,17 +628,17 @@ impl Client {
 
     /// Return the amount of calls that were done to `put`
     pub fn issued_puts(&self) -> u64 {
-        self.issued_puts.get()
+        self.issued_puts
     }
 
     /// Return the amount of calls that were done to `post`
     pub fn issued_posts(&self) -> u64 {
-        self.issued_posts.get()
+        self.issued_posts
     }
 
     /// Return the amount of calls that were done to `delete`
     pub fn issued_deletes(&self) -> u64 {
-        self.issued_deletes.get()
+        self.issued_deletes
     }
 }
 
@@ -735,7 +741,7 @@ mod test {
             let pin = unwrap_result!(utility::generate_random_string(10));
 
             // Creation should pass
-            let client = unwrap_result!(Client::create_account(keyword, pin, password));
+            let mut client = unwrap_result!(Client::create_account(keyword, pin, password));
             unwrap_result!(unwrap_result!(client.put(orig_data.clone(), None)).get());
         }
 

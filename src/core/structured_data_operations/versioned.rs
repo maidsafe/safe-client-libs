@@ -23,7 +23,7 @@ use routing::{StructuredData, ImmutableData, Data, DataIdentifier, XorName};
 use core::structured_data_operations::{DataFitResult, check_if_data_can_fit_in_structured_data};
 
 /// Create the StructuredData to manage versioned data.
-pub fn create(client: &Client,
+pub fn create(client: &mut Client,
               version_name_to_store: XorName,
               tag_type: u64,
               identifier: XorName,
@@ -70,7 +70,7 @@ pub fn append_version(client: &mut Client,
                 private_signing_key)
 }
 
-fn create_impl(client: &Client,
+fn create_impl(client: &mut Client,
                version_names_to_store: &Vec<XorName>,
                tag_type: u64,
                identifier: XorName,
@@ -135,7 +135,7 @@ mod test {
 
         let version_0: XorName = rand::random();
 
-        let mut structured_data_result = create(&client,
+        let mut structured_data_result = create(&mut client,
                                                 version_0.clone(),
                                                 TAG_ID,
                                                 id,

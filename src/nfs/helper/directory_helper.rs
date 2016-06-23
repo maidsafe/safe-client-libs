@@ -278,7 +278,7 @@ impl DirectoryHelper {
                 AccessLevel::Public => try!(serialise(&directory)),
             };
             let version = try!(self.save_as_immutable_data(serialised_data));
-            Ok(try!(versioned::create(&*unwrap_result!(self.client.lock()),
+            Ok(try!(versioned::create(&mut *unwrap_result!(self.client.lock()),
                                       version,
                                       directory.get_key().get_type_tag(),
                                       directory.get_key().get_id().clone(),

@@ -357,7 +357,6 @@ pub fn drop_vector(ptr: *mut u8, size: int32_t, capacity: int32_t) {
     let _ = unsafe { Vec::from_raw_parts(ptr, size as usize, capacity as usize) };
 }
 
-
 #[no_mangle]
 #[allow(unsafe_code)]
 /// Return the amount of calls that were done to `get`
