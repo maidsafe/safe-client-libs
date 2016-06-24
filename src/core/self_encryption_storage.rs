@@ -68,6 +68,6 @@ impl Storage<SelfEncryptionStorageError> for SelfEncryptionStorage {
     fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), SelfEncryptionStorageError> {
         let immutable_data = ImmutableData::new(data);
         let mut client = self.client.lock().expect("Failed to lock client mutex.");
-        Ok(try!(try!(client.put(Data::Immutable(immutable_data), None)).get()))
+        Ok(try!(client.put_recover(Data::Immutable(immutable_data), None)))
     }
 }

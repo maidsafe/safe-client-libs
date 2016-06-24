@@ -89,7 +89,7 @@ fn create_impl(client: &mut Client,
                                                         prev_owner_keys.clone())) {
         DataFitResult::DataFits => {
             let data = Data::Immutable(immutable_data);
-            try!(try!(client.put(data, None)).get());
+            try!(client.put_recover(data, None));
 
             Ok(try!(StructuredData::new(tag_type,
                                         identifier,

@@ -91,9 +91,9 @@ impl DnsOperations {
                                                        vec![],
                                                        private_signing_key,
                                                        data_encryption_keys));
-            match try!(unwrap_result!(self.client.lock())
-                           .put(Data::Structured(struct_data), None))
-                      .get() {
+            match unwrap_result!(self.client.lock())
+                            .put_recover(Data::Structured(struct_data), None)
+            {
                 Ok(()) => (),
                 Err(CoreError::MutationFailure { reason: MutationError::DataExists, .. }) => {
                     return Err(DnsError::DnsNameAlreadyRegistered)
