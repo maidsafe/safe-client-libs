@@ -51,10 +51,10 @@ use std::sync::{Arc, Mutex, mpsc};
 use rustc_serialize::Decoder;
 use core::client::Client;
 use rustc_serialize::Decodable;
-use libc::{int32_t, c_char};
+use libc::{c_char, int32_t};
 use std::mem;
 use rustc_serialize::base64::FromBase64;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::RaiiThreadJoiner;
 use maidsafe_utilities::log as safe_log;
 use nfs::metadata::directory_key::DirectoryKey;
@@ -191,9 +191,7 @@ pub extern "C" fn log_in(c_keyword: *const c_char,
 #[allow(unsafe_code)]
 pub extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
                                                   callback: extern "C" fn(i32)) {
-    let mut ffi_handle = unsafe {
-        Box::from_raw(ffi_handle)
-    };
+    let mut ffi_handle = unsafe { Box::from_raw(ffi_handle) };
 
     unwrap_result!(ffi_handle.network_event_observers.lock()).push(callback);
 
@@ -205,9 +203,12 @@ pub extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
         unwrap_result!(ffi_handle.client.lock()).add_network_event_observer(tx);
 
         let raii_joiner = RaiiThreadJoiner::new(thread!("FfiNetworkEventObserver", move || {
-            for it in rx.iter() {
+            while let Ok(event) = rx.recv() {
+                if let NetworkEvent::Terminated = event {
+                    break;
+                }
                 let ref cbs = *unwrap_result!(callbacks.lock());
-                let event_ffi_val = it.into();
+                let event_ffi_val = event.into();
                 for cb in cbs {
                     cb(event_ffi_val);
                 }
@@ -476,9 +477,7 @@ fn cast_to_ffi_handle(client: Client) -> *mut FfiHandle {
 
 #[allow(unsafe_code)]
 fn cast_from_ffi_handle(ffi_handle: *mut FfiHandle) -> Arc<Mutex<Client>> {
-    unsafe {
-        (*ffi_handle).client.clone()
-    }
+    unsafe { (*ffi_handle).client.clone() }
 }
 
 #[cfg(test)]
