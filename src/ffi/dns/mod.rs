@@ -27,6 +27,7 @@ mod add_service;
 mod register_dns;
 mod get_services;
 mod get_long_names;
+mod get_file_metadata;
 mod delete_service;
 mod register_public_id;
 mod get_service_directory;
@@ -93,6 +94,12 @@ fn get_action<D>(action: String, decoder: &mut D) -> Result<Box<Action>, FfiErro
         "delete-service" => {
             Box::new(try!(parse_result!(decoder.read_struct_field("data", 0, |d| {
                                             delete_service::DeleteService::decode(d)
+                                        }),
+                                        "")))
+        }
+        "get-file-metadata" => {
+            Box::new(try!(parse_result!(decoder.read_struct_field("data", 0, |d| {
+                                            get_file_metadata::GetFileMetadata::decode(d)
                                         }),
                                         "")))
         }
