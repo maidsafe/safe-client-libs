@@ -45,23 +45,24 @@ mod launcher_config_handler;
 /// Errors thrown by the FFI operations
 pub mod errors;
 
-use ffi::errors::FfiError;
-use rustc_serialize::json;
-use std::sync::{Arc, Mutex, mpsc};
-use rustc_serialize::Decoder;
-use core::client::Client;
-use rustc_serialize::Decodable;
-use libc::{c_char, int32_t};
 use std::mem;
-use rustc_serialize::base64::FromBase64;
+use std::ptr;
+use std::sync::{Arc, Mutex, mpsc};
+use std::sync::mpsc::Sender;
+
+use core::client::Client;
+use core::errors::CoreError;
+use core::translated_events::NetworkEvent;
+use ffi::errors::FfiError;
+use libc::{c_char, int32_t};
+use maidsafe_utilities::log as safe_log;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::RaiiThreadJoiner;
-use maidsafe_utilities::log as safe_log;
 use nfs::metadata::directory_key::DirectoryKey;
-use core::translated_events::NetworkEvent;
-use core::errors::CoreError;
-use std::ptr;
-use std::sync::mpsc::Sender;
+use rustc_serialize::base64::FromBase64;
+use rustc_serialize::Decodable;
+use rustc_serialize::Decoder;
+use rustc_serialize::json;
 
 
 /// ParameterPacket acts as a holder for the standard parameters that would be needed for performing

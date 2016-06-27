@@ -17,14 +17,15 @@
 //! Dns operations. Implementation for some of the `dns` module
 
 use std::sync::{Arc, Mutex};
-use sodiumoxide::crypto::box_;
+
 use core::client::Client;
 use dns::errors::DnsError;
+use maidsafe_utilities::serialisation::{serialise, deserialise};
 use nfs::errors::NfsError;
 use nfs::helper::writer::Mode;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::helper::file_helper::FileHelper;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
+use sodiumoxide::crypto::box_;
 
 const DNS_CONFIG_DIR_NAME: &'static str = "DnsReservedDirectory";
 const DNS_CONFIG_FILE_NAME: &'static str = "DnsConfigurationFile";

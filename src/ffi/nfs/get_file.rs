@@ -15,9 +15,9 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use ffi::{helper, ParameterPacket, ResponseType, Action};
 use ffi::errors::FfiError;
 use ffi::nfs::file_response::get_response;
-use ffi::{helper, ParameterPacket, ResponseType, Action};
 use rustc_serialize::json;
 
 #[derive(RustcDecodable, Debug)]

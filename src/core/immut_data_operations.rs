@@ -17,14 +17,14 @@
 
 use std::sync::{Arc, Mutex};
 
-use core::utility;
 use core::client::Client;
 use core::errors::CoreError;
 use core::SelfEncryptionStorage;
-use self_encryption::{DataMap, SelfEncryptor};
-use sodiumoxide::crypto::box_::{PublicKey, SecretKey, Nonce};
+use core::utility;
 use maidsafe_utilities::serialisation::{serialise, deserialise};
 use routing::{Data, DataIdentifier, ImmutableData, XorName};
+use self_encryption::{DataMap, SelfEncryptor};
+use sodiumoxide::crypto::box_::{PublicKey, SecretKey, Nonce};
 
 // TODO(Spandan) Ask Routing to define this constant and use it from there
 const MAX_IMMUT_DATA_SIZE_IN_BYTES: usize = 1024 * 1024;

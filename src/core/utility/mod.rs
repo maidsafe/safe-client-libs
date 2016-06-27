@@ -17,10 +17,10 @@
 /// Common utility functions for writting test cases
 pub mod test_utils;
 
-use rand::Rng;
 use core::errors::CoreError;
-use sodiumoxide::crypto::{box_, secretbox};
 use maidsafe_utilities::serialisation::{serialise, deserialise};
+use rand::Rng;
+use sodiumoxide::crypto::{box_, secretbox};
 
 /// Combined Asymmetric and Symmetric encryption. The data is encrypted using random Key and
 /// IV with Xsalsa-symmetric encryption. Random IV ensures that same plain text produces different

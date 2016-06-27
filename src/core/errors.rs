@@ -20,11 +20,11 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::sync::mpsc;
 
 use core::SelfEncryptionStorageError;
-use routing::DataIdentifier;
-use safe_network_common::messaging;
-use safe_network_common::client_errors::{GetError, MutationError};
 use maidsafe_utilities::serialisation::SerialisationError;
+use routing::DataIdentifier;
 use self_encryption::SelfEncryptionError;
+use safe_network_common::client_errors::{GetError, MutationError};
+use safe_network_common::messaging;
 
 /// Intended for converting Client Errors into numeric codes for propagating some error information
 /// across FFI boundaries and specially to C.

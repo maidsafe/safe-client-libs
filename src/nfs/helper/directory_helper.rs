@@ -17,16 +17,16 @@
 
 use std::sync::{Arc, Mutex};
 
-use nfs::errors::NfsError;
-use nfs::directory_listing::DirectoryListing;
-use routing::XorName;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
-use nfs::metadata::directory_key::DirectoryKey;
-use routing::{ImmutableData, StructuredData, Data, DataIdentifier};
 use core::client::Client;
 use core::errors::CoreError;
 use core::structured_data_operations::{unversioned, versioned};
+use maidsafe_utilities::serialisation::{serialise, deserialise};
 use nfs::AccessLevel;
+use nfs::errors::NfsError;
+use nfs::directory_listing::DirectoryListing;
+use nfs::metadata::directory_key::DirectoryKey;
+use routing::XorName;
+use routing::{ImmutableData, StructuredData, Data, DataIdentifier};
 
 /// DirectoryHelper provides helper functions to perform Operations on Directory
 pub struct DirectoryHelper {

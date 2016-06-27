@@ -19,7 +19,6 @@ use std::fmt;
 
 use nfs::errors::NfsError;
 use nfs::metadata::file_metadata::FileMetadata;
-
 use rand::{Rand, OsRng};
 use routing::XorName;
 use self_encryption::DataMap;

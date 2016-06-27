@@ -15,9 +15,9 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::json;
 use dns::dns_operations::DnsOperations;
 use ffi::{ParameterPacket, ResponseType, Action};
+use rustc_serialize::json;
 
 pub struct GetLongNames;
 

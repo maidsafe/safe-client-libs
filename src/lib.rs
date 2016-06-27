@@ -43,22 +43,21 @@
                                    option_unwrap_used))]
 #![cfg_attr(feature="clippy", allow(use_debug, doc_markdown))] // TODO: Fix doc_markdown errors.
 
+#[cfg(feature = "use-mock-routing")]
+extern crate bincode;
 extern crate libc;
 #[macro_use]
 extern crate log;
-extern crate time;
-extern crate rand;
-extern crate routing;
-extern crate sodiumoxide;
 extern crate lru_time_cache;
-extern crate self_encryption;
-extern crate rustc_serialize;
 #[macro_use]
 extern crate maidsafe_utilities;
+extern crate rand;
+extern crate routing;
+extern crate rustc_serialize;
 extern crate safe_network_common;
-
-#[cfg(feature = "use-mock-routing")]
-extern crate bincode;
+extern crate self_encryption;
+extern crate sodiumoxide;
+extern crate time;
 
 /// Core module
 pub mod core;
