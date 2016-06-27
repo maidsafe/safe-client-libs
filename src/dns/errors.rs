@@ -16,8 +16,8 @@
 // relating to use of the SAFE Network Software.
 
 use core::errors::CoreError;
-use nfs::errors::{NfsError, NFS_ERROR_START_RANGE};
 use maidsafe_utilities::serialisation::SerialisationError;
+use nfs::errors::{NfsError, NFS_ERROR_START_RANGE};
 
 /// Intended for converting DNS Errors into numeric codes for propagating some error information
 /// across FFI boundaries and specially to C.

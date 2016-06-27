@@ -17,10 +17,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use nfs::errors::NfsError;
-use nfs::file::File;
 use core::client::Client;
 use core::{SelfEncryptionStorage, SelfEncryptionStorageError};
+use nfs::errors::NfsError;
+use nfs::file::File;
 use self_encryption::SelfEncryptor;
 
 /// Reader is used to read contents of a File. It can read in chunks if the file happens to be very

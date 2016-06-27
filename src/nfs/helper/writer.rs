@@ -17,12 +17,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use nfs::errors::NfsError;
-use nfs::directory_listing::DirectoryListing;
-use nfs::helper::directory_helper::DirectoryHelper;
-use nfs::file::File;
 use core::client::Client;
 use core::{SelfEncryptionStorage, SelfEncryptionStorageError};
+use nfs::directory_listing::DirectoryListing;
+use nfs::errors::NfsError;
+use nfs::file::File;
+use nfs::helper::directory_helper::DirectoryHelper;
 use self_encryption::{DataMap, SelfEncryptor};
 
 /// Mode of the writer
