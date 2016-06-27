@@ -334,12 +334,11 @@ pub extern "C" fn execute_for_content(c_payload: *const c_char,
     // object and iterate. parse based on keys
     json_decoder = json::Decoder::new(json_request.clone());
     let result = ffi_ptr_try!(module_parser(module, action, parameter_packet, &mut json_decoder),
-                              c_result);
+                              c_result);    
     let data = match result {
         Some(response) => response.into_bytes(),
         None => Vec::with_capacity(0),
     };
-
     unsafe {
         ptr::write(c_size, data.len() as i32);
         ptr::write(c_capacity, data.capacity() as i32);
@@ -347,7 +346,6 @@ pub extern "C" fn execute_for_content(c_payload: *const c_char,
     };
     let ptr = data.as_ptr();
     mem::forget(data);
-
     ptr
 }
 
