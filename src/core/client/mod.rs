@@ -27,19 +27,19 @@ mod non_networking_test_framework;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, mpsc};
 
-use self::user_account::Account;
 use self::message_queue::MessageQueue;
 use self::response_getter::{GetResponseGetter, MutationResponseGetter};
+use self::user_account::Account;
 
-use core::utility;
 use core::errors::CoreError;
 use core::translated_events::NetworkEvent;
+use core::utility;
 
-use maidsafe_utilities::thread::RaiiThreadJoiner;
 use maidsafe_utilities::serialisation::serialise;
-use safe_network_common::TYPE_TAG_SESSION_PACKET;
+use maidsafe_utilities::thread::RaiiThreadJoiner;
 use safe_network_common::client_errors::MutationError;
 use safe_network_common::messaging::{MpidMessage, MpidMessageWrapper};
+use safe_network_common::TYPE_TAG_SESSION_PACKET;
 use routing::{Authority, Data, DataIdentifier, FullId, MessageId, PlainData, StructuredData,
               XorName};
 
@@ -728,9 +728,9 @@ impl SessionPacketEncryptionKeys {
 mod test {
     use super::*;
 
-    use core::utility;
-    use core::errors::CoreError;
     use core::client::response_getter::GetResponseGetter;
+    use core::errors::CoreError;
+    use core::utility;
 
     use rand;
     use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XOR_NAME_LEN, XorName};

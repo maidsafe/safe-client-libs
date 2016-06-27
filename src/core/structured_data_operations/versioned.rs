@@ -17,10 +17,10 @@
 
 use core::client::Client;
 use core::errors::CoreError;
-use sodiumoxide::crypto::sign;
+use core::structured_data_operations::{DataFitResult, check_if_data_can_fit_in_structured_data};
 use maidsafe_utilities::serialisation::{serialise, deserialise};
 use routing::{StructuredData, ImmutableData, Data, DataIdentifier, XorName};
-use core::structured_data_operations::{DataFitResult, check_if_data_can_fit_in_structured_data};
+use sodiumoxide::crypto::sign;
 
 /// Create the StructuredData to manage versioned data.
 pub fn create(client: &mut Client,

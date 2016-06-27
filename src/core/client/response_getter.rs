@@ -15,12 +15,13 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use core::errors::CoreError;
-use routing::{Data, DataIdentifier, XorName};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
+
 use core::client::message_queue::MessageQueue;
+use core::errors::CoreError;
 use core::translated_events::ResponseEvent;
+use routing::{Data, DataIdentifier, XorName};
 
 /// GetResponseGetter is a lazy evaluated response getter for GET Requests. It will fetch either
 /// from local cache or wait for the MessageQueue to notify it of the incoming response from the

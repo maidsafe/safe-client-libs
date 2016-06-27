@@ -16,18 +16,18 @@
 // relating to use of the SAFE Network Software.
 
 use std::error::Error;
+use std::ffi::CStr;
 use std::sync::{Arc, Mutex};
 
-use libc::c_char;
-use std::ffi::CStr;
-use ffi::errors::FfiError;
-use nfs::AccessLevel;
 use core::client::Client;
 use ffi::config::SAFE_DRIVE_DIR_NAME;
-use nfs::UNVERSIONED_DIRECTORY_LISTING_TAG;
+use ffi::errors::FfiError;
+use libc::c_char;
+use nfs::AccessLevel;
 use nfs::directory_listing::DirectoryListing;
-use nfs::metadata::directory_key::DirectoryKey;
 use nfs::helper::directory_helper::DirectoryHelper;
+use nfs::metadata::directory_key::DirectoryKey;
+use nfs::UNVERSIONED_DIRECTORY_LISTING_TAG;
 
 #[allow(unsafe_code)]
 pub fn c_char_ptr_to_string(c_char_ptr: *const c_char) -> Result<String, FfiError> {

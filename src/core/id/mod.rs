@@ -15,16 +15,16 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-/// AnMaid
-pub mod revocation_id_type;
 /// Maid
 pub mod id_type;
 /// PublicMaid
 pub mod public_id_type;
+/// AnMaid
+pub mod revocation_id_type;
 
-pub use self::revocation_id_type::*;
 pub use self::id_type::*;
 pub use self::public_id_type::*;
+pub use self::revocation_id_type::*;
 
 /// Interface to IdTypes
 pub trait IdTypeTags {

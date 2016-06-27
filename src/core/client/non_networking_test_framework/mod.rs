@@ -15,21 +15,22 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rand;
-use std::mem;
-use std::thread;
-use bincode::SizeLimit;
-use std::time::Duration;
-use std::io::{Read, Write};
 use std::collections::HashMap;
-use sodiumoxide::crypto::sign;
-use std::sync::{Arc, Mutex, mpsc};
-use safe_network_common::TYPE_TAG_SESSION_PACKET;
-use safe_network_common::client_errors::{GetError, MutationError};
+use std::io::{Read, Write};
+use std::mem;
+use std::sync::{Arc, mpsc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+use bincode::SizeLimit;
 use maidsafe_utilities::serialisation::{deserialise, deserialise_with_limit, serialise,
                                         serialise_with_limit};
+use rand;
 use routing::{Authority, Data, DataIdentifier, Event, FullId, InterfaceError, MessageId, Request,
               Response, RoutingError, XorName};
+use safe_network_common::TYPE_TAG_SESSION_PACKET;
+use safe_network_common::client_errors::{GetError, MutationError};
+use sodiumoxide::crypto::sign;
 
 type DataStore = Arc<Mutex<HashMap<XorName, Vec<u8>>>>;
 

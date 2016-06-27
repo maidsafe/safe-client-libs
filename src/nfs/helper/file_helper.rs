@@ -17,6 +17,8 @@
 
 use std::sync::{Arc, Mutex};
 
+use core::client::Client;
+use core::SelfEncryptionStorage;
 use nfs::directory_listing::DirectoryListing;
 use nfs::errors::NfsError;
 use nfs::file::File;
@@ -24,8 +26,6 @@ use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::helper::reader::Reader;
 use nfs::helper::writer::{Mode, Writer};
 use nfs::metadata::file_metadata::FileMetadata;
-use core::client::Client;
-use core::SelfEncryptionStorage;
 use self_encryption::DataMap;
 
 /// File provides helper functions to perform Operations on Files

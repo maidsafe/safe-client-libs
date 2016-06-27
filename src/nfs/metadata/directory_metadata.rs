@@ -15,13 +15,12 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::{Decodable, Decoder};
-
-use rand::{Rand, OsRng};
-use routing::XorName;
-use nfs::metadata::directory_key::DirectoryKey;
 use nfs::AccessLevel;
 use nfs::errors::NfsError;
+use nfs::metadata::directory_key::DirectoryKey;
+use rand::{Rand, OsRng};
+use routing::XorName;
+use rustc_serialize::{Decodable, Decoder};
 
 /// Metadata about a File or a Directory
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]

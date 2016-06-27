@@ -18,18 +18,18 @@
 use std::convert::From;
 use std::sync::{Arc, Mutex};
 
-use routing::{Data, DataIdentifier, StructuredData, XorName};
-use maidsafe_utilities::serialisation::{serialise, deserialise};
 use core::client::Client;
-use dns::errors::DnsError;
-use nfs::errors::NfsError;
-use nfs::metadata::directory_key::DirectoryKey;
 use core::errors::CoreError;
 use core::structured_data_operations::unversioned;
+use dns::errors::DnsError;
+use maidsafe_utilities::serialisation::{serialise, deserialise};
+use nfs::errors::NfsError;
+use nfs::metadata::directory_key::DirectoryKey;
+use routing::{Data, DataIdentifier, StructuredData, XorName};
+use safe_network_common::client_errors::{GetError, MutationError};
+use safe_network_common::TYPE_TAG_DNS_PACKET;
 use sodiumoxide::crypto::{sign, box_};
 use sodiumoxide::crypto::hash::sha256;
-use safe_network_common::TYPE_TAG_DNS_PACKET;
-use safe_network_common::client_errors::{GetError, MutationError};
 
 pub mod dns_configuration;
 

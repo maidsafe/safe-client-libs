@@ -25,8 +25,8 @@ use core::translated_events::{NetworkEvent, ResponseEvent};
 use lru_time_cache::LruCache;
 use maidsafe_utilities::thread::RaiiThreadJoiner;
 use maidsafe_utilities::serialisation::deserialise;
-use safe_network_common::client_errors::{GetError, MutationError};
 use routing::{Data, Event, MessageId, Response, XorName};
+use safe_network_common::client_errors::{GetError, MutationError};
 
 const EVENT_RECEIVER_THREAD_NAME: &'static str = "EventReceiverThread";
 

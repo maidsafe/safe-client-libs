@@ -18,18 +18,17 @@
 use std::cmp;
 use std::sync::{Arc, Mutex};
 
-use sodiumoxide::crypto::box_;
-
-use nfs::errors::NfsError;
-use nfs::file::File;
-use routing::XorName;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
-use nfs::AccessLevel;
-use nfs::metadata::directory_key::DirectoryKey;
-use nfs::metadata::directory_metadata::DirectoryMetadata;
 use core::client::Client;
 use core::SelfEncryptionStorage;
+use maidsafe_utilities::serialisation::{serialise, deserialise};
+use nfs::AccessLevel;
+use nfs::errors::NfsError;
+use nfs::file::File;
+use nfs::metadata::directory_key::DirectoryKey;
+use nfs::metadata::directory_metadata::DirectoryMetadata;
+use routing::XorName;
 use self_encryption::{DataMap, SelfEncryptor};
+use sodiumoxide::crypto::box_;
 
 /// DirectoryListing is the representation of a deserialised Directory in the network
 #[derive(Debug, RustcEncodable, RustcDecodable, PartialEq, Eq, PartialOrd, Ord, Clone)]

@@ -15,17 +15,18 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use std::sync::{Arc, Mutex};
+
 use core::client::Client;
 use core::errors::CoreError;
-use std::sync::{Arc, Mutex};
-use self_encryption::{DataMap, SelfEncryptor};
-use sodiumoxide::crypto::{box_, sign};
-use maidsafe_utilities::serialisation::{serialise, deserialise};
-use routing::{StructuredData, ImmutableData, Data, DataIdentifier, XorName};
-use core::utility;
+use core::SelfEncryptionStorage;
 use core::structured_data_operations;
 use core::structured_data_operations::DataFitResult;
-use core::SelfEncryptionStorage;
+use core::utility;
+use maidsafe_utilities::serialisation::{serialise, deserialise};
+use routing::{StructuredData, ImmutableData, Data, DataIdentifier, XorName};
+use self_encryption::{DataMap, SelfEncryptor};
+use sodiumoxide::crypto::{box_, sign};
 
 #[allow(variant_size_differences)]
 #[derive(Clone, RustcEncodable, RustcDecodable, PartialEq)]

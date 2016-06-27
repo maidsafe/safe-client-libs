@@ -15,11 +15,11 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use routing::XorName;
 use core::errors::CoreError;
+use core::id::revocation_id_type::RevocationIdType;
+use routing::XorName;
 use sodiumoxide::crypto::{box_, sign};
 use sodiumoxide::crypto::hash::sha256;
-use core::id::revocation_id_type::RevocationIdType;
 
 /// IdType
 ///

@@ -15,11 +15,11 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use ffi::errors::FfiError;
 use ffi::{helper, ParameterPacket, ResponseType, Action};
-use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::directory_listing::DirectoryListing;
+use ffi::errors::FfiError;
 use nfs::errors::NfsError::DirectoryAlreadyExistsWithSameName;
+use nfs::helper::directory_helper::DirectoryHelper;
 
 #[derive(RustcDecodable, Debug)]
 pub struct MoveFile {

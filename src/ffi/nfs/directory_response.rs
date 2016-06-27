@@ -15,15 +15,16 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use std::sync::{Arc, Mutex};
+
+use core::client::Client;
 use ffi::config;
 use ffi::errors::FfiError;
-use std::sync::{Arc, Mutex};
-use core::client::Client;
 use nfs::directory_listing::DirectoryListing;
-use nfs::metadata::file_metadata::FileMetadata;
-use nfs::metadata::directory_key::DirectoryKey;
 use nfs::helper::directory_helper::DirectoryHelper;
+use nfs::metadata::directory_key::DirectoryKey;
 use nfs::metadata::directory_metadata::DirectoryMetadata;
+use nfs::metadata::file_metadata::FileMetadata;
 
 #[derive(RustcEncodable, Debug)]
 pub struct GetDirResponse {
