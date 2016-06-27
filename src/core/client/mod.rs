@@ -38,6 +38,7 @@ use core::translated_events::NetworkEvent;
 use maidsafe_utilities::thread::RaiiThreadJoiner;
 use maidsafe_utilities::serialisation::serialise;
 use safe_network_common::TYPE_TAG_SESSION_PACKET;
+use safe_network_common::client_errors::MutationError;
 use safe_network_common::messaging::{MpidMessage, MpidMessageWrapper};
 use routing::{Authority, Data, DataIdentifier, FullId, MessageId, PlainData, StructuredData,
               XorName};
@@ -480,6 +481,16 @@ impl Client {
         try!(self.routing.send_delete_request(dst, data, msg_id));
 
         Ok(MutationResponseGetter::new((tx, rx)))
+    }
+
+    /// A blocking version of `delete` that returns success if the data was already not present on
+    /// the network.
+    pub fn delete_recover(&mut self, data: Data, opt_dst: Option<Authority>) -> Result<(), CoreError> {
+        match self.delete(data, opt_dst).and_then(|g| g.get()) {
+            Ok(()) => Ok(()),
+            Err(CoreError::MutationFailure { reason: MutationError::NoSuchData, .. }) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
     // TODO Redo this since response handling is integrated - For Qi right now

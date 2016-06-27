@@ -14,6 +14,7 @@
 //
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
+//! Dns operations. Implementation for some of the `dns` module
 
 use std::sync::{Arc, Mutex};
 use sodiumoxide::crypto::box_;
@@ -28,12 +29,16 @@ use maidsafe_utilities::serialisation::{serialise, deserialise};
 const DNS_CONFIG_DIR_NAME: &'static str = "DnsReservedDirectory";
 const DNS_CONFIG_FILE_NAME: &'static str = "DnsConfigurationFile";
 
+/// Dns configuration. For internal use by the `dns` module.
 #[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
 pub struct DnsConfiguration {
+    /// Dns long name
     pub long_name: String,
+    /// Encryption keys
     pub encryption_keypair: (box_::PublicKey, box_::SecretKey),
 }
 
+/// Initialise dns configuration.
 pub fn initialise_dns_configuaration(client: Arc<Mutex<Client>>) -> Result<(), DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
@@ -49,6 +54,7 @@ pub fn initialise_dns_configuaration(client: Arc<Mutex<Client>>) -> Result<(), D
     }
 }
 
+/// Get dns configuration data.
 pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
                                    -> Result<Vec<DnsConfiguration>, DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
@@ -69,6 +75,7 @@ pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
     }
 }
 
+/// Write dns configuration data.
 pub fn write_dns_configuration_data(client: Arc<Mutex<Client>>,
                                      config: &[DnsConfiguration])
                                      -> Result<(), DnsError> {
