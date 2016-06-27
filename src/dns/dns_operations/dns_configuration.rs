@@ -29,7 +29,7 @@ const DNS_CONFIG_DIR_NAME: &'static str = "DnsReservedDirectory";
 const DNS_CONFIG_FILE_NAME: &'static str = "DnsConfigurationFile";
 
 #[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
-pub struct DnsConfiguation {
+pub struct DnsConfiguration {
     pub long_name: String,
     pub encryption_keypair: (box_::PublicKey, box_::SecretKey),
 }
@@ -49,8 +49,8 @@ pub fn initialise_dns_configuaration(client: Arc<Mutex<Client>>) -> Result<(), D
     }
 }
 
-pub fn get_dns_configuaration_data(client: Arc<Mutex<Client>>)
-                                   -> Result<Vec<DnsConfiguation>, DnsError> {
+pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
+                                   -> Result<Vec<DnsConfiguration>, DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
         try!(dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string()));
@@ -69,8 +69,8 @@ pub fn get_dns_configuaration_data(client: Arc<Mutex<Client>>)
     }
 }
 
-pub fn write_dns_configuaration_data(client: Arc<Mutex<Client>>,
-                                     config: &Vec<DnsConfiguation>)
+pub fn write_dns_configuration_data(client: Arc<Mutex<Client>>,
+                                     config: &[DnsConfiguration])
                                      -> Result<(), DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
@@ -104,39 +104,39 @@ mod test {
         unwrap_result!(initialise_dns_configuaration(client.clone()));
 
         // Get the Stored Configurations
-        let mut config_vec = unwrap_result!(get_dns_configuaration_data(client.clone()));
+        let mut config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 0);
 
         let long_name = unwrap_result!(utility::generate_random_string(10));
 
         // Put in the 1st record
         let mut keypair = box_::gen_keypair();
-        let config_0 = DnsConfiguation {
+        let config_0 = DnsConfiguration {
             long_name: long_name.clone(),
             encryption_keypair: (keypair.0, keypair.1),
         };
 
         config_vec.push(config_0.clone());
-        unwrap_result!(write_dns_configuaration_data(client.clone(), &config_vec));
+        unwrap_result!(write_dns_configuration_data(client.clone(), &config_vec));
 
         // Get the Stored Configurations
-        config_vec = unwrap_result!(get_dns_configuaration_data(client.clone()));
+        config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 1);
 
         assert_eq!(config_vec[0], config_0);
 
         // Modify the content
         keypair = box_::gen_keypair();
-        let config_1 = DnsConfiguation {
+        let config_1 = DnsConfiguration {
             long_name: long_name,
             encryption_keypair: (keypair.0, keypair.1),
         };
 
         config_vec[0] = config_1.clone();
-        unwrap_result!(write_dns_configuaration_data(client.clone(), &config_vec));
+        unwrap_result!(write_dns_configuration_data(client.clone(), &config_vec));
 
         // Get the Stored Configurations
-        config_vec = unwrap_result!(get_dns_configuaration_data(client.clone()));
+        config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 1);
 
         assert!(config_vec[0] != config_0);
@@ -144,10 +144,10 @@ mod test {
 
         // Delete Record
         config_vec.clear();
-        unwrap_result!(write_dns_configuaration_data(client.clone(), &config_vec));
+        unwrap_result!(write_dns_configuration_data(client.clone(), &config_vec));
 
         // Get the Stored Configurations
-        config_vec = unwrap_result!(get_dns_configuaration_data(client.clone()));
+        config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 0);
     }
 }

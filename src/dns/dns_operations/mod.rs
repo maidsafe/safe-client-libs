@@ -69,7 +69,7 @@ impl DnsOperations {
                                                       &box_::Nonce)>)
                         -> Result<(), DnsError> {
         debug!("Registering {:?} dns ...", long_name);
-        let mut saved_configs = try!(dns_configuration::get_dns_configuaration_data(self.client
+        let mut saved_configs = try!(dns_configuration::get_dns_configuration_data(self.client
                                                                                         .clone()));
         if saved_configs.iter().any(|config| config.long_name == long_name) {
             Err(DnsError::DnsNameAlreadyRegistered)
@@ -102,13 +102,13 @@ impl DnsOperations {
             }
 
             debug!("Adding encryption key pair to saved dns configuration ...");
-            saved_configs.push(dns_configuration::DnsConfiguation {
+            saved_configs.push(dns_configuration::DnsConfiguration {
                 long_name: long_name,
                 encryption_keypair: (public_messaging_encryption_key.clone(),
                                      secret_messaging_encryption_key.clone()),
             });
-            try!(dns_configuration::write_dns_configuaration_data(self.client.clone(),
-                                                                  &saved_configs));
+            try!(dns_configuration::write_dns_configuration_data(self.client.clone(),
+                                                                 &saved_configs));
 
             Ok(())
         }
@@ -119,7 +119,7 @@ impl DnsOperations {
                       long_name: &String,
                       private_signing_key: &sign::SecretKey)
                       -> Result<(), DnsError> {
-        let mut saved_configs = try!(dns_configuration::get_dns_configuaration_data(self.client
+        let mut saved_configs = try!(dns_configuration::get_dns_configuration_data(self.client
                                                                                         .clone()));
         let pos = try!(saved_configs.iter()
                                     .position(|config| config.long_name == *long_name)
@@ -142,14 +142,14 @@ impl DnsOperations {
 
         debug!("Removing dns saved configs at {:?} position ...", pos);
         let _ = saved_configs.remove(pos);
-        try!(dns_configuration::write_dns_configuaration_data(self.client.clone(), &saved_configs));
+        try!(dns_configuration::write_dns_configuration_data(self.client.clone(), &saved_configs));
 
         Ok(())
     }
 
     /// Get all the Dns-names registered by the user so far in the network.
     pub fn get_all_registered_names(&self) -> Result<Vec<String>, DnsError> {
-        dns_configuration::get_dns_configuaration_data(self.client.clone())
+        dns_configuration::get_dns_configuration_data(self.client.clone())
             .map(|v| v.iter().map(|a| a.long_name.clone()).collect())
     }
 
@@ -243,8 +243,8 @@ impl DnsOperations {
 
     fn find_dns_record(&self,
                        long_name: &String)
-                       -> Result<dns_configuration::DnsConfiguation, DnsError> {
-        let config_vec = try!(dns_configuration::get_dns_configuaration_data(self.client.clone()));
+                       -> Result<dns_configuration::DnsConfiguration, DnsError> {
+        let config_vec = try!(dns_configuration::get_dns_configuration_data(self.client.clone()));
         config_vec.iter()
                   .find(|config| config.long_name == *long_name)
                   .map(|v| v.clone())
