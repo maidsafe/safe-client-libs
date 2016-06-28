@@ -17,9 +17,9 @@
 
 use ffi::errors::FfiError;
 use ffi::{helper, ParameterPacket, ResponseType, Action};
-use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::directory_listing::DirectoryListing;
 use nfs::errors::NfsError::DirectoryAlreadyExistsWithSameName;
+use nfs::helper::directory_helper::DirectoryHelper;
 
 #[derive(RustcDecodable, Debug)]
 pub struct MoveDirectory {
@@ -121,10 +121,10 @@ impl Action for MoveDirectory {
 
 #[cfg(test)]
 mod test {
-    use super::MoveDirectory;
     use ffi::{Action, ParameterPacket, test_utils};
     use nfs::helper::directory_helper::DirectoryHelper;
     use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
+    use super::MoveDirectory;
 
     fn create_directories(parameter_packet: &ParameterPacket) {
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
