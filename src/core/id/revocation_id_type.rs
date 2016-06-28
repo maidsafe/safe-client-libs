@@ -15,10 +15,10 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use core::id::IdTypeTags;
 use routing::XorName;
 use sodiumoxide::crypto::sign;
 use sodiumoxide::crypto::hash::sha256;
-use core::id::IdTypeTags;
 
 /// RevocationIdType
 ///

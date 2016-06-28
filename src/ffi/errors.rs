@@ -17,13 +17,11 @@
 
 use std::fmt;
 
-use rustc_serialize::{json, base64};
-
 use core::errors::CoreError;
 use dns::errors::{DNS_ERROR_START_RANGE, DnsError};
-use nfs::errors::NfsError;
-
 use maidsafe_utilities::serialisation::SerialisationError;
+use nfs::errors::NfsError;
+use rustc_serialize::{json, base64};
 
 /// Intended for converting Launcher Errors into numeric codes for propagating some error
 /// information across FFI boundaries and specially to C.

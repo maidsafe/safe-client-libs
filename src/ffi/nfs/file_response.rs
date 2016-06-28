@@ -15,17 +15,17 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::json;
 use std::collections::BTreeMap;
-use rustc_serialize::base64::ToBase64;
+use std::sync::{Arc, Mutex};
 
+use core::client::Client;
 use ffi::config;
 use ffi::errors::FfiError;
 use nfs::file::File;
-use std::sync::{Arc, Mutex};
-use core::client::Client;
 use nfs::helper::file_helper::FileHelper;
 use nfs::metadata::file_metadata::FileMetadata;
+use rustc_serialize::base64::ToBase64;
+use rustc_serialize::json;
 
 #[derive(RustcEncodable, Debug)]
 pub struct GetFileResponse {

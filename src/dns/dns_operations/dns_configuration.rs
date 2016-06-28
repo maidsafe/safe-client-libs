@@ -14,17 +14,19 @@
 //
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
-//! Dns operations. Implementation for some of the `dns` module
+// Dns operations. Implementation for some of the `dns` module
+//! Helper functions for use in dns module
 
 use std::sync::{Arc, Mutex};
-use sodiumoxide::crypto::box_;
+
 use core::client::Client;
 use dns::errors::DnsError;
+use maidsafe_utilities::serialisation::{serialise, deserialise};
 use nfs::errors::NfsError;
 use nfs::helper::writer::Mode;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::helper::file_helper::FileHelper;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
+use sodiumoxide::crypto::box_;
 
 const DNS_CONFIG_DIR_NAME: &'static str = "DnsReservedDirectory";
 const DNS_CONFIG_FILE_NAME: &'static str = "DnsConfigurationFile";
@@ -56,7 +58,7 @@ pub fn initialise_dns_configuaration(client: Arc<Mutex<Client>>) -> Result<(), D
 
 /// Get dns configuration data.
 pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
-                                   -> Result<Vec<DnsConfiguration>, DnsError> {
+                                  -> Result<Vec<DnsConfiguration>, DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
         try!(dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string()));
@@ -77,8 +79,8 @@ pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
 
 /// Write dns configuration data.
 pub fn write_dns_configuration_data(client: Arc<Mutex<Client>>,
-                                     config: &[DnsConfiguration])
-                                     -> Result<(), DnsError> {
+                                    config: &[DnsConfiguration])
+                                    -> Result<(), DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
         try!(dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string()));

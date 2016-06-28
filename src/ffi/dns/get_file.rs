@@ -15,12 +15,12 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::json;
 use dns::dns_operations::DnsOperations;
 use ffi::{helper, ParameterPacket, ResponseType, Action};
 use ffi::errors::FfiError;
 use ffi::nfs::file_response::get_response;
 use nfs::helper::directory_helper::DirectoryHelper;
+use rustc_serialize::json;
 
 #[derive(RustcDecodable, Debug)]
 pub struct GetFile {
@@ -80,13 +80,9 @@ mod test {
                           file_content: Vec<u8>)
                           -> Result<DirectoryKey, errors::FfiError> {
         let directory_helper = DirectoryHelper::new(params.clone().client);
-        let mut file_directory =
-            try!(directory_helper.get(&try!(params.clone()
-                                                  .app_root_dir_key
-                                                  .ok_or(errors::FfiError::from("Application \
-                                                                                 directory \
-                                                                                 key is not \
-                                                                                 present")))));
+        let mut file_directory = try!(directory_helper.get(&try!(params.clone()
+            .app_root_dir_key
+            .ok_or(errors::FfiError::from("Application directory key is not present")))));
 
         let (file_directory, _) = try!(directory_helper.create(String::from("public-dir"),
                                                                UNVERSIONED_DIRECTORY_LISTING_TAG,
@@ -112,14 +108,12 @@ mod test {
                         -> Result<(), errors::FfiError> {
         let (msg_public_key, msg_secret_key) = box_::gen_keypair();
         let services = vec![(service_name.clone(), (directory_key.clone()))];
-        let public_signing_key = try!(unwrap_result!(params.client.lock())
-                                          .get_public_signing_key())
-                                     .clone();
-        let secret_signing_key = try!(unwrap_result!(params.client.lock())
-                                          .get_secret_signing_key())
-                                     .clone();
+        let public_signing_key =
+            try!(unwrap_result!(params.client.lock()).get_public_signing_key()).clone();
+        let secret_signing_key =
+            try!(unwrap_result!(params.client.lock()).get_secret_signing_key()).clone();
         let dns_operation = try!(DnsOperations::new(params.client
-                                                          .clone()));
+            .clone()));
         try!(dns_operation.register_dns(public_name.clone(),
                                         &msg_public_key,
                                         &msg_secret_key,

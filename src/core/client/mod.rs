@@ -27,19 +27,19 @@ mod non_networking_test_framework;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, mpsc};
 
-use self::user_account::Account;
 use self::message_queue::MessageQueue;
 use self::response_getter::{GetResponseGetter, MutationResponseGetter};
+use self::user_account::Account;
 
-use core::utility;
 use core::errors::CoreError;
 use core::translated_events::NetworkEvent;
+use core::utility;
 
-use maidsafe_utilities::thread::RaiiThreadJoiner;
 use maidsafe_utilities::serialisation::serialise;
-use safe_network_common::TYPE_TAG_SESSION_PACKET;
+use maidsafe_utilities::thread::RaiiThreadJoiner;
 use safe_network_common::client_errors::MutationError;
 use safe_network_common::messaging::{MpidMessage, MpidMessageWrapper};
+use safe_network_common::TYPE_TAG_SESSION_PACKET;
 use routing::{Authority, Data, DataIdentifier, FullId, MessageId, PlainData, StructuredData,
               XorName};
 
@@ -152,8 +152,8 @@ impl Client {
                 let session_packet_keys = unwrap_option!(client.session_packet_keys.as_ref(),
                                                          LOGIC_ERROR);
 
-                let session_packet_id = unwrap_option!(client.session_packet_id.as_ref(), LOGIC_ERROR)
-                    .clone();
+                let session_packet_id =
+                    unwrap_option!(client.session_packet_id.as_ref(), LOGIC_ERROR).clone();
                 try!(StructuredData::new(TYPE_TAG_SESSION_PACKET,
                                          session_packet_id,
                                          0,
@@ -343,7 +343,7 @@ impl Client {
                request_for: DataIdentifier,
                opt_dst: Option<Authority>)
                -> Result<GetResponseGetter, CoreError> {
-        self.issued_gets +=1;
+        self.issued_gets += 1;
 
         if let DataIdentifier::Immutable(..) = request_for {
             let mut msg_queue = unwrap_result!(self.message_queue.lock());
@@ -393,17 +393,13 @@ impl Client {
 
     /// Put data to the network. Unlike `put` this method is blocking and will return success if
     /// the data has already been put to the network.
-    pub fn put_recover(&mut self,
-                       data: Data,
-                       opt_dst: Option<Authority>)
-                        -> Result<(), CoreError>
-    {
+    pub fn put_recover(&mut self, data: Data, opt_dst: Option<Authority>) -> Result<(), CoreError> {
         let data_owners = match data {
             Data::Structured(ref sd) => sd.get_owner_keys().clone(),
             _ => {
                 // Don't do recovery for non-structured-data.
-                return try!(self.put(data, opt_dst)).get()
-            },
+                return try!(self.put(data, opt_dst)).get();
+            }
         };
 
         let data_id = data.identifier();
@@ -414,25 +410,26 @@ impl Client {
                     Ok(()) => return Ok(()),
                     Err(e) => e,
                 }
-            },
+            }
             Err(e) => e,
         };
 
         match self.get(data_id, opt_dst) {
             Err(_) => Err(put_error),
-            Ok(getter) => match getter.get() {
-                Err(_) => Err(put_error),
-                Ok(get_data) => {
-                    match get_data {
-                        Data::Structured(ref sd) => {
-                            if *sd.get_owner_keys() == data_owners {
-                                Ok(())
+            Ok(getter) => {
+                match getter.get() {
+                    Err(_) => Err(put_error),
+                    Ok(get_data) => {
+                        match get_data {
+                            Data::Structured(ref sd) => {
+                                if *sd.get_owner_keys() == data_owners {
+                                    Ok(())
+                                } else {
+                                    Err(put_error)
+                                }
                             }
-                            else {
-                                Err(put_error)
-                            }
+                            _ => Err(put_error),
                         }
-                        _ => Err(put_error),
                     }
                 }
             }
@@ -485,7 +482,10 @@ impl Client {
 
     /// A blocking version of `delete` that returns success if the data was already not present on
     /// the network.
-    pub fn delete_recover(&mut self, data: Data, opt_dst: Option<Authority>) -> Result<(), CoreError> {
+    pub fn delete_recover(&mut self,
+                          data: Data,
+                          opt_dst: Option<Authority>)
+                          -> Result<(), CoreError> {
         match self.delete(data, opt_dst).and_then(|g| g.get()) {
             Ok(()) => Ok(()),
             Err(CoreError::MutationFailure { reason: MutationError::NoSuchData, .. }) => Ok(()),
@@ -548,7 +548,9 @@ impl Client {
     }
 
     /// Register as an online mpid_messaging client to the network. This is non-blocking.
-    pub fn register_online(&mut self, mpid_account: XorName) -> Result<GetResponseGetter, CoreError> {
+    pub fn register_online(&mut self,
+                           mpid_account: XorName)
+                           -> Result<GetResponseGetter, CoreError> {
         self.messaging_post_request(mpid_account, MpidMessageWrapper::Online)
     }
 
@@ -652,13 +654,14 @@ impl Client {
 
         if let Data::Structured(retrieved_session_packet) = try!(resp_getter.get()) {
             let new_account_version = {
-                let account = try!(self.account.as_ref()
-                                   .ok_or(CoreError::OperationForbiddenForClient));
+                let account = try!(self.account
+                    .as_ref()
+                    .ok_or(CoreError::OperationForbiddenForClient));
 
                 let encrypted_account = {
                     let session_packet_keys = try!(self.session_packet_keys
-                                                   .as_ref()
-                                                   .ok_or(CoreError::OperationForbiddenForClient));
+                        .as_ref()
+                        .ok_or(CoreError::OperationForbiddenForClient));
                     try!(account.encrypt(session_packet_keys.get_password(),
                                          session_packet_keys.get_pin()))
                 };
@@ -668,9 +671,9 @@ impl Client {
                                          retrieved_session_packet.get_version() + 1,
                                          encrypted_account,
                                          vec![account.get_public_maid()
-                                              .public_keys()
-                                              .0
-                                              .clone()],
+                                                  .public_keys()
+                                                  .0
+                                                  .clone()],
                                          Vec::new(),
                                          Some(&account.get_maid().secret_keys().0)))
             };
@@ -732,9 +735,9 @@ impl SessionPacketEncryptionKeys {
 mod test {
     use super::*;
 
-    use core::utility;
-    use core::errors::CoreError;
     use core::client::response_getter::GetResponseGetter;
+    use core::errors::CoreError;
+    use core::utility;
 
     use rand;
     use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XOR_NAME_LEN, XorName};

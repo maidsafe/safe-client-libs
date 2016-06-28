@@ -17,16 +17,16 @@
 
 use std::sync::{Arc, Mutex};
 
-use nfs::errors::NfsError;
-use nfs::directory_listing::DirectoryListing;
-use routing::XorName;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
-use nfs::metadata::directory_key::DirectoryKey;
-use routing::{ImmutableData, StructuredData, Data, DataIdentifier};
 use core::client::Client;
 use core::errors::CoreError;
 use core::structured_data_operations::{unversioned, versioned};
+use maidsafe_utilities::serialisation::{serialise, deserialise};
 use nfs::AccessLevel;
+use nfs::errors::NfsError;
+use nfs::directory_listing::DirectoryListing;
+use nfs::metadata::directory_key::DirectoryKey;
+use routing::XorName;
+use routing::{ImmutableData, StructuredData, Data, DataIdentifier};
 
 /// DirectoryHelper provides helper functions to perform Operations on Directory
 pub struct DirectoryHelper {
@@ -73,7 +73,8 @@ impl DirectoryHelper {
 
         let structured_data = try!(self.save_directory_listing(&directory));
         debug!("Posting PUT request to network to save structured data for directory ...");
-        try!(unwrap_result!(self.client.lock()).put_recover(Data::Structured(structured_data), None));
+        try!(unwrap_result!(self.client.lock())
+            .put_recover(Data::Structured(structured_data), None));
         if let Some(mut parent_directory) = parent_directory {
             parent_directory.upsert_sub_directory(directory.get_metadata().clone());
             Ok((directory, try!(self.update(parent_directory))))

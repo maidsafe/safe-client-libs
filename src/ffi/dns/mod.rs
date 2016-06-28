@@ -16,10 +16,10 @@
 // relating to use of the SAFE Network Software.
 use std::fmt;
 
-use rustc_serialize::Decoder;
-use rustc_serialize::Decodable;
 use ffi::errors::FfiError;
 use ffi::{Action, ParameterPacket, ResponseType};
+use rustc_serialize::Decodable;
+use rustc_serialize::Decoder;
 
 mod get_file;
 mod delete_dns;

@@ -17,9 +17,9 @@
 
 use std::fmt;
 
-use maidsafe_utilities::serialisation::SerialisationError;
 use core::errors::{CoreError, CLIENT_ERROR_START_RANGE};
 use core::SelfEncryptionStorageError;
+use maidsafe_utilities::serialisation::SerialisationError;
 use self_encryption::SelfEncryptionError;
 
 /// Intended for converting NFS Errors into numeric codes for propagating some error information

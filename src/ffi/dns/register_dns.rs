@@ -15,11 +15,10 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use sodiumoxide::crypto::box_;
-
+use dns::dns_operations::DnsOperations;
 use ffi::{helper, Action, ParameterPacket, ResponseType};
 use ffi::errors::FfiError;
-use dns::dns_operations::DnsOperations;
+use sodiumoxide::crypto::box_;
 
 #[derive(RustcDecodable, Debug)]
 pub struct RegisterDns {

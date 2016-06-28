@@ -15,8 +15,8 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use ffi::errors::FfiError;
 use ffi::{helper, ParameterPacket, ResponseType, Action};
+use ffi::errors::FfiError;
 use nfs::helper::directory_helper::DirectoryHelper;
 
 #[derive(RustcDecodable, Debug)]
