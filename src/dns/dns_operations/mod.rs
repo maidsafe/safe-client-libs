@@ -344,11 +344,14 @@ struct Dns {
 mod test {
     use super::*;
     use core::client::Client;
+    use core::errors::CoreError;
     use core::utility::{generate_random_string, test_utils};
     use dns::errors::DnsError;
     use nfs::AccessLevel;
+    use nfs::errors::NfsError;
     use nfs::metadata::directory_key::DirectoryKey;
     use routing::{XorName, XOR_NAME_LEN};
+    use safe_network_common::client_errors::GetError;
     use sodiumoxide::crypto::box_;
     use std::sync::{Arc, Mutex};
 
@@ -596,5 +599,42 @@ mod test {
         assert_eq!(services.len(), services_vec.len());
         assert!(services.iter()
                         .all(|&(ref a, _)| services_vec.iter().find(|b| *a == **b).is_some()));
+    }
+
+    #[test]
+    fn register_dns_internal_error_recovery() {
+        let client = Arc::new(Mutex::new(unwrap_result!(test_utils::get_client())));
+        let dns_operations = unwrap_result!(DnsOperations::new(client.clone()));
+        let dns_name = unwrap_result!(generate_random_string(10));
+        let messaging_keypair = box_::gen_keypair();
+        let owners = vec![unwrap_result!(unwrap_result!(client.lock()).get_public_signing_key())
+                              .clone()];
+        let secret_signing_key = unwrap_result!(unwrap_result!(client.lock())
+                                                    .get_secret_signing_key())
+                                     .clone();
+        // Limit of `Some(2)` would prevent the mutation to happen. We want one
+        // `Mutation` exactly at this point
+        client.lock().unwrap().set_network_limits(Some(3));
+        match dns_operations.register_dns(dns_name.clone(),
+                                          &messaging_keypair.0,
+                                          &messaging_keypair.1,
+                                          &vec![],
+                                          owners.clone(),
+                                          &secret_signing_key,
+                                          None) {
+            Err(DnsError::NfsError(NfsError::CoreError(CoreError::GetFailure {
+                reason: GetError::NetworkOther(ref s), ..
+            }))) if s == "Max operations exhausted" => (),
+            Ok(()) => panic!("Operation unexpectedly had succeed"),
+            Err(e) => panic!("Unexpected error {:?}", e),
+        }
+        client.lock().unwrap().set_network_limits(None);
+        unwrap_result!(dns_operations.register_dns(dns_name.clone(),
+                                                   &messaging_keypair.0,
+                                                   &messaging_keypair.1,
+                                                   &vec![],
+                                                   owners.clone(),
+                                                   &secret_signing_key,
+                                                   None));
     }
 }

@@ -96,6 +96,7 @@ fn sync_disk_storage(memory_storage: &HashMap<XorName, Vec<u8>>) {
 pub struct RoutingMock {
     sender: mpsc::Sender<Event>,
     client_auth: Authority,
+    max_ops_countdown: Option<u64>,
 }
 
 impl RoutingMock {
@@ -118,6 +119,7 @@ impl RoutingMock {
         Ok(RoutingMock {
             sender: sender,
             client_auth: client_auth,
+            max_ops_countdown: None,
         })
     }
 
@@ -133,11 +135,39 @@ impl RoutingMock {
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
+        let err = if self.max_ops_countdown == Some(0) {
+            Some(GetError::NetworkOther("Max operations exhausted".to_string()))
+        } else {
+            None
+        };
+
+        if err == None {
+            if let Some(ref mut count) = self.max_ops_countdown {
+                *count -= 1;
+            }
+        }
+
         let _ = thread::spawn(move || {
             thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_GETS_POSTS_MS));
             let data_name = data_id.name();
             let nae_auth = Authority::NaeManager(data_name);
             let request = Request::Get(data_id.clone(), msg_id.clone());
+
+            if let Some(reason) = err {
+                let ext_err = match serialise(&reason) {
+                    Ok(serialised_err) => serialised_err,
+                    Err(err) => {
+                        warn!("Could not serialise client-vault error - {:?}", err);
+                        Vec::new()
+                    }
+                };
+                let event =
+                    RoutingMock::construct_failure_resp(nae_auth, client_auth, request, ext_err);
+                if let Err(error) = cloned_sender.send(event) {
+                    error!("Delete-Response mpsc-send failure: {:?}", error);
+                }
+                return;
+            }
 
             match unwrap_result!(data_store.lock()).get(&data_name) {
                 Some(raw_data) => {
@@ -199,7 +229,7 @@ impl RoutingMock {
         Ok(())
     }
 
-    pub fn send_put_request(&self,
+    pub fn send_put_request(&mut self,
                             _dst: Authority,
                             data: Data,
                             msg_id: MessageId)
@@ -216,7 +246,10 @@ impl RoutingMock {
         let request = Request::Put(data.clone(), msg_id.clone());
 
         let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
+        let err = if self.max_ops_countdown == Some(0) {
+            Some(MutationError::NetworkOther("Max operations exhausted"
+                                             .to_string()))
+        } else if data_store_mutex_guard.contains_key(&data_name) {
             match data {
                 Data::Immutable(_) => {
                     match deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
@@ -243,6 +276,12 @@ impl RoutingMock {
         } else {
             Some(MutationError::NetworkOther("Serialisation error".to_owned()))
         };
+
+        if err == None {
+            if let Some(ref mut count) = self.max_ops_countdown {
+                *count -= 1;
+            }
+        }
 
         let _ = thread::spawn(move || {
             thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -275,7 +314,7 @@ impl RoutingMock {
         Ok(())
     }
 
-    pub fn send_post_request(&self,
+    pub fn send_post_request(&mut self,
                              _dst: Authority,
                              data: Data,
                              msg_id: MessageId)
@@ -291,7 +330,10 @@ impl RoutingMock {
 
         let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
         let err = if data_store_mutex_guard.contains_key(&data_name) {
-            if let Data::Structured(ref sd_new) = data {
+            if self.max_ops_countdown == Some(0) {
+                Some(MutationError::NetworkOther("Max operations exhausted"
+                                                 .to_string()))
+            } else if let Data::Structured(ref sd_new) = data {
                 match (serialise(&data),
                        deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
                                                   "Programming Error - Report this as a Bug."))) {
@@ -312,6 +354,12 @@ impl RoutingMock {
         } else {
             Some(MutationError::NoSuchData)
         };
+
+        if err == None {
+            if let Some(ref mut count) = self.max_ops_countdown {
+                *count -= 1;
+            }
+        }
 
         let _ = thread::spawn(move || {
             thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -344,7 +392,7 @@ impl RoutingMock {
         Ok(())
     }
 
-    pub fn send_delete_request(&self,
+    pub fn send_delete_request(&mut self,
                                _dst: Authority,
                                data: Data,
                                msg_id: MessageId)
@@ -359,7 +407,10 @@ impl RoutingMock {
         let request = Request::Delete(data.clone(), msg_id.clone());
 
         let mut data_store_mutex_guard = unwrap_result!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
+        let err = if self.max_ops_countdown == Some(0) {
+            Some(MutationError::NetworkOther("Max operations exhausted"
+                                             .to_string()))
+        } else if data_store_mutex_guard.contains_key(&data_name) {
             if let Data::Structured(ref sd_new) = data {
                 match (serialise(&data),
                        deserialise(unwrap_option!(data_store_mutex_guard.get(&data_name),
@@ -381,6 +432,12 @@ impl RoutingMock {
         } else {
             Some(MutationError::NoSuchData)
         };
+
+        if err == None {
+            if let Some(ref mut count) = self.max_ops_countdown {
+                *count -= 1;
+            }
+        }
 
         let _ = thread::spawn(move || {
             thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -458,6 +515,11 @@ impl RoutingMock {
             dst: dst,
             response: response,
         }
+    }
+
+    #[cfg(test)]
+    pub fn set_network_limits(&mut self, max_ops_count: Option<u64>) {
+        self.max_ops_countdown = max_ops_count;
     }
 }
 
