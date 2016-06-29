@@ -107,8 +107,8 @@ mod test {
     use core::id::Random;
     use self::rand::Rng;
     use sodiumoxide::crypto::{box_, sign};
-    use maidsafe_utilities::serialisation::{serialise, deserialise};
-    use core::id::{IdType, RevocationIdType, MaidTypeTags};
+    use maidsafe_utilities::serialisation::{deserialise, serialise};
+    use core::id::{IdType, MaidTypeTags, RevocationIdType};
 
     impl Random for IdType {
         fn generate_random() -> IdType {
@@ -120,9 +120,9 @@ mod test {
     fn serialisation_maid() {
         let obj_before = IdType::generate_random();
 
-        let serialised_obj = unwrap_result!(serialise(&obj_before));
+        let serialised_obj = unwrap!(serialise(&obj_before));
 
-        let obj_after: IdType = unwrap_result!(deserialise(&serialised_obj));
+        let obj_after: IdType = unwrap!(deserialise(&serialised_obj));
 
         let &(sign::PublicKey(pub_sign_arr_before), box_::PublicKey(pub_asym_arr_before)) =
             obj_before.public_keys();

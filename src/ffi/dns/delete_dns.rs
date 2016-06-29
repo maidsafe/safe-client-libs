@@ -16,7 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use dns::dns_operations::DnsOperations;
-use ffi::{ParameterPacket, ResponseType, Action};
+use ffi::{Action, ParameterPacket, ResponseType};
 
 #[derive(RustcDecodable, Debug)]
 pub struct DeleteDns {
@@ -25,8 +25,7 @@ pub struct DeleteDns {
 
 impl Action for DeleteDns {
     fn execute(&mut self, params: ParameterPacket) -> ResponseType {
-        let signing_key = try!(unwrap_result!(params.client.lock()).get_secret_signing_key())
-            .clone();
+        let signing_key = try!(unwrap!(params.client.lock()).get_secret_signing_key()).clone();
         let dns_ops = try!(DnsOperations::new(params.client));
         try!(dns_ops.delete_dns(&self.long_name, &signing_key));
 

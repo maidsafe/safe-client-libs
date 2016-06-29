@@ -100,9 +100,9 @@ mod test {
     use rand;
     use super::*;
     use rand::Rng;
-    use core::id::{MpidTypeTags, MaidTypeTags, Random};
+    use core::id::{MaidTypeTags, MpidTypeTags, Random};
     use sodiumoxide::crypto::sign;
-    use maidsafe_utilities::serialisation::{serialise, deserialise};
+    use maidsafe_utilities::serialisation::{deserialise, serialise};
 
 
     impl Random for RevocationIdType {
@@ -120,8 +120,8 @@ mod test {
     fn serialisation_an_maid() {
         let obj_before = RevocationIdType::generate_random();
 
-        let serialised_obj = unwrap_result!(serialise(&obj_before));
-        let obj_after = unwrap_result!(deserialise(&serialised_obj));
+        let serialised_obj = unwrap!(serialise(&obj_before));
+        let obj_after = unwrap!(deserialise(&serialised_obj));
         assert_eq!(obj_before, obj_after);
     }
 

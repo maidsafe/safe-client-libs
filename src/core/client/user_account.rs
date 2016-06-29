@@ -225,32 +225,36 @@ mod test {
     fn generating_network_id() {
         let keyword1 = "user1".to_owned();
 
-        let user1_id1 = unwrap_result!(Account::generate_network_id(keyword1.as_bytes(),
-                                                                    0.to_string().as_bytes()));
-        let user1_id2 = unwrap_result!(Account::generate_network_id(keyword1.as_bytes(),
-                                                                    1234.to_string().as_bytes()));
-        let user1_id3 = unwrap_result!(Account::generate_network_id(keyword1.as_bytes(),
-                                                                    ::std::u32::MAX.to_string()
-                                                                        .as_bytes()));
+        let user1_id1 = unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                             0.to_string().as_bytes()));
+        let user1_id2 = unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                             1234.to_string().as_bytes()));
+        let user1_id3 = unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                             ::std::u32::MAX.to_string()
+                                                                 .as_bytes()));
 
         assert!(user1_id1 != user1_id2);
         assert!(user1_id1 != user1_id3);
         assert!(user1_id2 != user1_id3);
         assert_eq!(user1_id1,
-                   unwrap_result!(Account::generate_network_id(keyword1.as_bytes(),
-                                                               0.to_string().as_bytes())));
+                   unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                        0.to_string().as_bytes())));
         assert_eq!(user1_id2,
-                   unwrap_result!(Account::generate_network_id(keyword1.as_bytes(),
-                                                               1234.to_string().as_bytes())));
+                   unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                        1234.to_string().as_bytes())));
         assert_eq!(user1_id3,
-                   unwrap_result!(Account::generate_network_id(keyword1.as_bytes(),
-                                                               ::std::u32::MAX.to_string()
-                                                                   .as_bytes())));
+                   unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                        ::std::u32::MAX.to_string()
+                                                            .as_bytes())));
 
         let keyword2 = "user2".to_owned();
-        let gen_id1 = Account::generate_network_id(keyword1.as_bytes(), 248.to_string().as_bytes());
-        let gen_id2 = Account::generate_network_id(keyword2.as_bytes(), 248.to_string().as_bytes());
-        assert!(unwrap_result!(gen_id1) != unwrap_result!(gen_id2));
+        let gen_id_res1 = Account::generate_network_id(keyword1.as_bytes(),
+                                                       248.to_string().as_bytes());
+        let gen_id_res2 = Account::generate_network_id(keyword2.as_bytes(),
+                                                       248.to_string().as_bytes());
+        let gen_id1 = unwrap!(gen_id_res1);
+        let gen_id2 = unwrap!(gen_id_res2);
+        assert!(gen_id1 != gen_id2);
     }
 
     #[test]
@@ -258,32 +262,32 @@ mod test {
         let password1 = "super great password".to_owned();
         let password2 = "even better password".to_owned();
         {
-            let keys1 = unwrap_result!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                                     0.to_string().as_bytes()));
-            let keys2 = unwrap_result!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                                     1234.to_string().as_bytes()));
-            let keys3 = unwrap_result!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                                     ::std::u32::MAX.to_string()
-                                                                         .as_bytes()));
+            let keys1 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                              0.to_string().as_bytes()));
+            let keys2 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                              1234.to_string().as_bytes()));
+            let keys3 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                              ::std::u32::MAX.to_string()
+                                                                  .as_bytes()));
 
             assert!(keys1 != keys2);
             assert!(keys1 != keys3);
             assert!(keys2 != keys3);
         }
         {
-            let keys1 = unwrap_result!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                                     0.to_string().as_bytes()));
-            let keys2 = unwrap_result!(Account::generate_crypto_keys(password2.as_bytes(),
-                                                                     0.to_string().as_bytes()));
+            let keys1 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                              0.to_string().as_bytes()));
+            let keys2 = unwrap!(Account::generate_crypto_keys(password2.as_bytes(),
+                                                              0.to_string().as_bytes()));
 
             assert!(keys1 != keys2);
             assert!(keys1 != keys2);
         }
         {
-            let keys = unwrap_result!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                                    0.to_string().as_bytes()));
-            let again = unwrap_result!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                                     0.to_string().as_bytes()));
+            let keys = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                             0.to_string().as_bytes()));
+            let again = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                              0.to_string().as_bytes()));
             assert_eq!(keys, again);
             assert_eq!(keys, again);
         }
@@ -292,8 +296,7 @@ mod test {
     #[test]
     fn serialisation() {
         let account = Account::new(None, None);
-        let deserialised_account =
-            unwrap_result!(deserialise(&unwrap_result!(serialise(&account))));
+        let deserialised_account = unwrap!(deserialise(&unwrap!(serialise(&account))));
         assert_eq!(account, deserialised_account);
     }
 
@@ -305,13 +308,14 @@ mod test {
         let pin = 1000u16;
 
         let encrypted_account =
-            unwrap_result!(account.encrypt(password.as_bytes(), pin.to_string().as_bytes()));
+            unwrap!(account.encrypt(password.as_bytes(), pin.to_string().as_bytes()));
+        let serialised_account = unwrap!(serialise(&account));
         assert!(encrypted_account.len() > 0);
-        assert!(encrypted_account != unwrap_result!(serialise(&account)));
+        assert!(encrypted_account != serialised_account);
 
-        let decrypted_account = unwrap_result!(Account::decrypt(&encrypted_account,
-                                                                password.as_bytes(),
-                                                                pin.to_string().as_bytes()));
+        let decrypted_account = unwrap!(Account::decrypt(&encrypted_account,
+                                                         password.as_bytes(),
+                                                         pin.to_string().as_bytes()));
         assert_eq!(account, decrypted_account);
     }
 }

@@ -17,7 +17,7 @@
 
 use std::fmt;
 
-use core::errors::{CoreError, CLIENT_ERROR_START_RANGE};
+use core::errors::{CLIENT_ERROR_START_RANGE, CoreError};
 use core::SelfEncryptionStorageError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use self_encryption::SelfEncryptionError;

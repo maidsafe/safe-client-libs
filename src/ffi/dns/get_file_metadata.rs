@@ -16,9 +16,8 @@
 // relating to use of the SAFE Network Software.
 
 use dns::dns_operations::DnsOperations;
-use ffi::{Action, helper, ParameterPacket, ResponseType};
+use ffi::{Action, ParameterPacket, ResponseType, helper};
 use ffi::errors::FfiError;
-use nfs::helper::directory_helper::DirectoryHelper;
 use rustc_serialize::json;
 
 #[derive(RustcDecodable, Debug)]
@@ -39,14 +38,9 @@ impl Action for GetFileMetadata {
                                                                                None));
         let mut tokens = helper::tokenise_path(&self.file_path, false);
         let file_name = try!(tokens.pop().ok_or(FfiError::InvalidPath));
-        let file_dir = if tokens.len() > 0 {
-            try!(helper::get_final_subdirectory(params.client.clone(),
-                                                &tokens,
-                                                Some(&directory_key)))
-        } else {
-            let dir_helper = DirectoryHelper::new(params.client.clone());
-            try!(dir_helper.get(&directory_key))
-        };
+        let file_dir = try!(helper::get_final_subdirectory(params.client.clone(),
+                                                           &tokens,
+                                                           Some(&directory_key)));
         let file = try!(file_dir.find_file(&file_name).ok_or(FfiError::InvalidPath));
         Ok(Some(try!(json::encode(file.get_metadata()))))
     }

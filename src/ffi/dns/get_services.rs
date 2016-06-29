@@ -16,7 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use dns::dns_operations::DnsOperations;
-use ffi::{ParameterPacket, ResponseType, Action};
+use ffi::{Action, ParameterPacket, ResponseType};
 use rustc_serialize::json;
 
 #[derive(RustcDecodable, Debug)]

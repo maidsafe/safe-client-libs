@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use ffi::{helper, ParameterPacket, ResponseType, Action};
+use ffi::{Action, ParameterPacket, ResponseType, helper};
 use ffi::errors::FfiError;
 use nfs::helper::directory_helper::DirectoryHelper;
 
@@ -77,7 +77,7 @@ struct OptionalParams {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ffi::{config, Action, ParameterPacket, test_utils};
+    use ffi::{Action, ParameterPacket, config, test_utils};
     use rustc_serialize::base64::ToBase64;
     use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
     use nfs::helper::directory_helper::DirectoryHelper;
@@ -86,20 +86,20 @@ mod test {
     const METADATA_BASE64: &'static str = "c2FtcGxlIHRleHQ=";
 
     fn create_test_dir(parameter_packet: &ParameterPacket) {
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let _ = unwrap_result!(dir_helper.create(TEST_DIR_NAME.to_string(),
-                                                 UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                                 Vec::new(),
-                                                 false,
-                                                 AccessLevel::Private,
-                                                 Some(&mut app_root_dir)));
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let _ = unwrap!(dir_helper.create(TEST_DIR_NAME.to_string(),
+                                          UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                          Vec::new(),
+                                          false,
+                                          AccessLevel::Private,
+                                          Some(&mut app_root_dir)));
     }
 
     #[test]
     fn rename_dir() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         create_test_dir(&parameter_packet);
 
@@ -114,13 +114,13 @@ mod test {
             is_path_shared: false,
         };
 
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 1);
         assert!(app_root_dir.find_sub_directory(&TEST_DIR_NAME.to_string()).is_some());
         assert!(request.execute(parameter_packet).is_ok());
-        app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 1);
         assert!(app_root_dir.find_sub_directory(&TEST_DIR_NAME.to_string()).is_none());
         assert!(app_root_dir.find_sub_directory(&"new_test_dir".to_string()).is_some());
@@ -128,7 +128,7 @@ mod test {
 
     #[test]
     fn dir_update_user_metadata() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         create_test_dir(&parameter_packet);
 
@@ -143,18 +143,17 @@ mod test {
             is_path_shared: false,
         };
 
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let directory_key =
-            unwrap_option!(app_root_dir.find_sub_directory(&TEST_DIR_NAME.to_string()),
-                           "Directory not found")
-                .get_key();
-        let mut directory_to_modify = unwrap_result!(dir_helper.get(directory_key));
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let directory_key = unwrap!(app_root_dir.find_sub_directory(&TEST_DIR_NAME.to_string()),
+                                    "Directory not found")
+            .get_key();
+        let mut directory_to_modify = unwrap!(dir_helper.get(directory_key));
         assert_eq!(directory_to_modify.get_metadata().get_user_metadata().len(),
                    0);
         assert!(request.execute(parameter_packet).is_ok());
-        directory_to_modify = unwrap_result!(dir_helper.get(directory_key));
+        directory_to_modify = unwrap!(dir_helper.get(directory_key));
         assert!(directory_to_modify.get_metadata().get_user_metadata().len() > 0);
         assert_eq!(directory_to_modify.get_metadata()
                        .get_user_metadata()

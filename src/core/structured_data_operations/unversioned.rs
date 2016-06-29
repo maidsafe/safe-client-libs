@@ -22,8 +22,8 @@ use core::errors::CoreError;
 use core::SelfEncryptionStorage;
 use core::structured_data_operations::{self, DataFitResult};
 use core::utility;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
-use routing::{StructuredData, ImmutableData, Data, DataIdentifier, XorName};
+use maidsafe_utilities::serialisation::{deserialise, serialise};
+use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XorName};
 use self_encryption::{DataMap, SelfEncryptor};
 use sodiumoxide::crypto::{box_, sign};
 
@@ -91,7 +91,7 @@ pub fn create(client: Arc<Mutex<Client>>,
                     let immutable_data = ImmutableData::new(data_to_store);
                     let name = immutable_data.name();
                     let data = Data::Immutable(immutable_data);
-                    try!(unwrap_result!(client.lock()).put_recover(data, None));
+                    try!(unwrap!(client.lock()).put_recover(data, None));
 
                     let data_to_store = try!(get_encoded_data_to_store(
                         DataTypeEncoding::MapName(name), data_encryption_keys));
@@ -134,7 +134,7 @@ pub fn get_data(client: Arc<Mutex<Client>>,
         }
         DataTypeEncoding::MapName(data_map_name) => {
             let request = DataIdentifier::Immutable(data_map_name);
-            let response_getter = try!(unwrap_result!(client.lock()).get(request, None));
+            let response_getter = try!(unwrap!(client.lock()).get(request, None));
             match try!(response_getter.get()) {
                 Data::Immutable(immutable_data) => {
                     match try!(get_decoded_stored_data(&immutable_data.value(),
@@ -204,14 +204,14 @@ mod test {
     fn create_and_get_unversioned_structured_data() {
         let keys = box_::gen_keypair();
         let data_decryption_keys = (&keys.0, &keys.1, &box_::gen_nonce());
-        let client = Arc::new(Mutex::new(unwrap_result!(utility::test_utils::get_client())));
+        let client = Arc::new(Mutex::new(unwrap!(utility::test_utils::get_client())));
         // Empty Data
         {
             let id: XorName = rand::random();
             let data = Vec::new();
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -221,7 +221,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 None);
-            match get_data(client.clone(), &unwrap_result!(result), None) {
+            match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -232,7 +232,7 @@ mod test {
             let data = Vec::new();
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -242,9 +242,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 Some(data_decryption_keys));
-            match get_data(client.clone(),
-                           &unwrap_result!(result),
-                           Some(data_decryption_keys)) {
+            match get_data(client.clone(), &unwrap!(result), Some(data_decryption_keys)) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -255,7 +253,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -265,7 +263,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 None);
-            match get_data(client.clone(), &unwrap_result!(result), None) {
+            match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(data.len(), fetched_data.len()),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -276,7 +274,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(200);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -286,7 +284,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 None);
-            match get_data(client.clone(), &unwrap_result!(result), None) {
+            match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -297,7 +295,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(903);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -307,7 +305,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 None);
-            match get_data(client.clone(), &unwrap_result!(result), None) {
+            match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -318,7 +316,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(900);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -328,9 +326,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 Some(data_decryption_keys));
-            match get_data(client.clone(),
-                           &unwrap_result!(result),
-                           Some(data_decryption_keys)) {
+            match get_data(client.clone(), &unwrap!(result), Some(data_decryption_keys)) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -341,7 +337,7 @@ mod test {
             let data = vec![99u8; 1024 * 80];
             let owners = utility::test_utils::get_max_sized_public_keys(905);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -359,7 +355,7 @@ mod test {
             let data = vec![99u8; 102400];
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -369,7 +365,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 None);
-            match get_data(client.clone(), &unwrap_result!(result), None) {
+            match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -380,7 +376,7 @@ mod test {
             let data = vec![99u8; 204801];
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let ref secret_key = utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -390,7 +386,7 @@ mod test {
                                 prev_owners.clone(),
                                 secret_key,
                                 None);
-            match get_data(client.clone(), &unwrap_result!(result), None) {
+            match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
