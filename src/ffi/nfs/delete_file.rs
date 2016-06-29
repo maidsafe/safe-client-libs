@@ -58,27 +58,27 @@ mod test {
 
     #[test]
     fn delete_file() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         let mut file_helper = FileHelper::new(parameter_packet.client.clone());
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let writer = unwrap_result!(file_helper.create("test_file.txt".to_string(),
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let writer = unwrap!(file_helper.create("test_file.txt".to_string(),
                                                        Vec::new(),
                                                        app_root_dir));
-        let _ = unwrap_result!(writer.close());
+        let _ = unwrap!(writer.close());
 
         let mut request = DeleteFile {
             file_path: "/test_file.txt".to_string(),
             is_path_shared: false,
         };
 
-        app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_files().len(), 1);
         assert!(app_root_dir.find_file(&"test_file.txt".to_string()).is_some());
         assert!(request.execute(parameter_packet.clone()).is_ok());
-        app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_files().len(), 0);
         assert!(request.execute(parameter_packet.clone()).is_err());
     }

@@ -183,14 +183,14 @@ mod test {
 
     #[test]
     fn serialise_directorty_metadata_without_parent_directory() {
-        let obj_before = unwrap_result!(DirectoryMetadata::new("hello.txt".to_string(),
+        let obj_before = unwrap!(DirectoryMetadata::new("hello.txt".to_string(),
                                                                99u64,
                                                                true,
                                                                AccessLevel::Private,
                                                                Vec::new(),
                                                                None));
-        let serialised_data = unwrap_result!(serialise(&obj_before));
-        let obj_after = unwrap_result!(deserialise(&serialised_data));
+        let serialised_data = unwrap!(serialise(&obj_before));
+        let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);
     }
 
@@ -198,7 +198,7 @@ mod test {
     fn serialise_directorty_metadata_with_parent_directory() {
         let id: XorName = rand::random();
         let parent_directory = DirectoryKey::new(id, 100u64, false, AccessLevel::Private);
-        let obj_before = unwrap_result!(DirectoryMetadata::new("hello.txt".to_string(),
+        let obj_before = unwrap!(DirectoryMetadata::new("hello.txt".to_string(),
                                                                99u64,
                                                                true,
                                                                AccessLevel::Private,
@@ -206,10 +206,10 @@ mod test {
                                                                    .to_string()
                                                                    .into_bytes(),
                                                                Some(parent_directory.clone())));
-        let serialised_data = unwrap_result!(serialise(&obj_before));
-        let obj_after: DirectoryMetadata = unwrap_result!(deserialise(&serialised_data));
-        assert_eq!(*unwrap_option!(obj_after.get_parent_dir_key(),
-                                   "Directory should not be None"),
+        let serialised_data = unwrap!(serialise(&obj_before));
+        let obj_after: DirectoryMetadata = unwrap!(deserialise(&serialised_data));
+        assert_eq!(*unwrap!(obj_after.get_parent_dir_key(),
+                                "Directory should not be None"),
                    parent_directory);
     }
 
@@ -217,7 +217,7 @@ mod test {
     fn update_using_setters() {
         let id: XorName = rand::random();
         let modified_time = ::time::now_utc();
-        let mut obj_before = unwrap_result!(DirectoryMetadata::new("hello.txt".to_string(),
+        let mut obj_before = unwrap!(DirectoryMetadata::new("hello.txt".to_string(),
                                                   99u64,
                                                   true,
                                                   AccessLevel::Private,
@@ -230,8 +230,8 @@ mod test {
         obj_before.set_user_metadata(user_metadata.clone());
         obj_before.set_modified_time(modified_time);
         obj_before.set_name("index.txt".to_string());
-        let serialised_data = unwrap_result!(serialise(&obj_before));
-        let obj_after: DirectoryMetadata = unwrap_result!(deserialise(&serialised_data));
+        let serialised_data = unwrap!(serialise(&obj_before));
+        let obj_after: DirectoryMetadata = unwrap!(deserialise(&serialised_data));
         assert_eq!(*user_metadata, *obj_after.get_user_metadata());
         assert_eq!(modified_time, *obj_after.get_modified_time());
         assert_eq!("index.txt".to_string(), *obj_after.get_name());

@@ -88,7 +88,7 @@ mod test {
 
     #[test]
     fn create_dir() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         let mut request = CreateDir {
             dir_path: "/".to_string(),
@@ -112,17 +112,16 @@ mod test {
         assert!(request.execute(parameter_packet.clone()).is_ok());
 
         let dir_helper = DirectoryHelper::new(parameter_packet.clone().client);
-        let app_dir = unwrap_result!(dir_helper.get(&unwrap_option!(parameter_packet.clone()
-                                                                        .app_root_dir_key,
-                                                                    "")));
+        let app_dir = unwrap!(dir_helper.get(&unwrap!(parameter_packet.clone()
+                                                                        .app_root_dir_key)));
         assert!(app_dir.find_sub_directory(&"test_dir".to_string()).is_some());
         assert!(app_dir.find_sub_directory(&"test_dir2".to_string()).is_some());
         assert_eq!(app_dir.get_sub_directories().len(), 2);
 
-        let test_dir_key = unwrap_option!(app_dir.find_sub_directory(&"test_dir".to_string()),
+        let test_dir_key = unwrap!(app_dir.find_sub_directory(&"test_dir".to_string()),
                                           "Directory not found")
             .get_key();
-        let test_dir = unwrap_result!(dir_helper.get(test_dir_key));
+        let test_dir = unwrap!(dir_helper.get(test_dir_key));
         assert!(test_dir.find_sub_directory(&"secondlevel".to_string()).is_some());
     }
 }

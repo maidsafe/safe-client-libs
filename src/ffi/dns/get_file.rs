@@ -102,10 +102,10 @@ mod test {
                         -> Result<(), errors::FfiError> {
         let (msg_public_key, msg_secret_key) = box_::gen_keypair();
         let services = vec![(service_name.clone(), (directory_key.clone()))];
-        let public_signing_key = *try!(unwrap_result!(params.client.lock())
+        let public_signing_key = *try!(unwrap!(params.client.lock())
             .get_public_signing_key());
         let secret_signing_key =
-            try!(unwrap_result!(params.client.lock()).get_secret_signing_key()).clone();
+            try!(unwrap!(params.client.lock()).get_secret_signing_key()).clone();
         let dns_operation = try!(DnsOperations::new(params.client
             .clone()));
         try!(dns_operation.register_dns(public_name.clone(),
@@ -120,15 +120,15 @@ mod test {
 
     #[test]
     fn get_public_file_using_registerd_client() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
         let file_name = String::from("index.html");
         let file_content = String::from("<html><title>Home</title></html>");
-        let public_directory_key = unwrap_result!(create_public_file(&parameter_packet,
+        let public_directory_key = unwrap!(create_public_file(&parameter_packet,
                                                                      file_name.clone(),
                                                                      file_content.into_bytes()));
         let service_name = String::from("www");
-        let public_name = unwrap_result!(utility::generate_random_string(10));
-        unwrap_result!(register_service(&parameter_packet,
+        let public_name = unwrap!(utility::generate_random_string(10));
+        unwrap!(register_service(&parameter_packet,
                                         service_name.clone(),
                                         public_name.clone(),
                                         public_directory_key));
@@ -144,11 +144,11 @@ mod test {
         };
         assert!(request.execute(parameter_packet).is_ok());
         // Fetch the file using a new client
-        let new_parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let new_parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
         assert!(request.execute(new_parameter_packet).is_ok());
         // Fetch the file using an unregisterd client
         let unreg_parameter_packet =
-            unwrap_result!(test_utils::get_unregistered_parameter_packet());
+            unwrap!(test_utils::get_unregistered_parameter_packet());
         assert!(request.execute(unreg_parameter_packet).is_ok());
     }
 }

@@ -120,8 +120,8 @@ mod test {
     fn serialisation_an_maid() {
         let obj_before = RevocationIdType::generate_random();
 
-        let serialised_obj = unwrap_result!(serialise(&obj_before));
-        let obj_after = unwrap_result!(deserialise(&serialised_obj));
+        let serialised_obj = unwrap!(serialise(&obj_before));
+        let obj_after = unwrap!(deserialise(&serialised_obj));
         assert_eq!(obj_before, obj_after);
     }
 

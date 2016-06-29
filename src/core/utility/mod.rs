@@ -116,9 +116,9 @@ mod test {
 
         // Encrypt
         let cipher_text_0 =
-            unwrap_result!(hybrid_encrypt(&plain_text_0[..], &nonce, &public_key, &secret_key));
+            unwrap!(hybrid_encrypt(&plain_text_0[..], &nonce, &public_key, &secret_key));
         let cipher_text_1 =
-            unwrap_result!(hybrid_encrypt(&plain_text_1[..], &nonce, &public_key, &secret_key));
+            unwrap!(hybrid_encrypt(&plain_text_1[..], &nonce, &public_key, &secret_key));
 
         // Same Plain Texts
         assert_eq!(plain_text_0, plain_text_1);
@@ -128,9 +128,9 @@ mod test {
 
         // Decrypt
         let deciphered_plain_text_0 =
-            unwrap_result!(hybrid_decrypt(&cipher_text_0, &nonce, &public_key, &secret_key));
+            unwrap!(hybrid_decrypt(&cipher_text_0, &nonce, &public_key, &secret_key));
         let deciphered_plain_text_1 =
-            unwrap_result!(hybrid_decrypt(&cipher_text_1, &nonce, &public_key, &secret_key));
+            unwrap!(hybrid_decrypt(&cipher_text_1, &nonce, &public_key, &secret_key));
 
         // Should have decrypted to the same Plain Texts
         assert_eq!(plain_text_0, deciphered_plain_text_0);
@@ -140,9 +140,9 @@ mod test {
     #[test]
     fn random_string() {
         const SIZE: usize = 10;
-        let str0 = unwrap_result!(generate_random_string(SIZE));
-        let str1 = unwrap_result!(generate_random_string(SIZE));
-        let str2 = unwrap_result!(generate_random_string(SIZE));
+        let str0 = unwrap!(generate_random_string(SIZE));
+        let str1 = unwrap!(generate_random_string(SIZE));
+        let str2 = unwrap!(generate_random_string(SIZE));
 
         assert!(str0 != str1);
         assert!(str0 != str2);
@@ -152,9 +152,9 @@ mod test {
     #[test]
     fn random_vector() {
         const SIZE: usize = 10;
-        let vec0 = unwrap_result!(generate_random_vector::<u8>(SIZE));
-        let vec1 = unwrap_result!(generate_random_vector::<u8>(SIZE));
-        let vec2 = unwrap_result!(generate_random_vector::<u8>(SIZE));
+        let vec0 = unwrap!(generate_random_vector::<u8>(SIZE));
+        let vec1 = unwrap!(generate_random_vector::<u8>(SIZE));
+        let vec2 = unwrap!(generate_random_vector::<u8>(SIZE));
 
         assert!(vec0 != vec1);
         assert!(vec0 != vec2);

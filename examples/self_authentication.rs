@@ -40,13 +40,15 @@ extern crate safe_core;
 #[macro_use]
 extern crate maidsafe_utilities;
 extern crate safe_network_common;
+#[macro_use]
+extern crate unwrap;
 
 use safe_core::core::client::Client;
 use safe_core::core::errors::CoreError;
 use safe_network_common::client_errors::MutationError;
 
 fn main() {
-    unwrap_result!(maidsafe_utilities::log::init(true));
+    unwrap!(maidsafe_utilities::log::init(true));
 
     let mut keyword = String::new();
     let mut password = String::new();
@@ -102,7 +104,7 @@ fn main() {
         {
             println!("\nTrying to log into the created account using supplied credentials ...");
 
-            let _ = unwrap_result!(Client::log_in(keyword, pin, password));
+            let _ = unwrap!(Client::log_in(keyword, pin, password));
             println!("Account Login Successful !!");
         }
     }

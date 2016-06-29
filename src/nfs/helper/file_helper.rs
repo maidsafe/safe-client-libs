@@ -171,7 +171,7 @@ mod test {
     use nfs::AccessLevel;
 
     fn get_client() -> Arc<Mutex<Client>> {
-        let test_client = unwrap_result!(test_utils::get_client());
+        let test_client = unwrap!(test_utils::get_client());
         Arc::new(Mutex::new(test_client))
     }
 
@@ -179,7 +179,7 @@ mod test {
     fn file_crud() {
         let client = get_client();
         let dir_helper = DirectoryHelper::new(client.clone());
-        let (mut directory, _) = unwrap_result!(dir_helper.create("DirName".to_string(),
+        let (mut directory, _) = unwrap!(dir_helper.create("DirName".to_string(),
                     ::nfs::VERSIONED_DIRECTORY_LISTING_TAG,
                     Vec::new(),
                     true,
@@ -190,73 +190,73 @@ mod test {
         {
             // create
             let mut writer =
-                unwrap_result!(file_helper.create(file_name.clone(), Vec::new(), directory));
+                unwrap!(file_helper.create(file_name.clone(), Vec::new(), directory));
             writer.write(&[0u8; 100], 0).expect("");
-            let (updated_directory, _) = unwrap_result!(writer.close());
+            let (updated_directory, _) = unwrap!(writer.close());
             directory = updated_directory;
             assert!(directory.find_file(&file_name).is_some());
         }
         {
             // read
-            let file = unwrap_option!(directory.find_file(&file_name), "File not found");
+            let file = unwrap!(directory.find_file(&file_name), "File not found");
             let mut reader = file_helper.read(file).expect("");
             let size = reader.size();
-            assert_eq!(unwrap_result!(reader.read(0, size)), vec![0u8; 100]);
+            assert_eq!(unwrap!(reader.read(0, size)), vec![0u8; 100]);
         }
         {
             // update - full rewrite
-            let file = unwrap_option!(directory.find_file(&file_name).cloned(),
+            let file = unwrap!(directory.find_file(&file_name).cloned(),
                                       "File not found");
             {
                 let mut writer =
-                    unwrap_result!(file_helper.update_content(file, Mode::Overwrite, directory));
+                    unwrap!(file_helper.update_content(file, Mode::Overwrite, directory));
                 writer.write(&[1u8; 50], 0).expect("");
-                let (updated_directory, _) = unwrap_result!(writer.close());
+                let (updated_directory, _) = unwrap!(writer.close());
                 directory = updated_directory;
             }
-            let file = unwrap_option!(directory.find_file(&file_name), "File not found");
+            let file = unwrap!(directory.find_file(&file_name), "File not found");
             let mut reader = file_helper.read(file).expect("");
             let size = reader.size();
-            assert_eq!(unwrap_result!(reader.read(0, size)), vec![1u8; 50]);
+            assert_eq!(unwrap!(reader.read(0, size)), vec![1u8; 50]);
         }
         {
             // update - partial rewrite
-            let file = unwrap_option!(directory.find_file(&file_name).cloned(),
+            let file = unwrap!(directory.find_file(&file_name).cloned(),
                                       "File not found");
             {
                 let mut writer =
-                    unwrap_result!(file_helper.update_content(file, Mode::Modify, directory));
+                    unwrap!(file_helper.update_content(file, Mode::Modify, directory));
                 writer.write(&[2u8; 10], 0).expect("");
-                let (updated_directory, _) = unwrap_result!(writer.close());
+                let (updated_directory, _) = unwrap!(writer.close());
                 directory = updated_directory;
             }
-            let file = unwrap_option!(directory.find_file(&file_name), "File not found");
+            let file = unwrap!(directory.find_file(&file_name), "File not found");
             let mut reader = file_helper.read(file).expect("");
             let size = reader.size();
-            let data = unwrap_result!(reader.read(0, size));
+            let data = unwrap!(reader.read(0, size));
             assert_eq!(&data[0..10], [2u8; 10]);
             assert_eq!(&data[10..20], [1u8; 10]);
         }
         {
             // versions
-            let file = unwrap_option!(directory.find_file(&file_name).cloned(),
+            let file = unwrap!(directory.find_file(&file_name).cloned(),
                                       "File not found");
-            let versions = unwrap_result!(file_helper.get_versions(&file, &directory));
+            let versions = unwrap!(file_helper.get_versions(&file, &directory));
             assert_eq!(versions.len(), 3);
         }
         {
             // Update Metadata
-            let mut file = unwrap_option!(directory.find_file(&file_name).cloned(),
+            let mut file = unwrap!(directory.find_file(&file_name).cloned(),
                                           "File not found");
             file.get_mut_metadata().set_user_metadata(vec![12u8; 10]);
-            let _ = unwrap_result!(file_helper.update_metadata(file, &mut directory));
-            let file = unwrap_option!(directory.find_file(&file_name).cloned(),
+            let _ = unwrap!(file_helper.update_metadata(file, &mut directory));
+            let file = unwrap!(directory.find_file(&file_name).cloned(),
                                       "File not found");
             assert_eq!(*file.get_metadata().get_user_metadata(), [12u8; 10][..]);
         }
         {
             // Delete
-            let _ = unwrap_result!(file_helper.delete(file_name.clone(), &mut directory));
+            let _ = unwrap!(file_helper.delete(file_name.clone(), &mut directory));
             assert!(directory.find_file(&file_name).is_none());
         }
     }
