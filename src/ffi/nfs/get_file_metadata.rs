@@ -16,7 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use ffi::errors::FfiError;
-use ffi::{Action, helper, ParameterPacket, ResponseType};
+use ffi::{Action, ParameterPacket, ResponseType, helper};
 use rustc_serialize::json;
 
 #[derive(RustcDecodable, Debug)]
@@ -35,16 +35,16 @@ impl Action for GetFileMetadata {
         let file_name = try!(tokens.pop().ok_or(FfiError::InvalidPath));
         let start_dir_key = if self.is_path_shared {
             try!(params.safe_drive_dir_key
-                       .ok_or(FfiError::from("Safe Drive directory key is not present")))
+                .ok_or(FfiError::from("Safe Drive directory key is not present")))
         } else {
             try!(params.app_root_dir_key
-                       .ok_or(FfiError::from("Application directory key is not present")))
+                .ok_or(FfiError::from("Application directory key is not present")))
         };
         let file_dir = try!(helper::get_final_subdirectory(params.client.clone(),
                                                            &tokens,
                                                            Some(&start_dir_key)));
         let file = try!(file_dir.find_file(&file_name)
-                                .ok_or(FfiError::InvalidPath));
+            .ok_or(FfiError::InvalidPath));
 
         Ok(Some(try!(json::encode(file.get_metadata()))))
     }

@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use ffi::{helper, ParameterPacket, ResponseType, Action};
+use ffi::{Action, ParameterPacket, ResponseType, helper};
 use nfs::directory_listing::DirectoryListing;
 use ffi::errors::FfiError;
 use nfs::errors::NfsError::DirectoryAlreadyExistsWithSameName;

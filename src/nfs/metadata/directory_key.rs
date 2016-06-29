@@ -66,7 +66,7 @@ mod test {
     use super::*;
     use rand;
     use routing::XorName;
-    use maidsafe_utilities::serialisation::{serialise, deserialise};
+    use maidsafe_utilities::serialisation::{deserialise, serialise};
     use nfs::AccessLevel;
 
     /// Should be able to serialise & deserialise the DirectoryKey
@@ -79,8 +79,8 @@ mod test {
 
         let directory_key = DirectoryKey::new(id, tag, versioned, access_level.clone());
 
-        let serialised = unwrap_result!(serialise(&directory_key));
-        let deserilaised_key: DirectoryKey = unwrap_result!(deserialise(&serialised));
+        let serialised = unwrap!(serialise(&directory_key));
+        let deserilaised_key: DirectoryKey = unwrap!(deserialise(&serialised));
         assert_eq!(*deserilaised_key.get_id(), id);
         assert_eq!(*deserilaised_key.get_access_level(), access_level);
         assert_eq!(deserilaised_key.is_versioned(), versioned);

@@ -55,7 +55,7 @@ impl GetResponseGetter {
                 ResponseEvent::GetResp(result) => {
                     let data = try!(result);
                     if let DataIdentifier::Immutable(..) = self.requested_id {
-                        let mut msg_queue = unwrap_result!(self.message_queue.lock());
+                        let mut msg_queue = unwrap!(self.message_queue.lock());
                         msg_queue.local_cache_insert(self.requested_name, data.clone());
                     }
 
@@ -65,7 +65,7 @@ impl GetResponseGetter {
                 _ => Err(CoreError::ReceivedUnexpectedData),
             }
         } else {
-            let mut msg_queue = unwrap_result!(self.message_queue.lock());
+            let mut msg_queue = unwrap!(self.message_queue.lock());
             msg_queue.local_cache_get(&self.requested_name)
         }
     }
