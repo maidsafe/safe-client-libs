@@ -117,24 +117,34 @@ mod test {
                                                                                Vec::new()));
             assert!((max_used_space < FIXED_SIZE_OF_SIGNATURE) && (max_used_space > 0));
             keys.extend(test_utils::get_max_sized_public_keys(1));
-            assert!(unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new())) == 0);
+            let space = unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new()));
+            assert_eq!(space, 0);
         }
         // Random key assertions
         {
             let mut keys = test_utils::generate_public_keys(10);
-            assert!(unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new())) >
-                    5000);
-            assert!(unwrap_result!(get_approximate_space_for_data(
-                test_utils::generate_public_keys(1), keys.clone())) > 5000);
+            let space = unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new()));
+            assert!(space > 5000);
+
+            let space = unwrap_result!(get_approximate_space_for_data(
+                test_utils::generate_public_keys(1), keys.clone()));
+            assert!(space > 5000);
+
             keys.extend(test_utils::generate_public_keys(40)); // 50 keys
-            assert!(unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new())) >
-                    5000);
-            assert!(unwrap_result!(get_approximate_space_for_data(
-                test_utils::generate_public_keys(1), keys.clone())) > 5000);
+            let space = unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new()));
+            assert!(space > 5000);
+
+            let space = unwrap_result!(get_approximate_space_for_data(
+                test_utils::generate_public_keys(1), keys.clone()));
+            assert!(space > 5000);
+
             keys.extend(test_utils::generate_public_keys(850)); // 900 keys
-            assert!(unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new())) > 100);
-            assert!(unwrap_result!(get_approximate_space_for_data(
-                test_utils::generate_public_keys(1), keys.clone())) > 100);
+            let space = unwrap_result!(get_approximate_space_for_data(keys.clone(), Vec::new()));
+            assert!(space > 100);
+
+            let space = unwrap_result!(get_approximate_space_for_data(
+                test_utils::generate_public_keys(1), keys.clone()));
+            assert!(space > 100);
         }
     }
 

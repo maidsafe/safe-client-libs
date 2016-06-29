@@ -248,9 +248,11 @@ mod test {
                                                                    .as_bytes())));
 
         let keyword2 = "user2".to_owned();
-        let gen_id1 = Account::generate_network_id(keyword1.as_bytes(), 248.to_string().as_bytes());
-        let gen_id2 = Account::generate_network_id(keyword2.as_bytes(), 248.to_string().as_bytes());
-        assert!(unwrap_result!(gen_id1) != unwrap_result!(gen_id2));
+        let gen_id_res1 = Account::generate_network_id(keyword1.as_bytes(), 248.to_string().as_bytes());
+        let gen_id_res2 = Account::generate_network_id(keyword2.as_bytes(), 248.to_string().as_bytes());
+        let gen_id1 = unwrap_result!(gen_id_res1);
+        let gen_id2 = unwrap_result!(gen_id_res2);
+        assert!(gen_id1 != gen_id2);
     }
 
     #[test]
@@ -306,8 +308,9 @@ mod test {
 
         let encrypted_account =
             unwrap_result!(account.encrypt(password.as_bytes(), pin.to_string().as_bytes()));
+        let serialised_account = unwrap_result!(serialise(&account));
         assert!(encrypted_account.len() > 0);
-        assert!(encrypted_account != unwrap_result!(serialise(&account)));
+        assert!(encrypted_account != serialised_account);
 
         let decrypted_account = unwrap_result!(Account::decrypt(&encrypted_account,
                                                                 password.as_bytes(),

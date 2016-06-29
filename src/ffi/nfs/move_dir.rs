@@ -68,7 +68,7 @@ impl Action for MoveDirectory {
         }
         let org_parent_of_src_dir = try!(src_dir.get_metadata()
                                                 .get_parent_dir_key()
-                                                .map(|x| x.clone())
+                                                .cloned()
                                                 .ok_or(FfiError::from("Parent directory not \
                                                                        found")));
         if self.retain_source {
@@ -88,7 +88,7 @@ impl Action for MoveDirectory {
                                                      access_level,
                                                      src_dir.get_metadata()
                                                             .get_parent_dir_key()
-                                                            .map(|key| key.clone())));
+                                                            .cloned()));
             src_dir.get_files().iter().all(|file| {
                 dir.get_mut_files().push(file.clone());
                 true

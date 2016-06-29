@@ -585,7 +585,8 @@ mod test {
         let mut log_file = unwrap_result!(File::open(current_exe_path));
         let mut file_content = String::new();
 
-        assert!(unwrap_result!(log_file.read_to_string(&mut file_content)) > 0);
+        let written = unwrap_result!(log_file.read_to_string(&mut file_content));
+        assert!(written > 0);
 
         assert!(file_content.contains(&debug_msg[..]));
         assert!(!file_content.contains(&junk_msg[..]));
