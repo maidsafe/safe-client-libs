@@ -89,13 +89,13 @@ mod test {
 
     #[test]
     fn serialise_deserialise() {
-        let obj_before = unwrap_result!(File::new(FileMetadata::new("Home".to_string(),
+        let obj_before = unwrap!(File::new(FileMetadata::new("Home".to_string(),
                                                                     "{mime:\"application/json\"}"
                                                                         .to_string()
                                                                         .into_bytes()),
                                                   DataMap::None));
-        let serialised_data = unwrap_result!(serialise(&obj_before));
-        let obj_after = unwrap_result!(deserialise(&serialised_data));
+        let serialised_data = unwrap!(serialise(&obj_before));
+        let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);
     }
 }

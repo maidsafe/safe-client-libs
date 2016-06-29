@@ -42,6 +42,8 @@ extern crate regex;
 extern crate routing;
 extern crate safe_core;
 extern crate sodiumoxide;
+#[macro_use]
+extern crate unwrap;
 
 use std::sync::{Arc, Mutex};
 
@@ -87,7 +89,7 @@ fn handle_login() -> Arc<Mutex<Client>> {
     {
         println!("\nTrying to create an account ...");
         let _ =
-            unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+            unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
         println!("Account Creation Successful !!");
     }
 
@@ -96,7 +98,7 @@ fn handle_login() -> Arc<Mutex<Client>> {
 
     // Log into the created account
     println!("\nTrying to log into the created account using supplied credentials ...");
-    Arc::new(Mutex::new(unwrap_result!(Client::log_in(keyword, pin, password))))
+    Arc::new(Mutex::new(unwrap!(Client::log_in(keyword, pin, password))))
 }
 
 fn create_dns_record(client: Arc<Mutex<Client>>,
@@ -311,11 +313,11 @@ fn parse_url_and_get_home_page(client: Arc<Mutex<Client>>,
 fn main() {
     let client = handle_login();
     let unregistered_client =
-        Arc::new(Mutex::new(unwrap_result!(Client::create_unregistered_client())));
+        Arc::new(Mutex::new(unwrap!(Client::create_unregistered_client())));
     println!("Account Login Successful !!");
 
     println!("Initialising Dns...");
-    let dns_operations = unwrap_result!(DnsOperations::new(client.clone()));
+    let dns_operations = unwrap!(DnsOperations::new(client.clone()));
     let dns_operations_unregistered = DnsOperations::new_unregistered(unregistered_client.clone());
 
     let mut user_option = String::new();

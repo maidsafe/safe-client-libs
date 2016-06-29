@@ -58,6 +58,8 @@ extern crate safe_network_common;
 extern crate self_encryption;
 extern crate sodiumoxide;
 extern crate time;
+#[macro_use]
+extern crate unwrap;
 
 /// Core module
 pub mod core;

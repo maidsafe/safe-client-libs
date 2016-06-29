@@ -118,15 +118,14 @@ impl ConfigHandler {
         // then modify the following to use it.
         if let Some(pos) = global_configs.iter()
             .position(|existing_config| existing_config.app_id == config.app_id) {
-            let existing_config = unwrap_option!(global_configs.get_mut(pos),
-                                                 "Logic Error - Report bug.");
+            let existing_config = unwrap!(global_configs.get_mut(pos));
             *existing_config = config;
         } else {
             global_configs.push(config);
         }
 
         let file =
-            unwrap_option!(dir_listing.get_files()
+            unwrap!(dir_listing.get_files()
                                .iter()
                                .find(|file| file.get_name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME),
                            "Logic Error - Launcher start-up should ensure the file must be \
@@ -162,13 +161,12 @@ impl ConfigHandler {
                                             dir_listing))
                                 .close())
                             .0;
-                    unwrap_option!(dir_listing.get_files()
+                    unwrap!(dir_listing.get_files()
                                        .iter()
                                        .find(|file| {
                                            file.get_name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME
                                        })
-                                       .cloned(),
-                                   "Error")
+                                       .cloned())
                         .clone()
                 }
             };

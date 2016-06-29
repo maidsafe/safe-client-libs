@@ -51,9 +51,9 @@ impl Action for RegisterDns {
         let (msg_public_key, msg_secret_key) = box_::gen_keypair();
         let services = vec![(self.service_name.clone(), (dir_to_map.get_key().clone()))];
         let public_signing_key =
-            *try!(unwrap_result!(params.client.lock()).get_public_signing_key());
+            *try!(unwrap!(params.client.lock()).get_public_signing_key());
         let secret_signing_key =
-            try!(unwrap_result!(params.client.lock()).get_secret_signing_key()).clone();
+            try!(unwrap!(params.client.lock()).get_secret_signing_key()).clone();
         let dns_operation = try!(DnsOperations::new(params.client
             .clone()));
         try!(dns_operation.register_dns(self.long_name.clone(),
@@ -80,20 +80,19 @@ mod test {
 
     #[test]
     fn register_dns() {
-        let parameter_packet = unwrap_result!(get_parameter_packet(false));
+        let parameter_packet = unwrap!(get_parameter_packet(false));
 
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
         let mut app_root_dir =
-            unwrap_result!(dir_helper.get(&unwrap_option!(parameter_packet.clone()
-                                                              .app_root_dir_key,
-                                                          "")));
-        let _ = unwrap_result!(dir_helper.create(TEST_DIR_NAME.to_string(),
+            unwrap!(dir_helper.get(&unwrap!(parameter_packet.clone()
+                                                              .app_root_dir_key)));
+        let _ = unwrap!(dir_helper.create(TEST_DIR_NAME.to_string(),
                                                  UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                  Vec::new(),
                                                  false,
                                                  AccessLevel::Public,
                                                  Some(&mut app_root_dir)));
-        let public_name = unwrap_result!(utility::generate_random_string(10));
+        let public_name = unwrap!(utility::generate_random_string(10));
         let mut request = RegisterDns {
             long_name: public_name,
             service_name: "www".to_string(),

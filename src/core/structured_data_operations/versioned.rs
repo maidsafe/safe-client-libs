@@ -128,7 +128,7 @@ mod test {
 
     #[test]
     fn save_and_retrieve_immutable_data() {
-        let mut client = unwrap_result!(utility::test_utils::get_client());
+        let mut client = unwrap!(utility::test_utils::get_client());
 
         let id: XorName = rand::random();
         let owners = utility::test_utils::generate_public_keys(1);
@@ -146,18 +146,18 @@ mod test {
                                                 prev_owners,
                                                 secret_key);
 
-        let mut structured_data = unwrap_result!(structured_data_result);
+        let mut structured_data = unwrap!(structured_data_result);
         let mut versions_res = get_all_versions(&mut client, &structured_data);
-        let mut versions = unwrap_result!(versions_res);
+        let mut versions = unwrap!(versions_res);
         assert_eq!(versions.len(), 1);
 
         let version_1: XorName = rand::random();
 
         structured_data_result =
             append_version(&mut client, structured_data, version_1, secret_key);
-        structured_data = unwrap_result!(structured_data_result);
+        structured_data = unwrap!(structured_data_result);
         versions_res = get_all_versions(&mut client, &structured_data);
-        versions = unwrap_result!(versions_res);
+        versions = unwrap!(versions_res);
         assert_eq!(versions.len(), 2);
 
         assert_eq!(versions[0], version_0);

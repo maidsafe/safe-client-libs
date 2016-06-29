@@ -40,6 +40,8 @@ extern crate maidsafe_utilities;
 extern crate time;
 extern crate routing;
 extern crate safe_core;
+#[macro_use]
+extern crate unwrap;
 
 use std::sync::{Arc, Mutex};
 
@@ -79,7 +81,7 @@ fn create_account() -> Result<Client, NfsError> {
 
     // Account Creation
     println!("\nTrying to create an account ...");
-    let _ = unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+    let _ = unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
     println!("Account Created Successfully !!");
     println!("\n\n\tAuto Account Login");
     println!("\t==================");
@@ -389,10 +391,10 @@ fn file_operation(option: u32,
 }
 
 fn main() {
-    let test_client = unwrap_result!(create_account());
+    let test_client = unwrap!(create_account());
     let client = Arc::new(Mutex::new(test_client));
     println!("\n\t-- Preparing storage ----\n");
-    let mut root_directory = unwrap_result!(get_root_directory(client.clone()));
+    let mut root_directory = unwrap!(get_root_directory(client.clone()));
     println!("\n\n------  (Tip) Start by creating a directory and then store file, modify file \
               within the directory --------------------");
     loop {

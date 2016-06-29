@@ -61,12 +61,12 @@ mod test {
 
     #[test]
     fn delete_dir() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let _ = unwrap_result!(dir_helper.create("test_dir".to_string(),
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let _ = unwrap!(dir_helper.create("test_dir".to_string(),
                                                  UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                  Vec::new(),
                                                  false,
@@ -79,12 +79,12 @@ mod test {
             is_path_shared: false,
         };
         assert!(request.execute(parameter_packet.clone()).is_err());
-        app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 1);
         assert!(app_root_dir.find_sub_directory(&"test_dir".to_string()).is_some());
         request.dir_path = "/test_dir".to_string();
         assert!(request.execute(parameter_packet.clone()).is_ok());
-        app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 0);
         assert!(request.execute(parameter_packet.clone()).is_err());
     }

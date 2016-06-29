@@ -117,19 +117,19 @@ mod test {
     const METADATA_BASE64: &'static str = "c2FtcGxlIHRleHQ=";
 
     fn create_test_file(parameter_packet: &ParameterPacket) {
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let mut file_helper = FileHelper::new(parameter_packet.client.clone());
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let writer = unwrap_result!(file_helper.create(TEST_FILE_NAME.to_string(),
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let writer = unwrap!(file_helper.create(TEST_FILE_NAME.to_string(),
                                                        Vec::new(),
                                                        app_root_dir));
-        let _ = unwrap_result!(writer.close());
+        let _ = unwrap!(writer.close());
     }
 
     #[test]
     fn file_rename() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         create_test_file(&parameter_packet);
 
@@ -145,14 +145,14 @@ mod test {
             is_path_shared: false,
         };
 
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_files().len(), 1);
         assert!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()).is_some());
 
         assert!(request.execute(parameter_packet).is_ok());
-        app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_files().len(), 1);
         assert!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()).is_none());
         assert!(app_root_dir.find_file(&"new_test_file.txt".to_string()).is_some());
@@ -160,7 +160,7 @@ mod test {
 
     #[test]
     fn file_update_user_metadata() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         create_test_file(&parameter_packet);
 
@@ -176,15 +176,15 @@ mod test {
             is_path_shared: false,
         };
 
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let file = unwrap_option!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let file = unwrap!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
                                   "File not found");
         assert_eq!(file.get_metadata().get_user_metadata().len(), 0);
         assert!(request.execute(parameter_packet).is_ok());
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let file = unwrap_option!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let file = unwrap!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
                                   "File not found");
         assert!(file.get_metadata().get_user_metadata().len() > 0);
         assert_eq!(file.get_metadata()
@@ -195,7 +195,7 @@ mod test {
 
     #[test]
     fn file_update_content() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         create_test_file(&parameter_packet);
 
@@ -216,15 +216,15 @@ mod test {
             is_path_shared: false,
         };
 
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let file = unwrap_option!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let file = unwrap!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
                                   "File not found");
         assert_eq!(file.get_metadata().get_size(), 0);
         assert!(request.execute(parameter_packet.clone()).is_ok());
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let file = unwrap_option!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let file = unwrap!(app_root_dir.find_file(&TEST_FILE_NAME.to_string()),
                                   "File not found");
         let file_size = file.get_metadata().get_size();
         assert!(file_size > 0);
@@ -232,7 +232,7 @@ mod test {
         let mut reader = file_helper.read(file).expect("");
         let size = reader.size();
         assert_eq!(size, file_size);
-        let data = unwrap_result!(reader.read(0, size));
+        let data = unwrap!(reader.read(0, size));
         assert_eq!(data.to_base64(config::get_base64_config()),
                    METADATA_BASE64.to_string());
         // Uploading in smaller chunks
@@ -261,8 +261,8 @@ mod test {
             i += batch_size;
         }
 
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let file = unwrap_option!(app_root_dir.find_file(&TEST_FILE_NAME.to_string())
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let file = unwrap!(app_root_dir.find_file(&TEST_FILE_NAME.to_string())
                                       .cloned(),
                                   "File not found");
         assert_eq!(file.get_datamap().len(), file_size);

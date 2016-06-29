@@ -51,8 +51,6 @@ use self::non_networking_test_framework::RoutingMock as Routing;
 #[cfg(not(feature = "use-mock-routing"))]
 use routing::Client as Routing;
 
-const LOGIC_ERROR: &'static str = "Logic Error !! Report as bug.";
-
 /// The main self-authentication client instance that will interface all the request from high
 /// level API's to the actual routing layer and manage all interactions with it. This is
 /// essentially a non-blocking Client with upper layers having an option to either block and wait
@@ -148,12 +146,10 @@ impl Client {
 
         {
             let account_version = {
-                let account = unwrap_option!(client.account.as_ref(), LOGIC_ERROR);
-                let session_packet_keys = unwrap_option!(client.session_packet_keys.as_ref(),
-                                                         LOGIC_ERROR);
+                let account = unwrap!(client.account.as_ref());
+                let session_packet_keys = unwrap!(client.session_packet_keys.as_ref());
 
-                let session_packet_id = unwrap_option!(client.session_packet_id.as_ref(),
-                                                       LOGIC_ERROR);
+                let session_packet_id = unwrap!(client.session_packet_id.as_ref());
                 try!(StructuredData::new(TYPE_TAG_SESSION_PACKET,
                                          *session_packet_id,
                                          0,
@@ -343,7 +339,7 @@ impl Client {
         self.issued_gets += 1;
 
         if let DataIdentifier::Immutable(..) = request_for {
-            let mut msg_queue = unwrap_result!(self.message_queue.lock());
+            let mut msg_queue = unwrap!(self.message_queue.lock());
             if msg_queue.local_cache_check(&request_for.name()) {
                 return Ok(GetResponseGetter::new(None, self.message_queue.clone(), request_for));
             }
@@ -356,7 +352,7 @@ impl Client {
 
         let (tx, rx) = mpsc::channel();
         let msg_id = MessageId::new();
-        unwrap_result!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
+        unwrap!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
 
         try!(self.routing.send_get_request(dst, request_for.clone(), msg_id));
 
@@ -377,7 +373,7 @@ impl Client {
 
         let (tx, rx) = mpsc::channel();
         let msg_id = MessageId::new();
-        unwrap_result!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
+        unwrap!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
 
         try!(self.routing.send_put_request(dst, data, msg_id));
 
@@ -452,7 +448,7 @@ impl Client {
 
         let (tx, rx) = mpsc::channel();
         let msg_id = MessageId::new();
-        unwrap_result!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
+        unwrap!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
 
         try!(self.routing.send_post_request(dst, data, msg_id));
 
@@ -473,7 +469,7 @@ impl Client {
 
         let (tx, rx) = mpsc::channel();
         let msg_id = MessageId::new();
-        unwrap_result!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
+        unwrap!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
 
         try!(self.routing.send_delete_request(dst, data, msg_id));
 
@@ -578,7 +574,7 @@ impl Client {
         let data_request = DataIdentifier::Plain(mpid_account);
 
         {
-            let mut msg_queue = unwrap_result!(self.message_queue.lock());
+            let mut msg_queue = unwrap!(self.message_queue.lock());
             if msg_queue.local_cache_check(&mpid_account) {
                 return Ok(GetResponseGetter::new(None, self.message_queue.clone(), data_request));
             }
@@ -590,7 +586,7 @@ impl Client {
 
         let (tx, rx) = mpsc::channel();
         let msg_id = MessageId::new();
-        unwrap_result!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
+        unwrap!(self.message_queue.lock()).register_response_observer(msg_id, tx.clone());
 
         Ok(GetResponseGetter::new(Some((tx, rx)), self.message_queue.clone(), data_request))
     }
@@ -621,7 +617,7 @@ impl Client {
 
     /// Add observers for Network Events like `Connected`, `Disconnected`, `Terminated`
     pub fn add_network_event_observer(&self, sender: Sender<NetworkEvent>) {
-        unwrap_result!(self.message_queue.lock()).add_network_event_observer(sender);
+        unwrap!(self.message_queue.lock()).add_network_event_observer(sender);
     }
 
     /// Get the default address where the PUTs will go to for this client
@@ -743,13 +739,13 @@ mod test {
 
     #[test]
     fn account_creation() {
-        let keyword = unwrap_result!(utility::generate_random_string(10));
-        let password = unwrap_result!(utility::generate_random_string(10));
-        let pin = unwrap_result!(utility::generate_random_string(10));
+        let keyword = unwrap!(utility::generate_random_string(10));
+        let password = unwrap!(utility::generate_random_string(10));
+        let pin = unwrap!(utility::generate_random_string(10));
 
         // Account creation for the 1st time - should succeed
         let _ =
-            unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+            unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
 
         // Account creation - same keyword, pin and password - should fail
         match Client::create_account(keyword.clone(), pin.clone(), password.clone()) {
@@ -759,7 +755,7 @@ mod test {
         }
 
         // Account creation - same keyword and pin - different password - should fail
-        let new_password = unwrap_result!(utility::generate_random_string(10));
+        let new_password = unwrap!(utility::generate_random_string(10));
         match Client::create_account(keyword.clone(), pin.clone(), new_password) {
             Ok(_) => panic!("Account name hijaking should fail !"),
             Err(CoreError::MutationFailure { reason: MutationError::AccountExists, .. }) => (),
@@ -767,48 +763,48 @@ mod test {
         }
 
         // Account creation - same keyword and password - different pin - should succeed
-        let new_pin = unwrap_result!(utility::generate_random_string(10));
-        let _ = unwrap_result!(Client::create_account(keyword, new_pin, password.clone()));
+        let new_pin = unwrap!(utility::generate_random_string(10));
+        let _ = unwrap!(Client::create_account(keyword, new_pin, password.clone()));
 
         // Account creation - same pin and password - different keyword - should succeed
-        let new_keyword = unwrap_result!(utility::generate_random_string(10));
-        let _ = unwrap_result!(Client::create_account(new_keyword, pin, password));
+        let new_keyword = unwrap!(utility::generate_random_string(10));
+        let _ = unwrap!(Client::create_account(new_keyword, pin, password));
     }
 
     #[test]
     fn account_login() {
-        let keyword = unwrap_result!(utility::generate_random_string(10));
-        let password = unwrap_result!(utility::generate_random_string(10));
-        let pin = unwrap_result!(utility::generate_random_string(10));
+        let keyword = unwrap!(utility::generate_random_string(10));
+        let password = unwrap!(utility::generate_random_string(10));
+        let pin = unwrap!(utility::generate_random_string(10));
 
         // Creation should pass
         let _ =
-            unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+            unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
 
         // Correct Credentials - Login Should Pass
-        let _ = unwrap_result!(Client::log_in(keyword, pin, password));
+        let _ = unwrap!(Client::log_in(keyword, pin, password));
     }
 
     #[test]
     fn unregistered_client() {
-        let immut_data = ImmutableData::new(unwrap_result!(utility::generate_random_vector(30)));
+        let immut_data = ImmutableData::new(unwrap!(utility::generate_random_vector(30)));
         let orig_data = Data::Immutable(immut_data);
 
         // Registered Client PUTs something onto the network
         {
-            let keyword = unwrap_result!(utility::generate_random_string(10));
-            let password = unwrap_result!(utility::generate_random_string(10));
-            let pin = unwrap_result!(utility::generate_random_string(10));
+            let keyword = unwrap!(utility::generate_random_string(10));
+            let password = unwrap!(utility::generate_random_string(10));
+            let pin = unwrap!(utility::generate_random_string(10));
 
             // Creation should pass
-            let mut client = unwrap_result!(Client::create_account(keyword, pin, password));
-            unwrap_result!(unwrap_result!(client.put(orig_data.clone(), None)).get());
+            let mut client = unwrap!(Client::create_account(keyword, pin, password));
+            unwrap!(unwrap!(client.put(orig_data.clone(), None)).get());
         }
 
         // Unregistered Client should be able to retrieve the data
-        let mut unregistered_client = unwrap_result!(Client::create_unregistered_client());
+        let mut unregistered_client = unwrap!(Client::create_unregistered_client());
         let request = DataIdentifier::Immutable(orig_data.name());
-        let rxd_data = unwrap_result!(unwrap_result!(unregistered_client.get(request, None)).get());
+        let rxd_data = unwrap!(unwrap!(unregistered_client.get(request, None)).get());
 
         assert_eq!(rxd_data, orig_data);
 
@@ -826,21 +822,21 @@ mod test {
     #[test]
     fn user_root_dir_id_creation() {
         // Construct Client
-        let keyword = unwrap_result!(utility::generate_random_string(10));
-        let password = unwrap_result!(utility::generate_random_string(10));
-        let pin = unwrap_result!(utility::generate_random_string(10));
+        let keyword = unwrap!(utility::generate_random_string(10));
+        let password = unwrap!(utility::generate_random_string(10));
+        let pin = unwrap!(utility::generate_random_string(10));
 
         let mut client =
-            unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+            unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
 
         assert!(client.get_user_root_directory_id().is_none());
         assert!(client.get_configuration_root_directory_id().is_none());
 
         let root_dir_id = XorName([99u8; XOR_NAME_LEN]);
-        unwrap_result!(client.set_user_root_directory_id(root_dir_id.clone()));
+        unwrap!(client.set_user_root_directory_id(root_dir_id.clone()));
 
         // Correct Credentials - Login Should Pass
-        let client = unwrap_result!(Client::log_in(keyword, pin, password));
+        let client = unwrap!(Client::log_in(keyword, pin, password));
 
         assert!(client.get_user_root_directory_id().is_some());
         assert!(client.get_configuration_root_directory_id().is_none());
@@ -851,21 +847,21 @@ mod test {
     #[test]
     fn maidsafe_config_root_dir_id_creation() {
         // Construct Client
-        let keyword = unwrap_result!(utility::generate_random_string(10));
-        let password = unwrap_result!(utility::generate_random_string(10));
-        let pin = unwrap_result!(utility::generate_random_string(10));
+        let keyword = unwrap!(utility::generate_random_string(10));
+        let password = unwrap!(utility::generate_random_string(10));
+        let pin = unwrap!(utility::generate_random_string(10));
 
         let mut client =
-            unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+            unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
 
         assert!(client.get_user_root_directory_id().is_none());
         assert!(client.get_configuration_root_directory_id().is_none());
 
         let root_dir_id = XorName([99u8; XOR_NAME_LEN]);
-        unwrap_result!(client.set_configuration_root_directory_id(root_dir_id.clone()));
+        unwrap!(client.set_configuration_root_directory_id(root_dir_id.clone()));
 
         // Correct Credentials - Login Should Pass
-        let client = unwrap_result!(Client::log_in(keyword, pin, password));
+        let client = unwrap!(Client::log_in(keyword, pin, password));
 
         assert!(client.get_user_root_directory_id().is_none());
         assert!(client.get_configuration_root_directory_id().is_some());
@@ -877,11 +873,11 @@ mod test {
     #[test]
     fn hybrid_encryption_decryption() {
         // Construct Client
-        let keyword = unwrap_result!(utility::generate_random_string(10));
-        let password = unwrap_result!(utility::generate_random_string(10));
-        let pin = unwrap_result!(utility::generate_random_string(10));
+        let keyword = unwrap!(utility::generate_random_string(10));
+        let password = unwrap!(utility::generate_random_string(10));
+        let pin = unwrap!(utility::generate_random_string(10));
 
-        let client = unwrap_result!(Client::create_account(keyword, pin, password));
+        let client = unwrap!(Client::create_account(keyword, pin, password));
 
         // Identical Plain Texts
         let plain_text_original_0 = vec![123u8; 1000];
@@ -890,13 +886,13 @@ mod test {
         // Encrypt passing Nonce
         let nonce = ::sodiumoxide::crypto::box_::gen_nonce();
         let cipher_text_0 =
-            unwrap_result!(client.hybrid_encrypt(&plain_text_original_0[..], Some(&nonce)));
+            unwrap!(client.hybrid_encrypt(&plain_text_original_0[..], Some(&nonce)));
         let cipher_text_1 =
-            unwrap_result!(client.hybrid_encrypt(&plain_text_original_1[..], Some(&nonce)));
+            unwrap!(client.hybrid_encrypt(&plain_text_original_1[..], Some(&nonce)));
 
         // Encrypt without passing Nonce
-        let cipher_text_2 = unwrap_result!(client.hybrid_encrypt(&plain_text_original_0[..], None));
-        let cipher_text_3 = unwrap_result!(client.hybrid_encrypt(&plain_text_original_1[..], None));
+        let cipher_text_2 = unwrap!(client.hybrid_encrypt(&plain_text_original_0[..], None));
+        let cipher_text_3 = unwrap!(client.hybrid_encrypt(&plain_text_original_1[..], None));
 
         // Same Plain Texts
         assert_eq!(plain_text_original_0, plain_text_original_1);
@@ -909,12 +905,12 @@ mod test {
         assert!(cipher_text_2 != cipher_text_3);
 
         // Decrypt with Nonce
-        let plain_text_0 = unwrap_result!(client.hybrid_decrypt(&cipher_text_0, Some(&nonce)));
-        let plain_text_1 = unwrap_result!(client.hybrid_decrypt(&cipher_text_1, Some(&nonce)));
+        let plain_text_0 = unwrap!(client.hybrid_decrypt(&cipher_text_0, Some(&nonce)));
+        let plain_text_1 = unwrap!(client.hybrid_decrypt(&cipher_text_1, Some(&nonce)));
 
         // Decrypt without Nonce
-        let plain_text_2 = unwrap_result!(client.hybrid_decrypt(&cipher_text_2, None));
-        let plain_text_3 = unwrap_result!(client.hybrid_decrypt(&cipher_text_3, None));
+        let plain_text_2 = unwrap!(client.hybrid_decrypt(&cipher_text_2, None));
+        let plain_text_3 = unwrap!(client.hybrid_decrypt(&cipher_text_3, None));
 
         // Decryption without passing Nonce for something encrypted with passing Nonce - Should Fail
         match client.hybrid_decrypt(&cipher_text_0, None) {
@@ -938,15 +934,15 @@ mod test {
 
     #[test]
     fn version_caching() {
-        let mut client = unwrap_result!(utility::test_utils::get_client());
+        let mut client = unwrap!(utility::test_utils::get_client());
 
         // Version Caching should work for ImmutableData
         {
             let immut_data =
-                ImmutableData::new(unwrap_result!(utility::generate_random_vector(10)));
+                ImmutableData::new(unwrap!(utility::generate_random_vector(10)));
             let data = Data::Immutable(immut_data);
 
-            unwrap_result!(unwrap_result!(client.put(data.clone(), None)).get());
+            unwrap!(unwrap!(client.put(data.clone(), None)).get());
 
             let data_request = DataIdentifier::Immutable(data.name());
 
@@ -962,12 +958,12 @@ mod test {
                 }
             }
 
-            let response_getter = unwrap_result!(client.get(data_request, None));
-            assert_eq!(unwrap_result!(response_getter.get()), data);
+            let response_getter = unwrap!(client.get(data_request, None));
+            assert_eq!(unwrap!(response_getter.get()), data);
 
             let resp_getter =
                 GetResponseGetter::new(None, client.message_queue.clone(), data_request);
-            assert_eq!(unwrap_result!(resp_getter.get()), data);
+            assert_eq!(unwrap!(resp_getter.get()), data);
         }
 
         // Version Caching should NOT work for StructuredData
@@ -975,7 +971,7 @@ mod test {
             const TYPE_TAG: u64 = 15000;
             let id: XorName = rand::random();
 
-            let struct_data = unwrap_result!(StructuredData::new(TYPE_TAG,
+            let struct_data = unwrap!(StructuredData::new(TYPE_TAG,
                                                                  id.clone(),
                                                                  0,
                                                                  Vec::new(),
@@ -984,7 +980,7 @@ mod test {
                                                                  None));
             let data = Data::Structured(struct_data);
 
-            unwrap_result!(unwrap_result!(client.put(data.clone(), None)).get());
+            unwrap!(unwrap!(client.put(data.clone(), None)).get());
 
             let data_request = DataIdentifier::Structured(id, TYPE_TAG);
 
@@ -1000,8 +996,8 @@ mod test {
                 }
             }
 
-            let response_getter = unwrap_result!(client.get(data_request, None));
-            assert_eq!(unwrap_result!(response_getter.get()), data);
+            let response_getter = unwrap!(client.get(data_request, None));
+            assert_eq!(unwrap!(response_getter.get()), data);
 
             // Should not be in version cache even after fetch
             {

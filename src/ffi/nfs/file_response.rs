@@ -89,7 +89,7 @@ impl json::ToJson for GetFileResponse {
         let mut response_tree = BTreeMap::new();
         let _ = response_tree.insert("content".to_string(), self.content.to_json());
         if let Some(ref metadata) = self.metadata {
-            let json_metadata_str = unwrap_result!(json::encode(metadata));
+            let json_metadata_str = unwrap!(json::encode(metadata));
             let _ = response_tree.insert("metadata".to_string(), json_metadata_str.to_json());
         }
 

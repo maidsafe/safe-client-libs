@@ -140,8 +140,8 @@ mod test {
     fn serialisation_public_maid() {
         let obj_before: PublicIdType = Random::generate_random();
 
-        let serialised_obj = unwrap_result!(serialise(&obj_before));
-        let obj_after: PublicIdType = unwrap_result!(deserialise(&serialised_obj));
+        let serialised_obj = unwrap!(serialise(&obj_before));
+        let obj_after: PublicIdType = unwrap!(deserialise(&serialised_obj));
 
         assert_eq!(obj_before, obj_after);
     }

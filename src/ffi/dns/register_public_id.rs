@@ -29,9 +29,9 @@ impl Action for RegisterPublicId {
         let (msg_public_key, msg_secret_key) = box_::gen_keypair();
         let services = vec![];
         let public_signing_key =
-            *try!(unwrap_result!(params.client.lock()).get_public_signing_key());
+            *try!(unwrap!(params.client.lock()).get_public_signing_key());
         let secret_signing_key =
-            try!(unwrap_result!(params.client.lock()).get_secret_signing_key()).clone();
+            try!(unwrap!(params.client.lock()).get_secret_signing_key()).clone();
         let dns_operation = try!(DnsOperations::new(params.client
             .clone()));
         try!(dns_operation.register_dns(self.long_name.clone(),
@@ -54,11 +54,11 @@ mod test {
 
     #[test]
     fn register_public_id() {
-        let parameter_packet = unwrap_result!(get_parameter_packet(false));
-        let public_name = unwrap_result!(utility::generate_random_string(10));
+        let parameter_packet = unwrap!(get_parameter_packet(false));
+        let public_name = unwrap!(utility::generate_random_string(10));
         let mut request = RegisterPublicId { long_name: public_name.clone() };
         assert!(request.execute(parameter_packet.clone()).is_ok());
-        // let parameter_packet = unwrap_result!(get_parameter_packet(false));
+        // let parameter_packet = unwrap!(get_parameter_packet(false));
         // let mut request = RegisterPublicId { long_name: public_name };
         // assert!(request.execute(parameter_packet.clone()).is_err());
     }

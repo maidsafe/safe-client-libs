@@ -68,7 +68,7 @@ mod test {
 
     #[test]
     fn create_file() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         let mut request = CreateFile {
             file_path: "/test.txt".to_string(),
@@ -79,7 +79,7 @@ mod test {
 
         let dir_helper = DirectoryHelper::new(parameter_packet.client);
         let app_dir =
-            unwrap_result!(dir_helper.get(&unwrap_option!(parameter_packet.app_root_dir_key, "")));
+            unwrap!(dir_helper.get(&unwrap!(parameter_packet.app_root_dir_key)));
         assert!(app_dir.find_file(&"test.txt".to_string()).is_some());
     }
 }

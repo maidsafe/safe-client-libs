@@ -59,10 +59,10 @@ mod test {
     const TEST_DIR_NAME: &'static str = "test_dir";
 
     fn create_test_dir(parameter_packet: &ParameterPacket) {
-        let app_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_dir_key));
-        let _ = unwrap_result!(dir_helper.create(TEST_DIR_NAME.to_string(),
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_dir_key));
+        let _ = unwrap!(dir_helper.create(TEST_DIR_NAME.to_string(),
                                                  UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                  Vec::new(),
                                                  false,
@@ -72,7 +72,7 @@ mod test {
 
     #[test]
     fn get_dir() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
 
         create_test_dir(&parameter_packet);
 
@@ -81,7 +81,7 @@ mod test {
             is_path_shared: false,
         };
 
-        assert!(unwrap_result!(request.execute(parameter_packet.clone())).is_some());
+        assert!(unwrap!(request.execute(parameter_packet.clone())).is_some());
 
         request.dir_path = "/does_not_exixts".to_string();
         assert!(request.execute(parameter_packet).is_err());

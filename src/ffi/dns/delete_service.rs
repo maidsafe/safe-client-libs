@@ -26,7 +26,7 @@ pub struct DeleteService {
 
 impl Action for DeleteService {
     fn execute(&mut self, params: ParameterPacket) -> ResponseType {
-        let signing_key = try!(unwrap_result!(params.client.lock()).get_secret_signing_key())
+        let signing_key = try!(unwrap!(params.client.lock()).get_secret_signing_key())
             .clone();
         let dns_ops = try!(DnsOperations::new(params.client));
         try!(dns_ops.remove_service(&self.long_name,

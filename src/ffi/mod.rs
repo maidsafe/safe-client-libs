@@ -193,21 +193,21 @@ pub extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
                                                   callback: extern "C" fn(i32)) {
     let mut ffi_handle = unsafe { Box::from_raw(ffi_handle) };
 
-    unwrap_result!(ffi_handle.network_event_observers.lock()).push(callback);
+    unwrap!(ffi_handle.network_event_observers.lock()).push(callback);
 
     if ffi_handle.raii_joiner.is_none() {
         let callbacks = ffi_handle.network_event_observers.clone();
 
         let (tx, rx) = mpsc::channel();
         let cloned_tx = tx.clone();
-        unwrap_result!(ffi_handle.client.lock()).add_network_event_observer(tx);
+        unwrap!(ffi_handle.client.lock()).add_network_event_observer(tx);
 
         let raii_joiner = RaiiThreadJoiner::new(thread!("FfiNetworkEventObserver", move || {
             while let Ok(event) = rx.recv() {
                 if let NetworkEvent::Terminated = event {
                     break;
                 }
-                let cbs = &*unwrap_result!(callbacks.lock());
+                let cbs = &*unwrap!(callbacks.lock());
                 let event_ffi_val = event.into();
                 for cb in cbs {
                     cb(event_ffi_val);
@@ -510,9 +510,9 @@ mod test {
 
     #[test]
     fn account_creation_and_login() {
-        let cstring_pin = unwrap_result!(generate_random_cstring(10));
-        let cstring_keyword = unwrap_result!(generate_random_cstring(10));
-        let cstring_password = unwrap_result!(generate_random_cstring(10));
+        let cstring_pin = unwrap!(generate_random_cstring(10));
+        let cstring_keyword = unwrap!(generate_random_cstring(10));
+        let cstring_password = unwrap!(generate_random_cstring(10));
 
         {
             let mut client_handle: *mut FfiHandle = ptr::null_mut();
@@ -575,17 +575,18 @@ mod test {
 
         thread::sleep(Duration::from_secs(1));
 
-        let mut current_exe_path = unwrap_result!(env::current_exe());
+        let mut current_exe_path = unwrap!(env::current_exe());
 
         assert!(current_exe_path.set_extension("log"));
 
         // Give sometime to the async logging to flush in the background thread
         thread::sleep(Duration::from_millis(50));
 
-        let mut log_file = unwrap_result!(File::open(current_exe_path));
+        let mut log_file = unwrap!(File::open(current_exe_path));
         let mut file_content = String::new();
 
-        assert!(unwrap_result!(log_file.read_to_string(&mut file_content)) > 0);
+        let written = unwrap!(log_file.read_to_string(&mut file_content));
+        assert!(written > 0);
 
         assert!(file_content.contains(&debug_msg[..]));
         assert!(!file_content.contains(&junk_msg[..]));
