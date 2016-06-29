@@ -34,7 +34,7 @@
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
-#![cfg_attr(feature="clippy", allow(print_stdout))]
+#![cfg_attr(feature="clippy", allow(use_debug, print_stdout))]
 
 #![allow(unused_extern_crates)]#[macro_use]
 extern crate maidsafe_utilities;
@@ -42,6 +42,8 @@ extern crate regex;
 extern crate routing;
 extern crate safe_core;
 extern crate sodiumoxide;
+#[macro_use]
+extern crate unwrap;
 
 use std::sync::{Arc, Mutex};
 
@@ -51,7 +53,7 @@ use safe_core::core::client::Client;
 
 use safe_core::nfs::helper::file_helper::FileHelper;
 use safe_core::nfs::helper::directory_helper::DirectoryHelper;
-use safe_core::nfs::{UNVERSIONED_DIRECTORY_LISTING_TAG, AccessLevel};
+use safe_core::nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
 
 use safe_core::dns::errors::DnsError;
 use safe_core::dns::dns_operations::DnsOperations;
@@ -86,8 +88,7 @@ fn handle_login() -> Arc<Mutex<Client>> {
     // Account Creation
     {
         println!("\nTrying to create an account ...");
-        let _ =
-            unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+        let _ = unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
         println!("Account Creation Successful !!");
     }
 
@@ -96,7 +97,7 @@ fn handle_login() -> Arc<Mutex<Client>> {
 
     // Log into the created account
     println!("\nTrying to log into the created account using supplied credentials ...");
-    Arc::new(Mutex::new(unwrap_result!(Client::log_in(keyword, pin, password))))
+    Arc::new(Mutex::new(unwrap!(Client::log_in(keyword, pin, password))))
 }
 
 fn create_dns_record(client: Arc<Mutex<Client>>,
@@ -121,7 +122,7 @@ fn create_dns_record(client: Arc<Mutex<Client>>,
     dns_operations.register_dns(long_name,
                                 &public_messaging_encryption_key,
                                 &secret_messaging_encryption_key,
-                                &vec![],
+                                &[],
                                 owners,
                                 &secret_signing_key,
                                 None)
@@ -170,7 +171,8 @@ fn add_service(client: Arc<Mutex<Client>>, dns_operations: &DnsOperations) -> Re
 
     println!("Creating Home Directory for the Service...");
 
-    let service_home_dir_name = service_name.clone() + "_home_dir";
+    let mut service_home_dir_name = service_name.clone();
+    service_home_dir_name.push_str("_home_dir");
 
     let dir_helper = DirectoryHelper::new(client.clone());
     let (dir_listing, _) = try!(dir_helper.create(service_home_dir_name,
@@ -310,12 +312,11 @@ fn parse_url_and_get_home_page(client: Arc<Mutex<Client>>,
 
 fn main() {
     let client = handle_login();
-    let unregistered_client =
-        Arc::new(Mutex::new(unwrap_result!(Client::create_unregistered_client())));
+    let unregistered_client = Arc::new(Mutex::new(unwrap!(Client::create_unregistered_client())));
     println!("Account Login Successful !!");
 
     println!("Initialising Dns...");
-    let dns_operations = unwrap_result!(DnsOperations::new(client.clone()));
+    let dns_operations = unwrap!(DnsOperations::new(client.clone()));
     let dns_operations_unregistered = DnsOperations::new_unregistered(unregistered_client.clone());
 
     let mut user_option = String::new();

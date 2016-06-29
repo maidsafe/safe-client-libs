@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 use core::client::Client;
 use core::errors::CoreError;
 use core::self_encryption_storage_error::SelfEncryptionStorageError;
-use routing::{ImmutableData, Data, DataIdentifier, XorName, XOR_NAME_LEN};
+use routing::{Data, DataIdentifier, ImmutableData, XOR_NAME_LEN, XorName};
 use self_encryption::Storage;
 
 /// Network storage is the concrete type which self-encryption crate will use to put or get data

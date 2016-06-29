@@ -14,13 +14,14 @@
 //
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
+
 //! Dns operations. Implementation for some of the `dns` module
 
 use std::sync::{Arc, Mutex};
 
 use core::client::Client;
 use dns::errors::DnsError;
-use maidsafe_utilities::serialisation::{serialise, deserialise};
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::errors::NfsError;
 use nfs::helper::writer::Mode;
 use nfs::helper::directory_helper::DirectoryHelper;
@@ -57,7 +58,7 @@ pub fn initialise_dns_configuaration(client: Arc<Mutex<Client>>) -> Result<(), D
 
 /// Get dns configuration data.
 pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
-                                   -> Result<Vec<DnsConfiguration>, DnsError> {
+                                  -> Result<Vec<DnsConfiguration>, DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
         try!(dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string()));
@@ -78,8 +79,8 @@ pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
 
 /// Write dns configuration data.
 pub fn write_dns_configuration_data(client: Arc<Mutex<Client>>,
-                                     config: &[DnsConfiguration])
-                                     -> Result<(), DnsError> {
+                                    config: &[DnsConfiguration])
+                                    -> Result<(), DnsError> {
     let dir_helper = DirectoryHelper::new(client.clone());
     let dir_listing =
         try!(dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string()));
@@ -106,16 +107,16 @@ mod test {
 
     #[test]
     fn read_write_dns_configuration_file() {
-        let client = Arc::new(Mutex::new(unwrap_result!(test_utils::get_client())));
+        let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
 
         // Initialise Dns Configuration File
-        unwrap_result!(initialise_dns_configuaration(client.clone()));
+        unwrap!(initialise_dns_configuaration(client.clone()));
 
         // Get the Stored Configurations
-        let mut config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
+        let mut config_vec = unwrap!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 0);
 
-        let long_name = unwrap_result!(utility::generate_random_string(10));
+        let long_name = unwrap!(utility::generate_random_string(10));
 
         // Put in the 1st record
         let mut keypair = box_::gen_keypair();
@@ -125,10 +126,10 @@ mod test {
         };
 
         config_vec.push(config_0.clone());
-        unwrap_result!(write_dns_configuration_data(client.clone(), &config_vec));
+        unwrap!(write_dns_configuration_data(client.clone(), &config_vec));
 
         // Get the Stored Configurations
-        config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
+        config_vec = unwrap!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 1);
 
         assert_eq!(config_vec[0], config_0);
@@ -141,10 +142,10 @@ mod test {
         };
 
         config_vec[0] = config_1.clone();
-        unwrap_result!(write_dns_configuration_data(client.clone(), &config_vec));
+        unwrap!(write_dns_configuration_data(client.clone(), &config_vec));
 
         // Get the Stored Configurations
-        config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
+        config_vec = unwrap!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 1);
 
         assert!(config_vec[0] != config_0);
@@ -152,10 +153,10 @@ mod test {
 
         // Delete Record
         config_vec.clear();
-        unwrap_result!(write_dns_configuration_data(client.clone(), &config_vec));
+        unwrap!(write_dns_configuration_data(client.clone(), &config_vec));
 
         // Get the Stored Configurations
-        config_vec = unwrap_result!(get_dns_configuration_data(client.clone()));
+        config_vec = unwrap!(get_dns_configuration_data(client.clone()));
         assert_eq!(config_vec.len(), 0);
     }
 }

@@ -23,7 +23,7 @@ use core::errors::CoreError;
 use core::translated_events::{NetworkEvent, ResponseEvent};
 
 use lru_time_cache::LruCache;
-use maidsafe_utilities::thread::RaiiThreadJoiner;
+use maidsafe_utilities::thread::{self, RaiiThreadJoiner};
 use maidsafe_utilities::serialisation::deserialise;
 use routing::{Data, Event, MessageId, Response, XorName};
 use safe_network_common::client_errors::{GetError, MutationError};
@@ -147,15 +147,15 @@ impl MessageQueue {
         }));
 
         let message_queue_cloned = message_queue.clone();
-        let receiver_joiner = thread!(EVENT_RECEIVER_THREAD_NAME, move || {
+        let receiver_joiner = thread::named(EVENT_RECEIVER_THREAD_NAME, move || {
             for it in routing_event_receiver.iter() {
                 match it {
                     Event::Response { response, .. } => {
-                        handle_response(response, unwrap_result!(message_queue_cloned.lock()));
+                        handle_response(response, unwrap!(message_queue_cloned.lock()));
                     }
                     Event::Connected => {
                         let mut dead_sender_positions = Vec::<usize>::new();
-                        let mut queue_guard = unwrap_result!(message_queue_cloned.lock());
+                        let mut queue_guard = unwrap!(message_queue_cloned.lock());
                         for it in queue_guard.network_event_observers.iter().enumerate() {
                             if it.1.send(NetworkEvent::Connected).is_err() {
                                 dead_sender_positions.push(it.0);
@@ -167,7 +167,7 @@ impl MessageQueue {
                     }
                     Event::Terminate => {
                         let mut dead_sender_positions = Vec::<usize>::new();
-                        let mut queue_guard = unwrap_result!(message_queue_cloned.lock());
+                        let mut queue_guard = unwrap!(message_queue_cloned.lock());
                         for it in queue_guard.network_event_observers.iter().enumerate() {
                             if it.1.send(NetworkEvent::Disconnected).is_err() {
                                 dead_sender_positions.push(it.0);
@@ -185,7 +185,7 @@ impl MessageQueue {
             }
         });
 
-        (message_queue, RaiiThreadJoiner::new(receiver_joiner))
+        (message_queue, receiver_joiner)
     }
 
     pub fn register_response_observer(&mut self,

@@ -16,7 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use ffi::errors::FfiError;
-use ffi::{helper, ParameterPacket, ResponseType, Action};
+use ffi::{Action, ParameterPacket, ResponseType, helper};
 use nfs::directory_listing::DirectoryListing;
 use nfs::errors::NfsError::DirectoryAlreadyExistsWithSameName;
 use nfs::helper::directory_helper::DirectoryHelper;
@@ -38,12 +38,12 @@ impl MoveDirectory {
                      -> Result<DirectoryListing, FfiError> {
         let start_dir_key = if shared {
             try!(params.clone()
-                       .safe_drive_dir_key
-                       .ok_or(FfiError::from("Safe Drive directory key is not present")))
+                .safe_drive_dir_key
+                .ok_or(FfiError::from("Safe Drive directory key is not present")))
         } else {
             try!(params.clone()
-                       .app_root_dir_key
-                       .ok_or(FfiError::from("Application directory key is not present")))
+                .app_root_dir_key
+                .ok_or(FfiError::from("Application directory key is not present")))
         };
 
         let tokens = helper::tokenise_path(path, false);
@@ -57,20 +57,17 @@ impl Action for MoveDirectory {
             return Err(FfiError::PermissionDenied);
         }
         let directory_helper = DirectoryHelper::new(params.client.clone());
-        let mut src_dir = try!(self.get_directory(&params,
-                                                  self.is_src_path_shared,
-                                                  &self.src_path));
-        let mut dest_dir = try!(self.get_directory(&params,
-                                                   self.is_dest_path_shared,
-                                                   &self.dest_path));
+        let mut src_dir =
+            try!(self.get_directory(&params, self.is_src_path_shared, &self.src_path));
+        let mut dest_dir =
+            try!(self.get_directory(&params, self.is_dest_path_shared, &self.dest_path));
         if dest_dir.find_sub_directory(src_dir.get_metadata().get_name()).is_some() {
             return Err(FfiError::from(DirectoryAlreadyExistsWithSameName));
         }
         let org_parent_of_src_dir = try!(src_dir.get_metadata()
-                                                .get_parent_dir_key()
-                                                .map(|x| x.clone())
-                                                .ok_or(FfiError::from("Parent directory not \
-                                                                       found")));
+            .get_parent_dir_key()
+            .cloned()
+            .ok_or(FfiError::from("Parent directory not found")));
         if self.retain_source {
             let name = src_dir.get_metadata().get_name().to_owned();
             let user_metadata = src_dir.get_metadata().get_user_metadata().to_owned();
@@ -79,32 +76,32 @@ impl Action for MoveDirectory {
             let modified_time = *src_dir.get_metadata().get_modified_time();
             let mut dir = try!(DirectoryListing::new(name,
                                                      src_dir.get_metadata()
-                                                            .get_key()
-                                                            .get_type_tag(),
+                                                         .get_key()
+                                                         .get_type_tag(),
                                                      user_metadata,
                                                      src_dir.get_metadata()
-                                                            .get_key()
-                                                            .is_versioned(),
+                                                         .get_key()
+                                                         .is_versioned(),
                                                      access_level,
                                                      src_dir.get_metadata()
-                                                            .get_parent_dir_key()
-                                                            .map(|key| key.clone())));
+                                                         .get_parent_dir_key()
+                                                         .cloned()));
             src_dir.get_files().iter().all(|file| {
                 dir.get_mut_files().push(file.clone());
                 true
             });
             src_dir.get_sub_directories()
-                   .iter()
-                   .all(|sub_dir| {
-                       dir.get_mut_sub_directories().push(sub_dir.clone());
-                       true
-                   });
+                .iter()
+                .all(|sub_dir| {
+                    dir.get_mut_sub_directories().push(sub_dir.clone());
+                    true
+                });
             dir.get_mut_metadata().set_created_time(created_time);
             dir.get_mut_metadata().set_modified_time(modified_time);
             src_dir = dir;
         } else {
             src_dir.get_mut_metadata()
-                   .set_parent_dir_key(Some(dest_dir.get_metadata().get_key().clone()));
+                .set_parent_dir_key(Some(dest_dir.get_metadata().get_key().clone()));
         }
         dest_dir.upsert_sub_directory(src_dir.get_metadata().clone());
         let _ = try!(directory_helper.update(&dest_dir));
@@ -112,7 +109,7 @@ impl Action for MoveDirectory {
             let _ = try!(directory_helper.update(&src_dir));
             let mut parent_of_src_dir = try!(directory_helper.get(&org_parent_of_src_dir));
             try!(parent_of_src_dir.remove_sub_directory(src_dir.get_metadata()
-                                                               .get_name()));
+                .get_name()));
             let _ = try!(directory_helper.update(&parent_of_src_dir));
         }
         Ok(None)
@@ -128,35 +125,34 @@ mod test {
 
     fn create_directories(parameter_packet: &ParameterPacket) {
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let _ = unwrap_result!(dir_helper.create(String::from("ParentA"),
-                                                 UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                                 vec![0u8, 0],
-                                                 false,
-                                                 AccessLevel::Private,
-                                                 Some(&mut app_root_dir)));
-        let mut app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
-        let _ = unwrap_result!(dir_helper.create(String::from("ParentB"),
-                                                 UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                                 vec![0u8, 0],
-                                                 false,
-                                                 AccessLevel::Private,
-                                                 Some(&mut app_root_dir)));
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let _ = unwrap!(dir_helper.create(String::from("ParentA"),
+                                          UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                          vec![0u8, 0],
+                                          false,
+                                          AccessLevel::Private,
+                                          Some(&mut app_root_dir)));
+        let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
+        let _ = unwrap!(dir_helper.create(String::from("ParentB"),
+                                          UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                          vec![0u8, 0],
+                                          false,
+                                          AccessLevel::Private,
+                                          Some(&mut app_root_dir)));
     }
 
     #[test]
     fn move_dir() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         create_directories(&parameter_packet);
         let dest_dir_name = String::from("ParentB");
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 2);
-        let dest_dir_key = unwrap_option!(app_root_dir.find_sub_directory(&dest_dir_name), "")
-                               .get_key();
-        let dest_dir = unwrap_result!(dir_helper.get(&dest_dir_key));
+        let dest_dir_key = unwrap!(app_root_dir.find_sub_directory(&dest_dir_name)).get_key();
+        let dest_dir = unwrap!(dir_helper.get(&dest_dir_key));
         assert_eq!(dest_dir.get_sub_directories().len(), 0);
         let mut request = MoveDirectory {
             src_path: String::from("/ParentA"),
@@ -165,28 +161,27 @@ mod test {
             is_dest_path_shared: false,
             retain_source: false,
         };
-        let _ = unwrap_result!(request.execute(parameter_packet.clone()));
+        let _ = unwrap!(request.execute(parameter_packet.clone()));
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 1);
-        let dest_dir = unwrap_result!(dir_helper.get(&dest_dir_key));
+        let dest_dir = unwrap!(dir_helper.get(&dest_dir_key));
         assert_eq!(dest_dir.get_sub_directories().len(), 1);
     }
 
 
     #[test]
     fn copy_dir() {
-        let parameter_packet = unwrap_result!(test_utils::get_parameter_packet(false));
+        let parameter_packet = unwrap!(test_utils::get_parameter_packet(false));
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
         create_directories(&parameter_packet);
         let dest_dir_name = String::from("ParentB");
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 2);
-        let dest_dir_key = unwrap_option!(app_root_dir.find_sub_directory(&dest_dir_name), "")
-                               .get_key();
-        let dest_dir = unwrap_result!(dir_helper.get(&dest_dir_key));
+        let dest_dir_key = unwrap!(app_root_dir.find_sub_directory(&dest_dir_name)).get_key();
+        let dest_dir = unwrap!(dir_helper.get(&dest_dir_key));
         assert_eq!(dest_dir.get_sub_directories().len(), 0);
         let mut request = MoveDirectory {
             src_path: String::from("/ParentA"),
@@ -195,12 +190,12 @@ mod test {
             is_dest_path_shared: false,
             retain_source: true,
         };
-        let _ = unwrap_result!(request.execute(parameter_packet.clone()));
+        let _ = unwrap!(request.execute(parameter_packet.clone()));
         let dir_helper = DirectoryHelper::new(parameter_packet.client.clone());
-        let app_root_dir_key = unwrap_option!(parameter_packet.clone().app_root_dir_key, "");
-        let app_root_dir = unwrap_result!(dir_helper.get(&app_root_dir_key));
+        let app_root_dir_key = unwrap!(parameter_packet.clone().app_root_dir_key);
+        let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         assert_eq!(app_root_dir.get_sub_directories().len(), 2);
-        let dest_dir = unwrap_result!(dir_helper.get(&dest_dir_key));
+        let dest_dir = unwrap!(dir_helper.get(&dest_dir_key));
         assert_eq!(dest_dir.get_sub_directories().len(), 1);
     }
 }

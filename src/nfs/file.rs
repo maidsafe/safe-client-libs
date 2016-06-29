@@ -19,7 +19,7 @@ use std::fmt;
 
 use nfs::errors::NfsError;
 use nfs::metadata::file_metadata::FileMetadata;
-use rand::{Rand, OsRng};
+use rand::{OsRng, Rand};
 use routing::XorName;
 use self_encryption::DataMap;
 
@@ -83,19 +83,19 @@ impl fmt::Debug for File {
 #[cfg(test)]
 mod test {
     use super::*;
-    use maidsafe_utilities::serialisation::{serialise, deserialise};
+    use maidsafe_utilities::serialisation::{deserialise, serialise};
     use nfs::metadata::file_metadata::FileMetadata;
     use self_encryption::DataMap;
 
     #[test]
     fn serialise_deserialise() {
-        let obj_before = unwrap_result!(File::new(FileMetadata::new("Home".to_string(),
-                                                                    "{mime:\"application/json\"}"
-                                                                        .to_string()
-                                                                        .into_bytes()),
-                                                  DataMap::None));
-        let serialised_data = unwrap_result!(serialise(&obj_before));
-        let obj_after = unwrap_result!(deserialise(&serialised_data));
+        let obj_before = unwrap!(File::new(FileMetadata::new("Home".to_string(),
+                                                             "{mime:\"application/json\"}"
+                                                                 .to_string()
+                                                                 .into_bytes()),
+                                           DataMap::None));
+        let serialised_data = unwrap!(serialise(&obj_before));
+        let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);
     }
 }

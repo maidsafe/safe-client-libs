@@ -15,15 +15,14 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use std;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::mem;
+use std::{mem, thread};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 use bincode::SizeLimit;
-use maidsafe_utilities::thread;
+use maidsafe_utilities;
 use maidsafe_utilities::serialisation::{deserialise, deserialise_with_limit, serialise,
                                         serialise_with_limit};
 use rand;
@@ -105,8 +104,8 @@ impl RoutingMock {
         ::sodiumoxide::init();
 
         let cloned_sender = sender.clone();
-        let _ = thread::named(NETWORK_CONNECT_DELAY_SIMULATION_THREAD, move || {
-            std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
+        let _ = maidsafe_utilities::thread::named(NETWORK_CONNECT_DELAY_SIMULATION_THREAD, move || {
+            thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
             let _ = cloned_sender.send(Event::Connected);
         });
 
@@ -133,8 +132,8 @@ impl RoutingMock {
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_GETS_POSTS_MS));
+        let _ = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_GETS_POSTS_MS));
             let data_name = data_id.name();
             let nae_auth = Authority::NaeManager(data_name);
             let request = Request::Get(data_id.clone(), msg_id.clone());
@@ -243,8 +242,8 @@ impl RoutingMock {
             Some(MutationError::NetworkOther("Serialisation error".to_owned()))
         };
 
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
+        let _ = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
             if let Some(reason) = err {
                 let ext_err = match serialise(&reason) {
                     Ok(serialised_err) => serialised_err,
@@ -311,8 +310,8 @@ impl RoutingMock {
             Some(MutationError::NoSuchData)
         };
 
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
+        let _ = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
             if let Some(reason) = err {
                 let ext_err = match serialise(&reason) {
                     Ok(serialised_err) => serialised_err,
@@ -379,8 +378,8 @@ impl RoutingMock {
             Some(MutationError::NoSuchData)
         };
 
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
+        let _ = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
             if let Some(reason) = err {
                 let ext_err = match serialise(&reason) {
                     Ok(serialised_err) => serialised_err,

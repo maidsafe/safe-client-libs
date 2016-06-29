@@ -17,7 +17,7 @@
 
 use core::errors::CoreError;
 use maidsafe_utilities::serialisation::SerialisationError;
-use nfs::errors::{NfsError, NFS_ERROR_START_RANGE};
+use nfs::errors::{NFS_ERROR_START_RANGE, NfsError};
 
 /// Intended for converting DNS Errors into numeric codes for propagating some error information
 /// across FFI boundaries and specially to C.

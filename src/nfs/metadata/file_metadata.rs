@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::{Encodable, Encoder, Decodable, Decoder};
+use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use time::{self, Timespec, Tm};
 
 /// FileMetadata about a File or a Directory
@@ -146,14 +146,14 @@ impl Decodable for FileMetadata {
 #[cfg(test)]
 mod test {
     use super::*;
-    use maidsafe_utilities::serialisation::{serialise, deserialise};
+    use maidsafe_utilities::serialisation::{deserialise, serialise};
 
     #[test]
     fn serialise_and_deserialise_file_metadata() {
         let obj_before = FileMetadata::new("hello.txt".to_string(),
                                            "{mime: \"application/json\"}".to_string().into_bytes());
-        let serialised_data = unwrap_result!(serialise(&obj_before));
-        let obj_after = unwrap_result!(deserialise(&serialised_data));
+        let serialised_data = unwrap!(serialise(&obj_before));
+        let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);
     }
 }

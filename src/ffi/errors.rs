@@ -21,7 +21,7 @@ use core::errors::CoreError;
 use dns::errors::{DNS_ERROR_START_RANGE, DnsError};
 use maidsafe_utilities::serialisation::SerialisationError;
 use nfs::errors::NfsError;
-use rustc_serialize::{json, base64};
+use rustc_serialize::{base64, json};
 
 /// Intended for converting Launcher Errors into numeric codes for propagating some error
 /// information across FFI boundaries and specially to C.

@@ -34,12 +34,15 @@
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
+#![cfg_attr(feature="clippy", allow(use_debug, print_stdout))]
 
 #![allow(unused_extern_crates)]#[macro_use]
 extern crate maidsafe_utilities;
 extern crate time;
 extern crate routing;
 extern crate safe_core;
+#[macro_use]
+extern crate unwrap;
 
 use std::sync::{Arc, Mutex};
 
@@ -79,7 +82,7 @@ fn create_account() -> Result<Client, NfsError> {
 
     // Account Creation
     println!("\nTrying to create an account ...");
-    let _ = unwrap_result!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
+    let _ = unwrap!(Client::create_account(keyword.clone(), pin.clone(), password.clone()));
     println!("Account Created Successfully !!");
     println!("\n\n\tAuto Account Login");
     println!("\t==================");
@@ -108,14 +111,15 @@ fn get_user_string(placeholder: &str) -> String {
     txt
 }
 
+#[cfg_attr(feature="clippy", allow(indexing_slicing))]
 fn format_version_id(version_id: &[u8; XOR_NAME_LEN]) -> String {
     let mut version = String::new();
-    for j in 0..4 {
-        version.push_str(&version_id[j].to_string()[..]);
+    for byte in &version_id[0..4] {
+        version.push_str(&byte.to_string()[..]);
     }
     version.push_str("..");
-    for j in (XOR_NAME_LEN - 4)..XOR_NAME_LEN {
-        version.push_str(&version_id[j].to_string()[..]);
+    for byte in &version_id[(XOR_NAME_LEN - 4)..XOR_NAME_LEN] {
+        version.push_str(&byte.to_string()[..]);
     }
     version
 }
@@ -123,7 +127,7 @@ fn format_version_id(version_id: &[u8; XOR_NAME_LEN]) -> String {
 fn get_child_directory(client: Arc<Mutex<Client>>,
                        directory: &mut DirectoryListing)
                        -> Result<DirectoryListing, NfsError> {
-    let ref directory_name = get_user_string("Directory name");
+    let directory_name = &get_user_string("Directory name");
     let directory_metadata = try!(directory.find_sub_directory(directory_name)
         .ok_or(NfsError::DirectoryNotFound));
     let directory_helper = DirectoryHelper::new(client);
@@ -151,12 +155,10 @@ fn directory_operation(option: u32,
                     }
                     let name = get_user_string("Directory name");
                     let versioned = match index {
-                        1 | 2 => true,
                         3 | 4 => false,
                         _ => true,
                     };
                     let access_level = match index {
-                        1 | 3 => AccessLevel::Private,
                         2 | 4 => AccessLevel::Public,
                         _ => AccessLevel::Private,
                     };
@@ -212,8 +214,8 @@ fn directory_operation(option: u32,
                 println!("List of directory versions");
                 println!("\t No. \t Version Id");
                 println!("\t === \t ==========");
-                for i in 0..versions.len() {
-                    println!("\t {} \t {:?}", i + 1, format_version_id(&versions[i].0));
+                for (i, version) in versions.iter().enumerate() {
+                    println!("\t {} \t {:?}", i + 1, format_version_id(&version.0));
                 }
             }
         }
@@ -311,23 +313,29 @@ fn file_operation(option: u32,
             let versions = try!(file_helper.get_versions(&file, &directory));
             let ref file_version;
             if versions.len() == 1 {
-                file_version = &versions[0];
+                file_version = unwrap!(versions.get(0));
             } else {
                 println!("Available Versions::");
-                for i in 0..versions.len() {
+                for (i, version) in versions.iter().enumerate() {
                     println!("\t{} Modified at {:?}",
                              i + 1,
-                             time::strftime("%d-%m-%Y %H:%M UTC",
-                                            &versions[i].get_metadata().get_modified_time())
-                                 .unwrap())
+                             unwrap!(time::strftime("%d-%m-%Y %H:%M UTC",
+                                                    &version.get_metadata().get_modified_time())))
                 }
                 match get_user_string("Number corresponding to the version")
                     .trim()
                     .parse::<usize>() {
-                    Ok(index) => file_version = &versions[index - 1],
-                    Err(_) => {
-                        println!("Invalid input : Fetching latest version");
-                        file_version = &versions[0];
+                    Ok(index) => {
+                        if let Some(version) = versions.get(index - 1) {
+                            file_version = version;
+                        } else {
+                            println!("Invalid version : Fetching latest version");
+                            file_version = unwrap!(versions.get(0));
+                        }
+                    }
+                    Err(e) => {
+                        println!("Invalid input ({}): Fetching latest version", e);
+                        file_version = unwrap!(versions.get(0));
                     }
                 }
             }
@@ -389,10 +397,10 @@ fn file_operation(option: u32,
 }
 
 fn main() {
-    let test_client = unwrap_result!(create_account());
+    let test_client = unwrap!(create_account());
     let client = Arc::new(Mutex::new(test_client));
     println!("\n\t-- Preparing storage ----\n");
-    let mut root_directory = unwrap_result!(get_root_directory(client.clone()));
+    let mut root_directory = unwrap!(get_root_directory(client.clone()));
     println!("\n\n------  (Tip) Start by creating a directory and then store file, modify file \
               within the directory --------------------");
     loop {
@@ -418,17 +426,17 @@ fn main() {
                 Ok(selection) => {
                     match selection {
                         1...4 => {
-                            match directory_operation(selection,
-                                                      client.clone(),
-                                                      &mut root_directory) {
-                                Err(msg) => println!("Failed: {:?}", msg),
-                                Ok(_) => (),
+                            if let Err(msg) = directory_operation(selection,
+                                                                  client.clone(),
+                                                                  &mut root_directory) {
+                                println!("Failed: {:?}", msg);
                             }
                         }
                         5...11 => {
-                            match file_operation(selection, client.clone(), &mut root_directory) {
-                                Err(msg) => println!("Failed: {:?}", msg),
-                                Ok(_) => (),
+                            if let Err(msg) = file_operation(selection,
+                                                             client.clone(),
+                                                             &mut root_directory) {
+                                println!("Failed: {:?}", msg);
                             }
                         }
                         12 => break,

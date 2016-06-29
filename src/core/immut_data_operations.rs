@@ -20,10 +20,10 @@ use std::sync::{Arc, Mutex};
 use core::client::Client;
 use core::errors::CoreError;
 use core::{SelfEncryptionStorage, utility};
-use maidsafe_utilities::serialisation::{serialise, deserialise};
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Data, DataIdentifier, ImmutableData, XorName};
 use self_encryption::{DataMap, SelfEncryptor};
-use sodiumoxide::crypto::box_::{PublicKey, SecretKey, Nonce};
+use sodiumoxide::crypto::box_::{Nonce, PublicKey, SecretKey};
 
 // TODO(Spandan) Ask Routing to define this constant and use it from there
 const MAX_IMMUT_DATA_SIZE_IN_BYTES: usize = 1024 * 1024;
@@ -127,73 +127,70 @@ mod test {
     #[test]
     fn immut_data_create_retrieve_10_mb() {
         // 10 MB of data
-        let data_to_put = unwrap_result!(utility::generate_random_vector(1024 * 1024 * 10));
+        let data_to_put = unwrap!(utility::generate_random_vector(1024 * 1024 * 10));
 
         // Unencrypted
         {
-            let client = Arc::new(Mutex::new(unwrap_result!(test_utils::get_client())));
+            let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
 
-            let immut_data_before =
-                unwrap_result!(create(client.clone(), data_to_put.clone(), None));
+            let immut_data_before = unwrap!(create(client.clone(), data_to_put.clone(), None));
             let data_name = immut_data_before.name();
-            let resp_getter = unwrap_result!(unwrap_result!(client.lock())
+            let resp_getter = unwrap!(unwrap!(client.lock())
                 .put(Data::Immutable(immut_data_before), None));
-            unwrap_result!(resp_getter.get());
+            unwrap!(resp_getter.get());
 
-            let data_got = unwrap_result!(get_data(client.clone(), data_name, None));
+            let data_got = unwrap!(get_data(client.clone(), data_name, None));
 
             assert_eq!(data_to_put, data_got);
         }
 
         // Encrypted
         {
-            let client = Arc::new(Mutex::new(unwrap_result!(test_utils::get_client())));
+            let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
             let (pk, sk) = box_::gen_keypair();
             let nonce = box_::gen_nonce();
 
-            let immut_data_before = unwrap_result!(create(client.clone(),
-                                                          data_to_put.clone(),
-                                                          Some((&pk, &sk, &nonce))));
+            let immut_data_before = unwrap!(create(client.clone(),
+                                                   data_to_put.clone(),
+                                                   Some((&pk, &sk, &nonce))));
             let data_name = immut_data_before.name();
-            let resp_getter = unwrap_result!(unwrap_result!(client.lock())
+            let resp_getter = unwrap!(unwrap!(client.lock())
                 .put(Data::Immutable(immut_data_before), None));
-            unwrap_result!(resp_getter.get());
+            unwrap!(resp_getter.get());
 
-            let data_got =
-                unwrap_result!(get_data(client.clone(), data_name, Some((&pk, &sk, &nonce))));
+            let data_got = unwrap!(get_data(client.clone(), data_name, Some((&pk, &sk, &nonce))));
 
             assert_eq!(data_to_put, data_got);
         }
 
         // Put unencrypted Retrieve encrypted - Should fail
         {
-            let client = Arc::new(Mutex::new(unwrap_result!(test_utils::get_client())));
+            let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
             let (pk, sk) = box_::gen_keypair();
             let nonce = box_::gen_nonce();
 
-            let immut_data_before =
-                unwrap_result!(create(client.clone(), data_to_put.clone(), None));
+            let immut_data_before = unwrap!(create(client.clone(), data_to_put.clone(), None));
             let data_name = immut_data_before.name();
-            let resp_getter = unwrap_result!(unwrap_result!(client.lock())
+            let resp_getter = unwrap!(unwrap!(client.lock())
                 .put(Data::Immutable(immut_data_before), None));
-            unwrap_result!(resp_getter.get());
+            unwrap!(resp_getter.get());
 
             assert!(get_data(client.clone(), data_name, Some((&pk, &sk, &nonce))).is_err());
         }
 
         // Put encrypted Retrieve unencrypted - Should fail
         {
-            let client = Arc::new(Mutex::new(unwrap_result!(test_utils::get_client())));
+            let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
             let (pk, sk) = box_::gen_keypair();
             let nonce = box_::gen_nonce();
 
-            let immut_data_before = unwrap_result!(create(client.clone(),
-                                                          data_to_put.clone(),
-                                                          Some((&pk, &sk, &nonce))));
+            let immut_data_before = unwrap!(create(client.clone(),
+                                                   data_to_put.clone(),
+                                                   Some((&pk, &sk, &nonce))));
             let data_name = immut_data_before.name();
-            let resp_getter = unwrap_result!(unwrap_result!(client.lock())
+            let resp_getter = unwrap!(unwrap!(client.lock())
                 .put(Data::Immutable(immut_data_before), None));
-            unwrap_result!(resp_getter.get());
+            unwrap!(resp_getter.get());
 
             assert!(get_data(client.clone(), data_name, None).is_err());
         }
