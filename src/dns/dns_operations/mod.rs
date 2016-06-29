@@ -345,6 +345,7 @@ mod test {
     use core::errors::CoreError;
     use core::utility::{generate_random_string, test_utils};
     use dns::errors::DnsError;
+    use maidsafe_utilities;
     use nfs::AccessLevel;
     use nfs::errors::NfsError;
     use nfs::metadata::directory_key::DirectoryKey;
@@ -597,15 +598,20 @@ mod test {
 
     #[test]
     fn register_dns_internal_error_recovery() {
+        unwrap!(maidsafe_utilities::log::init(true));
+
         let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
         let dns_operations = unwrap!(DnsOperations::new(client.clone()));
         let dns_name = unwrap!(generate_random_string(10));
         let messaging_keypair = box_::gen_keypair();
         let owners = vec![unwrap!(unwrap!(client.lock()).get_public_signing_key()).clone()];
         let secret_signing_key = unwrap!(unwrap!(client.lock()).get_secret_signing_key()).clone();
+
         // Limit of `Some(2)` would prevent the mutation to happen. We want one
         // `Mutation` exactly at this point
         unwrap!(client.lock()).set_network_limits(Some(3));
+
+        info!("Fail to register the name");
         match dns_operations.register_dns(dns_name.clone(),
                                           &messaging_keypair.0,
                                           &messaging_keypair.1,
@@ -619,7 +625,68 @@ mod test {
             Ok(()) => panic!("Operation unexpectedly had succeed"),
             Err(e) => panic!("Unexpected error {:?}", e),
         }
+
+        // Remove artificial network failure
         unwrap!(client.lock()).set_network_limits(None);
+
+        info!("Now try and delete. It should fail because the registration failed.");
+        match dns_operations.delete_dns(&dns_name, &secret_signing_key) {
+            Err(DnsError::DnsRecordNotFound) => (),
+            Ok(()) => panic!("Operation unexpectedly had succeed"),
+            Err(e) => panic!("Unexpected error {:?}", e),
+        }
+
+        info!("List of registered names should be empty");
+        let names = unwrap!(dns_operations.get_all_registered_names());
+        assert!(names.is_empty());
+
+        info!("Register for real this time.");
+        unwrap!(dns_operations.register_dns(dns_name.clone(),
+                                            &messaging_keypair.0,
+                                            &messaging_keypair.1,
+                                            &vec![],
+                                            owners.clone(),
+                                            &secret_signing_key,
+                                            None));
+
+        info!("Delete with simulated failure");
+        unwrap!(client.lock()).set_network_limits(Some(5));
+        match dns_operations.delete_dns(&dns_name, &secret_signing_key) {
+            Err(DnsError::NfsError(NfsError::CoreError(CoreError::GetFailure {
+                reason: GetError::NetworkOther(ref s), ..
+            }))) if s == "Max operations exhausted" => (),
+            Ok(()) => panic!("Operation unexpectedly had succeed"),
+            Err(e) => panic!("Unexpected error {:?}", e),
+        }
+
+        // Remove artificial network failure
+        unwrap!(client.lock()).set_network_limits(None);
+
+        info!("Fail to register because it's already registered");
+        match dns_operations.register_dns(dns_name.clone(),
+                                          &messaging_keypair.0,
+                                          &messaging_keypair.1,
+                                          &vec![],
+                                          owners.clone(),
+                                          &secret_signing_key,
+                                          None) {
+            Err(DnsError::DnsNameAlreadyRegistered) => (),
+            Ok(()) => panic!("Operation unexpectedly had succeed"),
+            Err(e) => panic!("Unexpected error {:?}", e),
+        }
+
+        info!("List of registered names should contain record");
+        let names = unwrap!(dns_operations.get_all_registered_names());
+        assert_eq!(&names[..], &[&dns_name[..]]);
+
+        info!("Delete should succeed");
+        unwrap!(dns_operations.delete_dns(&dns_name, &secret_signing_key));
+
+        info!("List of registered names should be empty");
+        let names = unwrap!(dns_operations.get_all_registered_names());
+        assert!(names.is_empty());
+
+        info!("Register for real again.");
         unwrap!(dns_operations.register_dns(dns_name.clone(),
                                             &messaging_keypair.0,
                                             &messaging_keypair.1,

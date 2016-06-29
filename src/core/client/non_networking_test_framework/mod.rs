@@ -138,6 +138,7 @@ impl RoutingMock {
 
         let err =
             if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock GET: {:?} {:?} [0]", data_id, msg_id);
                 Some(GetError::NetworkOther("Max operations exhausted".to_string()))
             } else {
                 None
@@ -145,7 +146,9 @@ impl RoutingMock {
 
         if err == None {
             if let Some(ref count) = self.max_ops_countdown {
-                count.set(count.get() - 1);
+                let ops = count.get();
+                info!("Mock GET: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
             }
         }
 
@@ -250,6 +253,7 @@ impl RoutingMock {
         let mut data_store_mutex_guard = unwrap!(data_store.lock());
         let err =
             if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock PUT: {:?} {:?} [0]", data_id, msg_id);
                 Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
             } else if data_store_mutex_guard.contains_key(&data_name) {
                 match data {
@@ -280,7 +284,9 @@ impl RoutingMock {
 
         if err == None {
             if let Some(ref count) = self.max_ops_countdown {
-                count.set(count.get() - 1);
+                let ops = count.get();
+                info!("Mock PUT: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
             }
         }
 
@@ -332,6 +338,7 @@ impl RoutingMock {
         let mut data_store_mutex_guard = unwrap!(data_store.lock());
         let err = if data_store_mutex_guard.contains_key(&data_name) {
             if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock POST: {:?} {:?} [0]", data_id, msg_id);
                 Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
             } else if let Data::Structured(ref sd_new) = data {
                 match (serialise(&data),
@@ -356,7 +363,9 @@ impl RoutingMock {
 
         if err == None {
             if let Some(ref count) = self.max_ops_countdown {
-                count.set(count.get() - 1);
+                let ops = count.get();
+                info!("Mock POST: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
             }
         }
 
@@ -408,6 +417,7 @@ impl RoutingMock {
         let mut data_store_mutex_guard = unwrap!(data_store.lock());
         let err =
             if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock DELETE: {:?} {:?} [0]", data_id, msg_id);
                 Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
             } else if data_store_mutex_guard.contains_key(&data_name) {
                 if let Data::Structured(ref sd_new) = data {
@@ -433,6 +443,9 @@ impl RoutingMock {
 
         if err == None {
             if let Some(ref count) = self.max_ops_countdown {
+                let ops = count.get();
+                info!("Mock DELETE: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
                 count.set(count.get() - 1);
             }
         }
