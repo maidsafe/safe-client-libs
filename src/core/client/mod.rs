@@ -696,6 +696,11 @@ impl Client {
     pub fn issued_deletes(&self) -> u64 {
         self.issued_deletes
     }
+
+    #[cfg(all(test, feature = "use-mock-routing"))]
+    pub fn set_network_limits(&mut self, max_ops_count: Option<u64>) {
+        self.routing.set_network_limits(max_ops_count);
+    }
 }
 
 /// //////////////////////////////////////////////////////////////

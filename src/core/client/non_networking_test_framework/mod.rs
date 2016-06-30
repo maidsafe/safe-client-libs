@@ -16,6 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use std;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::mem;
@@ -96,6 +97,7 @@ fn sync_disk_storage(memory_storage: &HashMap<XorName, Vec<u8>>) {
 pub struct RoutingMock {
     sender: mpsc::Sender<Event>,
     client_auth: Authority,
+    max_ops_countdown: Option<Cell<u64>>,
 }
 
 impl RoutingMock {
@@ -118,6 +120,7 @@ impl RoutingMock {
         Ok(RoutingMock {
             sender: sender,
             client_auth: client_auth,
+            max_ops_countdown: None,
         })
     }
 
@@ -133,11 +136,43 @@ impl RoutingMock {
         let cloned_sender = self.sender.clone();
         let client_auth = self.client_auth.clone();
 
+        let err =
+            if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock GET: {:?} {:?} [0]", data_id, msg_id);
+                Some(GetError::NetworkOther("Max operations exhausted".to_string()))
+            } else {
+                None
+            };
+
+        if err == None {
+            if let Some(ref count) = self.max_ops_countdown {
+                let ops = count.get();
+                info!("Mock GET: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
+            }
+        }
+
         let _ = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_GETS_POSTS_MS));
             let data_name = data_id.name();
             let nae_auth = Authority::NaeManager(data_name);
             let request = Request::Get(data_id.clone(), msg_id.clone());
+
+            if let Some(reason) = err {
+                let ext_err = match serialise(&reason) {
+                    Ok(serialised_err) => serialised_err,
+                    Err(err) => {
+                        warn!("Could not serialise client-vault error - {:?}", err);
+                        Vec::new()
+                    }
+                };
+                let event =
+                    RoutingMock::construct_failure_resp(nae_auth, client_auth, request, ext_err);
+                if let Err(error) = cloned_sender.send(event) {
+                    error!("Delete-Response mpsc-send failure: {:?}", error);
+                }
+                return;
+            }
 
             match unwrap!(data_store.lock()).get(&data_name) {
                 Some(raw_data) => {
@@ -216,32 +251,44 @@ impl RoutingMock {
         let request = Request::Put(data.clone(), msg_id.clone());
 
         let mut data_store_mutex_guard = unwrap!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
-            match data {
-                Data::Immutable(_) => {
-                    match deserialise(unwrap!(data_store_mutex_guard.get(&data_name))) {
-                        // Immutable data is de-duplicated so always allowed
-                        Ok(Data::Immutable(_)) => None,
-                        Ok(_) => Some(MutationError::DataExists),
-                        Err(error) => Some(MutationError::NetworkOther(format!("{}", error))),
+        let err =
+            if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock PUT: {:?} {:?} [0]", data_id, msg_id);
+                Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
+            } else if data_store_mutex_guard.contains_key(&data_name) {
+                match data {
+                    Data::Immutable(_) => {
+                        match deserialise(unwrap!(data_store_mutex_guard.get(&data_name))) {
+                            // Immutable data is de-duplicated so always allowed
+                            Ok(Data::Immutable(_)) => None,
+                            Ok(_) => Some(MutationError::DataExists),
+                            Err(error) => Some(MutationError::NetworkOther(format!("{}", error))),
+                        }
                     }
-                }
-                Data::Structured(struct_data) => {
-                    if struct_data.get_type_tag() == TYPE_TAG_SESSION_PACKET {
-                        Some(MutationError::AccountExists)
-                    } else {
-                        Some(MutationError::DataExists)
+                    Data::Structured(struct_data) => {
+                        if struct_data.get_type_tag() == TYPE_TAG_SESSION_PACKET {
+                            Some(MutationError::AccountExists)
+                        } else {
+                            Some(MutationError::DataExists)
+                        }
                     }
+                    _ => Some(MutationError::DataExists),
                 }
-                _ => Some(MutationError::DataExists),
+            } else if let Ok(raw_data) = serialise(&data) {
+                let _ = data_store_mutex_guard.insert(data_name, raw_data);
+                sync_disk_storage(&*data_store_mutex_guard);
+                None
+            } else {
+                Some(MutationError::NetworkOther("Serialisation error".to_owned()))
+            };
+
+        if err == None {
+            if let Some(ref count) = self.max_ops_countdown {
+                let ops = count.get();
+                info!("Mock PUT: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
             }
-        } else if let Ok(raw_data) = serialise(&data) {
-            let _ = data_store_mutex_guard.insert(data_name, raw_data);
-            sync_disk_storage(&*data_store_mutex_guard);
-            None
-        } else {
-            Some(MutationError::NetworkOther("Serialisation error".to_owned()))
-        };
+        }
 
         let _ = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -290,7 +337,10 @@ impl RoutingMock {
 
         let mut data_store_mutex_guard = unwrap!(data_store.lock());
         let err = if data_store_mutex_guard.contains_key(&data_name) {
-            if let Data::Structured(ref sd_new) = data {
+            if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock POST: {:?} {:?} [0]", data_id, msg_id);
+                Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
+            } else if let Data::Structured(ref sd_new) = data {
                 match (serialise(&data),
                        deserialise(unwrap!(data_store_mutex_guard.get(&data_name)))) {
                     (Ok(raw_data), Ok(Data::Structured(sd_stored))) => {
@@ -310,6 +360,14 @@ impl RoutingMock {
         } else {
             Some(MutationError::NoSuchData)
         };
+
+        if err == None {
+            if let Some(ref count) = self.max_ops_countdown {
+                let ops = count.get();
+                info!("Mock POST: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
+            }
+        }
 
         let _ = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -357,27 +415,40 @@ impl RoutingMock {
         let request = Request::Delete(data.clone(), msg_id.clone());
 
         let mut data_store_mutex_guard = unwrap!(data_store.lock());
-        let err = if data_store_mutex_guard.contains_key(&data_name) {
-            if let Data::Structured(ref sd_new) = data {
-                match (serialise(&data),
-                       deserialise(unwrap!(data_store_mutex_guard.get(&data_name)))) {
-                    (Ok(_), Ok(Data::Structured(sd_stored))) => {
-                        if let Ok(_) = sd_stored.validate_self_against_successor(&sd_new) {
-                            let _ = data_store_mutex_guard.remove(&data_name);
-                            sync_disk_storage(&*data_store_mutex_guard);
-                            None
-                        } else {
-                            Some(MutationError::InvalidSuccessor)
+        let err =
+            if self.max_ops_countdown.as_ref().map(|count| count.get() == 0).unwrap_or(false) {
+                info!("Mock DELETE: {:?} {:?} [0]", data_id, msg_id);
+                Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
+            } else if data_store_mutex_guard.contains_key(&data_name) {
+                if let Data::Structured(ref sd_new) = data {
+                    match (serialise(&data),
+                           deserialise(unwrap!(data_store_mutex_guard.get(&data_name)))) {
+                        (Ok(_), Ok(Data::Structured(sd_stored))) => {
+                            if let Ok(_) = sd_stored.validate_self_against_successor(&sd_new) {
+                                let _ = data_store_mutex_guard.remove(&data_name);
+                                sync_disk_storage(&*data_store_mutex_guard);
+                                None
+                            } else {
+                                Some(MutationError::InvalidSuccessor)
+                            }
                         }
+                        _ => Some(MutationError::NetworkOther("Serialisation error".to_owned())),
                     }
-                    _ => Some(MutationError::NetworkOther("Serialisation error".to_owned())),
+                } else {
+                    Some(MutationError::InvalidOperation)
                 }
             } else {
-                Some(MutationError::InvalidOperation)
+                Some(MutationError::NoSuchData)
+            };
+
+        if err == None {
+            if let Some(ref count) = self.max_ops_countdown {
+                let ops = count.get();
+                info!("Mock DELETE: {:?} {:?} [{}]", data_id, msg_id, ops);
+                count.set(ops - 1);
+                count.set(count.get() - 1);
             }
-        } else {
-            Some(MutationError::NoSuchData)
-        };
+        }
 
         let _ = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(SIMULATED_NETWORK_DELAY_PUTS_DELETS_MS));
@@ -455,6 +526,11 @@ impl RoutingMock {
             dst: dst,
             response: response,
         }
+    }
+
+    #[cfg(test)]
+    pub fn set_network_limits(&mut self, max_ops_count: Option<u64>) {
+        self.max_ops_countdown = max_ops_count.map(Cell::new)
     }
 }
 
