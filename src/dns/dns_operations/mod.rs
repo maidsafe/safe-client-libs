@@ -342,15 +342,12 @@ struct Dns {
 mod test {
     use super::*;
     use core::client::Client;
-    use core::errors::CoreError;
     use core::utility::{generate_random_string, test_utils};
     use dns::errors::DnsError;
     use maidsafe_utilities;
     use nfs::AccessLevel;
-    use nfs::errors::NfsError;
     use nfs::metadata::directory_key::DirectoryKey;
     use routing::{XOR_NAME_LEN, XorName};
-    use safe_network_common::client_errors::GetError;
     use sodiumoxide::crypto::box_;
     use std::sync::{Arc, Mutex};
 
@@ -597,7 +594,12 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "use-mock-routing")]
     fn register_dns_internal_error_recovery() {
+        use core::errors::CoreError;
+        use nfs::errors::NfsError;
+        use safe_network_common::client_errors::GetError;
+
         unwrap!(maidsafe_utilities::log::init(true));
 
         let client = Arc::new(Mutex::new(unwrap!(test_utils::get_client())));
