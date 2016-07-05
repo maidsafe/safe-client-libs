@@ -344,6 +344,7 @@ mod test {
     use core::client::Client;
     use core::utility::{generate_random_string, test_utils};
     use dns::errors::DnsError;
+    use maidsafe_utilities;
     use nfs::AccessLevel;
     use nfs::metadata::directory_key::DirectoryKey;
     use routing::{XOR_NAME_LEN, XorName};
@@ -599,6 +600,8 @@ mod test {
         use nfs::errors::NfsError;
         use safe_network_common::client_errors::GetError;
         use maidsafe_utilities;
+
+        unwrap!(maidsafe_utilities::log::init(true));
 
         unwrap!(maidsafe_utilities::log::init(true));
 
