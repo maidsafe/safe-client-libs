@@ -46,7 +46,7 @@ mod launcher_config_handler;
 mod nfs;
 mod test_utils;
 
-use std::{fs, mem, ptr, slice};
+use std::{fs, mem, panic, ptr, slice};
 use std::sync::{Arc, Mutex, mpsc};
 use std::sync::mpsc::Sender;
 
@@ -55,7 +55,7 @@ use core::errors::CoreError;
 use core::translated_events::NetworkEvent;
 use ffi::errors::FfiError;
 use ffi::nfs::get_file_writer::{FfiWriterHandle, GetFileWriter};
-use libc::{c_char, int32_t};
+use libc::{c_char, int32_t, int64_t};
 use maidsafe_utilities::log as safe_log;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, RaiiThreadJoiner};
@@ -127,10 +127,12 @@ impl Drop for FfiHandle {
 /// This function should be called to enable logging to a file
 #[no_mangle]
 pub extern "C" fn init_logging() -> int32_t {
-    let _ = fs::remove_file("Client.log");
-    ffi_try!(safe_log::init(false).map_err(CoreError::Unexpected));
+    catch_panic_i32(|| {
+        let _ = fs::remove_file("Client.log");
+        ffi_try!(safe_log::init(false).map_err(CoreError::Unexpected));
 
-    0
+        0
+    })
 }
 
 /// Create an unregistered client. This or any one of the other companion functions to get a
@@ -138,11 +140,13 @@ pub extern "C" fn init_logging() -> int32_t {
 #[no_mangle]
 #[allow(unsafe_code)]
 pub extern "C" fn create_unregistered_client(ffi_handle: *mut *mut FfiHandle) -> int32_t {
-    unsafe {
-        *ffi_handle = cast_to_ffi_handle(ffi_try!(Client::create_unregistered_client()));
-    }
+    catch_panic_i32(|| {
+        unsafe {
+            *ffi_handle = cast_to_ffi_handle(ffi_try!(Client::create_unregistered_client()));
+        }
 
-    0
+        0
+    })
 }
 
 /// Create a registered client. This or any one of the other companion functions to get a
@@ -156,14 +160,16 @@ pub extern "C" fn create_account(c_keyword: *const c_char,
                                  c_password: *const c_char,
                                  ffi_handle: *mut *mut FfiHandle)
                                  -> int32_t {
-    let client = ffi_try!(Client::create_account(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
-                                        ffi_try!(helper::c_char_ptr_to_string(c_pin)),
-                                        ffi_try!(helper::c_char_ptr_to_string(c_password))));
-    unsafe {
-        *ffi_handle = cast_to_ffi_handle(client);
-    }
+    catch_panic_i32(|| {
+        let client = ffi_try!(Client::create_account(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
+                                            ffi_try!(helper::c_char_ptr_to_string(c_pin)),
+                                            ffi_try!(helper::c_char_ptr_to_string(c_password))));
+        unsafe {
+            *ffi_handle = cast_to_ffi_handle(client);
+        }
 
-    0
+        0
+    })
 }
 
 /// Log into a registered client. This or any one of the other companion functions to get a
@@ -177,14 +183,16 @@ pub extern "C" fn log_in(c_keyword: *const c_char,
                          c_password: *const c_char,
                          ffi_handle: *mut *mut FfiHandle)
                          -> int32_t {
-    let client = ffi_try!(Client::log_in(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
-                                         ffi_try!(helper::c_char_ptr_to_string(c_pin)),
-                                         ffi_try!(helper::c_char_ptr_to_string(c_password))));
-    unsafe {
-        *ffi_handle = cast_to_ffi_handle(client);
-    }
+    catch_panic_i32(|| {
+        let client = ffi_try!(Client::log_in(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
+                                             ffi_try!(helper::c_char_ptr_to_string(c_pin)),
+                                             ffi_try!(helper::c_char_ptr_to_string(c_password))));
+        unsafe {
+            *ffi_handle = cast_to_ffi_handle(client);
+        }
 
-    0
+        0
+    })
 }
 
 /// Register an observer to network events like Connected, Disconnected etc. as provided by the
@@ -192,39 +200,42 @@ pub extern "C" fn log_in(c_keyword: *const c_char,
 #[no_mangle]
 #[allow(unsafe_code)]
 pub extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
-                                                  callback: extern "C" fn(i32)) {
-    let mut ffi_handle = unsafe { Box::from_raw(ffi_handle) };
+                                                  callback: extern "C" fn(i32)) -> int32_t {
+    catch_panic_i32(|| {
+        let mut ffi_handle = unsafe { Box::from_raw(ffi_handle) };
 
-    unwrap!(ffi_handle.network_event_observers.lock()).push(callback);
+        unwrap!(ffi_handle.network_event_observers.lock()).push(callback);
 
-    if ffi_handle.raii_joiner.is_none() {
-        let callbacks = ffi_handle.network_event_observers.clone();
+        if ffi_handle.raii_joiner.is_none() {
+            let callbacks = ffi_handle.network_event_observers.clone();
 
-        let (tx, rx) = mpsc::channel();
-        let cloned_tx = tx.clone();
-        unwrap!(ffi_handle.client.lock()).add_network_event_observer(tx);
+            let (tx, rx) = mpsc::channel();
+            let cloned_tx = tx.clone();
+            unwrap!(ffi_handle.client.lock()).add_network_event_observer(tx);
 
-        let raii_joiner = thread::named("FfiNetworkEventObserver", move || {
-            while let Ok(event) = rx.recv() {
-                if let NetworkEvent::Terminated = event {
-                    break;
+            let raii_joiner = thread::named("FfiNetworkEventObserver", move || {
+                while let Ok(event) = rx.recv() {
+                    if let NetworkEvent::Terminated = event {
+                        break;
+                    }
+                    let cbs = &*unwrap!(callbacks.lock());
+                    info!("Informing {:?} to {} FFI network event observers.",
+                          event,
+                          cbs.len());
+                    let event_ffi_val = event.into();
+                    for cb in cbs {
+                        cb(event_ffi_val);
+                    }
                 }
-                let cbs = &*unwrap!(callbacks.lock());
-                info!("Informing {:?} to {} FFI network event observers.",
-                      event,
-                      cbs.len());
-                let event_ffi_val = event.into();
-                for cb in cbs {
-                    cb(event_ffi_val);
-                }
-            }
-        });
+            });
 
-        ffi_handle.raii_joiner = Some(raii_joiner);
-        ffi_handle.network_thread_terminator = Some(cloned_tx);
-    }
+            ffi_handle.raii_joiner = Some(raii_joiner);
+            ffi_handle.network_thread_terminator = Some(cloned_tx);
+        }
 
-    mem::forget(ffi_handle);
+        mem::forget(ffi_handle);
+        0
+    })
 }
 
 /// Returns key size
@@ -238,24 +249,26 @@ pub extern "C" fn get_app_dir_key(c_app_name: *const c_char,
                                   c_result: *mut int32_t,
                                   ffi_handle: *mut FfiHandle)
                                   -> *const u8 {
-    let client = cast_from_ffi_handle(ffi_handle);
-    let app_name: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_app_name), c_result);
-    let app_id: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_app_id), c_result);
-    let vendor: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_vendor), c_result);
-    let handler = launcher_config_handler::ConfigHandler::new(client);
-    let dir_key = ffi_ptr_try!(handler.get_app_dir_key(app_name, app_id, vendor), c_result);
-    let mut serialised_data = ffi_ptr_try!(serialise(&dir_key).map_err(FfiError::from), c_result);
-    serialised_data.shrink_to_fit();
-    unsafe {
-        ptr::write(c_size, serialised_data.len() as i32);
-        ptr::write(c_capacity, serialised_data.capacity() as i32);
-        ptr::write(c_result, 0);
-    }
+    catch_panic_ptr(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let app_name: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_app_name), c_result);
+        let app_id: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_app_id), c_result);
+        let vendor: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_vendor), c_result);
+        let handler = launcher_config_handler::ConfigHandler::new(client);
+        let dir_key = ffi_ptr_try!(handler.get_app_dir_key(app_name, app_id, vendor), c_result);
+        let mut serialised_data = ffi_ptr_try!(serialise(&dir_key).map_err(FfiError::from), c_result);
+        serialised_data.shrink_to_fit();
+        unsafe {
+            ptr::write(c_size, serialised_data.len() as i32);
+            ptr::write(c_capacity, serialised_data.capacity() as i32);
+            ptr::write(c_result, 0);
+        }
 
-    let ptr = serialised_data.as_ptr();
-    mem::forget(serialised_data);
+        let ptr = serialised_data.as_ptr();
+        mem::forget(serialised_data);
 
-    ptr
+        ptr
+    })
 }
 
 /// Returns Key as base64 string
@@ -266,19 +279,21 @@ pub extern "C" fn get_safe_drive_key(c_size: *mut int32_t,
                                      c_result: *mut int32_t,
                                      ffi_handle: *mut FfiHandle)
                                      -> *const u8 {
-    let client = cast_from_ffi_handle(ffi_handle);
-    let dir_key = ffi_ptr_try!(helper::get_safe_drive_key(client), c_result);
-    let mut serialised_data = ffi_ptr_try!(serialise(&dir_key).map_err(FfiError::from), c_result);
-    serialised_data.shrink_to_fit();
-    unsafe {
-        ptr::write(c_size, serialised_data.len() as i32);
-        ptr::write(c_capacity, serialised_data.capacity() as i32);
-        ptr::write(c_result, 0);
-    }
-    let ptr = serialised_data.as_ptr();
-    mem::forget(serialised_data);
+    catch_panic_ptr(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let dir_key = ffi_ptr_try!(helper::get_safe_drive_key(client), c_result);
+        let mut serialised_data = ffi_ptr_try!(serialise(&dir_key).map_err(FfiError::from), c_result);
+        serialised_data.shrink_to_fit();
+        unsafe {
+            ptr::write(c_size, serialised_data.len() as i32);
+            ptr::write(c_capacity, serialised_data.capacity() as i32);
+            ptr::write(c_result, 0);
+        }
+        let ptr = serialised_data.as_ptr();
+        mem::forget(serialised_data);
 
-    ptr
+        ptr
+    })
 }
 
 /// Discard and clean up the previously allocated client. Use this only if the client is obtained
@@ -301,15 +316,17 @@ pub extern "C" fn drop_client(client_handle: *mut FfiHandle) {
 /// safe_drive_access and data. `data` refers to API specific payload.
 #[no_mangle]
 pub extern "C" fn execute(c_payload: *const c_char, ffi_handle: *mut FfiHandle) -> int32_t {
-    let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
-    let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload), "JSON parse error"));
-    let mut json_decoder = json::Decoder::new(json_request);
-    let client = cast_from_ffi_handle(ffi_handle);
-    let (module, action, parameter_packet) = ffi_try!(get_context(client, &mut json_decoder));
-    let result = module_parser(module, action, parameter_packet, &mut json_decoder);
-    let _ = ffi_try!(result);
+    catch_panic_i32(|| {
+        let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
+        let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload), "JSON parse error"));
+        let mut json_decoder = json::Decoder::new(json_request);
+        let client = cast_from_ffi_handle(ffi_handle);
+        let (module, action, parameter_packet) = ffi_try!(get_context(client, &mut json_decoder));
+        let result = module_parser(module, action, parameter_packet, &mut json_decoder);
+        let _ = ffi_try!(result);
 
-    0
+        0
+    })
 }
 
 /// General function that can be invoked for getting data as a resut for an operation.
@@ -324,33 +341,35 @@ pub extern "C" fn execute_for_content(c_payload: *const c_char,
                                       c_result: *mut int32_t,
                                       ffi_handle: *mut FfiHandle)
                                       -> *const u8 {
-    let payload: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_payload), c_result);
-    let json_request = ffi_ptr_try!(parse_result!(json::Json::from_str(&payload),
-                                                  "JSON parse error"),
-                                    c_result);
-    let mut json_decoder = json::Decoder::new(json_request.clone());
-    let client = cast_from_ffi_handle(ffi_handle);
-    let (module, action, parameter_packet) = ffi_ptr_try!(get_context(client, &mut json_decoder),
-                                                          c_result);
-    // TODO Krishna: Avoid parsing it twice (line 292). for get_context pass the json
-    // object and iterate. parse based on keys
-    json_decoder = json::Decoder::new(json_request.clone());
-    let result = ffi_ptr_try!(module_parser(module, action, parameter_packet, &mut json_decoder),
-                              c_result);
-    let data = match result {
-        Some(response) => response.into_bytes(),
-        None => Vec::with_capacity(0),
-    };
+    catch_panic_ptr(|| {
+        let payload: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_payload), c_result);
+        let json_request = ffi_ptr_try!(parse_result!(json::Json::from_str(&payload),
+                                                      "JSON parse error"),
+                                        c_result);
+        let mut json_decoder = json::Decoder::new(json_request.clone());
+        let client = cast_from_ffi_handle(ffi_handle);
+        let (module, action, parameter_packet) = ffi_ptr_try!(get_context(client, &mut json_decoder),
+                                                              c_result);
+        // TODO Krishna: Avoid parsing it twice (line 292). for get_context pass the json
+        // object and iterate. parse based on keys
+        json_decoder = json::Decoder::new(json_request.clone());
+        let result = ffi_ptr_try!(module_parser(module, action, parameter_packet, &mut json_decoder),
+                                  c_result);
+        let data = match result {
+            Some(response) => response.into_bytes(),
+            None => Vec::with_capacity(0),
+        };
 
-    unsafe {
-        ptr::write(c_size, data.len() as i32);
-        ptr::write(c_capacity, data.capacity() as i32);
-        ptr::write(c_result, 0);
-    };
-    let ptr = data.as_ptr();
-    mem::forget(data);
+        unsafe {
+            ptr::write(c_size, data.len() as i32);
+            ptr::write(c_capacity, data.capacity() as i32);
+            ptr::write(c_result, 0);
+        };
+        let ptr = data.as_ptr();
+        mem::forget(data);
 
-    ptr
+        ptr
+    })
 }
 
 #[no_mangle]
@@ -363,37 +382,45 @@ pub fn drop_vector(ptr: *mut u8, size: int32_t, capacity: int32_t) {
 /// Return the amount of calls that were done to `get`
 #[no_mangle]
 #[allow(unsafe_code)]
-pub extern "C" fn client_issued_gets(ffi_handle: *mut FfiHandle) -> u64 {
-    let client = cast_from_ffi_handle(ffi_handle);
-    let guard = unwrap!(client.lock());
-    guard.issued_gets()
+pub extern "C" fn client_issued_gets(ffi_handle: *mut FfiHandle) -> int64_t {
+    catch_panic_i64(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let guard = unwrap!(client.lock());
+        guard.issued_gets() as int64_t
+    })
 }
 
 /// Return the amount of calls that were done to `put`
 #[no_mangle]
 #[allow(unsafe_code)]
-pub extern "C" fn client_issued_puts(ffi_handle: *mut FfiHandle) -> u64 {
-    let client = cast_from_ffi_handle(ffi_handle);
-    let guard = unwrap!(client.lock());
-    guard.issued_puts()
+pub extern "C" fn client_issued_puts(ffi_handle: *mut FfiHandle) -> int64_t {
+    catch_panic_i64(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let guard = unwrap!(client.lock());
+        guard.issued_puts() as int64_t
+    })
 }
 
 /// Return the amount of calls that were done to `post`
 #[no_mangle]
 #[allow(unsafe_code)]
-pub extern "C" fn client_issued_posts(ffi_handle: *mut FfiHandle) -> u64 {
-    let client = cast_from_ffi_handle(ffi_handle);
-    let guard = unwrap!(client.lock());
-    guard.issued_posts()
+pub extern "C" fn client_issued_posts(ffi_handle: *mut FfiHandle) -> int64_t {
+    catch_panic_i64(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let guard = unwrap!(client.lock());
+        guard.issued_posts() as int64_t
+    })
 }
 
 /// Return the amount of calls that were done to `delete`
 #[no_mangle]
 #[allow(unsafe_code)]
-pub extern "C" fn client_issued_deletes(ffi_handle: *mut FfiHandle) -> u64 {
-    let client = cast_from_ffi_handle(ffi_handle);
-    let guard = unwrap!(client.lock());
-    guard.issued_deletes()
+pub extern "C" fn client_issued_deletes(ffi_handle: *mut FfiHandle) -> int64_t {
+    catch_panic_i64(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let guard = unwrap!(client.lock());
+        guard.issued_deletes() as int64_t
+    })
 }
 
 
@@ -404,21 +431,23 @@ pub extern "C" fn get_nfs_writer(c_payload: *const c_char,
                                  ffi_handle: *mut FfiHandle,
                                  p_writer_handle: *mut *mut FfiWriterHandle)
                                  -> int32_t {
-    let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
-    let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload), "JSON parse error"));
-    let mut json_decoder = json::Decoder::new(json_request);
-    let client = cast_from_ffi_handle(ffi_handle);
-    let parameter_packet = ffi_try!(get_parameter_packet(client, 0, &mut json_decoder));
-    let mut get_file_writer = ffi_try!(parse_result!(json_decoder.read_struct_field("data", 0, |d| {
-                                                             GetFileWriter::decode(d)
-                                                         }),
-                                                     ""));
-    let writer_handle = ffi_try!(get_file_writer.get(parameter_packet));
-    unsafe {
-        *p_writer_handle = Box::into_raw(Box::new(writer_handle));
-    }
+    catch_panic_i32(|| {
+        let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
+        let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload), "JSON parse error"));
+        let mut json_decoder = json::Decoder::new(json_request);
+        let client = cast_from_ffi_handle(ffi_handle);
+        let parameter_packet = ffi_try!(get_parameter_packet(client, 0, &mut json_decoder));
+        let mut get_file_writer = ffi_try!(parse_result!(json_decoder.read_struct_field("data", 0, |d| {
+                                                                 GetFileWriter::decode(d)
+                                                             }),
+                                                         ""));
+        let writer_handle = ffi_try!(get_file_writer.get(parameter_packet));
+        unsafe {
+            *p_writer_handle = Box::into_raw(Box::new(writer_handle));
+        }
 
-    0
+        0
+    })
 }
 
 /// Write data to the Network using the NFS Writer handle
@@ -429,20 +458,38 @@ pub fn nfs_stream_write(writer_handle: *mut FfiWriterHandle,
                         c_data: *const u8,
                         len: usize)
                         -> int32_t {
-    let data = unsafe { slice::from_raw_parts(c_data, len) };
-    ffi_try!(unsafe { (*writer_handle).writer().write(&data[..], offset) });
+    catch_panic_i32(|| {
+        let data = unsafe { slice::from_raw_parts(c_data, len) };
+        ffi_try!(unsafe { (*writer_handle).writer().write(&data[..], offset) });
 
-    0
+        0
+    })
 }
 
 /// Closes the NFS Writer handle
 #[no_mangle]
 #[allow(unsafe_code)]
 pub fn nfs_stream_close(writer_handle: *mut FfiWriterHandle) -> int32_t {
-    let handle = unsafe { Box::from_raw(writer_handle) };
-    let _ = ffi_try!(handle.close());
+    catch_panic_i32(|| {
+        let handle = unsafe { Box::from_raw(writer_handle) };
+        let _ = ffi_try!(handle.close());
 
-    0
+        0
+    })
+}
+
+fn catch_panic_i32<F: FnOnce() -> int32_t>(f: F) -> int32_t {
+    let errno: i32 = FfiError::Unexpected(String::new()).into();
+    panic::catch_unwind(panic::AssertUnwindSafe(f)).unwrap_or(errno)
+}
+
+fn catch_panic_i64<F: FnOnce() -> int64_t>(f: F) -> int64_t {
+    let errno: i32 = FfiError::Unexpected(String::new()).into();
+    panic::catch_unwind(panic::AssertUnwindSafe(f)).unwrap_or(errno as i64)
+}
+
+fn catch_panic_ptr<T, F: FnOnce() -> *const T>(f: F) -> *const T {
+    panic::catch_unwind(panic::AssertUnwindSafe(f)).unwrap_or(ptr::null())
 }
 
 fn get_context<D>(client: Arc<Mutex<Client>>,
