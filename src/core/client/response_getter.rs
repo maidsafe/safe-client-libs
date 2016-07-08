@@ -23,9 +23,12 @@ use core::errors::CoreError;
 use core::translated_events::ResponseEvent;
 use routing::{Data, DataIdentifier, XorName};
 
-/// GetResponseGetter is a lazy evaluated response getter for GET Requests. It will fetch either
-/// from local cache or wait for the MessageQueue to notify it of the incoming response from the
-/// network
+// TODO - consider using template specialisation (if it becomes available) for these three structs
+//        which all do similar things.
+
+/// `GetResponseGetter` is a lazy evaluated response getter for GET Requests. It will fetch either
+/// from local cache or wait for the `MessageQueue` to notify it of the incoming response from the
+/// network.
 pub struct GetResponseGetter {
     data_channel: Option<(Sender<ResponseEvent>, Receiver<ResponseEvent>)>,
     message_queue: Arc<Mutex<MessageQueue>>,
@@ -34,7 +37,7 @@ pub struct GetResponseGetter {
 }
 
 impl GetResponseGetter {
-    /// Create a new instance of GetResponseGetter
+    /// Create a new instance of `GetResponseGetter`
     pub fn new(data_channel: Option<(Sender<ResponseEvent>, Receiver<ResponseEvent>)>,
                message_queue: Arc<Mutex<MessageQueue>>,
                requested_id: DataIdentifier)
@@ -75,6 +78,40 @@ impl GetResponseGetter {
     /// on `get()` fire `sender.send(ResponseEvent::Terminated)` to gracefully exit the receiver.
     pub fn get_sender(&self) -> Option<&Sender<ResponseEvent>> {
         self.data_channel.as_ref().and_then(|&(ref sender, _)| Some(sender))
+    }
+}
+
+/// `GetAccountInfoResponseGetter` is a lazy evaluated response getter for `GetAccountInfo`
+/// Requests. It will wait for the `MessageQueue` to notify it of the incoming response from the
+/// network.
+pub struct GetAccountInfoResponseGetter {
+    data_channel: (Sender<ResponseEvent>, Receiver<ResponseEvent>),
+}
+
+impl GetAccountInfoResponseGetter {
+    /// Create a new instance of `GetAccountInfoResponseGetter`
+    pub fn new(data_channel: (Sender<ResponseEvent>, Receiver<ResponseEvent>))
+               -> GetAccountInfoResponseGetter {
+        GetAccountInfoResponseGetter { data_channel: data_channel }
+    }
+
+    /// Get result from the network as informed by MessageQueue. This is blocking. Tuple fields of
+    /// result are `(data_stored, space_available)`.
+    pub fn get(&self) -> Result<(u64, u64), CoreError> {
+        let (_, ref data_receiver) = self.data_channel;
+        let res = data_receiver.recv();
+        match try!(res) {
+            ResponseEvent::GetAccountInfoResp(result) => result,
+            ResponseEvent::Terminated => Err(CoreError::OperationAborted),
+            _ => Err(CoreError::ReceivedUnexpectedData),
+        }
+    }
+
+    /// Extract associated sender. This will help cancel the blocking wait at will if so desired.
+    /// All that is needed is to extract the sender before doing a `get()` and then while blocking
+    /// on `get()` fire `sender.send(ResponseEvent::Terminated)` to gracefully exit the receiver.
+    pub fn get_sender(&self) -> &Sender<ResponseEvent> {
+        &self.data_channel.0
     }
 }
 

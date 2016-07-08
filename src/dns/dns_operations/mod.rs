@@ -617,7 +617,7 @@ mod test {
         match dns_operations.register_dns(dns_name.clone(),
                                           &messaging_keypair.0,
                                           &messaging_keypair.1,
-                                          &vec![],
+                                          &[],
                                           owners.clone(),
                                           &secret_signing_key,
                                           None) {
@@ -646,7 +646,7 @@ mod test {
         unwrap!(dns_operations.register_dns(dns_name.clone(),
                                             &messaging_keypair.0,
                                             &messaging_keypair.1,
-                                            &vec![],
+                                            &[],
                                             owners.clone(),
                                             &secret_signing_key,
                                             None));
@@ -668,7 +668,7 @@ mod test {
         match dns_operations.register_dns(dns_name.clone(),
                                           &messaging_keypair.0,
                                           &messaging_keypair.1,
-                                          &vec![],
+                                          &[],
                                           owners.clone(),
                                           &secret_signing_key,
                                           None) {
@@ -692,7 +692,7 @@ mod test {
         unwrap!(dns_operations.register_dns(dns_name.clone(),
                                             &messaging_keypair.0,
                                             &messaging_keypair.1,
-                                            &vec![],
+                                            &[],
                                             owners.clone(),
                                             &secret_signing_key,
                                             None));

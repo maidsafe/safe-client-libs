@@ -10,8 +10,9 @@ repository = "https://github.com/maidsafe/safe_core"
 version = "0.16.1"
 
 [dependencies]
-bincode = "~0.5.7"
-libc = "~0.2.12"
+bincode = "~0.5.8"
+clippy = {version = "~0.0.78", optional = true}
+libc = "~0.2.13"
 log = "~0.3.6"
 lru_time_cache = "~0.4.0"
 maidsafe_utilities = "~0.8.0"
@@ -23,10 +24,6 @@ self_encryption = "~0.5.0"
 sodiumoxide = "~0.0.10"
 time = "~0.1.35"
 unwrap = "~1.1.0"
-
-[dependencies.clippy]
-optional = true
-version = "~0.0.77"
 
 [dev-dependencies]
 docopt = "~0.6.81"

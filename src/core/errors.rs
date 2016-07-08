@@ -72,9 +72,14 @@ pub enum CoreError {
         /// Reason for failure
         reason: GetError,
     },
+    /// Performing a GetAccountInfo operation failed
+    GetAccountInfoFailure {
+        /// Reason for failure
+        reason: GetError,
+    },
     /// Performing a network mutating operation such as PUT/POST/DELETE failed
     MutationFailure {
-        /// Orignal data that was sent to the network
+        /// Original data that was sent to the network
         data_id: DataIdentifier,
         /// Reason for failure
         reason: MutationError,
@@ -191,6 +196,10 @@ impl Into<i32> for CoreError {
             CoreError::SelfEncryption(SelfEncryptionError::Io::<SelfEncryptionStorageError>(_)) => {
                 CLIENT_ERROR_START_RANGE - 30
             }
+            CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
+                CLIENT_ERROR_START_RANGE - 31
+            }
+            CoreError::GetAccountInfoFailure { .. } => CLIENT_ERROR_START_RANGE - 32,
             CoreError::SelfEncryption(SelfEncryptionError
                                       ::Storage
                                       ::<SelfEncryptionStorageError>(
@@ -201,7 +210,7 @@ impl Into<i32> for CoreError {
 
 impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        try!(write!(formatter, "{}", self.description()));
+        try!(write!(formatter, "{} - ", self.description()));
         match *self {
             CoreError::StructuredDataHeaderSizeProhibitive => {
                 write!(formatter, "CoreError::StructuredDataHeaderSizeProhibitive")
@@ -249,13 +258,18 @@ impl Debug for CoreError {
             }
             CoreError::GetFailure { ref data_id, ref reason } => {
                 write!(formatter,
-                       "CoreError::GetFailure::{{ reason: {:?}, request: {:?}}}",
+                       "CoreError::GetFailure::{{ reason: {:?}, data_id: {:?} }}",
                        reason,
                        data_id)
             }
+            CoreError::GetAccountInfoFailure { ref reason } => {
+                write!(formatter,
+                       "CoreError::GetAccountInfoFailure::{{ reason: {:?} }}",
+                       reason)
+            }
             CoreError::MutationFailure { ref data_id, ref reason } => {
                 write!(formatter,
-                       "CoreError::MutationFailure::{{ reason: {:?}, data_id: {:?}}}",
+                       "CoreError::MutationFailure::{{ reason: {:?}, data_id: {:?} }}",
                        reason,
                        data_id)
             }
@@ -323,6 +337,11 @@ impl Display for CoreError {
             CoreError::GetFailure { ref reason, .. } => {
                 write!(formatter, "Failed to Get from network: {}", reason)
             }
+            CoreError::GetAccountInfoFailure { ref reason } => {
+                write!(formatter,
+                       "Failed to get account info from network: {}",
+                       reason)
+            }
             CoreError::MutationFailure { ref reason, .. } => {
                 write!(formatter,
                        "Failed to Put/Post/Delete on network: {}",
@@ -356,7 +375,8 @@ impl Error for CoreError {
             CoreError::UnsuccessfulPwHash => "Failed while password hashing",
             CoreError::OperationAborted => "Operation aborted",
             CoreError::MpidMessagingError(_) => "Mpid messaging error",
-            CoreError::GetFailure { ref reason, .. } => reason.description(),
+            CoreError::GetFailure { ref reason, .. } |
+            CoreError::GetAccountInfoFailure { ref reason } => reason.description(),
             CoreError::MutationFailure { ref reason, .. } => reason.description(),
             CoreError::SelfEncryption(ref error) => error.description(),
         }
@@ -367,7 +387,8 @@ impl Error for CoreError {
             // TODO - add `RoutingError` and `InternalError` once they implement `std::error::Error`
             CoreError::UnsuccessfulEncodeDecode(ref error) => Some(error),
             CoreError::MpidMessagingError(ref error) => Some(error),
-            CoreError::GetFailure { ref reason, .. } => Some(reason),
+            CoreError::GetFailure { ref reason, .. } |
+            CoreError::GetAccountInfoFailure { ref reason } => Some(reason),
             CoreError::MutationFailure { ref reason, .. } => Some(reason),
             _ => None,
         }

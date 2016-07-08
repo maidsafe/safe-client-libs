@@ -27,6 +27,8 @@ pub const NETWORK_EVENT_START_RANGE: i32 = 0;
 pub enum ResponseEvent {
     /// Response to a previous GET request
     GetResp(Result<Data, CoreError>),
+    /// Response to a previous GetAccountInfo request
+    GetAccountInfoResp(Result<(u64, u64), CoreError>),
     /// Response to a previous Mutating (PUT/POST/DELETE) request
     MutationResp(Result<(), CoreError>),
     /// Graceful Exit Condition
