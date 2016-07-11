@@ -33,6 +33,7 @@
 //! one of the functions to create it and must preserve it for all subsequent operations. When
 //! done, to release the resources, `drop_client` may be called.
 
+#![allow(unsafe_code)]
 
 #[macro_use]mod macros;
 
@@ -140,13 +141,9 @@ pub extern "C" fn init_logging() -> int32_t {
 /// Create an unregistered client. This or any one of the other companion functions to get a
 /// client must be called before initiating any operation allowed by this crate.
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn create_unregistered_client(ffi_handle: *mut *mut FfiHandle) -> int32_t {
+pub unsafe extern "C" fn create_unregistered_client(ffi_handle: *mut *mut FfiHandle) -> int32_t {
     catch_unwind_i32(|| {
-        unsafe {
-            *ffi_handle = cast_to_ffi_handle(ffi_try!(Client::create_unregistered_client()));
-        }
-
+        *ffi_handle = cast_to_ffi_handle(ffi_try!(Client::create_unregistered_client()));
         0
     })
 }
@@ -156,21 +153,17 @@ pub extern "C" fn create_unregistered_client(ffi_handle: *mut *mut FfiHandle) ->
 /// a pointer to a pointer and must point to a valid pointer not junk, else the consequences are
 /// undefined.
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn create_account(c_keyword: *const c_char,
-                                 c_pin: *const c_char,
-                                 c_password: *const c_char,
-                                 ffi_handle: *mut *mut FfiHandle)
-                                 -> int32_t {
+pub unsafe extern "C" fn create_account(c_keyword: *const c_char,
+                                        c_pin: *const c_char,
+                                        c_password: *const c_char,
+                                        ffi_handle: *mut *mut FfiHandle)
+                                        -> int32_t {
     catch_unwind_i32(|| {
         let client =
             ffi_try!(Client::create_account(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
                                             ffi_try!(helper::c_char_ptr_to_string(c_pin)),
                                             ffi_try!(helper::c_char_ptr_to_string(c_password))));
-        unsafe {
-            *ffi_handle = cast_to_ffi_handle(client);
-        }
-
+        *ffi_handle = cast_to_ffi_handle(client);
         0
     })
 }
@@ -180,20 +173,16 @@ pub extern "C" fn create_account(c_keyword: *const c_char,
 /// a pointer to a pointer and must point to a valid pointer not junk, else the consequences are
 /// undefined.
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn log_in(c_keyword: *const c_char,
-                         c_pin: *const c_char,
-                         c_password: *const c_char,
-                         ffi_handle: *mut *mut FfiHandle)
-                         -> int32_t {
+pub unsafe extern "C" fn log_in(c_keyword: *const c_char,
+                                c_pin: *const c_char,
+                                c_password: *const c_char,
+                                ffi_handle: *mut *mut FfiHandle)
+                                -> int32_t {
     catch_unwind_i32(|| {
         let client = ffi_try!(Client::log_in(ffi_try!(helper::c_char_ptr_to_string(c_keyword)),
                                              ffi_try!(helper::c_char_ptr_to_string(c_pin)),
                                              ffi_try!(helper::c_char_ptr_to_string(c_password))));
-        unsafe {
-            *ffi_handle = cast_to_ffi_handle(client);
-        }
-
+        *ffi_handle = cast_to_ffi_handle(client);
         0
     })
 }
@@ -201,12 +190,11 @@ pub extern "C" fn log_in(c_keyword: *const c_char,
 /// Register an observer to network events like Connected, Disconnected etc. as provided by the
 /// core module
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
-                                                  callback: extern "C" fn(i32))
-                                                  -> int32_t {
+pub unsafe extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
+                                                         callback: extern "C" fn(i32))
+                                                         -> int32_t {
     catch_unwind_i32(|| {
-        let mut ffi_handle = unsafe { Box::from_raw(ffi_handle) };
+        let mut ffi_handle = Box::from_raw(ffi_handle);
 
         unwrap!(ffi_handle.network_event_observers.lock()).push(callback);
 
@@ -244,15 +232,14 @@ pub extern "C" fn register_network_event_observer(ffi_handle: *mut FfiHandle,
 
 /// Returns key size
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn get_app_dir_key(c_app_name: *const c_char,
-                                  c_app_id: *const c_char,
-                                  c_vendor: *const c_char,
-                                  c_size: *mut int32_t,
-                                  c_capacity: *mut int32_t,
-                                  c_result: *mut int32_t,
-                                  ffi_handle: *mut FfiHandle)
-                                  -> *const u8 {
+pub unsafe extern "C" fn get_app_dir_key(c_app_name: *const c_char,
+                                         c_app_id: *const c_char,
+                                         c_vendor: *const c_char,
+                                         c_size: *mut int32_t,
+                                         c_capacity: *mut int32_t,
+                                         c_result: *mut int32_t,
+                                         ffi_handle: *mut FfiHandle)
+                                         -> *const u8 {
     catch_unwind_ptr(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let app_name: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_app_name), c_result);
@@ -263,11 +250,9 @@ pub extern "C" fn get_app_dir_key(c_app_name: *const c_char,
         let mut serialised_data = ffi_ptr_try!(serialise(&dir_key).map_err(FfiError::from),
                                                c_result);
         serialised_data.shrink_to_fit();
-        unsafe {
-            ptr::write(c_size, serialised_data.len() as i32);
-            ptr::write(c_capacity, serialised_data.capacity() as i32);
-            ptr::write(c_result, 0);
-        }
+        ptr::write(c_size, serialised_data.len() as i32);
+        ptr::write(c_capacity, serialised_data.capacity() as i32);
+        ptr::write(c_result, 0);
 
         let ptr = serialised_data.as_ptr();
         mem::forget(serialised_data);
@@ -278,23 +263,20 @@ pub extern "C" fn get_app_dir_key(c_app_name: *const c_char,
 
 /// Returns Key as base64 string
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn get_safe_drive_key(c_size: *mut int32_t,
-                                     c_capacity: *mut int32_t,
-                                     c_result: *mut int32_t,
-                                     ffi_handle: *mut FfiHandle)
-                                     -> *const u8 {
+pub unsafe extern "C" fn get_safe_drive_key(c_size: *mut int32_t,
+                                            c_capacity: *mut int32_t,
+                                            c_result: *mut int32_t,
+                                            ffi_handle: *mut FfiHandle)
+                                            -> *const u8 {
     catch_unwind_ptr(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let dir_key = ffi_ptr_try!(helper::get_safe_drive_key(client), c_result);
         let mut serialised_data = ffi_ptr_try!(serialise(&dir_key).map_err(FfiError::from),
                                                c_result);
         serialised_data.shrink_to_fit();
-        unsafe {
-            ptr::write(c_size, serialised_data.len() as i32);
-            ptr::write(c_capacity, serialised_data.capacity() as i32);
-            ptr::write(c_result, 0);
-        }
+        ptr::write(c_size, serialised_data.len() as i32);
+        ptr::write(c_capacity, serialised_data.capacity() as i32);
+        ptr::write(c_result, 0);
         let ptr = serialised_data.as_ptr();
         mem::forget(serialised_data);
 
@@ -307,11 +289,8 @@ pub extern "C" fn get_safe_drive_key(c_size: *mut int32_t,
 /// `create_unregistered_client`). Using `client_handle` after a call to this functions is
 /// undefined behaviour.
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn drop_client(client_handle: *mut FfiHandle) {
-    unsafe {
-        let _ = Box::from_raw(client_handle);
-    }
+pub unsafe extern "C" fn drop_client(client_handle: *mut FfiHandle) {
+    let _ = Box::from_raw(client_handle);
 }
 
 /// General function that can be invoked for performing a API specific operation that will return
@@ -321,7 +300,7 @@ pub extern "C" fn drop_client(client_handle: *mut FfiHandle) {
 /// The JSON string should have keys module, action, app_root_dir_key, safe_drive_dir_key,
 /// safe_drive_access and data. `data` refers to API specific payload.
 #[no_mangle]
-pub extern "C" fn execute(c_payload: *const c_char, ffi_handle: *mut FfiHandle) -> int32_t {
+pub unsafe extern "C" fn execute(c_payload: *const c_char, ffi_handle: *mut FfiHandle) -> int32_t {
     catch_unwind_i32(|| {
         let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
         let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload),
@@ -341,13 +320,12 @@ pub extern "C" fn execute(c_payload: *const c_char, ffi_handle: *mut FfiHandle) 
 /// written to the out params c_size & c_capacity. The size and capcity would be required for
 /// droping the vector The result of the execution is returned in the c_result out param
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn execute_for_content(c_payload: *const c_char,
-                                      c_size: *mut int32_t,
-                                      c_capacity: *mut int32_t,
-                                      c_result: *mut int32_t,
-                                      ffi_handle: *mut FfiHandle)
-                                      -> *const u8 {
+pub unsafe extern "C" fn execute_for_content(c_payload: *const c_char,
+                                             c_size: *mut int32_t,
+                                             c_capacity: *mut int32_t,
+                                             c_result: *mut int32_t,
+                                             ffi_handle: *mut FfiHandle)
+                                             -> *const u8 {
     catch_unwind_ptr(|| {
         let payload: String = ffi_ptr_try!(helper::c_char_ptr_to_string(c_payload), c_result);
         let json_request = ffi_ptr_try!(parse_result!(json::Json::from_str(&payload),
@@ -368,11 +346,9 @@ pub extern "C" fn execute_for_content(c_payload: *const c_char,
             None => Vec::with_capacity(0),
         };
 
-        unsafe {
-            ptr::write(c_size, data.len() as i32);
-            ptr::write(c_capacity, data.capacity() as i32);
-            ptr::write(c_result, 0);
-        };
+        ptr::write(c_size, data.len() as i32);
+        ptr::write(c_capacity, data.capacity() as i32);
+        ptr::write(c_result, 0);
         let ptr = data.as_ptr();
         mem::forget(data);
 
@@ -381,16 +357,14 @@ pub extern "C" fn execute_for_content(c_payload: *const c_char,
 }
 
 #[no_mangle]
-#[allow(unsafe_code)]
 /// Drop the vector returned as a result of the execute_for_content fn
-pub extern "C" fn drop_vector(ptr: *mut u8, size: int32_t, capacity: int32_t) {
-    let _ = unsafe { Vec::from_raw_parts(ptr, size as usize, capacity as usize) };
+pub unsafe extern "C" fn drop_vector(ptr: *mut u8, size: int32_t, capacity: int32_t) {
+    let _ = Vec::from_raw_parts(ptr, size as usize, capacity as usize);
 }
 
 /// Return the amount of calls that were done to `get`
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn client_issued_gets(ffi_handle: *mut FfiHandle) -> int64_t {
+pub unsafe extern "C" fn client_issued_gets(ffi_handle: *mut FfiHandle) -> int64_t {
     catch_unwind_i64(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let guard = unwrap!(client.lock());
@@ -400,8 +374,7 @@ pub extern "C" fn client_issued_gets(ffi_handle: *mut FfiHandle) -> int64_t {
 
 /// Return the amount of calls that were done to `put`
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn client_issued_puts(ffi_handle: *mut FfiHandle) -> int64_t {
+pub unsafe extern "C" fn client_issued_puts(ffi_handle: *mut FfiHandle) -> int64_t {
     catch_unwind_i64(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let guard = unwrap!(client.lock());
@@ -411,8 +384,7 @@ pub extern "C" fn client_issued_puts(ffi_handle: *mut FfiHandle) -> int64_t {
 
 /// Return the amount of calls that were done to `post`
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn client_issued_posts(ffi_handle: *mut FfiHandle) -> int64_t {
+pub unsafe extern "C" fn client_issued_posts(ffi_handle: *mut FfiHandle) -> int64_t {
     catch_unwind_i64(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let guard = unwrap!(client.lock());
@@ -422,8 +394,7 @@ pub extern "C" fn client_issued_posts(ffi_handle: *mut FfiHandle) -> int64_t {
 
 /// Return the amount of calls that were done to `delete`
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn client_issued_deletes(ffi_handle: *mut FfiHandle) -> int64_t {
+pub unsafe extern "C" fn client_issued_deletes(ffi_handle: *mut FfiHandle) -> int64_t {
     catch_unwind_i64(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let guard = unwrap!(client.lock());
@@ -434,11 +405,10 @@ pub extern "C" fn client_issued_deletes(ffi_handle: *mut FfiHandle) -> int64_t {
 
 /// Obtain NFS writer handle for writing data to a file in streaming mode
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn get_nfs_writer(c_payload: *const c_char,
-                                 ffi_handle: *mut FfiHandle,
-                                 p_writer_handle: *mut *mut FfiWriterHandle)
-                                 -> int32_t {
+pub unsafe extern "C" fn get_nfs_writer(c_payload: *const c_char,
+                                        ffi_handle: *mut FfiHandle,
+                                        p_writer_handle: *mut *mut FfiWriterHandle)
+                                        -> int32_t {
     catch_unwind_i32(|| {
         let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
         let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload),
@@ -446,27 +416,22 @@ pub extern "C" fn get_nfs_writer(c_payload: *const c_char,
         let mut json_decoder = json::Decoder::new(json_request);
         let client = cast_from_ffi_handle(ffi_handle);
         let parameter_packet = ffi_try!(get_parameter_packet(client, 0, &mut json_decoder));
-        let mut get_file_writer =
-            ffi_try!(parse_result!(json_decoder.read_struct_field("data",
+        let mut get_file_writer = ffi_try!(parse_result!(json_decoder.read_struct_field("data",
                                                                   0,
                                                                   |d| GetFileWriter::decode(d)),
                                    ""));
         let writer_handle = ffi_try!(get_file_writer.get(parameter_packet));
-        unsafe {
-            *p_writer_handle = Box::into_raw(Box::new(writer_handle));
-        }
-
+        *p_writer_handle = Box::into_raw(Box::new(writer_handle));
         0
     })
 }
 
 /// Create a file and return a writer for it.
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn nfs_create_file(c_payload: *const c_char,
-                                  ffi_handle: *mut FfiHandle,
-                                  p_writer_handle: *mut *mut FfiWriterHandle)
-                                  -> int32_t {
+pub unsafe extern "C" fn nfs_create_file(c_payload: *const c_char,
+                                         ffi_handle: *mut FfiHandle,
+                                         p_writer_handle: *mut *mut FfiWriterHandle)
+                                         -> int32_t {
     catch_unwind_i32(|| {
         let payload: String = ffi_try!(helper::c_char_ptr_to_string(c_payload));
         let json_request = ffi_try!(parse_result!(json::Json::from_str(&payload),
@@ -479,25 +444,21 @@ pub extern "C" fn nfs_create_file(c_payload: *const c_char,
                                                          }),
                                                      ""));
         let writer_handle = ffi_try!(create_file.create(parameter_packet));
-        unsafe {
-            *p_writer_handle = Box::into_raw(Box::new(writer_handle));
-        }
-
+        *p_writer_handle = Box::into_raw(Box::new(writer_handle));
         0
     })
 }
 
 /// Write data to the Network using the NFS Writer handle
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn nfs_stream_write(writer_handle: *mut FfiWriterHandle,
-                                   offset: u64,
-                                   c_data: *const u8,
-                                   len: usize)
-                                   -> int32_t {
+pub unsafe extern "C" fn nfs_stream_write(writer_handle: *mut FfiWriterHandle,
+                                          offset: u64,
+                                          c_data: *const u8,
+                                          len: usize)
+                                          -> int32_t {
     catch_unwind_i32(|| {
-        let data = unsafe { slice::from_raw_parts(c_data, len) };
-        ffi_try!(unsafe { (*writer_handle).writer().write(&data[..], offset) });
+        let data = slice::from_raw_parts(c_data, len);
+        ffi_try!((*writer_handle).writer().write(&data[..], offset));
 
         0
     })
@@ -505,10 +466,9 @@ pub extern "C" fn nfs_stream_write(writer_handle: *mut FfiWriterHandle,
 
 /// Closes the NFS Writer handle
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn nfs_stream_close(writer_handle: *mut FfiWriterHandle) -> int32_t {
+pub unsafe extern "C" fn nfs_stream_close(writer_handle: *mut FfiWriterHandle) -> int32_t {
     catch_unwind_i32(|| {
-        let handle = unsafe { Box::from_raw(writer_handle) };
+        let handle = Box::from_raw(writer_handle);
         let _ = ffi_try!(handle.close());
 
         0
@@ -519,18 +479,16 @@ pub extern "C" fn nfs_stream_close(writer_handle: *mut FfiWriterHandle) -> int32
 /// of chunks Put. `space_available` means number of chunks which can still be
 /// Put.
 #[no_mangle]
-#[allow(unsafe_code)]
-pub extern "C" fn get_account_info(ffi_handle: *mut FfiHandle,
-                                   data_stored: *mut u64,
-                                   space_available: *mut u64) -> i32 {
+pub unsafe extern "C" fn get_account_info(ffi_handle: *mut FfiHandle,
+                                          data_stored: *mut u64,
+                                          space_available: *mut u64)
+                                          -> i32 {
     catch_unwind_i32(|| {
         let client = cast_from_ffi_handle(ffi_handle);
         let getter = ffi_try!(unwrap!(client.lock()).get_account_info(None));
         let res = ffi_try!(getter.get());
-        unsafe {
-            ptr::write(data_stored, res.0);
-            ptr::write(space_available, res.1);
-        }
+        ptr::write(data_stored, res.0);
+        ptr::write(space_available, res.1);
         0
     })
 }
@@ -634,7 +592,6 @@ fn module_parser<D>(module: String,
     }
 }
 
-#[allow(unsafe_code)]
 fn cast_to_ffi_handle(client: Client) -> *mut FfiHandle {
     let ffi_handle = Box::new(FfiHandle {
         client: Arc::new(Mutex::new(client)),
@@ -645,9 +602,8 @@ fn cast_to_ffi_handle(client: Client) -> *mut FfiHandle {
     Box::into_raw(ffi_handle)
 }
 
-#[allow(unsafe_code)]
-fn cast_from_ffi_handle(ffi_handle: *mut FfiHandle) -> Arc<Mutex<Client>> {
-    unsafe { (*ffi_handle).client.clone() }
+unsafe fn cast_from_ffi_handle(ffi_handle: *mut FfiHandle) -> Arc<Mutex<Client>> {
+    (*ffi_handle).client.clone()
 }
 
 #[cfg(test)]

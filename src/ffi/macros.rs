@@ -35,7 +35,7 @@ macro_rules! ffi_ptr_try {
             Err(error) => {
                 let decorator = ::std::iter::repeat('-').take(50).collect::<String>();
                 error!("\n\n {}\n| {:?}\n {}\n\n", decorator, error, decorator);
-                unsafe { ::std::ptr::write($out, error.into()) };
+                ::std::ptr::write($out, error.into());
                 return ::std::ptr::null();
             },
         }
