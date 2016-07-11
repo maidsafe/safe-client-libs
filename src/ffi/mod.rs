@@ -515,6 +515,19 @@ pub extern "C" fn nfs_stream_close(writer_handle: *mut FfiWriterHandle) -> int32
     })
 }
 
+/// Get data from the network. This is non-blocking.
+#[no_mangle]
+#[allow(unsafe_code)]
+pub extern "C" fn get_account_info(ffi_handle: *mut FfiHandle,
+) -> i32 {
+    catch_unwind_i32(|| {
+        let client = cast_from_ffi_handle(ffi_handle);
+        let mut guard = unwrap!(client.lock());
+        let _ = ffi_try!(guard.get_account_info(None));
+        0
+    })
+}
+
 fn catch_unwind_i32<F: FnOnce() -> int32_t>(f: F) -> int32_t {
     let errno: i32 = FfiError::Unexpected(String::new()).into();
     panic::catch_unwind(panic::AssertUnwindSafe(f)).unwrap_or(errno)
