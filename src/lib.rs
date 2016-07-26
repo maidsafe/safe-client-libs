@@ -45,6 +45,7 @@
 
 #[cfg(feature = "use-mock-routing")]
 extern crate bincode;
+extern crate bit_set;
 extern crate libc;
 #[macro_use]
 extern crate log;

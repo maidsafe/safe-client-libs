@@ -48,9 +48,12 @@ mod nfs;
 mod test_utils;
 
 use std::{fs, mem, panic, ptr, slice};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex, Once, ONCE_INIT, mpsc};
 use std::sync::mpsc::Sender;
+use std::os::raw::{c_int, c_void};
+use std::collections::VecDeque;
 
+use bit_set::BitSet;
 use core::client::Client;
 use core::errors::CoreError;
 use core::translated_events::NetworkEvent;
@@ -65,6 +68,138 @@ use maidsafe_utilities::thread::{self, RaiiThreadJoiner};
 use nfs::metadata::directory_key::DirectoryKey;
 use rustc_serialize::base64::FromBase64;
 use rustc_serialize::{Decodable, Decoder, json};
+
+enum Event {
+    CreateAccount(*mut FfiHandle),
+}
+
+struct EventQueueInner {
+    events: VecDeque<(c_int, Event)>,
+    ids: BitSet,
+}
+
+impl EventQueueInner {
+    fn new() -> EventQueueInner {
+        EventQueueInner {
+            events: VecDeque::new(),
+            ids: BitSet::new(),
+        }
+    }
+
+    fn book_id(&mut self) -> Option<c_int> {
+        for id in 0..c_int::max_value() as usize {
+            if !self.ids.contains(id) {
+                self.ids.insert(id);
+                return Some(id as c_int);
+            }
+        }
+        None
+    }
+
+    fn free_id(&mut self, id: c_int) {
+        let _ = self.ids.remove(id as usize);
+    }
+}
+
+/// a type that glues together an event id that you also get when you call the
+/// initiating function for some async operation, a pointer to some data that
+/// you must cast to the appropriate type -- which depends on the event type --
+/// and a deleter to such data that you must call when you're done with the
+/// event.
+pub struct CEvent {
+    id: c_int,
+    ev: Event,
+}
+
+impl CEvent {
+    fn new(id: c_int, ev: Event) -> CEvent {
+        CEvent {
+            id: id,
+            ev: ev,
+        }
+    }
+
+    fn to_ffi(self) -> *mut CEvent {
+        let handle = Box::new(self);
+        Box::into_raw(handle)
+    }
+}
+
+#[derive(Clone)]
+struct EventQueue {
+    inner: Arc<Mutex<EventQueueInner>>,
+}
+
+fn event_queue() -> EventQueue {
+    static mut SINGLETON: *const EventQueue = 0 as *const EventQueue;
+    static ONCE: Once = ONCE_INIT;
+
+    unsafe {
+        ONCE.call_once(|| {
+            let singleton = EventQueue {
+                inner: Arc::new(Mutex::new(EventQueueInner::new()))
+            };
+
+            SINGLETON = mem::transmute(Box::new(singleton));
+        });
+
+        (*SINGLETON).clone()
+    }
+}
+
+/// You use `safe_poll_ev` to query for new events. If there is an event in the
+/// queue, `1` is returned and the pointer pointed by `ev` is modified to store
+/// the event removed from the queue. `0` is returned otherwise.
+#[no_mangle]
+pub extern "C" fn safe_poll_ev(ev: *mut *mut CEvent) -> c_int {
+    let queue = event_queue();
+    let mut guard = queue.inner.lock().unwrap();
+    match guard.events.pop_front() {
+        Some((id, e)) => {
+            unsafe {
+                *ev = CEvent::new(id, e).to_ffi();
+            }
+            1
+        }
+        None => 0,
+    }
+}
+
+/// `safe_ev_get_id` returns the id associated with an event. This id is
+/// generated when you schedule a new operation and it is guaranteed it won't be
+/// reused until you're done with this event (i.e. call `safe_delete_ev`). It's
+/// a concept akin to unique tokens and fds.
+#[no_mangle]
+pub unsafe extern "C" fn safe_get_ev_id(ev: *mut CEvent) -> c_int {
+    (*ev).id
+}
+
+/// You can use `safe_get_ev_data` to receive an opaque pointer that can contain
+/// extra data associated with the event. Each type of operation should have its
+/// own type for the result of the operation and this type should be used
+/// uniformly across all calls to such operation.
+#[no_mangle]
+pub unsafe extern "C" fn safe_get_ev_data(ev: *mut CEvent) -> *mut c_void {
+    match (*ev).ev {
+        Event::CreateAccount(ffi_handle) => {
+            ffi_handle as *mut c_void
+        }
+    }
+}
+
+/// You must call `safe_delete_ev` when you're done with the event. This will
+/// free the extra data hold by the data pointer and free the id to be reused in
+/// other operations. If you think you'll need to have the result laying around
+/// for a long time, you should copy all the data you need to your own
+/// structures and then free this event, as it is crucial to free ids to new
+/// operations.
+#[no_mangle]
+pub unsafe extern "C" fn safe_delete_ev(ev: *mut CEvent) {
+    let ev = Box::from_raw(ev);
+    let queue = event_queue();
+    let mut guard = queue.inner.lock().unwrap();
+    guard.free_id(ev.id);
+}
 
 /// ParameterPacket acts as a holder for the standard parameters that would be needed for performing
 /// operations across the modules like nfs and dns
@@ -164,6 +299,41 @@ pub unsafe extern "C" fn create_account(c_account_locator: *const c_char,
         *ffi_handle = cast_to_ffi_handle(client);
         0
     })
+}
+
+/// async version
+#[no_mangle]
+pub unsafe extern "C" fn create_account_async(c_account_locator: *const c_char,
+                                              c_account_password: *const c_char)
+                                              -> c_int {
+    let acc_locator = ffi_try!(helper::c_char_ptr_to_string(c_account_locator));
+    let acc_password = ffi_try!(helper::c_char_ptr_to_string(c_account_password));
+    let queue = event_queue();
+    let mut guard = queue.inner.lock().unwrap();
+
+    let id = match guard.book_id() {
+        Some(id) => id,
+        None => return -1,
+    };
+    drop(guard);
+
+    thread::named("create_account_async", move || {
+        let client = Client::create_account(&acc_locator, &acc_password);
+        let queue = event_queue();
+        let mut guard = queue.inner.lock().unwrap();
+        let client = match client {
+            Ok(c) => c,
+            Err(_) => {
+                let e = Event::CreateAccount(0 as *mut FfiHandle);
+                guard.events.push_back((id, e));
+                return;
+            }
+        };
+        let ffi_handle = cast_to_ffi_handle(client);
+        guard.events.push_back((id, Event::CreateAccount(ffi_handle)));
+    }).detach();
+
+    0
 }
 
 /// Log into a registered client. This or any one of the other companion functions to get a
