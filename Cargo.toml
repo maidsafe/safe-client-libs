@@ -13,6 +13,7 @@ version = "0.19.0"
 bincode = "~0.5.9"
 clippy = {version = "~0.0.79", optional = true}
 config_file_handler = "~0.4.0"
+futures = "~0.1.0"
 libc = "~0.2.14"
 log = "~0.3.6"
 lru_time_cache = "~0.4.0"

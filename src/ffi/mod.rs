@@ -224,6 +224,53 @@ pub unsafe extern "C" fn log_in(c_account_locator: *const c_char,
     })
 }
 
+/// Log into a registered client. This or any one of the other companion
+/// functions to get a client must be called before initiating any operation
+/// allowed by this crate.
+///
+/// `cb` will be called when the operation completes. It's always called and is
+/// called exactly once. It can be called before the function returns if an
+/// error is detected sooner or from another thread.
+#[no_mangle]
+pub unsafe extern "C" fn
+    log_in_async(c_account_locator: *const c_char,
+                 c_account_password: *const c_char,
+                 cb: extern "C" fn(res: int32_t, ffi_handle: *mut FfiHandle)) {
+        let mut args = None;
+
+        let res = catch_unwind_i32(|| {
+            let acc_locator = ffi_try!(helper::c_char_ptr_to_string(c_account_locator));
+            let acc_password = ffi_try!(helper::c_char_ptr_to_string(c_account_password));
+            args = Some((acc_locator, acc_password));
+            0
+        });
+        if res != 0 {
+            return cb(res, 0 as *mut FfiHandle);
+        }
+
+        let (acc_locator, acc_password) = args.unwrap();
+
+        let res = catch_unwind_i32(|| {
+            trace!("FFI login a registered client.");
+
+            thread::named("log_in_async", move || {
+                match Client::log_in(&acc_locator, &acc_password) {
+                    Ok(client) => {
+                        let ffi_handle = cast_to_ffi_handle(client);
+                        cb(0, ffi_handle);
+                    }
+                    Err(error) => {
+                        cb(error.into(), 0 as *mut FfiHandle);
+                    }
+                };
+            }).detach();
+            0
+        });
+        if res != 0 {
+            cb(res, 0 as *mut FfiHandle);
+        }
+}
+
 /// Register an observer to network events like Connected, Disconnected etc. as provided by the
 /// core module
 #[no_mangle]
