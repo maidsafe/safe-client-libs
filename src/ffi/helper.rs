@@ -20,38 +20,48 @@ use core::client::Client;
 use ffi::app::App;
 use ffi::config::SAFE_DRIVE_DIR_NAME;
 use ffi::errors::FfiError;
-use libc::{c_char, int32_t, int64_t};
+use libc::{int32_t, int64_t};
 use nfs::AccessLevel;
 use nfs::UNVERSIONED_DIRECTORY_LISTING_TAG;
 use nfs::directory_listing::DirectoryListing;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::metadata::directory_key::DirectoryKey;
 use std::error::Error;
-use std::ffi::CStr;
+use std::mem;
 use std::panic;
 use std::ptr;
+use std::slice;
 use std::sync::{Arc, Mutex};
 
-#[allow(unsafe_code)]
-pub fn c_char_ptr_to_string(c_char_ptr: *const c_char) -> Result<String, FfiError> {
-    let cstr = unsafe { CStr::from_ptr(c_char_ptr) };
-    Ok(try!(String::from_utf8(cstr.to_bytes().to_vec())
-        .map_err(|error| FfiError::from(error.description()))))
+pub unsafe fn c_utf8_to_string(ptr: *const u8, len: usize)
+                               -> Result<String, FfiError> {
+    String::from_utf8(slice::from_raw_parts(ptr, len).iter().cloned().collect())
+        .map_err(|error| FfiError::from(error.description()))
 }
 
-pub fn c_char_ptr_to_opt_string(c_char_ptr: *const c_char) -> Result<Option<String>, FfiError> {
-    if c_char_ptr.is_null() {
+pub unsafe fn c_utf8_to_opt_string(ptr: *const u8, len: usize)
+                                   -> Result<Option<String>, FfiError> {
+    if ptr.is_null() {
         Ok(None)
     } else {
-        Ok(Some(try!(c_char_ptr_to_string(c_char_ptr))))
+        String::from_utf8(slice::from_raw_parts(ptr, len).iter().cloned()
+                          .collect())
+            .map(|v| Some(v))
+            .map_err(|error| FfiError::from(error.description()))
     }
 }
 
-#[allow(unsafe_code)]
-pub unsafe fn c_char_ptr_to_str(c_char_ptr: *const c_char) -> Result<&'static str, FfiError> {
-    CStr::from_ptr(c_char_ptr)
-        .to_str()
-        .map_err(|error| FfiError::from(error.description()))
+pub fn string_to_c_utf8(s: String) -> (*mut u8, usize) {
+    let mut v = s.into_bytes();
+    v.shrink_to_fit();
+    let p = v.as_mut_ptr();
+    let len = v.len();
+    mem::forget(v);
+    (p, len)
+}
+
+pub unsafe fn dealloc_utf8_alloced_from_rust(p: *mut u8, len: usize) {
+    let _ = Vec::from_raw_parts(p, len, len);
 }
 
 // TODO: add c_char_ptr_to_str and c_char_ptr_to_opt_str (return &str instead of String)

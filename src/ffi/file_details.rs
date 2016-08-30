@@ -18,15 +18,14 @@
 //! FFI-enabled types containing details (content and metadata) about a file.
 
 
+use super::helper;
 use core::client::Client;
 use ffi::config;
 use ffi::errors::FfiError;
-use libc::c_char;
 use nfs::file::File;
 use nfs::helper::file_helper::FileHelper;
 use nfs::metadata::file_metadata::FileMetadata as NfsFileMetadata;
 use rustc_serialize::base64::ToBase64;
-use std::ffi::CString;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 
@@ -34,8 +33,10 @@ use std::sync::{Arc, Mutex};
 #[derive(Debug)]
 #[repr(C)]
 pub struct FileDetails {
-    /// Content of the file, in a nul-terminated, base64 encoded string.
-    pub content: *mut c_char,
+    /// Content of the file, base64 encoded string.
+    pub content: *mut u8,
+    /// Size of `content`
+    pub content_len: usize,
     /// Metadata of the file.
     pub metadata: *mut FileMetadata,
 }
@@ -58,9 +59,7 @@ impl FileDetails {
 
         let content = try!(reader.read(start_position, size));
         let content = content.to_base64(config::get_base64_config());
-        // Note: it's OK to unwrap here. The base64 encoding assures there are
-        //       no nul bytes in the string.
-        let content = unwrap!(CString::new(content));
+        let (content, content_len) = helper::string_to_c_utf8(content);
 
         let file_metadata_ptr = if include_metadata {
             Box::into_raw(Box::new(try!(FileMetadata::new(file.get_metadata()))))
@@ -69,7 +68,8 @@ impl FileDetails {
         };
 
         Ok(FileDetails {
-            content: content.into_raw(),
+            content: content,
+            content_len: content_len,
             metadata: file_metadata_ptr,
         })
     }
@@ -77,7 +77,10 @@ impl FileDetails {
     // TODO: when drop-flag removal lands in stable, we should turn this into
     // a proper impl Drop.
     fn deallocate(self) {
-        let _ = unsafe { CString::from_raw(self.content) };
+        unsafe {
+            helper::dealloc_utf8_alloced_from_rust(self.content,
+                                                   self.content_len);
+        }
 
         if !self.metadata.is_null() {
             let _ = unsafe { Box::from_raw(self.metadata) };
@@ -90,8 +93,10 @@ impl FileDetails {
 #[derive(Debug)]
 #[repr(C)]
 pub struct FileMetadata {
-    pub name: *mut c_char,
-    pub user_metadata: *mut c_char,
+    pub name: *mut u8,
+    pub name_len: usize,
+    pub user_metadata: *mut u8,
+    pub user_metadata_len: usize,
     pub size: i64,
     pub creation_time_sec: i64,
     pub creation_time_nsec: i64,
@@ -107,15 +112,20 @@ impl FileMetadata {
         let created_time = file_metadata.get_created_time().to_timespec();
         let modified_time = file_metadata.get_modified_time().to_timespec();
 
-        let name = try!(CString::new(file_metadata.get_name().to_string()));
+        let (name, name_len)
+            = helper::string_to_c_utf8(file_metadata.get_name().to_string());
+
         let user_metadata = file_metadata.get_user_metadata()
             .to_base64(config::get_base64_config());
-        let user_metadata = try!(CString::new(user_metadata));
+        let (user_metadata, user_metadata_len)
+            = helper::string_to_c_utf8(user_metadata);
 
         Ok(FileMetadata {
-            name: name.into_raw(),
+            name: name,
+            name_len: name_len,
             size: file_metadata.get_size() as i64,
-            user_metadata: user_metadata.into_raw(),
+            user_metadata: user_metadata,
+            user_metadata_len: user_metadata_len,
             creation_time_sec: created_time.sec,
             creation_time_nsec: created_time.nsec as i64,
             modification_time_sec: modified_time.sec,
@@ -128,8 +138,9 @@ impl FileMetadata {
     // a proper impl Drop.
     pub fn deallocate(&mut self) {
         unsafe {
-            let _ = CString::from_raw(self.name);
-            let _ = CString::from_raw(self.user_metadata);
+            helper::dealloc_utf8_alloced_from_rust(self.name, self.name_len);
+            helper::dealloc_utf8_alloced_from_rust(self.user_metadata,
+                                                   self.user_metadata_len);
         }
     }
 }

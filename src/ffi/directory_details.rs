@@ -18,16 +18,15 @@
 //! Details about directory and its content.
 
 
+use super::helper;
 use core::client::Client;
 use ffi::config;
 use ffi::errors::FfiError;
 use ffi::file_details::FileMetadata;
-use libc::c_char;
 use nfs::directory_listing::DirectoryListing;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::metadata::directory_key::DirectoryKey;
 use nfs::metadata::directory_metadata::DirectoryMetadata as NfsDirectoryMetadata;
-use std::ffi::CString;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 
@@ -93,8 +92,10 @@ impl Drop for DirectoryDetails {
 #[derive(Debug)]
 #[repr(C)]
 pub struct DirectoryMetadata {
-    pub name: *mut c_char,
-    pub user_metadata: *mut c_char,
+    pub name: *mut u8,
+    pub name_len: usize,
+    pub user_metadata: *mut u8,
+    pub user_metadata_len: usize,
     pub is_private: bool,
     pub is_versioned: bool,
     pub creation_time_sec: i64,
@@ -111,13 +112,17 @@ impl DirectoryMetadata {
         let created_time = dir_metadata.get_created_time().to_timespec();
         let modified_time = dir_metadata.get_modified_time().to_timespec();
 
-        let name = try!(CString::new(dir_metadata.get_name().to_string()));
+        let (name, name_len) = helper::string_to_c_utf8(dir_metadata.get_name()
+                                                        .to_string());
         let user_metadata = dir_metadata.get_user_metadata().to_base64(config::get_base64_config());
-        let user_metadata = try!(CString::new(user_metadata));
+        let (user_metadata, user_metadata_len)
+            = helper::string_to_c_utf8(user_metadata);
 
         Ok(DirectoryMetadata {
-            name: name.into_raw(),
-            user_metadata: user_metadata.into_raw(),
+            name: name,
+            name_len: name_len,
+            user_metadata: user_metadata,
+            user_metadata_len: user_metadata_len,
             is_private: *dir_key.get_access_level() == ::nfs::AccessLevel::Private,
             is_versioned: dir_key.is_versioned(),
             creation_time_sec: created_time.sec,
@@ -131,8 +136,10 @@ impl DirectoryMetadata {
     // a proper impl Drop.
     fn deallocate(&mut self) {
         unsafe {
-            let _ = CString::from_raw(self.name);
-            let _ = CString::from_raw(self.user_metadata);
+            let _ = helper::dealloc_utf8_alloced_from_rust(self.name,
+                                                           self.name_len);
+            let _ = helper::dealloc_utf8_alloced_from_rust(self.user_metadata,
+                                                           self.user_metadata_len);
         }
     }
 }

@@ -23,24 +23,30 @@ use ffi::app::App;
 use ffi::errors::FfiError;
 use ffi::file_details::FileDetails;
 use ffi::helper;
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use nfs::metadata::file_metadata::FileMetadata;
 
 /// Get file.
 #[no_mangle]
 pub unsafe extern "C" fn dns_get_file(app_handle: *const App,
-                                      long_name: *const c_char,
-                                      service_name: *const c_char,
-                                      file_path: *const c_char,
+                                      long_name: *const u8,
+                                      long_name_len: usize,
+                                      service_name: *const u8,
+                                      service_name_len: usize,
+                                      file_path: *const u8,
+                                      file_path_len: usize,
                                       offset: i64,
                                       length: i64,
                                       include_metadata: bool,
                                       details_handle: *mut *mut FileDetails)
                                       -> int32_t {
     helper::catch_unwind_i32(|| {
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
-        let service_name = ffi_try!(helper::c_char_ptr_to_string(service_name));
-        let file_path = ffi_try!(helper::c_char_ptr_to_string(file_path));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
+        let service_name = ffi_try!(helper::c_utf8_to_string(service_name,
+                                                             service_name_len));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
 
         trace!("FFI get file located at given path starting from home directory of \"//{}.{}\".",
                service_name,
@@ -62,15 +68,21 @@ pub unsafe extern "C" fn dns_get_file(app_handle: *const App,
 /// Get file metadata.
 #[no_mangle]
 pub unsafe extern "C" fn dns_get_file_metadata(app_handle: *const App,
-                                               long_name: *const c_char,
-                                               service_name: *const c_char,
-                                               file_path: *const c_char,
+                                               long_name: *const u8,
+                                               long_name_len: usize,
+                                               service_name: *const u8,
+                                               service_name_len: usize,
+                                               file_path: *const u8,
+                                               file_path_len: usize,
                                                metadata_handle: *mut *mut FileMetadata)
                                                -> int32_t {
     helper::catch_unwind_i32(|| {
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
-        let service_name = ffi_try!(helper::c_char_ptr_to_string(service_name));
-        let file_path = ffi_try!(helper::c_char_ptr_to_string(file_path));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
+        let service_name = ffi_try!(helper::c_utf8_to_string(service_name,
+                                                             service_name_len));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
 
         trace!("FFI get file metadata for file located at given path starting from home \
                 directory of \"//{}.{}\".",

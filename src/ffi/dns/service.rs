@@ -24,22 +24,29 @@ use ffi::directory_details::DirectoryDetails;
 use ffi::errors::FfiError;
 use ffi::helper;
 use ffi::string_list::{self, StringList};
-use libc::{c_char, int32_t};
+use libc::int32_t;
 
 /// Add service.
 #[no_mangle]
 pub unsafe extern "C" fn dns_add_service(app_handle: *const App,
-                                         long_name: *const c_char,
-                                         service_name: *const c_char,
-                                         service_home_dir_path: *const c_char,
+                                         long_name: *const u8,
+                                         long_name_len: usize,
+                                         service_name: *const u8,
+                                         service_name_len: usize,
+                                         service_home_dir_path: *const u8,
+                                         service_home_dir_path_len: usize,
                                          is_path_shared: bool)
                                          -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI add service.");
 
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
-        let service_name = ffi_try!(helper::c_char_ptr_to_string(service_name));
-        let service_home_dir_path = ffi_try!(helper::c_char_ptr_to_string(service_home_dir_path));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
+        let service_name = ffi_try!(helper::c_utf8_to_string(service_name,
+                                                             service_name_len));
+        let service_home_dir_path
+            = ffi_try!(helper::c_utf8_to_string(service_home_dir_path,
+                                                service_home_dir_path_len));
 
         ffi_try!(add_service(&*app_handle,
                              long_name,
@@ -53,14 +60,18 @@ pub unsafe extern "C" fn dns_add_service(app_handle: *const App,
 /// Delete DNS service.
 #[no_mangle]
 pub unsafe extern "C" fn dns_delete_service(app_handle: *const App,
-                                            long_name: *const c_char,
-                                            service_name: *const c_char)
+                                            long_name: *const u8,
+                                            long_name_len: usize,
+                                            service_name: *const u8,
+                                            service_name_len: usize)
                                             -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI delete service.");
 
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
-        let service_name = ffi_try!(helper::c_char_ptr_to_string(service_name));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
+        let service_name = ffi_try!(helper::c_utf8_to_string(service_name,
+                                                             service_name_len));
 
         ffi_try!(delete_service(&*app_handle, long_name, service_name));
         0
@@ -70,13 +81,17 @@ pub unsafe extern "C" fn dns_delete_service(app_handle: *const App,
 /// Get home directory of the given service.
 #[no_mangle]
 pub unsafe extern "C" fn dns_get_service_dir(app_handle: *const App,
-                                             long_name: *const c_char,
-                                             service_name: *const c_char,
+                                             long_name: *const u8,
+                                             long_name_len: usize,
+                                             service_name: *const u8,
+                                             service_name_len: usize,
                                              details_handle: *mut *mut DirectoryDetails)
                                              -> int32_t {
     helper::catch_unwind_i32(|| {
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
-        let service_name = ffi_try!(helper::c_char_ptr_to_string(service_name));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
+        let service_name = ffi_try!(helper::c_utf8_to_string(service_name,
+                                                             service_name_len));
 
         trace!("FFI Get service home directory for \"//{}.{}\".",
                service_name,
@@ -91,11 +106,13 @@ pub unsafe extern "C" fn dns_get_service_dir(app_handle: *const App,
 /// Get all registered long names.
 #[no_mangle]
 pub unsafe extern "C" fn dns_get_services(app_handle: *const App,
-                                          long_name: *const c_char,
+                                          long_name: *const u8,
+                                          long_name_len: usize,
                                           list_handle: *mut *mut StringList)
                                           -> int32_t {
     helper::catch_unwind_i32(|| {
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
 
         trace!("FFI Get all services for dns with name: {}", long_name);
 

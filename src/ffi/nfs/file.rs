@@ -22,7 +22,7 @@ use ffi::app::App;
 use ffi::errors::FfiError;
 use ffi::file_details::{FileDetails, FileMetadata};
 use ffi::helper;
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use nfs::errors::NfsError;
 use nfs::file::File;
 use nfs::helper::directory_helper::DirectoryHelper;
@@ -35,13 +35,15 @@ use time;
 /// Delete a file.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_delete_file(app_handle: *const App,
-                                         file_path: *const c_char,
+                                         file_path: *const u8,
+                                         file_path_len: usize,
                                          is_shared: bool)
                                          -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI delete file, given the path.");
-        let file_path = ffi_try!(helper::c_char_ptr_to_str(file_path));
-        ffi_try!(delete_file(&*app_handle, file_path, is_shared));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
+        ffi_try!(delete_file(&*app_handle, &file_path, is_shared));
         0
     })
 }
@@ -52,7 +54,8 @@ pub unsafe extern "C" fn nfs_delete_file(app_handle: *const App,
 pub unsafe extern "C" fn nfs_get_file(app_handle: *const App,
                                       offset: i64,
                                       length: i64,
-                                      file_path: *const c_char,
+                                      file_path: *const u8,
+                                      file_path_len: usize,
                                       is_path_shared: bool,
                                       include_metadata: bool,
                                       details_handle: *mut *mut FileDetails)
@@ -60,10 +63,11 @@ pub unsafe extern "C" fn nfs_get_file(app_handle: *const App,
     helper::catch_unwind_i32(|| {
         trace!("FFI get file, given the path.");
 
-        let file_path = ffi_try!(helper::c_char_ptr_to_str(file_path));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
 
         let response = ffi_try!(get_file(&*app_handle,
-                                         file_path,
+                                         &file_path,
                                          is_path_shared,
                                          offset,
                                          length,
@@ -77,22 +81,30 @@ pub unsafe extern "C" fn nfs_get_file(app_handle: *const App,
 /// Modify name, metadata or content of the file.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_modify_file(app_handle: *const App,
-                                         file_path: *const c_char,
+                                         file_path: *const u8,
+                                         file_path_len: usize,
                                          is_shared: bool,
-                                         new_name: *const c_char,
-                                         new_metadata: *const c_char,
-                                         new_content: *const c_char)
+                                         new_name: *const u8,
+                                         new_name_len: usize,
+                                         new_metadata: *const u8,
+                                         new_metadata_len: usize,
+                                         new_content: *const u8,
+                                         new_content_len: usize)
                                          -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI modify file, given the path.");
 
-        let file_path = ffi_try!(helper::c_char_ptr_to_str(file_path));
-        let new_name = ffi_try!(helper::c_char_ptr_to_opt_string(new_name));
-        let new_metadata = ffi_try!(helper::c_char_ptr_to_opt_string(new_metadata));
-        let new_content = ffi_try!(helper::c_char_ptr_to_opt_string(new_content));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
+        let new_name = ffi_try!(helper::c_utf8_to_opt_string(new_name,
+                                                             new_name_len));
+        let new_metadata = ffi_try!(helper::c_utf8_to_opt_string(new_metadata,
+                                                                 new_metadata_len));
+        let new_content = ffi_try!(helper::c_utf8_to_opt_string(new_content,
+                                                                new_content_len));
 
         ffi_try!(modify_file(&*app_handle,
-                             file_path,
+                             &file_path,
                              is_shared,
                              new_name,
                              new_metadata,
@@ -104,22 +116,26 @@ pub unsafe extern "C" fn nfs_modify_file(app_handle: *const App,
 /// Move or copy a file.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_move_file(app_handle: *const App,
-                                       src_path: *const c_char,
+                                       src_path: *const u8,
+                                       src_path_len: usize,
                                        is_src_path_shared: bool,
-                                       dst_path: *const c_char,
+                                       dst_path: *const u8,
+                                       dst_path_len: usize,
                                        is_dst_path_shared: bool,
                                        retain_src: bool)
                                        -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI move file, from {:?} to {:?}.", src_path, dst_path);
 
-        let src_path = ffi_try!(helper::c_char_ptr_to_str(src_path));
-        let dst_path = ffi_try!(helper::c_char_ptr_to_str(dst_path));
+        let src_path = ffi_try!(helper::c_utf8_to_string(src_path,
+                                                         src_path_len));
+        let dst_path = ffi_try!(helper::c_utf8_to_string(dst_path,
+                                                         dst_path_len));
 
         ffi_try!(move_file(&*app_handle,
-                           src_path,
+                           &src_path,
                            is_src_path_shared,
-                           dst_path,
+                           &dst_path,
                            is_dst_path_shared,
                            retain_src));
         0
@@ -130,14 +146,17 @@ pub unsafe extern "C" fn nfs_move_file(app_handle: *const App,
 /// `file_metadata_drop` when no longer needed.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_get_file_metadata(app_handle: *const App,
-                                               file_path: *const c_char,
+                                               file_path: *const u8,
+                                               file_path_len: usize,
                                                is_path_shared: bool,
                                                metadata_handle: *mut *mut FileMetadata)
                                                -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI get file metadata, given the path.");
-        let file_path = ffi_try!(helper::c_char_ptr_to_str(file_path));
-        let metadata = ffi_try!(get_file_metadata(&*app_handle, file_path, is_path_shared));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
+        let metadata = ffi_try!(get_file_metadata(&*app_handle, &file_path,
+                                                  is_path_shared));
         *metadata_handle = Box::into_raw(Box::new(metadata));
         0
     })
@@ -269,7 +288,7 @@ mod test {
     use nfs::helper::directory_helper::DirectoryHelper;
     use nfs::helper::file_helper::FileHelper;
     use rustc_serialize::base64::ToBase64;
-    use std::ffi::CStr;
+    use std::slice;
     use std::str;
 
     fn create_test_file(app: &App, name: &str) {
@@ -314,7 +333,9 @@ mod test {
         let details = unwrap!(super::get_file(&app, "/test_file.txt", false, 0, 0, true));
         unsafe {
             let metadata = unwrap!(details.metadata.as_ref());
-            let name = unwrap!(CStr::from_ptr(metadata.name).to_str());
+            let name = slice::from_raw_parts(metadata.name, metadata.name_len);
+            let name = String::from_utf8(name.iter().cloned().collect())
+                .unwrap();
             assert_eq!(name, "test_file.txt");
         }
 

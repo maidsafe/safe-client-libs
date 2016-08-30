@@ -22,7 +22,7 @@ use ffi::app::App;
 use ffi::directory_details::DirectoryDetails;
 use ffi::errors::FfiError;
 use ffi::helper;
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG, VERSIONED_DIRECTORY_LISTING_TAG};
 use nfs::errors::NfsError;
 use nfs::helper::directory_helper::DirectoryHelper;
@@ -32,8 +32,10 @@ use time;
 /// Create a new directory.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_create_dir(app_handle: *const App,
-                                        dir_path: *const c_char,
-                                        user_metadata: *const c_char,
+                                        dir_path: *const u8,
+                                        dir_path_len: usize,
+                                        user_metadata: *const u8,
+                                        user_metadata_len: usize,
                                         is_private: bool,
                                         is_versioned: bool,
                                         is_shared: bool)
@@ -41,12 +43,15 @@ pub unsafe extern "C" fn nfs_create_dir(app_handle: *const App,
     helper::catch_unwind_i32(|| {
         trace!("FFI create directory, given the path.");
 
-        let dir_path = ffi_try!(helper::c_char_ptr_to_str(dir_path));
-        let user_metadata = ffi_try!(helper::c_char_ptr_to_str(user_metadata));
+        let dir_path = ffi_try!(helper::c_utf8_to_string(dir_path,
+                                                         dir_path_len));
+        let user_metadata
+            = ffi_try!(helper::c_utf8_to_string(user_metadata,
+                                                user_metadata_len));
 
         ffi_try!(create_dir(&*app_handle,
-                            dir_path,
-                            user_metadata,
+                            &dir_path,
+                            &user_metadata,
                             is_private,
                             is_versioned,
                             is_shared));
@@ -57,13 +62,15 @@ pub unsafe extern "C" fn nfs_create_dir(app_handle: *const App,
 /// Delete a directory.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_delete_dir(app_handle: *const App,
-                                        dir_path: *const c_char,
+                                        dir_path: *const u8,
+                                        dir_path_len: usize,
                                         is_shared: bool)
                                         -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI delete dir, given the path.");
-        let dir_path = ffi_try!(helper::c_char_ptr_to_str(dir_path));
-        ffi_try!(delete_dir(&*app_handle, dir_path, is_shared));
+        let dir_path = ffi_try!(helper::c_utf8_to_string(dir_path,
+                                                         dir_path_len));
+        ffi_try!(delete_dir(&*app_handle, &dir_path, is_shared));
         0
     })
 }
@@ -71,14 +78,16 @@ pub unsafe extern "C" fn nfs_delete_dir(app_handle: *const App,
 /// Get directory
 #[no_mangle]
 pub unsafe extern "C" fn nfs_get_dir(app_handle: *const App,
-                                     dir_path: *const c_char,
+                                     dir_path: *const u8,
+                                     dir_path_len: usize,
                                      is_shared: bool,
                                      details_handle: *mut *mut DirectoryDetails)
                                      -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI get dir, given the path.");
-        let dir_path = ffi_try!(helper::c_char_ptr_to_str(dir_path));
-        let details = ffi_try!(get_dir(&*app_handle, dir_path, is_shared));
+        let dir_path = ffi_try!(helper::c_utf8_to_string(dir_path,
+                                                         dir_path_len));
+        let details = ffi_try!(get_dir(&*app_handle, &dir_path, is_shared));
         *details_handle = Box::into_raw(Box::new(details));
         0
     })
@@ -87,19 +96,26 @@ pub unsafe extern "C" fn nfs_get_dir(app_handle: *const App,
 /// Modify name and/or metadata of a directory.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_modify_dir(app_handle: *const App,
-                                        dir_path: *const c_char,
+                                        dir_path: *const u8,
+                                        dir_path_len: usize,
                                         is_shared: bool,
-                                        new_name: *const c_char,
-                                        new_user_metadata: *const c_char)
+                                        new_name: *const u8,
+                                        new_name_len: usize,
+                                        new_user_metadata: *const u8,
+                                        new_user_metadata_len: usize)
                                         -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("JSON modify directory, given the path.");
-        let dir_path = ffi_try!(helper::c_char_ptr_to_str(dir_path));
-        let new_name = ffi_try!(helper::c_char_ptr_to_opt_string(new_name));
-        let new_user_metadata = ffi_try!(helper::c_char_ptr_to_opt_string(new_user_metadata));
+        let dir_path = ffi_try!(helper::c_utf8_to_string(dir_path,
+                                                         dir_path_len));
+        let new_name = ffi_try!(helper::c_utf8_to_opt_string(new_name,
+                                                             new_name_len));
+        let new_user_metadata
+            = ffi_try!(helper::c_utf8_to_opt_string(new_user_metadata,
+                                                    new_user_metadata_len));
 
         ffi_try!(modify_dir(&*app_handle,
-                            dir_path,
+                            &dir_path,
                             is_shared,
                             new_name,
                             new_user_metadata));
@@ -110,17 +126,21 @@ pub unsafe extern "C" fn nfs_modify_dir(app_handle: *const App,
 /// Move or copy a directory.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_move_dir(app_handle: *const App,
-                                      src_path: *const c_char,
+                                      src_path: *const u8,
+                                      src_path_len: usize,
                                       is_src_path_shared: bool,
-                                      dst_path: *const c_char,
+                                      dst_path: *const u8,
+                                      dst_path_len: usize,
                                       is_dst_path_shared: bool,
                                       retain_src: bool)
                                       -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI move directory, from {:?} to {:?}.", src_path, dst_path);
 
-        let src_path = ffi_try!(helper::c_char_ptr_to_string(src_path));
-        let dst_path = ffi_try!(helper::c_char_ptr_to_string(dst_path));
+        let src_path = ffi_try!(helper::c_utf8_to_string(src_path,
+                                                         src_path_len));
+        let dst_path = ffi_try!(helper::c_utf8_to_string(dst_path,
+                                                         dst_path_len));
 
         ffi_try!(move_dir(&*app_handle,
                           &src_path,
@@ -293,13 +313,14 @@ fn move_dir(app: &App,
 
 #[cfg(test)]
 mod test {
+    use std::slice;
+
     use ffi::{config, test_utils};
 
     use ffi::app::App;
     use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
     use nfs::helper::directory_helper::DirectoryHelper;
     use rustc_serialize::base64::ToBase64;
-    use std::ffi::CStr;
 
     fn create_test_dir(app: &App, name: &str) {
         let app_dir_key = unwrap!(app.get_app_dir_key());
@@ -383,7 +404,10 @@ mod test {
         let details = unwrap!(super::get_dir(&app, "/test_dir", false));
 
         unsafe {
-            let name = unwrap!(CStr::from_ptr(details.metadata.name).to_str());
+            let name = slice::from_raw_parts(details.metadata.name,
+                                             details.metadata.name_len);
+            let name = String::from_utf8(name.iter().cloned().collect())
+                .unwrap();
             assert_eq!(name, "test_dir");
         }
 

@@ -20,7 +20,7 @@
 
 
 use core::client::Client;
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use nfs::metadata::directory_key::DirectoryKey;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -106,16 +106,20 @@ impl App {
 /// of by calling `drop_app` once no longer needed.
 #[no_mangle]
 pub unsafe extern "C" fn register_app(session_handle: *mut SessionHandle,
-                                      app_name: *const c_char,
-                                      app_id: *const c_char,
-                                      vendor: *const c_char,
+                                      app_name: *const u8,
+                                      app_name_len: usize,
+                                      app_id: *const u8,
+                                      app_id_len: usize,
+                                      vendor: *const u8,
+                                      vendor_len: usize,
                                       safe_drive_access: bool,
                                       app_handle: *mut *mut App)
                                       -> int32_t {
     helper::catch_unwind_i32(|| {
-        let app_name = ffi_try!(helper::c_char_ptr_to_string(app_name));
-        let app_id = ffi_try!(helper::c_char_ptr_to_string(app_id));
-        let vendor = ffi_try!(helper::c_char_ptr_to_string(vendor));
+        let app_name = ffi_try!(helper::c_utf8_to_string(app_name,
+                                                         app_name_len));
+        let app_id = ffi_try!(helper::c_utf8_to_string(app_id, app_id_len));
+        let vendor = ffi_try!(helper::c_utf8_to_string(vendor, vendor_len));
 
         let session = (*session_handle).clone();
 

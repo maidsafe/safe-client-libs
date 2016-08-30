@@ -20,7 +20,7 @@
 use config_file_handler::FileHandler;
 
 use core::errors::CoreError;
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use maidsafe_utilities::log as safe_log;
 use std::mem;
 use std::ptr;
@@ -39,13 +39,17 @@ pub extern "C" fn init_logging() -> int32_t {
 /// create an empty log file in the path in the deduced location and will return the file name
 /// along with complete path to it.
 #[no_mangle]
-pub unsafe extern "C" fn output_log_path(c_output_flie_name: *const c_char,
+pub unsafe extern "C" fn output_log_path(c_output_file_name: *const u8,
+                                         c_output_file_name_len: usize,
                                          c_size: *mut int32_t,
                                          c_capacity: *mut int32_t,
                                          c_result: *mut int32_t)
                                          -> *const u8 {
     helper::catch_unwind_ptr(|| {
-        let op_file = ffi_ptr_try!(helper::c_char_ptr_to_string(c_output_flie_name), c_result);
+        let op_file
+            = ffi_ptr_try!(helper::c_utf8_to_string(c_output_file_name,
+                                                    c_output_file_name_len),
+                           c_result);
         let fh = ffi_ptr_try!(FileHandler::<()>::new(&op_file, true)
                                   .map_err(|e| CoreError::Unexpected(format!("{:?}", e))),
                               c_result);

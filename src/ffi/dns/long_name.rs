@@ -23,16 +23,18 @@ use ffi::app::App;
 use ffi::errors::FfiError;
 use ffi::helper;
 use ffi::string_list::{self, StringList};
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use rust_sodium::crypto::box_;
 
 /// Register DNS long name (for calling via FFI).
 #[no_mangle]
 pub unsafe extern "C" fn dns_register_long_name(app_handle: *const App,
-                                                long_name: *const c_char)
+                                                long_name: *const u8,
+                                                long_name_len: usize)
                                                 -> int32_t {
     helper::catch_unwind_i32(|| {
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
 
         trace!("FFI register public-id with name: {}. This means to register dns without a \
                 given service.",
@@ -67,11 +69,13 @@ pub fn register_long_name(app: &App, long_name: String) -> Result<(), FfiError> 
 /// Delete DNS.
 #[no_mangle]
 pub unsafe extern "C" fn dns_delete_long_name(app_handle: *const App,
-                                              long_name: *const c_char)
+                                              long_name: *const u8,
+                                              long_name_len: usize)
                                               -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI delete DNS.");
-        let long_name = ffi_try!(helper::c_char_ptr_to_string(long_name));
+        let long_name = ffi_try!(helper::c_utf8_to_string(long_name,
+                                                          long_name_len));
         ffi_try!(delete_long_name(&*app_handle, &long_name));
         0
     })

@@ -20,7 +20,7 @@
 
 use core::client::Client;
 use core::translated_events::NetworkEvent;
-use libc::{c_char, int32_t, int64_t};
+use libc::{int32_t, int64_t};
 use maidsafe_utilities::thread::{self, RaiiThreadJoiner};
 use nfs::metadata::directory_key::DirectoryKey;
 use std::cell::RefCell;
@@ -166,16 +166,20 @@ pub unsafe extern "C" fn create_unregistered_client(session_handle: *mut *mut Se
 /// a pointer to a pointer and must point to a valid pointer not junk, else the consequences are
 /// undefined.
 #[no_mangle]
-pub unsafe extern "C" fn create_account(account_locator: *const c_char,
-                                        account_password: *const c_char,
+pub unsafe extern "C" fn create_account(account_locator: *const u8,
+                                        account_locator_len: usize,
+                                        account_password: *const u8,
+                                        account_password_len: usize,
                                         session_handle: *mut *mut SessionHandle)
                                         -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI create a client account.");
 
         // TODO: convert the locator/password to &str, not String
-        let acc_locator = ffi_try!(helper::c_char_ptr_to_string(account_locator));
-        let acc_password = ffi_try!(helper::c_char_ptr_to_string(account_password));
+        let acc_locator = ffi_try!(helper::c_utf8_to_string(account_locator,
+                                                            account_locator_len));
+        let acc_password = ffi_try!(helper::c_utf8_to_string(account_password,
+                                                             account_password_len));
         let session = ffi_try!(Session::create_account(&acc_locator, &acc_password));
 
         *session_handle = allocate_handle(session);
@@ -188,15 +192,21 @@ pub unsafe extern "C" fn create_account(account_locator: *const c_char,
 /// a pointer to a pointer and must point to a valid pointer not junk, else the consequences are
 /// undefined.
 #[no_mangle]
-pub unsafe extern "C" fn log_in(account_locator: *const c_char,
-                                account_password: *const c_char,
+pub unsafe extern "C" fn log_in(account_locator: *const u8,
+                                account_locator_len: usize,
+                                account_password: *const u8,
+                                account_password_len: usize,
                                 session_handle: *mut *mut SessionHandle)
                                 -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI login a registered client.");
 
-        let acc_locator = ffi_try!(helper::c_char_ptr_to_string(account_locator));
-        let acc_password = ffi_try!(helper::c_char_ptr_to_string(account_password));
+        let acc_locator
+            = ffi_try!(helper::c_utf8_to_string(account_locator,
+                                                account_locator_len));
+        let acc_password
+            = ffi_try!(helper::c_utf8_to_string(account_password,
+                                                account_password_len));
         let session = ffi_try!(Session::log_in(&acc_locator, &acc_password));
 
         *session_handle = allocate_handle(session);
@@ -314,8 +324,10 @@ mod test {
             unsafe {
                 let session_handle_ptr = &mut session_handle;
 
-                assert_eq!(create_account(acc_locator.as_ptr(),
-                                          acc_password.as_ptr(),
+                assert_eq!(create_account(acc_locator.as_ptr() as *const u8,
+                                          10,
+                                          acc_password.as_ptr() as *const u8,
+                                          10,
                                           session_handle_ptr),
                            0);
             }
@@ -330,8 +342,10 @@ mod test {
             unsafe {
                 let session_handle_ptr = &mut session_handle;
 
-                assert_eq!(log_in(acc_locator.as_ptr(),
-                                  acc_password.as_ptr(),
+                assert_eq!(log_in(acc_locator.as_ptr() as *const u8,
+                                  10,
+                                  acc_password.as_ptr() as *const u8,
+                                  10,
                                   session_handle_ptr),
                            0);
             }

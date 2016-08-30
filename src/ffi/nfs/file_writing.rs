@@ -22,7 +22,7 @@ use core::SelfEncryptionStorage;
 use ffi::app::App;
 use ffi::errors::FfiError;
 use ffi::helper;
-use libc::{c_char, int32_t};
+use libc::int32_t;
 use nfs::errors::NfsError;
 use nfs::file::File;
 use nfs::helper::writer::Mode;
@@ -49,18 +49,23 @@ impl Writer {
 /// Create new file and return a NFS Writer handle to it.
 #[no_mangle]
 pub unsafe extern "C" fn nfs_create_file(app_handle: *const App,
-                                         file_path: *const c_char,
-                                         user_metadata: *const c_char,
+                                         file_path: *const u8,
+                                         file_path_len: usize,
+                                         user_metadata: *const u8,
+                                         user_metadata_len: usize,
                                          is_path_shared: bool,
                                          writer_handle: *mut *mut Writer)
                                          -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI get nfs writer for creating a new file.");
 
-        let file_path = ffi_try!(helper::c_char_ptr_to_str(file_path));
-        let user_metadata = ffi_try!(helper::c_char_ptr_to_str(user_metadata));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
+        let user_metadata = ffi_try!(helper::c_utf8_to_string(user_metadata,
+                                                              user_metadata_len));
 
-        let writer = ffi_try!(create_file(&*app_handle, file_path, user_metadata, is_path_shared));
+        let writer = ffi_try!(create_file(&*app_handle, &file_path,
+                                          &user_metadata, is_path_shared));
 
         *writer_handle = Box::into_raw(Box::new(writer));
         0
@@ -70,14 +75,17 @@ pub unsafe extern "C" fn nfs_create_file(app_handle: *const App,
 /// Obtain NFS writer handle for writing data to a file in streaming mode
 #[no_mangle]
 pub unsafe extern "C" fn nfs_writer_open(app_handle: *const App,
-                                         file_path: *const c_char,
+                                         file_path: *const u8,
+                                         file_path_len: usize,
                                          is_path_shared: bool,
                                          writer_handle: *mut *mut Writer)
                                          -> int32_t {
     helper::catch_unwind_i32(|| {
         trace!("FFI get nfs writer for modification of existing file.");
-        let file_path = ffi_try!(helper::c_char_ptr_to_str(file_path));
-        let writer = ffi_try!(writer_open(&*app_handle, file_path, is_path_shared));
+        let file_path = ffi_try!(helper::c_utf8_to_string(file_path,
+                                                          file_path_len));
+        let writer = ffi_try!(writer_open(&*app_handle, &file_path,
+                                          is_path_shared));
         *writer_handle = Box::into_raw(Box::new(writer));
         0
     })
