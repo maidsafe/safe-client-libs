@@ -16,12 +16,12 @@
 // relating to use of the SAFE Network Software.
 
 // TODO Remove
-#![allow(unused)]
 
+use ffi::errors::FfiError;
 use ffi::low_level_api::{AppendableDataHandle, CipherOptHandle, DataIdHandle, EncryptKeyHandle,
                          ObjectHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle,
                          SignKeyHandle, StructDataHandle};
-// use ffi::low_level_api::appendable_data::AppendableData;
+use ffi::low_level_api::appendable_data::AppendableData;
 use ffi::low_level_api::cipher_opt::CipherOpt;
 use ffi::low_level_api::immut_data::{SelfEncryptorReaderWrapper, SelfEncryptorWriterWrapper};
 use lru_cache::LruCache;
@@ -48,7 +48,7 @@ pub struct ObjectCache {
     new_handle: ObjectHandle,
     pub struct_data: LruCache<StructDataHandle, StructuredData>,
     pub data_id: LruCache<DataIdHandle, DataIdentifier>,
-    // pub appendable_data: LruCache<AppendableDataHandle, AppendableData>,
+    pub appendable_data: LruCache<AppendableDataHandle, AppendableData>,
     pub se_reader: LruCache<SelfEncryptorReaderHandle, SelfEncryptorReaderWrapper>,
     pub se_writer: LruCache<SelfEncryptorWriterHandle, SelfEncryptorWriterWrapper>,
     pub cipher_opt: LruCache<CipherOptHandle, CipherOpt>,
@@ -62,17 +62,51 @@ impl ObjectCache {
         self.new_handle
     }
 
+    #[allow(unused)]
     pub fn reset(&mut self) {
         self.new_handle = u64::MAX;
 
         self.struct_data.clear();
         self.data_id.clear();
-        // self.appendable_data.clear();
+        self.appendable_data.clear();
         self.se_reader.clear();
         self.se_writer.clear();
         self.cipher_opt.clear();
         self.encrypt_key.clear();
         self.sign_key.clear();
+    }
+
+    pub fn insert_appendable_data(&mut self, data: AppendableData) -> AppendableDataHandle {
+        let handle = self.new_handle();
+        let _ = self.appendable_data.insert(handle, data);
+
+        handle
+    }
+
+    pub fn get_appendable_data(&mut self,
+                               handle: AppendableDataHandle)
+                               -> Result<&mut AppendableData, FfiError> {
+        self.appendable_data
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidAppendableDataHandle)
+    }
+
+    pub fn get_data_id(&mut self, handle: DataIdHandle)
+                       -> Result<&mut DataIdentifier, FfiError> {
+
+        self.data_id.get_mut(&handle).ok_or(FfiError::InvalidDataIdHandle)
+    }
+
+    pub fn get_encrypt_key(&mut self,
+                           handle: EncryptKeyHandle)
+                        -> Result<&mut box_::PublicKey, FfiError> {
+        self.encrypt_key.get_mut(&handle).ok_or(FfiError::InvalidEncryptKeyHandle)
+    }
+
+    pub fn get_sign_key(&mut self,
+                        handle: SignKeyHandle)
+                        -> Result<&mut sign::PublicKey, FfiError> {
+        self.sign_key.get_mut(&handle).ok_or(FfiError::InvalidSignKeyHandle)
     }
 }
 
@@ -82,7 +116,7 @@ impl Default for ObjectCache {
             new_handle: u64::MAX,
             struct_data: LruCache::new(DEFAULT_CAPACITY),
             data_id: LruCache::new(DEFAULT_CAPACITY),
-            //  appendable_data: LruCache::new(DEFAULT_CAPACITY),
+            appendable_data: LruCache::new(DEFAULT_CAPACITY),
             se_reader: LruCache::new(DEFAULT_CAPACITY),
             se_writer: LruCache::new(DEFAULT_CAPACITY),
             cipher_opt: LruCache::new(DEFAULT_CAPACITY),

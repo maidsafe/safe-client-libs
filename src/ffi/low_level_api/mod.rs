@@ -27,6 +27,8 @@ pub mod data_id;
 pub mod immut_data;
 /// Low level manipulation of StructuredData
 pub mod struct_data;
+/// Low level manipulation of {Pub|Priv}AppendableData
+pub mod appendable_data;
 
 /// Object handle associated with objects. In normal C API one would expect rust code to pass
 /// pointers to opaque object to C. C code would then need to pass these pointers back each time
@@ -40,11 +42,11 @@ pub mod struct_data;
 pub type ObjectHandle = u64;
 
 /// Disambiguating ObjectHandle
+pub type AppendableDataHandle = ObjectHandle;
+/// Disambiguating ObjectHandle
 pub type StructDataHandle = ObjectHandle;
 /// Disambiguating ObjectHandle
 pub type DataIdHandle = ObjectHandle;
-/// Disambiguating ObjectHandle
-pub type AppendableDataHandle = ObjectHandle;
 /// Disambiguating ObjectHandle
 pub type SelfEncryptorReaderHandle = ObjectHandle;
 /// Disambiguating ObjectHandle

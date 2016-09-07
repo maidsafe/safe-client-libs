@@ -22,7 +22,7 @@ use core::translated_events::{NetworkEvent, ResponseEvent};
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread::{self, Joiner};
-use routing::{Data, Event, MessageId, Response, XorName};
+use routing::{Data, DataIdentifier, Event, MessageId, Response, XorName};
 use routing::client_errors::{GetError, MutationError};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -70,19 +70,8 @@ fn handle_response(response: Response, mut queue_guard: MutexGuard<MessageQueue>
         }
         Response::PutFailure { id, data_id, external_error_indicator } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
-                let reason: MutationError = match deserialise(&external_error_indicator) {
-                    Ok(err) => err,
-                    Err(err) => {
-                        let err_msg = format!("Couldn't obtain PUT Failure reason: {:?}", err);
-                        warn!("{}", err_msg);
-                        MutationError::NetworkOther(err_msg)
-                    }
-                };
-                let err = Err(CoreError::MutationFailure {
-                    data_id: data_id,
-                    reason: reason,
-                });
-                let _ = response_observer.send(ResponseEvent::MutationResp(err));
+                let err = parse_mutation_failure(external_error_indicator, data_id, "PUT");
+                let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
         Response::PostSuccess(_, id) => {
@@ -92,19 +81,8 @@ fn handle_response(response: Response, mut queue_guard: MutexGuard<MessageQueue>
         }
         Response::PostFailure { id, data_id, external_error_indicator } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
-                let reason: MutationError = match deserialise(&external_error_indicator) {
-                    Ok(err) => err,
-                    Err(err) => {
-                        let err_msg = format!("Couldn't obtain POST Failure reason: {:?}", err);
-                        warn!("{}", err_msg);
-                        MutationError::NetworkOther(err_msg)
-                    }
-                };
-                let err = Err(CoreError::MutationFailure {
-                    data_id: data_id,
-                    reason: reason,
-                });
-                let _ = response_observer.send(ResponseEvent::MutationResp(err));
+                let err = parse_mutation_failure(external_error_indicator, data_id, "POST");
+                let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
         Response::DeleteSuccess(_, id) => {
@@ -114,19 +92,19 @@ fn handle_response(response: Response, mut queue_guard: MutexGuard<MessageQueue>
         }
         Response::DeleteFailure { id, data_id, external_error_indicator } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
-                let reason: MutationError = match deserialise(&external_error_indicator) {
-                    Ok(err) => err,
-                    Err(err) => {
-                        let err_msg = format!("Couldn't obtain DEL Failure reason: {:?}", err);
-                        warn!("{}", err_msg);
-                        MutationError::NetworkOther(err_msg)
-                    }
-                };
-                let err = Err(CoreError::MutationFailure {
-                    data_id: data_id,
-                    reason: reason,
-                });
-                let _ = response_observer.send(ResponseEvent::MutationResp(err));
+                let err = parse_mutation_failure(external_error_indicator, data_id, "DELETE");
+                let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
+            }
+        }
+        Response::AppendSuccess(_, id) => {
+            if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
+                let _ = response_observer.send(ResponseEvent::MutationResp(Ok(())));
+            }
+        }
+        Response::AppendFailure { id, data_id, external_error_indicator } => {
+            if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
+                let err = parse_mutation_failure(external_error_indicator, data_id, "APPEND");
+                let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
         Response::GetAccountInfoSuccess { id, data_stored, space_available } => {
@@ -235,5 +213,24 @@ impl MessageQueue {
         for (delta, val) in positions.into_iter().enumerate() {
             let _ = senders.remove(val - delta);
         }
+    }
+}
+
+fn parse_mutation_failure(external_error_indicator: Vec<u8>,
+                          data_id: DataIdentifier,
+                          op: &str)
+                          -> CoreError {
+    let reason: MutationError = match deserialise(&external_error_indicator) {
+        Ok(err) => err,
+        Err(err) => {
+            let err_msg = format!("Couldn't obtain {} failure reason: {:?}", op, err);
+            warn!("{}", err_msg);
+            MutationError::NetworkOther(err_msg)
+        }
+    };
+
+    CoreError::MutationFailure {
+        data_id: data_id,
+        reason: reason,
     }
 }
