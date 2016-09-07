@@ -53,17 +53,25 @@ pub unsafe fn c_utf8_to_opt_string(ptr: *const u8, len: usize) -> Result<Option<
     }
 }
 
-pub fn string_to_c_utf8(s: String) -> (*mut u8, usize) {
+/// Returns a heap-allocated raw string, usable by C/FFI-boundary.
+/// The tuple means (pointer, length_in_bytes, capacity).
+/// Use `dealloc_c_utf8_alloced_from_rust` to free the memory.
+pub fn string_to_c_utf8(s: String) -> (*mut u8, usize, usize) {
     let mut v = s.into_bytes();
     v.shrink_to_fit();
     let p = v.as_mut_ptr();
     let len = v.len();
+    let cap = v.capacity();
     mem::forget(v);
-    (p, len)
+    (p, len, cap)
 }
 
-pub unsafe fn dealloc_c_utf8_alloced_from_rust(p: *mut u8, len: usize) {
-    let _ = Vec::from_raw_parts(p, len, len);
+/// Dealloc a string allocated with `string_to_c_utf8`.
+pub unsafe fn dealloc_c_utf8_alloced_from_rust(p: *mut u8, len: usize,
+                                               cap: usize) {
+    // TODO: refactor implementation to remove the need for `cap`. Related issue:
+    // <https://github.com/rust-lang/rust/issues/36284>.
+    let _ = Vec::from_raw_parts(p, len, cap);
 }
 
 // TODO: add c_char_ptr_to_str and c_char_ptr_to_opt_str (return &str instead of String)

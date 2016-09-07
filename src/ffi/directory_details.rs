@@ -94,8 +94,10 @@ impl Drop for DirectoryDetails {
 pub struct DirectoryMetadata {
     pub name: *mut u8,
     pub name_len: usize,
+    pub name_cap: usize,
     pub user_metadata: *mut u8,
     pub user_metadata_len: usize,
+    pub user_metadata_cap: usize,
     pub is_private: bool,
     pub is_versioned: bool,
     pub creation_time_sec: i64,
@@ -112,16 +114,19 @@ impl DirectoryMetadata {
         let created_time = dir_metadata.get_created_time().to_timespec();
         let modified_time = dir_metadata.get_modified_time().to_timespec();
 
-        let (name, name_len) = helper::string_to_c_utf8(dir_metadata.get_name()
+        let (name, name_len, name_cap) = helper::string_to_c_utf8(dir_metadata.get_name()
             .to_string());
         let user_metadata = dir_metadata.get_user_metadata().to_base64(config::get_base64_config());
-        let (user_metadata, user_metadata_len) = helper::string_to_c_utf8(user_metadata);
+        let (user_metadata, user_metadata_len, user_metadata_cap) =
+            helper::string_to_c_utf8(user_metadata);
 
         Ok(DirectoryMetadata {
             name: name,
             name_len: name_len,
+            name_cap: name_cap,
             user_metadata: user_metadata,
             user_metadata_len: user_metadata_len,
+            user_metadata_cap: user_metadata_cap,
             is_private: *dir_key.get_access_level() == ::nfs::AccessLevel::Private,
             is_versioned: dir_key.is_versioned(),
             creation_time_sec: created_time.sec,
@@ -135,9 +140,11 @@ impl DirectoryMetadata {
     // a proper impl Drop.
     fn deallocate(&mut self) {
         unsafe {
-            let _ = helper::dealloc_c_utf8_alloced_from_rust(self.name, self.name_len);
+            let _ =
+                helper::dealloc_c_utf8_alloced_from_rust(self.name, self.name_len, self.name_cap);
             let _ = helper::dealloc_c_utf8_alloced_from_rust(self.user_metadata,
-                                                             self.user_metadata_len);
+                                                             self.user_metadata_len,
+                                                             self.user_metadata_cap);
         }
     }
 }

@@ -37,6 +37,8 @@ pub struct FileDetails {
     pub content: *mut u8,
     /// Size of `content`
     pub content_len: usize,
+    /// Capacity of `content`. Only used by the allocator's `dealloc` algorithm.
+    pub content_cap: usize,
     /// Metadata of the file.
     pub metadata: *mut FileMetadata,
 }
@@ -59,7 +61,7 @@ impl FileDetails {
 
         let content = try!(reader.read(start_position, size));
         let content = content.to_base64(config::get_base64_config());
-        let (content, content_len) = helper::string_to_c_utf8(content);
+        let (content, content_len, content_cap) = helper::string_to_c_utf8(content);
 
         let file_metadata_ptr = if include_metadata {
             Box::into_raw(Box::new(try!(FileMetadata::new(file.get_metadata()))))
@@ -70,6 +72,7 @@ impl FileDetails {
         Ok(FileDetails {
             content: content,
             content_len: content_len,
+            content_cap: content_cap,
             metadata: file_metadata_ptr,
         })
     }
@@ -78,7 +81,9 @@ impl FileDetails {
     // a proper impl Drop.
     fn deallocate(self) {
         unsafe {
-            helper::dealloc_c_utf8_alloced_from_rust(self.content, self.content_len);
+            helper::dealloc_c_utf8_alloced_from_rust(self.content,
+                                                     self.content_len,
+                                                     self.content_cap);
         }
 
         if !self.metadata.is_null() {
@@ -94,8 +99,10 @@ impl FileDetails {
 pub struct FileMetadata {
     pub name: *mut u8,
     pub name_len: usize,
+    pub name_cap: usize,
     pub user_metadata: *mut u8,
     pub user_metadata_len: usize,
+    pub user_metadata_cap: usize,
     pub size: i64,
     pub creation_time_sec: i64,
     pub creation_time_nsec: i64,
@@ -111,18 +118,22 @@ impl FileMetadata {
         let created_time = file_metadata.get_created_time().to_timespec();
         let modified_time = file_metadata.get_modified_time().to_timespec();
 
-        let (name, name_len) = helper::string_to_c_utf8(file_metadata.get_name().to_string());
+        let (name, name_len, name_cap) = helper::string_to_c_utf8(file_metadata.get_name()
+            .to_string());
 
         let user_metadata = file_metadata.get_user_metadata()
             .to_base64(config::get_base64_config());
-        let (user_metadata, user_metadata_len) = helper::string_to_c_utf8(user_metadata);
+        let (user_metadata, user_metadata_len, user_metadata_cap) =
+            helper::string_to_c_utf8(user_metadata);
 
         Ok(FileMetadata {
             name: name,
             name_len: name_len,
+            name_cap: name_cap,
             size: file_metadata.get_size() as i64,
             user_metadata: user_metadata,
             user_metadata_len: user_metadata_len,
+            user_metadata_cap: user_metadata_cap,
             creation_time_sec: created_time.sec,
             creation_time_nsec: created_time.nsec as i64,
             modification_time_sec: modified_time.sec,
@@ -135,8 +146,10 @@ impl FileMetadata {
     // a proper impl Drop.
     pub fn deallocate(&mut self) {
         unsafe {
-            helper::dealloc_c_utf8_alloced_from_rust(self.name, self.name_len);
-            helper::dealloc_c_utf8_alloced_from_rust(self.user_metadata, self.user_metadata_len);
+            helper::dealloc_c_utf8_alloced_from_rust(self.name, self.name_len, self.name_cap);
+            helper::dealloc_c_utf8_alloced_from_rust(self.user_metadata,
+                                                     self.user_metadata_len,
+                                                     self.user_metadata_cap);
         }
     }
 }
