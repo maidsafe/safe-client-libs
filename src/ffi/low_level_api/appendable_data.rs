@@ -89,7 +89,7 @@ pub unsafe extern "C" fn appendable_data_new_pub(app: *const App,
                                           Filter::black_list(iter::empty()),
                                           Some(&sign_key));
         let data = AppendableData::Pub(ffi_try!(data.map_err(CoreError::from)));
-        let handle = unwrap!(object_cache().lock()).insert_appendable_data(data);
+        let handle = unwrap!(object_cache()).insert_appendable_data(data);
 
         ptr::write(o_handle, handle);
         0
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn appendable_data_new_priv(app: *const App,
                                            ffi_try!(app.asym_keys()).0,
                                            Some(&sign_key));
         let data = AppendableData::Priv(ffi_try!(data.map_err(CoreError::from)));
-        let handle = unwrap!(object_cache().lock()).insert_appendable_data(data);
+        let handle = unwrap!(object_cache()).insert_appendable_data(data);
 
         ptr::write(o_handle, handle);
         0
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn appendable_data_get(app: *const App,
                                              o_handle: *mut AppendableDataHandle)
                                              -> i32 {
     helper::catch_unwind_i32(|| {
-        let data_id = *ffi_try!(unwrap!(object_cache().lock()).get_data_id(data_id_h));
+        let data_id = *ffi_try!(unwrap!(object_cache()).get_data_id(data_id_h));
 
         let client = (*app).get_client();
         let resp_getter = ffi_try!(unwrap!(client.lock()).get(data_id, None));
@@ -147,7 +147,7 @@ pub unsafe extern "C" fn appendable_data_get(app: *const App,
             _ => ffi_try!(Err(CoreError::ReceivedUnexpectedData)),
         };
 
-        let handle = unwrap!(object_cache().lock()).insert_appendable_data(data);
+        let handle = unwrap!(object_cache()).insert_appendable_data(data);
 
         ptr::write(o_handle, handle);
         0
@@ -160,7 +160,7 @@ pub unsafe extern "C" fn appendable_data_extract_data_id(ad_h: AppendableDataHan
                                                          o_handle: *mut DataIdHandle)
                                                          -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let data_id = match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Pub(ref elt) => elt.identifier(),
             AppendableData::Priv(ref elt) => elt.identifier(),
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn appendable_data_extract_data_id(ad_h: AppendableDataHan
 pub unsafe extern "C" fn appendable_data_put(app: *const App, ad_h: AppendableDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
         let data = {
-            let mut object_cache = unwrap!(object_cache().lock());
+            let mut object_cache = unwrap!(object_cache());
             ffi_try!(object_cache.get_appendable_data(ad_h)).clone()
         };
 
@@ -196,7 +196,7 @@ pub unsafe extern "C" fn appendable_data_post(app: *const App, ad_h: AppendableD
 
         let new_ad = {
             let sign_key = ffi_try!(unwrap!(client.lock()).get_secret_signing_key()).clone();
-            let mut object_cache = unwrap!(object_cache().lock());
+            let mut object_cache = unwrap!(object_cache());
             let ad = ffi_try!(object_cache.get_appendable_data(ad_h));
 
             match *ad {
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn appendable_data_post(app: *const App, ad_h: AppendableD
         };
         let resp_getter = ffi_try!(unwrap!(client.lock()).post(new_ad.clone().into(), None));
         ffi_try!(resp_getter.get());
-        let _ = unwrap!(object_cache().lock()).appendable_data.insert(ad_h, new_ad);
+        let _ = unwrap!(object_cache()).appendable_data.insert(ad_h, new_ad);
 
         0
     })
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn appendable_data_filter_type(ad_h: AppendableDataHandle,
                                                      o_type: *mut FilterType)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let ad = ffi_try!(object_cache.get_appendable_data(ad_h));
         let filter = ad.filter_mut();
         let filter_type = match *filter {
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn appendable_data_filter_type(ad_h: AppendableDataHandle,
 #[no_mangle]
 pub extern "C" fn appendable_data_toggle_filter(ad_h: AppendableDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let ad = ffi_try!(object_cache.get_appendable_data(ad_h));
 
         let filter = ad.filter_mut();
@@ -280,7 +280,7 @@ pub extern "C" fn appendable_data_insert_to_filter(ad_h: AppendableDataHandle,
                                                    sign_key_h: SignKeyHandle)
                                                    -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let sign_key = *ffi_try!(object_cache.get_sign_key(sign_key_h));
         let ad = ffi_try!(object_cache.get_appendable_data(ad_h));
 
@@ -300,7 +300,7 @@ pub extern "C" fn appendable_data_remove_from_filter(ad_h: AppendableDataHandle,
                                                      sign_key_h: SignKeyHandle)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let sign_key = *ffi_try!(object_cache.get_sign_key(sign_key_h));
         let ad = ffi_try!(object_cache.get_appendable_data(ad_h));
 
@@ -319,7 +319,7 @@ pub unsafe extern "C" fn appendable_data_encrypt_key(ad_h: AppendableDataHandle,
                                                      o_handle: *mut EncryptKeyHandle)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let pk = match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Priv(ref elt) => elt.encrypt_key.clone(),
             _ => ffi_try!(Err(FfiError::UnsupportedOperation)),
@@ -340,7 +340,7 @@ pub unsafe extern "C" fn appendable_data_num_of_data(ad_h: AppendableDataHandle,
                                                      o_num: *mut usize)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         let ad = ffi_try!(object_cache.get_appendable_data(ad_h));
         let num = match *ad {
             AppendableData::Pub(ref elt) => elt.data.len(),
@@ -362,7 +362,7 @@ pub unsafe extern "C" fn appendable_data_nth_data_id(app: *const App,
     helper::catch_unwind_i32(|| {
         let app = &*app;
 
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
 
         let data_id = match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Priv(ref elt) => {
@@ -374,11 +374,7 @@ pub unsafe extern "C" fn appendable_data_nth_data_id(app: *const App,
             AppendableData::Pub(ref elt) => ffi_try!(nth(&elt.data, n)).pointer,
         };
 
-        let handle = object_cache.new_handle();
-        if let Some(prev) = object_cache.data_id.insert(handle, data_id) {
-            debug!("Displaced DataIdentifier from ObjectCache: {:?}", prev);
-        }
-
+        let handle = object_cache.insert_data_id(data_id);
         ptr::write(o_handle, handle);
         0
     })
@@ -394,7 +390,7 @@ pub unsafe extern "C" fn appendable_data_nth_sign_key(app: *const App,
     helper::catch_unwind_i32(|| {
         let app = &*app;
 
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
 
         let sign_key = match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Priv(ref elt) => {
@@ -406,11 +402,7 @@ pub unsafe extern "C" fn appendable_data_nth_sign_key(app: *const App,
             AppendableData::Pub(ref elt) => ffi_try!(nth(&elt.data, n)).sign_key,
         };
 
-        let handle = object_cache.new_handle();
-        if let Some(prev) = object_cache.sign_key.insert(handle, sign_key) {
-            debug!("Displaced Public Sign Key from ObjectCache: {:?}", prev);
-        }
-
+        let handle = object_cache.insert_sign_key(sign_key);
         ptr::write(o_handle, handle);
         0
     })
@@ -421,7 +413,7 @@ pub unsafe extern "C" fn appendable_data_nth_sign_key(app: *const App,
 #[no_mangle]
 pub extern "C" fn appendable_data_remove_nth_data(ad_h: AppendableDataHandle, n: usize) -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Pub(ref mut elt) => {
                 let item = ffi_try!(nth(&elt.data, n)).clone();
@@ -445,7 +437,7 @@ pub extern "C" fn appendable_data_remove_nth_data(ad_h: AppendableDataHandle, n:
 #[no_mangle]
 pub extern "C" fn appendable_data_clear_data(ad_h: AppendableDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Pub(ref mut elt) => {
                 let tmp = mem::replace(&mut elt.data, Default::default());
@@ -465,7 +457,7 @@ pub extern "C" fn appendable_data_clear_data(ad_h: AppendableDataHandle) -> i32 
 #[no_mangle]
 pub extern "C" fn appendable_data_clear_deleted_data(ad_h: AppendableDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut object_cache = unwrap!(object_cache().lock());
+        let mut object_cache = unwrap!(object_cache());
         match *ffi_try!(object_cache.get_appendable_data(ad_h)) {
             AppendableData::Pub(ref mut elt) => elt.deleted_data.clear(),
             AppendableData::Priv(ref mut elt) => elt.deleted_data.clear(),
@@ -485,7 +477,7 @@ pub unsafe extern "C" fn appendable_data_append(app: *const App,
         let client = (*app).get_client();
 
         let append_wrapper = {
-            let mut object_cache = unwrap!(object_cache().lock());
+            let mut object_cache = unwrap!(object_cache());
             let data_id = *ffi_try!(object_cache.get_data_id(data_id_h));
 
             let client = unwrap!(client.lock());
@@ -523,7 +515,7 @@ pub unsafe extern "C" fn appendable_data_append(app: *const App,
 #[no_mangle]
 pub extern "C" fn appendable_data_free(handle: AppendableDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .appendable_data
             .remove(&handle)
             .ok_or(FfiError::InvalidAppendableDataHandle));
@@ -596,7 +588,7 @@ mod tests {
 
         // Verify the data items we got back are the same we put in.
         {
-            let mut object_cache = unwrap!(object_cache().lock());
+            let mut object_cache = unwrap!(object_cache());
 
             let mut orig = HashSet::with_capacity(2);
             let _ = orig.insert(*unwrap!(object_cache.get_data_id(immut_id_0_h)));
@@ -620,7 +612,7 @@ mod tests {
         let app2 = test_utils::create_app(false);
 
         let (sk1_h, _sk2_h) = {
-            let mut object_cache = unwrap!(object_cache().lock());
+            let mut object_cache = unwrap!(object_cache());
             (object_cache.insert_sign_key(get_sign_pk(&app1)),
              object_cache.insert_sign_key(get_sign_pk(&app2)))
         };
@@ -719,7 +711,7 @@ mod tests {
         let name = rand::random();
         let id = DataIdentifier::Immutable(name);
 
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let id_h = obj_cache.insert_data_id(id);
 
         (id, id_h)

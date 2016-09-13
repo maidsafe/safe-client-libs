@@ -55,7 +55,7 @@ pub unsafe extern "C" fn struct_data_new(app: *const App,
 
         let sd = match type_tag {
             ::UNVERSIONED_STRUCT_DATA_TYPE_TAG => {
-                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                         .cipher_opt
                         .get_mut(&cipher_opt_h)
                         .ok_or(FfiError::InvalidCipherOptHandle))
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn struct_data_new(app: *const App,
                 // more. For this however we will require CipherOpt to be in core module. Until
                 // that we need to live with this.
                 let ser_immut_data = ffi_try!(serialise(&immut_data).map_err(FfiError::from));
-                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                         .cipher_opt
                         .get_mut(&cipher_opt_h)
                         .ok_or(FfiError::InvalidCipherOptHandle))
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn struct_data_new(app: *const App,
                                            &sign_key))
             }
             x if x >= CLIENT_STRUCTURED_DATA_TAG => {
-                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                         .cipher_opt
                         .get_mut(&cipher_opt_h)
                         .ok_or(FfiError::InvalidCipherOptHandle))
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn struct_data_new(app: *const App,
         };
 
 
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let handle = obj_cache.new_handle();
         if let Some(prev) = obj_cache.struct_data.insert(handle, sd) {
             debug!("Displaced StructuredData from ObjectCache: {:?}", prev);
@@ -138,14 +138,14 @@ pub unsafe extern "C" fn struct_data_fetch(app: *const App,
                                            -> i32 {
     helper::catch_unwind_i32(|| {
         let client = (*app).get_client();
-        let data_id = *ffi_try!(unwrap!(object_cache().lock()).get_data_id(data_id_h));
+        let data_id = *ffi_try!(unwrap!(object_cache()).get_data_id(data_id_h));
         let resp_getter = ffi_try!(unwrap!(client.lock()).get(data_id, None));
         let sd = match ffi_try!(resp_getter.get()) {
             Data::Structured(sd) => sd,
             _ => ffi_try!(Err(CoreError::ReceivedUnexpectedData)),
         };
 
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let handle = obj_cache.new_handle();
         if let Some(prev) = obj_cache.struct_data.insert(handle, sd) {
             debug!("Displaced StructuredData from ObjectCache: {:?}", prev);
@@ -164,7 +164,7 @@ pub unsafe extern "C" fn struct_data_extract_data_id(sd_h: StructDataHandle,
                                                      o_handle: *mut DataIdHandle)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let data_id = ffi_try!(obj_cache.get_struct_data(sd_h)).identifier();
         let handle = obj_cache.new_handle();
         if let Some(prev) = obj_cache.data_id.insert(handle, data_id) {
@@ -186,7 +186,7 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
                                               size: usize)
                                               -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut sd = ffi_try!(unwrap!(object_cache().lock())
+        let mut sd = ffi_try!(unwrap!(object_cache())
             .struct_data
             .remove(&sd_h)
             .ok_or(FfiError::InvalidStructDataHandle));
@@ -199,7 +199,7 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
 
         sd = match sd.get_type_tag() {
             ::UNVERSIONED_STRUCT_DATA_TYPE_TAG => {
-                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                         .cipher_opt
                         .get_mut(&cipher_opt_h)
                         .ok_or(FfiError::InvalidCipherOptHandle))
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
                 let immut_data =
                     ffi_try!(immut_data_operations::create(client.clone(), plain_text, None));
                 let ser_immut_data = ffi_try!(serialise(&immut_data).map_err(FfiError::from));
-                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                         .cipher_opt
                         .get_mut(&cipher_opt_h)
                         .ok_or(FfiError::InvalidCipherOptHandle))
@@ -240,7 +240,7 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
                                                    false))
             }
             x if x >= CLIENT_STRUCTURED_DATA_TAG => {
-                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+                let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                         .cipher_opt
                         .get_mut(&cipher_opt_h)
                         .ok_or(FfiError::InvalidCipherOptHandle))
@@ -258,7 +258,7 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
             _ => ffi_try!(Err(FfiError::InvalidStructuredDataTypeTag)),
         };
 
-        if let Some(prev) = unwrap!(object_cache().lock()).struct_data.insert(sd_h, sd) {
+        if let Some(prev) = unwrap!(object_cache()).struct_data.insert(sd_h, sd) {
             debug!("Displaced StructuredData from ObjectCache: {:?}", prev);
         }
 
@@ -280,7 +280,7 @@ pub unsafe extern "C" fn struct_data_extract_data(app: *const App,
 
         // Note: Order of locking is object_cache followed by client - ensure this order
         // everywhere.
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let sd =
             ffi_try!(obj_cache.struct_data.get_mut(&sd_h).ok_or(FfiError::InvalidStructDataHandle));
 
@@ -330,7 +330,7 @@ pub unsafe extern "C" fn struct_data_num_of_versions(app: *const App,
                                                      o_num: *mut usize)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let sd =
             ffi_try!(obj_cache.struct_data.get_mut(&sd_h).ok_or(FfiError::InvalidStructDataHandle));
 
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn struct_data_nth_version(app: *const App,
         let client = app.get_client();
 
         let mut versions = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let sd = ffi_try!(obj_cache.get_struct_data(sd_h));
 
             if sd.get_type_tag() != ::VERSIONED_STRUCT_DATA_TYPE_TAG {
@@ -403,7 +403,7 @@ pub unsafe extern "C" fn struct_data_nth_version(app: *const App,
 #[no_mangle]
 pub unsafe extern "C" fn struct_data_put(app: *const App, sd_h: StructDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let sd = ffi_try!(unwrap!(object_cache().lock())
+        let sd = ffi_try!(unwrap!(object_cache())
                 .struct_data
                 .get_mut(&sd_h)
                 .ok_or(FfiError::InvalidStructDataHandle))
@@ -421,17 +421,17 @@ pub unsafe extern "C" fn struct_data_put(app: *const App, sd_h: StructDataHandle
 #[no_mangle]
 pub unsafe extern "C" fn struct_data_post(app: *const App, sd_h: StructDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let sd = ffi_try!(unwrap!(object_cache().lock())
+        let sd = ffi_try!(unwrap!(object_cache())
             .struct_data
             .remove(&sd_h)
             .ok_or(FfiError::InvalidStructDataHandle));
         match struct_data_post_impl((*app).get_client(), sd.clone()) {
             Ok(new_sd) => {
-                let _ = unwrap!(object_cache().lock()).struct_data.insert(sd_h, new_sd);
+                let _ = unwrap!(object_cache()).struct_data.insert(sd_h, new_sd);
                 0
             }
             Err(e) => {
-                let _ = unwrap!(object_cache().lock()).struct_data.insert(sd_h, sd);
+                let _ = unwrap!(object_cache()).struct_data.insert(sd_h, sd);
                 ffi_try!(Err(e))
             }
         }
@@ -463,17 +463,17 @@ fn struct_data_post_impl(client: Arc<Mutex<Client>>,
 #[no_mangle]
 pub unsafe extern "C" fn struct_data_delete(app: *const App, sd_h: StructDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let sd = ffi_try!(unwrap!(object_cache().lock())
+        let sd = ffi_try!(unwrap!(object_cache())
             .struct_data
             .remove(&sd_h)
             .ok_or(FfiError::InvalidStructDataHandle));
         match struct_data_delete_impl((*app).get_client(), sd.clone()) {
             Ok(new_sd) => {
-                let _ = unwrap!(object_cache().lock()).struct_data.insert(sd_h, new_sd);
+                let _ = unwrap!(object_cache()).struct_data.insert(sd_h, new_sd);
                 0
             }
             Err(e) => {
-                let _ = unwrap!(object_cache().lock()).struct_data.insert(sd_h, sd);
+                let _ = unwrap!(object_cache()).struct_data.insert(sd_h, sd);
                 ffi_try!(Err(e))
             }
         }
@@ -505,7 +505,7 @@ fn struct_data_delete_impl(client: Arc<Mutex<Client>>,
 #[no_mangle]
 pub extern "C" fn struct_data_free(handle: StructDataHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .struct_data
             .remove(&handle)
             .ok_or(FfiError::InvalidStructDataHandle));
@@ -552,13 +552,13 @@ mod tests {
 
             // Put
             assert_eq!(struct_data_put(&app, sd_h), 0);
-            assert!(unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(unwrap!(object_cache()).struct_data.contains_key(&sd_h));
             assert_eq!(struct_data_free(sd_h), 0);
-            assert!(!unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(!unwrap!(object_cache()).struct_data.contains_key(&sd_h));
 
             // Fetch
             assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), 0);
-            assert!(unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(unwrap!(object_cache()).struct_data.contains_key(&sd_h));
 
             // Extract Data
             let rx_plain_text_0 = extract_data(&app, sd_h);
@@ -575,13 +575,13 @@ mod tests {
 
             // Post
             assert_eq!(struct_data_post(&app, sd_h), 0);
-            assert!(unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(unwrap!(object_cache()).struct_data.contains_key(&sd_h));
             assert_eq!(struct_data_free(sd_h), 0);
-            assert!(!unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(!unwrap!(object_cache()).struct_data.contains_key(&sd_h));
 
             // Fetch
             assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), 0);
-            assert!(unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(unwrap!(object_cache()).struct_data.contains_key(&sd_h));
 
             // Extract Data
             let rx_plain_text_1 = extract_data(&app, sd_h);
@@ -608,9 +608,9 @@ mod tests {
 
             // Delete
             assert_eq!(struct_data_delete(&app, sd_h), 0);
-            assert!(unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(unwrap!(object_cache()).struct_data.contains_key(&sd_h));
             assert_eq!(struct_data_free(sd_h), 0);
-            assert!(!unwrap!(object_cache().lock()).struct_data.contains_key(&sd_h));
+            assert!(!unwrap!(object_cache()).struct_data.contains_key(&sd_h));
 
             // Fetch - should error out
             assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), -18);

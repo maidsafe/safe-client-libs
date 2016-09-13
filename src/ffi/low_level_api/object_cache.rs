@@ -25,19 +25,17 @@ use ffi::low_level_api::immut_data::{SelfEncryptorReaderWrapper, SelfEncryptorWr
 use lru_cache::LruCache;
 use routing::{DataIdentifier, StructuredData};
 use rust_sodium::crypto::{box_, sign};
-use std::sync::{Mutex, ONCE_INIT, Once};
+use std::sync::{LockResult, Mutex, MutexGuard};
 use std::u64;
 
 const DEFAULT_CAPACITY: usize = 100;
 
-pub fn object_cache() -> &'static Mutex<ObjectCache> {
-    static mut OBJECT_CACHE: *const Mutex<ObjectCache> = 0 as *const Mutex<ObjectCache>;
-    static ONCE: Once = ONCE_INIT;
+lazy_static! {
+    static ref OBJECT_CACHE: Mutex<ObjectCache> = Mutex::new(ObjectCache::default());
+}
 
-    unsafe {
-        ONCE.call_once(|| OBJECT_CACHE = Box::into_raw(Box::new(Default::default())));
-        &*OBJECT_CACHE
-    }
+pub fn object_cache() -> LockResult<MutexGuard<'static, ObjectCache>> {
+    OBJECT_CACHE.lock()
 }
 
 // TODO Instead of this make each field a Mutex - that way operation on one handle does not block
@@ -60,8 +58,6 @@ impl ObjectCache {
         self.new_handle
     }
 
-    // TODO Remove
-    #[allow(unused)]
     pub fn reset(&mut self) {
         self.new_handle = u64::MAX;
 
@@ -104,15 +100,12 @@ impl ObjectCache {
         self.data_id.get_mut(&handle).ok_or(FfiError::InvalidDataIdHandle)
     }
 
-    // TODO Remove
-    #[allow(unused)]
     pub fn get_encrypt_key(&mut self,
                            handle: EncryptKeyHandle)
                            -> Result<&mut box_::PublicKey, FfiError> {
         self.encrypt_key.get_mut(&handle).ok_or(FfiError::InvalidEncryptKeyHandle)
     }
 
-    #[allow(unused)]
     pub fn insert_sign_key(&mut self, key: sign::PublicKey) -> SignKeyHandle {
         let handle = self.new_handle();
         let _ = self.sign_key.insert(handle, key);
@@ -147,4 +140,10 @@ impl Default for ObjectCache {
             sign_key: LruCache::new(DEFAULT_CAPACITY),
         }
     }
+}
+
+/// Reset the object cache (drop all objects stored in it). This will invalidate
+/// all currently held object handles.
+pub extern "C" fn object_cache_reset() {
+    unwrap!(object_cache()).reset()
 }

@@ -59,7 +59,7 @@ pub unsafe extern "C" fn immut_data_new_self_encryptor(app: *const App,
             _storage: se_storage,
         };
 
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let handle = obj_cache.new_handle();
         if obj_cache.se_writer.insert(handle, se_wrapper).is_some() {
             debug!("Displaced SelfEncryptor from ObjectCache.");
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn immut_data_write_to_self_encryptor(se_h: SelfEncryptorW
                                                             -> i32 {
     helper::catch_unwind_i32(|| {
         let data_slice = slice::from_raw_parts(data, size);
-        ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+        ffi_try!(ffi_try!(unwrap!(object_cache())
                 .se_writer
                 .get_mut(&se_h)
                 .ok_or(FfiError::InvalidSelfEncryptorHandle))
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn immut_data_close_self_encryptor(app: *const App,
         let app = &*app;
         let client = (*app).get_client();
 
-        let data_map = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+        let data_map = ffi_try!(ffi_try!(unwrap!(object_cache())
                 .se_writer
                 .get_mut(&se_h)
                 .ok_or(FfiError::InvalidSelfEncryptorHandle))
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn immut_data_close_self_encryptor(app: *const App,
             ffi_try!(immut_data_operations::create(client.clone(), ser_data_map, None));
         let ser_final_immut_data = ffi_try!(serialise(&final_immut_data).map_err(FfiError::from));
 
-        let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache().lock())
+        let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
                 .cipher_opt
                 .get_mut(&cipher_opt_h)
                 .ok_or(FfiError::InvalidCipherOptHandle))
@@ -128,12 +128,8 @@ pub unsafe extern "C" fn immut_data_close_self_encryptor(app: *const App,
 
         let data_id = DataIdentifier::Immutable(raw_immut_data_name);
 
-        let mut obj_cache = unwrap!(object_cache().lock());
-        let handle = obj_cache.new_handle();
-        if let Some(prev) = obj_cache.data_id.insert(handle, data_id) {
-            debug!("Displaced DataIdentifier from ObjectCache: {:?}", prev);
-        }
-
+        let mut obj_cache = unwrap!(object_cache());
+        let handle = obj_cache.insert_data_id(data_id);
         ptr::write(o_handle, handle);
 
         0
@@ -150,7 +146,7 @@ pub unsafe extern "C" fn immut_data_fetch_self_encryptor(app: *const App,
         let app = &*app;
         let client = app.get_client();
 
-        let data_id = ffi_try!(unwrap!(object_cache().lock())
+        let data_id = ffi_try!(unwrap!(object_cache())
                 .data_id
                 .get_mut(&data_id_h)
                 .ok_or(FfiError::InvalidDataIdHandle))
@@ -180,7 +176,7 @@ pub unsafe extern "C" fn immut_data_fetch_self_encryptor(app: *const App,
             _storage: se_storage,
         };
 
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let handle = obj_cache.new_handle();
         if obj_cache.se_reader.insert(handle, se_wrapper).is_some() {
             debug!("Displaced SelfEncryptor from ObjectCache.");
@@ -195,7 +191,7 @@ pub unsafe extern "C" fn immut_data_fetch_self_encryptor(app: *const App,
 #[no_mangle]
 pub unsafe extern "C" fn immut_data_size(se_h: SelfEncryptorReaderHandle, o_size: *mut u64) -> i32 {
     helper::catch_unwind_i32(|| {
-        let size = ffi_try!(unwrap!(object_cache().lock())
+        let size = ffi_try!(unwrap!(object_cache())
                 .se_reader
                 .get_mut(&se_h)
                 .ok_or(FfiError::InvalidSelfEncryptorHandle))
@@ -217,7 +213,7 @@ pub unsafe extern "C" fn immut_data_read_from_self_encryptor(se_h: SelfEncryptor
                                                              o_capacity: *mut usize)
                                                              -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let se_wrapper = ffi_try!(obj_cache.se_reader
             .get_mut(&se_h)
             .ok_or(FfiError::InvalidSelfEncryptorHandle));
@@ -242,7 +238,7 @@ pub unsafe extern "C" fn immut_data_read_from_self_encryptor(se_h: SelfEncryptor
 #[no_mangle]
 pub extern "C" fn immut_data_self_encryptor_writer_free(handle: SelfEncryptorWriterHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .se_writer
             .remove(&handle)
             .ok_or(FfiError::InvalidSelfEncryptorHandle));
@@ -255,7 +251,7 @@ pub extern "C" fn immut_data_self_encryptor_writer_free(handle: SelfEncryptorWri
 #[no_mangle]
 pub extern "C" fn immut_data_self_encryptor_reader_free(handle: SelfEncryptorReaderHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .se_reader
             .remove(&handle)
             .ok_or(FfiError::InvalidSelfEncryptorHandle));
@@ -288,7 +284,7 @@ mod tests {
         let plain_text = unwrap!(utility::generate_random_vector::<u8>(10));
 
         let app_1_encrypt_key_handle = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let app_1_encrypt_key_handle = obj_cache.new_handle();
             let app_1_pub_encrypt_key = unwrap!(app_1.asym_keys()).0;
             let _ = obj_cache.encrypt_key

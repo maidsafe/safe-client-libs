@@ -93,7 +93,7 @@ impl CipherOpt {
 #[no_mangle]
 pub unsafe extern "C" fn cipher_opt_new_plaintext(o_handle: *mut CipherOptHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let obj_handle = obj_cache.new_handle();
         let _ = obj_cache.cipher_opt.insert(obj_handle, CipherOpt::PlainText);
         ptr::write(o_handle, obj_handle);
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn cipher_opt_new_plaintext(o_handle: *mut CipherOptHandle
 #[no_mangle]
 pub unsafe extern "C" fn cipher_opt_new_symmetric(o_handle: *mut CipherOptHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache().lock());
+        let mut obj_cache = unwrap!(object_cache());
         let obj_handle = obj_cache.new_handle();
         let _ = obj_cache.cipher_opt.insert(obj_handle, CipherOpt::Symmetric);
         ptr::write(o_handle, obj_handle);
@@ -121,10 +121,8 @@ pub unsafe extern "C" fn cipher_opt_new_asymmetric(peer_encrypt_key_h: EncryptKe
                                                    o_handle: *mut CipherOptHandle)
                                                    -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache().lock());
-        let pk = *ffi_try!(obj_cache.encrypt_key
-            .get_mut(&peer_encrypt_key_h)
-            .ok_or(FfiError::InvalidEncryptKeyHandle));
+        let mut obj_cache = unwrap!(object_cache());
+        let pk = *ffi_try!(obj_cache.get_encrypt_key(peer_encrypt_key_h));
         let obj_handle = obj_cache.new_handle();
         let _ = obj_cache.cipher_opt
             .insert(obj_handle, CipherOpt::Asymmetric { peer_encrypt_key: pk });
@@ -138,7 +136,7 @@ pub unsafe extern "C" fn cipher_opt_new_asymmetric(peer_encrypt_key_h: EncryptKe
 #[no_mangle]
 pub extern "C" fn cipher_opt_free(handle: CipherOptHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .cipher_opt
             .remove(&handle)
             .ok_or(FfiError::InvalidCipherOptHandle));
@@ -175,12 +173,12 @@ mod tests {
             assert_eq!(cipher_opt_new_plaintext(&mut cipher_opt_handle), 0);
         }
         let raw_data = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let cipher_opt = unwrap!(obj_cache.cipher_opt.get_mut(&cipher_opt_handle));
             unwrap!(cipher_opt.encrypt(&app_0, &plain_text))
         };
         assert_eq!(cipher_opt_free(cipher_opt_handle), 0);
-        assert!(unwrap!(object_cache().lock()).cipher_opt.get_mut(&cipher_opt_handle).is_none());
+        assert!(unwrap!(object_cache()).cipher_opt.get_mut(&cipher_opt_handle).is_none());
         assert!(raw_data != plain_text);
 
         assert!(decrypt_and_check(&app_0, &raw_data, &plain_text));
@@ -195,12 +193,12 @@ mod tests {
             assert_eq!(cipher_opt_new_symmetric(&mut cipher_opt_handle), 0);
         }
         let raw_data = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let cipher_opt = unwrap!(obj_cache.cipher_opt.get_mut(&cipher_opt_handle));
             unwrap!(cipher_opt.encrypt(&app_0, &plain_text))
         };
         assert_eq!(cipher_opt_free(cipher_opt_handle), 0);
-        assert!(unwrap!(object_cache().lock()).cipher_opt.get_mut(&cipher_opt_handle).is_none());
+        assert!(unwrap!(object_cache()).cipher_opt.get_mut(&cipher_opt_handle).is_none());
         assert!(raw_data != plain_text);
 
         assert!(decrypt_and_check(&app_0, &raw_data, &plain_text));
@@ -213,7 +211,7 @@ mod tests {
         let app_1 = test_utils::create_app(false);
 
         let app_1_encrypt_key_handle = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let app_1_encrypt_key_handle = obj_cache.new_handle();
             let app_1_pub_encrypt_key = unwrap!(app_1.asym_keys()).0;
             let _ = obj_cache.encrypt_key
@@ -231,12 +229,12 @@ mod tests {
         }
 
         let raw_data = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let cipher_opt = unwrap!(obj_cache.cipher_opt.get_mut(&cipher_opt_handle));
             unwrap!(cipher_opt.encrypt(&app_0, &plain_text))
         };
         assert_eq!(cipher_opt_free(cipher_opt_handle), 0);
-        assert!(unwrap!(object_cache().lock()).cipher_opt.get_mut(&cipher_opt_handle).is_none());
+        assert!(unwrap!(object_cache()).cipher_opt.get_mut(&cipher_opt_handle).is_none());
         assert!(raw_data != plain_text);
 
         assert!(!decrypt_and_check(&app_0, &raw_data, &plain_text));
@@ -248,7 +246,7 @@ mod tests {
         let peer_encrypt_key_handle = {
             let (pk, _) = box_::gen_keypair();
 
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             let handle = obj_cache.new_handle();
             assert!(obj_cache.encrypt_key.insert(handle, pk).is_none());
             handle
@@ -271,7 +269,7 @@ mod tests {
         }
 
         {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             assert!(obj_cache.cipher_opt.contains_key(&cipher_opt_handle_pt));
             assert!(obj_cache.cipher_opt.contains_key(&cipher_opt_handle_sym));
             assert!(obj_cache.cipher_opt.contains_key(&cipher_opt_handle_asym));
@@ -287,7 +285,7 @@ mod tests {
         assert_eq!(cipher_opt_free(cipher_opt_handle_asym), err_code);
 
         {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             assert!(!obj_cache.cipher_opt.contains_key(&cipher_opt_handle_pt));
             assert!(!obj_cache.cipher_opt.contains_key(&cipher_opt_handle_sym));
             assert!(!obj_cache.cipher_opt.contains_key(&cipher_opt_handle_asym));

@@ -32,7 +32,7 @@ pub unsafe extern "C" fn data_id_new_struct_data(type_tag: u64,
         let xor_id = XorName(*id);
         let data_id = DataIdentifier::Structured(xor_id, type_tag);
         let handle = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             obj_cache.insert_data_id(data_id)
         };
 
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn data_id_new_immut_data(id: *const [u8; XOR_NAME_LEN],
         let xor_id = XorName(*id);
         let data_id = DataIdentifier::Immutable(xor_id);
         let handle = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             obj_cache.insert_data_id(data_id)
         };
 
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn data_id_new_appendable_data(id: *const [u8; XOR_NAME_LE
         };
 
         let handle = {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             obj_cache.insert_data_id(data_id)
         };
 
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn data_id_new_appendable_data(id: *const [u8; XOR_NAME_LE
 #[no_mangle]
 pub extern "C" fn data_id_free(handle: DataIdHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .data_id
             .remove(&handle)
             .ok_or(FfiError::InvalidDataIdHandle));
@@ -137,7 +137,7 @@ mod tests {
         }
 
         {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             assert!(obj_cache.data_id.contains_key(&data_id_handle_struct));
             assert!(obj_cache.data_id.contains_key(&data_id_handle_immut));
             assert!(obj_cache.data_id.contains_key(&data_id_handle_priv_appendable));
@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(data_id_free(data_id_handle_pub_appendable), err_code);
 
         {
-            let mut obj_cache = unwrap!(object_cache().lock());
+            let mut obj_cache = unwrap!(object_cache());
             assert!(!obj_cache.data_id.contains_key(&data_id_handle_struct));
             assert!(!obj_cache.data_id.contains_key(&data_id_handle_immut));
             assert!(!obj_cache.data_id.contains_key(&data_id_handle_priv_appendable));

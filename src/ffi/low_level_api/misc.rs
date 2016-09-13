@@ -26,7 +26,7 @@ use std::{mem, ptr, slice};
 #[no_mangle]
 pub extern "C" fn misc_encrypt_key_free(handle: EncryptKeyHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .encrypt_key
             .remove(&handle)
             .ok_or(FfiError::InvalidEncryptKeyHandle));
@@ -39,7 +39,7 @@ pub extern "C" fn misc_encrypt_key_free(handle: EncryptKeyHandle) -> i32 {
 #[no_mangle]
 pub extern "C" fn misc_sign_key_free(handle: SignKeyHandle) -> i32 {
     helper::catch_unwind_i32(|| {
-        let _ = ffi_try!(unwrap!(object_cache().lock())
+        let _ = ffi_try!(unwrap!(object_cache())
             .sign_key
             .remove(&handle)
             .ok_or(FfiError::InvalidSignKeyHandle));
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn misc_serialise_data_id(data_id_h: DataIdHandle,
                                                 o_capacity: *mut usize)
                                                 -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut ser_data_id = ffi_try!(serialise(ffi_try!(unwrap!(object_cache().lock())
+        let mut ser_data_id = ffi_try!(serialise(ffi_try!(unwrap!(object_cache())
                 .data_id
                 .get_mut(&data_id_h)
                 .ok_or(FfiError::InvalidDataIdHandle)))
@@ -81,12 +81,8 @@ pub unsafe extern "C" fn misc_deserialise_data_id(data: *const u8,
         let ser_data_id = slice::from_raw_parts(data, size);
         let data_id = ffi_try!(deserialise(ser_data_id).map_err(FfiError::from));
 
-        let mut object_cache = unwrap!(object_cache().lock());
-        let handle = object_cache.new_handle();
-        if let Some(prev) = object_cache.data_id.insert(handle, data_id) {
-            debug!("Displaced DataIdentifier from ObjectCache: {:?}", prev);
-        }
-
+        let mut object_cache = unwrap!(object_cache());
+        let handle = object_cache.insert_data_id(data_id);
         ptr::write(o_handle, handle);
         0
     })
@@ -119,18 +115,11 @@ mod tests {
         assert!(data_id_ad != data_id_id);
 
         let (sd_data_id_h, id_data_id_h, ad_data_id_h) = {
-            let mut object_cache = unwrap!(object_cache().lock());
+            let mut object_cache = unwrap!(object_cache());
 
-            let handle_sd = object_cache.new_handle();
-            assert!(object_cache.data_id.insert(handle_sd, data_id_sd).is_none());
-
-            let handle_id = object_cache.new_handle();
-            assert!(object_cache.data_id.insert(handle_id, data_id_id).is_none());
-
-            let handle_ad = object_cache.new_handle();
-            assert!(object_cache.data_id.insert(handle_ad, data_id_ad).is_none());
-
-            (handle_sd, handle_id, handle_ad)
+            (object_cache.insert_data_id(data_id_sd),
+             object_cache.insert_data_id(data_id_id),
+             object_cache.insert_data_id(data_id_ad))
         };
 
         unsafe {
@@ -149,7 +138,7 @@ mod tests {
             assert!(data_id_h != sd_data_id_h);
 
             {
-                let mut object_cache = unwrap!(object_cache().lock());
+                let mut object_cache = unwrap!(object_cache());
                 let before_id = *unwrap!(object_cache.data_id.get_mut(&sd_data_id_h));
                 let after_id = unwrap!(object_cache.data_id.get_mut(&data_id_h));
 
@@ -177,7 +166,7 @@ mod tests {
             assert!(data_id_h != id_data_id_h);
 
             {
-                let mut object_cache = unwrap!(object_cache().lock());
+                let mut object_cache = unwrap!(object_cache());
                 let before_id = *unwrap!(object_cache.data_id.get_mut(&id_data_id_h));
                 let after_id = unwrap!(object_cache.data_id.get_mut(&data_id_h));
 
@@ -205,7 +194,7 @@ mod tests {
             assert!(data_id_h != ad_data_id_h);
 
             {
-                let mut object_cache = unwrap!(object_cache().lock());
+                let mut object_cache = unwrap!(object_cache());
                 let before_id = *unwrap!(object_cache.data_id.get_mut(&ad_data_id_h));
                 let after_id = unwrap!(object_cache.data_id.get_mut(&data_id_h));
 

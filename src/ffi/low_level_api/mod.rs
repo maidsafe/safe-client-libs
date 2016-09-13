@@ -59,3 +59,5 @@ pub type EncryptKeyHandle = ObjectHandle;
 pub type SignKeyHandle = ObjectHandle;
 
 mod object_cache;
+
+pub use self::object_cache::object_cache_reset;
