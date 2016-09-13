@@ -1,0 +1,142 @@
+// Copyright 2016 MaidSafe.net limited.
+//
+// This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
+// version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
+// licence you accepted on initial access to the Software (the "Licences").
+//
+// By contributing code to the SAFE Network Software, or to this project generally, you agree to be
+// bound by the terms of the MaidSafe Contributor Agreement, version 1.0.  This, along with the
+// Licenses can be found in the root directory of this project at LICENSE, COPYING and CONTRIBUTOR.
+//
+// Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
+// under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.
+//
+// Please review the Licences for the specific language governing permissions and limitations
+// relating to use of the SAFE Network Software.
+
+use bincode::SizeLimit;
+use maidsafe_utilities::serialisation::{deserialise, deserialise_with_limit, serialise,
+                                        serialise_with_limit};
+use routing::{Data, XorName};
+use routing::client_errors::{GetError, MutationError};
+use std::collections::HashMap;
+use std::env;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::PathBuf;
+
+const STORAGE_FILE_NAME: &'static str = "VaultStorageSimulation";
+
+// This should ideally be replaced with `safe_vault::maid_manager::DEFAULT_ACCOUNT_SIZE`, but that's
+// not exported by Vault currently.
+pub const DEFAULT_CLIENT_ACCOUNT_SIZE: u64 = 100;
+
+#[derive(RustcEncodable, RustcDecodable)]
+pub struct Storage {
+    data_store: HashMap<XorName, Vec<u8>>,
+    pub client_accounts: HashMap<XorName, ClientAccount>,
+}
+
+impl Storage {
+    pub fn new() -> Self {
+        if let Ok(mut file) = File::open(Self::path()) {
+            let mut raw_disk_data = Vec::with_capacity(unwrap!(file.metadata()).len() as usize);
+            if let Ok(_) = file.read_to_end(&mut raw_disk_data) {
+                if !raw_disk_data.is_empty() {
+                    if let Ok(parsed) = deserialise_with_limit(&raw_disk_data,
+                                                               SizeLimit::Infinite) {
+                        return parsed;
+                    }
+                }
+            }
+        }
+
+        Storage {
+            data_store: HashMap::new(),
+            client_accounts: HashMap::new(),
+        }
+    }
+
+    // Check if data with the given name is in the storage.
+    pub fn contains_data(&self, name: &XorName) -> bool {
+        self.data_store.contains_key(name)
+    }
+
+    // Load data with the given name from the storage.
+    pub fn get_data(&self, name: &XorName) -> Result<Data, StorageError> {
+        match self.data_store.get(name) {
+            Some(data) => deserialise(data).map_err(|_| StorageError::SerialisationError),
+            None => Err(StorageError::NoSuchData),
+        }
+    }
+
+    // Save the data to the storage.
+    pub fn put_data(&mut self, name: XorName, data: Data) -> Result<(), StorageError> {
+        match serialise(&data) {
+            Ok(data) => {
+                let _ = self.data_store.insert(name, data);
+                Ok(())
+            }
+            Err(_) => Err(StorageError::SerialisationError),
+        }
+    }
+
+    // Remove data from the storage.
+    pub fn remove_data(&mut self, name: &XorName) {
+        let _ = self.data_store.remove(name);
+    }
+
+    // Synchronize the storage with the disk.
+    pub fn sync(&self) {
+        let mut file = unwrap!(File::create(Self::path()));
+        let _ = file.write_all(&unwrap!(serialise_with_limit(self, SizeLimit::Infinite)));
+        unwrap!(file.sync_all());
+    }
+
+    fn path() -> PathBuf {
+        env::temp_dir().join(STORAGE_FILE_NAME)
+    }
+}
+
+#[derive(RustcEncodable, RustcDecodable)]
+pub struct ClientAccount {
+    pub data_stored: u64,
+    pub space_available: u64,
+}
+
+impl Default for ClientAccount {
+    fn default() -> ClientAccount {
+        ClientAccount {
+            data_stored: 0,
+            space_available: DEFAULT_CLIENT_ACCOUNT_SIZE,
+        }
+    }
+}
+
+pub enum StorageError {
+    NoSuchData,
+    SerialisationError,
+}
+
+impl From<StorageError> for GetError {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::NoSuchData => GetError::NoSuchData,
+            StorageError::SerialisationError => {
+                GetError::NetworkOther("Serialisation error".to_owned())
+            }
+        }
+    }
+}
+
+impl From<StorageError> for MutationError {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::NoSuchData => MutationError::NoSuchData,
+            StorageError::SerialisationError => {
+                MutationError::NetworkOther("Serialisation error".to_owned())
+            }
+        }
+    }
+}
