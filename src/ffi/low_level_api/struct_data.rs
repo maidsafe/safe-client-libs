@@ -516,7 +516,7 @@ pub extern "C" fn struct_data_free(handle: StructDataHandle) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use core::utility;
+    use core::{utility, CLIENT_STRUCTURED_DATA_TAG};
     use ffi::app::App;
     use ffi::errors::FfiError;
     use ffi::low_level_api::{CipherOptHandle, DataIdHandle, StructDataHandle};
@@ -676,6 +676,79 @@ mod tests {
             assert_eq!(nth_version(&app, sd_h, 1), data1);
 
             assert_eq!(extract_data(&app, sd_h), data1);
+
+            // Delete
+            assert_eq!(struct_data_delete(&app, sd_h), 0);
+            // -18 is CoreError::GetFailure { reason: GetError::NoSuchData }
+            assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), -18);
+        }
+    }
+
+    #[test]
+    fn client_struct_data_crud() {
+        let app = test_utils::create_app(false);
+
+        let mut cipher_opt_h: CipherOptHandle = 0;
+        let mut sd_h: StructDataHandle = 0;
+        let mut data_id_h: DataIdHandle = 0;
+
+        let name = rand::random();
+        let data0 = unwrap!(utility::generate_random_vector(10));
+        let data1 = unwrap!(utility::generate_random_vector(10));
+
+        unsafe {
+            assert_eq!(cipher_opt_new_symmetric(&mut cipher_opt_h), 0);
+
+            // Invalid client tag
+            assert_eq!(struct_data_new(&app,
+                                       CLIENT_STRUCTURED_DATA_TAG - 1,
+                                       &name,
+                                       cipher_opt_h,
+                                       data0.as_ptr(),
+                                       data0.len(),
+                                       &mut sd_h),
+                       FfiError::InvalidStructuredDataTypeTag.into());
+
+            // Create
+            assert_eq!(struct_data_new(&app,
+                                       CLIENT_STRUCTURED_DATA_TAG + 1,
+                                       &name,
+                                       cipher_opt_h,
+                                       data0.as_ptr(),
+                                       data0.len(),
+                                       &mut sd_h),
+                       0);
+            assert_eq!(struct_data_extract_data_id(sd_h, &mut data_id_h), 0);
+
+            // Put and re-fetch
+            assert_eq!(struct_data_put(&app, sd_h), 0);
+            assert_eq!(struct_data_free(sd_h), 0);
+            assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), 0);
+
+            // Check content
+            assert_eq!(extract_data(&app, sd_h), data0);
+
+            // Update the content
+            assert_eq!(struct_data_new_data(&app, sd_h, cipher_opt_h, data1.as_ptr(), data1.len()),
+                       0);
+
+            // Post and re-fetch
+            assert_eq!(struct_data_post(&app, sd_h), 0);
+            assert_eq!(struct_data_free(sd_h), 0);
+            assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), 0);
+
+            // Check content
+            assert_eq!(extract_data(&app, sd_h), data1);
+
+            // Invalid operations
+            let mut num_versions = 0;
+            assert_eq!(struct_data_num_of_versions(&app, sd_h, &mut num_versions),
+                       FfiError::InvalidStructuredDataTypeTag.into());
+
+            // Delete
+            assert_eq!(struct_data_delete(&app, sd_h), 0);
+            // -18 is CoreError::GetFailure { reason: GetError::NoSuchData }
+            assert_eq!(struct_data_fetch(&app, data_id_h, &mut sd_h), -18);
         }
     }
 
