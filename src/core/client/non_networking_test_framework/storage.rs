@@ -15,18 +15,10 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use bincode::SizeLimit;
-use maidsafe_utilities::serialisation::{deserialise, deserialise_with_limit, serialise,
-                                        serialise_with_limit};
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Data, XorName};
 use routing::client_errors::{GetError, MutationError};
 use std::collections::HashMap;
-use std::env;
-use std::fs::File;
-use std::io::{Read, Write};
-use std::path::PathBuf;
-
-const STORAGE_FILE_NAME: &'static str = "VaultStorageSimulation";
 
 // This should ideally be replaced with `safe_vault::maid_manager::DEFAULT_ACCOUNT_SIZE`, but that's
 // not exported by Vault currently.
@@ -40,22 +32,12 @@ pub struct Storage {
 
 impl Storage {
     pub fn new() -> Self {
-        if let Ok(mut file) = File::open(Self::path()) {
-            let mut raw_disk_data = Vec::with_capacity(unwrap!(file.metadata()).len() as usize);
-            if let Ok(_) = file.read_to_end(&mut raw_disk_data) {
-                if !raw_disk_data.is_empty() {
-                    if let Ok(parsed) = deserialise_with_limit(&raw_disk_data,
-                                                               SizeLimit::Infinite) {
-                        return parsed;
-                    }
-                }
+        sync::load().unwrap_or_else(|| {
+            Storage {
+                data_store: HashMap::new(),
+                client_accounts: HashMap::new(),
             }
-        }
-
-        Storage {
-            data_store: HashMap::new(),
-            client_accounts: HashMap::new(),
-        }
+        })
     }
 
     // Check if data with the given name is in the storage.
@@ -89,13 +71,7 @@ impl Storage {
 
     // Synchronize the storage with the disk.
     pub fn sync(&self) {
-        let mut file = unwrap!(File::create(Self::path()));
-        let _ = file.write_all(&unwrap!(serialise_with_limit(self, SizeLimit::Infinite)));
-        unwrap!(file.sync_all());
-    }
-
-    fn path() -> PathBuf {
-        env::temp_dir().join(STORAGE_FILE_NAME)
+        sync::save(self)
     }
 }
 
@@ -138,5 +114,52 @@ impl From<StorageError> for MutationError {
                 MutationError::NetworkOther("Serialisation error".to_owned())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod sync {
+    use super::Storage;
+
+    pub fn load() -> Option<Storage> {
+        None
+    }
+
+    pub fn save(_: &Storage) {}
+}
+
+#[cfg(not(test))]
+mod sync {
+    use bincode::SizeLimit;
+    use maidsafe_utilities::serialisation::{deserialise_with_limit, serialise_with_limit};
+    use std::env;
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use std::path::PathBuf;
+    use super::Storage;
+
+    const STORAGE_FILE_NAME: &'static str = "VaultStorageSimulation";
+
+    pub fn load() -> Option<Storage> {
+        if let Ok(mut file) = File::open(path()) {
+            let mut raw_disk_data = Vec::with_capacity(unwrap!(file.metadata()).len() as usize);
+            if let Ok(_) = file.read_to_end(&mut raw_disk_data) {
+                if !raw_disk_data.is_empty() {
+                    return deserialise_with_limit(&raw_disk_data, SizeLimit::Infinite).ok()
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn save(storage: &Storage) {
+        let mut file = unwrap!(File::create(path()));
+        let _ = file.write_all(&unwrap!(serialise_with_limit(storage, SizeLimit::Infinite)));
+        unwrap!(file.sync_all());
+    }
+
+    fn path() -> PathBuf {
+        env::temp_dir().join(STORAGE_FILE_NAME)
     }
 }
