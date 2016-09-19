@@ -57,8 +57,7 @@ impl DirectoryHelper {
                versioned,
                directory_name);
 
-        if parent_directory.iter()
-            .next()
+        if parent_directory.as_ref()
             .and_then(|dir| dir.find_sub_directory(&directory_name))
             .is_some() {
             return Err(NfsError::DirectoryAlreadyExistsWithSameName);
@@ -70,12 +69,11 @@ impl DirectoryHelper {
                                        user_metadata,
                                        versioned,
                                        access_level,
-                                       parent_directory.iter()
-                                           .next()
+                                       parent_directory.as_ref()
                                            .map(|directory| directory.get_key().clone())));
 
-        let structured_data = try!(self.save_directory_listing(&directory));
-        try!(Client::put_recover(self.client.clone(), Data::Structured(structured_data), None));
+        try!(self.save_directory_listing(&directory));
+
         if let Some(mut parent_directory) = parent_directory {
             parent_directory.upsert_sub_directory(directory.get_metadata().clone());
             Ok((directory, try!(self.update(parent_directory))))
@@ -222,7 +220,8 @@ impl DirectoryHelper {
 
     /// Returns the Configuration DirectoryListing from the configuration root folder
     /// Creates the directory or the root or both if it doesn't find one.
-    pub fn get_config_directory_listing(&self, directory_name: String)
+    pub fn get_config_directory_listing(&self,
+                                        directory_name: String)
                                         -> Result<DirectoryListing, NfsError> {
         trace!("Getting a configuration directory (from withing configuration root dir) with \
                 name: {}.",
@@ -280,13 +279,13 @@ impl DirectoryHelper {
     /// The StructuredData is created based on the version and AccessLevel of the DirectoryListing
     fn save_directory_listing(&self,
                               directory: &DirectoryListing)
-                              -> Result<StructuredData, NfsError> {
+                              -> Result<(), NfsError> {
         let signing_key = try!(unwrap!(self.client.lock()).get_secret_signing_key()).clone();
         let owner_key = *try!(unwrap!(self.client.lock()).get_public_signing_key());
         let access_level = directory.get_key().get_access_level();
         let versioned = directory.get_key().is_versioned();
 
-        if versioned {
+        let structured_data = if versioned {
             trace!("Converting directory listing to a versioned StructuredData.");
 
             let serialised_data = match *access_level {
@@ -294,14 +293,14 @@ impl DirectoryHelper {
                 AccessLevel::Public => try!(serialise(&directory)),
             };
             let version = try!(self.save_as_immutable_data(serialised_data));
-            Ok(try!(versioned::create(self.client.clone(),
-                                      version,
-                                      directory.get_key().get_type_tag(),
-                                      directory.get_key().get_id().clone(),
-                                      0,
-                                      vec![owner_key],
-                                      Vec::new(),
-                                      &signing_key)))
+            try!(versioned::create(self.client.clone(),
+                                   version,
+                                   directory.get_key().get_type_tag(),
+                                   directory.get_key().get_id().clone(),
+                                   0,
+                                   vec![owner_key],
+                                   Vec::new(),
+                                   &signing_key))
         } else {
             trace!("Converting directory listing to an unversioned StructuredData.");
 
@@ -314,16 +313,19 @@ impl DirectoryHelper {
                 AccessLevel::Private => Some((&private_key, &secret_key, &nonce)),
                 AccessLevel::Public => None,
             };
-            Ok(try!(unversioned::create(self.client.clone(),
-                                        directory.get_key().get_type_tag(),
-                                        directory.get_key().get_id().clone(),
-                                        0,
-                                        serialised_data,
-                                        vec![owner_key.clone()],
-                                        Vec::new(),
-                                        &signing_key,
-                                        encryption_keys)))
-        }
+            try!(unversioned::create(self.client.clone(),
+                                     directory.get_key().get_type_tag(),
+                                     directory.get_key().get_id().clone(),
+                                     0,
+                                     serialised_data,
+                                     vec![owner_key.clone()],
+                                     Vec::new(),
+                                     &signing_key,
+                                     encryption_keys))
+        };
+
+        try!(Client::put_recover(self.client.clone(), Data::Structured(structured_data), None));
+        Ok(())
     }
 
     fn update_directory_listing(&self, directory: &DirectoryListing) -> Result<(), NfsError> {

@@ -178,8 +178,7 @@ impl DirectoryListing {
         if let Some(index) = self.sub_directories
             .iter()
             .position(|entry| *entry.get_key().get_id() == *directory_metadata.get_key().get_id()) {
-            let mut existing = unwrap!(self.sub_directories.get_mut(index));
-            *existing = directory_metadata;
+            self.sub_directories[index] = directory_metadata;
         } else {
             self.sub_directories.push(directory_metadata);
         }
