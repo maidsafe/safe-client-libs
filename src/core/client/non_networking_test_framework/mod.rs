@@ -614,7 +614,7 @@ mod test {
     use core::client::message_queue::MessageQueue;
     use core::client::response_getter::{GetAccountInfoResponseGetter, GetResponseGetter,
                                         MutationResponseGetter};
-    use core::client::user_account::Account;
+    use core::client::account::Account;
     use core::errors::CoreError;
     use core::translated_events::NetworkEvent;
 
@@ -1294,7 +1294,7 @@ mod test {
     }
 
     fn create_account_and_full_id() -> (Account, FullId) {
-        let account = Account::new(None, None);
+        let account = Account::new();
         let id = FullId::with_keys((account.get_maid().public_keys().1,
                                     account.get_maid().secret_keys().1.clone()),
                                    (account.get_maid().public_keys().0,

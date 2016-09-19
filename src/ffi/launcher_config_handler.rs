@@ -164,7 +164,7 @@ impl ConfigHandler {
         trace!("Get Launcher's config directory.");
 
         let dir_helper = DirectoryHelper::new(self.client.clone());
-        let mut dir_listing = try!(dir_helper.get_configuration_directory_listing(
+        let mut dir_listing = try!(dir_helper.get_config_directory_listing(
             LAUNCHER_GLOBAL_DIRECTORY_NAME.to_string()));
 
         let global_configs = {

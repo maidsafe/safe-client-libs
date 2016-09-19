@@ -25,6 +25,7 @@ use nfs::directory_listing::DirectoryListing;
 use nfs::errors::NfsError;
 use nfs::metadata::directory_key::DirectoryKey;
 use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XorName};
+use rust_sodium::crypto::secretbox;
 use std::sync::{Arc, Mutex};
 
 /// DirectoryHelper provides helper functions to perform Operations on Directory
@@ -192,10 +193,10 @@ impl DirectoryHelper {
         trace!("Getting the user root directory listing.");
 
         let root_directory_id = unwrap!(self.client.lock())
-            .get_user_root_directory_id()
+            .get_user_root_dir()
             .cloned();
         match root_directory_id {
-            Some(id) => {
+            Some((id, _)) => {
                 self.get(&DirectoryKey::new(id,
                                             ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
                                             false,
@@ -211,8 +212,9 @@ impl DirectoryHelper {
                                      false,
                                      AccessLevel::Private,
                                      None));
-                try!(unwrap!(self.client.lock())
-                    .set_user_root_directory_id(created_directory.get_key().get_id().clone()));
+                let id = *created_directory.get_key().get_id();
+                let key = secretbox::gen_key();
+                try!(unwrap!(self.client.lock()).set_user_root_dir((id, key)));
                 Ok(created_directory)
             }
         }
@@ -220,18 +222,17 @@ impl DirectoryHelper {
 
     /// Returns the Configuration DirectoryListing from the configuration root folder
     /// Creates the directory or the root or both if it doesn't find one.
-    pub fn get_configuration_directory_listing(&self,
-                                               directory_name: String)
-                                               -> Result<DirectoryListing, NfsError> {
+    pub fn get_config_directory_listing(&self, directory_name: String)
+                                        -> Result<DirectoryListing, NfsError> {
         trace!("Getting a configuration directory (from withing configuration root dir) with \
                 name: {}.",
                directory_name);
 
         let config_dir_id = unwrap!(self.client.lock())
-            .get_configuration_root_directory_id()
+            .get_config_root_dir()
             .cloned();
         let mut config_directory_listing = match config_dir_id {
-            Some(id) => {
+            Some((id, _)) => {
                 try!(self.get(&DirectoryKey::new(id,
                                                  ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                  false,
@@ -247,10 +248,9 @@ impl DirectoryHelper {
                                      false,
                                      AccessLevel::Private,
                                      None));
-                try!(unwrap!(self.client.lock())
-                    .set_configuration_root_directory_id(created_directory.get_key()
-                        .get_id()
-                        .clone()));
+                let id = *created_directory.get_key().get_id();
+                let key = secretbox::gen_key();
+                try!(unwrap!(self.client.lock()).set_config_root_dir((id, key)));
                 created_directory
             }
         };
@@ -536,11 +536,11 @@ mod test {
         let test_client = unwrap!(test_utils::get_client());
         let client = Arc::new(Mutex::new(test_client));
         let dir_helper = DirectoryHelper::new(client.clone());
-        let config_dir = unwrap!(dir_helper.get_configuration_directory_listing("DNS".to_string()));
+        let config_dir = unwrap!(dir_helper.get_config_directory_listing("DNS".to_string()));
         assert_eq!(config_dir.get_metadata().get_name().clone(),
                    "DNS".to_string());
         let id = config_dir.get_key().get_id();
-        let config_dir = unwrap!(dir_helper.get_configuration_directory_listing("DNS".to_string()));
+        let config_dir = unwrap!(dir_helper.get_config_directory_listing("DNS".to_string()));
         assert_eq!(config_dir.get_key().get_id(), id);
     }
 

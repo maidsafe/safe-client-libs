@@ -18,7 +18,7 @@
 /// Lazy evaluated response getter.
 pub mod response_getter;
 
-mod user_account;
+mod account;
 mod message_queue;
 
 #[cfg(feature = "use-mock-routing")]
@@ -38,7 +38,7 @@ use routing::Client as Routing;
 use routing::TYPE_TAG_SESSION_PACKET;
 use routing::client_errors::MutationError;
 use routing::messaging::{MpidMessage, MpidMessageWrapper};
-use rust_sodium::crypto::{box_, sign};
+use rust_sodium::crypto::{box_, secretbox, sign};
 use rust_sodium::crypto::hash::sha256;
 
 use self::message_queue::MessageQueue;
@@ -47,7 +47,7 @@ use self::message_queue::MessageQueue;
 use self::non_networking_test_framework::RoutingMock as Routing;
 use self::response_getter::{GetAccountInfoResponseGetter, GetResponseGetter,
                             MutationResponseGetter};
-use self::user_account::Account;
+use self::account::Account;
 use std::sync::{Arc, Mutex, mpsc};
 use std::sync::mpsc::Sender;
 
@@ -118,7 +118,7 @@ impl Client {
 
         let (password, keyword, pin) = utility::derive_secrets(acc_locator, acc_password);
 
-        let account_packet = Account::new(None, None);
+        let account_packet = Account::new();
         let id_packet = FullId::with_keys((account_packet.get_maid().public_keys().1,
                                            account_packet.get_maid().secret_keys().1.clone()),
                                           (account_packet.get_maid().public_keys().0,
@@ -254,24 +254,24 @@ impl Client {
         }
     }
 
-    /// Create an entry for the Root Directory ID for the user into the session packet, encrypt and
+    /// Create an entry for the Root Directory ID/key for the user into the session packet, encrypt and
     /// store it. It will be retrieved when the user logs into their account. Root directory ID is
     /// necessary to fetch all of the user's data as all further data is encoded as meta-information
     /// into the Root Directory or one of its subdirectories.
-    pub fn set_user_root_directory_id(&mut self, root_dir_id: XorName) -> Result<(), CoreError> {
-        trace!("Setting user root Dir ID.");
+    pub fn set_user_root_dir(&mut self, dir: (XorName, secretbox::Key)) -> Result<(), CoreError> {
+        trace!("Setting user root directory details.");
 
         if try!(self.account.as_mut().ok_or(CoreError::OperationForbiddenForClient))
-            .set_user_root_dir_id(root_dir_id) {
+            .set_user_root_dir(dir) {
             self.update_session_packet()
         } else {
             Err(CoreError::RootDirectoryAlreadyExists)
         }
     }
 
-    /// Get User's Root Directory ID if available in session packet used for current login
-    pub fn get_user_root_directory_id(&self) -> Option<&XorName> {
-        self.account.as_ref().and_then(|account| account.get_user_root_dir_id())
+    /// Get User's Root Directory ID/key if available in session packet used for current login
+    pub fn get_user_root_dir(&self) -> Option<&(XorName, secretbox::Key)> {
+        self.account.as_ref().and_then(Account::get_user_root_dir)
     }
 
     /// Create an entry for the Maidsafe configuration specific Root Directory ID into the
@@ -279,13 +279,11 @@ impl Client {
     /// their account. Root directory ID is necessary to fetch all of configuration data as all
     /// further data is encoded as meta-information into the config Root Directory or one of its
     /// subdirectories.
-    pub fn set_configuration_root_directory_id(&mut self,
-                                               root_dir_id: XorName)
-                                               -> Result<(), CoreError> {
-        trace!("Setting configuration root Dir ID.");
+    pub fn set_config_root_dir(&mut self, dir: (XorName, secretbox::Key)) -> Result<(), CoreError> {
+        trace!("Setting configuration root directory details.");
 
         if try!(self.account.as_mut().ok_or(CoreError::OperationForbiddenForClient))
-            .set_maidsafe_config_root_dir_id(root_dir_id) {
+            .set_config_root_dir(dir) {
             self.update_session_packet()
         } else {
             Err(CoreError::RootDirectoryAlreadyExists)
@@ -294,8 +292,8 @@ impl Client {
 
     /// Get Maidsafe specific configuration's Root Directory ID if available in session packet used
     /// for current login
-    pub fn get_configuration_root_directory_id(&self) -> Option<&XorName> {
-        self.account.as_ref().and_then(|account| account.get_maidsafe_config_root_dir_id())
+    pub fn get_config_root_dir(&self) -> Option<&(XorName, secretbox::Key)> {
+        self.account.as_ref().and_then(Account::get_config_root_dir)
     }
 
     /// Combined Asymmetric and Symmetric encryption. The data is encrypted using random Key and
@@ -847,6 +845,7 @@ mod test {
     use rand;
     use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XOR_NAME_LEN, XorName};
     use routing::client_errors::MutationError;
+    use rust_sodium::crypto::secretbox;
     use super::*;
 
     #[test]
@@ -900,10 +899,11 @@ mod test {
         assert_eq!(rxd_data, orig_data);
 
         // Operations Not Allowed for Unregistered Client
-        let rand_name: XorName = rand::random();
+        let rand_name = rand::random();
+        let rand_key = secretbox::gen_key();
 
-        match (unregistered_client.set_user_root_directory_id(rand_name),
-               unregistered_client.set_configuration_root_directory_id(rand_name)) {
+        match (unregistered_client.set_user_root_dir((rand_name, rand_key.clone())),
+               unregistered_client.set_config_root_dir((rand_name, rand_key))) {
             (Err(CoreError::OperationForbiddenForClient),
              Err(CoreError::OperationForbiddenForClient)) => (),
             _ => panic!("Unexpected !!"),
@@ -918,19 +918,20 @@ mod test {
 
         let mut client = unwrap!(Client::create_account(&secret_0, &secret_1));
 
-        assert!(client.get_user_root_directory_id().is_none());
-        assert!(client.get_configuration_root_directory_id().is_none());
+        assert!(client.get_user_root_dir().is_none());
+        assert!(client.get_config_root_dir().is_none());
 
         let root_dir_id = XorName([99u8; XOR_NAME_LEN]);
-        unwrap!(client.set_user_root_directory_id(root_dir_id.clone()));
+        let root_dir_key = secretbox::gen_key();
+        unwrap!(client.set_user_root_dir((root_dir_id, root_dir_key.clone())));
 
         // Correct Credentials - Login Should Pass
         let client = unwrap!(Client::log_in(&secret_0, &secret_1));
 
-        assert!(client.get_user_root_directory_id().is_some());
-        assert!(client.get_configuration_root_directory_id().is_none());
+        assert!(client.get_user_root_dir().is_some());
+        assert!(client.get_config_root_dir().is_none());
 
-        assert_eq!(client.get_user_root_directory_id(), Some(&root_dir_id));
+        assert_eq!(client.get_user_root_dir(), Some(&(root_dir_id, root_dir_key)));
     }
 
     #[test]
@@ -941,20 +942,21 @@ mod test {
 
         let mut client = unwrap!(Client::create_account(&secret_0, &secret_1));
 
-        assert!(client.get_user_root_directory_id().is_none());
-        assert!(client.get_configuration_root_directory_id().is_none());
+        assert!(client.get_user_root_dir().is_none());
+        assert!(client.get_config_root_dir().is_none());
 
         let root_dir_id = XorName([99u8; XOR_NAME_LEN]);
-        unwrap!(client.set_configuration_root_directory_id(root_dir_id.clone()));
+        let root_dir_key = secretbox::gen_key();
+        unwrap!(client.set_config_root_dir((root_dir_id, root_dir_key.clone())));
 
         // Correct Credentials - Login Should Pass
         let client = unwrap!(Client::log_in(&secret_0, &secret_1));
 
-        assert!(client.get_user_root_directory_id().is_none());
-        assert!(client.get_configuration_root_directory_id().is_some());
+        assert!(client.get_user_root_dir().is_none());
+        assert!(client.get_config_root_dir().is_some());
 
-        assert_eq!(client.get_configuration_root_directory_id(),
-                   Some(&root_dir_id));
+        assert_eq!(client.get_config_root_dir(),
+                   Some(&(root_dir_id, root_dir_key)));
     }
 
     #[test]
