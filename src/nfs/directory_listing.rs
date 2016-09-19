@@ -15,10 +15,6 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use core::SelfEncryptionStorage;
-
-use core::client::Client;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::AccessLevel;
 use nfs::errors::NfsError;
 use nfs::file::File;
@@ -26,9 +22,7 @@ use nfs::metadata::directory_key::DirectoryKey;
 use nfs::metadata::directory_metadata::DirectoryMetadata;
 use routing::XorName;
 use rust_sodium::crypto::box_;
-use self_encryption::{DataMap, SelfEncryptor};
 use std::cmp;
-use std::sync::{Arc, Mutex};
 
 /// DirectoryListing is the representation of a deserialised Directory in the network
 #[derive(Debug, RustcEncodable, RustcDecodable, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -94,40 +88,6 @@ impl DirectoryListing {
     /// listing of subdirectories
     pub fn get_mut_sub_directories(&mut self) -> &mut Vec<DirectoryMetadata> {
         &mut self.sub_directories
-    }
-
-    /// Decrypts a directory listing
-    pub fn decrypt(client: Arc<Mutex<Client>>,
-                   directory_id: &XorName,
-                   data: Vec<u8>)
-                   -> Result<DirectoryListing, NfsError> {
-        trace!("Self-decrypting directory listing.");
-
-        let decrypted_data_map = try!(unwrap!(client.lock())
-            .hybrid_decrypt(&data, Some(&DirectoryListing::generate_nonce(directory_id))));
-        let data_map: DataMap = try!(deserialise(&decrypted_data_map));
-        let mut storage = SelfEncryptionStorage::new(client.clone());
-        let mut self_encryptor = try!(SelfEncryptor::new(&mut storage, data_map));
-        let length = self_encryptor.len();
-        let serialised_directory_listing = try!(self_encryptor.read(0, length));
-        Ok(try!(deserialise(&serialised_directory_listing)))
-    }
-
-    /// Encrypts the directory listing
-    pub fn encrypt(&self, client: Arc<Mutex<Client>>) -> Result<Vec<u8>, NfsError> {
-        trace!("Self-encrypting directory listing.");
-
-        let serialised_data = try!(serialise(&self));
-        let mut storage = SelfEncryptionStorage::new(client.clone());
-        let mut self_encryptor = try!(SelfEncryptor::new(&mut storage, DataMap::None));
-        debug!("Writing to storage using self encryption ...");
-        try!(self_encryptor.write(&serialised_data, 0));
-        let data_map = try!(self_encryptor.close());
-        let serialised_data_map = try!(serialise(&data_map));
-        Ok(try!(unwrap!(client.lock())
-            .hybrid_encrypt(&serialised_data_map,
-                            Some(&DirectoryListing::generate_nonce(&self.get_key()
-                                .get_id())))))
     }
 
     /// Get DirectoryInfo of sub_directory within a DirectoryListing.
@@ -217,13 +177,11 @@ impl DirectoryListing {
 
 #[cfg(test)]
 mod test {
-    use core::utility::test_utils;
     use maidsafe_utilities::serialisation::{deserialise, serialise};
     use nfs::AccessLevel;
     use nfs::file::File;
     use nfs::metadata::file_metadata::FileMetadata;
     use self_encryption::DataMap;
-    use std::sync::{Arc, Mutex};
     use super::DirectoryListing;
 
     #[test]
@@ -240,24 +198,6 @@ mod test {
         let serialised_data = unwrap!(serialise(&obj_before));
         let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);
-    }
-
-    #[test]
-    fn encrypt_and_decrypt_directory_listing() {
-        let test_client = unwrap!(test_utils::get_client());
-        let client = Arc::new(Mutex::new(test_client));
-        let directory_listing = unwrap!(DirectoryListing::new("Home".to_string(),
-                                                              10,
-                                                              Vec::new(),
-                                                              true,
-                                                              AccessLevel::Private,
-                                                              None));
-        let encrypted_data = unwrap!(directory_listing.encrypt(client.clone()));
-        let decrypted_listing = unwrap!(DirectoryListing::decrypt(client.clone(),
-                                                                  directory_listing.get_key()
-                                                                      .get_id(),
-                                                                  encrypted_data));
-        assert_eq!(directory_listing, decrypted_listing);
     }
 
     #[test]

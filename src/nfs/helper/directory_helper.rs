@@ -24,8 +24,8 @@ use nfs::AccessLevel;
 use nfs::directory_listing::DirectoryListing;
 use nfs::errors::NfsError;
 use nfs::metadata::directory_key::DirectoryKey;
-use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XorName};
-use rust_sodium::crypto::secretbox;
+use routing::{Data, DataIdentifier, StructuredData, XorName};
+use rust_sodium::crypto::{box_, secretbox};
 use std::sync::{Arc, Mutex};
 
 /// DirectoryHelper provides helper functions to perform Operations on Directory
@@ -72,7 +72,7 @@ impl DirectoryHelper {
                                        parent_directory.as_ref()
                                            .map(|directory| directory.get_key().clone())));
 
-        try!(self.save_directory_listing(&directory));
+        try!(self.create_directory_listing(&directory));
 
         if let Some(mut parent_directory) = parent_directory {
             parent_directory.upsert_sub_directory(directory.get_metadata().clone());
@@ -124,7 +124,7 @@ impl DirectoryHelper {
         trace!("Getting all versions of a versioned directory.");
 
         let structured_data = try!(self.get_structured_data(directory_id, type_tag));
-        Ok(try!(versioned::get_all_versions(self.client.clone(), &structured_data)))
+        Ok(try!(versioned::get_all_version_names(self.client.clone(), &structured_data)))
     }
 
     /// Return the DirectoryListing for the specified version
@@ -135,15 +135,11 @@ impl DirectoryHelper {
                           -> Result<DirectoryListing, NfsError> {
         trace!("Getting a version of a versioned directory.");
 
-        let immutable_data = try!(self.get_immutable_data(version));
-        match *access_level {
-            AccessLevel::Private => {
-                DirectoryListing::decrypt(self.client.clone(),
-                                          directory_id,
-                                          immutable_data.value().clone())
-            }
-            AccessLevel::Public => Ok(try!(deserialise(immutable_data.value()))),
-        }
+        let encryption_keys = try!(self.get_encryption_keys(access_level, &directory_id));
+        let encryption_keys = encryption_keys.as_ref().map(|&(ref pk, ref sk, ref n)| (pk, sk, n));
+
+        let encoded = try!(versioned::get_data(self.client.clone(), &version, encryption_keys));
+        Ok(try!(deserialise(&encoded)))
     }
 
     /// Return the DirectoryListing for the latest version
@@ -163,21 +159,8 @@ impl DirectoryHelper {
         } else {
             trace!("Getting an unversioned directory listing.");
 
-            let private_key;
-            let secret_key;
-            let nonce;
-
-            let encryption_keys = match *access_level {
-                AccessLevel::Private => {
-                    private_key = *try!(unwrap!(self.client.lock()).get_public_encryption_key());
-                    secret_key = try!(unwrap!(self.client.lock()).get_secret_encryption_key())
-                        .clone();
-                    nonce = DirectoryListing::generate_nonce(directory_id);
-
-                    Some((&private_key, &secret_key, &nonce))
-                }
-                AccessLevel::Public => None,
-            };
+            let encryption_keys = try!(self.get_encryption_keys(access_level, &directory_id));
+            let encryption_keys = encryption_keys.as_ref().map(|&(ref pk, ref sk, ref n)| (pk, sk, n));
 
             let structured_data = try!(self.get_structured_data(directory_id, type_tag));
             let serialised_directory_listing =
@@ -277,49 +260,35 @@ impl DirectoryHelper {
 
     /// Creates a StructuredData in the Network
     /// The StructuredData is created based on the version and AccessLevel of the DirectoryListing
-    fn save_directory_listing(&self,
-                              directory: &DirectoryListing)
-                              -> Result<(), NfsError> {
+    fn create_directory_listing(&self, directory: &DirectoryListing) -> Result<(), NfsError> {
         let signing_key = try!(unwrap!(self.client.lock()).get_secret_signing_key()).clone();
         let owner_key = *try!(unwrap!(self.client.lock()).get_public_signing_key());
         let access_level = directory.get_key().get_access_level();
         let versioned = directory.get_key().is_versioned();
 
+        let encryption_keys = try!(self.get_encryption_keys(access_level, directory.get_key().get_id()));
+        let encryption_keys = encryption_keys.as_ref().map(|&(ref pk, ref sk, ref n)| (pk, sk, n));
+
+        let serialised_data = try!(serialise(&directory));
+
         let structured_data = if versioned {
             trace!("Converting directory listing to a versioned StructuredData.");
-
-            let serialised_data = match *access_level {
-                AccessLevel::Private => try!(directory.encrypt(self.client.clone())),
-                AccessLevel::Public => try!(serialise(&directory)),
-            };
-            let version = try!(self.save_as_immutable_data(serialised_data));
             try!(versioned::create(self.client.clone(),
-                                   version,
                                    directory.get_key().get_type_tag(),
                                    directory.get_key().get_id().clone(),
-                                   0,
+                                   serialised_data,
                                    vec![owner_key],
-                                   Vec::new(),
-                                   &signing_key))
+                                   &signing_key,
+                                   encryption_keys))
         } else {
             trace!("Converting directory listing to an unversioned StructuredData.");
-
-            let private_key = *try!(unwrap!(self.client.lock()).get_public_encryption_key());
-            let secret_key = try!(unwrap!(self.client.lock()).get_secret_encryption_key()).clone();
-            let nonce = DirectoryListing::generate_nonce(directory.get_key().get_id());
-            let serialised_data = try!(serialise(&directory));
-
-            let encryption_keys = match *access_level {
-                AccessLevel::Private => Some((&private_key, &secret_key, &nonce)),
-                AccessLevel::Public => None,
-            };
             try!(unversioned::create(self.client.clone(),
                                      directory.get_key().get_type_tag(),
                                      directory.get_key().get_id().clone(),
                                      0,
                                      serialised_data,
-                                     vec![owner_key.clone()],
-                                     Vec::new(),
+                                     vec![owner_key],
+                                     vec![],
                                      &signing_key,
                                      encryption_keys))
         };
@@ -337,40 +306,30 @@ impl DirectoryHelper {
         let access_level = directory.get_key().get_access_level();
         let versioned = directory.get_key().is_versioned();
 
+        let encryption_keys = try!(self.get_encryption_keys(access_level, directory.get_key().get_id()));
+        let encryption_keys = encryption_keys.as_ref().map(|&(ref pk, ref sk, ref n)| (pk, sk, n));
+
+        let serialised_data = try!(serialise(&directory));
+
         let updated_structured_data = if versioned {
             trace!("Updating directory listing with a new one (will convert DL to a versioned \
                     StructuredData).");
-
-            let serialised_data = match *access_level {
-                AccessLevel::Private => try!(directory.encrypt(self.client.clone())),
-                AccessLevel::Public => try!(serialise(&directory)),
-            };
-            let version = try!(self.save_as_immutable_data(serialised_data));
-            try!(versioned::append_version(self.client.clone(),
-                                           structured_data,
-                                           version,
-                                           &signing_key,
-                                           true))
+            try!(versioned::update(self.client.clone(),
+                                   structured_data,
+                                   serialised_data,
+                                   &signing_key,
+                                   encryption_keys,
+                                   true))
         } else {
             trace!("Updating directory listing with a new one (will convert DL to an unversioned \
                     StructuredData).");
-
-            let private_key = *try!(unwrap!(self.client.lock()).get_public_encryption_key());
-            let secret_key = try!(unwrap!(self.client.lock()).get_secret_encryption_key()).clone();
-            let nonce = DirectoryListing::generate_nonce(directory.get_key().get_id());
-            let serialised_data = try!(serialise(&directory));
-
-            let encryption_keys = match *access_level {
-                AccessLevel::Private => Some((&private_key, &secret_key, &nonce)),
-                AccessLevel::Public => None,
-            };
             try!(unversioned::create(self.client.clone(),
                                      directory.get_key().get_type_tag(),
                                      directory.get_key().get_id().clone(),
                                      structured_data.get_version() + 1,
                                      serialised_data,
-                                     vec![owner_key.clone()],
-                                     Vec::new(),
+                                     vec![owner_key],
+                                     vec![],
                                      &signing_key,
                                      encryption_keys))
         };
@@ -381,13 +340,21 @@ impl DirectoryHelper {
         Ok(())
     }
 
-    /// Saves the data as ImmutableData in the network and returns the name
-    fn save_as_immutable_data(&self, data: Vec<u8>) -> Result<XorName, NfsError> {
-        let immutable_data = ImmutableData::new(data);
-        let name = *immutable_data.name();
-        debug!("Posting PUT request to save immutable data to the network ...");
-        try!(Client::put_recover(self.client.clone(), Data::Immutable(immutable_data), None));
-        Ok(name)
+    fn get_encryption_keys(&self,
+                           access_level: &AccessLevel,
+                           directory_id: &XorName)
+                           -> Result<Option<(box_::PublicKey, box_::SecretKey, box_::Nonce)>, NfsError> {
+        match *access_level {
+            AccessLevel::Private => {
+                let private_key = *try!(unwrap!(self.client.lock()).get_public_encryption_key());
+                let secret_key = try!(unwrap!(self.client.lock()).get_secret_encryption_key())
+                    .clone();
+                let nonce = DirectoryListing::generate_nonce(directory_id);
+
+                Ok(Some((private_key, secret_key, nonce)))
+            }
+            AccessLevel::Public => Ok(None),
+        }
     }
 
     /// Get StructuredData from the Network
@@ -397,17 +364,6 @@ impl DirectoryHelper {
         let response_getter = try!(unwrap!(self.client.lock()).get(request, None));
         match try!(response_getter.get()) {
             Data::Structured(structured_data) => Ok(structured_data),
-            _ => Err(NfsError::from(CoreError::ReceivedUnexpectedData)),
-        }
-    }
-
-    /// Get ImmutableData from the Network
-    fn get_immutable_data(&self, id: XorName) -> Result<ImmutableData, NfsError> {
-        let request = DataIdentifier::Immutable(id);
-        debug!("Getting immutable data from the network ...");
-        let response_getter = try!(unwrap!(self.client.lock()).get(request, None));
-        match try!(response_getter.get()) {
-            Data::Immutable(immutable_data) => Ok(immutable_data),
             _ => Err(NfsError::from(CoreError::ReceivedUnexpectedData)),
         }
     }

@@ -40,14 +40,16 @@ enum DataTypeEncoding {
 /// defined in this module to get_data()
 #[cfg_attr(feature="clippy", allow(too_many_arguments))]
 pub fn create(client: Arc<Mutex<Client>>,
-              tag_type: u64,
+              type_tag: u64,
               id: XorName,
               version: u64,
               data: Vec<u8>,
               owner_keys: Vec<sign::PublicKey>,
               prev_owner_keys: Vec<sign::PublicKey>,
               private_signing_key: &sign::SecretKey,
-              data_encryption_keys: Option<(&box_::PublicKey, &box_::SecretKey, &box_::Nonce)>)
+              data_encryption_keys: Option<(&box_::PublicKey,
+                                            &box_::SecretKey,
+                                            &box_::Nonce)>)
               -> Result<StructuredData, CoreError> {
     trace!("Creating unversioned StructuredData.");
 
@@ -61,7 +63,7 @@ pub fn create(client: Arc<Mutex<Client>>,
         DataFitResult::DataFits => {
             trace!("Data fits in the StructuredData.");
 
-            Ok(try!(StructuredData::new(tag_type,
+            Ok(try!(StructuredData::new(type_tag,
                                         id,
                                         version,
                                         data_to_store,
@@ -88,7 +90,7 @@ pub fn create(client: Arc<Mutex<Client>>,
                     trace!("DataMap (encrypted: {}) fits in the StructuredData.",
                            data_encryption_keys.is_some());
 
-                    Ok(try!(StructuredData::new(tag_type,
+                    Ok(try!(StructuredData::new(type_tag,
                                                 id,
                                                 version,
                                                 data_to_store,
@@ -115,7 +117,7 @@ pub fn create(client: Arc<Mutex<Client>>,
                                                                         prev_owner_keys.clone())) {
                         DataFitResult::DataFits => {
                             trace!("ImmutableData name fits in StructuredData");
-                            Ok(try!(StructuredData::new(tag_type,
+                            Ok(try!(StructuredData::new(type_tag,
                                                         id,
                                                         version,
                                                         data_to_store,
@@ -198,8 +200,10 @@ fn get_decoded_stored_data(raw_data: &[u8],
     let data: _;
     let data_to_deserialise = if let Some((public_encryp_key, secret_encryp_key, nonce)) =
                                      data_decryption_keys {
-        data =
-            try!(utility::hybrid_decrypt(&raw_data, nonce, public_encryp_key, secret_encryp_key));
+        data = try!(utility::hybrid_decrypt(&raw_data,
+                                            nonce,
+                                            public_encryp_key,
+                                            secret_encryp_key));
         &data
     } else {
         raw_data

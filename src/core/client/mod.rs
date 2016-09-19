@@ -296,62 +296,6 @@ impl Client {
         self.account.as_ref().and_then(Account::get_config_root_dir)
     }
 
-    /// Combined Asymmetric and Symmetric encryption. The data is encrypted using random Key and
-    /// IV with Xsalsa-symmetric encryption. Random IV ensures that same plain text produces
-    /// different cipher-texts for each fresh symmetric encryption. The Key and IV are then
-    /// asymmetrically encrypted using Public-MAID and the whole thing is then serialised into a
-    /// single `Vec<u8>`.
-    pub fn hybrid_encrypt(&self,
-                          data_to_encrypt: &[u8],
-                          nonce_opt: Option<&box_::Nonce>)
-                          -> Result<Vec<u8>, CoreError> {
-        let account = try!(self.account.as_ref().ok_or(CoreError::OperationForbiddenForClient));
-
-        let mut nonce_default = box_::Nonce([0u8; box_::NONCEBYTES]);
-        let nonce = match nonce_opt {
-            Some(nonce) => nonce,
-            None => {
-                let digest = sha256::hash(&account.get_public_maid().name().0);
-                let min_length = ::std::cmp::min(box_::NONCEBYTES, digest.0.len());
-                for it in digest.0.iter().take(min_length).enumerate() {
-                    nonce_default.0[it.0] = *it.1;
-                }
-                &nonce_default
-            }
-        };
-
-        utility::hybrid_encrypt(data_to_encrypt,
-                                nonce,
-                                &account.get_public_maid().public_keys().1,
-                                &account.get_maid().secret_keys().1)
-    }
-
-    /// Reverse of hybrid_encrypt. Refer hybrid_encrypt.
-    pub fn hybrid_decrypt(&self,
-                          data_to_decrypt: &[u8],
-                          nonce_opt: Option<&box_::Nonce>)
-                          -> Result<Vec<u8>, CoreError> {
-        let account = try!(self.account.as_ref().ok_or(CoreError::OperationForbiddenForClient));
-
-        let mut nonce_default = box_::Nonce([0u8; box_::NONCEBYTES]);
-        let nonce = match nonce_opt {
-            Some(nonce) => nonce,
-            None => {
-                let digest = sha256::hash(&account.get_public_maid().name().0);
-                let min_length = ::std::cmp::min(box_::NONCEBYTES, digest.0.len());
-                for it in digest.0.iter().take(min_length).enumerate() {
-                    nonce_default.0[it.0] = *it.1;
-                }
-                &nonce_default
-            }
-        };
-
-        utility::hybrid_decrypt(data_to_decrypt,
-                                nonce,
-                                &account.get_public_maid().public_keys().1,
-                                &account.get_maid().secret_keys().1)
-    }
-
     /// Get data from the network. This is non-blocking.
     pub fn get(&mut self,
                request_for: DataIdentifier,
@@ -957,67 +901,6 @@ mod test {
 
         assert_eq!(client.get_config_root_dir(),
                    Some(&(root_dir_id, root_dir_key)));
-    }
-
-    #[test]
-    fn hybrid_encryption_decryption() {
-        // Construct Client
-        let secret_0 = unwrap!(utility::generate_random_string(10));
-        let secret_1 = unwrap!(utility::generate_random_string(10));
-
-        let client = unwrap!(Client::create_account(&secret_0, &secret_1));
-
-        // Identical Plain Texts
-        let plain_text_original_0 = vec![123u8; 1000];
-        let plain_text_original_1 = plain_text_original_0.clone();
-
-        // Encrypt passing Nonce
-        let nonce = ::rust_sodium::crypto::box_::gen_nonce();
-        let cipher_text_0 =
-            unwrap!(client.hybrid_encrypt(&plain_text_original_0[..], Some(&nonce)));
-        let cipher_text_1 =
-            unwrap!(client.hybrid_encrypt(&plain_text_original_1[..], Some(&nonce)));
-
-        // Encrypt without passing Nonce
-        let cipher_text_2 = unwrap!(client.hybrid_encrypt(&plain_text_original_0[..], None));
-        let cipher_text_3 = unwrap!(client.hybrid_encrypt(&plain_text_original_1[..], None));
-
-        // Same Plain Texts
-        assert_eq!(plain_text_original_0, plain_text_original_1);
-
-        // Different Results because of random "iv"
-        assert!(cipher_text_0 != cipher_text_1);
-        assert!(cipher_text_0 != cipher_text_2);
-        assert!(cipher_text_0 != cipher_text_3);
-        assert!(cipher_text_2 != cipher_text_1);
-        assert!(cipher_text_2 != cipher_text_3);
-
-        // Decrypt with Nonce
-        let plain_text_0 = unwrap!(client.hybrid_decrypt(&cipher_text_0, Some(&nonce)));
-        let plain_text_1 = unwrap!(client.hybrid_decrypt(&cipher_text_1, Some(&nonce)));
-
-        // Decrypt without Nonce
-        let plain_text_2 = unwrap!(client.hybrid_decrypt(&cipher_text_2, None));
-        let plain_text_3 = unwrap!(client.hybrid_decrypt(&cipher_text_3, None));
-
-        // Decryption without passing Nonce for something encrypted with passing Nonce - Should Fail
-        match client.hybrid_decrypt(&cipher_text_0, None) {
-            Ok(_) => panic!("Should have failed !"),
-            Err(CoreError::AsymmetricDecipherFailure) => (),
-            Err(error) => panic!("{:?}", error),
-        }
-        // Decryption passing Nonce for something encrypted without passing Nonce - Should Fail
-        match client.hybrid_decrypt(&cipher_text_3, Some(&nonce)) {
-            Ok(_) => panic!("Should have failed !"),
-            Err(CoreError::AsymmetricDecipherFailure) => (),
-            Err(error) => panic!("{:?}", error),
-        }
-
-        // Should have decrypted to the same Plain Texts
-        assert_eq!(plain_text_original_0, plain_text_0);
-        assert_eq!(plain_text_original_1, plain_text_1);
-        assert_eq!(plain_text_original_0, plain_text_2);
-        assert_eq!(plain_text_original_1, plain_text_3);
     }
 
     #[test]
