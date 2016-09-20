@@ -21,7 +21,7 @@ use core::errors::CoreError;
 use core::structured_data_operations::unversioned;
 use dns::errors::DnsError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use nfs::metadata::directory_key::DirectoryKey;
+use nfs::metadata::DirectoryKey;
 use routing::{Data, DataIdentifier, StructuredData, XorName};
 use routing::TYPE_TAG_DNS_PACKET;
 use routing::client_errors::{GetError, MutationError};
@@ -351,8 +351,7 @@ mod test {
     use core::client::Client;
     use core::utility::{generate_random_string, test_utils};
     use dns::errors::DnsError;
-    use nfs::AccessLevel;
-    use nfs::metadata::directory_key::DirectoryKey;
+    use nfs::metadata::DirectoryKey;
     use routing::{XOR_NAME_LEN, XorName};
     use rust_sodium::crypto::box_;
     use std::sync::{Arc, Mutex};
@@ -505,17 +504,17 @@ mod test {
                                  DirectoryKey::new(XorName([123; XOR_NAME_LEN]),
                                                    15000,
                                                    false,
-                                                   AccessLevel::Public)),
+                                                   None)),
                                 ("blog".to_string(),
                                  DirectoryKey::new(XorName([123; XOR_NAME_LEN]),
                                                    15000,
                                                    false,
-                                                   AccessLevel::Public)),
+                                                   None)),
                                 ("bad-ass".to_string(),
                                  DirectoryKey::new(XorName([123; XOR_NAME_LEN]),
                                                    15000,
                                                    false,
-                                                   AccessLevel::Public))];
+                                                   None))];
 
         let owners = vec![unwrap!(unwrap!(client.lock()).get_public_signing_key()).clone()];
 
@@ -586,7 +585,7 @@ mod test {
                        DirectoryKey::new(XorName([126; XOR_NAME_LEN]),
                                          15000,
                                          false,
-                                         AccessLevel::Public)));
+                                         None)));
         let services_size = services.len();
         unwrap!(dns_operations.add_service(&dns_name,
                                            services[services_size - 1].clone(),

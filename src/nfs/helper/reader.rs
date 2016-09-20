@@ -40,7 +40,7 @@ impl<'a> Reader<'a> {
                -> Result<Reader<'a>, NfsError> {
         Ok(Reader {
             client: client.clone(),
-            self_encryptor: try!(SelfEncryptor::new(storage, file.get_datamap().clone())),
+            self_encryptor: try!(SelfEncryptor::new(storage, file.datamap().clone())),
             file: file,
         })
     }

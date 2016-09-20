@@ -182,7 +182,7 @@ fn add_service(client: Arc<Mutex<Client>>, dns_operations: &DnsOperations) -> Re
 
     try!(writer.write(text.as_bytes()));
     let (updated_parent_dir_listing, _) = try!(writer.close());
-    let dir_key = updated_parent_dir_listing.get_key();
+    let dir_key = updated_parent_dir_listing.key();
 
     let secret_signing_key = try!(unwrap!(client.lock()).get_secret_signing_key()).clone();
 
@@ -277,9 +277,9 @@ fn parse_url_and_get_home_page(client: Arc<Mutex<Client>>,
     let directory_helper = DirectoryHelper::new(client.clone());
     let dir_listing = try!(directory_helper.get(&dir_key));
 
-    let file = try!(dir_listing.get_files()
+    let file = try!(dir_listing.files()
         .iter()
-        .find(|a| *a.get_name() == HOME_PAGE_FILE_NAME.to_string())
+        .find(|a| *a.name() == HOME_PAGE_FILE_NAME.to_string())
         .ok_or(DnsError::Unexpected("Could not find homepage !!".to_string())));
     let mut file_helper = FileHelper::new(client.clone());
     let mut reader = try!(file_helper.read(file));

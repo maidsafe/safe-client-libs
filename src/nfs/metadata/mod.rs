@@ -16,8 +16,12 @@
 // relating to use of the SAFE Network Software.
 
 /// FileMetadata
-pub mod file_metadata;
+mod file_metadata;
 /// DirectoryKey
-pub mod directory_key;
+mod directory_key;
 /// DirectoryMetadata
-pub mod directory_metadata;
+mod directory_metadata;
+
+pub use self::file_metadata::FileMetadata;
+pub use self::directory_key::DirectoryKey;
+pub use self::directory_metadata::DirectoryMetadata;

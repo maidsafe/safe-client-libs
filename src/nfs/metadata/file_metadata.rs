@@ -45,33 +45,33 @@ impl FileMetadata {
     }
 
     /// Get version
-    pub fn get_version(&self) -> u32 {
+    pub fn version(&self) -> u32 {
         self.version
     }
 
     /// Get time of creation
-    pub fn get_created_time(&self) -> &Tm {
+    pub fn created_time(&self) -> &Tm {
         &self.created_time
     }
 
     /// Get time of modification
-    pub fn get_modified_time(&self) -> &Tm {
+    pub fn modified_time(&self) -> &Tm {
         &self.modified_time
     }
 
     /// Get name associated with the structure (file or directory) that this metadata is a part
     /// of
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
     /// Get size information
-    pub fn get_size(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         self.size
     }
 
     /// Get user setteble custom metadata
-    pub fn get_user_metadata(&self) -> &[u8] {
+    pub fn user_metadata(&self) -> &[u8] {
         &self.user_metadata
     }
 

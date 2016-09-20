@@ -23,15 +23,15 @@ use ffi::errors::FfiError;
 use libc::{int32_t, int64_t};
 use nfs::AccessLevel;
 use nfs::UNVERSIONED_DIRECTORY_LISTING_TAG;
-use nfs::directory_listing::DirectoryListing;
+use nfs::directory::Directory;
 use nfs::helper::directory_helper::DirectoryHelper;
-use nfs::metadata::directory_key::DirectoryKey;
-use std;
+use nfs::metadata::DirectoryKey;
 use std::error::Error;
 use std::mem;
 use std::panic;
 use std::ptr;
 use std::slice;
+use std::str;
 use std::sync::{Arc, Mutex};
 
 pub unsafe fn c_utf8_to_string(ptr: *const u8, len: usize) -> Result<String, FfiError> {
@@ -39,7 +39,7 @@ pub unsafe fn c_utf8_to_string(ptr: *const u8, len: usize) -> Result<String, Ffi
 }
 
 pub unsafe fn c_utf8_to_str(ptr: *const u8, len: usize) -> Result<&'static str, FfiError> {
-    std::str::from_utf8(slice::from_raw_parts(ptr, len))
+    str::from_utf8(slice::from_raw_parts(ptr, len))
         .map_err(|error| FfiError::from(error.description()))
 }
 
@@ -82,22 +82,15 @@ pub fn catch_unwind_ptr<T, F: FnOnce() -> *const T>(f: F) -> *const T {
     panic::catch_unwind(panic::AssertUnwindSafe(f)).unwrap_or(ptr::null())
 }
 
-pub fn tokenise_path(path: &str, keep_empty_splits: bool) -> Vec<String> {
-    path.split(|element| element == '/')
-        .filter(|token| keep_empty_splits || !token.is_empty())
-        .map(|token| token.to_string())
-        .collect()
-}
-
 pub fn get_safe_drive_key(client: Arc<Mutex<Client>>) -> Result<DirectoryKey, FfiError> {
     trace!("Obtain directory key for SAFEDrive - This can be cached for efficiency. So if this \
             is seen many times, check for missed optimisation opportunity.");
 
     let safe_drive_dir_name = SAFE_DRIVE_DIR_NAME.to_string();
     let dir_helper = DirectoryHelper::new(client);
-    let mut root_dir = try!(dir_helper.get_user_root_directory_listing());
-    let dir_metadata = match root_dir.find_sub_directory(&safe_drive_dir_name).cloned() {
-        Some(metadata) => metadata,
+    let mut root_dir = try!(dir_helper.get_user_root_directory());
+    let key = match root_dir.find_sub_directory(&safe_drive_dir_name).map(|dir| dir.key().clone()) {
+        Some(sub_dir_key) => sub_dir_key,
         None => {
             trace!("SAFEDrive does not exist - creating one.");
             let (created_dir, _) = try!(dir_helper.create(safe_drive_dir_name,
@@ -106,65 +99,29 @@ pub fn get_safe_drive_key(client: Arc<Mutex<Client>>) -> Result<DirectoryKey, Ff
                                                           false,
                                                           AccessLevel::Private,
                                                           Some(&mut root_dir)));
-            created_dir.get_metadata().clone()
+            created_dir.key().clone()
         }
     };
 
-    let key = dir_metadata.get_key().clone();
     Ok(key)
 }
 
-pub fn get_final_subdirectory(client: Arc<Mutex<Client>>,
-                              tokens: &[String],
-                              starting_directory: Option<&DirectoryKey>)
-                              -> Result<DirectoryListing, FfiError> {
-    trace!("Traverse directory tree to get the final subdirectory.");
-
-    let dir_helper = DirectoryHelper::new(client);
-
-    let mut current_dir_listing = match starting_directory {
-        Some(directory_key) => {
-            trace!("Traversal begins at given starting directory.");
-            try!(dir_helper.get(directory_key))
-        }
-        None => {
-            trace!("Traversal begins at user-root-directory.");
-            try!(dir_helper.get_user_root_directory_listing())
-        }
-    };
-
-    for it in tokens.iter() {
-        trace!("Traversing to dir with name: {}", *it);
-
-        current_dir_listing = {
-            let current_dir_metadata = try!(current_dir_listing.get_sub_directories()
-                .iter()
-                .find(|a| *a.get_name() == *it)
-                .ok_or(FfiError::PathNotFound));
-            try!(dir_helper.get(current_dir_metadata.get_key()))
-        };
-    }
-
-    Ok(current_dir_listing)
-}
-
 // Return a DirectoryListing corresponding to the path.
-pub fn get_directory(app: &App, path: &str, is_shared: bool) -> Result<DirectoryListing, FfiError> {
-    let start_dir_key = try!(app.get_root_dir_key(is_shared));
-    let tokens = tokenise_path(path, false);
-    get_final_subdirectory(app.get_client(), &tokens, Some(&start_dir_key))
+pub fn get_directory(app: &App, path: &str, is_shared: bool) -> Result<Directory, FfiError> {
+    let dir_helper = DirectoryHelper::new(app.get_client());
+    let root_dir_key = try!(app.get_root_dir_key(is_shared));
+    let (dir, _) = try!(dir_helper.get_directory_and_parent(&root_dir_key, path));
+    Ok(dir)
 }
 
 pub fn get_directory_and_file(app: &App,
                               path: &str,
                               is_shared: bool)
-                              -> Result<(DirectoryListing, String), FfiError> {
-    let start_dir_key = try!(app.get_root_dir_key(is_shared));
-    let mut tokens = tokenise_path(path, false);
-    let file_name = try!(tokens.pop().ok_or(FfiError::PathNotFound));
-    let directory_listing =
-        try!(get_final_subdirectory(app.get_client(), &tokens, Some(&start_dir_key)));
-    Ok((directory_listing, file_name))
+                              -> Result<(Directory, String), FfiError> {
+    let dir_helper = DirectoryHelper::new(app.get_client());
+    let root_dir_key = try!(app.get_root_dir_key(is_shared));
+    let (file_name, parent_dir) = try!(dir_helper.get_name_and_parent(&root_dir_key, path));
+    Ok((parent_dir, file_name))
 }
 
 #[cfg(test)]

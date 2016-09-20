@@ -50,7 +50,7 @@ use routing::XOR_NAME_LEN;
 use safe_core::core::client::Client;
 use safe_core::nfs::{self, AccessLevel};
 use safe_core::nfs::errors::NfsError;
-use safe_core::nfs::directory_listing::DirectoryListing;
+use safe_core::nfs::directory::Directory;
 use safe_core::nfs::helper::directory_helper::DirectoryHelper;
 use safe_core::nfs::helper::file_helper::FileHelper;
 use safe_core::nfs::helper::writer::Mode;
@@ -81,9 +81,9 @@ fn create_account() -> Result<Client, NfsError> {
     Ok(client)
 }
 
-fn get_root_directory(client: Arc<Mutex<Client>>) -> Result<DirectoryListing, NfsError> {
+fn get_root_directory(client: Arc<Mutex<Client>>) -> Result<Directory, NfsError> {
     let directory_helper = DirectoryHelper::new(client.clone());
-    directory_helper.get_user_root_directory_listing()
+    directory_helper.get_user_root_directory()
 }
 
 fn get_user_string(placeholder: &str) -> String {
@@ -112,19 +112,19 @@ fn format_version_id(version_id: &[u8; XOR_NAME_LEN]) -> String {
 }
 
 fn get_child_directory(client: Arc<Mutex<Client>>,
-                       directory: &mut DirectoryListing)
-                       -> Result<DirectoryListing, NfsError> {
+                       directory: &mut Directory)
+                       -> Result<Directory, NfsError> {
     let directory_name = &get_user_string("Directory name");
     let directory_metadata = try!(directory.find_sub_directory(directory_name)
         .ok_or(NfsError::DirectoryNotFound));
     let directory_helper = DirectoryHelper::new(client);
 
-    directory_helper.get(directory_metadata.get_key())
+    directory_helper.get(directory_metadata.key())
 }
 
 fn directory_operation(option: u32,
                        client: Arc<Mutex<Client>>,
-                       mut directory: &mut DirectoryListing)
+                       mut directory: &mut Directory)
                        -> Result<(), NfsError> {
     match option {
         1 => {
@@ -174,18 +174,18 @@ fn directory_operation(option: u32,
         }
         2 => {
             // List directories
-            let directory_metadata = directory.get_sub_directories();
-            if directory_metadata.is_empty() {
+            let sub_directories = directory.sub_directories();
+            if sub_directories.is_empty() {
                 println!("No directories found");
             } else {
                 println!("List of directories");
                 println!("\t        Created On                  Name ");
                 println!("\t =========================       ==========");
-                for metatata in directory_metadata {
+                for sub_dir in sub_directories {
                     println!("\t {:?} \t {}",
                              unwrap!(time::strftime("%d-%m-%Y %H:%M UTC",
-                                                    &metatata.get_created_time())),
-                             metatata.get_name());
+                                                    &sub_dir.metadata().created_time())),
+                             sub_dir.name());
                 }
             }
         }
@@ -193,8 +193,8 @@ fn directory_operation(option: u32,
             // List versions
             let child = try!(get_child_directory(client.clone(), directory));
             let directory_helper = DirectoryHelper::new(client.clone());
-            let versions = try!(directory_helper.get_versions(child.get_key().get_id(),
-                                                              child.get_key().get_type_tag()));
+            let versions = try!(directory_helper.get_versions(child.key().id(),
+                                                              child.key().type_tag()));
             if versions.is_empty() {
                 println!("No directory versions found");
             } else {
@@ -220,16 +220,16 @@ fn directory_operation(option: u32,
 
 fn file_operation(option: u32,
                   client: Arc<Mutex<Client>>,
-                  directory: &mut DirectoryListing)
+                  directory: &mut Directory)
                   -> Result<(), NfsError> {
     match option {
         5 => {
             // List files
             let child = try!(get_child_directory(client, directory));
-            let files = child.get_files();
+            let files = child.files();
             if files.is_empty() {
                 println!("No Files found in Directory - {}",
-                         child.get_metadata().get_name());
+                         child.metadata().name());
             } else {
                 println!("List of Files");
                 println!("\t        Modified On                Name ");
@@ -237,8 +237,8 @@ fn file_operation(option: u32,
                 for file in files {
                     println!("\t {:?} \t {}",
                              unwrap!(time::strftime("%d-%m-%Y %H:%M UTC",
-                                                    &file.get_metadata().get_modified_time())),
-                             file.get_name());
+                                                    &file.metadata().modified_time())),
+                             file.name());
                 }
             }
         }
@@ -257,14 +257,14 @@ fn file_operation(option: u32,
             // Update file
             let child = try!(get_child_directory(client.clone(), directory));
             let file = if let Some(file) = child.find_file(&get_user_string("File name")) {
-                file
+                file.clone()
             } else {
                 return Err(NfsError::FileNotFound);
             };
             let data = get_user_string("text to be saved as a file").into_bytes();
             let mut file_helper = FileHelper::new(client);
             let mut writer =
-                try!(file_helper.update_content(file.clone(), Mode::Overwrite, child.clone()));
+                try!(file_helper.update_content(file, Mode::Overwrite, child));
             try!(writer.write(&data[..]));
             let _ = try!(writer.close());
             println!("File Updated");
@@ -279,7 +279,7 @@ fn file_operation(option: u32,
             };
             let mut file_helper = FileHelper::new(client);
             let mut reader = try!(file_helper.read(file));
-            let data_read = try!(reader.read(0, file.get_metadata().get_size()));
+            let data_read = try!(reader.read(0, file.metadata().size()));
 
             match String::from_utf8(data_read) {
                 Ok(data) => {
@@ -305,7 +305,7 @@ fn file_operation(option: u32,
                     println!("\t{} Modified at {:?}",
                              i + 1,
                              unwrap!(time::strftime("%d-%m-%Y %H:%M UTC",
-                                                    &version.get_metadata().get_modified_time())))
+                                                    &version.metadata().modified_time())))
                 }
                 match get_user_string("Number corresponding to the version")
                     .trim()
@@ -326,7 +326,7 @@ fn file_operation(option: u32,
             }
 
             let mut reader = try!(file_helper.read(file_version));
-            let data_read = try!(reader.read(0, file_version.get_metadata().get_size()));
+            let data_read = try!(reader.read(0, file_version.metadata().size()));
 
             match String::from_utf8(data_read) {
                 Ok(data) => {
@@ -348,27 +348,27 @@ fn file_operation(option: u32,
             let from_directory = try!(get_child_directory(client.clone(), directory));
             let to_dir_name = get_user_string("Select the Directory to copy file to (Destination \
                                                Directory)");
-            let directory_metadata = directory.get_sub_directories();
+            let directory_metadata = directory.sub_directories();
 
             if directory_metadata.is_empty() || directory_metadata.len() == 1 {
                 println!("No directories found");
                 return Ok(());
             } else {
                 match directory_metadata.iter()
-                    .find(|metadata| *metadata.get_name() == to_dir_name) {
+                    .find(|metadata| *metadata.name() == to_dir_name) {
                     Some(to_dir) => {
-                        if from_directory.get_key() == to_dir.get_key() {
+                        if from_directory.key() == to_dir.key() {
                             return Err(NfsError::DestinationAndSourceAreSame);
                         }
                         let file_name = &get_user_string("File name");
                         let file = try!(from_directory.find_file(file_name)
                             .ok_or(NfsError::FileNotFound));
                         let directory_helper = DirectoryHelper::new(client);
-                        let mut destination = try!(directory_helper.get(to_dir.get_key()));
+                        let mut destination = try!(directory_helper.get(to_dir.key()));
                         if destination.find_file(file_name).is_some() {
                             return Err(NfsError::FileAlreadyExistsWithSameName);
                         }
-                        destination.get_mut_files().push(file.clone());
+                        destination.files_mut().push(file.clone());
                         let _ = try!(directory_helper.update(&destination));
                         println!("File copied");
                     }

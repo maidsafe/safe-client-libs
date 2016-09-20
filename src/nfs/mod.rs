@@ -23,8 +23,8 @@ pub mod errors;
 pub mod helper;
 /// Directory and File Metadata
 pub mod metadata;
-/// Module for directory reltaed structs - DirectoryListin, DirectoryInfo
-pub mod directory_listing;
+/// Module for directory related structs
+pub mod directory;
 
 /// Root directory name
 pub const ROOT_DIRECTORY_NAME: &'static str = "USER_ROOT";

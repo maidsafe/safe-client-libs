@@ -21,7 +21,7 @@ use core::client::Client;
 use core::translated_events::NetworkEvent;
 use libc::{int32_t, int64_t};
 use maidsafe_utilities::thread::{self, Joiner};
-use nfs::metadata::directory_key::DirectoryKey;
+use nfs::metadata::DirectoryKey;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender};
@@ -87,8 +87,8 @@ impl Session {
     }
 
     /// Get SAFEdrive directory key.
-    pub fn get_safe_drive_dir_key(&self) -> &Option<DirectoryKey> {
-        &self.safe_drive_dir_key
+    pub fn get_safe_drive_dir_key(&self) -> Option<&DirectoryKey> {
+        self.safe_drive_dir_key.as_ref()
     }
 
     fn register_network_event_observer(&mut self, callback: extern "C" fn(i32)) {

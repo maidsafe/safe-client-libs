@@ -21,11 +21,11 @@ use ffi::config::{LAUNCHER_GLOBAL_CONFIG_FILE_NAME, LAUNCHER_GLOBAL_DIRECTORY_NA
 use ffi::errors::FfiError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
-use nfs::directory_listing::DirectoryListing;
+use nfs::directory::Directory;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::helper::file_helper::FileHelper;
 use nfs::helper::writer::Mode::Overwrite;
-use nfs::metadata::directory_key::DirectoryKey;
+use nfs::metadata::DirectoryKey;
 use routing::XorName;
 use rust_sodium::crypto::{box_, secretbox};
 use rust_sodium::crypto::hash::sha256;
@@ -70,16 +70,16 @@ impl ConfigHandler {
                         must imply it's not present inside user-root-dir also - creating one.");
 
                 let dir_helper = DirectoryHelper::new(self.client.clone());
-                let mut root_dir_listing = try!(dir_helper.get_user_root_directory_listing());
-                let app_dir_name = self.get_app_dir_name(&app_name, &root_dir_listing);
-                let dir_key = *try!(dir_helper.create(app_dir_name,
-                                                      UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                                      Vec::new(),
-                                                      false,
-                                                      AccessLevel::Private,
-                                                      Some(&mut root_dir_listing)))
+                let mut root_dir = try!(dir_helper.get_user_root_directory());
+                let app_dir_name = self.get_app_dir_name(&app_name, &root_dir);
+                let dir_key = try!(dir_helper.create(app_dir_name,
+                                                     UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                                     Vec::new(),
+                                                     false,
+                                                     AccessLevel::Private,
+                                                     Some(&mut root_dir)))
                     .0
-                    .get_key();
+                    .key().clone();
 
                 let app_info = AppInfo {
                     app_root_dir_key: dir_key,
@@ -106,7 +106,7 @@ impl ConfigHandler {
         XorName(sha256::hash(id_str.as_bytes()).0)
     }
 
-    fn get_app_dir_name(&self, app_name: &str, directory_listing: &DirectoryListing) -> String {
+    fn get_app_dir_name(&self, app_name: &str, directory_listing: &Directory) -> String {
         let mut dir_name = format!("{}-Root-Dir", app_name);
         if directory_listing.find_sub_directory(&dir_name).is_some() {
             let mut index = 1u8;
@@ -143,9 +143,9 @@ impl ConfigHandler {
             global_configs.push(config);
         }
 
-        let file = unwrap!(dir_listing.get_files()
+        let file = unwrap!(dir_listing.files()
                                .iter()
-                               .find(|file| file.get_name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME),
+                               .find(|file| file.name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME),
                            "Logic Error - Launcher start-up should ensure the file must be \
                             present at this stage - Report bug.")
             .clone();
@@ -160,18 +160,18 @@ impl ConfigHandler {
 
     fn get_launcher_global_config_and_dir
         (&self)
-         -> Result<(Vec<LauncherConfiguration>, DirectoryListing), FfiError> {
+         -> Result<(Vec<LauncherConfiguration>, Directory), FfiError> {
         trace!("Get Launcher's config directory.");
 
         let dir_helper = DirectoryHelper::new(self.client.clone());
-        let mut dir_listing = try!(dir_helper.get_config_directory_listing(
+        let mut dir_listing = try!(dir_helper.get_config_directory(
             LAUNCHER_GLOBAL_DIRECTORY_NAME.to_string()));
 
         let global_configs = {
             let mut file_helper = FileHelper::new(self.client.clone());
-            let file = match dir_listing.get_files()
+            let file = match dir_listing.files()
                 .iter()
-                .find(|file| file.get_name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME)
+                .find(|file| file.name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME)
                 .cloned() {
                 Some(file) => file,
                 None => {
@@ -184,9 +184,9 @@ impl ConfigHandler {
                                             dir_listing))
                                 .close())
                             .0;
-                    unwrap!(dir_listing.get_files()
+                    unwrap!(dir_listing.files()
                             .iter()
-                            .find(|file| file.get_name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME)
+                            .find(|file| file.name() == LAUNCHER_GLOBAL_CONFIG_FILE_NAME)
                             .cloned())
                         .clone()
                 }

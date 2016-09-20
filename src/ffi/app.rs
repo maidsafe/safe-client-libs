@@ -23,7 +23,7 @@
 
 use core::client::Client;
 use libc::int32_t;
-use nfs::metadata::directory_key::DirectoryKey;
+use nfs::metadata::DirectoryKey;
 use rust_sodium::crypto::{box_, secretbox};
 use std::sync::{Arc, Mutex};
 use super::errors::FfiError;
@@ -80,7 +80,7 @@ impl App {
     // TODO Maybe change all of these to operation forbidden for app
     /// Get app root directory key
     pub fn get_app_dir_key(&self) -> Option<DirectoryKey> {
-        self.app_dir_key
+        self.app_dir_key.clone()
     }
 
     /// Get app asym_keys
@@ -95,7 +95,7 @@ impl App {
 
     /// Get SAFEdrive directory key.
     pub fn get_safe_drive_dir_key(&self) -> Option<DirectoryKey> {
-        *unwrap!(self.session.lock()).get_safe_drive_dir_key()
+        unwrap!(self.session.lock()).get_safe_drive_dir_key().cloned()
     }
 
     /// Has this app access to the SAFEdrive?

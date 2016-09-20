@@ -24,7 +24,7 @@ use ffi::errors::FfiError;
 use ffi::low_level_api::misc::misc_u8_ptr_free;
 use nfs::file::File;
 use nfs::helper::file_helper::FileHelper;
-use nfs::metadata::file_metadata::FileMetadata as NfsFileMetadata;
+use nfs::metadata::FileMetadata as NfsFileMetadata;
 use rustc_serialize::base64::ToBase64;
 use std::ptr;
 use std::sync::{Arc, Mutex};
@@ -65,7 +65,7 @@ impl FileDetails {
         let (content, content_len, content_cap) = helper::string_to_c_utf8(content);
 
         let file_metadata_ptr = if include_metadata {
-            Box::into_raw(Box::new(try!(FileMetadata::new(file.get_metadata()))))
+            Box::into_raw(Box::new(try!(FileMetadata::new(file.metadata()))))
         } else {
             ptr::null_mut()
         };
@@ -116,13 +116,13 @@ impl FileMetadata {
     pub fn new(file_metadata: &NfsFileMetadata) -> Result<Self, FfiError> {
         use rustc_serialize::base64::ToBase64;
 
-        let created_time = file_metadata.get_created_time().to_timespec();
-        let modified_time = file_metadata.get_modified_time().to_timespec();
+        let created_time = file_metadata.created_time().to_timespec();
+        let modified_time = file_metadata.modified_time().to_timespec();
 
-        let (name, name_len, name_cap) = helper::string_to_c_utf8(file_metadata.get_name()
+        let (name, name_len, name_cap) = helper::string_to_c_utf8(file_metadata.name()
             .to_string());
 
-        let user_metadata = file_metadata.get_user_metadata()
+        let user_metadata = file_metadata.user_metadata()
             .to_base64(config::get_base64_config());
         let (user_metadata, user_metadata_len, user_metadata_cap) =
             helper::string_to_c_utf8(user_metadata);
@@ -131,7 +131,7 @@ impl FileMetadata {
             name: name,
             name_len: name_len,
             name_cap: name_cap,
-            size: file_metadata.get_size(),
+            size: file_metadata.size(),
             user_metadata: user_metadata,
             user_metadata_len: user_metadata_len,
             user_metadata_cap: user_metadata_cap,
