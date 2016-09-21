@@ -150,20 +150,9 @@ fn create_dir(app: &App,
               is_versioned: bool,
               is_shared: bool)
               -> Result<(), FfiError> {
-    let mut tokens = helper::tokenise_path(dir_path, false);
-    let dir_to_create = try!(tokens.pop().ok_or(FfiError::InvalidPath));
-
-    let start_dir_key = try!(app.get_root_dir_key(is_shared));
-    let mut parent_sub_dir =
-        try!(helper::get_final_subdirectory(app.get_client(), &tokens, Some(&start_dir_key)));
-
     let dir_helper = DirectoryHelper::new(app.get_client());
-
-    let access_level = if is_private {
-        AccessLevel::Private
-    } else {
-        AccessLevel::Public
-    };
+    let root_dir_key = try!(app.get_root_dir_key(is_shared));
+    let (dir_name, mut parent_dir) = try!(dir_helper.get_name_and_parent(&root_dir_key, dir_path));
 
     let tag = if is_versioned {
         VERSIONED_DIRECTORY_LISTING_TAG
@@ -173,39 +162,33 @@ fn create_dir(app: &App,
 
     let user_metadata = try!(parse_result!(user_metadata.from_base64(),
                                            "Faild Converting from Base64."));
+    let access_level = if is_private {
+        AccessLevel::Private
+    } else {
+        AccessLevel::Public
+    };
 
-    let _ = try!(dir_helper.create(dir_to_create,
+    let _ = try!(dir_helper.create(dir_name,
                                    tag,
                                    user_metadata,
                                    is_versioned,
                                    access_level,
-                                   Some(&mut parent_sub_dir)));
+                                   Some(&mut parent_dir)));
 
     Ok(())
 }
 
 fn delete_dir(app: &App, dir_path: &str, is_shared: bool) -> Result<(), FfiError> {
-    let mut tokens = helper::tokenise_path(dir_path, false);
     let dir_helper = DirectoryHelper::new(app.get_client());
-    let dir_to_delete = try!(tokens.pop().ok_or(FfiError::InvalidPath));
-
     let root_dir_key = try!(app.get_root_dir_key(is_shared));
-    let root_dir = try!(dir_helper.get(&root_dir_key));
-    let mut parent_dir = if tokens.is_empty() {
-        root_dir
-    } else {
-        try!(helper::get_final_subdirectory(app.get_client(),
-                                            &tokens,
-                                            Some(root_dir.get_metadata().get_key())))
-    };
-
-    let _ = try!(dir_helper.delete(&mut parent_dir, &dir_to_delete));
+    let (dir_name, mut parent_dir) = try!(dir_helper.get_name_and_parent(&root_dir_key, dir_path));
+    let _ = try!(dir_helper.delete(&mut parent_dir, &dir_name));
     Ok(())
 }
 
 fn get_dir(app: &App, dir_path: &str, is_shared: bool) -> Result<DirectoryDetails, FfiError> {
     let directory = try!(helper::get_directory(app, dir_path, is_shared));
-    DirectoryDetails::from_directory_listing(directory)
+    DirectoryDetails::from_directory(directory)
 }
 
 fn modify_dir(app: &App,
@@ -221,15 +204,15 @@ fn modify_dir(app: &App,
     let mut dir_to_modify = try!(helper::get_directory(app, dir_path, is_shared));
     let directory_helper = DirectoryHelper::new(app.get_client());
     if let Some(name) = new_name {
-        dir_to_modify.get_mut_metadata().set_name(name);
+        dir_to_modify.metadata_mut().set_name(name);
     }
 
     if let Some(metadata) = new_metadata {
         let metadata = try!(parse_result!(metadata.from_base64(), "Failed to convert from base64"));
-        dir_to_modify.get_mut_metadata().set_user_metadata(metadata);
+        dir_to_modify.metadata_mut().set_user_metadata(metadata);
     }
 
-    dir_to_modify.get_mut_metadata().set_modified_time(time::now_utc());
+    dir_to_modify.metadata_mut().set_modified_time(time::now_utc());
     let _ = try!(directory_helper.update(&dir_to_modify));
 
     Ok(())
@@ -242,59 +225,51 @@ fn move_dir(app: &App,
             is_dst_path_shared: bool,
             retain_src: bool)
             -> Result<(), FfiError> {
-    let directory_helper = DirectoryHelper::new(app.get_client());
-    let mut src_dir = try!(helper::get_directory(app, src_path, is_src_path_shared));
-    let mut dst_dir = try!(helper::get_directory(app, dst_path, is_dst_path_shared));
+    let dir_helper = DirectoryHelper::new(app.get_client());
+    let src_root_key = try!(app.get_root_dir_key(is_src_path_shared));
+    let dst_root_key = try!(app.get_root_dir_key(is_dst_path_shared));
 
-    if dst_dir.find_sub_directory(src_dir.get_metadata().get_name()).is_some() {
+    let (src_dir, mut src_parent) = try!(dir_helper.get_directory_and_parent(&src_root_key, src_path));
+    let (mut dst_dir, _) = try!(dir_helper.get_directory_and_parent(&dst_root_key, dst_path));
+
+    if dst_dir.find_sub_directory(src_dir.name()).is_some() {
         return Err(FfiError::from(NfsError::DirectoryAlreadyExistsWithSameName));
     }
 
-    let org_parent_of_src_dir = try!(src_dir.get_metadata()
-        .get_parent_dir_key()
-        .cloned()
-        .ok_or(FfiError::from("Parent directory not found")));
-
     if retain_src {
-        let name = src_dir.get_metadata().get_name().to_owned();
-        let user_metadata = src_dir.get_metadata().get_user_metadata().to_owned();
-        let access_level = src_dir.get_metadata().get_access_level().clone();
-        let created_time = *src_dir.get_metadata().get_created_time();
-        let modified_time = *src_dir.get_metadata().get_modified_time();
-        let (mut dir, _) = try!(directory_helper.create(name,
-                                                        src_dir.get_metadata()
-                                                            .get_key()
-                                                            .get_type_tag(),
-                                                        user_metadata,
-                                                        src_dir.get_metadata()
-                                                            .get_key()
-                                                            .is_versioned(),
-                                                        access_level,
-                                                        Some(&mut dst_dir)));
-        src_dir.get_files().iter().all(|file| {
-            dir.get_mut_files().push(file.clone());
+        let name = src_dir.metadata().name().to_owned();
+        let user_metadata = src_dir.metadata().user_metadata().to_owned();
+        let access_level = src_dir.key().access_level();
+        let created_time = *src_dir.metadata().created_time();
+        let modified_time = *src_dir.metadata().modified_time();
+        let (mut dir, _) = try!(dir_helper.create(name,
+                                                  src_dir.key().type_tag(),
+                                                  user_metadata,
+                                                  src_dir.key().versioned(),
+                                                  access_level,
+                                                  Some(&mut dst_dir)));
+        src_dir.files().iter().all(|file| {
+            dir.files_mut().push(file.clone());
             true
         });
-        src_dir.get_sub_directories()
+        src_dir.sub_directories()
             .iter()
             .all(|sub_dir| {
-                dir.get_mut_sub_directories().push(sub_dir.clone());
+                dir.sub_directories_mut().push(sub_dir.clone());
                 true
             });
-        dir.get_mut_metadata().set_created_time(created_time);
-        dir.get_mut_metadata().set_modified_time(modified_time);
-        let _ = try!(directory_helper.update(&dir));
+        dir.metadata_mut().set_created_time(created_time);
+        dir.metadata_mut().set_modified_time(modified_time);
+        let _ = try!(dir_helper.update(&dir));
     } else {
-        src_dir.get_mut_metadata()
-            .set_parent_dir_key(Some(dst_dir.get_metadata().get_key().clone()));
-        dst_dir.upsert_sub_directory(src_dir.get_metadata().clone());
-        let _ = try!(directory_helper.update(&dst_dir));
-        let _ = try!(directory_helper.update(&src_dir));
-        let mut parent_of_src_dir = try!(directory_helper.get(&org_parent_of_src_dir));
+        dst_dir.upsert_sub_directory(src_dir.key().clone(),
+                                     src_dir.metadata().clone());
+        let _ = try!(dir_helper.update(&dst_dir));
+        let _ = try!(dir_helper.update(&src_dir));
+
         // TODO (Spandan) - Fetch and issue a DELETE on the removed directory.
-        let _dir_meta = try!(parent_of_src_dir.remove_sub_directory(src_dir.get_metadata()
-            .get_name()));
-        let _ = try!(directory_helper.update(&parent_of_src_dir));
+        let _ = try!(src_parent.remove_sub_directory(src_dir.name()));
+        let _ = try!(dir_helper.update(&src_parent));
     }
 
     Ok(())
@@ -355,9 +330,9 @@ mod test {
 
         assert!(app_dir.find_sub_directory("test_dir").is_some());
         assert!(app_dir.find_sub_directory("test_dir2").is_some());
-        assert_eq!(app_dir.get_sub_directories().len(), 2);
+        assert_eq!(app_dir.sub_directories().len(), 2);
 
-        let test_dir_key = unwrap!(app_dir.find_sub_directory("test_dir")).get_key();
+        let test_dir_key = unwrap!(app_dir.find_sub_directory("test_dir")).key();
         let test_dir = unwrap!(dir_helper.get(test_dir_key));
         assert!(test_dir.find_sub_directory("secondlevel").is_some());
     }
@@ -373,13 +348,13 @@ mod test {
         assert!(super::delete_dir(&app, "/test_dir2", false).is_err());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 1);
+        assert_eq!(app_root_dir.sub_directories().len(), 1);
         assert!(app_root_dir.find_sub_directory("test_dir").is_some());
 
         assert!(super::delete_dir(&app, "/test_dir", false).is_ok());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 0);
+        assert_eq!(app_root_dir.sub_directories().len(), 0);
 
         assert!(super::delete_dir(&app, "/test_dir", false).is_err());
     }
@@ -413,7 +388,7 @@ mod test {
         create_test_dir(&app, "test_dir");
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 1);
+        assert_eq!(app_root_dir.sub_directories().len(), 1);
         assert!(app_root_dir.find_sub_directory("test_dir").is_some());
 
         assert!(super::modify_dir(&app,
@@ -424,7 +399,7 @@ mod test {
             .is_ok());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 1);
+        assert_eq!(app_root_dir.sub_directories().len(), 1);
         assert!(app_root_dir.find_sub_directory("test_dir").is_none());
         assert!(app_root_dir.find_sub_directory("new_test_dir").is_some());
     }
@@ -440,9 +415,9 @@ mod test {
         create_test_dir(&app, "test_dir");
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        let dir_key = unwrap!(app_root_dir.find_sub_directory("test_dir")).get_key();
+        let dir_key = unwrap!(app_root_dir.find_sub_directory("test_dir")).key();
         let dir_to_modify = unwrap!(dir_helper.get(dir_key));
-        assert_eq!(dir_to_modify.get_metadata().get_user_metadata().len(), 0);
+        assert_eq!(dir_to_modify.metadata().user_metadata().len(), 0);
 
         assert!(super::modify_dir(&app,
                                   "/test_dir",
@@ -452,9 +427,9 @@ mod test {
             .is_ok());
 
         let dir_to_modify = unwrap!(dir_helper.get(dir_key));
-        assert!(dir_to_modify.get_metadata().get_user_metadata().len() > 0);
-        assert_eq!(dir_to_modify.get_metadata()
-                       .get_user_metadata()
+        assert!(dir_to_modify.metadata().user_metadata().len() > 0);
+        assert_eq!(dir_to_modify.metadata()
+                       .user_metadata()
                        .to_base64(config::get_base64_config()),
                    METADATA_BASE64.to_string());
     }
@@ -469,19 +444,19 @@ mod test {
         create_test_dir(&app, "test_dir_b");
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 2);
+        assert_eq!(app_root_dir.sub_directories().len(), 2);
 
-        let dst_dir_key = unwrap!(app_root_dir.find_sub_directory("test_dir_b")).get_key();
+        let dst_dir_key = unwrap!(app_root_dir.find_sub_directory("test_dir_b")).key();
         let dst_dir = unwrap!(dir_helper.get(&dst_dir_key));
-        assert_eq!(dst_dir.get_sub_directories().len(), 0);
+        assert_eq!(dst_dir.sub_directories().len(), 0);
 
         assert!(super::move_dir(&app, "/test_dir_a", false, "/test_dir_b", false, false).is_ok());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 1);
+        assert_eq!(app_root_dir.sub_directories().len(), 1);
 
         let dst_dir = unwrap!(dir_helper.get(&dst_dir_key));
-        assert_eq!(dst_dir.get_sub_directories().len(), 1);
+        assert_eq!(dst_dir.sub_directories().len(), 1);
     }
 
     #[test]
@@ -494,18 +469,18 @@ mod test {
         create_test_dir(&app, "test_dir_b");
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 2);
+        assert_eq!(app_root_dir.sub_directories().len(), 2);
 
-        let dst_dir_key = unwrap!(app_root_dir.find_sub_directory("test_dir_b")).get_key();
+        let dst_dir_key = unwrap!(app_root_dir.find_sub_directory("test_dir_b")).key();
         let dst_dir = unwrap!(dir_helper.get(&dst_dir_key));
-        assert_eq!(dst_dir.get_sub_directories().len(), 0);
+        assert_eq!(dst_dir.sub_directories().len(), 0);
 
         assert!(super::move_dir(&app, "/test_dir_a", false, "/test_dir_b", false, true).is_ok());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_sub_directories().len(), 2);
+        assert_eq!(app_root_dir.sub_directories().len(), 2);
 
         let dst_dir = unwrap!(dir_helper.get(&dst_dir_key));
-        assert_eq!(dst_dir.get_sub_directories().len(), 1);
+        assert_eq!(dst_dir.sub_directories().len(), 1);
     }
 }

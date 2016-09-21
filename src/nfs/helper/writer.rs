@@ -18,7 +18,7 @@
 use core::{SelfEncryptionStorage, SelfEncryptionStorageError};
 
 use core::client::Client;
-use nfs::directory_listing::DirectoryListing;
+use nfs::directory::Directory;
 use nfs::errors::NfsError;
 use nfs::file::File;
 use nfs::helper::directory_helper::DirectoryHelper;
@@ -38,7 +38,7 @@ pub enum Mode {
 pub struct Writer<'a> {
     client: Arc<Mutex<Client>>,
     file: File,
-    parent_directory: DirectoryListing,
+    parent_directory: Directory,
     self_encryptor: SequentialEncryptor<'a, SelfEncryptionStorageError, SelfEncryptionStorage>,
 }
 
@@ -47,11 +47,11 @@ impl<'a> Writer<'a> {
     pub fn new(client: Arc<Mutex<Client>>,
                storage: &'a mut SelfEncryptionStorage,
                mode: Mode,
-               parent_directory: DirectoryListing,
+               parent_directory: Directory,
                file: File)
                -> Result<Writer<'a>, NfsError> {
         let data_map = match mode {
-            Mode::Modify => Some(file.get_datamap().clone()),
+            Mode::Modify => Some(file.datamap().clone()),
             Mode::Overwrite => None,
         };
 
@@ -75,7 +75,7 @@ impl<'a> Writer<'a> {
     /// Returns the update DirectoryListing which owns the file and also the updated
     /// DirectoryListing of the file's parent
     /// Returns (files's parent_directory, Option<file's parent_directory's parent>)
-    pub fn close(mut self) -> Result<(DirectoryListing, Option<DirectoryListing>), NfsError> {
+    pub fn close(mut self) -> Result<(Directory, Option<Directory>), NfsError> {
         let mut file = self.file;
         let mut directory = self.parent_directory;
         let size = self.self_encryptor.len();
@@ -83,9 +83,9 @@ impl<'a> Writer<'a> {
         file.set_datamap(try!(self.self_encryptor.close()));
         trace!("Writer induced self-encryptor close.");
 
-        file.get_mut_metadata().set_modified_time(::time::now_utc());
-        file.get_mut_metadata().set_size(size);
-        file.get_mut_metadata().increment_version();
+        file.metadata_mut().set_modified_time(::time::now_utc());
+        file.metadata_mut().set_size(size);
+        file.metadata_mut().increment_version();
 
         directory.upsert_file(file.clone());
 

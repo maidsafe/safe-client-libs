@@ -23,6 +23,22 @@ use rand::Rng;
 use rust_sodium::crypto::{box_, secretbox};
 use rust_sodium::crypto::hash::sha512::{self, DIGESTBYTES, Digest};
 
+/// Symmetric encryption
+pub fn symmetric_encrypt(plain_text: &[u8], secret_key: &secretbox::Key)
+                         -> Result<Vec<u8>, CoreError> {
+    let nonce = secretbox::gen_nonce();
+    let cipher_text = secretbox::seal(plain_text, &nonce, secret_key);
+
+    Ok(try!(serialise(&(nonce, cipher_text))))
+}
+
+/// Symmetric decryption
+pub fn symmetric_decrypt(cipher_text: &[u8], secret_key: &secretbox::Key)
+                        -> Result<Vec<u8>, CoreError> {
+    let (nonce, cipher_text) = try!(deserialise::<(secretbox::Nonce, Vec<u8>)>(cipher_text));
+    secretbox::open(&cipher_text, &nonce, secret_key).map_err(|_| CoreError::SymmetricDecipherFailure)
+}
+
 /// Combined Asymmetric and Symmetric encryption. The data is encrypted using random Key and
 /// IV with Xsalsa-symmetric encryption. Random IV ensures that same plain text produces different
 /// cipher-texts for each fresh symmetric encryption. The Key and IV are then asymmetrically

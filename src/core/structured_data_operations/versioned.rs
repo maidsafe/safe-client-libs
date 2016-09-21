@@ -16,173 +16,210 @@
 // relating to use of the SAFE Network Software.
 
 
+use core::SelfEncryptionStorage;
 use core::client::Client;
 use core::errors::CoreError;
 use core::structured_data_operations::{DataFitResult, check_if_data_can_fit_in_structured_data};
+use core::utility;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XorName};
-use rust_sodium::crypto::sign;
+use rust_sodium::crypto::{secretbox, sign};
+use self_encryption::{DataMap, SelfEncryptor};
 use std::sync::{Arc, Mutex};
 
 /// Create the StructuredData to manage versioned data.
 #[cfg_attr(feature="clippy", allow(too_many_arguments))]
 pub fn create(client: Arc<Mutex<Client>>,
-              version_name_to_store: XorName,
-              tag_type: u64,
+              type_tag: u64,
               name: XorName,
-              version: u64,
+              data: Vec<u8>,
               owner_keys: Vec<sign::PublicKey>,
-              prev_owner_keys: Vec<sign::PublicKey>,
-              private_signing_key: &sign::SecretKey)
+              signing_key: &sign::SecretKey,
+              encryption_key: Option<&secretbox::Key>)
               -> Result<StructuredData, CoreError> {
     trace!("Creating versioned StructuredData.");
 
-    create_impl(client,
-                &[version_name_to_store],
-                tag_type,
-                name,
-                version,
-                owner_keys,
-                prev_owner_keys,
-                private_signing_key)
+    let version_name = try!(put_data(client.clone(), data, encryption_key));
+    let encoded_version_names_name = try!(put_version_names(client.clone(),
+                                                            owner_keys.clone(),
+                                                            vec![],
+                                                            &[version_name]));
+
+    Ok(try!(StructuredData::new(type_tag,
+                                name,
+                                0,
+                                encoded_version_names_name,
+                                owner_keys,
+                                vec![],
+                                Some(signing_key))))
 }
 
-/// Get the complete version list
-pub fn get_all_versions(client: Arc<Mutex<Client>>,
-                        struct_data: &StructuredData)
-                        -> Result<Vec<XorName>, CoreError> {
-    trace!("Getting all versions of versioned StructuredData.");
-
-    let immut_data = try!(get_immutable_data(client, struct_data));
-    Ok(try!(deserialise(&immut_data.value())))
-}
-
-/// Append a new version
-pub fn append_version(client: Arc<Mutex<Client>>,
-                      struct_data: StructuredData,
-                      version_to_append: XorName,
-                      private_signing_key: &sign::SecretKey,
-                      increment_version_number: bool)
-                      -> Result<StructuredData, CoreError> {
+/// Update the versioned structured data by creating new version.
+pub fn update(client: Arc<Mutex<Client>>,
+              struct_data: StructuredData,
+              data: Vec<u8>,
+              signing_key: &sign::SecretKey,
+              encryption_key: Option<&secretbox::Key>,
+              increment_version_number: bool)
+              -> Result<StructuredData, CoreError> {
     trace!("Appending version to versioned StructuredData.");
 
-    // let immut_data = try!(get_immutable_data(mut client, struct_data));
-    // client.delete(immut_data);
-    let mut versions = try!(get_all_versions(client.clone(), &struct_data));
-    versions.push(version_to_append);
+    let mut version_names = try!(get_all_version_names(client.clone(), &struct_data));
+    let new_version_name = try!(put_data(client.clone(), data, encryption_key));
+    version_names.push(new_version_name);
+
+    let encoded_version_names_name = try!(put_version_names(client.clone(),
+                                                            struct_data.get_owner_keys().clone(),
+                                                            struct_data.get_previous_owner_keys().clone(),
+                                                            &version_names));
+
 
     let new_version_number = struct_data.get_version() +
                              if increment_version_number { 1 } else { 0 };
 
-    create_impl(client,
-                &versions,
-                struct_data.get_type_tag(),
-                *struct_data.name(),
-                new_version_number,
-                struct_data.get_owner_keys().clone(),
-                struct_data.get_previous_owner_keys().clone(),
-                private_signing_key)
+    Ok(try!(StructuredData::new(struct_data.get_type_tag(),
+                                *struct_data.name(),
+                                new_version_number,
+                                encoded_version_names_name,
+                                struct_data.get_owner_keys().clone(),
+                                struct_data.get_previous_owner_keys().clone(),
+                                Some(signing_key))))
 }
 
-#[cfg_attr(feature="clippy", allow(too_many_arguments))]
-fn create_impl(client: Arc<Mutex<Client>>,
-               version_names_to_store: &[XorName],
-               tag_type: u64,
-               name: XorName,
-               version: u64,
-               owner_keys: Vec<sign::PublicKey>,
-               prev_owner_keys: Vec<sign::PublicKey>,
-               private_signing_key: &sign::SecretKey)
-               -> Result<StructuredData, CoreError> {
-    let immutable_data = ImmutableData::new(try!(serialise(&version_names_to_store)));
-    let name_of_immutable_data = *immutable_data.name();
+/// Retrieve the data with the given version name.
+pub fn get_data(client: Arc<Mutex<Client>>,
+                name: &XorName,
+                encryption_key: Option<&secretbox::Key>)
+                -> Result<Vec<u8>, CoreError> {
+    let request = DataIdentifier::Immutable(*name);
+    let resp_getter = try!(unwrap!(client.lock()).get(request, None));
+    let data = match try!(resp_getter.get()) {
+        Data::Immutable(data) => data,
+        _ => return Err(CoreError::ReceivedUnexpectedData),
+    };
+    let data = data.value();
 
-    let encoded_name = try!(serialise(&name_of_immutable_data));
+    if let Some(secret_key) = encryption_key {
+        let data_map = try!(utility::symmetric_decrypt(data, secret_key));
+        let data_map = try!(deserialise(&data_map));
+        let mut storage = SelfEncryptionStorage::new(client.clone());
+        let mut self_encryptor = try!(SelfEncryptor::new(&mut storage, data_map));
+        let length = self_encryptor.len();
+        Ok(try!(self_encryptor.read(0, length)))
+    } else {
+        Ok(data.clone())
+    }
+}
+
+// Save the data into the netowork as immutable data and return its name.
+fn put_data(client: Arc<Mutex<Client>>,
+            data: Vec<u8>,
+            encryption_key: Option<&secretbox::Key>)
+                -> Result<XorName, CoreError> {
+    let data = match encryption_key {
+        Some(secret_key) => {
+            let mut storage = SelfEncryptionStorage::new(client.clone());
+            let mut self_encryptor = try!(SelfEncryptor::new(&mut storage, DataMap::None));
+            try!(self_encryptor.write(&data, 0));
+            let data = try!(self_encryptor.close());
+            let data = try!(serialise(&data));
+            try!(utility::symmetric_encrypt(&data, secret_key))
+        }
+        None => data,
+    };
+
+    let immut_data = ImmutableData::new(data);
+    let name = *immut_data.name();
+
+    try!(Client::put_recover(client, Data::Immutable(immut_data), None));
+    Ok(name)
+}
+
+// Save the version names into the network as immutable data and return its
+// serialised name.
+fn put_version_names(client: Arc<Mutex<Client>>,
+                     curr_owner_keys: Vec<sign::PublicKey>,
+                     prev_owner_keys: Vec<sign::PublicKey>,
+                     version_names: &[XorName])
+                     -> Result<Vec<u8>, CoreError> {
+    let immut_data = ImmutableData::new(try!(serialise(&version_names)));
+    let name = *immut_data.name();
+    let encoded_name = try!(serialise(&name));
 
     match try!(check_if_data_can_fit_in_structured_data(&encoded_name,
-                                                        owner_keys.clone(),
-                                                        prev_owner_keys.clone())) {
+                                                        curr_owner_keys,
+                                                        prev_owner_keys)) {
         DataFitResult::DataFits => {
-            trace!("Name of ImmutableData containing versions fits in StructuredData.");
-
-            let data = Data::Immutable(immutable_data);
-            try!(Client::put_recover(client, data, None));
-
-            Ok(try!(StructuredData::new(tag_type,
-                                        name,
-                                        version,
-                                        encoded_name,
-                                        owner_keys,
-                                        prev_owner_keys,
-                                        Some(private_signing_key))))
+            try!(Client::put_recover(client, Data::Immutable(immut_data), None));
+            Ok(encoded_name)
         }
-        _ => {
-            trace!("Name of ImmutableData containing versions does not fit in StructuredData.");
-            Err(CoreError::StructuredDataHeaderSizeProhibitive)
-        }
+        _ => Err(CoreError::StructuredDataHeaderSizeProhibitive),
     }
 }
 
-fn get_immutable_data(client: Arc<Mutex<Client>>,
-                      struct_data: &StructuredData)
-                      -> Result<ImmutableData, CoreError> {
+/// Get the complete version list
+pub fn get_all_version_names(client: Arc<Mutex<Client>>,
+                             struct_data: &StructuredData)
+                             -> Result<Vec<XorName>, CoreError> {
+    trace!("Getting all versions of versioned StructuredData.");
+
     let name = try!(deserialise(&struct_data.get_data()));
     let resp_getter = try!(unwrap!(client.lock()).get(DataIdentifier::Immutable(name), None));
-    let data = try!(resp_getter.get());
-    match data {
-        Data::Immutable(immutable_data) => Ok(immutable_data),
-        _ => Err(CoreError::ReceivedUnexpectedData),
-    }
+    let data = match try!(resp_getter.get()) {
+        Data::Immutable(data) => data,
+        _ => return Err(CoreError::ReceivedUnexpectedData),
+    };
+
+    Ok(try!(deserialise(&data.value())))
 }
 
 #[cfg(test)]
 mod test {
-
+    use core;
     use core::utility;
+    use core::utility::test_utils;
     use rand;
-    use routing::XorName;
-
     use std::sync::{Arc, Mutex};
     use super::*;
 
-    const TAG_ID: u64 = ::core::MAIDSAFE_TAG + 1001;
+    const TAG: u64 = core::MAIDSAFE_TAG + 1001;
 
     #[test]
-    fn save_and_retrieve_immutable_data() {
-        let client = unwrap!(utility::test_utils::get_client());
+    fn create_update_retrieve() {
+        let client = unwrap!(test_utils::get_client());
         let client = Arc::new(Mutex::new(client));
 
-        let id: XorName = rand::random();
-        let owners = utility::test_utils::generate_public_keys(1);
-        let prev_owners = Vec::new();
-        let secret_key = &utility::test_utils::generate_secret_keys(1)[0];
+        let name = rand::random();
+        let owner_keys = test_utils::generate_public_keys(1);
+        let secret_key = &test_utils::generate_secret_keys(1)[0];
 
-        let version_0: XorName = rand::random();
+        let content0 = unwrap!(utility::generate_random_vector(10));
+        let struct_data = unwrap!(create(client.clone(),
+                                         TAG,
+                                         name,
+                                         content0.clone(),
+                                         owner_keys,
+                                         secret_key,
+                                         None));
 
-        let mut structured_data_result = create(client.clone(),
-                                                version_0,
-                                                TAG_ID,
-                                                id,
-                                                0,
-                                                owners,
-                                                prev_owners,
-                                                secret_key);
+        let version_names = unwrap!(get_all_version_names(client.clone(), &struct_data));
+        assert_eq!(version_names.len(), 1);
+        assert_eq!(unwrap!(get_data(client.clone(), &version_names[0], None)),
+                   content0);
 
-        let mut structured_data = unwrap!(structured_data_result);
-        let mut versions_res = get_all_versions(client.clone(), &structured_data);
-        let mut versions = unwrap!(versions_res);
-        assert_eq!(versions.len(), 1);
+        let content1 = unwrap!(utility::generate_random_vector(10));
+        let struct_data = unwrap!(update(client.clone(),
+                                         struct_data,
+                                         content1.clone(),
+                                         secret_key,
+                                         None,
+                                         true));
 
-        let version_1: XorName = rand::random();
-
-        structured_data_result =
-            append_version(client.clone(), structured_data, version_1, secret_key, true);
-        structured_data = unwrap!(structured_data_result);
-        versions_res = get_all_versions(client, &structured_data);
-        versions = unwrap!(versions_res);
-        assert_eq!(versions.len(), 2);
-
-        assert_eq!(versions[0], version_0);
-        assert_eq!(versions[1], version_1);
+        let version_names = unwrap!(get_all_version_names(client.clone(), &struct_data));
+        assert_eq!(version_names.len(), 2);
+        assert_eq!(unwrap!(get_data(client.clone(), &version_names[0], None)),
+                   content0);
+        assert_eq!(unwrap!(get_data(client.clone(), &version_names[1], None)),
+                   content1);
     }
 }

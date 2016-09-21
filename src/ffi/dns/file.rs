@@ -24,6 +24,7 @@ use ffi::errors::FfiError;
 use ffi::file_details::{FileDetails, FileMetadata};
 use ffi::helper;
 use libc::int32_t;
+use nfs::helper::directory_helper::DirectoryHelper;
 
 /// Get file.
 #[no_mangle]
@@ -104,13 +105,11 @@ fn get_file(app: &App,
         Some(_) => try!(DnsOperations::new(app.get_client())),
         None => DnsOperations::new_unregistered(app.get_client()),
     };
-    let directory_key =
+    let dir_helper = DirectoryHelper::new(app.get_client());
+    let root_dir_key =
         try!(dns_operations.get_service_home_directory_key(long_name, service_name, None));
-    let mut tokens = helper::tokenise_path(file_path, false);
-    let file_name = try!(tokens.pop().ok_or(FfiError::InvalidPath));
-    let file_dir =
-        try!(helper::get_final_subdirectory(app.get_client(), &tokens, Some(&directory_key)));
-    let file = try!(file_dir.find_file(&file_name).ok_or(FfiError::InvalidPath));
+    let (file_name, parent_dir) = try!(dir_helper.get_name_and_parent(&root_dir_key, file_path));
+    let file = try!(parent_dir.find_file(&file_name).ok_or(FfiError::InvalidPath));
 
     FileDetails::new(file, app.get_client(), offset, length, include_metadata)
 }
@@ -124,16 +123,13 @@ fn get_file_metadata(app: &App,
         Some(_) => try!(DnsOperations::new(app.get_client())),
         None => DnsOperations::new_unregistered(app.get_client()),
     };
-
-    let directory_key =
+    let dir_helper = DirectoryHelper::new(app.get_client());
+    let root_dir_key =
         try!(dns_operations.get_service_home_directory_key(long_name, service_name, None));
-    let mut tokens = helper::tokenise_path(file_path, false);
-    let file_name = try!(tokens.pop().ok_or(FfiError::InvalidPath));
-    let file_dir =
-        try!(helper::get_final_subdirectory(app.get_client(), &tokens, Some(&directory_key)));
-    let file = try!(file_dir.find_file(&file_name).ok_or(FfiError::InvalidPath));
+    let (file_name, parent_dir) = try!(dir_helper.get_name_and_parent(&root_dir_key, file_path));
+    let file = try!(parent_dir.find_file(&file_name).ok_or(FfiError::InvalidPath));
 
-    FileMetadata::new(&file.get_metadata().clone())
+    FileMetadata::new(&file.metadata().clone())
 }
 
 #[cfg(test)]
@@ -146,7 +142,7 @@ mod test {
     use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
     use nfs::helper::directory_helper::DirectoryHelper;
     use nfs::helper::file_helper::FileHelper;
-    use nfs::metadata::directory_key::DirectoryKey;
+    use nfs::metadata::DirectoryKey;
     use rust_sodium::crypto::box_;
 
     fn create_public_file(app: &App, file_name: String, file_content: Vec<u8>) -> DirectoryKey {
@@ -162,7 +158,7 @@ mod test {
                                                       false,
                                                       AccessLevel::Public,
                                                       Some(&mut app_dir)));
-        let dir_key = file_dir.get_key().clone();
+        let dir_key = file_dir.key().clone();
 
         let bin_metadata = vec![0u8; 0];
         let mut writer = unwrap!(file_helper.create(file_name, bin_metadata, file_dir));

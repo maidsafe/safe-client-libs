@@ -65,7 +65,7 @@ pub unsafe extern "C" fn struct_data_new(app: *const App,
                                              0,
                                              raw_data,
                                              owner_keys,
-                                             Vec::new(),
+                                             vec![],
                                              &sign_key,
                                              None))
             }
@@ -80,20 +80,13 @@ pub unsafe extern "C" fn struct_data_new(app: *const App,
                         .get_cipher_opt(cipher_opt_h))
                     .encrypt(app, &ser_immut_data));
 
-                let immut_data_final = Data::Immutable(ImmutableData::new(raw_data));
-                let immut_data_final_name = *immut_data_final.name();
-
-                let resp_getter = ffi_try!(unwrap!(client.lock()).put(immut_data_final, None));
-                ffi_try!(resp_getter.get());
-
                 ffi_try!(versioned::create(client,
-                                           immut_data_final_name,
                                            type_tag,
                                            xor_id,
-                                           0,
+                                           raw_data,
                                            owner_keys,
-                                           Vec::new(),
-                                           &sign_key))
+                                           &sign_key,
+                                           None))
             }
             x if x >= CLIENT_STRUCTURED_DATA_TAG => {
                 let raw_data = ffi_try!(ffi_try!(unwrap!(object_cache())
@@ -200,17 +193,12 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
                 let raw_data = ffi_try!(ffi_try!(object_cache.get_cipher_opt(cipher_opt_h))
                     .encrypt(app, &ser_immut_data));
 
-                let immut_data_final = Data::Immutable(ImmutableData::new(raw_data));
-                let immut_data_final_name = *immut_data_final.name();
-
-                let resp_getter = ffi_try!(unwrap!(client.lock()).put(immut_data_final, None));
-                ffi_try!(resp_getter.get());
-
-                ffi_try!(versioned::append_version(client,
-                                                   ffi_try!(object_cache.get_sd(sd_h)).clone(),
-                                                   immut_data_final_name,
-                                                   &sign_key,
-                                                   false))
+                ffi_try!(versioned::update(client,
+                                           ffi_try!(object_cache.get_sd(sd_h)).clone(),
+                                           raw_data,
+                                           &sign_key,
+                                           None,
+                                           false))
             }
             x if x >= CLIENT_STRUCTURED_DATA_TAG => {
                 let raw_data = ffi_try!(ffi_try!(object_cache.get_cipher_opt(cipher_opt_h))
@@ -257,7 +245,7 @@ pub unsafe extern "C" fn struct_data_extract_data(app: *const App,
                 ffi_try!(CipherOpt::decrypt(&app, &raw_data))
             }
             ::VERSIONED_STRUCT_DATA_TYPE_TAG => {
-                let mut versions = ffi_try!(versioned::get_all_versions(client.clone(),
+                let mut versions = ffi_try!(versioned::get_all_version_names(client.clone(),
                                                          ffi_try!(obj_cache.get_sd(sd_h))));
                 if let Some(immut_data_final_name) = versions.pop() {
                     let resp_getter = ffi_try!(unwrap!(client.lock())
@@ -308,8 +296,7 @@ pub unsafe extern "C" fn struct_data_num_of_versions(app: *const App,
             ffi_try!(Err(FfiError::InvalidStructuredDataTypeTag));
         }
 
-        let num = ffi_try!(versioned::get_all_versions((*app).get_client(), sd)).len();
-
+        let num = ffi_try!(versioned::get_all_version_names((*app).get_client(), sd)).len();
         ptr::write(o_num, num);
 
         0
@@ -337,7 +324,7 @@ pub unsafe extern "C" fn struct_data_nth_version(app: *const App,
                 ffi_try!(Err(FfiError::InvalidStructuredDataTypeTag));
             }
 
-            ffi_try!(versioned::get_all_versions(client.clone(), sd))
+            ffi_try!(versioned::get_all_version_names(client.clone(), sd))
         };
 
         if n >= versions.len() {

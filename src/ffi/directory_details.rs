@@ -22,10 +22,11 @@ use core::client::Client;
 use ffi::config;
 use ffi::errors::FfiError;
 use ffi::file_details::FileMetadata;
-use nfs::directory_listing::DirectoryListing;
+use nfs::AccessLevel;
+use nfs::directory::Directory;
 use nfs::helper::directory_helper::DirectoryHelper;
-use nfs::metadata::directory_key::DirectoryKey;
-use nfs::metadata::directory_metadata::DirectoryMetadata as NfsDirectoryMetadata;
+use nfs::metadata::DirectoryKey;
+use nfs::metadata::DirectoryMetadata as NfsDirectoryMetadata;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 use super::helper;
@@ -48,25 +49,30 @@ impl DirectoryDetails {
                               directory_key: DirectoryKey)
                               -> Result<Self, FfiError> {
         let dir_helper = DirectoryHelper::new(client);
-        let dir_listing = try!(dir_helper.get(&directory_key));
+        let dir = try!(dir_helper.get(&directory_key));
 
-        Self::from_directory_listing(dir_listing)
+        Self::from_directory(dir)
     }
 
-    /// Obtain `DirectoryDetails` from the given directory listing.
-    pub fn from_directory_listing(listing: DirectoryListing) -> Result<Self, FfiError> {
+    /// Obtain `DirectoryDetails` from the given Directory.
+    pub fn from_directory(dir: Directory) -> Result<Self, FfiError> {
         let mut details = DirectoryDetails {
-            metadata: try!(DirectoryMetadata::new(listing.get_metadata())),
-            files: Vec::with_capacity(listing.get_files().len()),
-            sub_directories: Vec::with_capacity(listing.get_sub_directories().len()),
+            metadata: try!(DirectoryMetadata::new(dir.metadata(),
+                                                  dir.key().versioned(),
+                                                  dir.key().access_level())),
+            files: Vec::with_capacity(dir.files().len()),
+            sub_directories: Vec::with_capacity(dir.sub_directories().len()),
         };
 
-        for file in listing.get_files() {
-            details.files.push(try!(FileMetadata::new(file.get_metadata())));
+        for file in dir.files() {
+            details.files.push(try!(FileMetadata::new(file.metadata())));
         }
 
-        for metadata in listing.get_sub_directories() {
-            details.sub_directories.push(try!(DirectoryMetadata::new(metadata)));
+        for sub_directory in dir.sub_directories() {
+            let metadata = try!(DirectoryMetadata::new(sub_directory.metadata(),
+                                                       sub_directory.key().versioned(),
+                                                       sub_directory.key().access_level()));
+            details.sub_directories.push(metadata);
         }
 
         Ok(details)
@@ -108,16 +114,18 @@ pub struct DirectoryMetadata {
 }
 
 impl DirectoryMetadata {
-    fn new(dir_metadata: &NfsDirectoryMetadata) -> Result<Self, FfiError> {
+    fn new(dir_metadata: &NfsDirectoryMetadata,
+           versioned: bool,
+           access_level: AccessLevel)
+           -> Result<Self, FfiError> {
         use rustc_serialize::base64::ToBase64;
 
-        let dir_key = dir_metadata.get_key();
-        let created_time = dir_metadata.get_created_time().to_timespec();
-        let modified_time = dir_metadata.get_modified_time().to_timespec();
+        let created_time = dir_metadata.created_time().to_timespec();
+        let modified_time = dir_metadata.modified_time().to_timespec();
 
-        let (name, name_len, name_cap) = helper::string_to_c_utf8(dir_metadata.get_name()
+        let (name, name_len, name_cap) = helper::string_to_c_utf8(dir_metadata.name()
             .to_string());
-        let user_metadata = dir_metadata.get_user_metadata().to_base64(config::get_base64_config());
+        let user_metadata = dir_metadata.user_metadata().to_base64(config::get_base64_config());
         let (user_metadata, user_metadata_len, user_metadata_cap) =
             helper::string_to_c_utf8(user_metadata);
 
@@ -128,8 +136,8 @@ impl DirectoryMetadata {
             user_metadata: user_metadata,
             user_metadata_len: user_metadata_len,
             user_metadata_cap: user_metadata_cap,
-            is_private: *dir_key.get_access_level() == ::nfs::AccessLevel::Private,
-            is_versioned: dir_key.is_versioned(),
+            is_private: access_level == ::nfs::AccessLevel::Private,
+            is_versioned: versioned,
             creation_time_sec: created_time.sec,
             creation_time_nsec: created_time.nsec as i64,
             modification_time_sec: modified_time.sec,

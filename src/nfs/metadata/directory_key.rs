@@ -17,15 +17,17 @@
 
 use nfs::AccessLevel;
 use routing::XorName;
+use rust_sodium::crypto::secretbox;
+use std::cmp::Ordering;
 
 /// DirectoryKey represnts the meta information about a directory
 /// A directory can be feteched with the DirectoryKey
-#[derive(Debug, RustcEncodable, RustcDecodable, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, RustcEncodable, RustcDecodable, PartialEq, Eq, Clone)]
 pub struct DirectoryKey {
     id: XorName,
     type_tag: u64,
     versioned: bool,
-    access_level: AccessLevel,
+    secret_key: Option<secretbox::Key>,
 }
 
 impl DirectoryKey {
@@ -33,31 +35,54 @@ impl DirectoryKey {
     pub fn new(directory_id: XorName,
                type_tag: u64,
                versioned: bool,
-               access_level: AccessLevel)
+               secret_key: Option<secretbox::Key>)
                -> DirectoryKey {
         DirectoryKey {
             id: directory_id,
             type_tag: type_tag,
             versioned: versioned,
-            access_level: access_level,
+            secret_key: secret_key,
         }
     }
 
     /// Returns the id
-    pub fn get_id(&self) -> &XorName {
+    pub fn id(&self) -> &XorName {
         &self.id
     }
+
     /// Returns the type_tag
-    pub fn get_type_tag(&self) -> u64 {
+    pub fn type_tag(&self) -> u64 {
         self.type_tag
     }
+
     /// Returns true if the directory represented by the key is versioned, else returns false
-    pub fn is_versioned(&self) -> bool {
+    pub fn versioned(&self) -> bool {
         self.versioned
     }
+
     /// Returns the accesslevel of the directory represented by the key
-    pub fn get_access_level(&self) -> &AccessLevel {
-        &self.access_level
+    pub fn access_level(&self) -> AccessLevel {
+        match self.secret_key {
+            Some(_) => AccessLevel::Private,
+            None => AccessLevel::Public,
+        }
+    }
+
+    /// Returns the secret key used to encrypt/decrypt the directory (if any).
+    pub fn secret_key(&self) -> Option<&secretbox::Key> {
+        self.secret_key.as_ref()
+    }
+}
+
+impl Ord for DirectoryKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.id, self.type_tag, self.versioned).cmp(&(other.id, other.type_tag, other.versioned))
+    }
+}
+
+impl PartialOrd for DirectoryKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -67,6 +92,7 @@ mod test {
     use nfs::AccessLevel;
     use rand;
     use routing::XorName;
+    use rust_sodium::crypto::secretbox;
     use super::*;
 
     /// Should be able to serialise & deserialise the DirectoryKey
@@ -75,15 +101,16 @@ mod test {
         let id: XorName = rand::random();
         let tag = 10u64;
         let versioned = false;
-        let access_level = AccessLevel::Private;
+        let secret_key = Some(secretbox::gen_key());
 
-        let directory_key = DirectoryKey::new(id, tag, versioned, access_level.clone());
+        let directory_key = DirectoryKey::new(id, tag, versioned, secret_key.clone());
 
         let serialised = unwrap!(serialise(&directory_key));
         let deserilaised_key: DirectoryKey = unwrap!(deserialise(&serialised));
-        assert_eq!(*deserilaised_key.get_id(), id);
-        assert_eq!(*deserilaised_key.get_access_level(), access_level);
-        assert_eq!(deserilaised_key.is_versioned(), versioned);
-        assert_eq!(deserilaised_key.get_type_tag(), tag);
+        assert_eq!(*deserilaised_key.id(), id);
+        assert_eq!(deserilaised_key.access_level(), AccessLevel::Private);
+        assert_eq!(deserilaised_key.secret_key(), secret_key.as_ref());
+        assert_eq!(deserilaised_key.versioned(), versioned);
+        assert_eq!(deserilaised_key.type_tag(), tag);
     }
 }

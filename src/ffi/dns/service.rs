@@ -128,7 +128,7 @@ fn add_service(app: &App,
     let dns_operation = try!(DnsOperations::new(client));
 
     try!(dns_operation.add_service(&long_name,
-                                   (service_name, dir_to_map.get_key().clone()),
+                                   (service_name, dir_to_map.key().clone()),
                                    &signing_key,
                                    None));
     Ok(())

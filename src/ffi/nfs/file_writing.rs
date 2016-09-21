@@ -27,7 +27,7 @@ use nfs::errors::NfsError;
 use nfs::file::File;
 use nfs::helper::writer::Mode;
 use nfs::helper::writer::Writer as InnerWriter;
-use nfs::metadata::file_metadata::FileMetadata;
+use nfs::metadata::FileMetadata;
 use rustc_serialize::base64::FromBase64;
 use self_encryption::DataMap;
 use std::mem;

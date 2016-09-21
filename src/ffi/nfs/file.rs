@@ -197,18 +197,18 @@ fn modify_file(app: &App,
 
     let mut metadata_updated = false;
     if let Some(name) = new_name {
-        file.get_mut_metadata().set_name(name);
+        file.metadata_mut().set_name(name);
         metadata_updated = true;
     }
 
     if let Some(metadata) = new_metadata {
         let metadata = try!(parse_result!(metadata.from_base64(), "Failed to convert from base64"));
-        file.get_mut_metadata().set_user_metadata(metadata);
+        file.metadata_mut().set_user_metadata(metadata);
         metadata_updated = true;
     }
 
     if metadata_updated {
-        file.get_mut_metadata().set_modified_time(time::now_utc());
+        file.metadata_mut().set_modified_time(time::now_utc());
         let _ = try!(file_helper.update_metadata(file.clone(), &mut directory));
     }
 
@@ -244,7 +244,7 @@ fn move_file(app: &App,
     };
 
     if retain_src {
-        file = try!(File::new(file.get_metadata().clone(), file.get_datamap().clone()));
+        file = try!(File::new(file.metadata().clone(), file.datamap().clone()));
     }
 
     dst_dir.upsert_file(file);
@@ -267,7 +267,7 @@ fn get_file_metadata(app: &App,
         try!(helper::get_directory_and_file(app, file_path, is_path_shared));
     let file = try!(directory.find_file(&file_name).ok_or(FfiError::InvalidPath));
 
-    FileMetadata::new(file.get_metadata())
+    FileMetadata::new(file.metadata())
 }
 
 #[cfg(test)]
@@ -303,13 +303,13 @@ mod test {
         create_test_file(&app, "test_file.txt");
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_files().len(), 1);
+        assert_eq!(app_root_dir.files().len(), 1);
         assert!(app_root_dir.find_file("test_file.txt").is_some());
 
         assert!(super::delete_file(&app, "/test_file.txt", false).is_ok());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_files().len(), 0);
+        assert_eq!(app_root_dir.files().len(), 0);
 
         assert!(super::delete_file(&app, "/test_file.txt", false).is_err());
     }
@@ -340,7 +340,7 @@ mod test {
         create_test_file(&app, "test_file.txt");
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_files().len(), 1);
+        assert_eq!(app_root_dir.files().len(), 1);
         assert!(app_root_dir.find_file("test_file.txt").is_some());
 
         assert!(super::modify_file(&app,
@@ -352,7 +352,7 @@ mod test {
             .is_ok());
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
-        assert_eq!(app_root_dir.get_files().len(), 1);
+        assert_eq!(app_root_dir.files().len(), 1);
         assert!(app_root_dir.find_file("test_file.txt").is_none());
         assert!(app_root_dir.find_file("new_test_file.txt").is_some());
     }
@@ -369,7 +369,7 @@ mod test {
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         let file = unwrap!(app_root_dir.find_file("test_file.txt"));
-        assert_eq!(file.get_metadata().get_user_metadata().len(), 0);
+        assert_eq!(file.metadata().user_metadata().len(), 0);
 
         assert!(super::modify_file(&app,
                                    "/test_file.txt",
@@ -381,9 +381,9 @@ mod test {
 
         let app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
         let file = unwrap!(app_root_dir.find_file("test_file.txt"));
-        assert!(file.get_metadata().get_user_metadata().len() > 0);
-        assert_eq!(file.get_metadata()
-                       .get_user_metadata()
+        assert!(file.metadata().user_metadata().len() > 0);
+        assert_eq!(file.metadata()
+                       .user_metadata()
                        .to_base64(config::get_base64_config()),
                    METADATA_BASE64.to_string());
     }
