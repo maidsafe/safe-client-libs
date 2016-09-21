@@ -75,6 +75,7 @@ pub fn create(client: Arc<Mutex<Client>>,
 }
 
 /// Get actual data from ImmutableData created via create() function in this module.
+// TODO (adam): should we use symmetric encryption here too?
 pub fn get_data(client: Arc<Mutex<Client>>,
                 immut_data_name: XorName,
                 decryption_keys: Option<(&PublicKey, &SecretKey, &Nonce)>)
@@ -94,6 +95,7 @@ pub fn get_data(client: Arc<Mutex<Client>>,
 
 /// Get actual data from ImmutableData created via create() function in this module.
 /// Call this if you already have the ImmutableData with you.
+// TODO (adam): should we use symmetric encryption here too?
 pub fn get_data_from_immut_data(client: Arc<Mutex<Client>>,
                                 mut immut_data: ImmutableData,
                                 decryption_keys: Option<(&PublicKey, &SecretKey, &Nonce)>)

@@ -25,7 +25,7 @@ use nfs::metadata::DirectoryKey;
 use routing::{Data, DataIdentifier, StructuredData, XorName};
 use routing::TYPE_TAG_DNS_PACKET;
 use routing::client_errors::{GetError, MutationError};
-use rust_sodium::crypto::{box_, sign};
+use rust_sodium::crypto::{box_, secretbox, sign};
 use rust_sodium::crypto::hash::sha256;
 use std::convert::From;
 use std::sync::{Arc, Mutex};
@@ -64,9 +64,7 @@ impl DnsOperations {
                         services: &[(String, DirectoryKey)],
                         owners: Vec<sign::PublicKey>,
                         private_signing_key: &sign::SecretKey,
-                        data_encryption_keys: Option<(&box_::PublicKey,
-                                                      &box_::SecretKey,
-                                                      &box_::Nonce)>)
+                        encryption_key: Option<&secretbox::Key>)
                         -> Result<(), DnsError> {
         trace!("Registering dns with name: {}", long_name);
 
@@ -91,7 +89,7 @@ impl DnsOperations {
                                                        owners,
                                                        vec![],
                                                        private_signing_key,
-                                                       data_encryption_keys));
+                                                       encryption_key));
             match Client::put_recover(self.client.clone(), Data::Structured(struct_data), None) {
                 Ok(()) => (),
                 Err(CoreError::MutationFailure { reason: MutationError::DataExists, .. }) => {
@@ -181,14 +179,12 @@ impl DnsOperations {
     /// Dns-name
     pub fn get_all_services(&self,
                             long_name: &str,
-                            data_decryption_keys: Option<(&box_::PublicKey,
-                                                          &box_::SecretKey,
-                                                          &box_::Nonce)>)
+                            secret_key: Option<&secretbox::Key>)
                             -> Result<Vec<String>, DnsError> {
         trace!("Get all services for the dns with name: {}", long_name);
 
         let (_, dns_record) =
-            try!(self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys));
+            try!(self.get_housing_structured_data_and_dns_record(long_name, secret_key));
         Ok(dns_record.services.keys().cloned().collect())
     }
 
@@ -197,9 +193,7 @@ impl DnsOperations {
     pub fn get_service_home_directory_key(&self,
                                           long_name: &str,
                                           service_name: &str,
-                                          data_decryption_keys: Option<(&box_::PublicKey,
-                                                                        &box_::SecretKey,
-                                                                        &box_::Nonce)>)
+                                          secret_key: Option<&secretbox::Key>)
                                           -> Result<DirectoryKey, DnsError> {
         trace!("Get service home directory key (to locate the home directory on SAFE Network) \
                 for \"//{}.{}\".",
@@ -207,7 +201,7 @@ impl DnsOperations {
                long_name);
 
         let (_, dns_record) =
-            try!(self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys));
+            try!(self.get_housing_structured_data_and_dns_record(long_name, secret_key));
         dns_record.services
             .get(service_name)
             .cloned()
@@ -219,9 +213,7 @@ impl DnsOperations {
                        long_name: &str,
                        new_service: (String, DirectoryKey),
                        private_signing_key: &sign::SecretKey,
-                       data_encryption_decryption_keys: Option<(&box_::PublicKey,
-                                                                &box_::SecretKey,
-                                                                &box_::Nonce)>)
+                       secret_key: Option<&secretbox::Key>)
                        -> Result<(), DnsError> {
         trace!("Add service {:?} to dns with name: {}",
                new_service,
@@ -230,7 +222,7 @@ impl DnsOperations {
         self.add_remove_service_impl(long_name,
                                      (new_service.0, Some(new_service.1)),
                                      private_signing_key,
-                                     data_encryption_decryption_keys)
+                                     secret_key)
     }
 
     /// Remove a service from the given Dns-name.
@@ -238,9 +230,7 @@ impl DnsOperations {
                           long_name: &str,
                           service_to_remove: String,
                           private_signing_key: &sign::SecretKey,
-                          data_encryption_decryption_keys: Option<(&box_::PublicKey,
-                                                                   &box_::SecretKey,
-                                                                   &box_::Nonce)>)
+                          secret_key: Option<&secretbox::Key>)
                           -> Result<(), DnsError> {
         trace!("Remove service {:?} from dns with name: {}",
                service_to_remove,
@@ -249,7 +239,7 @@ impl DnsOperations {
         self.add_remove_service_impl(long_name,
                                      (service_to_remove, None),
                                      private_signing_key,
-                                     data_encryption_decryption_keys)
+                                     secret_key)
     }
 
     fn find_dns_record(&self,
@@ -266,16 +256,13 @@ impl DnsOperations {
                                long_name: &str,
                                service: (String, Option<DirectoryKey>),
                                private_signing_key: &sign::SecretKey,
-                               data_encryption_decryption_keys: Option<(&box_::PublicKey,
-                                                                        &box_::SecretKey,
-                                                                        &box_::Nonce)>)
+                               secret_key: Option<&secretbox::Key>)
                                -> Result<(), DnsError> {
         let _ = try!(self.find_dns_record(long_name));
 
         let is_add_service = service.1.is_some();
         let (prev_struct_data, mut dns_record) =
-            try!(self.get_housing_structured_data_and_dns_record(long_name,
-                                                                 data_encryption_decryption_keys));
+            try!(self.get_housing_structured_data_and_dns_record(long_name, secret_key));
 
         if !is_add_service && !dns_record.services.contains_key(&service.0) {
             Err(DnsError::ServiceNotFound)
@@ -302,7 +289,7 @@ impl DnsOperations {
                                                        prev_struct_data.get_previous_owner_keys()
                                                            .clone(),
                                                        private_signing_key,
-                                                       data_encryption_decryption_keys));
+                                                       secret_key));
             let resp_getter = try!(unwrap!(self.client.lock())
                 .post(Data::Structured(struct_data), None));
             try!(resp_getter.get());
@@ -313,14 +300,12 @@ impl DnsOperations {
 
     fn get_housing_structured_data_and_dns_record(&self,
                                                   long_name: &str,
-                                                  data_decryption_keys: Option<(&box_::PublicKey,
-                                                                                &box_::SecretKey,
-                                                                                &box_::Nonce)>)
+                                                  secret_key: Option<&secretbox::Key>)
                                                   -> Result<(StructuredData, Dns), DnsError> {
         let struct_data = try!(self.get_housing_structured_data(long_name));
         let dns_record = try!(deserialise(&try!(unversioned::get_data(self.client.clone(),
                                                                       &struct_data,
-                                                                      data_decryption_keys))));
+                                                                      secret_key))));
         Ok((struct_data, dns_record))
     }
 

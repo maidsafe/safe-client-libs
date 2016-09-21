@@ -23,7 +23,7 @@ use core::structured_data_operations::{self, DataFitResult};
 use core::utility;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XorName};
-use rust_sodium::crypto::{box_, sign};
+use rust_sodium::crypto::{secretbox, sign};
 use self_encryption::{DataMap, SelfEncryptor};
 use std::sync::{Arc, Mutex};
 
@@ -47,14 +47,12 @@ pub fn create(client: Arc<Mutex<Client>>,
               owner_keys: Vec<sign::PublicKey>,
               prev_owner_keys: Vec<sign::PublicKey>,
               private_signing_key: &sign::SecretKey,
-              data_encryption_keys: Option<(&box_::PublicKey,
-                                            &box_::SecretKey,
-                                            &box_::Nonce)>)
+              encryption_key: Option<&secretbox::Key>)
               -> Result<StructuredData, CoreError> {
     trace!("Creating unversioned StructuredData.");
 
     let data_to_store = try!(get_encoded_data_to_store(DataTypeEncoding::Data(data.clone()),
-                                                       data_encryption_keys));
+                                                       encryption_key));
 
     match try!(structured_data_operations::check_if_data_can_fit_in_structured_data(
             &data_to_store,
@@ -81,14 +79,14 @@ pub fn create(client: Arc<Mutex<Client>>,
 
             let data_to_store =
                 try!(get_encoded_data_to_store(DataTypeEncoding::Map(data_map.clone()),
-                                               data_encryption_keys));
+                                               encryption_key));
             match try!(structured_data_operations::check_if_data_can_fit_in_structured_data(
                     &data_to_store,
                     owner_keys.clone(),
                     prev_owner_keys.clone())) {
                 DataFitResult::DataFits => {
                     trace!("DataMap (encrypted: {}) fits in the StructuredData.",
-                           data_encryption_keys.is_some());
+                           encryption_key.is_some());
 
                     Ok(try!(StructuredData::new(type_tag,
                                                 id,
@@ -101,7 +99,7 @@ pub fn create(client: Arc<Mutex<Client>>,
                 DataFitResult::DataDoesNotFit => {
                     trace!("DataMap (encrypted: {}) does not fit in the StructuredData. Putting \
                             it out as ImmutableData.",
-                           data_encryption_keys.is_some());
+                           encryption_key.is_some());
 
                     let immutable_data = ImmutableData::new(data_to_store);
                     let name = *immutable_data.name();
@@ -109,7 +107,7 @@ pub fn create(client: Arc<Mutex<Client>>,
                     try!(Client::put_recover(client, data, None));
 
                     let data_to_store = try!(get_encoded_data_to_store(
-                        DataTypeEncoding::MapName(name), data_encryption_keys));
+                        DataTypeEncoding::MapName(name), encryption_key));
 
                     match try!(structured_data_operations::
                                check_if_data_can_fit_in_structured_data(&data_to_store,
@@ -141,11 +139,11 @@ pub fn create(client: Arc<Mutex<Client>>,
 /// Get Actual Data From StructuredData created via create() function in this module.
 pub fn get_data(client: Arc<Mutex<Client>>,
                 struct_data: &StructuredData,
-                data_decryption_keys: Option<(&box_::PublicKey, &box_::SecretKey, &box_::Nonce)>)
+                decryption_key: Option<&secretbox::Key>)
                 -> Result<Vec<u8>, CoreError> {
     trace!("Getting unversioned StructuredData");
 
-    match try!(get_decoded_stored_data(&struct_data.get_data(), data_decryption_keys)) {
+    match try!(get_decoded_stored_data(&struct_data.get_data(), decryption_key)) {
         DataTypeEncoding::Data(data) => Ok(data),
         DataTypeEncoding::Map(data_map) => {
             let mut storage = SelfEncryptionStorage::new(client);
@@ -159,7 +157,7 @@ pub fn get_data(client: Arc<Mutex<Client>>,
             match try!(response_getter.get()) {
                 Data::Immutable(immutable_data) => {
                     match try!(get_decoded_stored_data(&immutable_data.value(),
-                                                       data_decryption_keys)) {
+                                                       decryption_key)) {
                         DataTypeEncoding::Map(data_map) => {
                             let mut storage = SelfEncryptionStorage::new(client);
                             let mut self_encryptor = try!(SelfEncryptor::new(&mut storage,
@@ -177,39 +175,26 @@ pub fn get_data(client: Arc<Mutex<Client>>,
 }
 
 fn get_encoded_data_to_store(data: DataTypeEncoding,
-                             data_encryption_keys: Option<(&box_::PublicKey,
-                                                           &box_::SecretKey,
-                                                           &box_::Nonce)>)
+                             encryption_key: Option<&secretbox::Key>)
                              -> Result<Vec<u8>, CoreError> {
-    let serialised_data = try!(serialise(&data));
-    if let Some((public_encryp_key, secret_encryp_key, nonce)) = data_encryption_keys {
-        utility::hybrid_encrypt(&serialised_data,
-                                nonce,
-                                public_encryp_key,
-                                secret_encryp_key)
+    let encoded = try!(serialise(&data));
+
+    if let Some(secret_key) = encryption_key {
+        utility::symmetric_encrypt(&encoded, secret_key)
     } else {
-        Ok(serialised_data)
+        Ok(encoded)
     }
 }
 
 fn get_decoded_stored_data(raw_data: &[u8],
-                           data_decryption_keys: Option<(&box_::PublicKey,
-                                                         &box_::SecretKey,
-                                                         &box_::Nonce)>)
+                           decryption_key: Option<&secretbox::Key>)
                            -> Result<DataTypeEncoding, CoreError> {
-    let data: _;
-    let data_to_deserialise = if let Some((public_encryp_key, secret_encryp_key, nonce)) =
-                                     data_decryption_keys {
-        data = try!(utility::hybrid_decrypt(&raw_data,
-                                            nonce,
-                                            public_encryp_key,
-                                            secret_encryp_key));
-        &data
+    if let Some(secret_key) = decryption_key {
+        let decrypted = try!(utility::symmetric_decrypt(raw_data, secret_key));
+        Ok(try!(deserialise(&decrypted)))
     } else {
-        raw_data
-    };
-
-    Ok(try!(deserialise(data_to_deserialise)))
+        Ok(try!(deserialise(raw_data)))
+    }
 }
 
 #[cfg(test)]
@@ -217,7 +202,7 @@ mod test {
     use core::utility;
     use rand;
     use routing::XorName;
-    use rust_sodium::crypto::box_;
+    use rust_sodium::crypto::secretbox;
     use std::sync::{Arc, Mutex};
     use super::*;
 
@@ -225,8 +210,7 @@ mod test {
 
     #[test]
     fn create_and_get_unversioned_structured_data() {
-        let keys = box_::gen_keypair();
-        let data_decryption_keys = (&keys.0, &keys.1, &box_::gen_nonce());
+        let secret_key = secretbox::gen_key();
         let client = Arc::new(Mutex::new(unwrap!(utility::test_utils::get_client())));
         // Empty Data
         {
@@ -234,7 +218,7 @@ mod test {
             let data = Vec::new();
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -242,7 +226,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
@@ -255,7 +239,7 @@ mod test {
             let data = Vec::new();
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -263,9 +247,9 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
-                                Some(data_decryption_keys));
-            match get_data(client.clone(), &unwrap!(result), Some(data_decryption_keys)) {
+                                sign_key,
+                                Some(&secret_key));
+            match get_data(client.clone(), &unwrap!(result), Some(&secret_key)) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -276,7 +260,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -284,7 +268,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(data.len(), fetched_data.len()),
@@ -297,7 +281,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(200);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -305,7 +289,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
@@ -318,7 +302,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(903);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -326,7 +310,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
@@ -339,7 +323,7 @@ mod test {
             let data = vec![99u8; 1024 * 75];
             let owners = utility::test_utils::get_max_sized_public_keys(900);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -347,9 +331,9 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
-                                Some(data_decryption_keys));
-            match get_data(client.clone(), &unwrap!(result), Some(data_decryption_keys)) {
+                                sign_key,
+                                Some(&secret_key));
+            match get_data(client.clone(), &unwrap!(result), Some(&secret_key)) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
                 Err(_) => panic!("Failed to fetch"),
             }
@@ -360,7 +344,7 @@ mod test {
             let data = vec![99u8; 1024 * 80];
             let owners = utility::test_utils::get_max_sized_public_keys(905);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -368,7 +352,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             assert!(result.is_err());
         }
@@ -378,7 +362,7 @@ mod test {
             let data = vec![99u8; 102400];
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -386,7 +370,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),
@@ -399,7 +383,7 @@ mod test {
             let data = vec![99u8; 204801];
             let owners = utility::test_utils::get_max_sized_public_keys(1);
             let prev_owners = Vec::new();
-            let secret_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
+            let sign_key = &utility::test_utils::get_max_sized_secret_keys(1)[0];
             let result = create(client.clone(),
                                 TAG_ID,
                                 id,
@@ -407,7 +391,7 @@ mod test {
                                 data.clone(),
                                 owners.clone(),
                                 prev_owners.clone(),
-                                secret_key,
+                                sign_key,
                                 None);
             match get_data(client.clone(), &unwrap!(result), None) {
                 Ok(fetched_data) => assert_eq!(fetched_data, data),

@@ -23,7 +23,7 @@ use core::structured_data_operations::{DataFitResult, check_if_data_can_fit_in_s
 use core::utility;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Data, DataIdentifier, ImmutableData, StructuredData, XorName};
-use rust_sodium::crypto::{box_, sign};
+use rust_sodium::crypto::{secretbox, sign};
 use self_encryption::{DataMap, SelfEncryptor};
 use std::sync::{Arc, Mutex};
 
@@ -35,11 +35,11 @@ pub fn create(client: Arc<Mutex<Client>>,
               data: Vec<u8>,
               owner_keys: Vec<sign::PublicKey>,
               signing_key: &sign::SecretKey,
-              encryption_keys: Option<(&box_::PublicKey, &box_::SecretKey, &box_::Nonce)>)
+              encryption_key: Option<&secretbox::Key>)
               -> Result<StructuredData, CoreError> {
     trace!("Creating versioned StructuredData.");
 
-    let version_name = try!(put_data(client.clone(), data, encryption_keys));
+    let version_name = try!(put_data(client.clone(), data, encryption_key));
     let encoded_version_names_name = try!(put_version_names(client.clone(),
                                                             owner_keys.clone(),
                                                             vec![],
@@ -59,13 +59,13 @@ pub fn update(client: Arc<Mutex<Client>>,
               struct_data: StructuredData,
               data: Vec<u8>,
               signing_key: &sign::SecretKey,
-              encryption_keys: Option<(&box_::PublicKey, &box_::SecretKey, &box_::Nonce)>,
+              encryption_key: Option<&secretbox::Key>,
               increment_version_number: bool)
               -> Result<StructuredData, CoreError> {
     trace!("Appending version to versioned StructuredData.");
 
     let mut version_names = try!(get_all_version_names(client.clone(), &struct_data));
-    let new_version_name = try!(put_data(client.clone(), data, encryption_keys));
+    let new_version_name = try!(put_data(client.clone(), data, encryption_key));
     version_names.push(new_version_name);
 
     let encoded_version_names_name = try!(put_version_names(client.clone(),
@@ -89,9 +89,7 @@ pub fn update(client: Arc<Mutex<Client>>,
 /// Retrieve the data with the given version name.
 pub fn get_data(client: Arc<Mutex<Client>>,
                 name: &XorName,
-                encryption_keys: Option<(&box_::PublicKey,
-                                         &box_::SecretKey,
-                                         &box_::Nonce)>)
+                encryption_key: Option<&secretbox::Key>)
                 -> Result<Vec<u8>, CoreError> {
     let request = DataIdentifier::Immutable(*name);
     let resp_getter = try!(unwrap!(client.lock()).get(request, None));
@@ -101,8 +99,8 @@ pub fn get_data(client: Arc<Mutex<Client>>,
     };
     let data = data.value();
 
-    if let Some((pk, sk, nonce)) = encryption_keys {
-        let data_map = try!(utility::hybrid_decrypt(data, nonce, pk, sk));
+    if let Some(secret_key) = encryption_key {
+        let data_map = try!(utility::symmetric_decrypt(data, secret_key));
         let data_map = try!(deserialise(&data_map));
         let mut storage = SelfEncryptionStorage::new(client.clone());
         let mut self_encryptor = try!(SelfEncryptor::new(&mut storage, data_map));
@@ -116,18 +114,16 @@ pub fn get_data(client: Arc<Mutex<Client>>,
 // Save the data into the netowork as immutable data and return its name.
 fn put_data(client: Arc<Mutex<Client>>,
             data: Vec<u8>,
-            encryption_keys: Option<(&box_::PublicKey,
-                                     &box_::SecretKey,
-                                     &box_::Nonce)>)
+            encryption_key: Option<&secretbox::Key>)
                 -> Result<XorName, CoreError> {
-    let data = match encryption_keys {
-        Some((pk, sk, nonce)) => {
+    let data = match encryption_key {
+        Some(secret_key) => {
             let mut storage = SelfEncryptionStorage::new(client.clone());
             let mut self_encryptor = try!(SelfEncryptor::new(&mut storage, DataMap::None));
             try!(self_encryptor.write(&data, 0));
             let data = try!(self_encryptor.close());
             let data = try!(serialise(&data));
-            try!(utility::hybrid_encrypt(&data, nonce, pk, sk))
+            try!(utility::symmetric_encrypt(&data, secret_key))
         }
         None => data,
     };
