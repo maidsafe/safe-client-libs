@@ -64,6 +64,7 @@ pub unsafe extern "C" fn misc_serialise_sign_key(sign_key_h: SignKeyHandle,
 }
 
 /// Deserialise sign::PubKey
+#[no_mangle]
 pub unsafe extern "C" fn misc_deserialise_sign_key(data: *mut u8,
                                                    size: usize,
                                                    o_handle: *mut SignKeyHandle)
