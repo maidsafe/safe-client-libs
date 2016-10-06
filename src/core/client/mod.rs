@@ -30,7 +30,7 @@ use core::translated_events::NetworkEvent;
 use core::utility;
 
 use maidsafe_utilities::serialisation::serialise;
-use maidsafe_utilities::thread::RaiiThreadJoiner;
+use maidsafe_utilities::thread::Joiner;
 use routing::{AppendWrapper, Authority, Data, DataIdentifier, FullId, MessageId, PlainData,
               StructuredData, XorName};
 #[cfg(not(feature = "use-mock-routing"))]
@@ -59,7 +59,7 @@ use std::sync::mpsc::Sender;
 pub struct Client {
     account: Option<Account>,
     routing: Routing,
-    _raii_joiner: RaiiThreadJoiner,
+    _raii_joiner: Joiner,
     message_queue: Arc<Mutex<MessageQueue>>,
     session_packet_id: Option<XorName>,
     session_packet_keys: Option<SessionPacketEncryptionKeys>,

@@ -189,27 +189,30 @@ impl Into<i32> for CoreError {
             CoreError::MutationFailure { reason: MutationError::NetworkFull, .. } => {
                 CLIENT_ERROR_START_RANGE - 27
             }
-            CoreError::SelfEncryption(
-                SelfEncryptionError::Compression::<SelfEncryptionStorageError>) => {
+            CoreError::MutationFailure { reason: MutationError::DataTooLarge, .. } => {
                 CLIENT_ERROR_START_RANGE - 28
             }
             CoreError::SelfEncryption(
-                SelfEncryptionError::Decryption::<SelfEncryptionStorageError>) => {
+                SelfEncryptionError::Compression::<SelfEncryptionStorageError>) => {
                 CLIENT_ERROR_START_RANGE - 29
             }
-            CoreError::SelfEncryption(SelfEncryptionError::Io::<SelfEncryptionStorageError>(_)) => {
+            CoreError::SelfEncryption(
+                SelfEncryptionError::Decryption::<SelfEncryptionStorageError>) => {
                 CLIENT_ERROR_START_RANGE - 30
             }
-            CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
+            CoreError::SelfEncryption(SelfEncryptionError::Io::<SelfEncryptionStorageError>(_)) => {
                 CLIENT_ERROR_START_RANGE - 31
             }
-            CoreError::GetAccountInfoFailure { .. } => CLIENT_ERROR_START_RANGE - 32,
-            CoreError::RequestTimeout => CLIENT_ERROR_START_RANGE - 33,
+            CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
+                CLIENT_ERROR_START_RANGE - 32
+            }
+            CoreError::GetAccountInfoFailure { .. } => CLIENT_ERROR_START_RANGE - 33,
+            CoreError::RequestTimeout => CLIENT_ERROR_START_RANGE - 34,
             CoreError::SelfEncryption(SelfEncryptionError
                                       ::Storage
                                       ::<SelfEncryptionStorageError>(
                                           SelfEncryptionStorageError(err))) => (*err).into(),
-            CoreError::InvalidStructuredDataTypeTag => CLIENT_ERROR_START_RANGE - 34,
+            CoreError::InvalidStructuredDataTypeTag => CLIENT_ERROR_START_RANGE - 35,
         }
     }
 }

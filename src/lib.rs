@@ -43,8 +43,6 @@
                                    option_unwrap_used))]
 #![cfg_attr(feature="clippy", allow(use_debug, doc_markdown))] // TODO: Fix doc_markdown errors.
 
-#[cfg(all(not(test), feature = "use-mock-routing"))]
-extern crate bincode;
 extern crate config_file_handler;
 #[macro_use]
 extern crate lazy_static;

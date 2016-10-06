@@ -10,19 +10,18 @@ repository = "https://github.com/maidsafe/safe_core"
 version = "0.21.2"
 
 [dependencies]
-bincode = "~0.5.9"
 clippy = {version = "~0.0.91", optional = true}
 config_file_handler = "~0.4.0"
 lazy_static = "~0.2.1"
 libc = "~0.2.16"
 log = "~0.3.6"
 lru-cache = "~0.0.7"
-maidsafe_utilities = "~0.9.0"
+maidsafe_utilities = "~0.10.0"
 rand = "~0.3.14"
-routing = "~0.26.0"
+routing = "~0.27.0"
 rust_sodium = "~0.1.2"
 rustc-serialize = "~0.3.19"
-self_encryption = "~0.7.0"
+self_encryption = "~0.7.1"
 time = "~0.1.35"
 unwrap = "~1.1.0"
 
