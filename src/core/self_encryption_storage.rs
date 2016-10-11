@@ -16,61 +16,87 @@
 // relating to use of the SAFE Network Software.
 
 
-use core::client::Client;
-use core::errors::CoreError;
-use core::self_encryption_storage_error::SelfEncryptionStorageError;
+use core::{CoreError, CPtr};
+use futures::{self, Future};
 use routing::{Data, DataIdentifier, ImmutableData, XOR_NAME_LEN, XorName};
-use self_encryption::Storage;
-use std::sync::{Arc, Mutex};
+use self_encryption::{Storage, StorageError};
+use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 
 /// Network storage is the concrete type which self-encryption crate will use to put or get data
 /// from the network
 pub struct SelfEncryptionStorage {
-    // TODO - No need for `client` to be mutex-protected any more since SelfEncryptor is no longer
-    // multi-threaded.
-    client: Arc<Mutex<Client>>,
+    client: CPtr,
 }
 
 impl SelfEncryptionStorage {
     /// Create a new SelfEncryptionStorage instance
-    pub fn new(client: Arc<Mutex<Client>>) -> SelfEncryptionStorage {
+    pub fn new(client: CPtr) -> Self {
         SelfEncryptionStorage { client: client }
     }
 }
 
-impl Storage<SelfEncryptionStorageError> for SelfEncryptionStorage {
-    fn get(&self, name: &[u8]) -> Result<Vec<u8>, SelfEncryptionStorageError> {
+impl Storage for SelfEncryptionStorage {
+    type Error = SelfEncryptionStorageError;
+
+    fn get(&self, name: &[u8]) -> Box<Future<Item = Vec<u8>, Error = Self::Error>> {
         trace!("Self encrypt invoked GET.");
 
         if name.len() != XOR_NAME_LEN {
-            return Err(SelfEncryptionStorageError(Box::new(CoreError::Unexpected("Requested \
-                                                                                  `name` is \
-                                                                                  incorrect \
-                                                                                  size."
-                .to_owned()))));
-        }
-        let mut name_id = [0u8; XOR_NAME_LEN];
-        for i in 0..XOR_NAME_LEN {
-            name_id[i] = name[i];
+            let err = CoreError::Unexpected("Requested `name` is incorrect size.".to_owned());
+            let err = SelfEncryptionStorageError::from(err);
+            return Box::new(futures::failed(err));
         }
 
-        let immutable_data_request = DataIdentifier::Immutable(XorName(name_id));
-        let resp_getter = try!(unwrap!(self.client.lock()).get(immutable_data_request, None));
-        match try!(resp_getter.get()) {
-            Data::Immutable(ref received_data) => Ok(received_data.value().clone()),
-            _ => {
-                Err(SelfEncryptionStorageError(Box::new(CoreError::Unexpected("Wrong data type \
-                                                                               returned from \
-                                                                               network."
-                    .to_owned()))))
+        let name = {
+            let mut temp = [0u8; XOR_NAME_LEN];
+            for i in 0..XOR_NAME_LEN {
+                temp[i] = name[i];
             }
-        }
+            temp
+        };
+
+        let data_id = DataIdentifier::Immutable(XorName(name));
+        Box::new(self.client.borrow_mut()
+            .get(data_id, None)
+            .and_then(|data| match data {
+                Data::Immutable(data) => Ok(data.value().clone()),
+                _ => Err(CoreError::ReceivedUnexpectedData),
+            })
+            .map_err(From::from))
     }
 
-    fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), SelfEncryptionStorageError> {
+    fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<Future<Item=(), Error=Self::Error>> {
         trace!("Self encrypt invoked PUT.");
-
-        let immutable_data = ImmutableData::new(data);
-        Ok(try!(Client::put_recover(self.client.clone(), Data::Immutable(immutable_data), None)))
+        let data = Data::Immutable(ImmutableData::new(data));
+        Box::new(self.client.borrow_mut().put(data, None).map_err(From::from))
     }
 }
+
+/// Errors arising from storage object being used by self-encryptors.
+#[derive(Debug)]
+pub struct SelfEncryptionStorageError(pub Box<CoreError>);
+
+impl Display for SelfEncryptionStorageError {
+    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+        Display::fmt(&*self.0, formatter)
+    }
+}
+
+impl Error for SelfEncryptionStorageError {
+    fn description(&self) -> &str {
+        self.0.description()
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        self.0.cause()
+    }
+}
+
+impl From<CoreError> for SelfEncryptionStorageError {
+    fn from(error: CoreError) -> SelfEncryptionStorageError {
+        SelfEncryptionStorageError(Box::new(error))
+    }
+}
+
+impl StorageError for SelfEncryptionStorageError {}

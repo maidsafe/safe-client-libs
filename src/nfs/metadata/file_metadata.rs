@@ -1,4 +1,4 @@
-// Copyright 2015 MaidSafe.net limited.
+// Copyright 2016 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -45,33 +45,33 @@ impl FileMetadata {
     }
 
     /// Get version
-    pub fn get_version(&self) -> u32 {
+    pub fn version(&self) -> u32 {
         self.version
     }
 
     /// Get time of creation
-    pub fn get_created_time(&self) -> &Tm {
+    pub fn created_time(&self) -> &Tm {
         &self.created_time
     }
 
     /// Get time of modification
-    pub fn get_modified_time(&self) -> &Tm {
+    pub fn modified_time(&self) -> &Tm {
         &self.modified_time
     }
 
     /// Get name associated with the structure (file or directory) that this metadata is a part
     /// of
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
     /// Get size information
-    pub fn get_size(&self) -> u64 {
+    pub fn size(&self) -> u64 {
         self.size
     }
 
     /// Get user setteble custom metadata
-    pub fn get_user_metadata(&self) -> &[u8] {
+    pub fn user_metadata(&self) -> &[u8] {
         &self.user_metadata
     }
 

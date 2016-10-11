@@ -503,17 +503,14 @@ mod test {
 
         let mut services = vec![("www".to_string(),
                                  DirectoryKey::new(XorName([123; XOR_NAME_LEN]),
-                                                   15000,
                                                    false,
                                                    AccessLevel::Public)),
                                 ("blog".to_string(),
                                  DirectoryKey::new(XorName([123; XOR_NAME_LEN]),
-                                                   15000,
                                                    false,
                                                    AccessLevel::Public)),
                                 ("bad-ass".to_string(),
                                  DirectoryKey::new(XorName([123; XOR_NAME_LEN]),
-                                                   15000,
                                                    false,
                                                    AccessLevel::Public))];
 
@@ -584,7 +581,6 @@ mod test {
         // Add a service
         services.push(("added-service".to_string(),
                        DirectoryKey::new(XorName([126; XOR_NAME_LEN]),
-                                         15000,
                                          false,
                                          AccessLevel::Public)));
         let services_size = services.len();

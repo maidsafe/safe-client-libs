@@ -16,32 +16,30 @@
 // relating to use of the SAFE Network Software.
 
 use core::{SelfEncryptionStorage, SelfEncryptionStorageError};
-
-use core::client::Client;
+use core::CPtr;
+use futures::{self, Future};
+use nfs::NfsFuture;
 use nfs::errors::NfsError;
 use nfs::file::File;
 use self_encryption::SelfEncryptor;
-use std::sync::{Arc, Mutex};
 
 /// Reader is used to read contents of a File. It can read in chunks if the file happens to be very
 /// large
 #[allow(dead_code)]
-pub struct Reader<'a> {
-    client: Arc<Mutex<Client>>,
-    self_encryptor: SelfEncryptor<'a, SelfEncryptionStorageError, SelfEncryptionStorage>,
-    file: &'a File,
+pub struct Reader {
+    client: CPtr,
+    self_encryptor: SelfEncryptor<SelfEncryptionStorage>,
 }
 
-impl<'a> Reader<'a> {
+impl Reader {
     /// Create a new instance of Reader
-    pub fn new(client: Arc<Mutex<Client>>,
-               storage: &'a mut SelfEncryptionStorage,
-               file: &'a File)
-               -> Result<Reader<'a>, NfsError> {
+    pub fn new(client: CPtr,
+               storage: SelfEncryptionStorage,
+               file: &File)
+               -> Result<Reader, NfsError> {
         Ok(Reader {
-            client: client.clone(),
-            self_encryptor: try!(SelfEncryptor::new(storage, file.get_datamap().clone())),
-            file: file,
+            client: client,
+            self_encryptor: try!(SelfEncryptor::new(storage, file.datamap().clone())),
         })
     }
 
@@ -51,18 +49,18 @@ impl<'a> Reader<'a> {
     }
 
     /// Read data from file/blob
-    pub fn read(&mut self, position: u64, length: u64) -> Result<Vec<u8>, NfsError> {
+    pub fn read(&self, position: u64, length: u64) -> NfsFuture<Vec<u8>> {
         trace!("Reader reading from pos: {} and size: {}.",
                position,
                length);
 
         if (position + length) > self.size() {
-            Err(NfsError::InvalidRangeSpecified)
+            Box::new(futures::failed(NfsError::InvalidRangeSpecified))
         } else {
             debug!("Reading {len} bytes of data from file starting at offset of {pos} bytes ...",
                    len = length,
                    pos = position);
-            Ok(try!(self.self_encryptor.read(position, length)))
+            Box::new(self.self_encryptor.read(position, length).map_err(From::from))
         }
     }
 }

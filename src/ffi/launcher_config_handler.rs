@@ -20,7 +20,7 @@ use core::client::Client;
 use ffi::config::{LAUNCHER_GLOBAL_CONFIG_FILE_NAME, LAUNCHER_GLOBAL_DIRECTORY_NAME};
 use ffi::errors::FfiError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
+use nfs::AccessLevel;
 use nfs::directory_listing::DirectoryListing;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::helper::file_helper::FileHelper;
@@ -73,7 +73,6 @@ impl ConfigHandler {
                 let mut root_dir_listing = try!(dir_helper.get_user_root_directory_listing());
                 let app_dir_name = self.get_app_dir_name(&app_name, &root_dir_listing);
                 let dir_key = *try!(dir_helper.create(app_dir_name,
-                                                      UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                       Vec::new(),
                                                       false,
                                                       AccessLevel::Private,

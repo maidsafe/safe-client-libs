@@ -171,7 +171,7 @@ mod test {
     use core::utility;
     use ffi::dns::long_name;
     use ffi::test_utils;
-    use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
+    use nfs::AccessLevel;
     use nfs::helper::directory_helper::DirectoryHelper;
 
     #[test]
@@ -184,7 +184,6 @@ mod test {
         let public_name = unwrap!(utility::generate_random_string(10));
 
         let _ = unwrap!(dir_helper.create("test_dir".to_string(),
-                                          UNVERSIONED_DIRECTORY_LISTING_TAG,
                                           Vec::new(),
                                           false,
                                           AccessLevel::Public,
@@ -203,7 +202,6 @@ mod test {
         let mut app_root_dir = unwrap!(dir_helper.get(&app_root_dir_key));
 
         let _ = unwrap!(dir_helper.create("test_dir".to_string(),
-                                          UNVERSIONED_DIRECTORY_LISTING_TAG,
                                           Vec::new(),
                                           false,
                                           AccessLevel::Public,

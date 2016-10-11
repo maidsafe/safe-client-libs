@@ -1,4 +1,4 @@
-// Copyright 2015 MaidSafe.net limited.
+// Copyright 2016 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -15,31 +15,41 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+/// Helpers to work with futures.
+#[macro_use]
+mod futures;
+
 /// Public and Private Id types
 pub mod id;
 /// Safe-Core Errors
 pub mod errors;
-/// Self-Authentication and Gateway Module
-pub mod client;
 /// Utility functions
 pub mod utility;
-/// Events filtered from set of Routing provided events, on which the Client Modules must
-/// specifically act
-pub mod translated_events;
 /// Implements the Self Encryption storage trait
 pub mod self_encryption_storage;
-/// Implements the Self Encryption storage error trait
-pub mod self_encryption_storage_error;
-/// Helper functions to handle ImmutableData related operations
-pub mod immut_data_operations;
-/// Helper functions to handle StructuredData related operations
-pub mod structured_data_operations;
+// /// Helper functions to handle ImmutableData related operations
+// pub mod immut_data_operations;
+// /// Helper functions to handle StructuredData related operations
+// pub mod structured_data_operations;
 
-pub use self::self_encryption_storage::SelfEncryptionStorage;
-pub use self::self_encryption_storage_error::SelfEncryptionStorageError;
+pub use self::client::Client;
+pub use self::core_el::{CoreMsg, CoreMsgTx, TailFuture, run};
+pub use self::errors::CoreError;
+pub use self::futures::FutureExt;
+pub use self::self_encryption_storage::{SelfEncryptionStorage, SelfEncryptionStorageError};
+
+/// Handle to the main Client object.
+pub type CPtr = Rc<RefCell<Client>>;
 
 /// All Maidsafe tagging should positive-offset from this
 pub const MAIDSAFE_TAG: u64 = 5483_000;
 /// All StructuredData tagging should positive-offset from this if the operation needs to go
 /// through this safe_core crate
 pub const CLIENT_STRUCTURED_DATA_TAG: u64 = 15000;
+
+mod client;
+mod core_el;
+mod event;

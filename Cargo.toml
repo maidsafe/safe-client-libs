@@ -10,20 +10,23 @@ repository = "https://github.com/maidsafe/safe_core"
 version = "0.21.2"
 
 [dependencies]
-bincode = "~0.5.9"
-clippy = {version = "~0.0.91", optional = true}
+clippy = { version = "~0.0.91", optional = true }
 config_file_handler = "~0.4.0"
+futures = "0.1"
 lazy_static = "~0.2.1"
 libc = "~0.2.16"
 log = "~0.3.6"
 lru-cache = "~0.0.7"
-maidsafe_utilities = "~0.9.0"
+maidsafe_utilities = "~0.10.0"
 rand = "~0.3.14"
-routing = "~0.26.0"
+#routing = "~0.27.0"
+routing = { git = "https://github.com/maidsafe/routing", branch = "stable" }
 rust_sodium = "~0.1.2"
 rustc-serialize = "~0.3.19"
-self_encryption = "~0.7.0"
+# self_encryption = "~0.7.1"
+self_encryption = { git = "https://github.com/madadam/self_encryption.git", branch = "async" }
 time = "~0.1.35"
+tokio-core = { git = "https://github.com/tokio-rs/tokio-core.git" }
 unwrap = "~1.1.0"
 
 [dev-dependencies]
@@ -33,30 +36,37 @@ regex = "~0.1.77"
 
 [[example]]
 bench = false
+test = false
 name = "email_stress_test"
 
 [[example]]
 bench = false
+test = false
 name = "client_stress_test"
 
 [[example]]
 bench = false
+test = false
 name = "self_authentication"
 
 [[example]]
 bench = false
+test = false
 name = "safe_client"
 
 [[example]]
 bench = false
+test = false
 name = "nfs_api"
 
 [[example]]
 bench = false
+test = false
 name = "simulate_browser"
 
 [[example]]
 bench = false
+test = false
 name = "email"
 
 [features]

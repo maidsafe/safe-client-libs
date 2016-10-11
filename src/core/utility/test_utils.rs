@@ -14,16 +14,17 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use core::CoreMsgTx;
 use core::client::Client;
 use core::errors::CoreError;
 use core::utility;
 use rust_sodium::crypto::sign;
 
 /// Generates a random mock client for testing
-pub fn get_client() -> Result<Client, CoreError> {
+pub fn get_client(core_tx: CoreMsgTx) -> Result<Client, CoreError> {
     let acc_locator = try!(utility::generate_random_string(10));
     let acc_password = try!(utility::generate_random_string(10));
-    Client::create_account(&acc_locator, &acc_password)
+    Client::registered(&acc_locator, &acc_password, core_tx)
 }
 
 /// Generates random public keys
@@ -49,16 +50,21 @@ pub fn get_max_sized_secret_keys(len: usize) -> Vec<sign::SecretKey> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use tokio_core::channel;
+    use tokio_core::reactor::Core;
 
     #[test]
     fn random_client() {
-        let client_0 = unwrap!(get_client());
-        let client_1 = unwrap!(get_client());
+        let core = unwrap!(Core::new());
+        let (core_tx, _) = unwrap!(channel::channel(&core.handle()));
 
-        let sign_key_0 = unwrap!(client_0.get_public_signing_key());
-        let sign_key_1 = unwrap!(client_1.get_public_signing_key());
-        let pub_key_0 = unwrap!(client_0.get_public_encryption_key());
-        let pub_key_1 = unwrap!(client_1.get_public_encryption_key());
+        let client_0 = unwrap!(get_client(core_tx.clone()));
+        let client_1 = unwrap!(get_client(core_tx));
+
+        let sign_key_0 = unwrap!(client_0.public_signing_key());
+        let sign_key_1 = unwrap!(client_1.public_signing_key());
+        let pub_key_0 = unwrap!(client_0.public_encryption_key());
+        let pub_key_1 = unwrap!(client_1.public_encryption_key());
 
         assert!(sign_key_0 != sign_key_1);
         assert!(pub_key_0 != pub_key_1);

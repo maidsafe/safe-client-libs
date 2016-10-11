@@ -35,16 +35,14 @@ pub struct Account {
     mpid: IdType,
     public_mpid: PublicIdType,
 
-    user_root_dir_id: Option<XorName>,
-    maidsafe_config_root_dir_id: Option<XorName>,
+    user_root_dir: Option<(XorName, secretbox::Key)>,
+    config_root_dir: Option<(XorName, secretbox::Key)>,
 }
 
 #[allow(dead_code)]
 impl Account {
     /// Create a new Session Packet with Randomly generated Maid keys for the user
-    pub fn new(user_root_dir_id: Option<XorName>,
-               maidsafe_config_root_dir_id: Option<XorName>)
-               -> Account {
+    pub fn new() -> Self {
         let an_maid = RevocationIdType::new::<MaidTypeTags>();
         let maid = IdType::new(&an_maid);
         let public_maid = PublicIdType::new(&maid, &an_maid);
@@ -60,8 +58,8 @@ impl Account {
             an_mpid: an_mpid,
             mpid: mpid,
             public_mpid: public_mpid,
-            user_root_dir_id: user_root_dir_id,
-            maidsafe_config_root_dir_id: maidsafe_config_root_dir_id,
+            user_root_dir: None,
+            config_root_dir: None,
         }
     }
 
@@ -69,7 +67,7 @@ impl Account {
     /// This is similar to the username in various places.
     pub fn generate_network_id(keyword: &[u8], pin: &[u8]) -> Result<XorName, CoreError> {
         let mut id = XorName([0; XOR_NAME_LEN]);
-        try!(Account::derive_key(&mut id.0[..], keyword, pin));
+        try!(Self::derive_key(&mut id.0[..], keyword, pin));
 
         Ok(id)
     }
@@ -105,42 +103,32 @@ impl Account {
     }
 
     /// Get user's root directory ID
-    pub fn get_user_root_dir_id(&self) -> Option<&XorName> {
-        match self.user_root_dir_id {
-            Some(ref dir_id) => Some(dir_id),
-            None => None,
-        }
+    pub fn user_root_dir(&self) -> Option<&(XorName, secretbox::Key)> {
+        self.user_root_dir.as_ref()
     }
 
     /// Set user's root directory ID
-    pub fn set_user_root_dir_id(&mut self, user_root_dir_id: XorName) -> bool {
-        match self.user_root_dir_id {
-            Some(_) => false,
-            None => {
-                self.user_root_dir_id = Some(user_root_dir_id);
-                true
-            }
+    pub fn set_user_root_dir_id(&mut self, dir: (XorName, secretbox::Key)) -> bool {
+        if self.user_root_dir.is_none() {
+            self.user_root_dir = Some(dir);
+            true
+        } else {
+            false
         }
     }
 
     /// Get maidsafe configuration specific root directory ID
-    pub fn get_maidsafe_config_root_dir_id(&self) -> Option<&XorName> {
-        match self.maidsafe_config_root_dir_id {
-            Some(ref dir_id) => Some(dir_id),
-            None => None,
-        }
+    pub fn config_root_dir(&self) -> Option<&(XorName, secretbox::Key)> {
+        self.config_root_dir.as_ref()
     }
 
     /// Set maidsafe configuration specific root directory ID
-    pub fn set_maidsafe_config_root_dir_id(&mut self,
-                                           maidsafe_config_root_dir_id: XorName)
-                                           -> bool {
-        match self.maidsafe_config_root_dir_id {
-            Some(_) => false,
-            None => {
-                self.maidsafe_config_root_dir_id = Some(maidsafe_config_root_dir_id);
-                true
-            }
+    pub fn set_config_root_dir(&mut self, dir: (XorName, secretbox::Key)) -> bool {
+        if self.config_root_dir.is_none() {
+            self.config_root_dir = Some(dir);
+            true
+        } else {
+            false
         }
     }
 
@@ -148,20 +136,17 @@ impl Account {
     /// through key-derivation-function first
     pub fn encrypt(&self, password: &[u8], pin: &[u8]) -> Result<Vec<u8>, CoreError> {
         let serialised_self = try!(serialise(self));
-        let (key, nonce) = try!(Account::generate_crypto_keys(password, pin));
+        let (key, nonce) = try!(Self::generate_crypto_keys(password, pin));
 
         Ok(secretbox::seal(&serialised_self, &nonce, &key))
     }
 
     /// Symmetric decryption of Session Packet using User's credentials. Credentials are passed
     /// through key-derivation-function first
-    pub fn decrypt(encrypted_self: &[u8],
-                   password: &[u8],
-                   pin: &[u8])
-                   -> Result<Account, CoreError> {
-        let (key, nonce) = try!(Account::generate_crypto_keys(password, pin));
+    pub fn decrypt(encrypted_self: &[u8], password: &[u8], pin: &[u8]) -> Result<Self, CoreError> {
+        let (key, nonce) = try!(Self::generate_crypto_keys(password, pin));
         let decrypted_self = try!(secretbox::open(encrypted_self, &nonce, &key)
-            .map_err(|_| CoreError::SymmetricDecipherFailure));
+                                      .map_err(|_| CoreError::SymmetricDecipherFailure));
 
         Ok(try!(deserialise(&decrypted_self)))
     }
@@ -170,17 +155,11 @@ impl Account {
                             pin: &[u8])
                             -> Result<(secretbox::Key, secretbox::Nonce), CoreError> {
         let mut output = [0; secretbox::KEYBYTES + secretbox::NONCEBYTES];
-        try!(Account::derive_key(&mut output[..], password, pin));
+        try!(Self::derive_key(&mut output[..], password, pin));
 
-        let mut key = secretbox::Key([0; secretbox::KEYBYTES]);
-        let mut nonce = secretbox::Nonce([0; secretbox::NONCEBYTES]);
-
-        for it in output.iter().take(secretbox::KEYBYTES).enumerate() {
-            key.0[it.0] = *it.1;
-        }
-        for it in output.iter().skip(secretbox::KEYBYTES).enumerate() {
-            nonce.0[it.0] = *it.1;
-        }
+        // OK to unwrap here, as we guaranteed the slices have the correct length.
+        let key = unwrap!(secretbox::Key::from_slice(&output[..secretbox::KEYBYTES]));
+        let nonce = unwrap!(secretbox::Nonce::from_slice(&output[secretbox::KEYBYTES..]));
 
         Ok((key, nonce))
     }
@@ -204,8 +183,8 @@ impl Account {
                                 &salt,
                                 pwhash::OPSLIMIT_INTERACTIVE,
                                 pwhash::MEMLIMIT_INTERACTIVE)
-            .map_err(|_| CoreError::UnsuccessfulPwHash)
-            .map(|_| Ok(())))
+                 .map_err(|_| CoreError::UnsuccessfulPwHash)
+                 .map(|_| Ok(())))
     }
 }
 
@@ -216,8 +195,8 @@ mod test {
 
     #[test]
     fn generating_new_account() {
-        let account1 = Account::new(None, None);
-        let account2 = Account::new(None, None);
+        let account1 = Account::new();
+        let account2 = Account::new();
         assert!(account1 != account2);
     }
 
@@ -231,7 +210,7 @@ mod test {
                                                              1234.to_string().as_bytes()));
         let user1_id3 = unwrap!(Account::generate_network_id(keyword1.as_bytes(),
                                                              ::std::u32::MAX.to_string()
-                                                                 .as_bytes()));
+                                                                            .as_bytes()));
 
         assert!(user1_id1 != user1_id2);
         assert!(user1_id1 != user1_id3);
@@ -245,7 +224,7 @@ mod test {
         assert_eq!(user1_id3,
                    unwrap!(Account::generate_network_id(keyword1.as_bytes(),
                                                         ::std::u32::MAX.to_string()
-                                                            .as_bytes())));
+                                                                       .as_bytes())));
 
         let keyword2 = "user2".to_owned();
         let gen_id_res1 = Account::generate_network_id(keyword1.as_bytes(),
@@ -268,7 +247,7 @@ mod test {
                                                               1234.to_string().as_bytes()));
             let keys3 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
                                                               ::std::u32::MAX.to_string()
-                                                                  .as_bytes()));
+                                                                             .as_bytes()));
 
             assert!(keys1 != keys2);
             assert!(keys1 != keys3);
@@ -295,20 +274,20 @@ mod test {
 
     #[test]
     fn serialisation() {
-        let account = Account::new(None, None);
+        let account = Account::new();
         let deserialised_account = unwrap!(deserialise(&unwrap!(serialise(&account))));
         assert_eq!(account, deserialised_account);
     }
 
     #[test]
     fn encryption() {
-        let account = Account::new(None, None);
+        let account = Account::new();
 
         let password = "impossible to guess".to_owned();
         let pin = 1000u16;
 
-        let encrypted_account =
-            unwrap!(account.encrypt(password.as_bytes(), pin.to_string().as_bytes()));
+        let encrypted_account = unwrap!(account.encrypt(password.as_bytes(),
+                                                        pin.to_string().as_bytes()));
         let serialised_account = unwrap!(serialise(&account));
         assert!(encrypted_account.len() > 0);
         assert!(encrypted_account != serialised_account);

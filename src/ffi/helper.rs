@@ -22,7 +22,6 @@ use ffi::config::SAFE_DRIVE_DIR_NAME;
 use ffi::errors::FfiError;
 use libc::{int32_t, int64_t};
 use nfs::AccessLevel;
-use nfs::UNVERSIONED_DIRECTORY_LISTING_TAG;
 use nfs::directory_listing::DirectoryListing;
 use nfs::helper::directory_helper::DirectoryHelper;
 use nfs::metadata::directory_key::DirectoryKey;
@@ -116,7 +115,6 @@ pub fn get_safe_drive_key(client: Arc<Mutex<Client>>) -> Result<DirectoryKey, Ff
         None => {
             trace!("SAFEDrive does not exist - creating one.");
             let (created_dir, _) = try!(dir_helper.create(safe_drive_dir_name,
-                                                          UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                           Vec::new(),
                                                           false,
                                                           AccessLevel::Private,

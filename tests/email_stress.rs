@@ -35,6 +35,8 @@
                                    option_unwrap_used))]
 #![cfg_attr(feature="clippy", allow(use_debug, doc_markdown))] // TODO: Fix doc_markdown errors.
 
+/* TODO (adam): uncomment this
+
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -361,3 +363,5 @@ fn email_stress() {
           duration.subsec_nanos() / 1000000);
 
 }
+
+*/

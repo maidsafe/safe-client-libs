@@ -15,6 +15,7 @@
 // relating to use of the SAFE Network Software.
 
 /// Common utility functions for writting test cases
+#[cfg(test)]
 pub mod test_utils;
 
 use core::errors::CoreError;

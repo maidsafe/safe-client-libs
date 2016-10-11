@@ -15,25 +15,27 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-/// Module for File struct
-pub mod file;
+/// Module for directory related structs
+pub mod dir;
 /// Errors
 pub mod errors;
-/// Helper for directory_listing and File for NFS Low level API
-pub mod helper;
+/// Module for File struct
+pub mod file;
+
+// /// Helper for directory_listing and File for NFS Low level API
+// pub mod helper;
+
 /// Directory and File Metadata
 pub mod metadata;
-/// Module for directory reltaed structs - DirectoryListin, DirectoryInfo
-pub mod directory_listing;
 
-/// Root directory name
-pub const ROOT_DIRECTORY_NAME: &'static str = "USER_ROOT";
+use futures::Future;
+pub use nfs::dir::Dir;
+pub use nfs::file::File;
+
 /// Configuration directory Name stored in the session packet
 pub const CONFIGURATION_DIRECTORY_NAME: &'static str = "CONFIGURATION_ROOT";
-/// Tag representing the Versioned Directory Listing
-pub const VERSIONED_DIRECTORY_LISTING_TAG: u64 = ::core::CLIENT_STRUCTURED_DATA_TAG + 100;
-/// Tag representing the Versioned Directory Listing
-pub const UNVERSIONED_DIRECTORY_LISTING_TAG: u64 = VERSIONED_DIRECTORY_LISTING_TAG + 1;
+/// Root directory name
+pub const ROOT_DIRECTORY_NAME: &'static str = "USER_ROOT";
 
 /// AccessLevel indicates whether the container is Private or Public shared
 #[derive(RustcEncodable, RustcDecodable, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -43,3 +45,6 @@ pub enum AccessLevel {
     /// Public Directory where the directory is not encrypted and anyone can read the contents of it
     Public,
 }
+
+/// Helper type for futures that can result in NfsError
+pub type NfsFuture<T> = Future<Item = T, Error = errors::NfsError>;

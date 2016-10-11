@@ -143,7 +143,7 @@ mod test {
     use dns::dns_operations::DnsOperations;
     use ffi::app::App;
     use ffi::test_utils;
-    use nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
+    use nfs::AccessLevel;
     use nfs::helper::directory_helper::DirectoryHelper;
     use nfs::helper::file_helper::FileHelper;
     use nfs::metadata::directory_key::DirectoryKey;
@@ -157,7 +157,6 @@ mod test {
         let mut app_dir = unwrap!(dir_helper.get(&app_dir_key));
 
         let (file_dir, _) = unwrap!(dir_helper.create("public-dir".to_string(),
-                                                      UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                       vec![0u8; 0],
                                                       false,
                                                       AccessLevel::Public,

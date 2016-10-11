@@ -52,7 +52,7 @@ use safe_core::core::client::Client;
 use safe_core::dns::dns_operations::DnsOperations;
 
 use safe_core::dns::errors::DnsError;
-use safe_core::nfs::{AccessLevel, UNVERSIONED_DIRECTORY_LISTING_TAG};
+use safe_core::nfs::AccessLevel;
 use safe_core::nfs::helper::directory_helper::DirectoryHelper;
 
 use safe_core::nfs::helper::file_helper::FileHelper;
@@ -166,7 +166,6 @@ fn add_service(client: Arc<Mutex<Client>>, dns_operations: &DnsOperations) -> Re
 
     let dir_helper = DirectoryHelper::new(client.clone());
     let (dir_listing, _) = try!(dir_helper.create(service_home_dir_name,
-                                                  UNVERSIONED_DIRECTORY_LISTING_TAG,
                                                   vec![],
                                                   false,
                                                   AccessLevel::Public,

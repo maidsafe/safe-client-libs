@@ -47,7 +47,7 @@ extern crate unwrap;
 
 use routing::XOR_NAME_LEN;
 use safe_core::core::client::Client;
-use safe_core::nfs::{self, AccessLevel};
+use safe_core::nfs::AccessLevel;
 use safe_core::nfs::directory_listing::DirectoryListing;
 use safe_core::nfs::errors::NfsError;
 use safe_core::nfs::helper::directory_helper::DirectoryHelper;
@@ -157,15 +157,8 @@ fn directory_operation(option: u32,
                         return Err(NfsError::ParameterIsNotValid);
                     }
 
-                    let tag_type = if versioned {
-                        nfs::VERSIONED_DIRECTORY_LISTING_TAG
-                    } else {
-                        nfs::UNVERSIONED_DIRECTORY_LISTING_TAG
-                    };
-
                     let directory_helper = DirectoryHelper::new(client.clone());
                     let _ = try!(directory_helper.create(name.clone(),
-                                                         tag_type,
                                                          vec![],
                                                          versioned,
                                                          access_level,

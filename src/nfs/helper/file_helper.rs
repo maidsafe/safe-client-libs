@@ -190,7 +190,6 @@ mod test {
         let client = get_client();
         let dir_helper = DirectoryHelper::new(client.clone());
         let (mut directory, _) = unwrap!(dir_helper.create("DirName".to_string(),
-                    ::nfs::VERSIONED_DIRECTORY_LISTING_TAG,
                     Vec::new(),
                     true,
                     AccessLevel::Private,
