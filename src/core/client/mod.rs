@@ -37,6 +37,7 @@ use self::account::Account;
 use self::mock_routing::MockRouting as Routing;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver};
 use std::time::Duration;
@@ -46,6 +47,9 @@ pub type ReturnType<T> = Future<Item = T, Error = CoreError>;
 const CONNECTION_TIMEOUT_SECS: u64 = 60;
 const ACC_PKT_TIMEOUT_SECS: u64 = 60;
 const IMMUT_DATA_CACHE_SIZE: usize = 300;
+
+/// Handle to the main Client object.
+pub type CPtr = Rc<RefCell<Client>>;
 
 /// The main self-authentication client instance that will interface all the request from high
 /// level API's to the actual routing layer and manage all interactions with it. This is
@@ -419,16 +423,17 @@ impl Client {
     /// store it. It will be retrieved when the user logs into their account. Root directory ID is
     /// necessary to fetch all of the user's data as all further data is encoded as meta-information
     /// into the Root Directory or one of its subdirectories.
-    pub fn set_user_root_dir_id(&mut self, dir_id: (XorName, secretbox::Key)) -> Box<ReturnType<()>> {
+    pub fn set_user_root_dir_id(client: &CPtr, dir_id: (XorName, secretbox::Key)) -> Box<ReturnType<()>> {
         trace!("Setting user root Dir ID.");
 
         let set = {
-            let mut account = fry!(self.client_type.acc_mut());
+            let mut client = client.borrow_mut();
+            let mut account = fry!(client.client_type.acc_mut());
             account.set_user_root_dir_id(dir_id)
         };
 
         if set {
-            self.update_session_packet()
+            Self::update_session_packet(client)
         } else {
             err!(CoreError::RootDirectoryAlreadyExists).into_box()
         }
@@ -444,16 +449,17 @@ impl Client {
     /// their account. Root directory ID is necessary to fetch all of configuration data as all
     /// further data is encoded as meta-information into the config Root Directory or one of its
     /// subdirectories.
-    pub fn set_config_root_dir_id(&mut self, dir_id: (XorName, secretbox::Key)) -> Box<ReturnType<()>> {
+    pub fn set_config_root_dir_id(client: &CPtr, dir_id: (XorName, secretbox::Key)) -> Box<ReturnType<()>> {
         trace!("Setting configuration root Dir ID.");
 
         let set = {
-            let mut account = fry!(self.client_type.acc_mut());
+            let mut client = client.borrow_mut();
+            let mut account = fry!(client.client_type.acc_mut());
             account.set_config_root_dir(dir_id)
         };
 
         if set {
-            self.update_session_packet()
+            Self::update_session_packet(client)
         } else {
             err!(CoreError::RootDirectoryAlreadyExists).into_box()
         }
@@ -524,9 +530,53 @@ impl Client {
         self.routing.set_network_limits(max_ops_count);
     }
 
-    fn update_session_packet(&mut self) -> Box<ReturnType<()>> {
-        // TODO (adam): implement this
-        ok!(()).into_box()
+    fn update_session_packet(client: &CPtr) -> Box<ReturnType<()>> {
+        trace!("Updating session packet.");
+
+        let client2 = client.clone();
+        let client3 = client.clone();
+
+        let data_name = {
+            let client = client.borrow();
+            fry!(client.client_type.acc_loc())
+        };
+
+        let data_id = DataIdentifier::Structured(data_name, TYPE_TAG_SESSION_PACKET);
+
+        client.borrow_mut().get(data_id, None).and_then(|data| {
+            match data {
+                Data::Structured(data) => Ok(data),
+                _ => Err(CoreError::ReceivedUnexpectedData),
+            }
+        }).and_then(move |data| {
+            let client = client2.borrow();
+            let account = try!(client.client_type.acc());
+            let encrypted_account = {
+                let keys = try!(client.client_type.user_cred());
+                try!(account.encrypt(&keys.password, &keys.pin))
+            };
+
+            Ok(try!(StructuredData::new(
+                TYPE_TAG_SESSION_PACKET,
+                data_name,
+                data.get_version() + 1,
+                encrypted_account,
+                vec![account.get_public_maid()
+                            .public_keys()
+                            .0
+                            .clone()],
+                Vec::new(),
+                Some(&account.get_maid().secret_keys().0))))
+        }).and_then(move |data| {
+            let mut client = client3.borrow_mut();
+            client.post(Data::Structured(data), None)
+        }).into_box()
+    }
+}
+
+impl fmt::Debug for Client {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Client")
     }
 }
 
@@ -552,8 +602,8 @@ enum ClientType {
     Unregistered,
     Registered {
         acc: Account,
-        _acc_loc: XorName,
-        _user_cred: UserCred,
+        acc_loc: XorName,
+        user_cred: UserCred,
         cm_addr: Authority,
     },
 }
@@ -562,8 +612,8 @@ impl ClientType {
     fn reg(acc: Account, acc_loc: XorName, user_cred: UserCred, cm_addr: Authority) -> Self {
         ClientType::Registered {
             acc: acc,
-            _acc_loc: acc_loc,
-            _user_cred: user_cred,
+            acc_loc: acc_loc,
+            user_cred: user_cred,
             cm_addr: cm_addr,
         }
     }
@@ -582,16 +632,16 @@ impl ClientType {
         }
     }
 
-    fn _acc_loc(&self) -> Result<XorName, CoreError> {
+    fn acc_loc(&self) -> Result<XorName, CoreError> {
         match *self {
-            ClientType::Registered { _acc_loc, .. } => Ok(_acc_loc),
+            ClientType::Registered { acc_loc, .. } => Ok(acc_loc),
             ClientType::Unregistered => Err(CoreError::OperationForbiddenForClient),
         }
     }
 
-    fn _user_cred(&self) -> Result<&UserCred, CoreError> {
+    fn user_cred(&self) -> Result<&UserCred, CoreError> {
         match *self {
-            ClientType::Registered { ref _user_cred, .. } => Ok(_user_cred),
+            ClientType::Registered { ref user_cred, .. } => Ok(user_cred),
             ClientType::Unregistered => Err(CoreError::OperationForbiddenForClient),
         }
     }
@@ -656,15 +706,13 @@ fn build_mutation_future(oneshot: Oneshot<CoreEvent>) -> Box<ReturnType<()>> {
 
 #[cfg(test)]
 mod tests {
-    use core::{CoreError, CoreMsg, FutureExt};
-    use core::{core_el, utility};
+    use core::CoreError;
+    use core::utility::{self, test_utils};
     use futures::Future;
     use rand;
     use routing::{Data, DataIdentifier, ImmutableData};
     use routing::client_errors::MutationError;
     use rust_sodium::crypto::secretbox;
-    use std::cell::RefCell;
-    use std::rc::Rc;
     use super::*;
     use tokio_core::channel;
     use tokio_core::reactor::Core;
@@ -676,45 +724,33 @@ mod tests {
 
         // Registered Client PUTs something onto the network
         {
-            let core = unwrap!(Core::new());
-            let (core_tx, core_rx) = unwrap!(channel::channel(&core.handle()));
-
+            let orig_data = orig_data.clone();
             let secret_0 = unwrap!(utility::generate_random_string(10));
             let secret_1 = unwrap!(utility::generate_random_string(10));
-            let client = unwrap!(Client::registered(&secret_0, &secret_1, core_tx.clone()));
 
-            let orig_data = orig_data.clone();
-
-            unwrap!(core_tx.send(CoreMsg::new(move |cptr| {
-                let future = cptr.borrow_mut().put(orig_data, None)
-                                              .then(|_| Ok(()))
-                                              .into_box();
-                Some(future)
-            })));
-
-            unwrap!(core_tx.send(CoreMsg::build_terminator()));
-            core_el::run(core, Rc::new(RefCell::new(client)), core_rx);
+            test_utils::setup_client(|core_tx| {
+                unwrap!(Client::registered(&secret_0, &secret_1, core_tx.clone()))
+            }).run(move |cptr| {
+                cptr.borrow_mut().put(orig_data, None)
+            });
         }
 
         // Unregistered Client should be able to retrieve the data
-        let core = unwrap!(Core::new());
-        let (core_tx, core_rx) = unwrap!(channel::channel(&core.handle()));
-        let client = unwrap!(Client::unregistered(core_tx.clone()));
-
         let data_id = DataIdentifier::Immutable(*orig_data.name());
 
-        unwrap!(core_tx.send(CoreMsg::new(move |cptr| {
+        test_utils::setup_client(|core_tx| {
+            unwrap!(Client::unregistered(core_tx.clone()))
+        }).run(move |cptr| {
             let cptr2 = cptr.clone();
             let cptr3 = cptr.clone();
 
-            let future = cptr.borrow_mut().get(data_id, None).map(move |data| {
+            cptr.borrow_mut().get(data_id, None).map(move |data| {
                 assert_eq!(data, orig_data);
             }).and_then(move |_| {
                 let name = rand::random();
                 let key  = secretbox::gen_key();
 
-                let mut cptr = cptr2.borrow_mut();
-                cptr.set_user_root_dir_id((name, key))
+                Client::set_user_root_dir_id(&cptr2, (name, key))
             }).map(|_| {
                 panic!("Unregistered client should not be allowed to set user root dir");
             }).or_else(move |err| {
@@ -726,8 +762,7 @@ mod tests {
                 let name = rand::random();
                 let key  = secretbox::gen_key();
 
-                let mut cptr = cptr3.borrow_mut();
-                cptr.set_config_root_dir_id((name, key))
+                Client::set_config_root_dir_id(&cptr3, (name, key))
             }).map(|_| {
                 panic!("Unregistered client should not be allowed to set config root dir");
             }).map_err(|err| {
@@ -735,12 +770,8 @@ mod tests {
                     CoreError::OperationForbiddenForClient => (),
                     _ => panic!("Unexpected {:?}", err),
                 }
-            }).into_box();
-
-            Some(future)
-        })));
-        unwrap!(core_tx.send(CoreMsg::build_terminator()));
-        core_el::run(core, Rc::new(RefCell::new(client)), core_rx);
+            })
+        });
     }
 
     #[test]
@@ -773,4 +804,61 @@ mod tests {
         let _ = unwrap!(Client::registered(&sec_0, &sec_1, core_tx.clone()));
         let _ = unwrap!(Client::login(&sec_0, &sec_1, core_tx));
     }
+
+    #[test]
+    fn user_root_dir_creation() {
+        let secret_0 = unwrap!(utility::generate_random_string(10));
+        let secret_1 = unwrap!(utility::generate_random_string(10));
+
+        let dir_id = (rand::random(), secretbox::gen_key());
+
+        {
+            let dir_id = dir_id.clone();
+
+            test_utils::setup_client(|core_tx| {
+                unwrap!(Client::registered(&secret_0, &secret_1, core_tx.clone()))
+            }).run(move |cptr| {
+                assert!(cptr.borrow().user_root_dir_id().is_none());
+                Client::set_user_root_dir_id(cptr, dir_id)
+            });
+        }
+
+        {
+            let client = test_utils::setup_client(|core_tx| {
+                unwrap!(Client::login(&secret_0, &secret_1, core_tx))
+            }).unwrap();
+
+            let got_dir_id = unwrap!(client.user_root_dir_id());
+            assert_eq!(*got_dir_id, dir_id);
+        }
+    }
+
+    #[test]
+    fn config_root_dir_creation() {
+        let secret_0 = unwrap!(utility::generate_random_string(10));
+        let secret_1 = unwrap!(utility::generate_random_string(10));
+
+        let dir_id = (rand::random(), secretbox::gen_key());
+
+        {
+            let dir_id = dir_id.clone();
+
+            test_utils::setup_client(|core_tx| {
+                unwrap!(Client::registered(&secret_0, &secret_1, core_tx.clone()))
+            }).run(move |cptr| {
+                assert!(cptr.borrow().config_root_dir_id().is_none());
+                Client::set_config_root_dir_id(cptr, dir_id)
+            });
+        }
+
+        {
+            let client = test_utils::setup_client(|core_tx| {
+                unwrap!(Client::login(&secret_0, &secret_1, core_tx))
+            }).unwrap();
+
+            let got_dir_id = unwrap!(client.config_root_dir_id());
+            assert_eq!(*got_dir_id, dir_id);
+        }
+    }
+
 }
