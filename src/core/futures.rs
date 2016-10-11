@@ -43,7 +43,7 @@ macro_rules! ok {
 /// construct the return type equivalent of `Result::Err` in futures paradigm.
 macro_rules! err {
     ($elt:expr) => {
-        futures::done(Err($elt)).into_box()
+        futures::done(Err(From::from($elt))).into_box()
     }
 }
 
