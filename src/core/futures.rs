@@ -35,7 +35,7 @@ macro_rules! fry {
 /// construct the return type equivalent of `Result::Ok` in futures paradigm.
 macro_rules! ok {
     ($elt:expr) => {
-        futures::done(Ok($elt))
+        futures::done(Ok($elt)).into_box()
     }
 }
 
@@ -43,7 +43,7 @@ macro_rules! ok {
 /// construct the return type equivalent of `Result::Err` in futures paradigm.
 macro_rules! err {
     ($elt:expr) => {
-        futures::done(Err($elt))
+        futures::done(Err(From::from($elt))).into_box()
     }
 }
 
@@ -51,11 +51,11 @@ macro_rules! err {
 pub trait FutureExt: Future + Sized {
     /// Box this future. Similar to `boxed` combinator, but does not require
     /// the future to implement `Send`.
-    fn into_box(self) -> Box<Future<Item=Self::Item, Error=Self::Error>>;
+    fn into_box(self) -> Box<Future<Item = Self::Item, Error = Self::Error>>;
 }
 
 impl<F: Future + 'static> FutureExt for F {
-    fn into_box(self) -> Box<Future<Item=Self::Item, Error=Self::Error>> {
+    fn into_box(self) -> Box<Future<Item = Self::Item, Error = Self::Error>> {
         Box::new(self)
     }
 }
