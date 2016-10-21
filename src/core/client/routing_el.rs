@@ -16,7 +16,9 @@
 // relating to use of the SAFE Network Software.
 
 use core::{CoreError, CoreMsg, CoreMsgTx};
-use core::event::CoreEvent;
+use core::event::{CoreEvent, NetworkEvent};
+use core::futures::FutureExt;
+use futures::{self, Future};
 use maidsafe_utilities::serialisation::deserialise;
 use routing::{Event, MessageId, Response};
 use routing::client_errors::{GetError, MutationError};
@@ -24,16 +26,21 @@ use std::sync::mpsc::Receiver;
 
 /// Run the routing event loop - this will receive messages from routing.
 pub fn run(routing_rx: Receiver<Event>, core_tx: CoreMsgTx) {
+    fire_network_event(&core_tx, NetworkEvent::Connected);
+
     for it in routing_rx.iter() {
         trace!("Received Routing Event: {:?}", it);
         match it {
             Event::Response { response, .. } => {
                 let (id, event) = handle_resp(response);
-                if !fire(&core_tx, id, event) {
+                if !fire_core_event(&core_tx, id, event) {
                     break;
                 }
             }
-            Event::Terminate => break,
+            Event::RestartRequired | Event::Terminate => {
+                fire_network_event(&core_tx, NetworkEvent::Disconnected);
+                break;
+            }
             x => {
                 debug!("Routing Event {:?} is not handled in context of routing event loop.",
                        x);
@@ -104,15 +111,35 @@ pub fn parse_mutation_err(reason_raw: &[u8]) -> MutationError {
 /// Fire completion event to the core event loop. If the receiver in core event loop has hung up or
 /// sending fails for some other reason, treat it as an exit condition. The return value thus
 /// signifies if the firing was successful.
-fn fire(core_tx: &CoreMsgTx, id: MessageId, event: CoreEvent) -> bool {
+fn fire_core_event(core_tx: &CoreMsgTx, id: MessageId, event: CoreEvent) -> bool {
     let msg = CoreMsg::new(move |client| {
         // Using in `if` keeps borrow alive. Do not try to combine the 2 lines into one.
-        let opt_head = client.remove_head(&id);
-        if let Some(head) = opt_head {
-            head.complete(event);
+        let complete = client.remove_core_event_complete(&id);
+        if let Some(complete) = complete {
+            complete.complete(event);
         }
         None
     });
 
     core_tx.send(msg).is_ok()
+}
+
+fn fire_network_event(core_tx: &CoreMsgTx, event: NetworkEvent) {
+    let msg = CoreMsg::new(move |client| {
+        let client = client.clone();
+
+        let senders = client.remove_network_event_senders();
+        let futures = senders.into_iter()
+                             .map(move |sender| sender.send(Ok(event)))
+                             .map(move |future| {
+                                let client = client.clone();
+                                future.map(move |sender| {
+                                    client.insert_network_event_sender(sender)
+                                })
+                            });
+
+        Some(futures::collect(futures).map(|_| ()).map_err(|_| ()).into_box())
+    });
+
+    let _ = core_tx.send(msg);
 }
