@@ -21,8 +21,9 @@ mod mock_routing;
 mod routing_el;
 
 use core::{CoreError, CoreFuture, CoreMsgTx, FutureExt, utility};
-use core::event::CoreEvent;
+use core::event::{CoreEvent, NetworkEvent};
 use futures::{self, Complete, Future, Oneshot};
+use futures::stream;
 use lru_cache::LruCache;
 use maidsafe_utilities::thread::{self, Joiner};
 use routing::{AppendWrapper, Authority, Data, DataIdentifier, Event, FullId, MessageId, Response,
@@ -39,13 +40,17 @@ use self::mock_routing::MockRouting as Routing;
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
+use std::mem;
 use std::rc::Rc;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc;
 use std::time::Duration;
 
 const CONNECTION_TIMEOUT_SECS: u64 = 60;
 const ACC_PKT_TIMEOUT_SECS: u64 = 60;
 const IMMUT_DATA_CACHE_SIZE: usize = 300;
+
+pub type NetworkEventSender = stream::Sender<NetworkEvent, ()>;
+pub type NetworkEventReceiver = stream::Receiver<NetworkEvent, ()>;
 
 /// The main self-authentication client instance that will interface all the request from high
 /// level API's to the actual routing layer and manage all interactions with it. This is
@@ -59,7 +64,8 @@ pub struct Client {
 
 struct Inner {
     routing: Routing,
-    heads: HashMap<MessageId, Complete<CoreEvent>>,
+    core_event_completes: HashMap<MessageId, Complete<CoreEvent>>,
+    network_event_senders: Vec<NetworkEventSender>,
     cache: LruCache<XorName, Data>,
     client_type: ClientType,
     stats: Stats,
@@ -78,7 +84,8 @@ impl Client {
 
         Ok(Self::new(Inner {
             routing: routing,
-            heads: HashMap::with_capacity(10),
+            core_event_completes: HashMap::with_capacity(10),
+            network_event_senders: Vec::new(),
             cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
             client_type: ClientType::Unregistered,
             stats: Default::default(),
@@ -142,7 +149,8 @@ impl Client {
 
         Ok(Self::new(Inner {
             routing: routing,
-            heads: HashMap::with_capacity(10),
+            core_event_completes: HashMap::with_capacity(10),
+            network_event_senders: Vec::new(),
             cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
             client_type: ClientType::reg(acc, acc_loc, user_cred, cm_addr),
             stats: Default::default(),
@@ -212,7 +220,8 @@ impl Client {
 
         Ok(Self::new(Inner {
             routing: routing,
-            heads: HashMap::with_capacity(10),
+            core_event_completes: HashMap::with_capacity(10),
+            network_event_senders: Vec::new(),
             cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
             client_type: ClientType::reg(acc, acc_loc, user_cred, cm_addr),
             stats: Default::default(),
@@ -224,13 +233,30 @@ impl Client {
         Client { inner: Rc::new(RefCell::new(inner)) }
     }
 
-    /// Remove the completion handle associated with the given message id.
-    pub fn remove_head(&self, id: &MessageId) -> Option<Complete<CoreEvent>> {
-        self.inner_mut().heads.remove(id)
+    /// (Internal method)
+    pub fn remove_core_event_complete(&self, id: &MessageId) -> Option<Complete<CoreEvent>> {
+        self.inner_mut().core_event_completes.remove(id)
     }
 
-    fn insert_head(&self, msg_id: MessageId, head: Complete<CoreEvent>) {
-        let _ = self.inner_mut().heads.insert(msg_id, head);
+    fn insert_core_event_complete(&self, msg_id: MessageId, complete: Complete<CoreEvent>) {
+        let _ = self.inner_mut().core_event_completes.insert(msg_id, complete);
+    }
+
+    /// (Internal method)
+    pub fn remove_network_event_senders(&self) -> Vec<NetworkEventSender> {
+        mem::replace(&mut self.inner_mut().network_event_senders, Vec::new())
+    }
+
+    /// (Internal method)
+    pub fn insert_network_event_sender(&self, sender: NetworkEventSender) {
+        self.inner_mut().network_event_senders.push(sender)
+    }
+
+    /// Returns a stream that will keep receiving network events.
+    pub fn network_events(&self) -> NetworkEventReceiver {
+        let (sender, receiver) = stream::channel();
+        self.insert_network_event_sender(sender);
+        receiver
     }
 
     /// Get data from the network. If the data exists locally in the cache (for ImmutableData) then
@@ -242,7 +268,7 @@ impl Client {
         trace!("GET for {:?}", data_id);
         self.stats_mut().issued_gets += 1;
 
-        let (head, oneshot) = futures::oneshot();
+        let (complete, oneshot) = futures::oneshot();
         let rx = oneshot.map_err(|_| CoreError::OperationAborted)
             .and_then(|event| match event {
                 CoreEvent::Get(res) => res,
@@ -259,7 +285,7 @@ impl Client {
 
             if let Some(data) = data {
                 trace!("ImmutableData found in cache.");
-                head.complete(CoreEvent::Get(Ok(data)));
+                complete.complete(CoreEvent::Get(Ok(data)));
                 return rx.into_box();
             }
 
@@ -288,9 +314,9 @@ impl Client {
         let msg_id = MessageId::new();
         let result = self.routing_mut().send_get_request(dst, data_id, msg_id);
         if let Err(e) = result {
-            head.complete(CoreEvent::Get(Err(From::from(e))));
+            complete.complete(CoreEvent::Get(Err(From::from(e))));
         } else {
-            let _ = self.insert_head(msg_id, head);
+            let _ = self.insert_core_event_complete(msg_id, complete);
         }
 
         rx
@@ -324,7 +350,7 @@ impl Client {
         if let Err(e) = result {
             head.complete(CoreEvent::Get(Err(From::from(e))));
         } else {
-            let _ = self.insert_head(msg_id, head);
+            let _ = self.insert_core_event_complete(msg_id, head);
         }
 
         rx
@@ -440,7 +466,7 @@ impl Client {
         if let Err(e) = result {
             head.complete(CoreEvent::Mutation(Err(From::from(e))));
         } else {
-            let _ = self.insert_head(msg_id, head);
+            let _ = self.insert_core_event_complete(msg_id, head);
         }
 
         rx
@@ -462,7 +488,7 @@ impl Client {
         if let Err(e) = result {
             head.complete(CoreEvent::Mutation(Err(From::from(e))));
         } else {
-            let _ = self.insert_head(msg_id, head);
+            let _ = self.insert_core_event_complete(msg_id, head);
         }
 
         rx
@@ -521,7 +547,7 @@ impl Client {
         if let Err(e) = result {
             head.complete(CoreEvent::Mutation(Err(From::from(e))));
         } else {
-            let _ = self.insert_head(msg_id, head);
+            let _ = self.insert_core_event_complete(msg_id, head);
         }
 
         rx
@@ -558,7 +584,7 @@ impl Client {
         if let Err(e) = result {
             head.complete(CoreEvent::AccountInfo(Err(From::from(e))));
         } else {
-            let _ = self.insert_head(msg_id, head);
+            let _ = self.insert_core_event_complete(msg_id, head);
         }
 
         rx
@@ -834,7 +860,7 @@ impl Default for Stats {
     }
 }
 
-fn setup_routing(full_id: Option<FullId>) -> Result<(Routing, Receiver<Event>), CoreError> {
+fn setup_routing(full_id: Option<FullId>) -> Result<(Routing, mpsc::Receiver<Event>), CoreError> {
     let (routing_tx, routing_rx) = mpsc::channel();
     let routing = try!(Routing::new(routing_tx, full_id));
 
@@ -852,7 +878,7 @@ fn setup_routing(full_id: Option<FullId>) -> Result<(Routing, Receiver<Event>), 
     Ok((routing, routing_rx))
 }
 
-fn spawn_routing_thread(routing_rx: Receiver<Event>, core_tx: CoreMsgTx) -> Joiner {
+fn spawn_routing_thread(routing_rx: mpsc::Receiver<Event>, core_tx: CoreMsgTx) -> Joiner {
     thread::named("Routing Event Loop",
                   move || routing_el::run(routing_rx, core_tx))
 }
