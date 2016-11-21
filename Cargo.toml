@@ -18,7 +18,9 @@ log = "~0.3.6"
 lru-cache = "~0.1.0"
 maidsafe_utilities = "~0.10.0"
 rand = "~0.3.14"
-routing = "~0.27.1"
+# routing = "~0.27.1"
+# routing = { git = "https://github.com/maidsafe/routing.git", branch = "mutable-data" }
+routing = { path = "/home/adam/projects/maidsafe/routing" }
 rust_sodium = "~0.1.2"
 rustc-serialize = "~0.3.19"
 self_encryption = { git = "https://github.com/maidsafe/self_encryption.git", branch = "dev" }

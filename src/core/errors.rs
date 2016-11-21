@@ -21,8 +21,7 @@
 
 use core::SelfEncryptionStorageError;
 use maidsafe_utilities::serialisation::SerialisationError;
-use routing::DataIdentifier;
-use routing::client_errors::{GetError, MutationError};
+use routing::{ClientError, DataIdentifier};
 use routing::messaging;
 use self_encryption::SelfEncryptionError;
 use std::error::Error;
@@ -71,25 +70,6 @@ pub enum CoreError {
     OperationAborted,
     /// MpidMessaging Error
     MpidMessagingError(messaging::Error),
-    /// Performing a GET operation failed
-    GetFailure {
-        /// Original request that was made to the network
-        data_id: DataIdentifier,
-        /// Reason for failure
-        reason: GetError,
-    },
-    /// Performing a GetAccountInfo operation failed
-    GetAccountInfoFailure {
-        /// Reason for failure
-        reason: GetError,
-    },
-    /// Performing a network mutating operation such as PUT/POST/DELETE failed
-    MutationFailure {
-        /// Original data that was sent to the network
-        data_id: DataIdentifier,
-        /// Reason for failure
-        reason: MutationError,
-    },
     /// Error while self-encrypting data
     SelfEncryption(SelfEncryptionError<SelfEncryptionStorageError>),
     /// The request has timed out
@@ -159,45 +139,45 @@ impl Into<i32> for CoreError {
             CoreError::UnsuccessfulPwHash => CORE_ERROR_START_RANGE - 13,
             CoreError::OperationAborted => CORE_ERROR_START_RANGE - 14,
             CoreError::MpidMessagingError(_) => CORE_ERROR_START_RANGE - 15,
-            CoreError::GetFailure { reason: GetError::NoSuchAccount, .. } => {
-                CORE_ERROR_START_RANGE - 16
-            }
-            CoreError::GetFailure { reason: GetError::NoSuchData, .. } => {
-                CORE_ERROR_START_RANGE - 17
-            }
-            CoreError::GetFailure { reason: GetError::NetworkOther(_), .. } => {
-                CORE_ERROR_START_RANGE - 18
-            }
-            CoreError::MutationFailure { reason: MutationError::NoSuchAccount, .. } => {
-                CORE_ERROR_START_RANGE - 19
-            }
-            CoreError::MutationFailure { reason: MutationError::AccountExists, .. } => {
-                CORE_ERROR_START_RANGE - 20
-            }
-            CoreError::MutationFailure { reason: MutationError::NoSuchData, .. } => {
-                CORE_ERROR_START_RANGE - 21
-            }
-            CoreError::MutationFailure { reason: MutationError::DataExists, .. } => {
-                CORE_ERROR_START_RANGE - 22
-            }
-            CoreError::MutationFailure { reason: MutationError::LowBalance, .. } => {
-                CORE_ERROR_START_RANGE - 23
-            }
-            CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. } => {
-                CORE_ERROR_START_RANGE - 24
-            }
-            CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. } => {
-                CORE_ERROR_START_RANGE - 25
-            }
-            CoreError::MutationFailure { reason: MutationError::NetworkOther(_), .. } => {
-                CORE_ERROR_START_RANGE - 26
-            }
-            CoreError::MutationFailure { reason: MutationError::NetworkFull, .. } => {
-                CORE_ERROR_START_RANGE - 27
-            }
-            CoreError::MutationFailure { reason: MutationError::DataTooLarge, .. } => {
-                CORE_ERROR_START_RANGE - 28
-            }
+            // CoreError::GetFailure { reason: GetError::NoSuchAccount, .. } => {
+            //     CORE_ERROR_START_RANGE - 16
+            // }
+            // CoreError::GetFailure { reason: GetError::NoSuchData, .. } => {
+            //     CORE_ERROR_START_RANGE - 17
+            // }
+            // CoreError::GetFailure { reason: GetError::NetworkOther(_), .. } => {
+            //     CORE_ERROR_START_RANGE - 18
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NoSuchAccount, .. } => {
+            //     CORE_ERROR_START_RANGE - 19
+            // }
+            // CoreError::MutationFailure { reason: MutationError::AccountExists, .. } => {
+            //     CORE_ERROR_START_RANGE - 20
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NoSuchData, .. } => {
+            //     CORE_ERROR_START_RANGE - 21
+            // }
+            // CoreError::MutationFailure { reason: MutationError::DataExists, .. } => {
+            //     CORE_ERROR_START_RANGE - 22
+            // }
+            // CoreError::MutationFailure { reason: MutationError::LowBalance, .. } => {
+            //     CORE_ERROR_START_RANGE - 23
+            // }
+            // CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. } => {
+            //     CORE_ERROR_START_RANGE - 24
+            // }
+            // CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. } => {
+            //     CORE_ERROR_START_RANGE - 25
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NetworkOther(_), .. } => {
+            //     CORE_ERROR_START_RANGE - 26
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NetworkFull, .. } => {
+            //     CORE_ERROR_START_RANGE - 27
+            // }
+            // CoreError::MutationFailure { reason: MutationError::DataTooLarge, .. } => {
+            //     CORE_ERROR_START_RANGE - 28
+            // }
             CoreError::SelfEncryption(
                 SelfEncryptionError::Compression::<SelfEncryptionStorageError>) => {
                 CORE_ERROR_START_RANGE - 29
@@ -209,10 +189,10 @@ impl Into<i32> for CoreError {
             CoreError::SelfEncryption(SelfEncryptionError::Io::<SelfEncryptionStorageError>(_)) => {
                 CORE_ERROR_START_RANGE - 31
             }
-            CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
-                CORE_ERROR_START_RANGE - 32
-            }
-            CoreError::GetAccountInfoFailure { .. } => CORE_ERROR_START_RANGE - 33,
+            // CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
+            //     CORE_ERROR_START_RANGE - 32
+            // }
+            // CoreError::GetAccountInfoFailure { .. } => CORE_ERROR_START_RANGE - 33,
             CoreError::RequestTimeout => CORE_ERROR_START_RANGE - 34,
             CoreError::SelfEncryption(
                 SelfEncryptionError::Storage::<SelfEncryptionStorageError>(
@@ -274,23 +254,23 @@ impl Debug for CoreError {
             CoreError::MpidMessagingError(ref error) => {
                 write!(formatter, "CoreError::MpidMessagingError -> {:?}", error)
             }
-            CoreError::GetFailure { ref data_id, ref reason } => {
-                write!(formatter,
-                       "CoreError::GetFailure::{{ reason: {:?}, data_id: {:?}}}",
-                       reason,
-                       data_id)
-            }
-            CoreError::GetAccountInfoFailure { ref reason } => {
-                write!(formatter,
-                       "CoreError::GetAccountInfoFailure::{{ reason: {:?}}}",
-                       reason)
-            }
-            CoreError::MutationFailure { ref data_id, ref reason } => {
-                write!(formatter,
-                       "CoreError::MutationFailure::{{ reason: {:?}, data_id: {:?}}}",
-                       reason,
-                       data_id)
-            }
+            // CoreError::GetFailure { ref data_id, ref reason } => {
+            //     write!(formatter,
+            //            "CoreError::GetFailure::{{ reason: {:?}, data_id: {:?}}}",
+            //            reason,
+            //            data_id)
+            // }
+            // CoreError::GetAccountInfoFailure { ref reason } => {
+            //     write!(formatter,
+            //            "CoreError::GetAccountInfoFailure::{{ reason: {:?}}}",
+            //            reason)
+            // }
+            // CoreError::MutationFailure { ref data_id, ref reason } => {
+            //     write!(formatter,
+            //            "CoreError::MutationFailure::{{ reason: {:?}, data_id: {:?}}}",
+            //            reason,
+            //            data_id)
+            // }
             CoreError::SelfEncryption(ref error) => {
                 write!(formatter, "CoreError::SelfEncryption -> {:?}", error)
             }
@@ -357,19 +337,19 @@ impl Display for CoreError {
             CoreError::MpidMessagingError(ref error) => {
                 write!(formatter, "Mpid messaging error: {}", error)
             }
-            CoreError::GetFailure { ref reason, .. } => {
-                write!(formatter, "Failed to Get from network: {}", reason)
-            }
-            CoreError::GetAccountInfoFailure { ref reason } => {
-                write!(formatter,
-                       "Failed to get account info from network: {}",
-                       reason)
-            }
-            CoreError::MutationFailure { ref reason, .. } => {
-                write!(formatter,
-                       "Failed to Put/Post/Delete on network: {}",
-                       reason)
-            }
+            // CoreError::GetFailure { ref reason, .. } => {
+            //     write!(formatter, "Failed to Get from network: {}", reason)
+            // }
+            // CoreError::GetAccountInfoFailure { ref reason } => {
+            //     write!(formatter,
+            //            "Failed to get account info from network: {}",
+            //            reason)
+            // }
+            // CoreError::MutationFailure { ref reason, .. } => {
+            //     write!(formatter,
+            //            "Failed to Put/Post/Delete on network: {}",
+            //            reason)
+            // }
             CoreError::SelfEncryption(ref error) => {
                 write!(formatter, "Self-encryption error: {}", error)
             }
@@ -403,9 +383,9 @@ impl Error for CoreError {
             CoreError::UnsuccessfulPwHash => "Failed while password hashing",
             CoreError::OperationAborted => "Operation aborted",
             CoreError::MpidMessagingError(_) => "Mpid messaging error",
-            CoreError::GetFailure { ref reason, .. } |
-            CoreError::GetAccountInfoFailure { ref reason } => reason.description(),
-            CoreError::MutationFailure { ref reason, .. } => reason.description(),
+            // CoreError::GetFailure { ref reason, .. } |
+            // CoreError::GetAccountInfoFailure { ref reason } => reason.description(),
+            // CoreError::MutationFailure { ref reason, .. } => reason.description(),
             CoreError::SelfEncryption(ref error) => error.description(),
             CoreError::RequestTimeout => "Request has timed out",
             CoreError::InvalidStructuredDataTypeTag => "Invalid Structured Data type tag",
@@ -417,9 +397,9 @@ impl Error for CoreError {
             // TODO - add `RoutingError` and `InternalError` once they implement `std::error::Error`
             CoreError::UnsuccessfulEncodeDecode(ref error) => Some(error),
             CoreError::MpidMessagingError(ref error) => Some(error),
-            CoreError::GetFailure { ref reason, .. } |
-            CoreError::GetAccountInfoFailure { ref reason } => Some(reason),
-            CoreError::MutationFailure { ref reason, .. } => Some(reason),
+            // CoreError::GetFailure { ref reason, .. } |
+            // CoreError::GetAccountInfoFailure { ref reason } => Some(reason),
+            // CoreError::MutationFailure { ref reason, .. } => Some(reason),
             CoreError::SelfEncryption(ref error) => Some(error),
             _ => None,
         }
@@ -430,13 +410,13 @@ impl Error for CoreError {
 mod tests {
     use core::SelfEncryptionStorageError;
     use rand;
-    use routing::DataIdentifier;
-    use routing::client_errors::MutationError;
+    use routing::{ClientError, DataIdentifier};
     use self_encryption::SelfEncryptionError;
     use super::*;
 
     #[test]
     fn self_encryption_error() {
+        /*
         let id = rand::random();
         let core_err_0 = CoreError::MutationFailure {
             data_id: DataIdentifier::Structured(id, 10000),
@@ -452,5 +432,8 @@ mod tests {
 
         assert_eq!(Into::<i32>::into(core_err_1),
                    Into::<i32>::into(core_from_se_err));
+        */
+
+        unimplemented!()
     }
 }
