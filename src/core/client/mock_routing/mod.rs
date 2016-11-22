@@ -42,11 +42,13 @@ use std::time::Duration;
 
 const CONNECT_THREAD_NAME: &'static str = "Mock routing connect";
 const DELAY_THREAD_NAME: &'static str = "Mock routing delay";
+
 const DEFAULT_DELAY_MS: u64 = 0;
 const CONNECT_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_ACCOUNT_INFO_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const PUT_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
+const PUT_MDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
 lazy_static! {
     static ref STORAGE: Mutex<Storage> = Mutex::new(Storage::new());
@@ -91,41 +93,22 @@ impl MockRouting {
             return Ok(());
         }
 
-        let client_name = self.client_name();
-        let client_auth = self.client_auth.clone();
-
-        if let Err(err) = self.verify_network_limits(msg_id, "get_account_info") {
-            self.send_response(GET_ACCOUNT_INFO_DELAY_MS,
-                               dst,
-                               client_auth,
-                               Response::GetAccountInfo {
-                                   res: Err(err),
-                                   msg_id: msg_id,
-                               });
-            return Ok(());
-        }
-
-
-        match unwrap!(STORAGE.lock()).get_account_info(&client_name) {
-            Some(account_info) => {
-                self.send_response(GET_ACCOUNT_INFO_DELAY_MS,
-                                   dst,
-                                   client_auth,
-                                   Response::GetAccountInfo {
-                                       res: Ok(*account_info),
-                                       msg_id: msg_id,
-                                   })
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "get_account_info") {
+            Err(err)
+        } else {
+            match unwrap!(STORAGE.lock()).get_account_info(&self.client_name()) {
+                Some(account_info) => Ok(*account_info),
+                None => Err(ClientError::NoSuchAccount),
             }
-            None => {
-                self.send_response(GET_ACCOUNT_INFO_DELAY_MS,
-                                   dst,
-                                   client_auth,
-                                   Response::GetAccountInfo {
-                                       res: Err(ClientError::NoSuchAccount),
-                                       msg_id: msg_id,
-                                   })
-            }
-        }
+        };
+
+        self.send_response(GET_ACCOUNT_INFO_DELAY_MS,
+                           dst,
+                           self.client_auth.clone(),
+                           Response::GetAccountInfo {
+                               res: res,
+                               msg_id: msg_id,
+                           });
 
         Ok(())
     }
@@ -140,41 +123,31 @@ impl MockRouting {
             return Ok(());
         }
 
-        let nae_auth = Authority::NaeManager(*data.name());
+        let data_name = *data.name();
 
-        if let Err(err) = self.verify_network_limits(msg_id, "put_idata") {
-            self.send_response(PUT_IDATA_DELAY_MS,
-                               nae_auth,
-                               self.client_auth.clone(),
-                               Response::GetAccountInfo {
-                                   res: Err(err),
-                                   msg_id: msg_id,
-                               });
-            return Ok(());
-        }
-
-        let mut storage = unwrap!(STORAGE.lock());
-        let res = match storage.get_data(data.name()) {
-            // Immutable data is de-duplicated so always allowed
-            Ok(Data::Immutable(_)) => Ok(()),
-            Ok(_) => Err(ClientError::DataExists),
-            Err(StorageError::NoSuchData) => {
-                storage.put_data(*data.name(), Data::Immutable(data))
-                    .map_err(ClientError::from)
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "put_idata") {
+            Err(err)
+        } else {
+            let mut storage = unwrap!(STORAGE.lock());
+            match storage.get_data(data.name()) {
+                // Immutable data is de-duplicated so always allowed
+                Ok(Data::Immutable(_)) => Ok(()),
+                Ok(_) => Err(ClientError::DataExists),
+                Err(StorageError::NoSuchData) => {
+                    storage.put_data(data_name, Data::Immutable(data))
+                        .map_err(ClientError::from)
+                }
+                Err(err) => Err(ClientError::from(err)),
             }
-            Err(err) => Err(ClientError::from(err)),
         };
 
-        if let Ok(_) = res {
-            {
-                let account = storage.get_or_create_account_info(&self.client_name());
-                account.data_stored += 1;
-                account.space_available -= 1;
-            }
-
+        if res.is_ok() {
+            let mut storage = unwrap!(STORAGE.lock());
+            update_account_info(&mut storage, &self.client_name());
             storage.sync();
         }
 
+        let nae_auth = Authority::NaeManager(data_name);
         self.send_response(PUT_IDATA_DELAY_MS,
                            nae_auth,
                            self.client_auth.clone(),
@@ -195,24 +168,16 @@ impl MockRouting {
             return Ok(());
         }
 
-        let nae_auth = Authority::NaeManager(name);
-
-        if let Err(err) = self.verify_network_limits(msg_id, "get_idata") {
-            self.send_response(GET_IDATA_DELAY_MS,
-                               nae_auth,
-                               self.client_auth.clone(),
-                               Response::GetIData {
-                                   res: Err(err),
-                                   msg_id: msg_id,
-                               });
-            return Ok(());
-        }
-
-        let res = match unwrap!(STORAGE.lock()).get_data(&name) {
-            Ok(Data::Immutable(data)) => Ok(data),
-            _ => Err(ClientError::NoSuchData),
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "get_idata") {
+            Err(err)
+        } else {
+            match unwrap!(STORAGE.lock()).get_data(&name) {
+                Ok(Data::Immutable(data)) => Ok(data),
+                _ => Err(ClientError::NoSuchData),
+            }
         };
 
+        let nae_auth = Authority::NaeManager(name);
         self.send_response(GET_IDATA_DELAY_MS,
                            nae_auth,
                            self.client_auth.clone(),
@@ -230,7 +195,39 @@ impl MockRouting {
                      msg_id: MessageId,
                      requester: sign::PublicKey)
                      -> Result<(), InterfaceError> {
-        unimplemented!()
+        if self.timeout_simulation {
+            return Ok(());
+        }
+
+        let data_name = *data.name();
+
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "put_mdata") {
+            Err(err)
+        } else {
+            let mut storage = unwrap!(STORAGE.lock());
+            if storage.contains_data(data.name()) {
+                Err(ClientError::DataExists)
+            } else {
+                storage.put_data(data_name, Data::Mutable(data))
+                    .map_err(ClientError::from)
+            }
+        };
+
+        if res.is_ok() {
+            let mut storage = unwrap!(STORAGE.lock());
+            update_account_info(&mut storage, &self.client_name());
+            storage.sync();
+        }
+
+        let nae_auth = Authority::NaeManager(data_name);
+        self.send_response(PUT_MDATA_DELAY_MS,
+                           nae_auth,
+                           self.client_auth.clone(),
+                           Response::PutMData {
+                               res: res,
+                               msg_id: msg_id,
+                           });
+        Ok(())
     }
 
     /// Fetches a latest version number.
@@ -429,6 +426,12 @@ impl Drop for MockRouting {
     fn drop(&mut self) {
         let _ = self.sender.send(Event::Terminate);
     }
+}
+
+fn update_account_info(storage: &mut Storage, client_name: &XorName) {
+    let account = storage.get_or_create_account_info(client_name);
+    account.data_stored += 1;
+    account.space_available -= 1;
 }
 
 #[cfg(test)]
