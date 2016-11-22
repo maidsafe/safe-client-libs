@@ -1,13 +1,12 @@
 env:
   global:
-    - secure: kERfGEJxywTI3AvAsOCcjQBuxrAiJ7aOWooLmtxy8QWzNkVUlhY2A5xGWCqyKunMmjj9+cJ2FtrejYDo9FcXtmL2MlU0M6YZ1vLCeYTMsxMurZNXH0o64X0pFRsYAxR/uYgiZKujXBTcXiRlKkBd2G+aVetKPUl3rTi3nrejlto=
     - Features=use-mock-routing
+    - RUST_BACKTRACE=1
 os:
   - linux
   - osx
 language: rust
 rust:
-# - beta
   - stable
   - nightly
 matrix:
@@ -16,16 +15,11 @@ matrix:
 sudo: false
 branches:
   only:
-    - mutable-data
+    - master
+    - dev
 cache:
   cargo: true
-  directories:
-    - $HOME/elfutils
 script:
-  - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/build_and_run_tests.sh
-  - travis_wait 40 . build_and_run_tests.sh
-before_cache:
-  - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/install_elfutils.sh
-  - . install_elfutils.sh
-after_success:
-  - curl -sSL https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/after_success.sh | bash
+  - travis_wait 40 . travis_build.sh
+  - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/run_clippy.sh
+  - . run_clippy.sh
