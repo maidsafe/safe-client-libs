@@ -25,7 +25,7 @@ use routing::XorName;
 use rust_sodium::crypto::{box_, sign};
 use rust_sodium::crypto::hash::sha256;
 
-/// IdType
+/// `IdType`
 ///
 /// #Examples
 ///
@@ -65,7 +65,7 @@ impl IdType {
         for iter in combined_iter {
             combined.push(*iter);
         }
-        for i in self.type_tag.to_string().into_bytes().into_iter() {
+        for i in self.type_tag.to_string().into_bytes() {
             combined.push(i);
         }
         XorName(sha256::hash(&combined).0)

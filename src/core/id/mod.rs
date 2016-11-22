@@ -21,16 +21,16 @@
 
 /// Maid
 pub mod id_type;
-/// PublicMaid
+/// `PublicMaid`
 pub mod public_id_type;
-/// AnMaid
+/// `AnMaid`
 pub mod revocation_id_type;
 
 pub use self::id_type::*;
 pub use self::public_id_type::*;
 pub use self::revocation_id_type::*;
 
-/// Interface to IdTypes
+/// Interface to `IdTypes`
 pub trait IdTypeTags {
     /// returns tag type for revocation id type
     fn revocation_id_type_tag(&self) -> u64;
@@ -40,10 +40,10 @@ pub trait IdTypeTags {
     fn public_id_type_tag(&self) -> u64;
 }
 
-/// TypeTags for Maid type variants
+/// Type tags for Maid type variants
 pub struct MaidTypeTags;
 
-/// TypeTags for Maid type variants
+/// Type tags for Maid type variants
 pub struct MpidTypeTags;
 
 impl IdTypeTags for MaidTypeTags {

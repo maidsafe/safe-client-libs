@@ -24,7 +24,7 @@ use routing::XorName;
 use rust_sodium::crypto::{box_, sign};
 use rust_sodium::crypto::hash::sha256;
 
-/// PublicIdType
+/// `PublicIdType`
 ///
 /// #Examples
 ///
@@ -61,7 +61,7 @@ impl PublicIdType {
         for iter in combined_iter {
             combined.push(*iter);
         }
-        for i in type_tag.to_string().into_bytes().into_iter() {
+        for i in type_tag.to_string().into_bytes() {
             combined.push(i);
         }
         let message_length = combined.len();
@@ -94,7 +94,7 @@ impl PublicIdType {
         for iter in combined_iter {
             combined.push(*iter);
         }
-        for i in self.type_tag.to_string().into_bytes().into_iter() {
+        for i in self.type_tag.to_string().into_bytes() {
             combined.push(i);
         }
         for i in 0..sign::SIGNATUREBYTES {
@@ -181,7 +181,7 @@ mod tests {
         for iter in combined_keys {
             combined.push(*iter);
         }
-        for i in type_tag.to_string().into_bytes().into_iter() {
+        for i in type_tag.to_string().into_bytes() {
             combined.push(i);
         }
 

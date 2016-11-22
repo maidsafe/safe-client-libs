@@ -24,7 +24,7 @@ use routing::XorName;
 use rust_sodium::crypto::hash::sha256;
 use rust_sodium::crypto::sign;
 
-/// RevocationIdType
+/// `RevocationIdType`
 ///
 /// #Examples
 ///
@@ -67,7 +67,7 @@ impl RevocationIdType {
         for iter in combined_iter {
             combined.push(*iter);
         }
-        for i in self.type_tags.0.to_string().into_bytes().into_iter() {
+        for i in self.type_tags.0.to_string().into_bytes() {
             combined.push(i);
         }
         XorName(sha256::hash(&combined).0)
