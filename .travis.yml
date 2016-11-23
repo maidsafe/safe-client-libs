@@ -17,8 +17,6 @@ branches:
   only:
     - master
     - dev
-cache:
-  cargo: true
 script:
   - travis_wait 40 . travis_build.sh
   - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/run_clippy.sh
