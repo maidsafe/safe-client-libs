@@ -9,6 +9,9 @@ language: rust
 rust:
   - stable
   - nightly
+matrix:
+  allow_failures:
+    - rust: nightly
 sudo: false
 branches:
   only:
@@ -17,10 +20,6 @@ branches:
 cache:
   cargo: true
 script:
-  - if [[ $TRAVIS_RUST_VERSION = stable ]]; then
-      cargo test --release --no-run
-      cargo test --release --features use-mock-routing
-    fi
-after_script:
+  - travis_wait 40 . travis_build.sh
   - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/run_clippy.sh
   - . run_clippy.sh
