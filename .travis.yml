@@ -18,6 +18,6 @@ branches:
     - master
     - dev
 script:
-  - travis_wait 40 . travis_build.sh
+  - . travis_build.sh
   - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/run_clippy.sh
   - . run_clippy.sh
