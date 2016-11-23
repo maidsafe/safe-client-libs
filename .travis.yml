@@ -18,6 +18,6 @@ branches:
     - master
     - dev
 script:
-  - . travis_build.sh
-  - curl -sSLO https://github.com/maidsafe/QA/raw/master/Bash%20Scripts/Travis/run_clippy.sh
-  - . run_clippy.sh
+    - cd $TRAVIS_BUILD_DIR
+    - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then (set -x; cargo rustc --verbose -- --test -Zno-trans && cargo test --release --features use-mock-routing --verbose); fi
+    - if [ "${TRAVIS_RUST_VERSION}" = nightly -a "${TRAVIS_OS_NAME}" = linux ]; then (set -x; cargo rustc --features clippy --verbose -- --test -Zno-trans && cargo rustc --features "clippy use-mock-routing" --verbose -- --test -Zno-trans); fi
