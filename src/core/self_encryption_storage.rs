@@ -19,15 +19,17 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-
-use core::{Client, CoreError};
-use core::futures::FutureExt;
-use futures::{self, Future};
-use routing::{Data, DataIdentifier, ImmutableData, XOR_NAME_LEN, XorName};
-use self_encryption::{Storage, StorageError};
+use core::CoreError;
+// use core::Client;
+// use core::futures::FutureExt;
+// use futures::{self, Future};
+// use routing::{Data, DataIdentifier, ImmutableData, XOR_NAME_LEN, XorName};
+use self_encryption::StorageError;
+// use self_encryption::{Storage};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
+/*
 /// Network storage is the concrete type which self-encryption crate will use
 /// to put or get data from the network
 pub struct SelfEncryptionStorage {
@@ -78,6 +80,7 @@ impl Storage for SelfEncryptionStorage {
         self.client.put(data, None).map_err(From::from).into_box()
     }
 }
+*/
 
 /// Errors arising from storage object being used by self-encryptors.
 #[derive(Debug)]

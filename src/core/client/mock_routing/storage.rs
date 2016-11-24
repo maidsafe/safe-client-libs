@@ -20,8 +20,7 @@
 // and limitations relating to use of the SAFE Network Software.
 
 use maidsafe_utilities::serialisation::{SerialisationError, deserialise, serialise};
-use routing::{Data, XorName};
-use routing::client_errors::{GetError, MutationError};
+use routing::{AccountInfo, ClientError, Data, XorName};
 use std::collections::HashMap;
 
 // This should ideally be replaced with
@@ -32,7 +31,7 @@ pub const DEFAULT_CLIENT_ACCOUNT_SIZE: u64 = 100;
 #[derive(RustcEncodable, RustcDecodable)]
 pub struct Storage {
     data_store: HashMap<XorName, Vec<u8>>,
-    pub client_accounts: HashMap<XorName, ClientAccount>,
+    client_accounts: HashMap<XorName, AccountInfo>,
 }
 
 impl Storage {
@@ -67,24 +66,24 @@ impl Storage {
             .map_err(StorageError::SerialisationError)
     }
 
+    // Get account info for the given client
+    pub fn get_account_info(&self, name: &XorName) -> Option<&AccountInfo> {
+        self.client_accounts.get(name)
+    }
+
+    // Get account info for the given client, or create a default one if it doesn't exist yet.
+    pub fn get_or_create_account_info(&mut self, name: &XorName) -> &mut AccountInfo {
+        self.client_accounts.entry(*name).or_insert_with(|| {
+            AccountInfo {
+                data_stored: 0,
+                space_available: DEFAULT_CLIENT_ACCOUNT_SIZE,
+            }
+        })
+    }
+
     // Synchronize the storage with the disk.
     pub fn sync(&self) {
         sync::save(self)
-    }
-}
-
-#[derive(RustcEncodable, RustcDecodable)]
-pub struct ClientAccount {
-    pub data_stored: u64,
-    pub space_available: u64,
-}
-
-impl Default for ClientAccount {
-    fn default() -> ClientAccount {
-        ClientAccount {
-            data_stored: 0,
-            space_available: DEFAULT_CLIENT_ACCOUNT_SIZE,
-        }
     }
 }
 
@@ -93,23 +92,12 @@ pub enum StorageError {
     SerialisationError(SerialisationError),
 }
 
-impl From<StorageError> for GetError {
+impl From<StorageError> for ClientError {
     fn from(error: StorageError) -> Self {
         match error {
-            StorageError::NoSuchData => GetError::NoSuchData,
+            StorageError::NoSuchData => ClientError::NoSuchData,
             StorageError::SerialisationError(error) => {
-                GetError::NetworkOther(format!("{:?}", error))
-            }
-        }
-    }
-}
-
-impl From<StorageError> for MutationError {
-    fn from(error: StorageError) -> Self {
-        match error {
-            StorageError::NoSuchData => MutationError::NoSuchData,
-            StorageError::SerialisationError(error) => {
-                MutationError::NetworkOther(format!("{:?}", error))
+                ClientError::NetworkOther(format!("{:?}", error))
             }
         }
     }

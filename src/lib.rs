@@ -49,14 +49,14 @@
                                    option_unwrap_used))]
 #![cfg_attr(feature="clippy", allow(use_debug, doc_markdown))] // TODO: Fix doc_markdown errors.
 
-extern crate config_file_handler;
-extern crate futures;
+// extern crate config_file_handler;
+// extern crate futures;
 #[cfg(feature = "use-mock-routing")]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate lru_cache;
+// extern crate lru_cache;
 #[macro_use]
 extern crate maidsafe_utilities;
 extern crate rand;
@@ -64,8 +64,8 @@ extern crate routing;
 extern crate rustc_serialize;
 extern crate rust_sodium;
 extern crate self_encryption;
-extern crate time;
-extern crate tokio_core;
+// extern crate time;
+// extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 
@@ -73,12 +73,11 @@ extern crate unwrap;
 #[macro_use]
 pub mod core;
 /// Nfs module;
-pub mod nfs;
+// pub mod nfs;
 /// Dns module;
-pub mod dns;
+// pub mod dns;
 /// Ffi module;
-pub mod ffi;
-
+// pub mod ffi;
 /// Unversioned StructuredData
 pub const UNVERSIONED_STRUCT_DATA_TYPE_TAG: u64 = 500;
 /// Versioned StructuredData

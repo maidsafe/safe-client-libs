@@ -20,38 +20,35 @@
 // and limitations relating to use of the SAFE Network Software.
 
 mod storage;
+// use maidsafe_utilities::serialisation::serialise;
 
-use maidsafe_utilities::serialisation::serialise;
 use maidsafe_utilities::thread;
 use rand;
-use routing::{AppendWrapper, Authority, Data, DataIdentifier, Event, FullId, InterfaceError,
-              MessageId, Request, Response, RoutingError, XorName};
-use routing::TYPE_TAG_SESSION_PACKET;
-use routing::client_errors::{GetError, MutationError};
+// use routing::{DataIdentifier, Request};
+use routing::{Authority, ClientError, Data, EntryAction, Event, FullId, ImmutableData,
+              InterfaceError, MessageId, MutableData, PermissionSet, Response, RoutingError, User,
+              XorName};
+// use routing::TYPE_TAG_SESSION_PACKET;
 use rust_sodium::crypto::hash::sha256;
 use rust_sodium::crypto::sign;
-use rustc_serialize::Encodable;
-use self::storage::{ClientAccount, Storage, StorageError};
+// use rustc_serialize::Encodable;
+use self::storage::{Storage, StorageError};
 use std;
 use std::cell::Cell;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-const CONNECT_THREAD: &'static str = "Mock routing connect";
+const CONNECT_THREAD_NAME: &'static str = "Mock routing connect";
+const DELAY_THREAD_NAME: &'static str = "Mock routing delay";
 
-// Activating these (ie., non-zero values) will require an update to all test
-// cases. Once activated the GET's should only be performed once success from
-// PUT's/POST's/DELETE's have been obtained.
-//
-// These will allow to code properly for behavioural anomalies like GETs
-// reaching the address faster than PUTs. So a proper delay will help code
-// better logic against scenarios where it is required to do a GET after a
-// PUT/DELETE to confirm that action. So for example if a GET done immediately
-// after a PUT failed, it could mean that the PUT either failed or hasn't
-// reached the address yet.
-const DELAY_GETS_POSTS_MS: u64 = 0;
-const DELAY_PUTS_DELETS_MS: u64 = 2 * DELAY_GETS_POSTS_MS;
+const DEFAULT_DELAY_MS: u64 = 0;
+const CONNECT_DELAY_MS: u64 = DEFAULT_DELAY_MS;
+const GET_ACCOUNT_INFO_DELAY_MS: u64 = DEFAULT_DELAY_MS;
+const PUT_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
+const GET_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
+const PUT_MDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
 lazy_static! {
     static ref STORAGE: Mutex<Storage> = Mutex::new(Storage::new());
@@ -65,12 +62,12 @@ pub struct MockRouting {
 }
 
 impl MockRouting {
-    pub fn new(sender: Sender<Event>, _id: Option<FullId>) -> Result<MockRouting, RoutingError> {
+    pub fn new(sender: Sender<Event>, _id: Option<FullId>) -> Result<Self, RoutingError> {
         ::rust_sodium::init();
 
         let cloned_sender = sender.clone();
-        let _ = thread::named(CONNECT_THREAD, move || {
-            std::thread::sleep(Duration::from_millis(DELAY_PUTS_DELETS_MS));
+        let _ = thread::named(CONNECT_THREAD_NAME, move || {
+            std::thread::sleep(Duration::from_millis(CONNECT_DELAY_MS));
             let _ = cloned_sender.send(Event::Connected);
         });
 
@@ -87,557 +84,291 @@ impl MockRouting {
         })
     }
 
-    // Note: destination authority is ignored (everywhere in Mock) because the
-    // clients can direct data to wherever they want. It is only the requirement of
-    // maidsafe-routing that GET's should go to MaidManagers etc.
-    pub fn send_get_request(&mut self,
-                            _dst: Authority,
-                            data_id: DataIdentifier,
+    /// Gets MAID account information.
+    pub fn get_account_info(&mut self,
+                            dst: Authority,
                             msg_id: MessageId)
                             -> Result<(), InterfaceError> {
         if self.timeout_simulation {
             return Ok(());
         }
 
-        let cloned_sender = self.sender.clone();
-        let client_auth = self.client_auth.clone();
-
-        let err = if self.network_limits_reached() {
-            info!("Mock GET: {:?} {:?} [0]", data_id, msg_id);
-            Some(GetError::NetworkOther("Max operations exhausted".to_string()))
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "get_account_info") {
+            Err(err)
         } else {
-            if let Some(count) = self.update_network_limits() {
-                info!("Mock GET: {:?} {:?} [{}]", data_id, msg_id, count);
+            match unwrap!(STORAGE.lock()).get_account_info(&self.client_name()) {
+                Some(account_info) => Ok(*account_info),
+                None => Err(ClientError::NoSuchAccount),
             }
-
-            None
         };
 
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(DELAY_GETS_POSTS_MS));
-            let data_name = *data_id.name();
-            let nae_auth = Authority::NaeManager(data_name);
-            let request = Request::Get(data_id, msg_id);
-
-            if let Some(reason) = err {
-                Self::send_failure_resp(&cloned_sender, nae_auth, client_auth, request, reason);
-                return;
-            }
-
-            match unwrap!(STORAGE.lock()).get_data(&data_name) {
-                Ok(data) => {
-                    if match (&data, &data_id) {
-                        (&Data::Immutable(_), &DataIdentifier::Immutable(_)) => true,
-                        (&Data::PrivAppendable(_), &DataIdentifier::PrivAppendable(_)) => true,
-                        (&Data::PubAppendable(_), &DataIdentifier::PubAppendable(_)) => true,
-                        (&Data::Structured(ref struct_data),
-                         &DataIdentifier::Structured(_, ref tag)) => {
-                            struct_data.get_type_tag() == *tag
-                        }
-                        _ => false,
-                    } {
-                        let event = Event::Response {
-                            src: nae_auth,
-                            dst: client_auth,
-                            response: Response::GetSuccess(data, msg_id),
-                        };
-
-                        Self::send(&cloned_sender, event);
-                    } else {
-                        let err = if let DataIdentifier::Structured(_, TYPE_TAG_SESSION_PACKET) =
-                                         data_id {
-                            GetError::NoSuchAccount
-                        } else {
-                            GetError::NoSuchData
-                        };
-                        Self::send_failure_resp(&cloned_sender,
-                                                nae_auth,
-                                                client_auth,
-                                                request,
-                                                err);
-                    }
-                }
-                Err(e) => {
-                    let err = match (GetError::from(e), data_id) {
-                        (GetError::NoSuchData,
-                         DataIdentifier::Structured(_, TYPE_TAG_SESSION_PACKET)) => {
-                            GetError::NoSuchAccount
-                        }
-                        (e, _) => e,
-                    };
-                    Self::send_failure_resp(&cloned_sender, nae_auth, client_auth, request, err);
-                }
-            };
-        });
+        self.send_response(GET_ACCOUNT_INFO_DELAY_MS,
+                           dst,
+                           self.client_auth.clone(),
+                           Response::GetAccountInfo {
+                               res: res,
+                               msg_id: msg_id,
+                           });
 
         Ok(())
     }
 
-    pub fn send_put_request(&self,
-                            _dst: Authority,
-                            data: Data,
-                            msg_id: MessageId)
-                            -> Result<(), InterfaceError> {
+    /// Puts ImmutableData to the network.
+    pub fn put_idata(&mut self,
+                     _dst: Authority,
+                     data: ImmutableData,
+                     msg_id: MessageId)
+                     -> Result<(), InterfaceError> {
         if self.timeout_simulation {
             return Ok(());
         }
 
-        let cloned_sender = self.sender.clone();
-        let client_auth = self.client_auth.clone();
-
         let data_name = *data.name();
-        let data_id = data.identifier();
-        // NaeManager is used as the destination authority here because in the Mock we
-        // assume that MaidManagers always pass the PUT. Errors if any can come only
-        // from NaeManagers
-        let nae_auth = Authority::NaeManager(data_name);
-        let request = Request::Put(data.clone(), msg_id);
 
-        let mut storage = unwrap!(STORAGE.lock());
-        let err = if self.network_limits_reached() {
-            info!("Mock PUT: {:?} {:?} [0]", data_id, msg_id);
-            Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "put_idata") {
+            Err(err)
         } else {
-            match (data, storage.get_data(&data_name)) {
+            let mut storage = unwrap!(STORAGE.lock());
+            match storage.get_data(data.name()) {
                 // Immutable data is de-duplicated so always allowed
-                (Data::Immutable(_), Ok(Data::Immutable(_))) => None,
-                (Data::Structured(sd_new), Ok(Data::Structured(sd_stored))) => {
-                    if sd_stored.is_deleted() {
-                        match sd_stored.validate_self_against_successor(&sd_new) {
-                            Ok(_) => {
-                                match storage.put_data(data_name, Data::Structured(sd_new)) {
-                                    Ok(()) => None,
-                                    Err(error) => Some(MutationError::from(error)),
-                                }
-                            }
-                            Err(_) => Some(MutationError::InvalidSuccessor),
-                        }
-                    } else if sd_stored.get_type_tag() == TYPE_TAG_SESSION_PACKET {
-                        Some(MutationError::AccountExists)
-                    } else {
-                        Some(MutationError::DataExists)
-                    }
+                Ok(Data::Immutable(_)) => Ok(()),
+                Ok(_) => Err(ClientError::DataExists),
+                Err(StorageError::NoSuchData) => {
+                    storage.put_data(data_name, Data::Immutable(data))
+                        .map_err(ClientError::from)
                 }
-                (_, Ok(_)) => Some(MutationError::DataExists),
-                (data, Err(StorageError::NoSuchData)) => {
-                    match storage.put_data(data_name, data) {
-                        Ok(()) => None,
-                        Err(error) => Some(MutationError::from(error)),
-                    }
-                }
-                (_, Err(error)) => Some(MutationError::from(error)),
+                Err(err) => Err(ClientError::from(err)),
             }
         };
 
-        if err == None {
-            if let Some(count) = self.update_network_limits() {
-                info!("Mock PUT: {:?} {:?} [{}]", data_id, msg_id, count);
-            }
-
-            {
-                let account = storage.client_accounts
-                    .entry(self.client_name())
-                    .or_insert_with(ClientAccount::default);
-                account.data_stored += 1;
-                account.space_available -= 1;
-            }
-
+        if res.is_ok() {
+            let mut storage = unwrap!(STORAGE.lock());
+            update_account_info(&mut storage, &self.client_name());
             storage.sync();
         }
 
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(DELAY_PUTS_DELETS_MS));
-            if let Some(reason) = err {
-                Self::send_failure_resp(&cloned_sender, nae_auth, client_auth, request, reason);
-            } else {
-                let event = Event::Response {
-                    src: nae_auth,
-                    dst: client_auth,
-                    response: Response::PutSuccess(data_id, msg_id),
-                };
-
-                Self::send(&cloned_sender, event);
-            }
-        });
-
+        let nae_auth = Authority::NaeManager(data_name);
+        self.send_response(PUT_IDATA_DELAY_MS,
+                           nae_auth,
+                           self.client_auth.clone(),
+                           Response::PutIData {
+                               res: res,
+                               msg_id: msg_id,
+                           });
         Ok(())
     }
 
-    pub fn send_post_request(&self,
-                             _dst: Authority,
-                             data: Data,
+    /// Fetches ImmutableData from the network by the given name.
+    pub fn get_idata(&mut self,
+                     _dst: Authority,
+                     name: XorName,
+                     msg_id: MessageId)
+                     -> Result<(), InterfaceError> {
+        if self.timeout_simulation {
+            return Ok(());
+        }
+
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "get_idata") {
+            Err(err)
+        } else {
+            match unwrap!(STORAGE.lock()).get_data(&name) {
+                Ok(Data::Immutable(data)) => Ok(data),
+                _ => Err(ClientError::NoSuchData),
+            }
+        };
+
+        let nae_auth = Authority::NaeManager(name);
+        self.send_response(GET_IDATA_DELAY_MS,
+                           nae_auth,
+                           self.client_auth.clone(),
+                           Response::GetIData {
+                               res: res,
+                               msg_id: msg_id,
+                           });
+        Ok(())
+    }
+
+    /// Creates a new MutableData in the network.
+    pub fn put_mdata(&mut self,
+                     dst: Authority,
+                     data: MutableData,
+                     msg_id: MessageId,
+                     requester: sign::PublicKey)
+                     -> Result<(), InterfaceError> {
+        if self.timeout_simulation {
+            return Ok(());
+        }
+
+        let data_name = *data.name();
+
+        let res = if let Err(err) = self.verify_network_limits(msg_id, "put_mdata") {
+            Err(err)
+        } else {
+            let mut storage = unwrap!(STORAGE.lock());
+            if storage.contains_data(data.name()) {
+                Err(ClientError::DataExists)
+            } else {
+                storage.put_data(data_name, Data::Mutable(data))
+                    .map_err(ClientError::from)
+            }
+        };
+
+        if res.is_ok() {
+            let mut storage = unwrap!(STORAGE.lock());
+            update_account_info(&mut storage, &self.client_name());
+            storage.sync();
+        }
+
+        let nae_auth = Authority::NaeManager(data_name);
+        self.send_response(PUT_MDATA_DELAY_MS,
+                           nae_auth,
+                           self.client_auth.clone(),
+                           Response::PutMData {
+                               res: res,
+                               msg_id: msg_id,
+                           });
+        Ok(())
+    }
+
+    /// Fetches a latest version number.
+    pub fn get_mdata_version(&mut self,
+                             dst: Authority,
+                             name: XorName,
+                             tag: u64,
                              msg_id: MessageId)
                              -> Result<(), InterfaceError> {
-        if self.timeout_simulation {
-            return Ok(());
-        }
-
-        let cloned_sender = self.sender.clone();
-        let client_auth = self.client_auth.clone();
-
-        let data_name = *data.name();
-        let data_id = data.identifier();
-        let nae_auth = Authority::NaeManager(data_name);
-        let request = Request::Post(data.clone(), msg_id);
-
-        let mut storage = unwrap!(STORAGE.lock());
-        let result = if storage.contains_data(&data_name) {
-            if self.network_limits_reached() {
-                info!("Mock POST: {:?} {:?} [0]", data_id, msg_id);
-                Err(MutationError::NetworkOther("Max operations exhausted".to_string()))
-            } else {
-                match (data, storage.get_data(&data_name)) {
-                    (Data::Structured(sd_new), Ok(Data::Structured(sd_stored))) => {
-                        if sd_stored.is_deleted() {
-                            Err(MutationError::InvalidOperation)
-                        } else if let Ok(_) = sd_stored.validate_self_against_successor(&sd_new) {
-                            Ok(Data::Structured(sd_new))
-                        } else {
-                            Err(MutationError::InvalidSuccessor)
-                        }
-                    }
-                    (Data::PrivAppendable(ad_new),
-                     Ok(Data::PrivAppendable(mut ad_stored))) => {
-                        if let Ok(()) = ad_stored.update_with_other(ad_new) {
-                            Ok(Data::PrivAppendable(ad_stored))
-                        } else {
-                            Err(MutationError::InvalidSuccessor)
-                        }
-                    }
-                    (Data::PubAppendable(ad_new),
-                     Ok(Data::PubAppendable(mut ad_stored))) => {
-                        if let Ok(()) = ad_stored.update_with_other(ad_new) {
-                            Ok(Data::PubAppendable(ad_stored))
-                        } else {
-                            Err(MutationError::InvalidSuccessor)
-                        }
-                    }
-                    (_, Ok(_)) => Err(MutationError::InvalidOperation),
-                    (_, Err(error)) => Err(MutationError::from(error)),
-                }
-            }
-        } else {
-            Err(MutationError::NoSuchData)
-        };
-
-        let err = match result {
-            Ok(data) => {
-                match storage.put_data(data_name, data) {
-                    Ok(()) => {
-                        if let Some(count) = self.update_network_limits() {
-                            info!("Mock POST: {:?} {:?} [{}]", data_id, msg_id, count);
-                        }
-
-                        storage.sync();
-                        None
-                    }
-                    Err(error) => Some(MutationError::from(error)),
-                }
-            }
-            Err(error) => Some(error),
-        };
-
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(DELAY_PUTS_DELETS_MS));
-            if let Some(reason) = err {
-                Self::send_failure_resp(&cloned_sender, nae_auth, client_auth, request, reason);
-            } else {
-                let event = Event::Response {
-                    src: nae_auth,
-                    dst: client_auth,
-                    response: Response::PostSuccess(data_id, msg_id),
-                };
-
-                Self::send(&cloned_sender, event);
-            }
-        });
-
-        Ok(())
+        unimplemented!()
     }
 
-    pub fn send_delete_request(&self,
-                               _dst: Authority,
-                               data: Data,
-                               msg_id: MessageId)
-                               -> Result<(), InterfaceError> {
-        if self.timeout_simulation {
-            return Ok(());
-        }
-
-        let cloned_sender = self.sender.clone();
-        let client_auth = self.client_auth.clone();
-
-        let data_name = *data.name();
-        let data_id = data.identifier();
-        let nae_auth = Authority::NaeManager(data_name);
-        let request = Request::Delete(data.clone(), msg_id);
-
-        let mut storage = unwrap!(STORAGE.lock());
-        let err = if self.network_limits_reached() {
-            info!("Mock DELETE: {:?} {:?} [0]", data_id, msg_id);
-            Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
-        } else {
-            match (data, storage.get_data(&data_name)) {
-                (Data::Structured(sd_new), Ok(Data::Structured(mut sd_stored))) => {
-                    if sd_stored.is_deleted() {
-                        Some(MutationError::InvalidOperation)
-                    } else if let Ok(_) = sd_stored.delete_if_valid_successor(&sd_new) {
-                        if let Err(err) = storage.put_data(data_name, Data::Structured(sd_stored)) {
-                            Some(MutationError::from(err))
-                        } else {
-                            storage.sync();
-                            None
-                        }
-                    } else {
-                        Some(MutationError::InvalidSuccessor)
-                    }
-                }
-                (_, Ok(_)) => Some(MutationError::InvalidOperation),
-                (_, Err(error)) => Some(MutationError::from(error)),
-            }
-        };
-
-        if err == None {
-            if let Some(count) = self.update_network_limits() {
-                info!("Mock DELETE: {:?} {:?} [{}]", data_id, msg_id, count);
-            }
-        }
-
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(DELAY_PUTS_DELETS_MS));
-            if let Some(reason) = err {
-                Self::send_failure_resp(&cloned_sender, nae_auth, client_auth, request, reason);
-            } else {
-                let event = Event::Response {
-                    src: nae_auth,
-                    dst: client_auth,
-                    response: Response::DeleteSuccess(data_id, msg_id),
-                };
-
-                Self::send(&cloned_sender, event);
-            }
-        });
-
-        Ok(())
+    /// Fetches a list of entries (keys + values).
+    pub fn list_mdata_entries(&mut self,
+                              dst: Authority,
+                              name: XorName,
+                              tag: u64,
+                              msg_id: MessageId)
+                              -> Result<(), InterfaceError> {
+        unimplemented!()
     }
 
-    pub fn send_get_account_info_request(&mut self,
-                                         dst: Authority,
-                                         msg_id: MessageId)
-                                         -> Result<(), InterfaceError> {
-        if self.timeout_simulation {
-            return Ok(());
-        }
-
-        let cloned_sender = self.sender.clone();
-        let client_auth = self.client_auth.clone();
-        let client_name = self.client_name();
-
-        let err = if self.network_limits_reached() {
-            info!("Mock GetAccountInfo: {:?} {:?} [0]", client_name, msg_id);
-            Some(GetError::NetworkOther("Max operations exhausted".to_string()))
-        } else {
-            None
-        };
-
-        if err == None {
-            if let Some(count) = self.update_network_limits() {
-                info!("Mock GetAccountInfo: {:?} {:?} [{}]",
-                      client_name,
-                      msg_id,
-                      count);
-            }
-        }
-
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(DELAY_GETS_POSTS_MS));
-            let request = Request::GetAccountInfo(msg_id);
-
-            if let Some(reason) = err {
-                Self::send_failure_resp(&cloned_sender, dst, client_auth, request, reason);
-                return;
-            }
-
-            match unwrap!(STORAGE.lock()).client_accounts.get(&client_name) {
-                Some(account) => {
-                    let event = Event::Response {
-                        src: dst,
-                        dst: client_auth,
-                        response: Response::GetAccountInfoSuccess {
-                            id: msg_id,
-                            data_stored: account.data_stored,
-                            space_available: account.space_available,
-                        },
-                    };
-                    Self::send(&cloned_sender, event);
-                }
-                None => {
-                    Self::send_failure_resp(&cloned_sender,
-                                            dst,
-                                            client_auth,
-                                            request,
-                                            GetError::NoSuchAccount);
-                }
-            };
-        });
-
-        Ok(())
+    /// Fetches a list of keys in MutableData.
+    pub fn list_mdata_keys(&mut self,
+                           dst: Authority,
+                           name: XorName,
+                           tag: u64,
+                           msg_id: MessageId)
+                           -> Result<(), InterfaceError> {
+        unimplemented!()
     }
 
-    pub fn send_append_request(&self,
-                               _dst: Authority,
-                               wrapper: AppendWrapper,
-                               msg_id: MessageId)
-                               -> Result<(), InterfaceError> {
-        if self.timeout_simulation {
-            return Ok(());
-        }
-
-        let cloned_sender = self.sender.clone();
-        let client_auth = self.client_auth.clone();
-
-        let data_id = wrapper.identifier();
-        let data_name = *data_id.name();
-        let nae_auth = Authority::NaeManager(data_name);
-        let request = Request::Append(wrapper.clone(), msg_id);
-
-        let mut storage = unwrap!(STORAGE.lock());
-        let err = if storage.contains_data(&data_name) {
-            if self.network_limits_reached() {
-                info!("Mock APPEND: {:?} {:?} [0]", data_id, msg_id);
-                Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
-            } else {
-                match (wrapper, storage.get_data(&data_name)) {
-                    (AppendWrapper::Priv { data, version, sign_key, .. },
-                     Ok(Data::PrivAppendable(mut ad_stored))) => {
-                        if version == ad_stored.version && ad_stored.append(data, &sign_key) {
-                            match storage.put_data(data_name, Data::PrivAppendable(ad_stored)) {
-                                Ok(()) => None,
-                                Err(error) => Some(MutationError::from(error)),
-                            }
-                        } else {
-                            Some(MutationError::InvalidSuccessor)
-                        }
-                    }
-                    (AppendWrapper::Pub { data, version, .. },
-                     Ok(Data::PubAppendable(mut ad_stored))) => {
-                        if version == ad_stored.version && ad_stored.append(data) {
-                            match storage.put_data(data_name, Data::PubAppendable(ad_stored)) {
-                                Ok(()) => None,
-                                Err(error) => Some(MutationError::from(error)),
-                            }
-                        } else {
-                            Some(MutationError::InvalidSuccessor)
-                        }
-                    }
-                    (_, Ok(_)) => Some(MutationError::InvalidOperation),
-                    (_, Err(error)) => Some(MutationError::from(error)),
-                }
-            }
-        } else {
-            Some(MutationError::NoSuchData)
-        };
-
-        if err == None {
-            storage.sync();
-
-            if let Some(count) = self.update_network_limits() {
-                info!("Mock POST: {:?} {:?} [{}]", data_id, msg_id, count);
-            }
-        }
-
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(DELAY_PUTS_DELETS_MS));
-            if let Some(reason) = err {
-                Self::send_failure_resp(&cloned_sender, nae_auth, client_auth, request, reason);
-            } else {
-                let event = Event::Response {
-                    src: nae_auth,
-                    dst: client_auth,
-                    response: Response::AppendSuccess(data_id, msg_id),
-                };
-
-                Self::send(&cloned_sender, event);
-            }
-        });
-
-        Ok(())
+    /// Fetches a list of values in MutableData.
+    pub fn list_mdata_values(&mut self,
+                             dst: Authority,
+                             name: XorName,
+                             tag: u64,
+                             msg_id: MessageId)
+                             -> Result<(), InterfaceError> {
+        unimplemented!()
     }
 
-    fn send(sender: &Sender<Event>, event: Event) {
-        if let Err(error) = sender.send(event) {
-            error!("mpsc-send failure: {:?}", error);
-        }
+    /// Fetches a single value from MutableData
+    pub fn get_mdata_value(&mut self,
+                           dst: Authority,
+                           name: XorName,
+                           tag: u64,
+                           key: Vec<u8>,
+                           msg_id: MessageId)
+                           -> Result<(), InterfaceError> {
+        unimplemented!()
     }
 
-    fn send_failure_resp<E: Encodable>(sender: &Sender<Event>,
-                                       src: Authority,
+    /// Updates MutableData entries in bulk.
+    pub fn mutate_mdata_entries(&mut self,
+                                dst: Authority,
+                                name: XorName,
+                                tag: u64,
+                                actions: BTreeMap<Vec<u8>, EntryAction>,
+                                msg_id: MessageId,
+                                requester: sign::PublicKey)
+                                -> Result<(), InterfaceError> {
+        unimplemented!()
+    }
+
+    /// Fetches a complete list of permissions.
+    pub fn list_mdata_permissions(&mut self,
+                                  dst: Authority,
+                                  name: XorName,
+                                  tag: u64,
+                                  msg_id: MessageId)
+                                  -> Result<(), InterfaceError> {
+        unimplemented!()
+    }
+
+    /// Fetches a list of permissions for a particular User.
+    pub fn list_mdata_user_permissions(&mut self,
                                        dst: Authority,
-                                       request: Request,
-                                       err: E) {
-        let ext_err = match serialise(&err) {
-            Ok(serialised) => serialised,
-            Err(err) => {
-                warn!("Could not serialise client-vault error - {:?}", err);
-                Vec::new()
-            }
-        };
+                                       name: XorName,
+                                       tag: u64,
+                                       user: User,
+                                       msg_id: MessageId)
+                                       -> Result<(), InterfaceError> {
+        unimplemented!()
+    }
 
-        let response = match request {
-            Request::Get(data_id, msg_id) => {
-                Response::GetFailure {
-                    id: msg_id,
-                    data_id: data_id,
-                    external_error_indicator: ext_err,
-                }
-            }
-            Request::Put(data, msg_id) => {
-                Response::PutFailure {
-                    id: msg_id,
-                    data_id: data.identifier(),
-                    external_error_indicator: ext_err,
-                }
-            }
-            Request::Post(data, msg_id) => {
-                Response::PostFailure {
-                    id: msg_id,
-                    data_id: data.identifier(),
-                    external_error_indicator: ext_err,
-                }
-            }
-            Request::Delete(data, msg_id) => {
-                Response::DeleteFailure {
-                    id: msg_id,
-                    data_id: data.identifier(),
-                    external_error_indicator: ext_err,
-                }
-            }
-            Request::GetAccountInfo(msg_id) => {
-                Response::GetAccountInfoFailure {
-                    id: msg_id,
-                    external_error_indicator: ext_err,
-                }
-            }
-            Request::Append(append_wrapper, msg_id) => {
-                Response::AppendFailure {
-                    id: msg_id,
-                    data_id: append_wrapper.identifier(),
-                    external_error_indicator: ext_err,
-                }
-            }
-            _ => {
-                unreachable!("Cannot handle {:?} in this function. Report as bug",
-                             request)
-            }
-        };
+    /// Updates or inserts a list of permissions for a particular User in the given
+    /// MutableData.
+    pub fn set_mdata_user_permissions(&mut self,
+                                      dst: Authority,
+                                      name: XorName,
+                                      tag: u64,
+                                      user: User,
+                                      permissions: PermissionSet,
+                                      version: u64,
+                                      msg_id: MessageId,
+                                      requester: sign::PublicKey)
+                                      -> Result<(), InterfaceError> {
+        unimplemented!()
+    }
 
+    /// Deletes a list of permissions for a particular User in the given MutableData.
+    pub fn del_mdata_user_permissions(&mut self,
+                                      dst: Authority,
+                                      name: XorName,
+                                      tag: u64,
+                                      user: User,
+                                      version: u64,
+                                      msg_id: MessageId,
+                                      requester: sign::PublicKey)
+                                      -> Result<(), InterfaceError> {
+        unimplemented!()
+    }
+
+    /// Changes an owner of the given MutableData. Only the current owner can perform this action.
+    pub fn change_mdata_owner(&mut self,
+                              dst: Authority,
+                              name: XorName,
+                              tag: u64,
+                              new_owners: BTreeSet<sign::PublicKey>,
+                              version: u64,
+                              msg_id: MessageId)
+                              -> Result<(), InterfaceError> {
+        unimplemented!()
+    }
+
+    fn send_response(&self, delay_ms: u64, src: Authority, dst: Authority, response: Response) {
         let event = Event::Response {
+            response: response,
             src: src,
             dst: dst,
-            response: response,
         };
 
-        Self::send(sender, event)
+        let sender = self.sender.clone();
+
+        let _ = thread::named(DELAY_THREAD_NAME, move || {
+            std::thread::sleep(Duration::from_millis(delay_ms));
+            if let Err(err) = sender.send(event) {
+                error!("mpsc-send failure: {:?}", err);
+            }
+        });
     }
 
     fn client_name(&self) -> XorName {
@@ -663,6 +394,21 @@ impl MockRouting {
         self.timeout_simulation = enable;
     }
 
+    fn verify_network_limits(&self, msg_id: MessageId, op: &str) -> Result<(), ClientError> {
+        let client_name = self.client_name();
+
+        if self.network_limits_reached() {
+            info!("Mock {}: {:?} {:?} [0]", op, client_name, msg_id);
+            Err(ClientError::NetworkOther("Max operations exhausted".to_string()))
+        } else {
+            if let Some(count) = self.update_network_limits() {
+                info!("Mock {}: {:?} {:?} [{}]", op, client_name, msg_id, count);
+            }
+
+            Ok(())
+        }
+    }
+
     fn network_limits_reached(&self) -> bool {
         self.max_ops_countdown.as_ref().map_or(false, |count| count.get() == 0)
     }
@@ -682,135 +428,162 @@ impl Drop for MockRouting {
     }
 }
 
+fn update_account_info(storage: &mut Storage, client_name: &XorName) {
+    let account = storage.get_or_create_account_info(client_name);
+    account.data_stored += 1;
+    account.space_available -= 1;
+}
+
 #[cfg(test)]
 mod tests {
     use core::client::account::Account;
     use core::errors::CoreError;
     use core::utility;
-    use maidsafe_utilities::serialisation::{deserialise, serialise};
-    use rand;
-    use routing::{AppendWrapper, AppendedData, Authority, Data, DataIdentifier, Event, Filter,
-                  FullId, ImmutableData, MessageId, PubAppendableData, Response, StructuredData,
-                  XOR_NAME_LEN, XorName};
-    use routing::client_errors::{GetError, MutationError};
-    use rust_sodium::crypto::sign;
-    use std::collections::HashMap;
-    use std::iter;
+    use routing::{AccountInfo, Authority, ClientError, Event, FullId, ImmutableData, MessageId,
+                  Response};
     use std::sync::mpsc::{self, Receiver};
     use super::*;
     use super::storage::DEFAULT_CLIENT_ACCOUNT_SIZE;
 
-    #[test]
-    fn map_serialisation() {
-        let mut map_before = HashMap::<XorName, Vec<u8>>::new();
-        let _ = map_before.insert(XorName([1; XOR_NAME_LEN]), vec![1; 10]);
+    /*
+    use maidsafe_utilities::serialisation::{deserialise, serialise};
+    use rand;
+    use routing::{AppendWrapper, AppendedData, Data, DataIdentifier, Filter,
+                  PubAppendableData, StructuredData,
+                  XOR_NAME_LEN, XorName};
+    use rust_sodium::crypto::sign;
+    use std::collections::HashMap;
+    use std::iter;
+    */
 
-        let serialised_data = unwrap!(serialise(&map_before));
+    // Helper macro to receive a routing event and assert it's a response
+    // success.
+    macro_rules! expect_success {
+        ($rx:expr, $msg_id:expr, $res:path) => {
+            match unwrap!($rx.recv()) {
+                Event::Response {
+                    response: $res { res, msg_id, }, ..
+                } => {
+                    assert_eq!(msg_id, $msg_id);
 
-        let map_after: HashMap<XorName, Vec<u8>> = unwrap!(deserialise(&serialised_data));
-        assert_eq!(map_before, map_after);
+                    match res {
+                        Ok(value) => value,
+                        Err(err) => panic!("Unexpected error {:?}", err),
+                    }
+                }
+                event => panic!("Unexpected event {:?}", event),
+            }
+        }
+    }
+
+    // Helper macro to receive a routing event and assert it's a response
+    // failure.
+    macro_rules! expect_failure {
+        ($rx:expr, $msg_id:expr, $res:path, $err:pat) => {
+            match unwrap!($rx.recv()) {
+                Event::Response {
+                    response: $res { res, msg_id, }, ..
+                } => {
+                    assert_eq!(msg_id, $msg_id);
+
+                    match res {
+                        Ok(_) => panic!("Unexpected success"),
+                        Err($err) => (),
+                        Err(err) => panic!("Unexpected error {:?}", err),
+                    }
+                }
+                event => panic!("Unexpected event {:?}", event),
+            }
+        }
     }
 
     #[test]
-    fn check_put_post_get_delete_for_immutable_data() {
-        let (_, id_packet) = create_account_and_full_id();
-        let (routing_sender, routing_receiver) = mpsc::channel();
-        let mut mock_routing = unwrap!(MockRouting::new(routing_sender, Some(id_packet)));
-        wait_for_connection(&routing_receiver);
+    fn immutable_data_basics() {
+        let (mut routing, routing_rx) = setup();
 
         // Construct ImmutableData
-        let orig_immutable_data = generate_random_immutable_data();
-        let orig_data = Data::Immutable(orig_immutable_data);
+        let orig_data = ImmutableData::new(unwrap!(utility::generate_random_vector(100)));
+        let nae_mgr = Authority::NaeManager(*orig_data.name());
+        let client_mgr = Authority::ClientManager(*orig_data.name());
 
-        let location_nae_mgr = Authority::NaeManager(*orig_data.name());
-        let location_client_mgr = Authority::ClientManager(*orig_data.name());
+        // GetIData should fail
+        let msg_id = MessageId::new();
+        unwrap!(routing.get_idata(nae_mgr.clone(), *orig_data.name(), msg_id));
+        expect_failure!(routing_rx,
+                        msg_id,
+                        Response::GetIData,
+                        ClientError::NoSuchData);
 
-        // GET ImmutableData should fail
-        {
-            let result = do_get(&mut mock_routing,
-                                &routing_receiver,
-                                location_nae_mgr.clone(),
-                                orig_data.identifier());
+        // First PutIData should succeed
+        let msg_id = MessageId::new();
+        unwrap!(routing.put_idata(client_mgr.clone(), orig_data.clone(), msg_id));
+        expect_success!(routing_rx, msg_id, Response::PutIData);
 
-            match result {
-                Ok(_) => panic!("Expected Get Failure!"),
-                Err(CoreError::GetFailure { reason: GetError::NoSuchData, .. }) => (),
-                Err(err) => panic!("Unexpected: {:?}", err),
-            }
-        }
-
-        // First PUT should succeed
-        unwrap!(do_put(&mut mock_routing,
-                       &routing_receiver,
-                       location_client_mgr.clone(),
-                       orig_data.clone()));
-
-        // GET ImmutableData should pass
-        assert_eq!(unwrap!(do_get(&mut mock_routing,
-                                  &routing_receiver,
-                                  location_nae_mgr.clone(),
-                                  orig_data.identifier())),
-                   orig_data);
+        // Now GetIData should pass
+        let msg_id = MessageId::new();
+        unwrap!(routing.get_idata(nae_mgr.clone(), *orig_data.name(), msg_id));
+        let got_data = expect_success!(routing_rx, msg_id, Response::GetIData);
+        assert_eq!(got_data, orig_data);
 
         // GetAccountInfo should pass and show one chunk stored
-        assert_eq!(unwrap!(do_get_account_info(&mut mock_routing,
-                                               &routing_receiver,
-                                               location_client_mgr.clone())),
+        let account_info = do_get_account_info(&mut routing, &routing_rx, client_mgr.clone());
+        assert_eq!(account_info.data_stored, 1);
+        assert_eq!(account_info.space_available,
+                   DEFAULT_CLIENT_ACCOUNT_SIZE - 1);
 
-                   (1, DEFAULT_CLIENT_ACCOUNT_SIZE - 1));
+        // Subsequent PutIData for same data should succeed - De-duplication
+        let msg_id = MessageId::new();
+        unwrap!(routing.put_idata(client_mgr.clone(), orig_data.clone(), msg_id));
+        expect_success!(routing_rx, msg_id, Response::PutIData);
 
-        // Subsequent PUTs for same ImmutableData should succeed - De-duplication
-        unwrap!(do_put(&mut mock_routing,
-                       &routing_receiver,
-                       location_client_mgr.clone(),
-                       orig_data.clone()));
+        // GetIData should succeed
+        let msg_id = MessageId::new();
+        unwrap!(routing.get_idata(nae_mgr.clone(), *orig_data.name(), msg_id));
+        let got_data = expect_success!(routing_rx, msg_id, Response::GetIData);
+        assert_eq!(got_data, orig_data);
 
-        // POSTs for ImmutableData should fail
-        {
-            let result = do_post(&mut mock_routing,
-                                 &routing_receiver,
-                                 location_nae_mgr.clone(),
-                                 orig_data.clone());
-
-            match result {
-                Ok(_) => panic!("Expected Post Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. }) => {
-                    ()
-                }
-                Err(err) => panic!("Unexpected: {:?}", err),
-            }
-        }
-
-        // DELETEs of ImmutableData should fail
-        {
-            let result = do_delete(&mut mock_routing,
-                                   &routing_receiver,
-                                   location_client_mgr.clone(),
-                                   orig_data.clone());
-
-            match result {
-                Ok(_) => panic!("Expected Delete Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. }) => {
-                    ()
-                }
-                Err(err) => panic!("Unexpected: {:?}", err),
-            }
-        }
-
-        // GET ImmutableData should pass
-        assert_eq!(unwrap!(do_get(&mut mock_routing,
-                                  &routing_receiver,
-                                  location_nae_mgr.clone(),
-                                  orig_data.identifier())),
-                   orig_data);
 
         // GetAccountInfo should pass and show two chunks stored
-        assert_eq!(unwrap!(do_get_account_info(&mut mock_routing,
-                                               &routing_receiver,
-                                               location_client_mgr)),
-
-                   (2, DEFAULT_CLIENT_ACCOUNT_SIZE - 2));
+        let account_info = do_get_account_info(&mut routing, &routing_rx, client_mgr.clone());
+        assert_eq!(account_info.data_stored, 2);
+        assert_eq!(account_info.space_available,
+                   DEFAULT_CLIENT_ACCOUNT_SIZE - 2);
     }
+
+    fn setup() -> (MockRouting, Receiver<Event>) {
+        let (_, full_id) = create_account_and_full_id();
+        let (routing_tx, routing_rx) = mpsc::channel();
+        let mut routing = unwrap!(MockRouting::new(routing_tx, Some(full_id)));
+
+        // Wait until connection is established.
+        match unwrap!(routing_rx.recv()) {
+            Event::Connected => (),
+            e => panic!("Unexpected event {:?}", e),
+        }
+
+        (routing, routing_rx)
+    }
+
+    fn create_account_and_full_id() -> (Account, FullId) {
+        let account = Account::new();
+        let id = FullId::with_keys((account.get_maid().public_keys().1,
+                                    account.get_maid().secret_keys().1.clone()),
+                                   (account.get_maid().public_keys().0,
+                                    account.get_maid().secret_keys().0.clone()));
+
+        (account, id)
+    }
+
+    fn do_get_account_info(routing: &mut MockRouting,
+                           routing_rx: &Receiver<Event>,
+                           client_mgr: Authority)
+                           -> AccountInfo {
+        let msg_id = MessageId::new();
+        unwrap!(routing.get_account_info(client_mgr, msg_id));
+        expect_success!(routing_rx, msg_id, Response::GetAccountInfo)
+    }
+
+    /*
 
     #[test]
     fn check_put_post_get_delete_for_structured_data() {
@@ -1398,30 +1171,6 @@ mod tests {
         // the appendable data contains data items from both POSTs afterwards.
     }
 
-    fn create_account_and_full_id() -> (Account, FullId) {
-        let account = Account::new();
-        let id = FullId::with_keys((account.get_maid().public_keys().1,
-                                    account.get_maid().secret_keys().1.clone()),
-                                   (account.get_maid().public_keys().0,
-                                    account.get_maid().secret_keys().0.clone()));
-
-        (account, id)
-    }
-
-    fn generate_random_immutable_data() -> ImmutableData {
-        let data = unwrap!(utility::generate_random_vector(100));
-        ImmutableData::new(data)
-    }
-
-
-    // Wait until connection is established.
-    fn wait_for_connection(routing_rx: &Receiver<Event>) {
-        match unwrap!(routing_rx.recv()) {
-            Event::Connected => (),
-            _ => panic!("Could not Connect !!"),
-        }
-    }
-
     // Do a GET request and wait for the response.
     fn do_get(routing: &mut MockRouting,
               routing_rx: &Receiver<Event>,
@@ -1599,4 +1348,5 @@ mod tests {
             event => panic!("Unexpected routing event: {:?}", event),
         }
     }
+    */
 }
