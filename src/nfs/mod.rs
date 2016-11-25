@@ -22,16 +22,16 @@
 /// Errors
 pub mod errors;
 /// Module for File struct
+
+mod file_metadata;
 mod file;
 /// Helper for directory_listing and File for NFS Low level API
 // pub mod helper;
-/// Directory and File Metadata
-mod metadata;
 
 use futures::Future;
 pub use nfs::errors::NfsError;
 pub use nfs::file::File;
-pub use nfs::metadata::FileMetadata;
+pub use nfs::file_metadata::FileMetadata;
 
 /// Helper type for futures that can result in NfsError
 pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;

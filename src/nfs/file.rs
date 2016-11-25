@@ -20,7 +20,7 @@
 // and limitations relating to use of the SAFE Network Software.
 
 
-use nfs::metadata::FileMetadata;
+use nfs::file_metadata::FileMetadata;
 use routing::DataIdentifier;
 use self_encryption::DataMap;
 use std::fmt;
@@ -78,7 +78,7 @@ impl fmt::Debug for File {
 #[cfg(test)]
 mod tests {
     use maidsafe_utilities::serialisation::{deserialise, serialise};
-    use nfs::metadata::FileMetadata;
+    use nfs::file_metadata::FileMetadata;
     use self_encryption::DataMap;
     use super::*;
 
