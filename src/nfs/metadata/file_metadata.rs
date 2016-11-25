@@ -117,14 +117,14 @@ impl Encodable for FileMetadata {
         let modified_time = self.modified.to_timespec();
 
         e.emit_struct("FileMetadata", 8, |e| {
-            try!(e.emit_struct_field("name", 0, |e| self.name.encode(e)));
-            try!(e.emit_struct_field("size", 1, |e| self.size.encode(e)));
-            try!(e.emit_struct_field("created_time_sec", 2, |e| created_time.sec.encode(e)));
-            try!(e.emit_struct_field("created_time_nsec", 3, |e| created_time.nsec.encode(e)));
-            try!(e.emit_struct_field("modified_time_sec", 4, |e| modified_time.sec.encode(e)));
-            try!(e.emit_struct_field("modified_time_nsec", 5, |e| modified_time.nsec.encode(e)));
-            try!(e.emit_struct_field("user_metadata", 6, |e| self.user_metadata.encode(e)));
-            try!(e.emit_struct_field("data_map", 7, |e| self.data_map.encode(e)));
+            e.emit_struct_field("name", 0, |e| self.name.encode(e))?;
+            e.emit_struct_field("size", 1, |e| self.size.encode(e))?;
+            e.emit_struct_field("created_time_sec", 2, |e| created_time.sec.encode(e))?;
+            e.emit_struct_field("created_time_nsec", 3, |e| created_time.nsec.encode(e))?;
+            e.emit_struct_field("modified_time_sec", 4, |e| modified_time.sec.encode(e))?;
+            e.emit_struct_field("modified_time_nsec", 5, |e| modified_time.nsec.encode(e))?;
+            e.emit_struct_field("user_metadata", 6, |e| self.user_metadata.encode(e))?;
+            e.emit_struct_field("data_map", 7, |e| self.data_map.encode(e))?;
 
             Ok(())
         })
@@ -135,18 +135,18 @@ impl Decodable for FileMetadata {
     fn decode<D: Decoder>(d: &mut D) -> Result<FileMetadata, D::Error> {
         d.read_struct("FileMetadata", 8, |d| {
             Ok(FileMetadata {
-                name: try!(d.read_struct_field("name", 0, Decodable::decode)),
-                size: try!(d.read_struct_field("size", 1, Decodable::decode)),
+                name: d.read_struct_field("name", 0, Decodable::decode)?,
+                size: d.read_struct_field("size", 1, Decodable::decode)?,
                 created: ::time::at_utc(Timespec {
-                    sec: try!(d.read_struct_field("created_time_sec", 2, Decodable::decode)),
-                    nsec: try!(d.read_struct_field("created_time_nsec", 3, Decodable::decode)),
+                    sec: d.read_struct_field("created_time_sec", 2, Decodable::decode)?,
+                    nsec: d.read_struct_field("created_time_nsec", 3, Decodable::decode)?,
                 }),
                 modified: ::time::at_utc(Timespec {
-                    sec: try!(d.read_struct_field("modified_time_sec", 4, Decodable::decode)),
-                    nsec: try!(d.read_struct_field("modified_time_nsec", 5, Decodable::decode)),
+                    sec: d.read_struct_field("modified_time_sec", 4, Decodable::decode)?,
+                    nsec: d.read_struct_field("modified_time_nsec", 5, Decodable::decode)?,
                 }),
-                user_metadata: try!(d.read_struct_field("user_metadata", 6, Decodable::decode)),
-                data_map: try!(d.read_struct_field("data_map", 7, Decodable::decode)),
+                user_metadata: d.read_struct_field("user_metadata", 6, Decodable::decode)?,
+                data_map: d.read_struct_field("data_map", 7, Decodable::decode)?,
             })
         })
     }

@@ -118,10 +118,10 @@ impl Dir {
 
     /// Remove a file
     pub fn remove_file(&mut self, file_name: &str) -> Result<File, NfsError> {
-        let index = try!(self.files()
+        let index = self.files()
             .iter()
             .position(|file| *file.name() == *file_name)
-            .ok_or(NfsError::FileNotFound));
+            .ok_or(NfsError::FileNotFound)?;
         Ok(self.files_mut().remove(index))
     }
 
@@ -147,10 +147,10 @@ impl Dir {
 
     /// Remove a sub_directory
     pub fn remove_sub_dir(&mut self, directory_name: &str) -> Result<DirMetadata, NfsError> {
-        let index = try!(self.sub_dirs()
+        let index = self.sub_dirs()
             .iter()
             .position(|dir_info| *dir_info.name() == *directory_name)
-            .ok_or(NfsError::DirectoryNotFound));
+            .ok_or(NfsError::DirectoryNotFound)?;
         Ok(self.sub_dirs_mut().remove(index))
 
     }

@@ -68,7 +68,7 @@ impl FileDetails {
                 let (content, content_len, content_cap) = helper::u8_vec_to_ptr(content);
 
                 let file_metadata_ptr = if include_metadata {
-                    Box::into_raw(Box::new(try!(FileMetadata::new(file.metadata()))))
+                    Box::into_raw(Box::new(FileMetadata::new(file.metadata())?))
                 } else {
                     ptr::null_mut()
                 };

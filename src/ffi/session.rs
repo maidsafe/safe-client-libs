@@ -96,7 +96,7 @@ impl Session {
             core::run(el, client, object_cache, core_rx);
         });
 
-        let core_tx = try!(try!(rx.recv()));
+        let core_tx = rx.recv()??;
 
         Ok(Session {
             inner: Arc::new(Inner {
@@ -144,7 +144,7 @@ impl Session {
             core::run(el, client, object_cache, core_rx);
         });
 
-        let core_tx = try!(try!(rx.recv()));
+        let core_tx = rx.recv()??;
 
         Ok(Session {
             inner: Arc::new(Inner {
@@ -191,7 +191,7 @@ impl Session {
             core::run(el, client, object_cache, core_rx);
         });
 
-        let core_tx = try!(try!(rx.recv()));
+        let core_tx = rx.recv()??;
 
         Ok(Session {
             inner: Arc::new(Inner {
@@ -247,12 +247,12 @@ pub unsafe extern "C" fn create_unregistered_client(user_data: *mut c_void,
     helper::catch_unwind_error_code(|| {
         trace!("FFI create unregistered client.");
         let user_data = OpaqueCtx(user_data);
-        let session = try!(Session::unregistered(move |net_event| {
+        let session = Session::unregistered(move |net_event| {
             match net_event {
                 Ok(event) => obs_cb(user_data.0, 0, event.into()),
                 Err(e) => obs_cb(user_data.0, ffi_error_code!(e), 0),
             }
-        }));
+        })?;
         *session_handle = Box::into_raw(Box::new(session));
         Ok(())
     })
@@ -276,15 +276,15 @@ pub unsafe extern "C" fn create_account(account_locator: *const u8,
     helper::catch_unwind_error_code(|| {
         trace!("FFI create a client account.");
 
-        let acc_locator = try!(helper::c_utf8_to_str(account_locator, account_locator_len));
-        let acc_password = try!(helper::c_utf8_to_str(account_password, account_password_len));
+        let acc_locator = helper::c_utf8_to_str(account_locator, account_locator_len)?;
+        let acc_password = helper::c_utf8_to_str(account_password, account_password_len)?;
         let user_data = OpaqueCtx(user_data);
-        let session = try!(Session::create_account(acc_locator, acc_password, move |net_event| {
+        let session = Session::create_account(acc_locator, acc_password, move |net_event| {
             match net_event {
                 Ok(event) => o_network_obs_cb(user_data.0, 0, event.into()),
                 Err(e) => o_network_obs_cb(user_data.0, ffi_error_code!(e), 0),
             }
-        }));
+        })?;
 
         *session_handle = Box::into_raw(Box::new(session));
         Ok(())
@@ -307,15 +307,15 @@ pub unsafe extern "C" fn log_in(account_locator: *const u8,
     helper::catch_unwind_error_code(|| {
         trace!("FFI login a registered client.");
 
-        let acc_locator = try!(helper::c_utf8_to_str(account_locator, account_locator_len));
-        let acc_password = try!(helper::c_utf8_to_str(account_password, account_password_len));
+        let acc_locator = helper::c_utf8_to_str(account_locator, account_locator_len)?;
+        let acc_password = helper::c_utf8_to_str(account_password, account_password_len)?;
         let user_data = OpaqueCtx(user_data);
-        let session = try!(Session::log_in(acc_locator, acc_password, move |net_event| {
+        let session = Session::log_in(acc_locator, acc_password, move |net_event| {
             match net_event {
                 Ok(event) => o_network_obs_cb(user_data.0, 0, event.into()),
                 Err(e) => o_network_obs_cb(user_data.0, ffi_error_code!(e), 0),
             }
-        }));
+        })?;
 
         *session_handle = Box::into_raw(Box::new(session));
         Ok(())

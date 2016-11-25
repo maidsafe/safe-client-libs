@@ -204,7 +204,7 @@ pub fn get(client: Client, dir_id: &DirId) -> Box<NfsFuture<Dir>> {
         .and_then(move |structured_data| {
             unversioned::extract_value(&c2, &structured_data, sk).map_err(NfsError::from)
         })
-        .and_then(move |encoded| Ok(try!(deserialise::<Dir>(&encoded))))
+        .and_then(move |encoded| Ok(deserialise::<Dir>(&encoded)?))
         .into_box()
 }
 

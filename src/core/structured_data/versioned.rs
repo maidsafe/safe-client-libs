@@ -139,7 +139,7 @@ pub fn extract_all_version_names(client: &Client,
                                  -> Box<CoreFuture<Vec<XorName>>> {
     let info = fry!(deserialise::<VersionsInfo>(&data.get_data()));
     immutable_data::get_value(client, &info.version_list_name, None)
-        .and_then(|encoded_list| Ok(try!(deserialise(&encoded_list))))
+        .and_then(|encoded_list| Ok(deserialise(&encoded_list)?))
         .into_box()
 }
 
@@ -149,7 +149,7 @@ pub fn version_count(data: &StructuredData) -> Result<u64, CoreError> {
         return Err(CoreError::InvalidStructuredDataTypeTag);
     }
 
-    let info = try!(deserialise::<VersionsInfo>(&data.get_data()));
+    let info = deserialise::<VersionsInfo>(&data.get_data())?;
     Ok(info.num_versions)
 }
 
@@ -159,7 +159,7 @@ pub fn current_version_name(data: &StructuredData) -> Result<XorName, CoreError>
         return Err(CoreError::InvalidStructuredDataTypeTag);
     }
 
-    let info = try!(deserialise::<VersionsInfo>(&data.get_data()));
+    let info = deserialise::<VersionsInfo>(&data.get_data())?;
     Ok(info.current_version_name)
 }
 
@@ -189,13 +189,13 @@ fn append_version(client: Client,
                 current_version_name: *curr_version_data.name(),
             };
 
-            let structured_data = try!(build(type_tag,
-                                             id,
-                                             version,
-                                             info,
-                                             curr_owner_keys,
-                                             prev_owner_keys,
-                                             sig_sk));
+            let structured_data = build(type_tag,
+                                        id,
+                                        version,
+                                        info,
+                                        curr_owner_keys,
+                                        prev_owner_keys,
+                                        sig_sk)?;
 
             Ok((structured_data, version_list_data, curr_version_data))
         })
@@ -216,18 +216,18 @@ fn build(type_tag: u64,
          prev_owner_keys: Vec<sign::PublicKey>,
          sig_sk: sign::SecretKey)
          -> Result<StructuredData, CoreError> {
-    let encoded = try!(serialise(&info));
+    let encoded = serialise(&info)?;
 
-    match try!(super::can_data_fit(&encoded, curr_owner_keys.clone(), prev_owner_keys.clone())) {
+    match super::can_data_fit(&encoded, curr_owner_keys.clone(), prev_owner_keys.clone())? {
 
         DataFitResult::DataFits => {
-            Ok(try!(StructuredData::new(type_tag,
-                                        id,
-                                        version,
-                                        encoded,
-                                        curr_owner_keys,
-                                        prev_owner_keys,
-                                        Some(&sig_sk))))
+            Ok(StructuredData::new(type_tag,
+                                   id,
+                                   version,
+                                   encoded,
+                                   curr_owner_keys,
+                                   prev_owner_keys,
+                                   Some(&sig_sk))?)
         }
         _ => {
             trace!("VersionsInfo does not fit in StructuredData.");

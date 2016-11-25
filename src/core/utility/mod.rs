@@ -20,8 +20,8 @@
 // and limitations relating to use of the SAFE Network Software.
 
 /// Common utility functions for writting test cases
-#[cfg(test)]
-pub mod test_utils;
+// #[cfg(test)]
+// pub mod test_utils;
 
 use core::errors::CoreError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -36,24 +36,24 @@ pub fn symmetric_encrypt(plain_text: &[u8],
     let nonce = secretbox::gen_nonce();
     let cipher_text = secretbox::seal(plain_text, &nonce, secret_key);
 
-    Ok(try!(serialise(&(nonce, cipher_text))))
+    Ok(serialise(&(nonce, cipher_text))?)
 }
 
 /// Symmetric decryption
 pub fn symmetric_decrypt(cipher_text: &[u8],
                          secret_key: &secretbox::Key)
                          -> Result<Vec<u8>, CoreError> {
-    let (nonce, cipher_text) = try!(deserialise::<(secretbox::Nonce, Vec<u8>)>(cipher_text));
+    let (nonce, cipher_text) = deserialise::<(secretbox::Nonce, Vec<u8>)>(cipher_text)?;
     secretbox::open(&cipher_text, &nonce, secret_key)
         .map_err(|_| CoreError::SymmetricDecipherFailure)
 }
 
 /// Generates a random string for specified size
 pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = try!(::rand::OsRng::new().map_err(|error| {
-        error!("{:?}", error);
-        CoreError::RandomDataGenerationFailure
-    }));
+    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+            error!("{:?}", error);
+            CoreError::RandomDataGenerationFailure
+        })?;
     Ok((0..length).map(|_| os_rng.gen::<char>()).collect())
 }
 
@@ -61,10 +61,10 @@ pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
 pub fn generate_random_vector<T>(length: usize) -> Result<Vec<T>, CoreError>
     where T: ::rand::Rand
 {
-    let mut os_rng = try!(::rand::OsRng::new().map_err(|error| {
-        error!("{:?}", error);
-        CoreError::RandomDataGenerationFailure
-    }));
+    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+            error!("{:?}", error);
+            CoreError::RandomDataGenerationFailure
+        })?;
     Ok((0..length).map(|_| os_rng.gen()).collect())
 }
 

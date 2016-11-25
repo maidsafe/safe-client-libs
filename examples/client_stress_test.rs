@@ -40,6 +40,8 @@
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
 #![cfg_attr(feature="clippy", allow(use_debug, print_stdout))]
 
+/*
+
 extern crate docopt;
 extern crate futures;
 extern crate rand;
@@ -255,3 +257,7 @@ fn main() {
 
     core::run(el, client, (), core_rx);
 }
+
+*/
+
+fn main() {}

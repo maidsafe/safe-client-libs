@@ -104,8 +104,8 @@ fn appendable_data_new_pub_impl(client: &Client,
                                 obj_cache: &ObjectCache,
                                 name: XorName)
                                 -> FfiResult<ADHandle> {
-    let owner_key = try!(client.public_signing_key());
-    let sign_key = try!(client.secret_signing_key()).clone();
+    let owner_key = client.public_signing_key()?;
+    let sign_key = client.secret_signing_key()?.clone();
 
     let data = PubAppendableData::new(name,
                                       0,
@@ -114,7 +114,7 @@ fn appendable_data_new_pub_impl(client: &Client,
                                       Default::default(),
                                       Filter::black_list(iter::empty()),
                                       Some(&sign_key));
-    let data = AppendableData::Pub(try!(data.map_err(CoreError::from)));
+    let data = AppendableData::Pub(data.map_err(CoreError::from)?);
     Ok(obj_cache.insert_ad(data))
 }
 
@@ -147,21 +147,21 @@ fn appendable_data_new_priv_impl(client: &Client,
                                  name: XorName,
                                  app_handle: AppHandle)
                                  -> FfiResult<ADHandle> {
-    let owner_key = try!(client.public_signing_key());
-    let sign_key = try!(client.secret_signing_key());
+    let owner_key = client.public_signing_key()?;
+    let sign_key = client.secret_signing_key()?;
 
     let data = {
-        let app = try!(obj_cache.get_app(app_handle));
+        let app = obj_cache.get_app(app_handle)?;
         PrivAppendableData::new(name,
                                 0,
                                 vec![owner_key],
                                 Default::default(),
                                 Default::default(),
                                 Filter::black_list(iter::empty()),
-                                try!(app.asym_enc_keys()).0,
+                                app.asym_enc_keys()?.0,
                                 Some(&sign_key))
     };
-    let data = AppendableData::Priv(try!(data.map_err(CoreError::from)));
+    let data = AppendableData::Priv(data.map_err(CoreError::from)?);
 
     Ok(obj_cache.insert_ad(data))
 }
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn appendable_data_extract_data_id(session: *const Session
 fn appendable_data_extract_data_id_impl(object_cache: &ObjectCache,
                                         ad_h: ADHandle)
                                         -> FfiResult<DataIdHandle> {
-    let data_id = match *try!(object_cache.get_ad(ad_h)) {
+    let data_id = match *object_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref elt) => elt.identifier(),
         AppendableData::Priv(ref elt) => elt.identifier(),
     };
@@ -296,9 +296,9 @@ fn appendable_data_post_impl(client: &Client,
                              ad_h: ADHandle,
                              include_data: bool)
                              -> FfiResult<AppendableData> {
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref old) => {
-            let sk = try!(client.secret_signing_key());
+            let sk = client.secret_signing_key()?;
             let new_data = PubAppendableData::new(old.name,
                                                   old.version + 1,
                                                   old.current_owner_keys
@@ -309,7 +309,7 @@ fn appendable_data_post_impl(client: &Client,
                                                   old.filter.clone(),
                                                   Some(&sk))
                 .map_err(CoreError::from);
-            let mut new_data = try!(new_data);
+            let mut new_data = new_data?;
             if include_data {
                 new_data.data = old.data.clone();
             }
@@ -323,9 +323,9 @@ fn appendable_data_post_impl(client: &Client,
                                                    old_data.deleted_data.clone(),
                                                    old_data.filter.clone(),
                                                    old_data.encrypt_key.clone(),
-                                                   Some(&try!(client.secret_signing_key())))
+                                                   Some(&client.secret_signing_key()?))
                 .map_err(CoreError::from);
-            let mut new_data = try!(new_data);
+            let mut new_data = new_data?;
 
             if include_data {
                 new_data.data = old_data.data.clone();
@@ -416,8 +416,8 @@ fn appendable_data_insert_to_filter_impl(obj_cache: &ObjectCache,
                                          ad_h: ADHandle,
                                          sign_key_h: SignKeyHandle)
                                          -> FfiResult<()> {
-    let sign_key = *try!(obj_cache.get_sign_key(sign_key_h));
-    let mut ad = try!(obj_cache.get_ad(ad_h));
+    let sign_key = *obj_cache.get_sign_key(sign_key_h)?;
+    let mut ad = obj_cache.get_ad(ad_h)?;
     let _ = match *ad.filter_mut() {
         Filter::WhiteList(ref mut list) |
         Filter::BlackList(ref mut list) => list.insert(sign_key),
@@ -450,8 +450,8 @@ fn appendable_data_remove_from_filter_impl(obj_cache: &ObjectCache,
                                            ad_h: ADHandle,
                                            sign_key_h: SignKeyHandle)
                                            -> FfiResult<()> {
-    let sign_key = *try!(obj_cache.get_sign_key(sign_key_h));
-    let mut ad = try!(obj_cache.get_ad(ad_h));
+    let sign_key = *obj_cache.get_sign_key(sign_key_h)?;
+    let mut ad = obj_cache.get_ad(ad_h)?;
     let _ = match *ad.filter_mut() {
         Filter::WhiteList(ref mut list) |
         Filter::BlackList(ref mut list) => list.remove(&sign_key),
@@ -483,9 +483,9 @@ pub unsafe extern "C" fn appendable_data_encrypt_key(session: *const Session,
 fn appendable_data_encrypt_key_impl(object_cache: &ObjectCache,
                                     ad_h: AppendableDataHandle)
                                     -> FfiResult<EncryptKeyHandle> {
-    let pk = match *try!(object_cache.get_ad(ad_h)) {
+    let pk = match *object_cache.get_ad(ad_h)? {
         AppendableData::Priv(ref elt) => elt.encrypt_key.clone(),
-        _ => try!(Err(FfiError::UnsupportedOperation)),
+        _ => Err(FfiError::UnsupportedOperation)?,
     };
     Ok(object_cache.insert_encrypt_key(pk))
 }
@@ -536,7 +536,7 @@ fn appendable_data_num_of_data_impl(obj_cache: &ObjectCache,
                                     ad_h: ADHandle,
                                     is_deleted_data: bool)
                                     -> FfiResult<usize> {
-    let num = match *try!(obj_cache.get_ad(ad_h)) {
+    let num = match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref elt) => {
             if is_deleted_data {
                 elt.deleted_data.len()
@@ -612,23 +612,23 @@ fn appendable_data_nth_data_id_impl(obj_cache: &ObjectCache,
                                     n: usize,
                                     is_deleted_data: bool)
                                     -> Result<DataIdHandle, FfiError> {
-    let app_keys = try!(obj_cache.get_app(app)).asym_enc_keys();
-    let data_id = match *try!(obj_cache.get_ad(ad_h)) {
+    let app_keys = obj_cache.get_app(app)?.asym_enc_keys();
+    let data_id = match *obj_cache.get_ad(ad_h)? {
         AppendableData::Priv(ref elt) => {
             let priv_data = if is_deleted_data {
-                try!(nth(&elt.deleted_data, n))
+                nth(&elt.deleted_data, n)?
             } else {
-                try!(nth(&elt.data, n))
+                nth(&elt.data, n)?
             };
-            let (ref pk, ref sk) = try!(app_keys);
-            try!(priv_data.open(pk, sk).map_err(CoreError::from)).pointer
+            let (ref pk, ref sk) = app_keys?;
+            priv_data.open(pk, sk).map_err(CoreError::from)?.pointer
 
         }
         AppendableData::Pub(ref elt) => {
             if is_deleted_data {
-                try!(nth(&elt.deleted_data, n)).pointer
+                nth(&elt.deleted_data, n)?.pointer
             } else {
-                try!(nth(&elt.data, n)).pointer
+                nth(&elt.data, n)?.pointer
             }
         }
     };
@@ -690,22 +690,22 @@ unsafe fn appendable_data_nth_sign_key_impl(obj_cache: &ObjectCache,
                                             n: usize,
                                             is_deleted_data: bool)
                                             -> Result<SignKeyHandle, FfiError> {
-    let app_enc_keys = try!(try!(obj_cache.get_app(app)).asym_enc_keys());
-    let sign_key = match *try!(obj_cache.get_ad(ad_h)) {
+    let app_enc_keys = obj_cache.get_app(app)?.asym_enc_keys()?;
+    let sign_key = match *obj_cache.get_ad(ad_h)? {
         AppendableData::Priv(ref elt) => {
             let priv_data = if is_deleted_data {
-                try!(nth(&elt.deleted_data, n))
+                nth(&elt.deleted_data, n)?
             } else {
-                try!(nth(&elt.data, n))
+                nth(&elt.data, n)?
             };
             let (ref pk, ref sk) = app_enc_keys;
-            try!(priv_data.open(pk, sk).map_err(CoreError::from)).sign_key
+            priv_data.open(pk, sk).map_err(CoreError::from)?.sign_key
         }
         AppendableData::Pub(ref elt) => {
             if is_deleted_data {
-                try!(nth(&elt.deleted_data, n)).sign_key
+                nth(&elt.deleted_data, n)?.sign_key
             } else {
-                try!(nth(&elt.data, n)).sign_key
+                nth(&elt.data, n)?.sign_key
             }
         }
     };
@@ -739,17 +739,17 @@ fn appendable_data_remove_nth_data_impl(obj_cache: &ObjectCache,
                                         ad_h: ADHandle,
                                         n: usize)
                                         -> FfiResult<()> {
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref mut elt) => {
             // TODO Isn't there Entry::Occupied::remove() like HashMap etc to prevent
             // clone? If there is refactor in other places too here.
-            let item = try!(nth(&elt.data, n)).clone();
+            let item = nth(&elt.data, n)?.clone();
             if elt.data.remove(&item) {
                 let _ = elt.deleted_data.insert(item);
             }
         }
         AppendableData::Priv(ref mut elt) => {
-            let item = try!(nth(&elt.data, n)).clone();
+            let item = nth(&elt.data, n)?.clone();
             if elt.data.remove(&item) {
                 let _ = elt.deleted_data.insert(item);
             }
@@ -783,17 +783,17 @@ fn appendable_data_restore_nth_deleted_data_impl(obj_cache: &ObjectCache,
                                                  ad_h: ADHandle,
                                                  n: usize)
                                                  -> FfiResult<()> {
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref mut elt) => {
             // TODO Isn't there Entry::Occupied::remove() like HashMap etc to prevent
             // clone? If there is refactor in other places too here.
-            let item = try!(nth(&elt.deleted_data, n)).clone();
+            let item = nth(&elt.deleted_data, n)?.clone();
             if elt.deleted_data.remove(&item) {
                 let _ = elt.data.insert(item);
             }
         }
         AppendableData::Priv(ref mut elt) => {
-            let item = try!(nth(&elt.deleted_data, n)).clone();
+            let item = nth(&elt.deleted_data, n)?.clone();
             if elt.deleted_data.remove(&item) {
                 let _ = elt.data.insert(item);
             }
@@ -820,7 +820,7 @@ pub unsafe extern "C" fn appendable_data_clear_data(session: *const Session,
 }
 
 fn appendable_data_clear_data_impl(obj_cache: &ObjectCache, ad_h: ADHandle) -> FfiResult<()> {
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref mut elt) => {
             let tmp = mem::replace(&mut elt.data, Default::default());
             elt.deleted_data.extend(tmp);
@@ -859,13 +859,13 @@ fn appendable_data_remove_nth_deleted_data_impl(obj_cache: &ObjectCache,
                                                 ad_h: ADHandle,
                                                 n: usize)
                                                 -> FfiResult<()> {
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref mut elt) => {
-            let item = try!(nth(&elt.deleted_data, n)).clone();
+            let item = nth(&elt.deleted_data, n)?.clone();
             let _ = elt.deleted_data.remove(&item);
         }
         AppendableData::Priv(ref mut elt) => {
-            let item = try!(nth(&elt.deleted_data, n)).clone();
+            let item = nth(&elt.deleted_data, n)?.clone();
             let _ = elt.deleted_data.remove(&item);
         }
     }
@@ -894,7 +894,7 @@ pub unsafe extern "C" fn appendable_data_clear_deleted_data(session: *const Sess
 fn appendable_data_clear_deleted_data_impl(obj_cache: &ObjectCache,
                                            ad_h: ADHandle)
                                            -> FfiResult<()> {
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Pub(ref mut elt) => elt.deleted_data.clear(),
         AppendableData::Priv(ref mut elt) => elt.deleted_data.clear(),
     }
@@ -933,15 +933,14 @@ fn appendable_data_append_impl(client: &Client,
                                ad_h: ADHandle,
                                data_id_h: DataIdHandle)
                                -> FfiResult<AppendWrapper> {
-    let data_id = *try!(obj_cache.get_data_id(data_id_h));
+    let data_id = *obj_cache.get_data_id(data_id_h)?;
 
-    let sign_pk = try!(client.public_signing_key());
-    let sign_sk = try!(client.secret_signing_key());
+    let sign_pk = client.public_signing_key()?;
+    let sign_sk = client.secret_signing_key()?;
 
-    let appended_data = try!(AppendedData::new(data_id, sign_pk, &sign_sk)
-        .map_err(CoreError::from));
+    let appended_data = AppendedData::new(data_id, sign_pk, &sign_sk).map_err(CoreError::from)?;
 
-    match *try!(obj_cache.get_ad(ad_h)) {
+    match *obj_cache.get_ad(ad_h)? {
         AppendableData::Priv(ref elt) => {
             let priv_appended_data = try!(PrivAppendedData::new(&appended_data, &elt.encrypt_key)
                 .map_err(FfiError::from));
@@ -979,7 +978,7 @@ pub unsafe extern "C" fn appendable_data_version(session: *const Session,
 }
 
 fn appendable_data_version_impl(obj_cache: &ObjectCache, handle: ADHandle) -> FfiResult<u64> {
-    Ok(match *try!(obj_cache.get_ad(handle)) {
+    Ok(match *obj_cache.get_ad(handle)? {
         AppendableData::Pub(ref mut elt) => elt.get_version(),
         AppendableData::Priv(ref mut elt) => elt.get_version(),
     })
@@ -1010,8 +1009,8 @@ fn appendable_data_is_owned_impl(client: &Client,
                                  obj_cache: &ObjectCache,
                                  handle: ADHandle)
                                  -> FfiResult<bool> {
-    let my_key = try!(client.public_signing_key());
-    Ok(match *try!(obj_cache.get_ad(handle)) {
+    let my_key = client.public_signing_key()?;
+    Ok(match *obj_cache.get_ad(handle)? {
         AppendableData::Pub(ref mut elt) => elt.get_owner_keys().contains(&my_key),
         AppendableData::Priv(ref mut elt) => elt.get_owner_keys().contains(&my_key),
     })
@@ -1041,7 +1040,7 @@ pub unsafe extern "C" fn appendable_data_validate_size(session: *const Session,
 fn appendable_data_validate_size_impl(obj_cache: &ObjectCache,
                                       handle: ADHandle)
                                       -> FfiResult<bool> {
-    Ok(match *try!(obj_cache.get_ad(handle)) {
+    Ok(match *obj_cache.get_ad(handle)? {
         AppendableData::Pub(ref elt) => elt.validate_size(),
         AppendableData::Priv(ref elt) => elt.validate_size(),
     })

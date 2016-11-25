@@ -71,7 +71,7 @@ pub fn register_dns<S>(client: &Client,
                     services: services,
                     encryption_key: public_messaging_encryption_key2,
                 };
-                let encoded_dns_record = try!(serialise(&dns_record));
+                let encoded_dns_record = serialise(&dns_record)?;
 
                 Ok((encoded_dns_record, saved_configs, long_name))
             }
@@ -215,7 +215,7 @@ pub fn add_service(client: &Client,
                 Err(DnsError::ServiceAlreadyExists)
             } else {
                 let _ = dns_record.services.insert(new_service.0, new_service.1);
-                let encoded_dns_record = try!(serialise(&dns_record));
+                let encoded_dns_record = serialise(&dns_record)?;
                 Ok((prev_data, encoded_dns_record))
             }
         })
@@ -259,7 +259,7 @@ pub fn remove_service<L, S>(client: &Client,
                 Err(DnsError::ServiceNotFound)
             } else {
                 let _ = dns_record.services.remove(&service_name);
-                let encoded_dns_record = try!(serialise(&dns_record));
+                let encoded_dns_record = serialise(&dns_record)?;
                 Ok((prev_data, encoded_dns_record))
             }
         })
@@ -326,7 +326,7 @@ fn get_housing_structured_data_and_dns_record(client: &Client,
                 .map_err(DnsError::from)
         })
         .and_then(|(struct_data, encoded)| {
-            let dns_record = try!(deserialise(&encoded));
+            let dns_record = deserialise(&encoded)?;
             Ok((struct_data, dns_record))
         })
         .into_box()

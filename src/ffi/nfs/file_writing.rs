@@ -62,7 +62,7 @@ pub unsafe extern "C" fn nfs_create_file(session: *const Session,
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI get nfs writer for creating a new file.");
 
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
         let user_metadata = helper::u8_ptr_to_vec(user_metadata, user_metadata_len);
 
         let user_data = OpaqueCtx(user_data);
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn nfs_writer_open(session: *const Session,
                                          o_cb: extern "C" fn(*mut c_void, i32, *mut Writer)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI get nfs writer for modification of existing file.");
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
 
         let user_data = OpaqueCtx(user_data);
 

@@ -238,20 +238,19 @@ fn create_with_immutable_data(client: Client,
 
     client.put_recover(Data::Immutable(immutable_data), None, sign_sk.clone())
         .and_then(move |_| {
-            let encoded_name = try!(encode(DataTypeEncoding::MapName(name),
-                                           encryption_key.as_ref()));
-            match try!(super::can_data_fit(&encoded_name,
-                                           curr_owner_keys.clone(),
-                                           prev_owner_keys.clone())) {
+            let encoded_name = encode(DataTypeEncoding::MapName(name), encryption_key.as_ref())?;
+            match super::can_data_fit(&encoded_name,
+                                      curr_owner_keys.clone(),
+                                      prev_owner_keys.clone())? {
                 DataFitResult::DataFits => {
                     trace!("ImmutableData name fits in StructuredData");
-                    Ok(try!(StructuredData::new(type_tag,
-                                                id,
-                                                version,
-                                                encoded_name,
-                                                curr_owner_keys,
-                                                prev_owner_keys,
-                                                Some(&sign_sk))))
+                    Ok(StructuredData::new(type_tag,
+                                           id,
+                                           version,
+                                           encoded_name,
+                                           curr_owner_keys,
+                                           prev_owner_keys,
+                                           Some(&sign_sk))?)
                 }
                 _ => {
                     trace!("Even name of ImmutableData does not fit in \
@@ -266,7 +265,7 @@ fn create_with_immutable_data(client: Client,
 fn encode(data: DataTypeEncoding,
           encryption_key: Option<&secretbox::Key>)
           -> Result<Vec<u8>, CoreError> {
-    let serialised = try!(serialise(&data));
+    let serialised = serialise(&data)?;
     if let Some(key) = encryption_key {
         utility::symmetric_encrypt(&serialised, key)
     } else {
@@ -278,10 +277,10 @@ fn decode(raw_data: &[u8],
           decryption_key: Option<&secretbox::Key>)
           -> Result<DataTypeEncoding, CoreError> {
     if let Some(key) = decryption_key {
-        let decrypted = try!(utility::symmetric_decrypt(raw_data, key));
-        Ok(try!(deserialise(&decrypted)))
+        let decrypted = utility::symmetric_decrypt(raw_data, key)?;
+        Ok(deserialise(&decrypted)?)
     } else {
-        Ok(try!(deserialise(raw_data)))
+        Ok(deserialise(raw_data)?)
     }
 }
 

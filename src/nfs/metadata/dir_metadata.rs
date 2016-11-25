@@ -117,14 +117,14 @@ impl ::rustc_serialize::Encodable for DirMetadata {
         let modified_time = self.modified.to_timespec();
 
         e.emit_struct("DirMetadata", 6, |e| {
-            try!(e.emit_struct_field("locator", 0, |e| self.locator.encode(e)));
-            try!(e.emit_struct_field("encrypt_key", 1, |e| self.encrypt_key.encode(e)));
-            try!(e.emit_struct_field("name", 2, |e| self.name.encode(e)));
-            try!(e.emit_struct_field("created_time_sec", 3, |e| created_time.sec.encode(e)));
-            try!(e.emit_struct_field("created_time_nsec", 4, |e| created_time.nsec.encode(e)));
-            try!(e.emit_struct_field("modified_time_sec", 5, |e| modified_time.sec.encode(e)));
-            try!(e.emit_struct_field("modified_time_nsec", 6, |e| modified_time.nsec.encode(e)));
-            try!(e.emit_struct_field("user_metadata", 7, |e| self.user_metadata.encode(e)));
+            e.emit_struct_field("locator", 0, |e| self.locator.encode(e))?;
+            e.emit_struct_field("encrypt_key", 1, |e| self.encrypt_key.encode(e))?;
+            e.emit_struct_field("name", 2, |e| self.name.encode(e))?;
+            e.emit_struct_field("created_time_sec", 3, |e| created_time.sec.encode(e))?;
+            e.emit_struct_field("created_time_nsec", 4, |e| created_time.nsec.encode(e))?;
+            e.emit_struct_field("modified_time_sec", 5, |e| modified_time.sec.encode(e))?;
+            e.emit_struct_field("modified_time_nsec", 6, |e| modified_time.nsec.encode(e))?;
+            e.emit_struct_field("user_metadata", 7, |e| self.user_metadata.encode(e))?;
 
             Ok(())
         })
@@ -135,18 +135,18 @@ impl Decodable for DirMetadata {
     fn decode<D: Decoder>(d: &mut D) -> Result<DirMetadata, D::Error> {
         d.read_struct("DirMetadata", 8, |d| {
             Ok(DirMetadata {
-                locator: try!(d.read_struct_field("locator", 0, Decodable::decode)),
-                encrypt_key: try!(d.read_struct_field("encrypt_key", 1, Decodable::decode)),
-                name: try!(d.read_struct_field("name", 2, Decodable::decode)),
+                locator: d.read_struct_field("locator", 0, Decodable::decode)?,
+                encrypt_key: d.read_struct_field("encrypt_key", 1, Decodable::decode)?,
+                name: d.read_struct_field("name", 2, Decodable::decode)?,
                 created: ::time::at_utc(::time::Timespec {
-                    sec: try!(d.read_struct_field("created_time_sec", 3, Decodable::decode)),
-                    nsec: try!(d.read_struct_field("created_time_nsec", 4, Decodable::decode)),
+                    sec: d.read_struct_field("created_time_sec", 3, Decodable::decode)?,
+                    nsec: d.read_struct_field("created_time_nsec", 4, Decodable::decode)?,
                 }),
                 modified: ::time::at_utc(::time::Timespec {
-                    sec: try!(d.read_struct_field("modified_time_sec", 5, Decodable::decode)),
-                    nsec: try!(d.read_struct_field("modified_time_nsec", 6, Decodable::decode)),
+                    sec: d.read_struct_field("modified_time_sec", 5, Decodable::decode)?,
+                    nsec: d.read_struct_field("modified_time_nsec", 6, Decodable::decode)?,
                 }),
-                user_metadata: try!(d.read_struct_field("user_metadata", 7, Decodable::decode)),
+                user_metadata: d.read_struct_field("user_metadata", 7, Decodable::decode)?,
             })
         })
     }

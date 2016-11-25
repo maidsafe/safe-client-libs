@@ -40,6 +40,8 @@
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
 #![cfg_attr(feature="clippy", allow(use_debug, print_stdout))]
 
+/*
+
 #![allow(unused_extern_crates)]
 extern crate futures;
 #[macro_use]
@@ -442,3 +444,7 @@ fn main() {
         }
     }
 }
+
+*/
+
+fn main() {}
