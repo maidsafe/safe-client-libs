@@ -53,9 +53,9 @@ impl CipherOpt {
     /// Encrypt plain text
     pub fn encrypt(&self, app: &App, plain_text: &[u8]) -> Result<Vec<u8>, FfiError> {
         match *self {
-            CipherOpt::PlainText => Ok(try!(serialise(&WireFormat::Plain(plain_text.to_owned())))),
+            CipherOpt::PlainText => Ok(serialise(&WireFormat::Plain(plain_text.to_owned()))?),
             CipherOpt::Symmetric => {
-                let sym_key = try!(app.sym_key());
+                let sym_key = app.sym_key()?;
                 let nonce = secretbox::gen_nonce();
                 let cipher_text = secretbox::seal(plain_text, &nonce, &sym_key);
                 let wire_format = WireFormat::Symmetric {
@@ -63,11 +63,11 @@ impl CipherOpt {
                     cipher_text: cipher_text,
                 };
 
-                Ok(try!(serialise(&wire_format)))
+                Ok(serialise(&wire_format)?)
             }
             CipherOpt::Asymmetric { ref peer_encrypt_key } => {
                 let cipher_text = sealedbox::seal(plain_text, peer_encrypt_key);
-                Ok(try!(serialise(&WireFormat::Asymmetric(cipher_text))))
+                Ok(serialise(&WireFormat::Asymmetric(cipher_text))?)
             }
         }
     }
@@ -78,15 +78,15 @@ impl CipherOpt {
             return Ok(Vec::new());
         }
 
-        match try!(deserialise::<WireFormat>(raw_data)) {
+        match deserialise::<WireFormat>(raw_data)? {
             WireFormat::Plain(plain_text) => Ok(plain_text),
             WireFormat::Symmetric { nonce, cipher_text } => {
-                let sym_key = try!(app.sym_key());
+                let sym_key = app.sym_key()?;
                 Ok(try!(secretbox::open(&cipher_text, &nonce, &sym_key)
                     .map_err(|()| CoreError::SymmetricDecipherFailure)))
             }
             WireFormat::Asymmetric(cipher_text) => {
-                let (pk, sk) = try!(app.asym_enc_keys());
+                let (pk, sk) = app.asym_enc_keys()?;
                 Ok(try!(sealedbox::open(&cipher_text, &pk, &sk)
                     .map_err(|()| CoreError::SymmetricDecipherFailure)))
             }

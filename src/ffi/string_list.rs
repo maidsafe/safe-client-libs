@@ -36,7 +36,7 @@ pub fn from_vec(strings: Vec<String>) -> Result<*mut StringList, FfiError> {
     let mut result = Vec::with_capacity(strings.len());
 
     for string in strings {
-        result.push(try!(CString::new(string)));
+        result.push(CString::new(string)?);
     }
 
     Ok(Box::into_raw(Box::new(StringList(result))))
@@ -48,8 +48,8 @@ pub unsafe fn into_vec(list: *mut StringList) -> Result<Vec<String>, FfiError> {
     let mut result = Vec::with_capacity(cstrings.len());
 
     for cstring in cstrings {
-        result.push(try!(cstring.into_string()
-            .map_err(|err| FfiError::Unexpected(format!("{:?}", err)))));
+        result.push(cstring.into_string()
+            .map_err(|err| FfiError::Unexpected(format!("{:?}", err)))?);
     }
 
     Ok(result)

@@ -47,7 +47,7 @@ pub unsafe extern "C" fn nfs_create_dir(session: *const Session,
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI create directory, given the path.");
 
-        let dir_path = try!(helper::c_utf8_to_str(dir_path, dir_path_len));
+        let dir_path = helper::c_utf8_to_str(dir_path, dir_path_len)?;
         let user_metadata = slice::from_raw_parts(user_metadata, user_metadata_len);
         let user_data = OpaqueCtx(user_data);
 
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn nfs_delete_dir(session: *const Session,
                                         o_cb: unsafe extern "C" fn(*mut c_void, i32)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI delete dir, given the path.");
-        let dir_path = try!(helper::c_utf8_to_str(dir_path, dir_path_len));
+        let dir_path = helper::c_utf8_to_str(dir_path, dir_path_len)?;
         let user_data = OpaqueCtx(user_data);
 
         (*session).send(move |client, obj_cache| {
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn nfs_get_dir(session: *const Session,
                                                          details_handle: *mut DirDetails)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI get dir, given the path.");
-        let dir_path = try!(helper::c_utf8_to_str(dir_path, dir_path_len));
+        let dir_path = helper::c_utf8_to_str(dir_path, dir_path_len)?;
         let user_data = OpaqueCtx(user_data);
 
         (*session).send(move |client, obj_cache| {
@@ -158,8 +158,8 @@ pub unsafe extern "C" fn nfs_modify_dir(session: *const Session,
                                         o_cb: extern "C" fn(*mut c_void, i32)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI modify directory, given the path.");
-        let dir_path = try!(helper::c_utf8_to_str(dir_path, dir_path_len));
-        let new_name = try!(helper::c_utf8_to_opt_string(new_name, new_name_len));
+        let dir_path = helper::c_utf8_to_str(dir_path, dir_path_len)?;
+        let new_name = helper::c_utf8_to_opt_string(new_name, new_name_len)?;
         let new_user_metadata = helper::u8_ptr_to_opt_vec(new_user_metadata, new_user_metadata_len);
 
         let user_data = OpaqueCtx(user_data);
@@ -202,8 +202,8 @@ pub unsafe extern "C" fn nfs_move_dir(session: *const Session,
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI move directory, from {:?} to {:?}.", src_path, dst_path);
 
-        let src_path = try!(helper::c_utf8_to_str(src_path, src_path_len));
-        let dst_path = try!(helper::c_utf8_to_str(dst_path, dst_path_len));
+        let src_path = helper::c_utf8_to_str(src_path, src_path_len)?;
+        let dst_path = helper::c_utf8_to_str(dst_path, dst_path_len)?;
         let user_data = OpaqueCtx(user_data);
 
         (*session).send(move |client, obj_cache| {

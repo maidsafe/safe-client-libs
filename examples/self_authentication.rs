@@ -40,6 +40,8 @@
 #![cfg_attr(feature="clippy", deny(clippy, clippy_pedantic))]
 #![cfg_attr(feature="clippy", allow(use_debug, print_stdout))]
 
+/*
+
 extern crate safe_core;
 #[macro_use]
 extern crate maidsafe_utilities;
@@ -146,3 +148,7 @@ fn main() {
         }
     }
 }
+
+*/
+
+fn main() {}

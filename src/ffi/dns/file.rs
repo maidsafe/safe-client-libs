@@ -46,9 +46,9 @@ pub unsafe extern "C" fn dns_get_file(session: *const Session,
                                       user_data: *mut c_void,
                                       o_cb: extern "C" fn(*mut c_void, i32, *mut FileDetails)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
-        let service_name = try!(helper::c_utf8_to_string(service_name, service_name_len));
-        let file_path = try!(helper::c_utf8_to_string(file_path, file_path_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
+        let service_name = helper::c_utf8_to_string(service_name, service_name_len)?;
+        let file_path = helper::c_utf8_to_string(file_path, file_path_len)?;
 
         trace!("FFI get file located at given path starting from home directory of \"//{}.{}\".",
                service_name,
@@ -97,9 +97,9 @@ pub unsafe extern "C" fn dns_get_file_metadata(session: *const Session,
                                                                    i32,
                                                                    *mut FileMetadata)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
-        let service_name = try!(helper::c_utf8_to_string(service_name, service_name_len));
-        let file_path = try!(helper::c_utf8_to_string(file_path, file_path_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
+        let service_name = helper::c_utf8_to_string(service_name, service_name_len)?;
+        let file_path = helper::c_utf8_to_string(file_path, file_path_len)?;
 
         trace!("FFI get file metadata for file located at given path starting from home \
                 directory of \"//{}.{}\".",
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn dns_get_file_metadata(session: *const Session,
                         .map_err(FfiError::from)
                 })
                 .and_then(move |file| {
-                    let metadata = try!(FileMetadata::new(file.metadata()));
+                    let metadata = FileMetadata::new(file.metadata())?;
                     let metadata = Box::into_raw(Box::new(metadata));
                     o_cb(user_data.0, 0, metadata);
                     Ok(())

@@ -94,7 +94,7 @@ pub fn get_versions(client: &Client,
         DataIdentifier::Immutable(ref name) => {
             immutable_data::get_value(client, name, sk)
                 .map_err(From::from)
-                .and_then(move |versions| Ok(try!(deserialise::<Vec<FileMetadata>>(&versions))))
+                .and_then(move |versions| Ok(deserialise::<Vec<FileMetadata>>(&versions)?))
                 .into_box()
         }
         _ => err!(NfsError::ParameterIsNotValid),

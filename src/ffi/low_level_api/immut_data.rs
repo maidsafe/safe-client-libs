@@ -221,7 +221,7 @@ pub unsafe extern "C" fn immut_data_fetch_self_encryptor(session: *const Session
                         .into_box()
                 })
                 .and_then(move |ser_data_map| {
-                    let data_map = try!(deserialise::<DataMap>(&ser_data_map));
+                    let data_map = deserialise::<DataMap>(&ser_data_map)?;
 
                     let se_storage = SelfEncryptionStorage::new(c3);
 

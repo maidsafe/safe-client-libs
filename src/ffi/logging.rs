@@ -32,9 +32,7 @@ use super::helper;
 /// This function should be called to enable logging to a file
 #[no_mangle]
 pub extern "C" fn init_logging() -> i32 {
-    helper::catch_unwind_error_code(|| {
-        Ok(try!(safe_log::init(false).map_err(CoreError::Unexpected)))
-    })
+    helper::catch_unwind_error_code(|| Ok(safe_log::init(false).map_err(CoreError::Unexpected)?))
 }
 
 /// This function should be called to find where log file will be created. It
@@ -48,14 +46,14 @@ pub unsafe extern "C" fn output_log_path(c_output_file_name: *const u8,
                                          c_capacity: *mut usize)
                                          -> i32 {
     helper::catch_unwind_error_code(|| {
-        let op_file = try!(helper::c_utf8_to_string(c_output_file_name, c_output_file_name_len));
+        let op_file = helper::c_utf8_to_string(c_output_file_name, c_output_file_name_len)?;
         let fh = try!(FileHandler::<()>::new(&op_file, true)
             .map_err(|e| CoreError::Unexpected(format!("{:?}", e))));
-        let op_file_path = try!(fh.path()
-                .to_path_buf()
-                .into_os_string()
-                .into_string()
-                .map_err(|e| CoreError::Unexpected(format!("{:?}", e))))
+        let op_file_path = fh.path()
+            .to_path_buf()
+            .into_os_string()
+            .into_string()
+            .map_err(|e| CoreError::Unexpected(format!("{:?}", e)))?
             .into_bytes();
 
         let ptr = op_file_path.as_ptr();

@@ -49,11 +49,11 @@ impl DirDetails {
         };
 
         for file in dir.files() {
-            details.files.push(try!(FileMetadata::new(file.metadata())));
+            details.files.push(FileMetadata::new(file.metadata())?);
         }
 
         for metadata in dir.sub_dirs() {
-            details.sub_dirs.push(try!(DirMetadata::new(metadata)));
+            details.sub_dirs.push(DirMetadata::new(metadata)?);
         }
 
         Ok(details)
@@ -61,8 +61,8 @@ impl DirDetails {
 
     /// Obtain `DirDetails` from the given directory and metadata.
     pub fn from_dir_and_metadata(dir: Dir, metadata: NfsDirMetadata) -> Result<Self, FfiError> {
-        let mut details = try!(Self::from_dir(dir));
-        details.metadata = Some(try!(DirMetadata::new(&metadata)));
+        let mut details = Self::from_dir(dir)?;
+        details.metadata = Some(DirMetadata::new(&metadata)?);
         Ok(details)
     }
 }

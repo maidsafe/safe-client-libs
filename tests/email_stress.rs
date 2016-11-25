@@ -39,6 +39,8 @@
                                    option_unwrap_used))]
 #![cfg_attr(feature="clippy", allow(use_debug, doc_markdown))] // TODO: Fix doc_markdown errors.
 
+/*
+
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -480,3 +482,7 @@ unsafe impl<T> Send for SendWrapper<T> {}
 unsafe extern "C" fn network_event_callback(_user_data: *mut c_void, err_code: i32, event: i32) {
     println!("Network event with code {}, err_code: {}", event, err_code);
 }
+
+*/
+
+fn main() {}

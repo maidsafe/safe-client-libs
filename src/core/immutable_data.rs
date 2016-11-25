@@ -86,14 +86,14 @@ pub fn extract_value(client: &Client,
     unpack(client.clone(), data)
         .and_then(move |value| {
             let data_map = if let Some(key) = decryption_key {
-                let plain_text = try!(utility::symmetric_decrypt(&value, &key));
-                try!(deserialise(&plain_text))
+                let plain_text = utility::symmetric_decrypt(&value, &key)?;
+                deserialise(&plain_text)?
             } else {
-                try!(deserialise(&value))
+                deserialise(&value)?
             };
 
             let storage = SelfEncryptionStorage::new(client);
-            Ok(try!(SelfEncryptor::new(storage, data_map)))
+            Ok(SelfEncryptor::new(storage, data_map)?)
         })
         .and_then(|self_encryptor| {
             let length = self_encryptor.len();

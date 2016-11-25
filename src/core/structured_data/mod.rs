@@ -55,7 +55,7 @@ pub fn can_data_fit(data: &[u8],
     if data.len() > MAX_STRUCTURED_DATA_SIZE_IN_BYTES - PADDING_SIZE_IN_BYTES {
         Ok(DataFitResult::DataDoesNotFit)
     } else {
-        let available_size = try!(approximate_space_for_data(curr_owner_keys, prev_owner_keys));
+        let available_size = approximate_space_for_data(curr_owner_keys, prev_owner_keys)?;
         if available_size <= MIN_RESIDUAL_SPACE_FOR_VALID_STRUCTURED_DATA_IN_BYTES {
             Ok(DataFitResult::NoDataCanFit)
         } else if available_size < data.len() {
@@ -77,20 +77,20 @@ pub fn approximate_space_for_data(curr_owner_keys: Vec<sign::PublicKey>,
         prev_owner_keys.len()
     };
 
-    let mut data = try!(StructuredData::new(u64::MAX,
-                                            XorName([u8::MAX; XOR_NAME_LEN]),
-                                            u64::MAX,
-                                            Vec::new(),
-                                            curr_owner_keys,
-                                            prev_owner_keys,
-                                            None));
+    let mut data = StructuredData::new(u64::MAX,
+                                       XorName([u8::MAX; XOR_NAME_LEN]),
+                                       u64::MAX,
+                                       Vec::new(),
+                                       curr_owner_keys,
+                                       prev_owner_keys,
+                                       None)?;
 
     // Fill it with rest of signatures
     let signatures =
         vec![sign::Signature([u8::MAX; sign::SIGNATUREBYTES]); max_signatures_possible];
     data.replace_signatures(signatures);
 
-    let data_len = try!(serialise(&data)).len() + PADDING_SIZE_IN_BYTES;
+    let data_len = serialise(&data)?.len() + PADDING_SIZE_IN_BYTES;
     if MAX_STRUCTURED_DATA_SIZE_IN_BYTES <= data_len {
         Ok(0)
     } else {
@@ -130,13 +130,13 @@ pub fn delete_recover(client: &Client,
 fn create_for_deletion(data: StructuredData,
                        signing_key: &sign::SecretKey)
                        -> Result<StructuredData, CoreError> {
-    Ok(try!(StructuredData::new(data.get_type_tag(),
-                                *data.name(),
-                                data.get_version() + 1,
-                                vec![],
-                                vec![],
-                                data.get_owner_keys().clone(),
-                                Some(signing_key))))
+    Ok(StructuredData::new(data.get_type_tag(),
+                           *data.name(),
+                           data.get_version() + 1,
+                           vec![],
+                           vec![],
+                           data.get_owner_keys().clone(),
+                           Some(signing_key))?)
 }
 
 #[cfg(test)]

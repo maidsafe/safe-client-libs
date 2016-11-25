@@ -116,9 +116,9 @@ pub unsafe extern "C" fn register_app(session: *mut Session,
     let user_data = OpaqueCtx(user_data);
 
     let _ = helper::catch_unwind_cb(user_data, o_cb, || {
-        let app_name = try!(helper::c_utf8_to_string(app_name, app_name_len));
-        let unique_token = try!(helper::c_utf8_to_string(unique_token, token_len));
-        let vendor = try!(helper::c_utf8_to_string(vendor, vendor_len));
+        let app_name = helper::c_utf8_to_string(app_name, app_name_len)?;
+        let unique_token = helper::c_utf8_to_string(unique_token, token_len)?;
+        let vendor = helper::c_utf8_to_string(vendor, vendor_len)?;
 
         (*session).send(move |client, object_cache| {
             let object_cache = object_cache.clone();

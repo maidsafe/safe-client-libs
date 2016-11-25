@@ -149,11 +149,11 @@ impl Writer {
                                     .map(move |_| immut_id)
                             })
                             .and_then(move |ptr_versions| {
-                                let _ = try!(dir.upsert_file(File::Versioned {
-                                    ptr_versions: ptr_versions,
-                                    latest_version: new_version,
-                                    num_of_versions: num_of_versions + 1,
-                                }));
+                                let _ = dir.upsert_file(File::Versioned {
+                                        ptr_versions: ptr_versions,
+                                        latest_version: new_version,
+                                        num_of_versions: num_of_versions + 1,
+                                    })?;
                                 Ok(dir)
                             })
                             .into_box()

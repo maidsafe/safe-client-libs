@@ -281,7 +281,7 @@ pub unsafe extern "C" fn struct_data_extract_data(session: *const Session,
 
             fut.map_err(FfiError::from)
                 .and_then(move |encrypted_data| {
-                    let app = try!(object_cache.get_app(app_h));
+                    let app = object_cache.get_app(app_h)?;
                     CipherOpt::decrypt(&*app, &encrypted_data)
                 })
                 .map(move |data| {
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn struct_data_nth_version(session: *const Session,
 
             fut.map_err(FfiError::from)
                 .and_then(move |encrypted_data| {
-                    let app = try!(object_cache.get_app(app_h));
+                    let app = object_cache.get_app(app_h)?;
                     CipherOpt::decrypt(&*app, &encrypted_data)
                 })
                 .map(move |data| {
@@ -402,15 +402,15 @@ pub unsafe extern "C" fn struct_data_put(session: *const Session,
                 .map_err(FfiError::from)
                 .and_then(move |version| {
                     // Update the SD version in the object cache.
-                    let old_sd = try!(object_cache.remove_sd(sd_h));
-                    let new_sd = try!(StructuredData::new(old_sd.get_type_tag(),
-                                                          *old_sd.name(),
-                                                          version,
-                                                          old_sd.get_data().clone(),
-                                                          old_sd.get_owner_keys().clone(),
-                                                          old_sd.get_previous_owner_keys()
-                                                              .clone(),
-                                                          Some(&sign_sk)));
+                    let old_sd = object_cache.remove_sd(sd_h)?;
+                    let new_sd = StructuredData::new(old_sd.get_type_tag(),
+                                                     *old_sd.name(),
+                                                     version,
+                                                     old_sd.get_data().clone(),
+                                                     old_sd.get_owner_keys().clone(),
+                                                     old_sd.get_previous_owner_keys()
+                                                         .clone(),
+                                                     Some(&sign_sk))?;
 
                     let _ = object_cache.insert_sd_at(sd_h, new_sd);
                     Ok(())

@@ -39,7 +39,7 @@ pub unsafe extern "C" fn dns_register_long_name(session: *const Session,
                                                 user_data: *mut c_void,
                                                 o_cb: extern "C" fn(*mut c_void, i32)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
 
         trace!("FFI register public-id with name: {}. This means to register dns without a \
                 given service.",
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn dns_delete_long_name(session: *const Session,
                                               o_cb: extern "C" fn(*mut c_void, i32)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI delete DNS.");
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
         let user_data = OpaqueCtx(user_data);
 
         (*session).send(move |client, _| {

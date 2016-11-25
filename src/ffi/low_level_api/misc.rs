@@ -95,7 +95,7 @@ pub unsafe extern "C" fn misc_serialise_sign_key(session: *const Session,
 fn misc_serialise_sign_key_impl(obj_cache: &ObjectCache,
                                 sign_key_h: SignKeyHandle)
                                 -> FfiResult<Vec<u8>> {
-    Ok(try!(serialise(&*try!(obj_cache.get_sign_key(sign_key_h))).map_err(FfiError::from)))
+    Ok(serialise(&*obj_cache.get_sign_key(sign_key_h)?).map_err(FfiError::from)?)
 }
 
 /// Deserialise sign::PubKey
@@ -189,7 +189,7 @@ pub unsafe extern "C" fn misc_serialise_data_id(session: *const Session,
 fn misc_serialise_data_id_impl(obj_cache: &ObjectCache,
                                data_id_h: DataIdHandle)
                                -> FfiResult<Vec<u8>> {
-    Ok(try!(serialise(&*try!(obj_cache.get_data_id(data_id_h))).map_err(FfiError::from)))
+    Ok(serialise(&*obj_cache.get_data_id(data_id_h)?).map_err(FfiError::from)?)
 }
 
 /// Deserialise DataIdentifier
@@ -256,9 +256,9 @@ pub unsafe extern "C" fn misc_serialise_appendable_data(session: *const Session,
 fn serialise_appendable_data_impl(object_cache: &ObjectCache,
                                   ad_h: ADHandle)
                                   -> FfiResult<Vec<u8>> {
-    Ok(match *try!(object_cache.get_ad(ad_h)) {
-        AppendableData::Pub(ref ad) => try!(serialise(ad).map_err(FfiError::from)),
-        AppendableData::Priv(ref ad) => try!(serialise(ad).map_err(FfiError::from)),
+    Ok(match *object_cache.get_ad(ad_h)? {
+        AppendableData::Pub(ref ad) => serialise(ad).map_err(FfiError::from)?,
+        AppendableData::Priv(ref ad) => serialise(ad).map_err(FfiError::from)?,
     })
 }
 
@@ -292,7 +292,7 @@ fn deserialise_appendable_data_impl(obj_cache: &ObjectCache, ser_ad: &[u8]) -> F
         if let Ok(elt) = deserialise(ser_ad) {
             AppendableData::Priv(elt)
         } else {
-            AppendableData::Pub(try!(deserialise(ser_ad).map_err(FfiError::from)))
+            AppendableData::Pub(deserialise(ser_ad).map_err(FfiError::from)?)
         }
     };
     Ok(obj_cache.insert_ad(ad))
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn misc_serialise_struct_data(session: *const Session,
 fn misc_serialise_struct_data_impl(obj_cache: &ObjectCache,
                                    sd_h: StructDataHandle)
                                    -> FfiResult<Vec<u8>> {
-    Ok(try!(serialise(&*try!(obj_cache.get_sd(sd_h))).map_err(FfiError::from)))
+    Ok(serialise(&*obj_cache.get_sd(sd_h)?).map_err(FfiError::from)?)
 }
 
 /// Deserialise StructuredData

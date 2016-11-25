@@ -46,7 +46,7 @@ pub unsafe extern "C" fn nfs_delete_file(session: *const Session,
 
     catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI delete file, given the path.");
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
 
         (*session).send(move |client, obj_cache| {
             match obj_cache.get_app(app_handle) {
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn nfs_get_file(session: *const Session,
     catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI get file, given the path.");
 
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
 
         (*session).send(move |client, obj_cache| {
             match obj_cache.get_app(app_handle) {
@@ -139,8 +139,8 @@ pub unsafe extern "C" fn nfs_modify_file(session: *const Session,
     catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI modify file, given the path.");
 
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
-        let new_name = try!(helper::c_utf8_to_opt_string(new_name, new_name_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
+        let new_name = helper::c_utf8_to_opt_string(new_name, new_name_len)?;
         let new_metadata = helper::u8_ptr_to_opt_vec(new_metadata, new_metadata_len);
         let new_content = helper::u8_ptr_to_opt_vec(new_content, new_content_len);
 
@@ -188,8 +188,8 @@ pub unsafe extern "C" fn nfs_move_file(session: *const Session,
     catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI move file, from {:?} to {:?}.", src_path, dst_path);
 
-        let src_path = try!(helper::c_utf8_to_str(src_path, src_path_len));
-        let dst_path = try!(helper::c_utf8_to_str(dst_path, dst_path_len));
+        let src_path = helper::c_utf8_to_str(src_path, src_path_len)?;
+        let dst_path = helper::c_utf8_to_str(dst_path, dst_path_len)?;
 
         (*session).send(move |client, obj_cache| {
             match obj_cache.get_app(app_handle) {
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn nfs_get_file_num_of_versions(session: *const Session,
     catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI get number of file versions, given the path.");
 
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
 
         (*session).send(move |client, obj_cache| {
             match obj_cache.get_app(app_handle) {
@@ -258,7 +258,7 @@ fn get_num_of_versions(client: &Client,
                        -> Box<FfiFuture<u64>> {
     helper::dir_and_file(&client, app, file_path, is_path_shared)
         .and_then(move |(dir, _dir_meta, filename)| {
-            let file = try!(dir.find_file(&filename).ok_or(FfiError::InvalidPath));
+            let file = dir.find_file(&filename).ok_or(FfiError::InvalidPath)?;
             match *file {
                 File::Versioned { ref num_of_versions, .. } => Ok(*num_of_versions),
                 File::Unversioned(_) => Err(FfiError::UnsupportedOperation),
@@ -284,7 +284,7 @@ pub unsafe extern "C" fn nfs_get_file_metadata(session: *const Session,
     catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI get file metadata, given the path.");
 
-        let file_path = try!(helper::c_utf8_to_str(file_path, file_path_len));
+        let file_path = helper::c_utf8_to_str(file_path, file_path_len)?;
 
         (*session).send(move |client, obj_cache| {
             match obj_cache.get_app(app_handle) {
@@ -467,8 +467,8 @@ fn get_file_metadata(client: &Client,
                                                   dir_meta.encrypt_key().cloned())
                             .map_err(FfiError::from)
                             .and_then(move |versions| {
-                                let metadata = try!(versions.get(version as usize)
-                                    .ok_or(FfiError::InvalidIndex));
+                                let metadata = versions.get(version as usize)
+                                    .ok_or(FfiError::InvalidIndex)?;
                                 FileMetadata::new(metadata)
                             })
                             .into_box()

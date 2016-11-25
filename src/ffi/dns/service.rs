@@ -47,10 +47,10 @@ pub unsafe extern "C" fn dns_add_service(session: *const Session,
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI add service.");
 
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
-        let service_name = try!(helper::c_utf8_to_string(service_name, service_name_len));
-        let service_home_dir_path = try!(helper::c_utf8_to_string(service_home_dir_path,
-                                                                  service_home_dir_path_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
+        let service_name = helper::c_utf8_to_string(service_name, service_name_len)?;
+        let service_home_dir_path = helper::c_utf8_to_string(service_home_dir_path,
+                                                             service_home_dir_path_len)?;
 
         let user_data = OpaqueCtx(user_data);
 
@@ -96,8 +96,8 @@ pub unsafe extern "C" fn dns_delete_service(session: *const Session,
     helper::catch_unwind_cb(user_data, o_cb, || {
         trace!("FFI delete service.");
 
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
-        let service_name = try!(helper::c_utf8_to_string(service_name, service_name_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
+        let service_name = helper::c_utf8_to_string(service_name, service_name_len)?;
         let user_data = OpaqueCtx(user_data);
 
         (*session).send(move |client, _| {
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn dns_get_services(session: *const Session,
                                           user_data: *mut c_void,
                                           o_cb: extern "C" fn(*mut c_void, i32, *mut StringList)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
 
         trace!("FFI Get all services for dns with name: {}", long_name);
 
@@ -156,8 +156,8 @@ pub unsafe extern "C" fn dns_get_service_dir(session: *const Session,
                                                                  i32,
                                                                  *mut DirDetails)) {
     helper::catch_unwind_cb(user_data, o_cb, || {
-        let long_name = try!(helper::c_utf8_to_string(long_name, long_name_len));
-        let service_name = try!(helper::c_utf8_to_string(service_name, service_name_len));
+        let long_name = helper::c_utf8_to_string(long_name, long_name_len)?;
+        let service_name = helper::c_utf8_to_string(service_name, service_name_len)?;
 
         trace!("FFI Get service home directory for \"//{}.{}\".",
                service_name,
