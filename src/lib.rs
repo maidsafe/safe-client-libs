@@ -72,9 +72,9 @@ extern crate unwrap;
 /// Core module
 #[macro_use]
 pub mod core;
-/// Nfs module;
+// / Nfs module;
 // pub mod nfs;
-/// Dns module;
+// / Dns module;
 // pub mod dns;
 /// Ffi module;
 pub mod ffi;
