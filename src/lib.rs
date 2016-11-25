@@ -64,16 +64,17 @@ extern crate routing;
 extern crate rustc_serialize;
 extern crate rust_sodium;
 extern crate self_encryption;
-// extern crate time;
-extern crate tokio_core;
+extern crate time;
+// extern crate tokio_core;
+extern crate futures;
 #[macro_use]
 extern crate unwrap;
 
 /// Core module
 #[macro_use]
 pub mod core;
-// / Nfs module;
-// pub mod nfs;
+/// Nfs module;
+pub mod nfs;
 // / Dns module;
 // pub mod dns;
 /// Ffi module;

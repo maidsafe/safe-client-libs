@@ -19,22 +19,19 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-/// Module for directory related structs
-mod dir;
 /// Errors
 pub mod errors;
 /// Module for File struct
 mod file;
 /// Helper for directory_listing and File for NFS Low level API
-pub mod helper;
+// pub mod helper;
 /// Directory and File Metadata
 mod metadata;
 
 use futures::Future;
-pub use nfs::dir::{Dir, DirId};
 pub use nfs::errors::NfsError;
 pub use nfs::file::File;
-pub use nfs::metadata::{DirMetadata, FileMetadata};
+pub use nfs::metadata::FileMetadata;
 
 /// Helper type for futures that can result in NfsError
 pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;

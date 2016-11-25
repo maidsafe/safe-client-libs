@@ -19,10 +19,7 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-/// DirMetadata
-mod dir_metadata;
 /// FileMetadata
 mod file_metadata;
 
-pub use self::dir_metadata::DirMetadata;
 pub use self::file_metadata::FileMetadata;
