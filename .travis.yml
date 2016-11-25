@@ -28,7 +28,7 @@ script:
   - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
       (
         set -x;
-        curl -sSL https://github.com/maidsafe/QA/raw/master/bash_scripts/travis/run_rustfmt.sh | bash &&
+        cargo fmt -- --write-mode=diff &&
         cargo rustc --verbose --release -- --test -Zno-trans &&
         cargo test  --verbose --release --features use-mock-routing
       );
