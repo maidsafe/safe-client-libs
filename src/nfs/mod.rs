@@ -26,7 +26,7 @@ pub mod errors;
 mod file_metadata;
 mod file;
 /// Helper for directory_listing and File for NFS Low level API
-// pub mod helper;
+pub mod helper;
 
 use futures::Future;
 pub use nfs::errors::NfsError;

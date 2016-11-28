@@ -22,10 +22,10 @@
 use core::{Client, FutureExt, SelfEncryptionStorage, immutable_data};
 use futures::Future;
 use maidsafe_utilities::serialisation::serialise;
-use nfs::{Dir, DirId, File, FileMetadata, NfsFuture};
-use nfs::helper::{dir_helper, file_helper};
-use routing::{Data, DataIdentifier};
-use rust_sodium::crypto::secretbox;
+use nfs::{File, FileMetadata, NfsFuture};
+use nfs::helper::file_helper;
+use routing::ImmutableData;
+// use rust_sodium::crypto::secretbox;
 use self_encryption::SequentialEncryptor;
 
 /// Mode of the writer
@@ -41,8 +41,6 @@ pub enum Mode {
 pub struct Writer {
     client: Client,
     file: File,
-    dir: Dir,
-    dir_id: (DataIdentifier, Option<secretbox::Key>),
     self_encryptor: SequentialEncryptor<SelfEncryptionStorage>,
 }
 
@@ -51,8 +49,6 @@ impl Writer {
     pub fn new(client: Client,
                storage: SelfEncryptionStorage,
                mode: Mode,
-               parent_dir_id: DirId,
-               parent_dir: Dir,
                file: File)
                -> Box<NfsFuture<Writer>> {
         let data_map = match mode {
@@ -66,8 +62,6 @@ impl Writer {
                 Writer {
                     client: client,
                     file: file,
-                    dir: parent_dir,
-                    dir_id: parent_dir_id,
                     self_encryptor: encryptor,
                 }
             })
@@ -86,18 +80,14 @@ impl Writer {
     }
 
     /// close is invoked only after all the data is completely written. The
-    /// file/blob is saved only when the close is invoked. Returns the updated
-    /// Directory which owns the file. Returns (files's updated parent_dir)
-    pub fn close(self) -> Box<NfsFuture<Dir>> {
+    /// file/blob is saved only when the close is invoked. Returns the final
+    /// `FileMetadata` referencing the `File` that was written to the network
+    pub fn close(self) -> Box<NfsFuture<FileMetadata>> {
         trace!("Writer induced self-encryptor close.");
 
-        let mut dir = self.dir;
-        let (dir_id, sk) = self.dir_id;
-        let sk2 = sk.clone();
         let file = self.file;
         let size = self.self_encryptor.len();
         let client = self.client;
-        let c2 = client.clone();
 
         self.self_encryptor
             .close()
@@ -109,8 +99,7 @@ impl Writer {
                         metadata.set_datamap(data_map);
                         metadata.set_modified_time(::time::now_utc());
                         metadata.set_size(size);
-                        fry!(dir.upsert_file(File::Unversioned(metadata)));
-                        ok!(dir)
+                        ok!(metadata)
                     }
                     File::Versioned { ptr_versions, num_of_versions, latest_version } => {
                         // Create a new file version
@@ -126,7 +115,7 @@ impl Writer {
                         let c3 = client.clone();
 
                         let previous_versions_fut = if num_of_versions > 0 {
-                            file_helper::get_versions(&client, &ptr_versions, sk.clone())
+                            file_helper::get_versions(&client, &ptr_versions, None)
                                 .map(move |mut versions| {
                                     versions.push(latest_version);
                                     versions
@@ -138,30 +127,27 @@ impl Writer {
                         };
 
                         previous_versions_fut.and_then(move |versions| {
-                                immutable_data::create(&c2, fry!(serialise(&versions)), sk)
+                                immutable_data::create(&c2, fry!(serialise(&versions)), None)
                                     .map_err(From::from)
                                     .into_box()
                             })
                             .and_then(move |immut_data| {
                                 let immut_id = immut_data.identifier();
-                                c3.put(Data::Immutable(immut_data), None)
+                                c3.put_idata(ImmutableData::from(immut_data))
                                     .map_err(From::from)
                                     .map(move |_| immut_id)
                             })
                             .and_then(move |ptr_versions| {
-                                let _ = dir.upsert_file(File::Versioned {
-                                        ptr_versions: ptr_versions,
-                                        latest_version: new_version,
-                                        num_of_versions: num_of_versions + 1,
-                                    })?;
-                                Ok(dir)
+                                let file = File::Versioned {
+                                    ptr_versions: ptr_versions,
+                                    latest_version: new_version,
+                                    num_of_versions: num_of_versions + 1,
+                                };
+                                Ok(file.metadata().clone())
                             })
                             .into_box()
                     }
                 }
-            })
-            .and_then(move |updated_dir| {
-                dir_helper::update(c2, &(dir_id, sk2), &updated_dir).map(move |_| updated_dir)
             })
             .into_box()
     }

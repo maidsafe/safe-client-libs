@@ -19,19 +19,24 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-use core::{Client, FutureExt, SelfEncryptionStorage, immutable_data};
-use futures::Future;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
-use nfs::{Dir, DirId, File, NfsFuture};
-use nfs::errors::NfsError;
-use nfs::helper::dir_helper;
-use nfs::helper::reader::Reader;
-use nfs::helper::writer::{Mode, Writer};
-use nfs::metadata::FileMetadata;
-use routing::{Data, DataIdentifier, XOR_NAME_LEN, XorName};
-use rust_sodium::crypto::secretbox;
-use self_encryption::DataMap;
+// use core::{SelfEncryptionStorage};
 
+use core::{Client, FutureExt, immutable_data};
+use futures::Future;
+// use maidsafe_utilities::serialisation::{deserialise, serialise};
+use maidsafe_utilities::serialisation::deserialise;
+// use nfs::{File, NfsFuture};
+use nfs::NfsFuture;
+use nfs::errors::NfsError;
+// use nfs::helper::reader::Reader;
+// use nfs::helper::writer::{Mode, Writer};
+use nfs::file_metadata::FileMetadata;
+// use routing::{Data, DataIdentifier, XOR_NAME_LEN, XorName};
+use routing::DataIdentifier;
+use rust_sodium::crypto::secretbox;
+// use self_encryption::DataMap;
+
+/*
 /// Helper function to create a file in a directory listing.
 /// A writer object is returned, through which the data for the
 /// file can be written to the network.
@@ -83,7 +88,7 @@ pub fn delete(client: Client,
     trace!("Deleting file with name {}.", file_name);
     let _ = fry!(parent_dir.remove_file(file_name));
     dir_helper::update(client, parent_id, parent_dir)
-}
+} */
 
 /// Get a list of all file versions
 pub fn get_versions(client: &Client,
@@ -102,6 +107,7 @@ pub fn get_versions(client: &Client,
 
 }
 
+/*
 /// Updates the file metadata.
 /// For versioned files a new file version will be created.
 /// Returns the updated parent directory.
@@ -204,7 +210,9 @@ pub fn read(client: Client, file: &FileMetadata) -> Result<Reader, NfsError> {
     trace!("Reading file with name: {}", file.name());
     Reader::new(client.clone(), SelfEncryptionStorage::new(client), file)
 }
+*/
 
+/*
 #[cfg(test)]
 mod tests {
     use core::Client;
@@ -365,3 +373,4 @@ mod tests {
         })
     }
 }
+*/

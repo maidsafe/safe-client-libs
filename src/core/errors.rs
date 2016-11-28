@@ -124,7 +124,7 @@ impl From<SelfEncryptionError<SelfEncryptionStorageError>> for CoreError {
     }
 }
 
-/*
+
 impl Into<i32> for CoreError {
     fn into(self) -> i32 {
         match self {
@@ -143,45 +143,45 @@ impl Into<i32> for CoreError {
             CoreError::UnsuccessfulPwHash => CORE_ERROR_START_RANGE - 13,
             CoreError::OperationAborted => CORE_ERROR_START_RANGE - 14,
             CoreError::MpidMessagingError(_) => CORE_ERROR_START_RANGE - 15,
-            CoreError::GetFailure { reason: GetError::NoSuchAccount, .. } => {
-                CORE_ERROR_START_RANGE - 16
-            }
-            CoreError::GetFailure { reason: GetError::NoSuchData, .. } => {
-                CORE_ERROR_START_RANGE - 17
-            }
-            CoreError::GetFailure { reason: GetError::NetworkOther(_), .. } => {
-                CORE_ERROR_START_RANGE - 18
-            }
-            CoreError::MutationFailure { reason: MutationError::NoSuchAccount, .. } => {
-                CORE_ERROR_START_RANGE - 19
-            }
-            CoreError::MutationFailure { reason: MutationError::AccountExists, .. } => {
-                CORE_ERROR_START_RANGE - 20
-            }
-            CoreError::MutationFailure { reason: MutationError::NoSuchData, .. } => {
-                CORE_ERROR_START_RANGE - 21
-            }
-            CoreError::MutationFailure { reason: MutationError::DataExists, .. } => {
-                CORE_ERROR_START_RANGE - 22
-            }
-            CoreError::MutationFailure { reason: MutationError::LowBalance, .. } => {
-                CORE_ERROR_START_RANGE - 23
-            }
-            CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. } => {
-                CORE_ERROR_START_RANGE - 24
-            }
-            CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. } => {
-                CORE_ERROR_START_RANGE - 25
-            }
-            CoreError::MutationFailure { reason: MutationError::NetworkOther(_), .. } => {
-                CORE_ERROR_START_RANGE - 26
-            }
-            CoreError::MutationFailure { reason: MutationError::NetworkFull, .. } => {
-                CORE_ERROR_START_RANGE - 27
-            }
-            CoreError::MutationFailure { reason: MutationError::DataTooLarge, .. } => {
-                CORE_ERROR_START_RANGE - 28
-            }
+            // CoreError::GetFailure { reason: GetError::NoSuchAccount, .. } => {
+            //     CORE_ERROR_START_RANGE - 16
+            // }
+            // CoreError::GetFailure { reason: GetError::NoSuchData, .. } => {
+            //     CORE_ERROR_START_RANGE - 17
+            // }
+            // CoreError::GetFailure { reason: GetError::NetworkOther(_), .. } => {
+            //     CORE_ERROR_START_RANGE - 18
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NoSuchAccount, .. } => {
+            //     CORE_ERROR_START_RANGE - 19
+            // }
+            // CoreError::MutationFailure { reason: MutationError::AccountExists, .. } => {
+            //     CORE_ERROR_START_RANGE - 20
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NoSuchData, .. } => {
+            //     CORE_ERROR_START_RANGE - 21
+            // }
+            // CoreError::MutationFailure { reason: MutationError::DataExists, .. } => {
+            //     CORE_ERROR_START_RANGE - 22
+            // }
+            // CoreError::MutationFailure { reason: MutationError::LowBalance, .. } => {
+            //     CORE_ERROR_START_RANGE - 23
+            // }
+            // CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. } => {
+            //     CORE_ERROR_START_RANGE - 24
+            // }
+            // CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. } => {
+            //     CORE_ERROR_START_RANGE - 25
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NetworkOther(_), .. } => {
+            //     CORE_ERROR_START_RANGE - 26
+            // }
+            // CoreError::MutationFailure { reason: MutationError::NetworkFull, .. } => {
+            //     CORE_ERROR_START_RANGE - 27
+            // }
+            // CoreError::MutationFailure { reason: MutationError::DataTooLarge, .. } => {
+            //     CORE_ERROR_START_RANGE - 28
+            // }
             CoreError::SelfEncryption(
                 SelfEncryptionError::Compression::<SelfEncryptionStorageError>) => {
                 CORE_ERROR_START_RANGE - 29
@@ -193,19 +193,20 @@ impl Into<i32> for CoreError {
             CoreError::SelfEncryption(SelfEncryptionError::Io::<SelfEncryptionStorageError>(_)) => {
                 CORE_ERROR_START_RANGE - 31
             }
-            CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
-                CORE_ERROR_START_RANGE - 32
-            }
-            CoreError::GetAccountInfoFailure { .. } => CORE_ERROR_START_RANGE - 33,
+            // CoreError::GetAccountInfoFailure { reason: GetError::NoSuchAccount, .. } => {
+            //     CORE_ERROR_START_RANGE - 32
+            // }
+            // CoreError::GetAccountInfoFailure { .. } => CORE_ERROR_START_RANGE - 33,
             CoreError::RequestTimeout => CORE_ERROR_START_RANGE - 34,
             CoreError::SelfEncryption(
                 SelfEncryptionError::Storage::<SelfEncryptionStorageError>(
                     SelfEncryptionStorageError(err))) => (*err).into(),
             CoreError::ReceivedUnexpectedEvent => CORE_ERROR_START_RANGE - 36,
+            CoreError::RoutingClientError(_) => CORE_ERROR_START_RANGE - 37
         }
     }
 }
-*/
+
 
 impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {

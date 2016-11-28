@@ -65,8 +65,7 @@ extern crate rustc_serialize;
 extern crate rust_sodium;
 extern crate self_encryption;
 extern crate time;
-// extern crate tokio_core;
-extern crate futures;
+extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 
