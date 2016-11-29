@@ -40,21 +40,32 @@ pub enum PermissionAccess {
 /// TODO: doc
 pub struct ContainerPermission {
     /// TODO: doc
-    pub container_key: *mut u8,
+    pub container_key: *const u8,
     /// TODO: doc
     pub container_key_len: usize,
+    /// TODO: doc
+    pub container_key_cap: usize,
 
     /// TODO: doc
     pub access: *mut PermissionAccess,
     /// TODO: doc
     pub access_len: usize,
+    /// TODO: doc
+    pub access_cap: usize,
+}
+
+/// TODO: doc
+#[no_mangle]
+#[allow(unsafe_code)]
+pub unsafe extern "C" fn container_permission_free(cp: *mut ContainerPermission) {
+    let _ = super::ContainerPermission::from_raw(cp);
 }
 
 #[repr(C)]
 /// TODO: doc
 pub struct AppExchangeInfo {
     /// TODO: doc
-    pub id: *mut u8,
+    pub id: *const u8,
     /// TODO: doc
     pub id_len: usize,
     /// TODO: doc
@@ -63,7 +74,7 @@ pub struct AppExchangeInfo {
     /// TODO: doc
     ///
     /// null if not present
-    pub scope: *mut u8,
+    pub scope: *const u8,
     /// TODO: doc
     ///
     /// 0 if above is null
@@ -74,34 +85,48 @@ pub struct AppExchangeInfo {
     pub scope_cap: usize,
 
     /// TODO: doc
-    pub name: *mut u8,
+    pub name: *const u8,
     /// TODO: doc
     pub name_len: usize,
     /// TODO: doc
     pub name_cap: usize,
 
     /// TODO: doc
-    pub vendor: *mut u8,
+    pub vendor: *const u8,
     /// TODO: doc
     pub vendor_len: usize,
     /// TODO: doc
     pub vendor_cap: usize,
 }
 
+/// TODO: doc
+#[no_mangle]
+#[allow(unsafe_code)]
+pub unsafe extern "C" fn app_exchange_info_free(a: *mut AppExchangeInfo) {
+    let _ = super::AppExchangeInfo::from_raw(a);
+}
+
 #[repr(C)]
 /// TODO: doc
 pub struct AuthRequest {
     /// TODO: doc
-    pub app: AppExchangeInfo,
+    pub app: *mut AppExchangeInfo,
     /// TODO: doc
     pub app_container: bool,
 
     /// TODO: doc
-    pub containers: *mut ContainerPermission,
+    pub containers: *mut *mut ContainerPermission,
     /// TODO: doc
     pub containers_len: usize,
     /// TODO: doc
     pub containers_cap: usize,
+}
+
+/// TODO: doc
+#[no_mangle]
+#[allow(unsafe_code)]
+pub unsafe extern "C" fn auth_request_free(a: *mut AuthRequest) {
+    let _ = super::AuthRequest::from_raw(a);
 }
 
 #[repr(C)]
@@ -117,4 +142,11 @@ pub struct AppAccessToken {
     pub enc_pk: [u8; box_::PUBLICKEYBYTES],
     /// TODO: doc
     pub enc_sk: [u8; box_::SECRETKEYBYTES],
+}
+
+/// TODO: doc
+#[no_mangle]
+#[allow(unsafe_code)]
+pub unsafe extern "C" fn app_access_token_free(a: *mut AppAccessToken) {
+    let _ = super::AppAccessToken::from_raw(a);
 }
