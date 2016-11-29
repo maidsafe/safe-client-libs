@@ -28,7 +28,9 @@ use maidsafe_utilities::serialisation::serialise;
 use routing::{EntryAction, Value};
 use std::collections::BTreeMap;
 
-
+/// A registration helper function to create the set of default dirs
+/// in the users root directory.
+/// Note: It does not check whether those might exits already.
 pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
     if let Some(root_dir) = client.user_root_dir() {
 
