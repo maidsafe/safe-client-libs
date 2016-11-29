@@ -27,17 +27,18 @@ use routing::{FullId, XOR_NAME_LEN, XorName};
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
 use rust_sodium::crypto::hash::sha256;
 
-// TODO: remove allow(unused)
-#[allow(unused)]
+/// Representing the User Account information on the network
 #[derive(Debug, PartialEq, RustcDecodable, RustcEncodable)]
 pub struct Account {
+    /// The User Account Keys
     pub maid_keys: ClientKeys,
+    /// The users root directory
     pub user_root: Dir,
+    /// The users configuration directory
     pub config_root: Dir,
 }
 
-// TODO: remove allow(unused)
-#[allow(unused)]
+
 impl Account {
     /// Create new Account with a provided set of keys
     pub fn new(keys: ClientKeys, user_root: Dir, config_root: Dir) -> Self {
