@@ -51,7 +51,6 @@
 
 // extern crate config_file_handler;
 extern crate futures;
-#[cfg(feature = "use-mock-routing")]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -71,6 +70,8 @@ extern crate unwrap;
 
 /// Core module
 #[macro_use]
+// TODO: remove allow(unused)
+#[allow(unused)]
 pub mod core;
 /// Nfs module;
 pub mod nfs;

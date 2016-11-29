@@ -24,6 +24,7 @@ mod account;
 mod mock_routing;
 mod routing_el;
 
+
 use core::{CoreError, CoreEvent, CoreFuture, CoreMsg, CoreMsgTx, DIR_TAG, FutureExt, NetworkEvent,
            NetworkTx, utility};
 use futures::{self, Complete, Future};
@@ -37,7 +38,7 @@ use routing::Client as Routing;
 use rust_sodium::crypto::{box_, sign};
 use rust_sodium::crypto::hash::sha256::{self, Digest};
 pub use self::account::{ClientKeys, Dir};
-use self::account::Account;
+pub use self::account::Account;
 #[cfg(feature = "use-mock-routing")]
 use self::mock_routing::MockRouting as Routing;
 use std::cell::{Ref, RefCell, RefMut};
@@ -753,9 +754,18 @@ impl Client {
                                       BTreeMap::new(),
                                       BTreeMap::new(),
                                       owners)?;
+        Client::create_mdata(dir.name, dir_md, routing, routing_rx, requester).and_then(|_| Ok(dir))
+    }
 
+    /// Create the given mdata on the network
+    fn create_mdata(name: XorName,
+                    md: MutableData,
+                    routing: &Routing,
+                    routing_rx: &Receiver<Event>,
+                    requester: sign::PublicKey)
+                    -> Result<(), CoreError> {
         let msg_id = MessageId::new();
-        routing.put_mdata(Authority::NaeManager(dir.name), dir_md, msg_id, requester)?;
+        routing.put_mdata(Authority::NaeManager(name), md, msg_id, requester)?;
 
         match routing_rx.recv_timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS)) {
             Ok(Event::Response { response: Response::PutMData { ref res, msg_id: ref id }, .. })
@@ -774,7 +784,29 @@ impl Client {
             }
         }
 
-        Ok(dir)
+        Ok(())
+    }
+
+    /// create a new directory emulation
+    pub fn create_new_dir(&self, public: bool) -> Result<Dir, CoreError> {
+        self.inner().client_type.owner_sign_key().and_then(move |pub_key| {
+            let dir = match public {
+                true => Dir::random_public(DIR_TAG),
+                false => Dir::random(DIR_TAG),
+            };
+            let mut owners = BTreeSet::new();
+            owners.insert(pub_key);
+            let dir_md = MutableData::new(dir.name,
+                                          dir.type_tag,
+                                          BTreeMap::new(),
+                                          BTreeMap::new(),
+                                          owners)?;
+
+
+            let (routing, routing_rx) = setup_routing(None)?;
+            Client::create_mdata(dir.name, dir_md, &routing, &routing_rx, pub_key)
+                .and_then(|_| Ok(dir))
+        })
     }
 
     /// Generic GET request
@@ -964,6 +996,14 @@ impl ClientType {
         match *self {
             ClientType::FromKeys { ref cm_addr, .. } |
             ClientType::Registered { ref cm_addr, .. } => Ok(cm_addr),
+            ClientType::Unregistered => Err(CoreError::OperationForbiddenForClient),
+        }
+    }
+
+    fn owner_sign_key(&self) -> Result<sign::PublicKey, CoreError> {
+        match *self {
+            ClientType::FromKeys { owner, .. } => Ok(owner.clone()),
+            ClientType::Registered { ref acc, .. } => Ok(acc.maid_keys.sign_pk.clone()),
             ClientType::Unregistered => Err(CoreError::OperationForbiddenForClient),
         }
     }

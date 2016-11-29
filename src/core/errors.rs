@@ -202,7 +202,7 @@ impl Into<i32> for CoreError {
                 SelfEncryptionError::Storage::<SelfEncryptionStorageError>(
                     SelfEncryptionStorageError(err))) => (*err).into(),
             CoreError::ReceivedUnexpectedEvent => CORE_ERROR_START_RANGE - 36,
-            CoreError::RoutingClientError(_) => CORE_ERROR_START_RANGE - 37
+            CoreError::RoutingClientError(_) => CORE_ERROR_START_RANGE - 37,
         }
     }
 }
@@ -279,7 +279,7 @@ impl Debug for CoreError {
             CoreError::SelfEncryption(ref error) => {
                 write!(formatter, "CoreError::SelfEncryption -> {:?}", error)
             }
-            CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout")
+            CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
         }
     }
 }
@@ -353,7 +353,7 @@ impl Display for CoreError {
             CoreError::SelfEncryption(ref error) => {
                 write!(formatter, "Self-encryption error: {}", error)
             }
-            CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout")
+            CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
         }
     }
 }

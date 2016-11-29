@@ -27,6 +27,8 @@ mod file_metadata;
 mod file;
 /// Helper for directory_listing and File for NFS Low level API
 pub mod helper;
+/// Generate Standard Directories
+pub mod std_dirs;
 
 use futures::Future;
 pub use nfs::errors::NfsError;

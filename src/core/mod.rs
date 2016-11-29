@@ -33,7 +33,7 @@ pub mod self_encryption_storage;
 /// Helper functions to handle `ImmutableData` related operations
 pub mod immutable_data;
 
-pub use self::client::Client;
+pub use self::client::{Account, Client, Dir};
 pub use self::core_el::{CoreMsg, CoreMsgRx, CoreMsgTx, TailFuture, run};
 pub use self::errors::{CORE_ERROR_START_RANGE, CoreError};
 
@@ -51,6 +51,14 @@ pub type NetworkTx = mpsc::UnboundedSender<NetworkEvent>;
 pub const MAIDSAFE_TAG: u64 = 5483_000;
 /// `MutableData` type tag for a directory
 pub const DIR_TAG: u64 = 15000;
+
+lazy_static!{
+/// Default Directories to be created at registration
+	pub static ref DEFAULT_PRIVATE_DIRS: Vec<&'static str> = vec!["_documents",
+			"_downloads", "_music", "_videos", "_publicNames"];
+	///publicly accessible default directories to be created upon registration
+	pub static ref DEFAULT_PUBLIC_DIRS: Vec<&'static str> = vec!["_public"];
+}
 
 mod client;
 mod core_el;

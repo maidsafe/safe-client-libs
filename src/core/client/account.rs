@@ -20,6 +20,7 @@
 // and limitations relating to use of the SAFE Network Software.
 
 use core::errors::CoreError;
+use core::utility::{symmetric_decrypt, symmetric_encrypt};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand;
 use routing::{FullId, XOR_NAME_LEN, XorName};
@@ -120,16 +121,64 @@ pub struct Dir {
     /// Type tag of the data where the directory is stored.
     pub type_tag: u64,
     /// Key to encrypt/decrypt the directory content.
-    pub enc_key: secretbox::Key,
+    /// and the nonce to be used for keys
+    pub enc_key: Option<(secretbox::Key, secretbox::Nonce)>,
 }
 
 impl Dir {
-    /// Generate random `Dir` with the given type tag.
+    /// Generate random, encrypted `Dir` with the given type tag.
     pub fn random(type_tag: u64) -> Self {
         Dir {
             name: rand::random(),
             type_tag: type_tag,
-            enc_key: secretbox::gen_key(),
+            enc_key: Some((secretbox::gen_key(), secretbox::gen_nonce())),
+        }
+    }
+    /// Generate a random, publicly accessible `Dir` with the given type tag
+    pub fn random_public(type_tag: u64) -> Self {
+        Dir {
+            name: rand::random(),
+            type_tag: type_tag,
+            enc_key: None,
+        }
+    }
+
+    /// encrypt the the key for the mdata entry of this dir accordingly
+    pub fn encrypt_key(&self, plain_key: Vec<u8>) -> Result<Vec<u8>, CoreError> {
+
+        if let Some((ref key, secretbox::Nonce(ref dir_nonce))) = self.enc_key {
+            let mut input = Vec::new();
+            input.extend_from_slice(dir_nonce.iter().as_slice());
+            input.extend_from_slice(plain_key.iter().as_slice());
+            let nonce = match sha256::hash(input.as_slice()) {
+                sha256::Digest(source) => {
+                    let mut nonce = [0; secretbox::NONCEBYTES];
+                    nonce.clone_from_slice(&source[..secretbox::NONCEBYTES]);
+                    secretbox::Nonce(nonce)
+                }
+            };
+            // let nonce = secretbox::Nonce(digest);
+            Ok(serialise(&(nonce, secretbox::seal(&plain_key.as_slice(), &nonce, key)))?)
+        } else {
+            Ok(plain_key)
+        }
+    }
+
+    /// encrypt the value for this mdata entry accordingly
+    pub fn encrypt_value(&self, plain_text: Vec<u8>) -> Result<Vec<u8>, CoreError> {
+        if let Some((ref key, _)) = self.enc_key {
+            symmetric_encrypt(&plain_text, key)
+        } else {
+            Ok(plain_text)
+        }
+    }
+
+    /// decrypt key or value of this mdata entry
+    pub fn decrypt(&self, cipher: Vec<u8>) -> Result<Vec<u8>, CoreError> {
+        if let Some((ref key, _)) = self.enc_key {
+            symmetric_decrypt(&cipher.as_slice(), key)
+        } else {
+            Ok(cipher)
         }
     }
 }
