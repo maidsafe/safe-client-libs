@@ -22,9 +22,10 @@
 
 use core::{Client, CoreError, CoreFuture, DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS, DIR_TAG,
            FutureExt};
-//[#use_macros]
+// [#use_macros]
 use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
+use nfs::dir::create_dir;
 use routing::{EntryAction, Value};
 use std::collections::BTreeMap;
 
@@ -36,10 +37,10 @@ pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
 
         let mut creations = vec![];
         for _ in DEFAULT_PRIVATE_DIRS.iter() {
-            creations.push(client.create_new_dir(false))
+            creations.push(create_dir(&client, false))
         }
         for _ in DEFAULT_PUBLIC_DIRS.iter() {
-            creations.push(client.create_new_dir(true))
+            creations.push(create_dir(&client, true))
         }
 
         future::join_all(creations)

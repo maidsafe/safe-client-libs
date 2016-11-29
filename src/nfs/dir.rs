@@ -19,24 +19,35 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-/// Errors
-pub mod errors;
-/// Module for File struct
 
-mod file_metadata;
-mod file;
-/// Helper for directory_listing and File for NFS Low level API
-pub mod helper;
-/// Generate Standard Directories
-mod dir;
-mod std_dirs;
 
+use core::{Client, CoreFuture, DIR_TAG, Dir, FutureExt};
+// [#use_macros]
 use futures::Future;
-pub use nfs::dir::create_dir;
-pub use nfs::errors::NfsError;
-pub use nfs::file::File;
-pub use nfs::file_metadata::FileMetadata;
-pub use nfs::std_dirs::create_std_dirs;
+use routing::MutableData;
+use std::collections::{BTreeMap, BTreeSet};
 
-/// Helper type for futures that can result in NfsError
-pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;
+
+/// create a new directory emulation
+pub fn create_dir(client: &Client, public: bool) -> Box<CoreFuture<Dir>> {
+    match client.owner_sign_key() {
+        Ok(pub_key) => {
+            let dir = match public {
+                true => Dir::random_public(DIR_TAG),
+                false => Dir::random(DIR_TAG),
+            };
+            let mut owners = BTreeSet::new();
+            owners.insert(pub_key);
+            let dir_md = MutableData::new(dir.name,
+                                          dir.type_tag,
+                                          BTreeMap::new(),
+                                          BTreeMap::new(),
+                                          owners)
+                .unwrap();
+            client.put_mdata(dir_md)
+                .and_then(|_| Ok(dir))
+                .into_box()
+        }
+        Err(err) => err!(err).into_box(),
+    }
+}

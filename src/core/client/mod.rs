@@ -714,6 +714,11 @@ impl Client {
         Ok((account.maid_keys.sign_pk, account.maid_keys.sign_sk.clone()))
     }
 
+    /// Return the owner signing key
+    pub fn owner_sign_key(&self) -> Result<sign::PublicKey, CoreError> {
+        self.inner().client_type.owner_sign_key()
+    }
+
     fn update_session_packet(&self) -> Box<CoreFuture<()>> {
         trace!("Updating session packet.");
 
@@ -754,18 +759,9 @@ impl Client {
                                       BTreeMap::new(),
                                       BTreeMap::new(),
                                       owners)?;
-        Client::create_mdata(dir.name, dir_md, routing, routing_rx, requester).and_then(|_| Ok(dir))
-    }
 
-    /// Create the given mdata on the network
-    fn create_mdata(name: XorName,
-                    md: MutableData,
-                    routing: &Routing,
-                    routing_rx: &Receiver<Event>,
-                    requester: sign::PublicKey)
-                    -> Result<(), CoreError> {
         let msg_id = MessageId::new();
-        routing.put_mdata(Authority::NaeManager(name), md, msg_id, requester)?;
+        routing.put_mdata(Authority::NaeManager(dir.name), dir_md, msg_id, requester)?;
 
         match routing_rx.recv_timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS)) {
             Ok(Event::Response { response: Response::PutMData { ref res, msg_id: ref id }, .. })
@@ -784,29 +780,7 @@ impl Client {
             }
         }
 
-        Ok(())
-    }
-
-    /// create a new directory emulation
-    pub fn create_new_dir(&self, public: bool) -> Result<Dir, CoreError> {
-        self.inner().client_type.owner_sign_key().and_then(move |pub_key| {
-            let dir = match public {
-                true => Dir::random_public(DIR_TAG),
-                false => Dir::random(DIR_TAG),
-            };
-            let mut owners = BTreeSet::new();
-            owners.insert(pub_key);
-            let dir_md = MutableData::new(dir.name,
-                                          dir.type_tag,
-                                          BTreeMap::new(),
-                                          BTreeMap::new(),
-                                          owners)?;
-
-
-            let (routing, routing_rx) = setup_routing(None)?;
-            Client::create_mdata(dir.name, dir_md, &routing, &routing_rx, pub_key)
-                .and_then(|_| Ok(dir))
-        })
+        Ok(dir)
     }
 
     /// Generic GET request
