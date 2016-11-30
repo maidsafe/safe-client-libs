@@ -80,6 +80,10 @@ pub mod core;
 pub mod ffi;
 /// Auth module;
 pub mod auth;
+/// Utility functions;
+pub mod util;
+// /// Application functions;
+// pub mod app;
 /// Unversioned `StructuredData`
 pub const UNVERSIONED_STRUCT_DATA_TYPE_TAG: u64 = 500;
 /// Versioned `StructuredData`

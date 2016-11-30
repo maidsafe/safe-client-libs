@@ -23,8 +23,14 @@ use routing::XorName;
 use rust_sodium::crypto::{box_, secretbox, sign};
 use std::mem;
 
-/// TODO: doc
+/// FFI types
 pub mod ffi;
+/// Authenticator module
+pub mod authenticator;
+/// Authenticator errors
+mod errors;
+
+pub use self::errors::AuthError;
 
 use self::ffi::PermissionAccess;
 

@@ -286,7 +286,7 @@ impl Client {
     }
 
     /// This is a Gateway function to the Maidsafe network. This will help
-    /// login to an already existing account of the user in the SAFE-network.
+    /// apps to authorise using an existing pair of keys.
     pub fn from_keys<T>(keys: ClientKeys,
                         owner: sign::PublicKey,
                         el_handle: Handle,
