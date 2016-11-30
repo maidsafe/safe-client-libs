@@ -20,7 +20,7 @@
 // and limitations relating to use of the SAFE Network Software.
 
 
-use core::{Client, CoreError, CoreFuture, DIR_TAG, FutureExt};
+use core::{Client, CoreFuture, DIR_TAG, FutureExt};
 // [#use_macros]
 use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
@@ -33,39 +33,33 @@ use std::collections::BTreeMap;
 /// in the users root directory.
 /// Note: It does not check whether those might exits already.
 pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
-    if let Some(root_dir) = client.user_root_dir() {
-
-        let mut creations = vec![];
-        for _ in DEFAULT_PRIVATE_DIRS.iter() {
-            creations.push(create_dir(&client, false))
-        }
-        for _ in DEFAULT_PUBLIC_DIRS.iter() {
-            creations.push(create_dir(&client, true))
-        }
-
-        future::join_all(creations)
-            .then(move |res| {
-                let results = res.unwrap();
-                let mut actions = BTreeMap::new();
-                for (idx, name) in DEFAULT_PRIVATE_DIRS.iter()
-                    .chain(DEFAULT_PUBLIC_DIRS.iter())
-                    .enumerate() {
-                    let dir = results.get(idx).unwrap();
-                    let _ = actions.insert(root_dir.encrypt_key(Vec::from(name.clone())).unwrap(),
-                                           EntryAction::Ins(Value {
-                                               content:
-                                                   root_dir.encrypt_value(serialise(dir).unwrap())
-                                                   .unwrap(),
-                                               entry_version: 0,
-                                           }));
-                }
-                client.mutate_mdata_entries(root_dir.name, DIR_TAG, actions)
-            })
-            .into_box()
-    } else {
-        err!(CoreError::OperationForbiddenForClient)
+    let root_dir = fry!(client.user_root_dir());
+    let mut creations = vec![];
+    for _ in DEFAULT_PRIVATE_DIRS.iter() {
+        creations.push(create_dir(&client, false))
+    }
+    for _ in DEFAULT_PUBLIC_DIRS.iter() {
+        creations.push(create_dir(&client, true))
     }
 
+    future::join_all(creations)
+        .then(move |res| {
+            let results = fry!(res);
+            let mut actions = BTreeMap::new();
+            for (dir, name) in results.iter().zip(DEFAULT_PRIVATE_DIRS.iter()
+                .chain(DEFAULT_PUBLIC_DIRS.iter())) {
+                let serialised_dir = fry!(serialise(dir));
+                let encrypted_key = fry!(root_dir.encrypt_key(Vec::from(name.clone())));
+                let encrypted_value = fry!(root_dir.encrypt_value(serialised_dir));
+                let _ = actions.insert(encrypted_key,
+                                       EntryAction::Ins(Value {
+                                           content: encrypted_value,
+                                           entry_version: 0,
+                                       }));
+            }
+            client.mutate_mdata_entries(root_dir.name, DIR_TAG, actions)
+        })
+        .into_box()
 }
 
 
@@ -82,11 +76,12 @@ mod tests {
     fn creates_default_dirs() {
         random_client(move |client| {
             let cl2 = client.clone();
-            create_std_dirs(client.clone()).then(move |_| {
-                let root_dir = cl2.user_root_dir().unwrap();
+            create_std_dirs(client.clone()).then(move |res| {
+                let _ = unwrap!(res);
+                let root_dir = unwrap!(cl2.user_root_dir());
                 cl2.list_mdata_entries(root_dir.name, DIR_TAG)
                     .then(move |mdata_entries| {
-                        let root_mdata = mdata_entries.unwrap();
+                        let root_mdata = unwrap!(mdata_entries);
                         assert_eq!(root_mdata.len(),
                                    DEFAULT_PUBLIC_DIRS.len() + DEFAULT_PRIVATE_DIRS.len());
                         for key in DEFAULT_PUBLIC_DIRS.iter().chain(DEFAULT_PRIVATE_DIRS.iter()) {

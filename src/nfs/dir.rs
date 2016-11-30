@@ -20,13 +20,11 @@
 // and limitations relating to use of the SAFE Network Software.
 
 
-
 use core::{Client, CoreFuture, DIR_TAG, Dir, FutureExt};
 // [#use_macros]
 use futures::Future;
 use routing::MutableData;
 use std::collections::{BTreeMap, BTreeSet};
-
 
 /// create a new directory emulation
 pub fn create_dir(client: &Client, public: bool) -> Box<CoreFuture<Dir>> {
@@ -38,12 +36,11 @@ pub fn create_dir(client: &Client, public: bool) -> Box<CoreFuture<Dir>> {
             };
             let mut owners = BTreeSet::new();
             owners.insert(pub_key);
-            let dir_md = MutableData::new(dir.name,
+            let dir_md = fry!(MutableData::new(dir.name,
                                           dir.type_tag,
                                           BTreeMap::new(),
                                           BTreeMap::new(),
-                                          owners)
-                .unwrap();
+                                          owners));
             client.put_mdata(dir_md)
                 .and_then(|_| Ok(dir))
                 .into_box()
