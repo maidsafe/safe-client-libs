@@ -652,8 +652,8 @@ impl Client {
 
     /// Get User's Root Directory ID if available in session packet used for
     /// current login
-    pub fn user_root_dir(&self) -> Option<Dir> {
-        self.inner().client_type.acc().ok().and_then(|account| Some(account.user_root.clone()))
+    pub fn user_root_dir(&self) -> Result<Dir, CoreError> {
+        self.inner().client_type.acc().and_then(|account| {  Ok(account.user_root.clone()) })
     }
 
     /// Create an entry for the Maidsafe configuration specific Root Directory
@@ -674,8 +674,8 @@ impl Client {
 
     /// Get Maidsafe specific configuration's Root Directory ID if available in
     /// session packet used for current login
-    pub fn config_root_dir(&self) -> Option<Dir> {
-        self.inner().client_type.acc().ok().and_then(|account| Some(account.config_root.clone()))
+    pub fn config_root_dir(&self) -> Result<Dir, CoreError> {
+        self.inner().client_type.acc().and_then(|account| { Ok(account.config_root.clone())})
     }
 
     /// Returns the public encryption key
@@ -1134,7 +1134,7 @@ mod tests {
                          Client::registered(&sec_0, &sec_1, el_h, core_tx, net_tx)
                      },
                      move |client| {
-                         assert!(client.user_root_dir().is_some());
+                         assert!(client.user_root_dir().is_ok());
                          client.set_user_root_dir(dir)
                      });
 
@@ -1158,7 +1158,7 @@ mod tests {
                          Client::registered(&sec_0, &sec_1, el_h, core_tx, net_tx)
                      },
                      move |client| {
-                         assert!(client.config_root_dir().is_some());
+                         assert!(client.config_root_dir().is_ok());
                          client.set_config_root_dir(dir)
                      });
 
