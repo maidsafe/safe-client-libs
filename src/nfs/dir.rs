@@ -27,13 +27,10 @@ use routing::MutableData;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// create a new directory emulation
-pub fn create_dir(client: &Client, public: bool) -> Box<CoreFuture<Dir>> {
+pub fn create_dir(client: &Client, is_public: bool) -> Box<CoreFuture<Dir>> {
     match client.owner_sign_key() {
         Ok(pub_key) => {
-            let dir = match public {
-                true => Dir::random_public(DIR_TAG),
-                false => Dir::random(DIR_TAG),
-            };
+            let dir = Dir::random(DIR_TAG, is_public);
             let mut owners = BTreeSet::new();
             owners.insert(pub_key);
             let dir_md = fry!(MutableData::new(dir.name,

@@ -752,7 +752,7 @@ impl Client {
                         owners: BTreeSet<sign::PublicKey>,
                         requester: sign::PublicKey)
                         -> Result<Dir, CoreError> {
-        let dir = Dir::random(DIR_TAG);
+        let dir = Dir::random(DIR_TAG, false);
         let dir_md = MutableData::new(dir.name,
                                       dir.type_tag,
                                       BTreeMap::new(),
@@ -1041,7 +1041,7 @@ mod tests {
                 .then(move |res| {
                     let data = unwrap!(res);
                     assert_eq!(data, orig_data);
-                    let dir = Dir::random(DIR_TAG);
+                    let dir = Dir::random(DIR_TAG, false);
                     client2.set_user_root_dir(dir)
                 })
                 .then(move |res| {
@@ -1056,7 +1056,7 @@ mod tests {
                         _ => panic!("Unexpected {:?}", e),
                     }
 
-                    let dir = Dir::random(DIR_TAG);
+                    let dir = Dir::random(DIR_TAG, false);
                     client3.set_config_root_dir(dir)
                 })
                 .then(|res| {
@@ -1127,7 +1127,7 @@ mod tests {
         let sec_0 = unwrap!(utility::generate_random_string(10));
         let sec_1 = unwrap!(utility::generate_random_string(10));
 
-        let dir = Dir::random(DIR_TAG);
+        let dir = Dir::random(DIR_TAG, false);
         let dir_clone = dir.clone();
 
         setup_client(|el_h, core_tx, net_tx| {
@@ -1151,7 +1151,7 @@ mod tests {
         let sec_0 = unwrap!(utility::generate_random_string(10));
         let sec_1 = unwrap!(utility::generate_random_string(10));
 
-        let dir = Dir::random(DIR_TAG);
+        let dir = Dir::random(DIR_TAG, false);
         let dir_clone = dir.clone();
 
         setup_client(|el_h, core_tx, net_tx| {
