@@ -37,7 +37,7 @@ use routing::Client as Routing;
 use rust_sodium::crypto::{box_, sign};
 use rust_sodium::crypto::hash::sha256::{self, Digest};
 pub use self::account::{ClientKeys, Dir};
-pub use self::account::Account;
+use self::account::Account;
 #[cfg(feature = "use-mock-routing")]
 use self::mock_routing::MockRouting as Routing;
 use std::cell::{Ref, RefCell, RefMut};
