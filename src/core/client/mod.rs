@@ -653,7 +653,7 @@ impl Client {
     /// Get User's Root Directory ID if available in session packet used for
     /// current login
     pub fn user_root_dir(&self) -> Result<Dir, CoreError> {
-        self.inner().client_type.acc().and_then(|account| {  Ok(account.user_root.clone()) })
+        self.inner().client_type.acc().and_then(|account| Ok(account.user_root.clone()))
     }
 
     /// Create an entry for the Maidsafe configuration specific Root Directory
@@ -675,7 +675,7 @@ impl Client {
     /// Get Maidsafe specific configuration's Root Directory ID if available in
     /// session packet used for current login
     pub fn config_root_dir(&self) -> Result<Dir, CoreError> {
-        self.inner().client_type.acc().and_then(|account| { Ok(account.config_root.clone())})
+        self.inner().client_type.acc().and_then(|account| Ok(account.config_root.clone()))
     }
 
     /// Returns the public encryption key

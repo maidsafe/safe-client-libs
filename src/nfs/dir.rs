@@ -23,8 +23,8 @@
 use core::{Client, CoreError, DIR_TAG, Dir, FutureExt};
 // [#use_macros]
 use futures::Future;
-use routing::MutableData;
 use nfs::{NfsError, NfsFuture};
+use routing::MutableData;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// create a new directory emulation
@@ -35,11 +35,11 @@ pub fn create_dir(client: &Client, is_public: bool) -> Box<NfsFuture<Dir>> {
             let mut owners = BTreeSet::new();
             owners.insert(pub_key);
             let dir_md = fry!(MutableData::new(dir.name,
-                                          dir.type_tag,
-                                          BTreeMap::new(),
-                                          BTreeMap::new(),
-                                          owners)
-                                .map_err(CoreError::from));
+                                               dir.type_tag,
+                                               BTreeMap::new(),
+                                               BTreeMap::new(),
+                                               owners)
+                .map_err(CoreError::from));
             client.put_mdata(dir_md)
                 .and_then(|()| Ok(dir))
                 .map_err(NfsError::from)

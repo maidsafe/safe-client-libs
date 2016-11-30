@@ -132,7 +132,11 @@ impl Dir {
         Dir {
             name: rand::random(),
             type_tag: type_tag,
-            enc_info: if !is_public { Some((secretbox::gen_key(), Some(secretbox::gen_nonce())))} else { None }
+            enc_info: if !is_public {
+                Some((secretbox::gen_key(), Some(secretbox::gen_nonce())))
+            } else {
+                None
+            },
         }
     }
     /// Generate a random, publicly accessible `Dir` with the given type tag
@@ -154,7 +158,8 @@ impl Dir {
                     input.extend_from_slice(plain_text.iter().as_slice());
                     let mut pt = plain_text.clone();
                     pt.extend(&dir_nonce[..]);
-                    unwrap!(secretbox::Nonce::from_slice(&sha256::hash(&pt)[..secretbox::NONCEBYTES]))
+                    unwrap!(secretbox::Nonce::from_slice(
+                        &sha256::hash(&pt)[..secretbox::NONCEBYTES]))
                 }
                 None => secretbox::gen_nonce(),
             };

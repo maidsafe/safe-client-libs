@@ -24,7 +24,7 @@ use core::{Client, DIR_TAG, FutureExt};
 // [#use_macros]
 use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
-use nfs::{NfsFuture, NfsError, DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
+use nfs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS, NfsError, NfsFuture};
 use nfs::dir::create_dir;
 use routing::{EntryAction, Value};
 use std::collections::BTreeMap;
@@ -57,7 +57,9 @@ pub fn create_std_dirs(client: Client) -> Box<NfsFuture<()>> {
                                            entry_version: 0,
                                        }));
             }
-            client.mutate_mdata_entries(root_dir.name, DIR_TAG, actions).map_err(NfsError::from).into_box()
+            client.mutate_mdata_entries(root_dir.name, DIR_TAG, actions)
+                .map_err(NfsError::from)
+                .into_box()
         })
         .into_box()
 }
@@ -68,8 +70,8 @@ pub fn create_std_dirs(client: Client) -> Box<NfsFuture<()>> {
 mod tests {
     use core::DIR_TAG;
     use core::utility::test_utils::{finish, random_client};
-    use nfs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use futures::Future;
+    use nfs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use super::*;
 
     #[test]
