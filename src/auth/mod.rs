@@ -273,3 +273,119 @@ pub enum AuthResponse {
     /// TODO: doc
     Denied,
 }
+
+#[cfg(test)]
+#[allow(unsafe_code)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_container_permission() {
+        let cp = ContainerPermission {
+            container_key: "foobar".to_string(),
+            access: vec![],
+        };
+
+        let raw_cp = cp.into_raw();
+
+        unsafe {
+            assert_eq!((*raw_cp).container_key_len, 6);
+            assert!((*raw_cp).container_key_cap >= 6);
+            assert_eq!(*(*raw_cp).container_key, 'f' as u8);
+            assert_eq!(*(*raw_cp).container_key.offset(1), 'o' as u8);
+            assert_eq!(*(*raw_cp).container_key.offset(2), 'o' as u8);
+            assert_eq!(*(*raw_cp).container_key.offset(3), 'b' as u8);
+            assert_eq!(*(*raw_cp).container_key.offset(4), 'a' as u8);
+            assert_eq!(*(*raw_cp).container_key.offset(5), 'r' as u8);
+
+            assert_eq!((*raw_cp).access_len, 0);
+        }
+
+        let cp = unsafe { ContainerPermission::from_raw(raw_cp) };
+
+        assert_eq!(cp.container_key, "foobar");
+        assert_eq!(cp.access, vec![]);
+
+        // If test runs under special mode (e.g. Valgrind) we can detect memory
+        // leaks
+        unsafe {
+            ffi::container_permission_free(cp.into_raw());
+        }
+    }
+
+    #[test]
+    fn test_app_exchange_info() {
+        let a = AppExchangeInfo {
+            id: "myid".to_string(),
+            scope: Some("hi".to_string()),
+            name: "bubi".to_string(),
+            vendor: "hey girl".to_string(),
+        };
+
+        let raw = a.into_raw();
+
+        unsafe {
+            assert_eq!((*raw).id_len, 4);
+            assert_eq!((*raw).scope_len, 2);
+            assert_eq!((*raw).name_len, 4);
+            assert_eq!((*raw).vendor_len, 8);
+        }
+
+        let mut a = unsafe { AppExchangeInfo::from_raw(raw) };
+
+        assert_eq!(a.id, "myid");
+        assert_eq!(a.scope, Some("hi".to_string()));
+        assert_eq!(a.name, "bubi");
+        assert_eq!(a.vendor, "hey girl");
+
+        a.scope = None;
+
+        let raw = a.into_raw();
+
+        unsafe {
+            assert_eq!((*raw).id_len, 4);
+            assert_eq!((*raw).scope, 0 as *const u8);
+            assert_eq!((*raw).scope_len, 0);
+            assert_eq!((*raw).scope_cap, 0);
+            assert_eq!((*raw).name_len, 4);
+            assert_eq!((*raw).vendor_len, 8);
+        }
+
+        unsafe { ffi::app_exchange_info_free(raw) };
+    }
+
+    #[test]
+    fn test_auth_request() {
+        let app = AppExchangeInfo  {
+            id: "1".to_string(),
+            scope: Some("2".to_string()),
+            name: "3".to_string(),
+            vendor: "4".to_string(),
+        };
+
+        let a = AuthRequest {
+            app: app,
+            app_container: false,
+            containers: vec![],
+        };
+
+        let raw = a.into_raw();
+
+        unsafe {
+            assert_eq!((*raw).app_container, false);
+            assert_eq!((*raw).containers_len, 0);
+        }
+
+        let a = unsafe { AuthRequest::from_raw(raw) };
+
+        assert_eq!(a.app.id, "1");
+        assert_eq!(a.app.scope, Some("2".to_string()));
+        assert_eq!(a.app.name, "3");
+        assert_eq!(a.app.vendor, "4");
+        assert_eq!(a.app_container, false);
+        assert_eq!(a.containers.len(), 0);
+
+        unsafe { ffi::auth_request_free(a.into_raw()) };
+    }
+}

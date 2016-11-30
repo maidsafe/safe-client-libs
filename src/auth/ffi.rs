@@ -22,6 +22,7 @@
 use rust_sodium::crypto::{box_, secretbox, sign};
 
 #[repr(C)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 /// TODO: doc
 pub enum PermissionAccess {
     /// TODO: doc
