@@ -153,9 +153,6 @@ impl Dir {
         if let Some((ref key, seed)) = self.enc_info {
             let nonce = match seed {
                 Some(secretbox::Nonce(ref dir_nonce)) => {
-                    let mut input = Vec::new();
-                    input.extend_from_slice(dir_nonce.iter().as_slice());
-                    input.extend_from_slice(plain_text.iter().as_slice());
                     let mut pt = plain_text.clone();
                     pt.extend(&dir_nonce[..]);
                     unwrap!(secretbox::Nonce::from_slice(
