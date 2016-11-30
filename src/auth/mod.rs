@@ -268,7 +268,7 @@ pub enum AuthResponse {
         /// TODO: doc
         bootstrap_config: Config,
         /// TODO: doc
-        access_container: Option<(XorName, u64)>,
+        access_container: Option<(XorName, u64, secretbox::Nonce)>,
     },
     /// TODO: doc
     Denied,
