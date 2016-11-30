@@ -20,11 +20,11 @@
 // and limitations relating to use of the SAFE Network Software.
 
 
-use core::{Client, CoreFuture, DIR_TAG, FutureExt};
+use core::{Client, DIR_TAG, FutureExt};
 // [#use_macros]
 use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
-use nfs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
+use nfs::{NfsFuture, NfsError, DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use nfs::dir::create_dir;
 use routing::{EntryAction, Value};
 use std::collections::BTreeMap;
@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 /// A registration helper function to create the set of default dirs
 /// in the users root directory.
 /// Note: It does not check whether those might exits already.
-pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
+pub fn create_std_dirs(client: Client) -> Box<NfsFuture<()>> {
     let root_dir = fry!(client.user_root_dir());
     let mut creations = vec![];
     for _ in DEFAULT_PRIVATE_DIRS.iter() {
@@ -43,8 +43,8 @@ pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
     }
 
     future::join_all(creations)
-        .then(move |res| {
-            let results = fry!(res);
+        .and_then(move |results| {
+            // let results = fry!(res);
             let mut actions = BTreeMap::new();
             for (dir, name) in results.iter().zip(DEFAULT_PRIVATE_DIRS.iter()
                 .chain(DEFAULT_PUBLIC_DIRS.iter())) {
@@ -57,7 +57,7 @@ pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
                                            entry_version: 0,
                                        }));
             }
-            client.mutate_mdata_entries(root_dir.name, DIR_TAG, actions)
+            client.mutate_mdata_entries(root_dir.name, DIR_TAG, actions).map_err(NfsError::from).into_box()
         })
         .into_box()
 }
