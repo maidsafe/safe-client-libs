@@ -52,14 +52,6 @@ pub const MAIDSAFE_TAG: u64 = 5483_000;
 /// `MutableData` type tag for a directory
 pub const DIR_TAG: u64 = 15000;
 
-lazy_static!{
-/// Default Directories to be created at registration
-	pub static ref DEFAULT_PRIVATE_DIRS: Vec<&'static str> = vec!["_documents",
-			"_downloads", "_music", "_videos", "_publicNames"];
-	///publicly accessible default directories to be created upon registration
-	pub static ref DEFAULT_PUBLIC_DIRS: Vec<&'static str> = vec!["_public"];
-}
-
 mod client;
 mod core_el;
 mod errors;

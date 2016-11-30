@@ -24,7 +24,6 @@ mod account;
 mod mock_routing;
 mod routing_el;
 
-
 use core::{CoreError, CoreEvent, CoreFuture, CoreMsg, CoreMsgTx, DIR_TAG, FutureExt, NetworkEvent,
            NetworkTx, utility};
 use futures::{self, Complete, Future};

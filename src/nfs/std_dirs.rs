@@ -20,11 +20,11 @@
 // and limitations relating to use of the SAFE Network Software.
 
 
-use core::{Client, CoreError, CoreFuture, DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS, DIR_TAG,
-           FutureExt};
+use core::{Client, CoreError, CoreFuture, DIR_TAG, FutureExt};
 // [#use_macros]
 use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
+use nfs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use nfs::dir::create_dir;
 use routing::{EntryAction, Value};
 use std::collections::BTreeMap;
@@ -72,8 +72,9 @@ pub fn create_std_dirs(client: Client) -> Box<CoreFuture<()>> {
 
 #[cfg(test)]
 mod tests {
-    use core::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS, DIR_TAG};
+    use core::DIR_TAG;
     use core::utility::test_utils::{finish, random_client};
+    use nfs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use futures::Future;
     use super::*;
 
