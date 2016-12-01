@@ -23,7 +23,7 @@ use core::{Client, CoreFuture, SelfEncryptionStorage, utility};
 use core::futures::FutureExt;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{ImmutableData, MAX_IMMUTABLE_DATA_SIZE_IN_BYTES, XorName};
+use routing::{ImmutableData, XorName};
 use rust_sodium::crypto::secretbox;
 use self_encryption::{DataMap, SelfEncryptor};
 
@@ -110,7 +110,7 @@ fn pack(client: Client, value: Vec<u8>) -> Box<CoreFuture<ImmutableData>> {
     let data = ImmutableData::new(value);
     let serialised_data = fry!(serialise(&data));
 
-    if serialised_data.len() as u64 > MAX_IMMUTABLE_DATA_SIZE_IN_BYTES {
+    if !data.validate_size() {
         let storage = SelfEncryptionStorage::new(client.clone());
         let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
         self_encryptor.write(&serialised_data, 0)

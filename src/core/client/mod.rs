@@ -652,8 +652,8 @@ impl Client {
 
     /// Get User's Root Directory ID if available in session packet used for
     /// current login
-    pub fn user_root_dir(&self) -> Option<Dir> {
-        self.inner().client_type.acc().ok().and_then(|account| Some(account.user_root.clone()))
+    pub fn user_root_dir(&self) -> Result<Dir, CoreError> {
+        self.inner().client_type.acc().and_then(|account| Ok(account.user_root.clone()))
     }
 
     /// Create an entry for the Maidsafe configuration specific Root Directory
@@ -674,8 +674,8 @@ impl Client {
 
     /// Get Maidsafe specific configuration's Root Directory ID if available in
     /// session packet used for current login
-    pub fn config_root_dir(&self) -> Option<Dir> {
-        self.inner().client_type.acc().ok().and_then(|account| Some(account.config_root.clone()))
+    pub fn config_root_dir(&self) -> Result<Dir, CoreError> {
+        self.inner().client_type.acc().and_then(|account| Ok(account.config_root.clone()))
     }
 
     /// Returns the public encryption key
@@ -713,6 +713,11 @@ impl Client {
         Ok((account.maid_keys.sign_pk, account.maid_keys.sign_sk.clone()))
     }
 
+    /// Return the owner signing key
+    pub fn owner_sign_key(&self) -> Result<sign::PublicKey, CoreError> {
+        self.inner().client_type.owner_sign_key()
+    }
+
     fn update_session_packet(&self) -> Box<CoreFuture<()>> {
         trace!("Updating session packet.");
 
@@ -747,7 +752,7 @@ impl Client {
                         owners: BTreeSet<sign::PublicKey>,
                         requester: sign::PublicKey)
                         -> Result<Dir, CoreError> {
-        let dir = Dir::random(DIR_TAG);
+        let dir = Dir::random(DIR_TAG, false);
         let dir_md = MutableData::new(dir.name,
                                       dir.type_tag,
                                       BTreeMap::new(),
@@ -967,6 +972,14 @@ impl ClientType {
             ClientType::Unregistered => Err(CoreError::OperationForbiddenForClient),
         }
     }
+
+    fn owner_sign_key(&self) -> Result<sign::PublicKey, CoreError> {
+        match *self {
+            ClientType::FromKeys { owner, .. } => Ok(owner.clone()),
+            ClientType::Registered { ref acc, .. } => Ok(acc.maid_keys.sign_pk.clone()),
+            ClientType::Unregistered => Err(CoreError::OperationForbiddenForClient),
+        }
+    }
 }
 
 fn setup_routing(full_id: Option<FullId>) -> Result<(Routing, Receiver<Event>), CoreError> {
@@ -1028,7 +1041,7 @@ mod tests {
                 .then(move |res| {
                     let data = unwrap!(res);
                     assert_eq!(data, orig_data);
-                    let dir = Dir::random(DIR_TAG);
+                    let dir = Dir::random(DIR_TAG, false);
                     client2.set_user_root_dir(dir)
                 })
                 .then(move |res| {
@@ -1043,7 +1056,7 @@ mod tests {
                         _ => panic!("Unexpected {:?}", e),
                     }
 
-                    let dir = Dir::random(DIR_TAG);
+                    let dir = Dir::random(DIR_TAG, false);
                     client3.set_config_root_dir(dir)
                 })
                 .then(|res| {
@@ -1114,14 +1127,14 @@ mod tests {
         let sec_0 = unwrap!(utility::generate_random_string(10));
         let sec_1 = unwrap!(utility::generate_random_string(10));
 
-        let dir = Dir::random(DIR_TAG);
+        let dir = Dir::random(DIR_TAG, false);
         let dir_clone = dir.clone();
 
         setup_client(|el_h, core_tx, net_tx| {
                          Client::registered(&sec_0, &sec_1, el_h, core_tx, net_tx)
                      },
                      move |client| {
-                         assert!(client.user_root_dir().is_some());
+                         assert!(client.user_root_dir().is_ok());
                          client.set_user_root_dir(dir)
                      });
 
@@ -1138,14 +1151,14 @@ mod tests {
         let sec_0 = unwrap!(utility::generate_random_string(10));
         let sec_1 = unwrap!(utility::generate_random_string(10));
 
-        let dir = Dir::random(DIR_TAG);
+        let dir = Dir::random(DIR_TAG, false);
         let dir_clone = dir.clone();
 
         setup_client(|el_h, core_tx, net_tx| {
                          Client::registered(&sec_0, &sec_1, el_h, core_tx, net_tx)
                      },
                      move |client| {
-                         assert!(client.config_root_dir().is_some());
+                         assert!(client.config_root_dir().is_ok());
                          client.set_config_root_dir(dir)
                      });
 

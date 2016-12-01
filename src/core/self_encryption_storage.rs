@@ -23,7 +23,6 @@ use core::Client;
 use core::CoreError;
 use core::futures::FutureExt;
 use futures::{self, Future};
-// use routing::{Data, DataIdentifier};
 use routing::{ImmutableData, XOR_NAME_LEN, XorName};
 use self_encryption::{Storage, StorageError};
 use std::error::Error;

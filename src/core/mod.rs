@@ -32,10 +32,8 @@ pub mod utility;
 pub mod self_encryption_storage;
 /// Helper functions to handle `ImmutableData` related operations
 pub mod immutable_data;
-/// Helper functions to handle `StructuredData` related operations
-// pub mod structured_data;
 
-pub use self::client::Client;
+pub use self::client::{Client, Dir};
 pub use self::core_el::{CoreMsg, CoreMsgRx, CoreMsgTx, TailFuture, run};
 pub use self::errors::{CORE_ERROR_START_RANGE, CoreError};
 

@@ -83,6 +83,24 @@ fn get_core_event(res: Response) -> Result<(MessageId, CoreEvent), CoreError> {
         Response::GetMDataValue { res, msg_id } => {
             (msg_id, CoreEvent::GetMDataValue(res.map_err(CoreError::from)))
         }
+        Response::ListMDataEntries { res, msg_id } => {
+            (msg_id, CoreEvent::ListMDataEntries(res.map_err(CoreError::from)))
+        }
+        Response::ListMDataKeys { res, msg_id } => {
+            (msg_id, CoreEvent::ListMDataKeys(res.map_err(CoreError::from)))
+        }
+        Response::ListMDataValues { res, msg_id } => {
+            (msg_id, CoreEvent::ListMDataValues(res.map_err(CoreError::from)))
+        }
+        Response::ListMDataPermissions { res, msg_id } => {
+            (msg_id, CoreEvent::ListMDataPermissions(res.map_err(CoreError::from)))
+        }
+        Response::ListMDataUserPermissions { res, msg_id } => {
+            (msg_id, CoreEvent::ListMDataUserPermissions(res.map_err(CoreError::from)))
+        }
+        Response::ListAuthKeysAndVersion { res, msg_id } => {
+            (msg_id, CoreEvent::ListAuthKeysAndVersion(res.map_err(CoreError::from)))
+        }
         _ => return Err(CoreError::Unexpected("Invalid response type".to_owned())),
     })
 }
