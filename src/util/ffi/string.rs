@@ -27,10 +27,14 @@ use std::str::{self, Utf8Error};
 
 /// Wrapper for strings to be passed across FFI boundary.
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct FfiString {
-    ptr: *mut u8,
-    len: usize,
-    cap: usize,
+    /// Pointer to first byte
+    pub ptr: *mut u8,
+    /// Length in bytes
+    pub len: usize,
+    /// Capacity in bytes
+    pub cap: usize,
 }
 
 impl FfiString {

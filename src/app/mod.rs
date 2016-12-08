@@ -32,8 +32,8 @@ use core::{self, Client, ClientKeys, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx
 use futures::Future;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
-use ipc::AppKeys;
-use ipc::ffi::AppKeys as FfiAppKeys;
+use ipc::resp::AppKeys;
+use ipc::resp::ffi::AppKeys as FfiAppKeys;
 use maidsafe_utilities::thread::{self, Joiner};
 use rust_sodium::crypto::{box_, secretbox};
 use self::errors::AppError;
@@ -251,7 +251,7 @@ pub unsafe extern "C" fn app_unregistered(user_data: *mut c_void,
 
 /// Create app from `AppKeys`.
 #[no_mangle]
-pub unsafe extern "C" fn app_from_keys(app_keys: *mut FfiAppKeys,
+pub unsafe extern "C" fn app_from_keys(app_keys: FfiAppKeys,
                                        user_data: *mut c_void,
                                        network_observer_cb: unsafe extern "C" fn(*mut c_void,
                                                                                  i32,
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn app_from_keys(app_keys: *mut FfiAppKeys,
                                        -> i32 {
     ffi::catch_unwind_error_code(|| -> Result<_, AppError> {
         let user_data = OpaqueCtx(user_data);
-        let app_keys = AppKeys::from_raw(app_keys);
+        let app_keys = AppKeys::from_repr_c(app_keys);
 
         let app = App::from_keys(app_keys, move |event| {
             call_network_observer(event, user_data.0, network_observer_cb)
