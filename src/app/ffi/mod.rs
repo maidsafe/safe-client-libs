@@ -45,6 +45,8 @@ pub mod mdata_info;
 pub mod misc;
 /// Low level manipulation of `MutableData`
 pub mod mutable_data;
+/// NFS API
+pub mod nfs;
 
 mod helper;
 

@@ -58,7 +58,7 @@ impl FileMetadata {
     }
 
     /// Get the data-map of the File
-    pub fn datamap(&self) -> &DataMap {
+    pub fn data_map(&self) -> &DataMap {
         &self.data_map
     }
 
@@ -79,7 +79,7 @@ impl FileMetadata {
     }
 
     /// Set the data-map of the File
-    pub fn set_datamap(&mut self, data_map: DataMap) {
+    pub fn set_data_map(&mut self, data_map: DataMap) {
         self.data_map = data_map;
     }
 

@@ -303,19 +303,10 @@ fn fetch_access_info(context: Rc<Registered>, client: &Client) -> Box<AppFuture<
 
 #[cfg(test)]
 mod tests {
-    use app::test_util::run;
-    use core::{DIR_TAG, MDataInfo, utility};
-    use core::utility::test_utils::random_client;
+    use app::test_util::{create_app_with_access, run};
+    use core::{DIR_TAG, MDataInfo};
     use futures::Future;
-    use ipc::{AccessContInfo, AppKeys, AuthGranted, Config, ContainerPermissions, Permission};
-    use maidsafe_utilities::serialisation::serialise;
-    use rand;
-    use routing::{MutableData, Value};
-    use rust_sodium::crypto::{box_, secretbox, sign};
-    use rust_sodium::crypto::hash::sha256;
-    use super::*;
-
-    const ACCESS_CONTAINER_TAG: u64 = 1000;
+    use ipc::{ContainerPermissions, Permission};
 
     #[test]
     fn refresh_access_info() {
@@ -327,8 +318,9 @@ mod tests {
             access: btree_set![Permission::Read, Permission::Insert],
         };
 
-        let app = create_app_with_access(&[(container_info.clone(),
-                                            container_permissions.clone())]);
+        let app = create_app_with_access(vec![(container_info.clone(),
+                                               container_permissions.clone())],
+                                         false);
 
         run(&app, move |client, context| {
             let reg = unwrap!(context.as_registered()).clone();
@@ -358,7 +350,8 @@ mod tests {
             access: btree_set![Permission::Read],
         };
 
-        let app = create_app_with_access(&[(container_info.clone(), container_permissions)]);
+        let app = create_app_with_access(vec![(container_info.clone(), container_permissions)],
+                                         false);
 
         run(&app, move |client, context| {
             context.get_container_mdata_info(client, container_key)
@@ -382,7 +375,8 @@ mod tests {
             access: btree_set![Permission::Read],
         };
 
-        let app = create_app_with_access(&[(container_info.clone(), container_permissions)]);
+        let app = create_app_with_access(vec![(container_info.clone(), container_permissions)],
+                                         false);
 
         run(&app, move |client, context| {
             let f1 = context.is_permitted(client, container_key.clone(), Permission::Read)
@@ -400,72 +394,5 @@ mod tests {
             f1.join(f2).map(|_| ())
         });
 
-    }
-
-    // Create app and grant it access to the specified containers.
-    fn create_app_with_access(access_info: &[(MDataInfo, ContainerPermissions)]) -> App {
-        let app_id = unwrap!(utility::generate_random_string(10));
-        let enc_key = secretbox::gen_key();
-        let (sign_pk, sign_sk) = sign::gen_keypair();
-        let (enc_pk, enc_sk) = box_::gen_keypair();
-
-        // Create the access container.
-        let access_container_info = AccessContInfo {
-            id: rand::random(),
-            tag: ACCESS_CONTAINER_TAG,
-            nonce: secretbox::gen_nonce(),
-        };
-
-        let access_container_key =
-            unwrap!(utility::symmetric_encrypt(&sha256::hash(app_id.as_bytes()).0,
-                                               &enc_key,
-                                               Some(&access_container_info.nonce)));
-
-        let access_container_value = {
-            let value = unwrap!(serialise(&access_info));
-            unwrap!(utility::symmetric_encrypt(&value, &enc_key, None))
-        };
-
-        let access_container_entries = btree_map![
-            access_container_key => Value {
-                content: access_container_value,
-                entry_version: 0,
-            }
-        ];
-
-        let access_container_name = access_container_info.id;
-        let access_container_type_tag = access_container_info.tag;
-
-        // Put the access container on the network and authorise the app.
-        let owner_key = random_client(move |client| {
-            let owner_key = unwrap!(client.owner_key());
-
-            let access_container = unwrap!(MutableData::new(access_container_name,
-                                                            access_container_type_tag,
-                                                            Default::default(),
-                                                            access_container_entries,
-                                                            btree_set![owner_key]));
-
-            let f1 = client.put_mdata(access_container);
-            let f2 = client.ins_auth_key(sign_pk, 1);
-            f1.join(f2).map(move |_| owner_key)
-        });
-
-        let app_keys = AppKeys {
-            owner_key: owner_key,
-            enc_key: enc_key,
-            sign_pk: sign_pk,
-            sign_sk: sign_sk,
-            enc_pk: enc_pk,
-            enc_sk: enc_sk,
-        };
-
-        let auth_granted = AuthGranted {
-            app_keys: app_keys,
-            bootstrap_config: Config,
-            access_container: access_container_info,
-        };
-
-        unwrap!(App::registered(app_id, auth_granted, |_| ()))
     }
 }

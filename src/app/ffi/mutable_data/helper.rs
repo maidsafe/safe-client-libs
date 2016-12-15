@@ -19,44 +19,11 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-use app::{App, AppContext};
 use app::errors::AppError;
-use app::object_cache::{MDataInfoHandle, MDataPermissionsHandle, ObjectCache, SignKeyHandle};
-use core::{Client, FutureExt, MDataInfo};
-use futures::Future;
+use app::object_cache::{MDataPermissionsHandle, ObjectCache, SignKeyHandle};
+use core::MDataInfo;
 use routing::{EntryAction, PermissionSet, User, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Debug;
-use std::os::raw::c_void;
-use util::ffi::OpaqueCtx;
-use util::ffi::callback::{Callback, CallbackArgs};
-
-// Helper to reduce boilerplate when sending asynchronous operations to the app
-// event loop.
-pub unsafe fn send_with_mdata_info<C, F, U, E>(app: *const App,
-                                               info_h: MDataInfoHandle,
-                                               user_data: *mut c_void,
-                                               cb: C,
-                                               f: F)
-                                               -> Result<(), AppError>
-    where C: Callback + Copy + Send + 'static,
-          F: FnOnce(&Client, &AppContext, &MDataInfo) -> U + Send + 'static,
-          U: Future<Item = C::Args, Error = E> + 'static,
-          E: Debug + 'static,
-          AppError: From<E>
-{
-    let user_data = OpaqueCtx(user_data);
-
-    (*app).send(move |client, context| {
-        let info = try_cb!(context.object_cache().get_mdata_info(info_h), user_data, cb);
-        f(client, context, &*info)
-            .map(move |args| cb.call(user_data.0, 0, args))
-            .map_err(AppError::from)
-            .map_err(move |err| cb.call(user_data.0, ffi_error_code!(err), C::Args::default()))
-            .into_box()
-            .into()
-    })
-}
 
 // Retrieve the sign key corresponding to the handle from the object cache and wrap it
 // in `User`. If the handle is 0, return `User::Anyone`.

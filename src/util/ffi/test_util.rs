@@ -37,20 +37,6 @@ pub unsafe fn send_via_user_data<T>(user_data: *mut c_void, value: T)
     unwrap!((*tx).send(value));
 }
 
-/*
-pub struct FfiStr {
-    pub ptr: *const u8,
-    pub len: usize,
-}
-
-pub fn as_raw_parts(s: &str) -> FfiStr {
-    FfiStr {
-        ptr: s.as_ptr(),
-        len: s.len(),
-    }
-}
-*/
-
 // Call a FFI function and block until its callback gets called.
 // Use this if the callback accepts no arguments in addition to user_data
 // and error_code.
@@ -79,6 +65,20 @@ pub unsafe fn call_1<F, T>(f: F) -> Result<T, i32>
 }
 
 // Call a FFI function and block until its callback gets called, then return
+// the argument which were passed to that callback.
+// Use this if the callback accepts two arguments in addition to user_data
+// and error_code.
+pub unsafe fn call_2<F, T0, T1>(f: F) -> Result<(T0, T1), i32>
+    where F: FnOnce(*mut c_void, extern "C" fn(*mut c_void, i32, T0, T1))
+{
+    let (tx, rx) = mpsc::channel::<(i32, SendWrapper<(T0, T1)>)>();
+    f(sender_as_user_data(&tx), callback_2::<T0, T1>);
+
+    let (error, args) = unwrap!(rx.recv());
+    if error == 0 { Ok(args.0) } else { Err(error) }
+}
+
+// Call a FFI function and block until its callback gets called, then return
 // the arguments which were passed to that callback in a tuple.
 // Use this if the callback accepts three arguments in addition to user_data and
 // error_code.
@@ -98,6 +98,10 @@ extern "C" fn callback_0(user_data: *mut c_void, error: i32) {
 
 extern "C" fn callback_1<T>(user_data: *mut c_void, error: i32, arg: T) {
     unsafe { send_via_user_data(user_data, (error, SendWrapper(arg))) }
+}
+
+extern "C" fn callback_2<T0, T1>(user_data: *mut c_void, error: i32, arg0: T0, arg1: T1) {
+    unsafe { send_via_user_data(user_data, (error, SendWrapper((arg0, arg1)))) }
 }
 
 extern "C" fn callback_3<T0, T1, T2>(user_data: *mut c_void,

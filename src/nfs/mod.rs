@@ -23,9 +23,10 @@
 pub mod errors;
 /// Module for File struct
 
-mod file;
+mod data_map;
 /// Generate Standard Directories
 mod dir;
+mod file;
 mod std_dirs;
 
 /// `FileHelper` provides functions for CRUD on file
@@ -49,8 +50,8 @@ pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;
 
 lazy_static!{
 /// Default Directories to be created at registration
-	pub static ref DEFAULT_PRIVATE_DIRS: Vec<&'static str> = vec!["_documents",
-			"_downloads", "_music", "_videos", "_publicNames"];
-	///publicly accessible default directories to be created upon registration
-	pub static ref DEFAULT_PUBLIC_DIRS: Vec<&'static str> = vec!["_public"];
+    pub static ref DEFAULT_PRIVATE_DIRS: Vec<&'static str> = vec!["_documents",
+            "_downloads", "_music", "_videos", "_publicNames"];
+    ///publicly accessible default directories to be created upon registration
+    pub static ref DEFAULT_PUBLIC_DIRS: Vec<&'static str> = vec!["_public"];
 }

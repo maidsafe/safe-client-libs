@@ -20,8 +20,8 @@
 // and limitations relating to use of the SAFE Network Software.
 
 
+use routing::XorName;
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
-use self_encryption::DataMap;
 use time::{self, Timespec, Tm};
 
 /// Representation of a File to be put into the network. Could be any kind of
@@ -32,18 +32,18 @@ pub struct File {
     created: Tm,
     modified: Tm,
     user_metadata: Vec<u8>,
-    data_map: DataMap,
+    data_map_name: XorName,
 }
 
 impl File {
     /// Create a new instance of FileMetadata
-    pub fn new(user_metadata: Vec<u8>, data_map: DataMap) -> File {
+    pub fn new(user_metadata: Vec<u8>) -> File {
         File {
-            size: data_map.len(),
+            size: 0,
             created: time::now_utc(),
             modified: time::now_utc(),
             user_metadata: user_metadata,
-            data_map: data_map,
+            data_map_name: XorName::default(),
         }
     }
 
@@ -57,9 +57,9 @@ impl File {
         &self.modified
     }
 
-    /// Get the data-map of the File
-    pub fn datamap(&self) -> &DataMap {
-        &self.data_map
+    /// Get the network name of the data containing the data-map of the File
+    pub fn data_map_name(&self) -> &XorName {
+        &self.data_map_name
     }
 
     /// Get size information
@@ -72,9 +72,9 @@ impl File {
         &self.user_metadata
     }
 
-    /// Set the data-map of the File
-    pub fn set_datamap(&mut self, data_map: DataMap) {
-        self.data_map = data_map;
+    /// Set the data-map name of the File
+    pub fn set_data_map_name(&mut self, datamap_name: XorName) {
+        self.data_map_name = datamap_name;
     }
 
     /// Set the size of file
@@ -110,7 +110,7 @@ impl Encodable for File {
             e.emit_struct_field("modified_time_sec", 3, |e| modified_time.sec.encode(e))?;
             e.emit_struct_field("modified_time_nsec", 4, |e| modified_time.nsec.encode(e))?;
             e.emit_struct_field("user_metadata", 5, |e| self.user_metadata.encode(e))?;
-            e.emit_struct_field("data_map", 6, |e| self.data_map.encode(e))?;
+            e.emit_struct_field("data_map_name", 6, |e| self.data_map_name.encode(e))?;
 
             Ok(())
         })
@@ -131,7 +131,7 @@ impl Decodable for File {
                     nsec: d.read_struct_field("modified_time_nsec", 4, Decodable::decode)?,
                 }),
                 user_metadata: d.read_struct_field("user_metadata", 5, Decodable::decode)?,
-                data_map: d.read_struct_field("data_map", 6, Decodable::decode)?,
+                data_map_name: d.read_struct_field("data_map_name", 6, Decodable::decode)?,
             })
         })
     }
@@ -140,15 +140,13 @@ impl Decodable for File {
 #[cfg(test)]
 mod tests {
     use maidsafe_utilities::serialisation::{deserialise, serialise};
-    use self_encryption::DataMap;
     use super::*;
 
     #[test]
     fn serialise_deserialise() {
         let obj_before = File::new("{mime:\"application/json\"}"
-                                       .to_string()
-                                       .into_bytes(),
-                                   DataMap::None);
+            .to_string()
+            .into_bytes());
         let serialised_data = unwrap!(serialise(&obj_before));
         let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);

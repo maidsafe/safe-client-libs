@@ -24,8 +24,10 @@ pub mod entries;
 pub mod permissions;
 mod helper;
 
+
 use app::App;
 use app::errors::AppError;
+use app::ffi::helper::send_with_mdata_info;
 use app::object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataInfoHandle,
                         MDataKeysHandle, MDataPermissionSetHandle, MDataPermissionsHandle,
                         MDataValuesHandle, SignKeyHandle};
@@ -101,9 +103,11 @@ pub unsafe extern "C" fn mdata_get_version(app: *const App,
                                            user_data: *mut c_void,
                                            o_cb: extern "C" fn(*mut c_void, i32, u64)) {
     ffi::catch_unwind_cb(user_data, o_cb, || {
-        helper::send_with_mdata_info(app, info_h, user_data, o_cb, |client, _, info| {
-            client.get_mdata_version(info.name, info.type_tag)
-        })
+        send_with_mdata_info(app,
+                             info_h,
+                             user_data,
+                             o_cb,
+                             |client, _, info| client.get_mdata_version(info.name, info.type_tag))
     })
 }
 
@@ -130,7 +134,7 @@ pub unsafe extern "C" fn mdata_get_value(app: *const App,
     ffi::catch_unwind_cb(user_data, o_cb, || {
         let key = ffi::u8_ptr_to_vec(key_ptr, key_len);
 
-        helper::send_with_mdata_info(app, info_h, user_data, o_cb, move |client, _, info| {
+        send_with_mdata_info(app, info_h, user_data, o_cb, move |client, _, info| {
             let info = info.clone();
             client.get_mdata_value(info.name, info.type_tag, key)
                 .and_then(move |value| {
@@ -151,7 +155,7 @@ pub unsafe extern "C" fn mdata_list_entries(app: *const App,
                                                                 i32,
                                                                 MDataEntriesHandle)) {
     ffi::catch_unwind_cb(user_data, o_cb, || {
-        helper::send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
+        send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
             let context = context.clone();
             let info = info.clone();
 
@@ -172,7 +176,7 @@ pub unsafe extern "C" fn mdata_list_keys(app: *const App,
                                          user_data: *mut c_void,
                                          o_cb: extern "C" fn(*mut c_void, i32, MDataKeysHandle)) {
     ffi::catch_unwind_cb(user_data, o_cb, || {
-        helper::send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
+        send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
             let context = context.clone();
             let info = info.clone();
 
@@ -195,7 +199,7 @@ pub unsafe extern "C" fn mdata_list_values(app: *const App,
                                                                i32,
                                                                MDataValuesHandle)) {
     ffi::catch_unwind_cb(user_data, o_cb, || {
-        helper::send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
+        send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
             let context = context.clone();
             let info = info.clone();
 
@@ -252,7 +256,7 @@ pub unsafe fn mdata_list_permissions(app: *const App,
                                                          i32,
                                                          MDataPermissionsHandle)) {
     ffi::catch_unwind_cb(user_data, o_cb, || {
-        helper::send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
+        send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
             let context = context.clone();
             client.list_mdata_permissions(info.name, info.type_tag)
                 .map(move |perms| helper::insert_permissions(context.object_cache(), perms))

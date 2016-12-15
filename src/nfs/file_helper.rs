@@ -19,31 +19,61 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-use core::{Client, CoreFuture, FutureExt, MDataInfo, SelfEncryptionStorage};
-use futures::Future;
+use core::{Client, CoreError, FutureExt, MDataInfo, SelfEncryptionStorage};
+use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use nfs::{File, Mode, NfsError, Reader, Writer};
-use routing::EntryActions;
-use self_encryption::DataMap;
+use nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
+use routing::{ClientError, EntryActions};
+
+/// Insert the file into the directory.
+pub fn insert<T: AsRef<str>>(client: Client,
+                             parent: MDataInfo,
+                             name: T,
+                             file: File)
+                             -> Box<NfsFuture<()>> {
+    let name = name.as_ref();
+    trace!("Inserting file with name '{}'", name);
+
+    serialise(&file)
+        .map_err(From::from)
+        .and_then(|encoded| {
+            let key = parent.enc_entry_key(name.as_bytes())?;
+            let value = parent.enc_entry_value(&encoded)?;
+
+            Ok((key, value))
+        })
+        .into_future()
+        .and_then(move |(key, value)| {
+            client.mutate_mdata_entries(parent.name,
+                                        parent.type_tag,
+                                        EntryActions::new().ins(key, value, 0).into())
+        })
+        .map_err(From::from)
+        .into_box()
+}
 
 /// Gets a file from the directory
 pub fn fetch<S: AsRef<str>>(client: Client,
                             parent: MDataInfo,
                             name: S)
-                            -> Box<CoreFuture<(u64, File)>> {
-    let key = fry!(parent.enc_entry_key(name.as_ref().as_bytes()));
-
-    client.get_mdata_value(parent.name, parent.type_tag, key)
-        .and_then(move |val| {
-            let plaintext = parent.decrypt(&val.content)?;
-            let file = deserialise::<File>(&plaintext)?;
-            Ok((val.entry_version, file))
+                            -> Box<NfsFuture<(u64, File)>> {
+    parent.enc_entry_key(name.as_ref().as_bytes())
+        .into_future()
+        .and_then(move |key| {
+            client.get_mdata_value(parent.name, parent.type_tag, key)
+                .map(move |value| (value, parent))
         })
+        .and_then(move |(value, parent)| {
+            let plaintext = parent.decrypt(&value.content)?;
+            let file = deserialise(&plaintext)?;
+            Ok((value.entry_version, file))
+        })
+        .map_err(convert_error)
         .into_box()
 }
 
 /// Returns a reader for reading the file contents
-pub fn read(client: Client, file: &File) -> Result<Reader, NfsError> {
+pub fn read(client: Client, file: &File) -> Box<NfsFuture<Reader>> {
     trace!("Reading file {:?}", file);
     Reader::new(client.clone(), SelfEncryptionStorage::new(client), file)
 }
@@ -53,38 +83,62 @@ pub fn delete<S: AsRef<str>>(client: Client,
                              parent: MDataInfo,
                              name: S,
                              version: u64)
-                             -> Box<CoreFuture<()>> {
+                             -> Box<NfsFuture<()>> {
     let name = name.as_ref();
     trace!("Deleting file with name {}.", name);
 
     let key = fry!(parent.enc_entry_key(name.as_bytes()));
 
     client.mutate_mdata_entries(parent.name,
-                                parent.type_tag,
-                                EntryActions::new()
-                                    .del(key, version)
-                                    .into())
+                              parent.type_tag,
+                              EntryActions::new()
+                                  .del(key, version)
+                                  .into())
+        .map_err(convert_error)
+        .into_box()
 }
 
 /// Updates the file.
+/// If `version` is 0, the current version is first retrieved from the network,
+/// and that version incremented by one is then used as the actual version.
 pub fn update<S: AsRef<str>>(client: Client,
                              parent: MDataInfo,
                              name: S,
                              file: File,
                              version: u64)
-                             -> Box<CoreFuture<()>> {
+                             -> Box<NfsFuture<()>> {
     let name = name.as_ref();
     trace!("Updating file with name '{}'", name);
 
-    let key = fry!(parent.enc_entry_key(name.as_bytes()));
-    let plaintext = fry!(serialise(&file));
-    let ciphertext = fry!(parent.enc_entry_value(&plaintext));
+    let client2 = client.clone();
 
-    client.mutate_mdata_entries(parent.name,
-                                parent.type_tag,
-                                EntryActions::new()
-                                    .update(key, ciphertext, version)
-                                    .into())
+    serialise(&file)
+        .map_err(From::from)
+        .and_then(|encoded| {
+            let key = parent.enc_entry_key(name.as_bytes())?;
+            let content = parent.enc_entry_value(&encoded)?;
+
+            Ok((key, content))
+        })
+        .into_future()
+        .and_then(move |(key, content)| {
+            if version != 0 {
+                Ok((key, content, version, parent)).into_future().into_box()
+            } else {
+                client.get_mdata_value(parent.name, parent.type_tag, key.clone())
+                    .map(move |value| (key, content, value.entry_version + 1, parent))
+                    .into_box()
+            }
+        })
+        .and_then(move |(key, content, version, parent)| {
+            client2.mutate_mdata_entries(parent.name,
+                                         parent.type_tag,
+                                         EntryActions::new()
+                                             .update(key, content, version)
+                                             .into())
+        })
+        .map_err(convert_error)
+        .into_box()
 }
 
 /// Helper function to Update content of a file in a directory. A writer
@@ -97,7 +151,7 @@ pub fn update_content<S: Into<String>>(client: Client,
                                        file: File,
                                        version: u64,
                                        mode: Mode)
-                                       -> Box<CoreFuture<Writer>> {
+                                       -> Box<NfsFuture<Writer>> {
     let name = name.into();
     trace!("Updating content in file with name {}", name);
 
@@ -119,7 +173,7 @@ pub fn create<S: Into<String>>(client: Client,
                                parent: MDataInfo,
                                name: S,
                                user_metadata: Vec<u8>)
-                               -> Box<CoreFuture<Writer>> {
+                               -> Box<NfsFuture<Writer>> {
     let name = name.into();
     trace!("Creating file with name {}.", name);
 
@@ -127,9 +181,19 @@ pub fn create<S: Into<String>>(client: Client,
                 SelfEncryptionStorage::new(client),
                 Mode::Overwrite,
                 parent,
-                File::new(user_metadata, DataMap::None),
+                File::new(user_metadata),
                 name,
                 None)
+}
+
+// This is different from `impl From<CoreError> for NfsError`, because it maps
+// `NoSuchEntry` to `FileNotFound`.
+// TODO:  consider performing such conversion directly in the mentioned `impl From`.
+fn convert_error(err: CoreError) -> NfsError {
+    match err {
+        CoreError::RoutingClientError(ClientError::NoSuchEntry) => NfsError::FileNotFound,
+        _ => NfsError::from(err),
+    }
 }
 
 #[cfg(test)]
@@ -165,7 +229,10 @@ mod tests {
             create_test_file(client.clone())
                 .then(move |res| {
                     let (_dir, file) = unwrap!(res);
-                    let reader = unwrap!(file_helper::read(c2, &file));
+                    file_helper::read(c2, &file)
+                })
+                .then(|res| {
+                    let reader = unwrap!(res);
                     let size = reader.size();
                     println!("reading {} bytes", size);
                     reader.read(0, size)
@@ -195,13 +262,15 @@ mod tests {
                 })
                 .then(move |res| {
                     let file = unwrap!(res);
-
-                    let reader = unwrap!(file_helper::read(c3, &file));
+                    file_helper::read(c3, &file)
+                })
+                .then(|res| {
+                    let reader = unwrap!(res);
                     let size = reader.size();
                     println!("reading {} bytes", size);
                     reader.read(0, size)
                 })
-                .map(move |data| {
+                .map(|data| {
                     assert_eq!(data, vec![1u8; 50]);
                 })
         });
@@ -226,8 +295,10 @@ mod tests {
                 })
                 .then(move |res| {
                     let file = unwrap!(res);
-
-                    let reader = unwrap!(file_helper::read(c3, &file));
+                    file_helper::read(c3, &file)
+                })
+                .then(|res| {
+                    let reader = unwrap!(res);
                     let size = reader.size();
                     reader.read(0, size)
                         .map(move |data| {

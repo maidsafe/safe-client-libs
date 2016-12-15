@@ -24,6 +24,7 @@ use core::SelfEncryptionStorageError;
 use futures::sync::mpsc::SendError;
 use ipc::IpcError;
 use maidsafe_utilities::serialisation::SerialisationError;
+use nfs::NfsError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error;
 use std::io::Error as IoError;
@@ -37,6 +38,8 @@ pub enum AppError {
     CoreError(CoreError),
     /// IPC error.
     IpcError(IpcError),
+    /// NFS error.
+    NfsError(NfsError),
     /// Generic encoding / decoding failure.
     EncodeDecodeError,
     /// Forbidden operation
@@ -89,6 +92,18 @@ impl From<IpcError> for AppError {
             IpcError::EncodeDecodeError => AppError::EncodeDecodeError,
             IpcError::Unexpected(reason) => AppError::Unexpected(reason),
             _ => AppError::IpcError(err),
+        }
+    }
+}
+
+impl From<NfsError> for AppError {
+    fn from(err: NfsError) -> Self {
+        match err {
+            NfsError::CoreError(err) => AppError::CoreError(err),
+            NfsError::UnsuccessfulEncodeDecode(_) => AppError::EncodeDecodeError,
+            NfsError::SelfEncryption(err) => AppError::SelfEncryption(err),
+            NfsError::Unexpected(reason) => AppError::Unexpected(reason),
+            _ => AppError::NfsError(err),
         }
     }
 }
@@ -158,6 +173,7 @@ impl Into<i32> for AppError {
         match self {
             AppError::CoreError(err) => err.into(),
             AppError::IpcError(err) => err.into(),
+            AppError::NfsError(err) => err.into(),
             AppError::EncodeDecodeError => APP_ERROR_START_RANGE - 1,
             AppError::Forbidden => APP_ERROR_START_RANGE - 2,
             AppError::NoSuchContainer => APP_ERROR_START_RANGE - 3,

@@ -21,7 +21,7 @@
 
 use core::{Client, FutureExt, SelfEncryptionStorage};
 use futures::Future;
-use nfs::{File, NfsError, NfsFuture};
+use nfs::{File, NfsError, NfsFuture, data_map};
 use self_encryption::SelfEncryptor;
 
 /// Reader is used to read contents of a File. It can read in chunks if the
@@ -37,11 +37,17 @@ impl Reader {
     pub fn new(client: Client,
                storage: SelfEncryptionStorage,
                file: &File)
-               -> Result<Reader, NfsError> {
-        Ok(Reader {
-            client: client,
-            self_encryptor: SelfEncryptor::new(storage, file.datamap().clone())?,
-        })
+               -> Box<NfsFuture<Reader>> {
+        data_map::get(&client, file.data_map_name())
+            .and_then(move |data_map| {
+                let self_encryptor = SelfEncryptor::new(storage, data_map)?;
+
+                Ok(Reader {
+                    client: client,
+                    self_encryptor: self_encryptor,
+                })
+            })
+            .into_box()
     }
 
     /// Returns the total size of the file/blob

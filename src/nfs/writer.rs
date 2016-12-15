@@ -19,10 +19,10 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
-use core::{Client, CoreFuture, FutureExt, MDataInfo, SelfEncryptionStorage};
-use futures::Future;
+use core::{Client, FutureExt, MDataInfo, SelfEncryptionStorage};
+use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
-use nfs::{File, NfsFuture};
+use nfs::{File, NfsFuture, data_map};
 use routing::EntryActions;
 // use rust_sodium::crypto::secretbox;
 use self_encryption::SequentialEncryptor;
@@ -55,14 +55,20 @@ impl Writer {
                file: File,
                file_name: String,
                version: Option<u64>)
-               -> Box<CoreFuture<Writer>> {
-        let data_map = match mode {
-            Mode::Modify => Some(file.datamap().clone()),
-            Mode::Overwrite => None,
+               -> Box<NfsFuture<Writer>> {
+        let fut = match mode {
+            Mode::Modify => {
+                data_map::get(&client, file.data_map_name())
+                    .map(Some)
+                    .into_box()
+            }
+            Mode::Overwrite => future::ok(None).into_box(),
         };
 
         let client = client.clone();
-        SequentialEncryptor::new(storage, data_map)
+        fut.and_then(move |data_map| {
+                SequentialEncryptor::new(storage, data_map).map_err(From::from)
+            })
             .map(move |encryptor| {
                 Writer {
                     client: client,
@@ -97,14 +103,17 @@ impl Writer {
         let parent = self.parent;
         let file_name = self.file_name;
         let size = self.self_encryptor.len();
-        let client = self.client;
         let version = self.version;
+
+        let client = self.client;
+        let client2 = client.clone();
 
         self.self_encryptor
             .close()
             .map_err(From::from)
-            .and_then(move |(data_map, _)| {
-                file.set_datamap(data_map);
+            .and_then(move |(data_map, _)| data_map::put(&client, data_map))
+            .and_then(move |data_map_name| {
+                file.set_data_map_name(data_map_name);
                 file.set_modified_time(::time::now_utc());
                 file.set_size(size);
 
@@ -118,7 +127,7 @@ impl Writer {
                     EntryActions::new().ins(key, ciphertext, 0)
                 };
 
-                client.mutate_mdata_entries(parent.name, parent.type_tag, actions.into())
+                client2.mutate_mdata_entries(parent.name, parent.type_tag, actions.into())
                     .map(move |_| file)
                     .map_err(From::from)
                     .into_box()
