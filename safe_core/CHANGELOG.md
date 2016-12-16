@@ -1,0 +1,1 @@
+# Safe Core - Change Log

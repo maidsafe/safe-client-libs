@@ -1,32 +1,16 @@
 [package]
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "SAFE Core API library"
-documentation = "http://docs.maidsafe.net/safe_core/latest"
+documentation = "http://docs.maidsafe.net/safe_client_libs/latest"
 homepage = "http://maidsafe.net"
 license = "GPL-3.0"
-name = "safe_core"
+name = "safe_client_libs"
 readme = "README.md"
-repository = "https://github.com/maidsafe/safe_core"
+repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.22.0"
 
-[dependencies]
-clippy = { version = "=0.0.99", optional = true }
-config_file_handler = "~0.4.0"
-futures = "~0.1.6"
-lazy_static = "~0.2.1"
-log = "~0.3.6"
-lru-cache = "~0.1.0"
-maidsafe_utilities = "~0.10.0"
-rand = "~0.3.14"
-# routing = "~0.27.1"
-# routing = { git = "https://github.com/maidsafe/routing.git", branch = "mutable-data" }
-routing = { git = "https://github.com/madadam/routing.git", branch = "mutable-data" }
-rust_sodium = "~0.1.2"
-rustc-serialize = "~0.3.22"
-self_encryption = { git = "https://github.com/maidsafe/self_encryption.git", branch = "dev" }
-time = "~0.1.35"
-tokio-core = "~0.1.1"
-unwrap = "~1.1.0"
+[workspace]
+members = ["ffi_utils", "safe_app", "safe_authenticator", "safe_core"]
 
 [dev-dependencies]
 crossbeam = "~0.2.10"
@@ -62,10 +46,3 @@ name = "simulate_browser"
 bench = false
 test = true
 name = "email"
-
-[features]
-use-mock-routing = []
-
-[lib]
-crate_type = ["staticlib", "rlib", "cdylib"]
-name = "safe_core"

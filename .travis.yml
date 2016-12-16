@@ -23,13 +23,35 @@ before_script:
   - (which cargo-prune && cargo install-update cargo-prune) || cargo install cargo-prune
 script:
   - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
+      set -x;
       (
-        set -x;
+        cd ffi_utils &&
+        cargo fmt -- --write-mode=diff &&
+        cargo test  --verbose --release
+      ) &&
+      (
+        cd safe_core &&
+        cargo fmt -- --write-mode=diff &&
+        cargo rustc --verbose --release -- --test -Zno-trans &&
+        cargo test  --verbose --release --features use-mock-routing
+      ) &&
+      (
+        cd safe_app &&
+        cargo fmt -- --write-mode=diff &&
+        cargo rustc --verbose --release -- --test -Zno-trans &&
+        cargo test  --verbose --release --features use-mock-routing
+      ) &&
+      (
+        cd safe_authenticator &&
         cargo fmt -- --write-mode=diff &&
         cargo rustc --verbose --release -- --test -Zno-trans &&
         cargo test  --verbose --release --features use-mock-routing
       );
     fi
-  - curl -sSL https://github.com/maidsafe/QA/raw/master/bash_scripts/travis/run_clippy.sh | bash
+  - curl -sSL -o run_clippy.sh https://github.com/maidsafe/QA/raw/master/bash_scripts/travis/run_clippy.sh &&
+    (cd ffi_utils && bash ../run_clippy.sh) &&
+    (cd safe_core && bash ../run_clippy.sh) &&
+    (cd safe_app && bash ../run_clippy.sh) &&
+    (cd safe_authenticator && bash ../run_clippy.sh)
 before_cache:
   - cargo prune
