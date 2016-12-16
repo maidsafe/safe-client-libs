@@ -52,8 +52,6 @@
 extern crate ffi_utils;
 extern crate futures;
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate log;
 extern crate maidsafe_utilities;
 extern crate routing;

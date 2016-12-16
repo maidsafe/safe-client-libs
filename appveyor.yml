@@ -25,13 +25,15 @@ configuration:
   - Release
 
 build_script:
-  - cd ffi_utils          ; cargo rustc --verbose --release -- --test -Zno-trans
-  - cd safe_core          ; cargo rustc --verbose --release -- --test -Zno-trans
-  - cd safe_app           ; cargo rustc --verbose --release -- --test -Zno-trans
-  - cd safe_authenticator ; cargo rustc --verbose --release -- --test -Zno-trans
+  - cmd: >-
+      cd ffi_utils          ; cargo rustc --verbose --release -- --test -Zno-trans
+      cd safe_core          ; cargo rustc --verbose --release -- --test -Zno-trans
+      cd safe_app           ; cargo rustc --verbose --release -- --test -Zno-trans
+      cd safe_authenticator ; cargo rustc --verbose --release -- --test -Zno-trans
 
 test_script:
-  - cd ffi_utils          ; cargo test --verbose --release
-  - cd safe_core          ; cargo test --verbose --release --features use-mock-routing
-  - cd safe_app           ; cargo test --verbose --release --features use-mock-routing
-  - cd safe_authenticator ; cargo test --verbose --release --features use-mock-routing
+  - cmd: >-
+      cd ffi_utils          ; cargo test --verbose --release
+      cd safe_core          ; cargo test --verbose --release --features use-mock-routing
+      cd safe_app           ; cargo test --verbose --release --features use-mock-routing
+      cd safe_authenticator ; cargo test --verbose --release --features use-mock-routing
