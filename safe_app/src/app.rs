@@ -97,6 +97,13 @@ impl App {
         })
     }
 
+    /// Create app from Exchange Info and System URI given
+    pub fn from_auth_uri<N>(_: AppExchangeInfo, _: String, _: N) -> Result<Self, AppError>
+        where N: FnMut(Result<NetworkEvent, AppError>) + Send + 'static
+    {
+        Err(AppError::OperationForbidden)
+    }
+
     fn new<N, F>(mut network_observer: N, setup: F) -> Result<Self, AppError>
         where N: FnMut(Result<NetworkEvent, AppError>) + Send + 'static,
               F: FnOnce(Handle, CoreMsgTx<AppContext>, NetworkTx)
@@ -311,11 +318,14 @@ fn fetch_access_info(context: Rc<Registered>, client: &Client) -> Box<AppFuture<
 
 #[cfg(test)]
 mod tests {
+    use ffi_utils::base64_encode;
     use futures::Future;
     use safe_core::{DIR_TAG, MDataInfo};
-    use safe_core::ipc::Permission;
+    use safe_core::ipc::{IpcMsg, IpcResp, Permission, encode_msg};
     use std::collections::HashMap;
-    use test_utils::{create_app_with_access, run};
+    use super::App;
+    use test_utils::{create_app_with_access, create_random_app_info, create_random_auth_granted,
+                     run};
 
     #[test]
     fn refresh_access_info() {
@@ -400,5 +410,21 @@ mod tests {
             f1.join(f2).map(|_| ())
         });
 
+    }
+
+
+    #[test]
+    fn from_auth_uri_simple() {
+        let auth_granted = create_random_auth_granted();
+        let app_info = create_random_app_info();
+        let scheme = format!("safe-{}", &base64_encode(app_info.id.as_bytes()));
+
+        let uri = unwrap!(encode_msg(&IpcMsg::Resp {
+                                         req_id: 0,
+                                         resp: IpcResp::Auth(Ok(auth_granted)),
+                                     },
+                                     &scheme));
+
+        let _ = unwrap!(App::from_auth_uri(app_info, uri, |_| ()));
     }
 }
