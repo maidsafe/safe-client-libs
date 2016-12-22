@@ -19,6 +19,7 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
+use app::{App, AppContext};
 use futures::{Future, IntoFuture, future};
 use maidsafe_utilities::serialisation::serialise;
 use rand;
@@ -30,7 +31,6 @@ use safe_core::ipc::{AccessContInfo, AppExchangeInfo, AppKeys, AuthGranted, Conf
 use safe_core::utils::test_utils::random_client;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
-use super::{App, AppContext};
 use super::errors::AppError;
 
 const ACCESS_CONTAINER_TAG: u64 = 1000;

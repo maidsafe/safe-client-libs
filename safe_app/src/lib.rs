@@ -74,5 +74,6 @@ mod errors;
 #[cfg(test)]
 mod test_utils;
 
-pub use app::{App, AppContext};
+pub use app::App;
+pub use safe_core::ipc::AppExchangeInfo;
 pub use self::errors::*;

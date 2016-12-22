@@ -20,7 +20,7 @@
 // and limitations relating to use of the SAFE Network Software.
 
 use App;
-use AppContext;
+use app::AppContext;
 use errors::AppError;
 use ffi_utils::OpaqueCtx;
 use ffi_utils::callback::{Callback, CallbackArgs};

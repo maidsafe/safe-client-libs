@@ -24,8 +24,8 @@
 #![allow(unsafe_code)]
 
 use ffi_utils::{FfiString, OpaqueCtx, catch_unwind_error_code};
-use safe_core::ipc::AppExchangeInfo;
 use safe_core::NetworkEvent;
+use safe_core::ipc::AppExchangeInfo;
 use std::os::raw::c_void;
 use super::App;
 use super::errors::AppError;
@@ -78,9 +78,7 @@ pub unsafe fn app_from_auth_uri(app_id: FfiString,
                                 vendor: FfiString,
                                 uri: FfiString,
                                 user_data: *mut c_void,
-                                network_observer_cb: unsafe extern "C" fn(*mut c_void,
-                                                                          i32,
-                                                                          i32),
+                                network_observer_cb: unsafe extern "C" fn(*mut c_void, i32, i32),
                                 o_app: *mut *mut App)
                                 -> i32 {
     catch_unwind_error_code(|| -> Result<_, AppError> {
@@ -91,7 +89,11 @@ pub unsafe fn app_from_auth_uri(app_id: FfiString,
             name: name.to_string()?,
             vendor: vendor.to_string()?,
             // an empty FfiString signals None for scope
-            scope: if scope.len == 0 { None } else { Some(scope.to_string()?) }
+            scope: if scope.len == 0 {
+                None
+            } else {
+                Some(scope.to_string()?)
+            },
         };
         let app = App::from_auth_uri(app_info, uri, move |event| {
             call_network_observer(event, user_data.0, network_observer_cb)

@@ -106,13 +106,13 @@ impl App {
         where N: FnMut(Result<NetworkEvent, AppError>) + Send + 'static
     {
         match decode_auth_msg(&uri) {
-            Ok(IpcMsg::Resp{resp, ..}) => {
+            Ok(IpcMsg::Resp { resp, .. }) => {
                 if let IpcResp::Auth(Ok(auth_granted)) = resp {
                     App::registered(app_info, auth_granted, network_observer)
                 } else {
                     Err(AppError::OperationForbidden)
                 }
-            },
+            }
             _ => Err(AppError::OperationForbidden),
         }
     }
