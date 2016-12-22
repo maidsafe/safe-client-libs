@@ -33,7 +33,8 @@ use rust_sodium::crypto::hash::sha256;
 use rust_sodium::crypto::secretbox;
 use safe_core::{Client, ClientKeys, CoreMsg, CoreMsgTx, FutureExt, MDataInfo, NetworkEvent,
                 NetworkTx, event_loop, utils};
-use safe_core::ipc::{AccessContInfo, AppExchangeInfo, AppKeys, AuthGranted, Permission};
+use safe_core::ipc::{AccessContInfo, AppExchangeInfo, AppKeys, AuthGranted, IpcMsg, IpcResp,
+                     Permission, decode_msg as decode_auth_msg};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
@@ -97,11 +98,23 @@ impl App {
         })
     }
 
-    /// Create app from Exchange Info and System URI given
-    pub fn from_auth_uri<N>(_: AppExchangeInfo, _: String, _: N) -> Result<Self, AppError>
+    /// Create app from Exchange Info and authentication URI given
+    pub fn from_auth_uri<N>(app_info: AppExchangeInfo,
+                            uri: String,
+                            network_observer: N)
+                            -> Result<Self, AppError>
         where N: FnMut(Result<NetworkEvent, AppError>) + Send + 'static
     {
-        Err(AppError::OperationForbidden)
+        match decode_auth_msg(&uri) {
+            Ok(IpcMsg::Resp{resp, ..}) => {
+                if let IpcResp::Auth(Ok(auth_granted)) = resp {
+                    App::registered(app_info, auth_granted, network_observer)
+                } else {
+                    Err(AppError::OperationForbidden)
+                }
+            },
+            _ => Err(AppError::OperationForbidden),
+        }
     }
 
     fn new<N, F>(mut network_observer: N, setup: F) -> Result<Self, AppError>
