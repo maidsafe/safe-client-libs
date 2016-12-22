@@ -22,18 +22,18 @@
 
 //! The actual App
 
+pub use errors::*;
 use futures::{Future, future};
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread::{self, Joiner};
+use object_cache::ObjectCache;
 use rust_sodium::crypto::hash::sha256;
 use rust_sodium::crypto::secretbox;
 use safe_core::{Client, ClientKeys, CoreMsg, CoreMsgTx, FutureExt, MDataInfo, NetworkEvent,
                 NetworkTx, event_loop, utils};
-use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, Permission};
-pub use errors::*;
-use object_cache::ObjectCache;
+use safe_core::ipc::{AccessContInfo, AppExchangeInfo, AppKeys, AuthGranted, Permission};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::rc::Rc;
@@ -71,7 +71,7 @@ impl App {
     }
 
     /// Create registered app.
-    pub fn registered<N>(app_id: String,
+    pub fn registered<N>(app_info: AppExchangeInfo,
                          auth_granted: AuthGranted,
                          network_observer: N)
                          -> Result<Self, AppError>
@@ -92,7 +92,7 @@ impl App {
 
         Self::new(network_observer, move |el_h, core_tx, net_tx| {
             let client = Client::from_keys(client_keys, owner_key, el_h, core_tx, net_tx)?;
-            let context = AppContext::registered(app_id, enc_key, access_container);
+            let context = AppContext::registered(app_info, enc_key, access_container);
             Ok((client, context))
         })
     }
@@ -170,12 +170,13 @@ pub enum AppContext {
 #[allow(missing_docs)]
 pub struct Unregistered {
     object_cache: ObjectCache,
+    app_info: Option<AppExchangeInfo>,
 }
 
 #[allow(missing_docs)]
 pub struct Registered {
     object_cache: ObjectCache,
-    app_id: String,
+    app_info: AppExchangeInfo,
     sym_enc_key: secretbox::Key,
     access_container_info: AccessContInfo,
     access_info: RefCell<HashMap<String, (MDataInfo, BTreeSet<Permission>)>>,
@@ -183,16 +184,19 @@ pub struct Registered {
 
 impl AppContext {
     fn unregistered() -> Self {
-        AppContext::Unregistered(Rc::new(Unregistered { object_cache: ObjectCache::new() }))
+        AppContext::Unregistered(Rc::new(Unregistered {
+            object_cache: ObjectCache::new(),
+            app_info: None,
+        }))
     }
 
-    fn registered(app_id: String,
+    fn registered(app_info: AppExchangeInfo,
                   sym_enc_key: secretbox::Key,
                   access_container_info: AccessContInfo)
                   -> Self {
         AppContext::Registered(Rc::new(Registered {
             object_cache: ObjectCache::new(),
-            app_id: app_id,
+            app_info: app_info,
             sym_enc_key: sym_enc_key,
             access_container_info: access_container_info,
             access_info: RefCell::new(HashMap::new()),
@@ -210,6 +214,17 @@ impl AppContext {
     /// Symmetric encryption/decryption key.
     pub fn sym_enc_key(&self) -> Result<&secretbox::Key, AppError> {
         Ok(&self.as_registered()?.sym_enc_key)
+    }
+
+    /// Get App Info if given
+    pub fn get_app_info(&self) -> Option<AppExchangeInfo> {
+        match *self {
+            AppContext::Unregistered(ref context) if context.app_info.is_some() => {
+                context.app_info.clone()
+            }
+            AppContext::Registered(ref context) => Some(context.app_info.clone()),
+            _ => None,
+        }
     }
 
     /// Refresh access info by fetching it from the network.
@@ -265,7 +280,7 @@ impl AppContext {
 
 fn refresh_access_info(context: Rc<Registered>, client: &Client) -> Box<AppFuture<()>> {
     let entry_key = {
-        let app_id_hash = sha256::hash(context.app_id.as_bytes()).0;
+        let app_id_hash = sha256::hash(context.app_info.id.as_bytes()).0;
         let nonce = context.access_container_info.nonce;
 
         fry!(utils::symmetric_encrypt(&app_id_hash, &context.sym_enc_key, Some(&nonce)))

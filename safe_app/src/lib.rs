@@ -74,5 +74,5 @@ mod errors;
 #[cfg(test)]
 mod test_utils;
 
-pub use self::errors::*;
 pub use app::{App, AppContext};
+pub use self::errors::*;
