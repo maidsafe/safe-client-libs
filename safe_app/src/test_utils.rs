@@ -19,6 +19,7 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
+use app::{App, AppContext};
 use futures::{Future, IntoFuture, future};
 use maidsafe_utilities::serialisation::serialise;
 use rand;
@@ -26,11 +27,10 @@ use routing::{Action, MutableData, PermissionSet, User, Value};
 use rust_sodium::crypto::{box_, secretbox, sign};
 use rust_sodium::crypto::hash::sha256;
 use safe_core::{Client, CoreFuture, FutureExt, MDataInfo, utils};
-use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, Config, Permission};
+use safe_core::ipc::{AccessContInfo, AppExchangeInfo, AppKeys, AuthGranted, Config, Permission};
 use safe_core::utils::test_utils::random_client;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
-use super::{App, AppContext};
 use super::errors::AppError;
 
 const ACCESS_CONTAINER_TAG: u64 = 1000;
@@ -76,10 +76,9 @@ pub fn run<F, I, T>(app: &App, f: F) -> T
     unwrap!(unwrap!(rx.recv()))
 }
 
-// Create registered app.
-pub fn create_app() -> App {
-    let app_id = unwrap!(utils::generate_random_string(10));
 
+/// Create random AuthGranted for testing
+pub fn create_random_auth_granted() -> AuthGranted {
     let enc_key = secretbox::gen_key();
     let (sign_pk, sign_sk) = sign::gen_keypair();
     let (enc_pk, enc_sk) = box_::gen_keypair();
@@ -105,13 +104,27 @@ pub fn create_app() -> App {
         nonce: secretbox::gen_nonce(),
     };
 
-    let auth_granted = AuthGranted {
+    AuthGranted {
         app_keys: app_keys,
         bootstrap_config: Config,
         access_container: access_container,
-    };
+    }
+}
 
-    unwrap!(App::registered(app_id, auth_granted, |_network_event| ()))
+pub fn create_random_app_info() -> AppExchangeInfo {
+    AppExchangeInfo {
+        id: unwrap!(utils::generate_random_string(10)),
+        scope: None,
+        name: unwrap!(utils::generate_random_string(10)),
+        vendor: unwrap!(utils::generate_random_string(10)),
+    }
+}
+
+// Create registered app.
+pub fn create_app() -> App {
+    unwrap!(App::registered(create_random_app_info(),
+                            create_random_auth_granted(),
+                            |_network_event| ()))
 }
 
 /*
@@ -127,7 +140,12 @@ pub fn create_unregistered_app() -> App {
 pub fn create_app_with_access(access_info: HashMap<String, (MDataInfo, BTreeSet<Permission>)>,
                               create_containers: bool)
                               -> App {
-    let app_id = unwrap!(utils::generate_random_string(10));
+    let app_info = AppExchangeInfo {
+        id: unwrap!(utils::generate_random_string(10)),
+        scope: None,
+        name: "App Test".to_string(),
+        vendor: "MaidSafe Ltd.".to_string(),
+    };
     let enc_key = secretbox::gen_key();
     let (sign_pk, sign_sk) = sign::gen_keypair();
     let (enc_pk, enc_sk) = box_::gen_keypair();
@@ -139,9 +157,10 @@ pub fn create_app_with_access(access_info: HashMap<String, (MDataInfo, BTreeSet<
         nonce: secretbox::gen_nonce(),
     };
 
-    let access_container_key = unwrap!(utils::symmetric_encrypt(&sha256::hash(app_id.as_bytes()).0,
-                                           &enc_key,
-                                           Some(&access_container_info.nonce)));
+    let access_container_key =
+        unwrap!(utils::symmetric_encrypt(&sha256::hash(app_info.id.as_bytes()).0,
+                                         &enc_key,
+                                         Some(&access_container_info.nonce)));
 
     let access_container_value = {
         let value = unwrap!(serialise(&access_info));
@@ -196,7 +215,7 @@ pub fn create_app_with_access(access_info: HashMap<String, (MDataInfo, BTreeSet<
         access_container: access_container_info,
     };
 
-    unwrap!(App::registered(app_id, auth_granted, |_| ()))
+    unwrap!(App::registered(app_info, auth_granted, |_| ()))
 }
 
 fn create_all_mdata(client: Client, infos: Vec<MDataInfo>) -> Box<CoreFuture<()>> {

@@ -182,7 +182,7 @@ pub unsafe extern "C" fn cipher_opt_free(app: *const App,
 
 #[cfg(test)]
 mod tests {
-    use ::{App, AppContext};
+    use app::{App, AppContext};
     use errors::AppError;
     use ffi_utils::ErrorCode;
     use ffi_utils::test_utils::{call_0, call_1};
