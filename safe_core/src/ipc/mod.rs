@@ -29,16 +29,12 @@ mod errors;
 use ffi_utils::{base64_decode, base64_encode};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::{self, Rng};
+pub use routing::BootstrapConfig;
 pub use self::errors::IpcError;
 pub use self::req::{AppExchangeInfo, AuthReq, ContainersReq, IpcReq};
 pub use self::req::ffi::Permission;
 pub use self::resp::{AccessContInfo, AppKeys, AuthGranted, IpcResp, access_container_enc_key};
 use std::u32;
-
-// TODO: replace with `crust::Config`
-/// Placeholder for `crust::Config`
-#[derive(Clone, RustcEncodable, RustcDecodable, Debug, Eq, PartialEq)]
-pub struct Config;
 
 #[derive(RustcEncodable, RustcDecodable, Debug)]
 /// IPC message

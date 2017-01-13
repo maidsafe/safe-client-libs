@@ -84,7 +84,7 @@ pub unsafe extern "C" fn app_registered(app_id: FfiString,
     catch_unwind_error_code(|| -> Result<_, AppError> {
         let user_data = OpaqueCtx(user_data);
         let app_id = app_id.to_string()?;
-        let auth_granted = AuthGranted::from_repr_c(auth_granted);
+        let auth_granted = AuthGranted::from_repr_c(auth_granted)?;
 
         let app = App::registered(app_id, auth_granted, move |event| {
             call_network_observer(event, user_data.0, network_observer_cb)

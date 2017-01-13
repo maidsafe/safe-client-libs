@@ -26,7 +26,7 @@ use routing::{Action, ClientError, EntryActions, PermissionSet, User, Value};
 use rust_sodium::crypto::hash::sha256;
 use rust_sodium::crypto::sign;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, nfs};
-use safe_core::ipc::{self, Config, IpcError, IpcMsg, decode_msg};
+use safe_core::ipc::{self, IpcError, IpcMsg, decode_msg};
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq, ContainersReq, IpcReq};
 use safe_core::ipc::req::ffi::{Permission, convert_permission_set};
 use safe_core::ipc::req::ffi::AuthReq as FfiAuthReq;
@@ -731,6 +731,7 @@ fn encode_auth_resp_impl(client: Client,
     let c4 = client.clone();
     let c5 = client.clone();
     let c6 = client.clone();
+    let c7 = client.clone();
 
     let sign_pk = app.keys.sign_pk;
     let app_keys = app.keys.clone();
@@ -772,7 +773,7 @@ fn encode_auth_resp_impl(client: Client,
         .and_then(move |(dir, app_keys)| {
             Ok(AuthGranted {
                 app_keys: app_keys,
-                bootstrap_config: Config {},
+                bootstrap_config: c7.bootstrap_config(),
                 access_container: AccessContInfo::from_mdata_info(dir)?,
             })
         })

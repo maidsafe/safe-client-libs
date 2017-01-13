@@ -115,7 +115,7 @@ pub fn setup_client_with_net_obs<Create, NetObs, Run, I, T, E>(c: Create,
     let el = unwrap!(Core::new());
     let el_h = el.handle();
 
-    let (mut core_tx, core_rx) = mpsc::unbounded();
+    let (core_tx, core_rx) = mpsc::unbounded();
     let (net_tx, net_rx) = mpsc::unbounded();
     let client = unwrap!(c(el_h.clone(), core_tx.clone(), net_tx));
 
@@ -123,7 +123,7 @@ pub fn setup_client_with_net_obs<Create, NetObs, Run, I, T, E>(c: Create,
         .map_err(|e| panic!("Network event stream error: {:?}", e));
     el_h.spawn(net_fut);
 
-    let mut core_tx_clone = core_tx.clone();
+    let core_tx_clone = core_tx.clone();
     let (result_tx, result_rx) = std_mpsc::channel();
 
     unwrap!(core_tx.send(CoreMsg::new(move |client, &()| {

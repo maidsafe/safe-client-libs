@@ -863,7 +863,7 @@ fn auth_keys() {
 fn setup() -> (Routing, Receiver<Event>, FullId) {
     let full_id = FullId::new();
     let (routing_tx, routing_rx) = mpsc::channel();
-    let routing = unwrap!(Routing::new(routing_tx, Some(full_id.clone())));
+    let routing = unwrap!(Routing::new(routing_tx, Some(full_id.clone()), None));
 
     // Wait until connection is established.
     match unwrap!(routing_rx.recv_timeout(Duration::from_secs(10))) {

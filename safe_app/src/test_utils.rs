@@ -25,7 +25,7 @@ use rand;
 use routing::{Action, MutableData, PermissionSet, User, Value};
 use rust_sodium::crypto::{box_, secretbox, sign};
 use safe_core::{Client, CoreFuture, FutureExt, MDataInfo, utils};
-use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, Config, Permission,
+use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig, Permission,
                      access_container_enc_key};
 use safe_core::utils::test_utils::random_client;
 use std::collections::{BTreeSet, HashMap};
@@ -107,7 +107,7 @@ pub fn create_app() -> App {
 
     let auth_granted = AuthGranted {
         app_keys: app_keys,
-        bootstrap_config: Config,
+        bootstrap_config: BootstrapConfig::default(),
         access_container: access_container,
     };
 
@@ -191,7 +191,7 @@ pub fn create_app_with_access(access_info: HashMap<String, (MDataInfo, BTreeSet<
 
     let auth_granted = AuthGranted {
         app_keys: app_keys,
-        bootstrap_config: Config,
+        bootstrap_config: BootstrapConfig::default(),
         access_container: access_container_info,
     };
 

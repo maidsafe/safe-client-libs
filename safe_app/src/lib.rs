@@ -143,7 +143,7 @@ impl App {
         };
 
         Self::new(network_observer, move |el_h, core_tx, net_tx| {
-            let client = Client::from_keys(client_keys, owner_key, el_h, core_tx, net_tx)?;
+            let client = Client::from_keys(client_keys, owner_key, el_h, core_tx, net_tx, None)?;
             let context = AppContext::registered(app_id, enc_key, access_container);
             Ok((client, context))
         })
@@ -188,14 +188,14 @@ impl App {
                  + Send + 'static
     {
         let msg = CoreMsg::new(f);
-        let mut core_tx = unwrap!(self.core_tx.lock());
+        let core_tx = unwrap!(self.core_tx.lock());
         core_tx.send(msg).map_err(AppError::from)
     }
 }
 
 impl Drop for App {
     fn drop(&mut self) {
-        let mut core_tx = match self.core_tx.lock() {
+        let core_tx = match self.core_tx.lock() {
             Ok(core_tx) => core_tx,
             Err(err) => {
                 info!("Unexpected error in drop: {:?}", err);

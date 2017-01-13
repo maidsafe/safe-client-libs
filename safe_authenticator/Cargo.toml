@@ -16,7 +16,8 @@ futures = "~0.1.6"
 log = "~0.3.6"
 maidsafe_utilities = "~0.10.0"
 # routing = "~0.27.1"
-routing = { git = "https://github.com/maidsafe/routing.git", branch = "mutable-data" }
+#routing = { git = "https://github.com/maidsafe/routing.git", branch = "mutable-data" }
+routing = { git = "https://github.com/vinipsmaker/routing.git", branch = "expose-config" }
 rust_sodium = "~0.1.2"
 rustc-serialize = "~0.3.22"
 safe_core = { path = "../safe_core", version = "~0.22.0" }

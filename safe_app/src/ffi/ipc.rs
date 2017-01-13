@@ -94,7 +94,7 @@ pub unsafe extern "C" fn decode_ipc_msg(msg: FfiString,
                 match res {
                     Ok(auth_granted) => {
                         let auth_granted = auth_granted.into_repr_c();
-                        o_auth(user_data, req_id, auth_granted);
+                        o_auth(user_data, req_id, auth_granted?);
                     }
                     Err(err) => o_err(user_data, ffi_error_code!(AppError::from(err)), req_id),
                 }
@@ -121,7 +121,7 @@ mod tests {
     use rand;
     use rust_sodium::crypto::{box_, secretbox, sign};
     use safe_core::ipc::{self, AccessContInfo, AppExchangeInfo, AppKeys, AuthGranted, AuthReq,
-                         Config, ContainersReq, IpcMsg, IpcReq, IpcResp};
+                         BootstrapConfig, ContainersReq, IpcMsg, IpcReq, IpcResp};
     use safe_core::ipc::req::ffi::Permission;
     use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
     use safe_core::utils;
@@ -215,7 +215,7 @@ mod tests {
 
         let auth_granted = AuthGranted {
             app_keys: gen_app_keys(),
-            bootstrap_config: Config,
+            bootstrap_config: BootstrapConfig::default(),
             access_container: access_container,
         };
 
@@ -283,7 +283,7 @@ mod tests {
         assert!(!context.unexpected_cb);
         assert_eq!(context.req_id, req_id);
         let decoded_auth_granted = unsafe { AuthGranted::from_repr_c(context.auth_granted) };
-        assert_eq!(decoded_auth_granted, auth_granted);
+        assert_eq!(unwrap!(decoded_auth_granted), auth_granted);
     }
 
     #[test]

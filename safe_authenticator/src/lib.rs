@@ -121,7 +121,7 @@ impl Authenticator {
         where F: FnOnce(&Client) -> Option<Box<Future<Item = (), Error = ()>>> + Send + 'static
     {
         let msg = CoreMsg::new(|client, _| f(client));
-        let mut core_tx = unwrap!(self.core_tx.lock());
+        let core_tx = unwrap!(self.core_tx.lock());
         core_tx.send(msg).map_err(AuthError::from)
     }
 
@@ -142,7 +142,7 @@ impl Authenticator {
             let el = try_tx!(Core::new(), tx);
             let el_h = el.handle();
 
-            let (mut core_tx, core_rx) = mpsc::unbounded();
+            let (core_tx, core_rx) = mpsc::unbounded();
             let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
             let core_tx_clone = core_tx.clone();
 
@@ -238,7 +238,7 @@ impl Drop for Authenticator {
     fn drop(&mut self) {
         debug!("Authenticator is now being dropped.");
 
-        let mut core_tx = unwrap!(self.core_tx.lock());
+        let core_tx = unwrap!(self.core_tx.lock());
         let msg = CoreMsg::build_terminator();
 
         if let Err(e) = core_tx.send(msg) {

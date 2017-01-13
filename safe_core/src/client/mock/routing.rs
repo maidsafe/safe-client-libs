@@ -19,6 +19,7 @@
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
 
+use ipc::BootstrapConfig;
 use maidsafe_utilities::thread;
 use rand;
 use routing::{Authority, ClientError, EntryAction, Event, FullId, ImmutableData, InterfaceError,
@@ -69,7 +70,10 @@ pub struct Routing {
 }
 
 impl Routing {
-    pub fn new(sender: Sender<Event>, id: Option<FullId>) -> Result<Self, RoutingError> {
+    pub fn new(sender: Sender<Event>,
+               id: Option<FullId>,
+               _config: Option<BootstrapConfig>)
+               -> Result<Self, RoutingError> {
         ::rust_sodium::init();
 
         let cloned_sender = sender.clone();
@@ -858,6 +862,10 @@ impl Routing {
     #[cfg(test)]
     pub fn set_simulate_timeout(&mut self, enable: bool) {
         self.timeout_simulation = enable;
+    }
+
+    pub fn bootstrap_config(&self) -> BootstrapConfig {
+        BootstrapConfig::default()
     }
 
     fn verify_network_limits(&self, msg_id: MessageId, op: &str) -> Result<(), ClientError> {

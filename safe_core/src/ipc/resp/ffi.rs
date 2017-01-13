@@ -22,7 +22,6 @@
 use routing::XOR_NAME_LEN;
 use rust_sodium::crypto::{box_, secretbox, sign};
 
-// TODO: crust Config once it's no longer a stub
 /// It represents the authentication response.
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -31,6 +30,13 @@ pub struct AuthGranted {
     pub app_keys: AppKeys,
     /// Access container
     pub access_container: AccessContInfo,
+
+    /// Crust's bootstrap config
+    pub bootstrap_config: *const u8,
+    /// `bootstrap_config`'s length
+    pub bootstrap_config_len: usize,
+    /// Used by Rust memory allocator
+    pub bootstrap_config_cap: usize,
 }
 
 /// Free memory
