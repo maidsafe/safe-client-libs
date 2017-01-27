@@ -22,7 +22,7 @@
 //! App-related IPC utilities.
 
 use errors::AppError;
-use ffi_utils::{ReprC, catch_unwind_cb, catch_unwind_error_code, from_c_str};
+use ffi_utils::{ReprC, catch_unwind_cb, from_c_str};
 use safe_core::ipc::{self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp};
 use safe_core::ipc::req::ffi::AuthReq as FfiAuthReq;
 use safe_core::ipc::req::ffi::ContainersReq as FfiContainersReq;
@@ -34,9 +34,11 @@ use std::os::raw::{c_char, c_void};
 #[no_mangle]
 pub unsafe extern "C" fn encode_auth_req(req: *const FfiAuthReq,
                                          user_data: *mut c_void,
-                                         o_cb: extern "C" fn(*mut c_void, u32, *const c_char))
-                                         -> i32 {
-    catch_unwind_error_code(|| -> Result<_, AppError> {
+                                         o_cb: extern "C" fn(*mut c_void,
+                                                             i32,
+                                                             u32,
+                                                             *const c_char)) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let req = AuthReq::from_repr_c_cloned(req)?;
         let req_id = ipc::gen_req_id();
 
@@ -48,7 +50,7 @@ pub unsafe extern "C" fn encode_auth_req(req: *const FfiAuthReq,
         let encoded = ipc::encode_msg(&msg, "safe-auth")?;
         let encoded = CString::new(encoded)?;
 
-        o_cb(user_data, req_id, encoded.as_ptr());
+        o_cb(user_data, 0, req_id, encoded.as_ptr());
 
         Ok(())
     })
@@ -59,10 +61,10 @@ pub unsafe extern "C" fn encode_auth_req(req: *const FfiAuthReq,
 pub unsafe extern "C" fn encode_containers_req(req: *const FfiContainersReq,
                                                user_data: *mut c_void,
                                                o_cb: extern "C" fn(*mut c_void,
+                                                                   i32,
                                                                    u32,
-                                                                   *const c_char))
-                                               -> i32 {
-    catch_unwind_error_code(|| -> Result<_, AppError> {
+                                                                   *const c_char)) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let req = ContainersReq::from_repr_c_cloned(req)?;
         let req_id = ipc::gen_req_id();
 
@@ -74,7 +76,7 @@ pub unsafe extern "C" fn encode_containers_req(req: *const FfiContainersReq,
         let encoded = ipc::encode_msg(&msg, "safe-auth")?;
         let encoded = CString::new(encoded)?;
 
-        o_cb(user_data, req_id, encoded.as_ptr());
+        o_cb(user_data, 0, req_id, encoded.as_ptr());
 
         Ok(())
     })
@@ -141,7 +143,8 @@ mod tests {
         encoded: String,
     }
 
-    extern "C" fn encoded_cb(ctx: *mut c_void, req_id: u32, string: *const c_char) {
+    extern "C" fn encoded_cb(ctx: *mut c_void, err_code: i32, req_id: u32, string: *const c_char) {
+        assert_eq!(err_code, 0);
         unsafe {
             let ctx = ctx as *mut EncodedCtx;
             (*ctx).req_id = req_id;
@@ -164,8 +167,7 @@ mod tests {
             encoded: String::new(),
         };
         let context_ptr: *const EncodedCtx = &context;
-        let error_code = unsafe { encode_auth_req(&req_c, context_ptr as *mut _, encoded_cb) };
-        assert_eq!(error_code, 0);
+        unsafe { encode_auth_req(&req_c, context_ptr as *mut _, encoded_cb) };
 
         let EncodedCtx { req_id, encoded } = context;
 
@@ -201,9 +203,7 @@ mod tests {
         };
         let context_ptr: *const EncodedCtx = &context;
 
-        let error_code =
-            unsafe { encode_containers_req(&req_c, context_ptr as *mut _, encoded_cb) };
-        assert_eq!(error_code, 0);
+        unsafe { encode_containers_req(&req_c, context_ptr as *mut _, encoded_cb) };
 
         let EncodedCtx { req_id, encoded } = context;
 
