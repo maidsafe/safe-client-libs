@@ -332,7 +332,7 @@ impl Client {
     }
 
     #[doc(hidden)]
-    pub fn restart_routing<T>(&self, core_tx: CoreMsgTx<T>, net_tx: NetworkTx)
+    pub fn restart_routing<T>(&self, mut core_tx: CoreMsgTx<T>, mut net_tx: NetworkTx)
         where T: 'static
     {
         let opt_id = if let ClientType::Registered { ref acc, .. } = self.inner().client_type {
