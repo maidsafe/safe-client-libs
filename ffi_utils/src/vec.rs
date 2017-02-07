@@ -20,6 +20,7 @@
 // and limitations relating to use of the SAFE Network Software.
 
 use std::mem;
+use std::ptr;
 use std::slice;
 
 /// Converts a pointer and lengts to Vec<T> by cloning the contents.
@@ -30,6 +31,9 @@ pub unsafe fn vec_clone_from_raw_parts<T: Clone>(ptr: *const T, len: usize) -> V
 /// Converts a Vec<T> to (pointer, size, capacity)
 pub fn vec_into_raw_parts<T>(mut v: Vec<T>) -> (*mut T, usize, usize) {
     v.shrink_to_fit();
+    if v.is_empty() {
+        return (ptr::null_mut(), 0, 0);
+    }
     let ptr = v.as_mut_ptr();
     let len = v.len();
     let cap = v.capacity();
