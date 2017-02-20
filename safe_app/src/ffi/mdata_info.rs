@@ -32,6 +32,26 @@ use std::slice;
 
 /// Create non-encrypted mdata info with explicit data name.
 #[no_mangle]
+pub unsafe extern "C" fn mdata_create_pub_mutable_data(app: *const App,
+                                                   name: *const [u8; XOR_NAME_LEN],
+                                                   type_tag: u64,
+                                                   //entries: TODO define the structure to share the entries list
+                                                   user_data: *mut c_void,
+                                                   o_cb: extern "C" fn(*mut c_void,
+                                                                       i32,
+                                                                       MDataInfoHandle)) {
+    catch_unwind_cb(user_data, o_cb, || {
+        let name = XorName(*name);
+
+        send_sync(app, user_data, o_cb, move |_, context| {
+            let info = MDataInfo::new_public(name, type_tag);
+            Ok(context.object_cache().insert_mdata_info(info))
+        })
+    })
+}
+
+/// Create non-encrypted mdata info with explicit data name.
+#[no_mangle]
 pub unsafe extern "C" fn mdata_info_new_public(app: *const App,
                                                name: *const [u8; XOR_NAME_LEN],
                                                type_tag: u64,
