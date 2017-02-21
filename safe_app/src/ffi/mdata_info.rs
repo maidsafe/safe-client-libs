@@ -22,31 +22,72 @@
 use App;
 use errors::AppError;
 use ffi::helper::send_sync;
-use ffi_utils::{OpaqueCtx, catch_unwind_cb};
+//use ffi_utils::{OpaqueCtx, catch_unwind_cb};
+
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use object_cache::MDataInfoHandle;
+//use object_cache::MDataInfoHandle;
 use routing::{XOR_NAME_LEN, XorName};
-use safe_core::MDataInfo;
+//use safe_core::{CoreError, MDataInfo};
+use routing::MutableData;
 use std::os::raw::c_void;
 use std::slice;
+
+use ffi::helper::send_with_mdata_info;
+use ffi_utils::{OpaqueCtx, catch_unwind_cb, vec_clone_from_raw_parts};
+use futures::Future;
+use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataInfoHandle, MDataKeysHandle,
+                   MDataPermissionSetHandle, MDataPermissionsHandle, MDataValuesHandle,
+                   SignKeyHandle};
+use safe_core::{CoreError, FutureExt, mdata_info, MDataInfo};
+use std::ptr;
+
 
 /// Create non-encrypted mdata info with explicit data name.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_create_pub_mutable_data(app: *const App,
-                                                   name: *const [u8; XOR_NAME_LEN],
-                                                   type_tag: u64,
-                                                   //entries: TODO define the structure to share the entries list
-                                                   user_data: *mut c_void,
-                                                   o_cb: extern "C" fn(*mut c_void,
-                                                                       i32,
-                                                                       MDataInfoHandle)) {
+                                                       name: *const [u8; XOR_NAME_LEN],
+                                                       type_tag: u64,
+                                                       //entries: TODO define the structure to share the entries list
+                                                       user_data: *mut c_void,
+                                                       o_cb: extern "C" fn(*mut c_void,
+                                                                           i32,
+                                                                           MDataInfoHandle)) {
     catch_unwind_cb(user_data, o_cb, || {
         let name = XorName(*name);
+        send_sync(app, user_data, o_cb, move |client, context| {
+            let info_h = MDataInfo::new_public(name, type_tag);
+            let md = context.object_cache().insert_mdata_info(info_h);
 
-        send_sync(app, user_data, o_cb, move |_, context| {
-            let info = MDataInfo::new_public(name, type_tag);
-            Ok(context.object_cache().insert_mdata_info(info))
+            let key = client.public_signing_key()?;
+            let sign_key = context.object_cache().insert_sign_key(key);
+            println!("ASA {}", sign_key);
+
+            //let owner_key = try_cb!(client.owner_key().map_err(AppError::from), user_data, o_cb);
+
+            let permissions = Default::default();
+
+            let entries = Default::default();
+
+            let data = try_cb!(MutableData::new(name,
+                                                type_tag,
+                                                permissions,
+                                                entries,
+                                                btree_set![key])
+                                   .map_err(CoreError::from)
+                                   .map_err(AppError::from),
+                               user_data,
+                               o_cb);
+
+            client.put_mdata(data)
+                .map_err(AppError::from)
+                .then(move |result| {
+                    o_cb(user_data.0, ffi_result_code!(result), md);
+                    Ok(())
+                })
+                .into_box()
+                .into()
         })
+
     })
 }
 
