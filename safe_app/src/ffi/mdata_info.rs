@@ -18,7 +18,7 @@
 //
 // Please review the Licences for the specific language governing permissions
 // and limitations relating to use of the SAFE Network Software.
-
+#![allow(unused_variables)]
 use App;
 use errors::AppError;
 use ffi::helper::send_sync;
@@ -28,67 +28,57 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 //use object_cache::MDataInfoHandle;
 use routing::{XOR_NAME_LEN, XorName};
 //use safe_core::{CoreError, MDataInfo};
-use routing::MutableData;
 use std::os::raw::c_void;
 use std::slice;
 
 use ffi::helper::send_with_mdata_info;
-use ffi_utils::{OpaqueCtx, catch_unwind_cb, vec_clone_from_raw_parts};
+use ffi_utils::{OpaqueCtx, catch_unwind_cb/*, vec_clone_from_raw_parts*/};
 use futures::Future;
-use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataInfoHandle, MDataKeysHandle,
-                   MDataPermissionSetHandle, MDataPermissionsHandle, MDataValuesHandle,
-                   SignKeyHandle};
-use safe_core::{CoreError, FutureExt, mdata_info, MDataInfo};
-use std::ptr;
+use routing::Value;
+use object_cache::MDataInfoHandle;
+use safe_core::{mdata_info, MDataInfo};
 
 
-/// Create non-encrypted mdata info with explicit data name.
+/// Insert an entry to the entries.
 #[no_mangle]
-pub unsafe extern "C" fn mdata_create_pub_mutable_data(app: *const App,
-                                                       name: *const [u8; XOR_NAME_LEN],
-                                                       type_tag: u64,
-                                                       //entries: TODO define the structure to share the entries list
-                                                       user_data: *mut c_void,
-                                                       o_cb: extern "C" fn(*mut c_void,
-                                                                           i32,
-                                                                           MDataInfoHandle)) {
+pub unsafe extern "C" fn mdata_insert_entry(app: *const App,
+                                              info_h: MDataInfoHandle,
+                                              key_ptr: *const u8,
+                                              key_len: usize,
+                                              value_ptr: *const u8,
+                                              value_len: usize,
+                                              user_data: *mut c_void,
+                                              o_cb: extern "C" fn(*mut c_void, i32)) {
+
     catch_unwind_cb(user_data, o_cb, || {
-        let name = XorName(*name);
-        send_sync(app, user_data, o_cb, move |client, context| {
-            let info_h = MDataInfo::new_public(name, type_tag);
-            let md = context.object_cache().insert_mdata_info(info_h);
+        println!("{:?} => {:?}", key_len, value_len);
 
-            let key = client.public_signing_key()?;
-            let sign_key = context.object_cache().insert_sign_key(key);
-            println!("ASA {}", sign_key);
+      send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
+          let context = context.clone();
+          let info = info.clone();
 
-            //let owner_key = try_cb!(client.owner_key().map_err(AppError::from), user_data, o_cb);
+          client.list_mdata_entries(info.name, info.type_tag)
+              .map_err(AppError::from)
+              .and_then(move |entries| {
+                  let mut entries = mdata_info::decrypt_entries(&info, &entries)?;
 
-            let permissions = Default::default();
+                  //let key1 = slice::from_raw_parts(key_ptr, key_len).to_vec();
+                  //let value1 = vec_clone_from_raw_parts(value_ptr, value_len);
 
-            let entries = Default::default();
+                  let key = vec![75];//vec_clone_from_raw_parts(key_ptr, key_len);
+                  let value = vec![86];//vec_clone_from_raw_parts(value_ptr, value_len);
 
-            let data = try_cb!(MutableData::new(name,
-                                                type_tag,
-                                                permissions,
-                                                entries,
-                                                btree_set![key])
-                                   .map_err(CoreError::from)
-                                   .map_err(AppError::from),
-                               user_data,
-                               o_cb);
+                  let _ = entries.insert(key,
+                                         Value {
+                                             content: value,
+                                             entry_version: 0,
+                                         });
+                  let _ = context.object_cache().insert_mdata_entries(entries);
 
-            client.put_mdata(data)
-                .map_err(AppError::from)
-                .then(move |result| {
-                    o_cb(user_data.0, ffi_result_code!(result), md);
-                    Ok(())
-                })
-                .into_box()
-                .into()
-        })
-
-    })
+                  Ok(())
+              })
+      })
+  })
 }
 
 /// Create non-encrypted mdata info with explicit data name.
