@@ -31,15 +31,68 @@ use routing::{XOR_NAME_LEN, XorName};
 use std::os::raw::c_void;
 use std::slice;
 
-use ffi::helper::send_with_mdata_info;
-use ffi_utils::{OpaqueCtx, catch_unwind_cb/*, vec_clone_from_raw_parts*/};
+use ffi_utils::{OpaqueCtx, catch_unwind_cb, vec_clone_from_raw_parts};
 use futures::Future;
-use routing::Value;
+use routing::{Action, EntryAction, Value, MutableData, PermissionSet, User};
 use object_cache::MDataInfoHandle;
-use safe_core::{mdata_info, MDataInfo};
+use safe_core::{mdata_info, MDataInfo, FutureExt, CoreError};
+use std::collections::BTreeMap;
 
+/// Create non-encrypted mdata with explicit data name and default permissions.
+#[no_mangle]
+pub unsafe extern "C" fn mdata_create_pub_mutable_data(app: *const App,
+                                                       name: *const [u8; XOR_NAME_LEN],
+                                                       type_tag: u64,
+                                                       user_data: *mut c_void,
+                                                       o_cb: extern "C" fn(*mut c_void,
+                                                                           i32,
+                                                                           MDataInfoHandle)) {
+    catch_unwind_cb(user_data, o_cb, || {
+        let name = XorName(*name);
+        let user_data = OpaqueCtx(user_data);
 
-/// Insert an entry to the entries.
+        (*app).send(move |client, context| {
+            let info = MDataInfo::new_public(name, type_tag);
+            let info_h = context.object_cache().insert_mdata_info(info.clone());
+
+            let owner_key = try_cb!(client.owner_key().map_err(AppError::from), user_data, o_cb);
+
+            let entries = Default::default();
+
+            let mut perm_set = PermissionSet::new();
+            perm_set = perm_set.allow(Action::Insert);
+            perm_set = perm_set.allow(Action::Update);
+            perm_set = perm_set.allow(Action::Delete);
+            perm_set = perm_set.allow(Action::ManagePermissions);
+
+            let user_key = client.public_signing_key().unwrap();
+
+            let mut output = BTreeMap::new();
+            let _ = output.insert(User::Key(user_key), perm_set);
+
+            let data = try_cb!(MutableData::new(info.name,
+                                                info.type_tag,
+                                                output,
+                                                entries,
+                                                btree_set![owner_key])
+                       .map_err(CoreError::from)
+                       .map_err(AppError::from),
+                                   user_data,
+                                   o_cb);
+
+            client.put_mdata(data)
+                .map_err(AppError::from)
+                .then(move |result| {
+                    o_cb(user_data.0, ffi_result_code!(result), info_h);
+                    Ok(())
+                })
+                .into_box()
+                .into()
+        })
+    })
+}
+
+/// Insert an entry to the MutableData and send the tx to the network.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_insert_entry(app: *const App,
                                               info_h: MDataInfoHandle,
@@ -51,35 +104,81 @@ pub unsafe extern "C" fn mdata_insert_entry(app: *const App,
                                               o_cb: extern "C" fn(*mut c_void, i32)) {
 
     catch_unwind_cb(user_data, o_cb, || {
-        println!("{:?} => {:?}", key_len, value_len);
+        let mut actions: BTreeMap<Vec<u8>, EntryAction> = Default::default();
+        let key = vec_clone_from_raw_parts(key_ptr, key_len);
+        let value = vec_clone_from_raw_parts(value_ptr, value_len);
+        let action = EntryAction::Ins(Value {
+              content: value,
+              entry_version: 0,
+        });
+        let _ = actions.insert(key, action);
 
-      send_with_mdata_info(app, info_h, user_data, o_cb, move |client, context, info| {
-          let context = context.clone();
-          let info = info.clone();
 
-          client.list_mdata_entries(info.name, info.type_tag)
-              .map_err(AppError::from)
-              .and_then(move |entries| {
-                  let mut entries = mdata_info::decrypt_entries(&info, &entries)?;
+        let user_data = OpaqueCtx(user_data);
 
-                  //let key1 = slice::from_raw_parts(key_ptr, key_len).to_vec();
-                  //let value1 = vec_clone_from_raw_parts(value_ptr, value_len);
+        (*app).send(move |client, context| {
+            let info = try_cb!(context.object_cache().get_mdata_info(info_h),
+                               user_data,
+                               o_cb);
+            let actions = try_cb!(mdata_info::encrypt_entry_actions(&info, &actions).map_err(AppError::from),
+                        user_data,
+                        o_cb);
 
-                  let key = vec![75];//vec_clone_from_raw_parts(key_ptr, key_len);
-                  let value = vec![86];//vec_clone_from_raw_parts(value_ptr, value_len);
-
-                  let _ = entries.insert(key,
-                                         Value {
-                                             content: value,
-                                             entry_version: 0,
-                                         });
-                  let _ = context.object_cache().insert_mdata_entries(entries);
-
-                  Ok(())
-              })
-      })
-  })
+            client.mutate_mdata_entries(info.name, info.type_tag, actions)
+                .map_err(AppError::from)
+                .then(move |result| {
+                    o_cb(user_data.0, ffi_result_code!(result));
+                    Ok(())
+                })
+                .into_box()
+                .into()
+        })
+    })
 }
+
+/// Update an entry of the MutableData and send the tx to the network.
+#[no_mangle]
+pub unsafe extern "C" fn mdata_update_entry(app: *const App,
+                                              info_h: MDataInfoHandle,
+                                              key_ptr: *const u8,
+                                              key_len: usize,
+                                              value_ptr: *const u8,
+                                              value_len: usize,
+                                              user_data: *mut c_void,
+                                              o_cb: extern "C" fn(*mut c_void, i32)) {
+
+    catch_unwind_cb(user_data, o_cb, || {
+        let mut actions: BTreeMap<Vec<u8>, EntryAction> = Default::default();
+        let key = vec_clone_from_raw_parts(key_ptr, key_len);
+        let value = vec_clone_from_raw_parts(value_ptr, value_len);
+        let action = EntryAction::Update(Value {
+              content: value,
+              entry_version: 1, // FIXME: we need to fetch current version and add 1 to it
+        });
+        let _ = actions.insert(key, action);
+
+        let user_data = OpaqueCtx(user_data);
+
+        (*app).send(move |client, context| {
+            let info = try_cb!(context.object_cache().get_mdata_info(info_h),
+                               user_data,
+                               o_cb);
+            let actions = try_cb!(mdata_info::encrypt_entry_actions(&info, &actions).map_err(AppError::from),
+                        user_data,
+                        o_cb);
+
+            client.mutate_mdata_entries(info.name, info.type_tag, actions)
+                .map_err(AppError::from)
+                .then(move |result| {
+                    o_cb(user_data.0, ffi_result_code!(result));
+                    Ok(())
+                })
+                .into_box()
+                .into()
+        })
+    })
+}
+
 
 /// Create non-encrypted mdata info with explicit data name.
 #[no_mangle]
