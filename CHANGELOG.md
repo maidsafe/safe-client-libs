@@ -1,7 +1,7 @@
 # Safe Core - Change Log
 
 ## [0.22.3]
-- Integrate with routing 0.28.1
+- Integrate with routing 0.28.2
 
 ## [0.22.2]
 - Integrate with routing 0.28.0
