@@ -196,14 +196,14 @@ impl App {
                  + Send + 'static
     {
         let msg = CoreMsg::new(f);
-        let core_tx = unwrap!(self.core_tx.lock());
+        let mut core_tx = unwrap!(self.core_tx.lock());
         core_tx.send(msg).map_err(AppError::from)
     }
 }
 
 impl Drop for App {
     fn drop(&mut self) {
-        let core_tx = match self.core_tx.lock() {
+        let mut core_tx = match self.core_tx.lock() {
             Ok(core_tx) => core_tx,
             Err(err) => {
                 info!("Unexpected error in drop: {:?}", err);
