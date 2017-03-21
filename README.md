@@ -6,7 +6,7 @@
 |:---:|:--------:|:-----:|:------:|:----:|
 |[![](http://meritbadge.herokuapp.com/safe_core)](https://crates.io/crates/safe_core)|[![Build Status](https://travis-ci.org/maidsafe/safe_core.svg?branch=master)](https://travis-ci.org/maidsafe/safe_core)|[![Build status](https://ci.appveyor.com/api/projects/status/c61jthx04us5j57j/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-core/branch/master)|[![Coverage Status](https://coveralls.io/repos/maidsafe/safe_core/badge.svg?branch=master)](https://coveralls.io/r/maidsafe/safe_core?branch=master)|[![Stories in Ready](https://badge.waffle.io/maidsafe/safe_core.png?label=ready&title=Ready)](https://waffle.io/maidsafe/safe_core)|
 
-| [API Docs - master branch](http://docs.maidsafe.net/safe_core/master) | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
+| [API Docs - master branch](http://docs.maidsafe.net) | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
 |:------:|:-------:|:-------:|:-------:|
 
 ## Build Instructions
