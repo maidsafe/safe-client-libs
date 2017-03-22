@@ -36,8 +36,9 @@ use rand::{self, Rng};
 pub use routing::BootstrapConfig;
 use std::u32;
 
-#[derive(RustcEncodable, RustcDecodable, Debug)]
 /// IPC message
+#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
+#[derive(RustcEncodable, RustcDecodable, Debug)]
 pub enum IpcMsg {
     /// Request
     Req {

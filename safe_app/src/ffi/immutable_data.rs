@@ -131,7 +131,7 @@ pub unsafe extern "C" fn idata_close_self_encryptor(app: *const App,
                     Ok(enc_data_map)
                 })
                 .and_then(move |enc_data_map| {
-                              immutable_data::create(&client2, enc_data_map, None)
+                              immutable_data::create(&client2, &enc_data_map, None)
                                   .map_err(AppError::from)
                           })
                 .and_then(move |data| {

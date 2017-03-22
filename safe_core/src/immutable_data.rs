@@ -39,7 +39,7 @@ enum DataTypeEncoding {
 /// encrypt the right content if the keys are provided and will ensure the
 /// maximum immutable data chunk size is respected.
 pub fn create(client: &Client,
-              value: Vec<u8>,
+              value: &[u8],
               encryption_key: Option<secretbox::Key>)
               -> Box<CoreFuture<ImmutableData>> {
     trace!("Creating conformant ImmutableData.");
@@ -48,7 +48,7 @@ pub fn create(client: &Client,
     let storage = SelfEncryptionStorage::new(client.clone());
     let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
 
-    self_encryptor.write(&value, 0)
+    self_encryptor.write(value, 0)
         .and_then(move |_| self_encryptor.close())
         .map_err(From::from)
         .and_then(move |(data_map, _)| {
@@ -69,7 +69,7 @@ pub fn create(client: &Client,
 /// Get the raw bytes from `ImmutableData` created via `create()` function in
 /// this module.
 pub fn extract_value(client: &Client,
-                     data: ImmutableData,
+                     data: &ImmutableData,
                      decryption_key: Option<secretbox::Key>)
                      -> Box<CoreFuture<Vec<u8>>> {
     let client = client.clone();
@@ -102,7 +102,7 @@ pub fn get_value(client: &Client,
                  -> Box<CoreFuture<Vec<u8>>> {
     let client2 = client.clone();
     client.get_idata(*name)
-        .and_then(move |data| extract_value(&client2, data, decryption_key))
+        .and_then(move |data| extract_value(&client2, &data, decryption_key))
         .into_box()
 }
 
@@ -128,7 +128,7 @@ fn pack(client: Client, value: Vec<u8>) -> Box<CoreFuture<ImmutableData>> {
     }
 }
 
-fn unpack(client: Client, data: ImmutableData) -> Box<CoreFuture<Vec<u8>>> {
+fn unpack(client: Client, data: &ImmutableData) -> Box<CoreFuture<Vec<u8>>> {
     match fry!(deserialise(data.value())) {
         DataTypeEncoding::Serialised(value) => ok!(value),
         DataTypeEncoding::DataMap(data_map) => {
@@ -139,7 +139,7 @@ fn unpack(client: Client, data: ImmutableData) -> Box<CoreFuture<Vec<u8>>> {
                 .map_err(From::from)
                 .and_then(move |serialised_data| {
                               let data = fry!(deserialise(&serialised_data));
-                              unpack(client, data)
+                              unpack(client, &data)
                           })
                 .into_box()
         }
@@ -186,7 +186,7 @@ mod tests {
                 let client2 = client.clone();
                 let client3 = client.clone();
 
-                create(client, value_before.clone(), None)
+                create(client, &value_before.clone(), None)
                     .then(move |res| {
                               let data_before = unwrap!(res);
                               let data_name = *data_before.name();
@@ -213,7 +213,7 @@ mod tests {
                 let client2 = client.clone();
                 let client3 = client.clone();
 
-                create(client, value_before.clone(), Some(key.clone()))
+                create(client, &value_before.clone(), Some(key.clone()))
                     .then(move |res| {
                               let data_before = unwrap!(res);
                               let data_name = *data_before.name();
@@ -240,7 +240,7 @@ mod tests {
                 let client2 = client.clone();
                 let client3 = client.clone();
 
-                create(client, value, None)
+                create(client, &value, None)
                     .then(move |res| {
                               let data = unwrap!(res);
                               let data_name = *data.name();
@@ -266,7 +266,7 @@ mod tests {
                 let client2 = client.clone();
                 let client3 = client.clone();
 
-                create(client, value, Some(key))
+                create(client, &value, Some(key))
                     .then(move |res| {
                               let data = unwrap!(res);
                               let data_name = *data.name();

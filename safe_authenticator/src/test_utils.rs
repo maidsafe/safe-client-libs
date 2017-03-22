@@ -135,6 +135,7 @@ pub fn rand_app() -> Result<AppExchangeInfo, CoreError> {
 }
 
 /// Fetch the access container entry for the app.
+#[cfg_attr(rustfmt, rustfmt_skip)]
 pub fn access_container<S: Into<String>>(authenticator: &Authenticator,
                                          app_id: S,
                                          auth_granted: AuthGranted)
@@ -143,7 +144,7 @@ pub fn access_container<S: Into<String>>(authenticator: &Authenticator,
     let ac_md_info = auth_granted.access_container.into_mdata_info(app_keys.enc_key.clone());
     let app_id = app_id.into();
     run(authenticator, move |client| {
-        access_container_entry(client.clone(), &ac_md_info, &app_id, app_keys)
+        access_container_entry(client, &ac_md_info, &app_id, app_keys)
             .map(move |(_, ac_entry)| ac_entry)
     })
 }

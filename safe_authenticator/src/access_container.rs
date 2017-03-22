@@ -30,7 +30,7 @@ use safe_core::ipc::resp::access_container_enc_key;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
 
 /// Retrieves the authenticator configuration file
-pub fn access_container(client: Client) -> Box<AuthFuture<MDataInfo>> {
+pub fn access_container(client: &Client) -> Box<AuthFuture<MDataInfo>> {
     let parent = fry!(client.config_root_dir());
     let key = fry!(parent.enc_entry_key(b"access-container"));
 
@@ -55,7 +55,7 @@ pub fn access_container_nonce(access_container: &MDataInfo)
 }
 
 /// Gets an access container entry
-pub fn access_container_entry(client: Client,
+pub fn access_container_entry(client: &Client,
                               access_container: &MDataInfo,
                               app_id: &str,
                               app_keys: AppKeys)
@@ -73,11 +73,11 @@ pub fn access_container_entry(client: Client,
 }
 
 /// Adds a new entry to the authenticator access container
-pub fn put_access_container_entry(client: Client,
+pub fn put_access_container_entry(client: &Client,
                                   access_container: &MDataInfo,
                                   app_id: &str,
                                   app_keys: &AppKeys,
-                                  permissions: AccessContainerEntry,
+                                  permissions: &AccessContainerEntry,
                                   version: Option<u64>)
                                   -> Box<AuthFuture<()>> {
     let nonce = fry!(access_container_nonce(access_container));

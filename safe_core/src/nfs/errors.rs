@@ -27,7 +27,7 @@ use self_encryption_storage::SelfEncryptionStorageError;
 use std::fmt;
 
 /// NFS Errors
-#[allow(variant_size_differences)] // TODO
+#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 pub enum NfsError {
     /// Client Error
     CoreError(CoreError),

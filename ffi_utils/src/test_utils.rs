@@ -147,6 +147,7 @@ extern "C" fn callback_2<E0, E1, T0, T1>(user_data: *mut c_void,
     }
 }
 
+#[cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
 extern "C" fn callback_vec<E, T, U>(user_data: *mut c_void, error: i32, array: T::C, size: usize)
     where E: Debug,
           T: ReprC<C = *const U, Error = E>

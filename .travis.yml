@@ -9,7 +9,7 @@ os:
 language: rust
 rust:
   - stable
-  - nightly-2016-11-17
+  - nightly-2017-03-16
 sudo: false
 branches:
   only:
@@ -24,7 +24,7 @@ before_script:
   - if [ "${TRAVIS_RUST_VERSION}" = stable ]; then
       (which rustfmt && cargo install-update rustfmt) || cargo install rustfmt;
     elif [ "${TRAVIS_OS_NAME}" = linux ]; then
-      clippy_vers=0.0.99;
+      clippy_vers=0.0.120;
       if ! cargo clippy --version | grep -q $clippy_vers; then
         cargo install clippy --vers=$clippy_vers --force;
       fi
@@ -66,8 +66,8 @@ script:
             set -x;
             cd ffi_utils && unset Features && cargo clippy && cargo clippy --profile=test && export Features="use-mock-routing testing" &&
             cd ../safe_core && cargo clippy && cargo clippy --profile=test --features="$Features" &&
-            cd ../safe_app && cargo clippy && cargo clippy --profile=test --features="$Features" &&
-            cd ../safe_authenticator && cargo clippy && cargo clippy --profile=test --features="$Features";
+            cd ../safe_app && cargo clippy --profile=test --features="$Features" &&
+            cd ../safe_authenticator && cargo clippy --profile=test --features="$Features";
         )
     fi
 before_cache:

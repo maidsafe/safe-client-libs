@@ -121,9 +121,9 @@ mod tests {
         let str1 = unwrap!(generate_random_string(SIZE));
         let str2 = unwrap!(generate_random_string(SIZE));
 
-        assert!(str0 != str1);
-        assert!(str0 != str2);
-        assert!(str1 != str2);
+        assert_ne!(str0, str1);
+        assert_ne!(str0, str2);
+        assert_ne!(str1, str2);
     }
 
     #[test]
@@ -132,9 +132,9 @@ mod tests {
         let vec1 = unwrap!(generate_random_vector::<u8>(SIZE));
         let vec2 = unwrap!(generate_random_vector::<u8>(SIZE));
 
-        assert!(vec0 != vec1);
-        assert!(vec0 != vec2);
-        assert!(vec1 != vec2);
+        assert_ne!(vec0, vec1);
+        assert_ne!(vec0, vec2);
+        assert_ne!(vec1, vec2);
     }
 
     #[test]
@@ -144,9 +144,9 @@ mod tests {
             let secret_0 = unwrap!(generate_random_string(SIZE));
             let secret_1 = unwrap!(generate_random_string(SIZE));
             let (password, keyword, pin) = derive_secrets(&secret_0, &secret_1);
-            assert!(pin != keyword);
-            assert!(password != pin);
-            assert!(password != keyword);
+            assert_ne!(pin, keyword);
+            assert_ne!(password, pin);
+            assert_ne!(password, keyword);
         }
 
         // Nullary pass-phrase
@@ -154,9 +154,9 @@ mod tests {
             let secret_0 = String::new();
             let secret_1 = String::new();
             let (password, keyword, pin) = derive_secrets(&secret_0, &secret_1);
-            assert!(pin != keyword);
-            assert!(password != pin);
-            assert!(password == keyword);
+            assert_ne!(pin, keyword);
+            assert_ne!(password, pin);
+            assert_eq!(password, keyword);
         }
     }
 }

@@ -214,8 +214,8 @@ impl Client {
             }
         }
 
-        create_empty_dir(&routing, &routing_rx, cm_addr, user_root_dir, pub_key)?;
-        create_empty_dir(&routing, &routing_rx, cm_addr, config_dir, pub_key)?;
+        create_empty_dir(&routing, &routing_rx, cm_addr, &user_root_dir, pub_key)?;
+        create_empty_dir(&routing, &routing_rx, cm_addr, &config_dir, pub_key)?;
 
         let net_tx_clone = net_tx.clone();
         let core_tx_clone = core_tx.clone();
@@ -887,6 +887,7 @@ impl UserCred {
     }
 }
 
+#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 enum ClientType {
     Unregistered,
     Registered {
@@ -1031,14 +1032,14 @@ fn spawn_routing_thread<T>(routing_rx: Receiver<Event>,
     where T: 'static
 {
     thread::named("Routing Event Loop",
-                  move || routing_event_loop::run(routing_rx, core_tx, net_tx))
+                  move || routing_event_loop::run(&routing_rx, core_tx, &net_tx))
 }
 
 /// Creates an empty dir to hold configuration or user data
 fn create_empty_dir(routing: &Routing,
                     routing_rx: &Receiver<Event>,
                     dst: Authority,
-                    dir: MDataInfo,
+                    dir: &MDataInfo,
                     owner_key: sign::PublicKey)
                     -> Result<(), CoreError> {
     let dir_md = MutableData::new(dir.name,

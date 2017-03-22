@@ -26,7 +26,7 @@ use routing::{Event, MessageId, Response};
 use std::sync::mpsc::Receiver;
 
 /// Run the routing event loop - this will receive messages from routing.
-pub fn run<T>(routing_rx: Receiver<Event>, mut core_tx: CoreMsgTx<T>, net_tx: NetworkTx)
+pub fn run<T>(routing_rx: &Receiver<Event>, mut core_tx: CoreMsgTx<T>, net_tx: &NetworkTx)
     where T: 'static
 {
     for it in routing_rx.iter() {

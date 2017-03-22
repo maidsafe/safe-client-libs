@@ -168,9 +168,9 @@ mod tests {
         let user1_id3 = unwrap!(Account::generate_network_id(keyword1,
                                                              u32::MAX.to_string().as_bytes()));
 
-        assert!(user1_id1 != user1_id2);
-        assert!(user1_id1 != user1_id3);
-        assert!(user1_id2 != user1_id3);
+        assert_ne!(user1_id1, user1_id2);
+        assert_ne!(user1_id1, user1_id3);
+        assert_ne!(user1_id2, user1_id3);
 
         assert_eq!(user1_id1,
                    unwrap!(Account::generate_network_id(keyword1, b"0")));
@@ -184,7 +184,7 @@ mod tests {
         let user1_id = unwrap!(Account::generate_network_id(keyword1, b"248"));
         let user2_id = unwrap!(Account::generate_network_id(keyword2, b"248"));
 
-        assert!(user1_id != user2_id);
+        assert_ne!(user1_id, user2_id);
     }
 
     #[test]
@@ -196,13 +196,13 @@ mod tests {
         let keys2 = unwrap!(Account::generate_crypto_keys(password1, b"1234"));
         let keys3 = unwrap!(Account::generate_crypto_keys(password1,
                                                           u32::MAX.to_string().as_bytes()));
-        assert!(keys1 != keys2);
-        assert!(keys1 != keys3);
-        assert!(keys2 != keys3);
+        assert_ne!(keys1, keys2);
+        assert_ne!(keys1, keys3);
+        assert_ne!(keys2, keys3);
 
         let keys1 = unwrap!(Account::generate_crypto_keys(password1, b"0"));
         let keys2 = unwrap!(Account::generate_crypto_keys(password2, b"0"));
-        assert!(keys1 != keys2);
+        assert_ne!(keys1, keys2);
 
         let keys1 = unwrap!(Account::generate_crypto_keys(password1, b"0"));
         let keys2 = unwrap!(Account::generate_crypto_keys(password1, b"0"));
@@ -228,7 +228,7 @@ mod tests {
         let encrypted = unwrap!(account.encrypt(password, pin));
         let encoded = unwrap!(serialise(&account));
         assert!(encrypted.len() > 0);
-        assert!(encrypted != encoded);
+        assert_ne!(encrypted, encoded);
 
         let decrypted = unwrap!(Account::decrypt(&encrypted, password, pin));
         assert_eq!(account, decrypted);

@@ -64,12 +64,12 @@ impl<T> CoreMsg<T> {
 
 /// Run the core event loop. This will block until the event loop is alive.
 /// Hence must typically be called inside a spawned thread.
-pub fn run<T>(mut el: Core, client: Client, context: T, el_rx: CoreMsgRx<T>) {
+pub fn run<T>(mut el: Core, client: &Client, context: &T, el_rx: CoreMsgRx<T>) {
     let el_h = el.handle();
 
     let keep_alive = el_rx.for_each(|core_msg| {
         if let Some(mut f) = core_msg.0 {
-            if let Some(tail) = f(&client, &context) {
+            if let Some(tail) = f(client, context) {
                 el_h.spawn(tail);
             }
             Ok(())

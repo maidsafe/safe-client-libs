@@ -415,7 +415,7 @@ fn revoke_app() {
 
     let ac_md_info = auth_granted.access_container.into_mdata_info(app_keys.enc_key.clone());
     run(&authenticator, move |client| {
-        access_container_entry(client.clone(), &ac_md_info, &app_id, app_keys)
+        access_container_entry(client, &ac_md_info, &app_id, app_keys)
             .then(move |res| match res {
                 Err(AuthError::CoreError(CoreError::EncodeDecodeError(..))) => Ok(()),
                 x => panic!("Unexpected {:?}", x),

@@ -138,7 +138,7 @@ pub fn setup_client_with_net_obs<Create, NetObs, Run, I, T, E>(c: Create,
         Some(fut)
     })));
 
-    event_loop::run(el, client, (), core_rx);
+    event_loop::run(el, &client, &(), core_rx);
 
     unwrap!(result_rx.recv())
 }

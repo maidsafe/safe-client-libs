@@ -74,7 +74,7 @@ pub unsafe extern "C" fn file_insert(app: *const App,
         let file_name = from_c_str(file_name)?;
 
         send_with_mdata_info(app, parent_h, user_data, o_cb, move |client, _, parent| {
-            file_helper::insert(client.clone(), parent.clone(), file_name, file)
+            file_helper::insert(client.clone(), parent.clone(), file_name, &file)
         })
     })
 }
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn file_update(app: *const App,
         let file_name = from_c_str(file_name)?;
 
         send_with_mdata_info(app, parent_h, user_data, o_cb, move |client, _, parent| {
-            file_helper::update(client.clone(), parent.clone(), file_name, file, version)
+            file_helper::update(client.clone(), parent.clone(), file_name, &file, version)
         })
     })
 }

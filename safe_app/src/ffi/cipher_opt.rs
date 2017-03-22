@@ -203,7 +203,7 @@ mod tests {
             let cipher_text = unwrap!(cipher_opt.encrypt(&plain_text, &context));
             (plain_text, cipher_text)
         });
-        assert!(cipher_text != plain_text);
+        assert_ne!(cipher_text, plain_text);
         assert_free(&app_0, cipher_opt_handle, 0);
 
         run_now(&app_0, move |client, context| {
@@ -225,7 +225,7 @@ mod tests {
             let cipher_text = unwrap!(cipher_opt.encrypt(&plain_text, &context));
             (plain_text, cipher_text)
         });
-        assert!(cipher_text != plain_text);
+        assert_ne!(cipher_text, plain_text);
         assert_free(&app_0, cipher_opt_handle, 0);
 
         run_now(&app_0, move |client, context| {
@@ -264,7 +264,7 @@ mod tests {
             (plain_text, cipher_text)
         });
 
-        assert!(cipher_text != plain_text);
+        assert_ne!(cipher_text, plain_text);
         assert_free(&app_0, cipher_opt_h, 0);
 
         run_now(&app_0, move |_, context| {

@@ -32,7 +32,7 @@ use utils::FutureExt;
 pub fn insert<T: AsRef<str>>(client: Client,
                              parent: MDataInfo,
                              name: T,
-                             file: File)
+                             file: &File)
                              -> Box<NfsFuture<()>> {
     let name = name.as_ref();
     trace!("Inserting file with name '{}'", name);
@@ -83,8 +83,8 @@ pub fn read(client: Client, file: &File) -> Box<NfsFuture<Reader>> {
 }
 
 /// Delete a file from the Directory
-pub fn delete<S: AsRef<str>>(client: Client,
-                             parent: MDataInfo,
+pub fn delete<S: AsRef<str>>(client: &Client,
+                             parent: &MDataInfo,
                              name: S,
                              version: u64)
                              -> Box<NfsFuture<()>> {
@@ -106,7 +106,7 @@ pub fn delete<S: AsRef<str>>(client: Client,
 pub fn update<S: AsRef<str>>(client: Client,
                              parent: MDataInfo,
                              name: S,
-                             file: File,
+                             file: &File,
                              version: u64)
                              -> Box<NfsFuture<()>> {
     let name = name.as_ref();
@@ -207,7 +207,7 @@ mod tests {
     const ORIG_SIZE: usize = 100;
     const NEW_SIZE: usize = 50;
 
-    fn create_test_file(client: Client) -> Box<NfsFuture<(MDataInfo, File)>> {
+    fn create_test_file(client: &Client) -> Box<NfsFuture<(MDataInfo, File)>> {
         let user_root = unwrap!(client.user_root_dir());
 
         file_helper::create(client.clone(), user_root.clone(), "hello.txt", Vec::new())
@@ -225,7 +225,7 @@ mod tests {
         random_client(|client| {
             let c2 = client.clone();
 
-            create_test_file(client.clone())
+            create_test_file(client)
                 .then(move |res| {
                           let (_dir, file) = unwrap!(res);
                           file_helper::read(c2, &file)
@@ -248,7 +248,7 @@ mod tests {
             let c2 = client.clone();
             let c3 = client.clone();
 
-            create_test_file(client.clone())
+            create_test_file(client)
                 .then(move |res| {
                     // Updating file - full rewrite
                     let (dir, file) = unwrap!(res);
@@ -280,7 +280,7 @@ mod tests {
             let c2 = client.clone();
             let c3 = client.clone();
 
-            create_test_file(client.clone())
+            create_test_file(client)
                 .then(move |res| {
                           let (dir, file) = unwrap!(res);
                           // Update - should append (after S.E behaviour changed)
@@ -313,11 +313,11 @@ mod tests {
             let c2 = client.clone();
             let c3 = client.clone();
 
-            create_test_file(client.clone())
+            create_test_file(client)
                 .then(move |res| {
                           let (dir, mut file) = unwrap!(res);
                           file.set_user_metadata(vec![12u8; 10]);
-                          file_helper::update(c2, dir, "hello.txt", file, 1)
+                          file_helper::update(c2, dir, "hello.txt", &file, 1)
                       })
                 .then(move |res| {
                           assert!(res.is_ok());
@@ -335,10 +335,10 @@ mod tests {
             let c2 = client.clone();
             let c3 = client.clone();
 
-            create_test_file(client.clone())
+            create_test_file(client)
                 .then(move |res| {
                           let (dir, _file) = unwrap!(res);
-                          file_helper::delete(c2, dir, "hello.txt", 1)
+                          file_helper::delete(&c2, &dir, "hello.txt", 1)
                       })
                 .then(move |res| {
                           assert!(res.is_ok());

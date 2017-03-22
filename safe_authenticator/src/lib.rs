@@ -180,7 +180,7 @@ impl Authenticator {
                 }).into_box().into()
             })));
 
-            event_loop::run(el, client, (), core_rx);
+            event_loop::run(el, &client, &(), core_rx);
         });
 
         let core_tx = rx.recv()??;
@@ -221,7 +221,7 @@ impl Authenticator {
 
             unwrap!(tx.send(Ok(core_tx)));
 
-            event_loop::run(el, client, (), core_rx);
+            event_loop::run(el, &client, &(), core_rx);
         });
 
         let core_tx = rx.recv()??;

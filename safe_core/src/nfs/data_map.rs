@@ -39,13 +39,13 @@ pub fn get(client: &Client, name: &XorName) -> Box<NfsFuture<DataMap>> {
 }
 
 // PUT `DataMap` on the network.
-pub fn put(client: &Client, data_map: DataMap) -> Box<NfsFuture<XorName>> {
+pub fn put(client: &Client, data_map: &DataMap) -> Box<NfsFuture<XorName>> {
     let client = client.clone();
     let client2 = client.clone();
 
     future::result(serialise(&data_map))
         .map_err(From::from)
-        .and_then(move |encoded| immutable_data::create(&client, encoded, None))
+        .and_then(move |encoded| immutable_data::create(&client, &encoded, None))
         .and_then(move |data| {
                       let name = *data.name();
                       client2.put_idata(data).map(move |_| name)

@@ -34,6 +34,7 @@ use std::slice;
 
 /// IPC response
 // TODO: `TransOwnership` variant
+#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 #[derive(Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
 pub enum IpcResp {
     /// Authentication

@@ -108,7 +108,7 @@ impl Writer {
         self.self_encryptor
             .close()
             .map_err(From::from)
-            .and_then(move |(data_map, _)| data_map::put(&client, data_map))
+            .and_then(move |(data_map, _)| data_map::put(&client, &data_map))
             .and_then(move |data_map_name| {
                 file.set_data_map_name(data_map_name);
                 file.set_modified_time(::time::now_utc());

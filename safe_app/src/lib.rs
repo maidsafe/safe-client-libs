@@ -179,7 +179,7 @@ impl App {
             let (client, context) = try_tx!(setup(el_h, core_tx_clone, net_tx), tx);
             unwrap!(tx.send(Ok(core_tx)));
 
-            event_loop::run(el, client, context, core_rx);
+            event_loop::run(el, &client, &context, core_rx);
         });
 
         let core_tx = rx.recv()??;

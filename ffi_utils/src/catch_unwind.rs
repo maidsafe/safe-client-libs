@@ -44,6 +44,7 @@ pub fn catch_unwind_error_code<'a, F, E>(f: F) -> i32
 }
 
 /// Catch panics. On error call the callback.
+#[cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
 pub fn catch_unwind_cb<'a, U, C, F, E>(user_data: U, cb: C, f: F)
     where U: Into<*mut c_void>,
           C: Callback,

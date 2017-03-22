@@ -100,6 +100,7 @@ mod codes {
 }
 
 /// Authenticator errors
+#[cfg_attr(feature="cargo-clippy", allow(large_enum_variant))]
 #[derive(Debug)]
 pub enum AuthError {
     /// Unexpected - Probably a Logic error
