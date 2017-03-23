@@ -1,5 +1,11 @@
 # Safe Core - Change Log
 
+## [0.22.4]
+- Integrate with routing 0.28.4 (0.28.3 is skipped and is yanked from crates).
+- Use rust 1.16.0, nightly-2017-03-16 and clippy 0.0.120
+- Add a few trace messages for better diagnostics.
+- Cleanup README.md
+
 ## [0.22.3]
 - Integrate with routing 0.28.2
 
