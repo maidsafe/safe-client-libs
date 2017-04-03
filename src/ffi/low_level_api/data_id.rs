@@ -28,13 +28,13 @@ pub unsafe extern "C" fn data_id_new_struct_data(type_tag: u64,
                                                  o_handle: *mut DataIdHandle)
                                                  -> i32 {
     helper::catch_unwind_i32(|| {
-        let xor_id = XorName(*id);
-        let data_id = DataIdentifier::Structured(xor_id, type_tag);
-        let handle = unwrap!(object_cache()).insert_data_id(data_id);
+                                 let xor_id = XorName(*id);
+                                 let data_id = DataIdentifier::Structured(xor_id, type_tag);
+                                 let handle = unwrap!(object_cache()).insert_data_id(data_id);
 
-        ptr::write(o_handle, handle);
-        0
-    })
+                                 ptr::write(o_handle, handle);
+                                 0
+                             })
 }
 
 /// Construct `DataIdentifier` for `ImmutableData`.
@@ -43,13 +43,13 @@ pub unsafe extern "C" fn data_id_new_immut_data(id: *const [u8; XOR_NAME_LEN],
                                                 o_handle: *mut DataIdHandle)
                                                 -> i32 {
     helper::catch_unwind_i32(|| {
-        let xor_id = XorName(*id);
-        let data_id = DataIdentifier::Immutable(xor_id);
-        let handle = unwrap!(object_cache()).insert_data_id(data_id);
+                                 let xor_id = XorName(*id);
+                                 let data_id = DataIdentifier::Immutable(xor_id);
+                                 let handle = unwrap!(object_cache()).insert_data_id(data_id);
 
-        ptr::write(o_handle, handle);
-        0
-    })
+                                 ptr::write(o_handle, handle);
+                                 0
+                             })
 }
 
 /// Construct `DataIdentifier` for `AppendableData`.
@@ -145,8 +145,12 @@ mod tests {
             let mut obj_cache = unwrap!(object_cache());
             assert!(obj_cache.get_data_id(data_id_handle_struct).is_err());
             assert!(obj_cache.get_data_id(data_id_handle_immut).is_err());
-            assert!(obj_cache.get_data_id(data_id_handle_priv_appendable).is_err());
-            assert!(obj_cache.get_data_id(data_id_handle_pub_appendable).is_err());
+            assert!(obj_cache
+                        .get_data_id(data_id_handle_priv_appendable)
+                        .is_err());
+            assert!(obj_cache
+                        .get_data_id(data_id_handle_pub_appendable)
+                        .is_err());
         }
     }
 }

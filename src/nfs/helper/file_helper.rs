@@ -139,21 +139,20 @@ impl FileHelper {
         let mut versions = Vec::<File>::new();
         let directory_helper = DirectoryHelper::new(self.client.clone());
 
-        let sdv_versions =
-            directory_helper.get_versions(parent_directory.get_key().get_id(),
-                                          parent_directory.get_key().get_type_tag())?;
+        let sdv_versions = directory_helper.get_versions(parent_directory.get_key().get_id(),
+                          parent_directory.get_key().get_type_tag())?;
 
         // Because Version 0 is invalid, so can be made an initial comparison value
         let mut file_version = 0;
         for version_id in sdv_versions {
-            let directory_listing =
-                directory_helper.get_by_version(parent_directory.get_key().get_id(),
-                                                parent_directory.get_key().get_access_level(),
-                                                version_id)?;
-            if let Some(file) = directory_listing.get_files().iter().find(|&entry| {
-                                                                              entry.get_name() ==
-                                                                              file.get_name()
-                                                                          }) {
+            let id = parent_directory.get_key().get_id();
+            let directory_listing = directory_helper.get_by_version(id,
+                                parent_directory.get_key().get_access_level(),
+                                version_id)?;
+            if let Some(file) = directory_listing
+                   .get_files()
+                   .iter()
+                   .find(|&entry| entry.get_name() == file.get_name()) {
                 if file.get_metadata().get_version() != file_version {
                     file_version = file.get_metadata().get_version();
                     versions.push(file.clone());

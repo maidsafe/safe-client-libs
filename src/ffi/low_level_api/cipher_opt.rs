@@ -172,7 +172,9 @@ mod tests {
             unwrap!(cipher_opt.encrypt(&app_0, &plain_text))
         };
         assert_eq!(cipher_opt_free(cipher_opt_handle), 0);
-        assert!(unwrap!(object_cache()).get_cipher_opt(cipher_opt_handle).is_err());
+        assert!(unwrap!(object_cache())
+                    .get_cipher_opt(cipher_opt_handle)
+                    .is_err());
         assert!(raw_data != plain_text);
 
         assert!(decrypt_and_check(&app_0, &raw_data, &plain_text));
@@ -192,7 +194,9 @@ mod tests {
             unwrap!(cipher_opt.encrypt(&app_0, &plain_text))
         };
         assert_eq!(cipher_opt_free(cipher_opt_handle), 0);
-        assert!(unwrap!(object_cache()).get_cipher_opt(cipher_opt_handle).is_err());
+        assert!(unwrap!(object_cache())
+                    .get_cipher_opt(cipher_opt_handle)
+                    .is_err());
         assert!(raw_data != plain_text);
 
         assert!(decrypt_and_check(&app_0, &raw_data, &plain_text));
@@ -225,7 +229,9 @@ mod tests {
             unwrap!(cipher_opt.encrypt(&app_0, &plain_text))
         };
         assert_eq!(cipher_opt_free(cipher_opt_handle), 0);
-        assert!(unwrap!(object_cache()).get_cipher_opt(cipher_opt_handle).is_err());
+        assert!(unwrap!(object_cache())
+                    .get_cipher_opt(cipher_opt_handle)
+                    .is_err());
         assert!(raw_data != plain_text);
 
         assert!(!decrypt_and_check(&app_0, &raw_data, &plain_text));

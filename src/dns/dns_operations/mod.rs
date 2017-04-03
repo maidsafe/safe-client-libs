@@ -71,7 +71,9 @@ impl DnsOperations {
         trace!("Registering dns with name: {}", long_name);
 
         let mut saved_configs = dns_configuration::get_dns_configuration_data(self.client.clone())?;
-        if saved_configs.iter().any(|config| config.long_name == long_name) {
+        if saved_configs
+               .iter()
+               .any(|config| config.long_name == long_name) {
             Err(DnsError::DnsNameAlreadyRegistered)
         } else {
             let identifier = XorName(sha256::hash(long_name.as_bytes()).0);
@@ -89,14 +91,11 @@ impl DnsOperations {
                                                       serialise(&dns_record)?,
                                                       owners.clone(),
                                                       data_encryption_keys)?;
-            let _ =
-                struct_data.add_signature(&(*owners.iter()
-                                                 .nth(0)
-                                                 .ok_or_else(|| {
-                                                                 CoreError::ReceivedUnexpectedData
-                                                             })?,
-                                            private_signing_key.clone()))
-                    .map_err(CoreError::from)?;
+            let _ = struct_data.add_signature(&(*owners.iter()
+                                      .nth(0)
+                                      .ok_or_else(|| CoreError::ReceivedUnexpectedData)?,
+                                 private_signing_key.clone()))
+                .map_err(CoreError::from)?;
 
             match Client::put_recover(self.client.clone(), Data::Structured(struct_data), None) {
                 Ok(()) => (),
@@ -145,9 +144,8 @@ impl DnsOperations {
                 Client::delete_recover(self.client.clone(), Data::Structured(struct_data), None)?;
             }
             Err(DnsError::CoreError(CoreError::GetFailure {
-                reason: GetError::NoSuchData,
-                ..
-            })) => (),
+                                        reason: GetError::NoSuchData, ..
+                                    })) => (),
             Err(e) => return Err(e),
         };
 
@@ -191,10 +189,7 @@ impl DnsOperations {
 
         let (_, dns_record) =
             self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys)?;
-        Ok(dns_record.services
-               .keys()
-               .cloned()
-               .collect())
+        Ok(dns_record.services.keys().cloned().collect())
     }
 
     /// Get the home directory (eg., homepage containing HOME.html, INDEX.html) for the given
@@ -213,7 +208,8 @@ impl DnsOperations {
 
         let (_, dns_record) =
             self.get_housing_structured_data_and_dns_record(long_name, data_decryption_keys)?;
-        dns_record.services
+        dns_record
+            .services
             .get(service_name)
             .cloned()
             .ok_or(DnsError::ServiceNotFound)
@@ -261,7 +257,8 @@ impl DnsOperations {
                        long_name: &str)
                        -> Result<dns_configuration::DnsConfiguration, DnsError> {
         let config_vec = dns_configuration::get_dns_configuration_data(self.client.clone())?;
-        config_vec.iter()
+        config_vec
+            .iter()
             .find(|config| config.long_name == *long_name)
             .cloned()
             .ok_or(DnsError::DnsRecordNotFound)
@@ -392,8 +389,8 @@ mod test {
         };
 
         // Trying to delete when it's in our config but not on the network should succeed.
-        let config_data = dns_configuration::get_dns_configuration_data(dns_operations.client
-                                                                            .clone());
+        let config_data =
+            dns_configuration::get_dns_configuration_data(dns_operations.client.clone());
         let mut saved_configs = unwrap!(config_data);
         saved_configs.push(dns_configuration::DnsConfiguration {
                                long_name: dns_name.clone(),
@@ -557,10 +554,13 @@ mod test {
         // Get all services for a dns-name
         let services_vec = unwrap!(dns_operations_unregistered.get_all_services(&dns_name, None));
         assert_eq!(services.len(), services_vec.len());
-        assert!(services.iter().all(|&(ref a, _)| services_vec.iter().any(|b| *a == **b)));
-        assert!(dns_operations.get_service_home_directory_key(&"bogus".to_string(),
-                                                              &services[0].0,
-                                                              None)
+        assert!(services
+                    .iter()
+                    .all(|&(ref a, _)| services_vec.iter().any(|b| *a == **b)));
+        assert!(dns_operations
+                    .get_service_home_directory_key(&"bogus".to_string(),
+                                                    &services[0].0,
+                                                    None)
                     .is_err());
 
         // Get information about a service - the home-directory and its type
@@ -582,7 +582,9 @@ mod test {
         // Get all services
         let services_vec = unwrap!(dns_operations_unregistered.get_all_services(&dns_name, None));
         assert_eq!(services.len(), services_vec.len());
-        assert!(services.iter().all(|&(ref a, _)| services_vec.iter().any(|b| *a == **b)));
+        assert!(services
+                    .iter()
+                    .all(|&(ref a, _)| services_vec.iter().any(|b| *a == **b)));
 
         // Try to enquire about a deleted service
         match dns_operations_unregistered.get_service_home_directory_key(&dns_name,
@@ -608,7 +610,9 @@ mod test {
         // Get all services
         let services_vec = unwrap!(dns_operations_unregistered.get_all_services(&dns_name, None));
         assert_eq!(services.len(), services_vec.len());
-        assert!(services.iter().all(|&(ref a, _)| services_vec.iter().any(|b| *a == **b)));
+        assert!(services
+                    .iter()
+                    .all(|&(ref a, _)| services_vec.iter().any(|b| *a == **b)));
     }
 
     #[test]
@@ -642,8 +646,10 @@ mod test {
                                           &secret_signing_key,
                                           None) {
             Err(DnsError::NfsError(NfsError::CoreError(CoreError::GetFailure {
-                reason: GetError::NetworkOther(ref s), ..
-            }))) if s == "Max operations exhausted" => (),
+                                                           reason: GetError::NetworkOther(ref s), ..
+                                                       }))) if s == "Max operations exhausted" => {
+                ()
+            }
             Ok(()) => panic!("Operation unexpectedly had succeed"),
             Err(e) => panic!("Unexpected error {:?}", e),
         }
@@ -675,8 +681,10 @@ mod test {
         unwrap!(client.lock()).set_network_limits(Some(5));
         match dns_operations.delete_dns(&dns_name, &secret_signing_key) {
             Err(DnsError::NfsError(NfsError::CoreError(CoreError::GetFailure {
-                reason: GetError::NetworkOther(ref s), ..
-            }))) if s == "Max operations exhausted" => (),
+                                                           reason: GetError::NetworkOther(ref s), ..
+                                                       }))) if s == "Max operations exhausted" => {
+                ()
+            }
             Ok(()) => panic!("Operation unexpectedly had succeed"),
             Err(e) => panic!("Unexpected error {:?}", e),
         }

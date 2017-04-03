@@ -57,6 +57,7 @@ const HOME_PAGE_FILE_NAME: &'static str = "index.html";
 fn handle_login() -> Arc<Mutex<Client>> {
     let mut secret_0 = String::new();
     let mut secret_1 = String::new();
+    let mut invitation = String::new();
 
     println!("\n\tAccount Creation");
     println!("\t================");
@@ -67,11 +68,14 @@ fn handle_login() -> Arc<Mutex<Client>> {
     println!("\n------------ Enter password ---------------");
     let _ = std::io::stdin().read_line(&mut secret_1);
     secret_1 = secret_1.trim().to_string();
+    println!("\n------------ Enter invitation ---------------");
+    let _ = std::io::stdin().read_line(&mut invitation);
+    invitation = invitation.trim().to_string();
 
     // Account Creation
     {
         println!("\nTrying to create an account ...");
-        let _ = unwrap!(Client::create_account(&secret_0, &secret_1));
+        let _ = unwrap!(Client::create_account(&secret_0, &secret_1, &invitation));
         println!("Account Creation Successful !!");
     }
 
@@ -160,11 +164,11 @@ fn add_service(client: Arc<Mutex<Client>>, dns_operations: &DnsOperations) -> Re
 
     let dir_helper = DirectoryHelper::new(client.clone());
     let (dir_listing, _) = dir_helper.create(service_home_dir_name,
-                                             UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                             vec![],
-                                             false,
-                                             AccessLevel::Public,
-                                             None)?;
+                UNVERSIONED_DIRECTORY_LISTING_TAG,
+                vec![],
+                false,
+                AccessLevel::Public,
+                None)?;
 
     let mut file_helper = FileHelper::new(client.clone());
     let mut writer = file_helper.create(HOME_PAGE_FILE_NAME.to_string(), vec![], dir_listing)?;

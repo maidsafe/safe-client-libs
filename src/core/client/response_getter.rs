@@ -85,7 +85,9 @@ impl GetResponseGetter {
     /// All that is needed is to extract the sender before doing a `get()` and then while blocking
     /// on `get()` fire `sender.send(ResponseEvent::Terminated)` to gracefully exit the receiver.
     pub fn get_sender(&self) -> Option<&Sender<ResponseEvent>> {
-        self.data_channel.as_ref().and_then(|&(ref sender, _)| Some(sender))
+        self.data_channel
+            .as_ref()
+            .and_then(|&(ref sender, _)| Some(sender))
     }
 }
 

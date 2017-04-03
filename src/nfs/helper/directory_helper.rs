@@ -56,7 +56,8 @@ impl DirectoryHelper {
                versioned,
                directory_name);
 
-        if parent_directory.iter()
+        if parent_directory
+               .iter()
                .next()
                .and_then(|dir| dir.find_sub_directory(&directory_name))
                .is_some() {
@@ -68,9 +69,10 @@ impl DirectoryHelper {
                                         user_metadata,
                                         versioned,
                                         access_level,
-                                        parent_directory.iter().next().map(|directory| {
-                                                                               *directory.get_key()
-                                                                           }))?;
+                                        parent_directory
+                                            .iter()
+                                            .next()
+                                            .map(|directory| *directory.get_key()))?;
 
         let structured_data = self.save_directory_listing(&dir)?;
         Client::put_recover(self.client.clone(), Data::Structured(structured_data), None)?;
@@ -92,7 +94,9 @@ impl DirectoryHelper {
         trace!("Deleting directory with name: {}", directory_to_delete);
 
         let dir_meta = parent_directory.remove_sub_directory(directory_to_delete)?;
-        let sign_key = unwrap!(self.client.lock()).get_secret_signing_key()?.clone();
+        let sign_key = unwrap!(self.client.lock())
+            .get_secret_signing_key()?
+            .clone();
         let sd = self.get_structured_data(dir_meta.get_id(), dir_meta.get_type_tag())?;
         let mut delete_sd =
             StructuredData::new(sd.get_type_tag(),
@@ -101,11 +105,13 @@ impl DirectoryHelper {
                                 vec![],
                                 sd.get_owners().clone()).map_err(CoreError::from)?;
         let _ = delete_sd.add_signature(&(*unwrap!(sd.get_owners().iter().nth(0),
-                                                   "Logic error: SD doesn't have any owners"),
-                                          sign_key))
+                                      "Logic error: SD doesn't have any owners"),
+                             sign_key))
             .map_err(CoreError::from)?;
         Client::delete_recover(self.client.clone(), Data::Structured(delete_sd), None)?;
-        parent_directory.get_mut_metadata().set_modified_time(::time::now_utc());
+        parent_directory
+            .get_mut_metadata()
+            .set_modified_time(::time::now_utc());
         self.update(parent_directory)
     }
 
@@ -186,7 +192,9 @@ impl DirectoryHelper {
             let encryption_keys = match *access_level {
                 AccessLevel::Private => {
                     private_key = *unwrap!(self.client.lock()).get_public_encryption_key()?;
-                    secret_key = unwrap!(self.client.lock()).get_secret_encryption_key()?.clone();
+                    secret_key = unwrap!(self.client.lock())
+                        .get_secret_encryption_key()?
+                        .clone();
                     nonce = DirectoryListing::generate_nonce(directory_id);
 
                     Some((&private_key, &secret_key, &nonce))
@@ -207,7 +215,9 @@ impl DirectoryHelper {
     pub fn get_user_root_directory_listing(&self) -> Result<DirectoryListing, NfsError> {
         trace!("Getting the user root directory listing.");
 
-        let root_directory_id = unwrap!(self.client.lock()).get_user_root_directory_id().cloned();
+        let root_directory_id = unwrap!(self.client.lock())
+            .get_user_root_directory_id()
+            .cloned();
         match root_directory_id {
             Some(id) => {
                 self.get(&DirectoryKey::new(id,
@@ -240,8 +250,9 @@ impl DirectoryHelper {
                 name: {}.",
                directory_name);
 
-        let config_dir_id =
-            unwrap!(self.client.lock()).get_configuration_root_directory_id().cloned();
+        let config_dir_id = unwrap!(self.client.lock())
+            .get_configuration_root_directory_id()
+            .cloned();
         let mut config_directory_listing = match config_dir_id {
             Some(id) => {
                 self.get(&DirectoryKey::new(id,
@@ -252,23 +263,23 @@ impl DirectoryHelper {
             None => {
                 debug!("Configuartion Root directory does not exist - creating one.");
 
-                let (created_directory, _) =
-                    self.create(::nfs::CONFIGURATION_DIRECTORY_NAME.to_string(),
-                                ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                Vec::new(),
-                                false,
-                                AccessLevel::Private,
-                                None)?;
-                try!(unwrap!(self.client.lock())
-                    .set_configuration_root_directory_id(created_directory.get_key()
-                        .get_id()
-                        .clone()));
+                let (created_directory, _) = self.create(::nfs::CONFIGURATION_DIRECTORY_NAME
+                                                             .to_string(),
+                                                         ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                                         Vec::new(),
+                                                         false,
+                                                         AccessLevel::Private,
+                                                         None)?;
+                unwrap!(self.client.lock()).set_configuration_root_directory_id(*created_directory
+                                                             .get_key()
+                                                             .get_id())?;
                 created_directory
             }
         };
-        match config_directory_listing.get_sub_directories()
-            .iter()
-            .position(|metadata| *metadata.get_name() == directory_name) {
+        match config_directory_listing
+                  .get_sub_directories()
+                  .iter()
+                  .position(|metadata| *metadata.get_name() == directory_name) {
             Some(index) => {
                 let directory_key = config_directory_listing.get_sub_directories()[index].get_key();
                 Ok(self.get(directory_key)?)
@@ -277,12 +288,13 @@ impl DirectoryHelper {
                 debug!("Give configuration directory does not exist (inside the root \
                         configuration dir) - creating one.");
 
-                let (directory, _) = self.create(directory_name,
-                            ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
-                            Vec::new(),
-                            false,
-                            AccessLevel::Private,
-                            Some(&mut config_directory_listing))?;
+                let (directory, _) =
+                    self.create(directory_name,
+                                ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                Vec::new(),
+                                false,
+                                AccessLevel::Private,
+                                Some(&mut config_directory_listing))?;
                 Ok(directory)
             }
         }
@@ -294,7 +306,9 @@ impl DirectoryHelper {
                               directory: &DirectoryListing)
                               -> Result<StructuredData, NfsError> {
         let owner_key = *unwrap!(self.client.lock()).get_public_signing_key()?;
-        let signing_key = unwrap!(self.client.lock()).get_secret_signing_key()?.clone();
+        let signing_key = unwrap!(self.client.lock())
+            .get_secret_signing_key()?
+            .clone();
 
         let access_level = directory.get_key().get_access_level();
         let versioned = directory.get_key().is_versioned();
@@ -320,7 +334,9 @@ impl DirectoryHelper {
             trace!("Converting directory listing to an unversioned StructuredData.");
 
             let private_key = *unwrap!(self.client.lock()).get_public_encryption_key()?;
-            let secret_key = unwrap!(self.client.lock()).get_secret_encryption_key()?.clone();
+            let secret_key = unwrap!(self.client.lock())
+                .get_secret_encryption_key()?
+                .clone();
             let nonce = DirectoryListing::generate_nonce(directory.get_key().get_id());
             let serialised_data = serialise(&directory)?;
 
@@ -337,7 +353,8 @@ impl DirectoryHelper {
                                 encryption_keys)
         };
         let mut sd = sd?;
-        let _ = sd.add_signature(&(owner_key, signing_key)).map_err(CoreError::from)?;
+        let _ = sd.add_signature(&(owner_key, signing_key))
+            .map_err(CoreError::from)?;
         Ok(sd)
     }
 
@@ -346,7 +363,9 @@ impl DirectoryHelper {
             self.get_structured_data(directory.get_key().get_id(),
                                      directory.get_key().get_type_tag())?;
 
-        let signing_key = unwrap!(self.client.lock()).get_secret_signing_key()?.clone();
+        let signing_key = unwrap!(self.client.lock())
+            .get_secret_signing_key()?
+            .clone();
         let owner_key = *unwrap!(self.client.lock()).get_public_signing_key()?;
         let access_level = directory.get_key().get_access_level();
         let versioned = directory.get_key().is_versioned();
@@ -370,7 +389,9 @@ impl DirectoryHelper {
                     StructuredData).");
 
             let private_key = *unwrap!(self.client.lock()).get_public_encryption_key()?;
-            let secret_key = unwrap!(self.client.lock()).get_secret_encryption_key()?.clone();
+            let secret_key = unwrap!(self.client.lock())
+                .get_secret_encryption_key()?
+                .clone();
             let nonce = DirectoryListing::generate_nonce(directory.get_key().get_id());
             let serialised_data = serialise(&directory)?;
 
@@ -461,7 +482,9 @@ mod test {
         assert!(grand_parent.is_none());
         // Assert whether parent is updated
         let parent = unwrap!(dir_helper.get(directory.get_key()));
-        assert!(parent.find_sub_directory(child_directory.get_metadata().get_name()).is_some());
+        assert!(parent
+                    .find_sub_directory(child_directory.get_metadata().get_name())
+                    .is_some());
 
         let (grand_child_directory, grand_parent) =
             unwrap!(dir_helper.create("Grand Child".to_string(),
@@ -470,12 +493,13 @@ mod test {
                                       true,
                                       AccessLevel::Private,
                                       Some(&mut child_directory)));
-        assert!(dir_helper.create("Grand Child".to_string(),
-                                  ::nfs::VERSIONED_DIRECTORY_LISTING_TAG,
-                                  Vec::new(),
-                                  true,
-                                  AccessLevel::Private,
-                                  Some(&mut child_directory))
+        assert!(dir_helper
+                    .create("Grand Child".to_string(),
+                            ::nfs::VERSIONED_DIRECTORY_LISTING_TAG,
+                            Vec::new(),
+                            true,
+                            AccessLevel::Private,
+                            Some(&mut child_directory))
                     .is_err());
         assert!(grand_parent.is_some());
         let grand_parent = unwrap!(grand_parent, "Grand Parent Should be updated");
@@ -516,12 +540,13 @@ mod test {
             let test_client = unwrap!(test_utils::get_client());
             let client = Arc::new(Mutex::new(test_client));
             let dir_helper = DirectoryHelper::new(client.clone());
-            let (directory, _) = unwrap!(dir_helper.create("PublicDirectory".to_string(),
-                        ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
-                        vec![2u8, 10],
-                        false,
-                        AccessLevel::Public,
-                        None));
+            let (directory, _) = unwrap!(dir_helper
+                                             .create("PublicDirectory".to_string(),
+                                                     ::nfs::UNVERSIONED_DIRECTORY_LISTING_TAG,
+                                                     vec![2u8, 10],
+                                                     false,
+                                                     AccessLevel::Public,
+                                                     None));
             public_directory = directory;
         }
         {
@@ -547,7 +572,9 @@ mod test {
                                                          AccessLevel::Private,
                                                          Some(&mut root_dir)));
         let root_dir = unwrap!(dir_helper.get_user_root_directory_listing());
-        assert!(root_dir.find_sub_directory(created_dir.get_metadata().get_name()).is_some());
+        assert!(root_dir
+                    .find_sub_directory(created_dir.get_metadata().get_name())
+                    .is_some());
     }
 
     #[test]
@@ -569,18 +596,21 @@ mod test {
         let client = Arc::new(Mutex::new(test_client));
         let dir_helper = DirectoryHelper::new(client.clone());
 
-        let (mut dir_listing, _) = unwrap!(dir_helper.create("DirName2".to_string(),
-                    ::nfs::VERSIONED_DIRECTORY_LISTING_TAG,
-                    Vec::new(),
-                    true,
-                    AccessLevel::Private,
-                    None));
+        let (mut dir_listing, _) = unwrap!(dir_helper
+                                               .create("DirName2".to_string(),
+                                                       ::nfs::VERSIONED_DIRECTORY_LISTING_TAG,
+                                                       Vec::new(),
+                                                       true,
+                                                       AccessLevel::Private,
+                                                       None));
 
         let mut versions = unwrap!(dir_helper.get_versions(dir_listing.get_key().get_id(),
                                                            dir_listing.get_key().get_type_tag()));
         assert_eq!(versions.len(), 1);
 
-        dir_listing.get_mut_metadata().set_name("NewName".to_string());
+        dir_listing
+            .get_mut_metadata()
+            .set_name("NewName".to_string());
         assert!(dir_helper.update(&dir_listing).is_ok());
 
         versions = unwrap!(dir_helper.get_versions(dir_listing.get_key().get_id(),
@@ -593,10 +623,10 @@ mod test {
                                               versions[versions.len() - 1].clone()));
         assert_eq!(rxd_dir_listing, dir_listing);
 
-        let rxd_dir_listing = unwrap!(dir_helper.get_by_version(dir_listing.get_key().get_id(),
-                                                                dir_listing.get_key()
-                                                                    .get_access_level(),
-                                                                versions[0].clone()));
+        let rxd_dir_listing =
+            unwrap!(dir_helper.get_by_version(dir_listing.get_key().get_id(),
+                                              dir_listing.get_key().get_access_level(),
+                                              versions[0].clone()));
         assert_eq!(*rxd_dir_listing.get_metadata().get_name(),
                    "DirName2".to_string());
     }
@@ -625,7 +655,9 @@ mod test {
         assert!(grand_parent.is_none());
         // Assert whether parent is updated
         let parent = unwrap!(dir_helper.get(directory.get_key()));
-        assert!(parent.find_sub_directory(child_directory.get_metadata().get_name()).is_some());
+        assert!(parent
+                    .find_sub_directory(child_directory.get_metadata().get_name())
+                    .is_some());
 
         let (grand_child_directory, grand_parent) =
             unwrap!(dir_helper.create("Grand Child".to_string(),
@@ -637,9 +669,9 @@ mod test {
 
         let _ = unwrap!(grand_parent, "Grand Parent Should be updated");
 
-        let delete_result = unwrap!(dir_helper.delete(&mut child_directory,
-                                                      grand_child_directory.get_metadata()
-                                                          .get_name()));
+        let delete_result =
+            unwrap!(dir_helper.delete(&mut child_directory,
+                                      grand_child_directory.get_metadata().get_name()));
         let updated_grand_parent = unwrap!(delete_result, "Parent directory should be returned");
         assert_eq!(*updated_grand_parent.get_metadata().get_id(),
                    *directory.get_metadata().get_id());

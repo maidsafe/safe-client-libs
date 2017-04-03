@@ -63,10 +63,7 @@ impl RevocationIdType {
         for iter in combined_iter {
             combined.push(*iter);
         }
-        for i in self.type_tags
-                .0
-                .to_string()
-                .into_bytes() {
+        for i in self.type_tags.0.to_string().into_bytes() {
             combined.push(i);
         }
         XorName(sha256::hash(&combined).0)
@@ -148,7 +145,10 @@ mod test {
         assert!(!(maid2 != maid2_clone));
         assert!(maid1 != maid2);
 
-        let random_bytes = rand::thread_rng().gen_iter::<u8>().take(100).collect::<Vec<u8>>();
+        let random_bytes = rand::thread_rng()
+            .gen_iter::<u8>()
+            .take(100)
+            .collect::<Vec<u8>>();
         {
             let sign1 = maid1.sign(&random_bytes);
             let sign2 = maid2.sign(&random_bytes);

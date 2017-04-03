@@ -70,12 +70,15 @@ impl Bot {
 
         let sec_0 = unwrap!(utility::generate_random_string(10));
         let sec_1 = unwrap!(utility::generate_random_string(10));
+        let invitation = unwrap!(utility::generate_random_string(10));
 
         unsafe {
             assert_eq!(create_account(sec_0.as_bytes().as_ptr(),
                                       sec_0.as_bytes().len(),
                                       sec_1.as_bytes().as_ptr(),
                                       sec_1.as_bytes().len(),
+                                      invitation.as_bytes().as_ptr(),
+                                      invitation.as_bytes().len(),
                                       &mut session_h),
                        0);
         }
@@ -291,9 +294,9 @@ fn email_stress() {
                                  continue;
                              }
                              let _ = scope.spawn(move || {
-                                    unwrap!(peer_handles_ref.lock())
+                                                     unwrap!(peer_handles_ref.lock())
                                         .push(bot.get_peer_email_handles(&peer_bot.email))
-                                });
+                                                 });
                          });
 
         // Send each email-msg from a bot in parallel to all others
@@ -334,8 +337,9 @@ fn email_stress() {
                         continue;
                     }
                     for tx_msg in &peer_bot.tx_msgs {
-                        let pos =
-                            unwrap!(rx_emails.iter().position(|rx_email| *rx_email == *tx_msg));
+                        let pos = unwrap!(rx_emails
+                                              .iter()
+                                              .position(|rx_email| *rx_email == *tx_msg));
                         let _ = rx_emails.remove(pos);
                     }
                 }

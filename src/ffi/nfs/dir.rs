@@ -80,12 +80,13 @@ pub unsafe extern "C" fn nfs_get_dir(app_handle: *const App,
                                      details_handle: *mut *mut DirectoryDetails)
                                      -> int32_t {
     helper::catch_unwind_i32(|| {
-        trace!("FFI get dir, given the path.");
-        let dir_path = ffi_try!(helper::c_utf8_to_str(dir_path, dir_path_len));
-        let details = ffi_try!(get_dir(&*app_handle, dir_path, is_shared));
-        *details_handle = Box::into_raw(Box::new(details));
-        0
-    })
+                                 trace!("FFI get dir, given the path.");
+                                 let dir_path = ffi_try!(helper::c_utf8_to_str(dir_path,
+                                                                               dir_path_len));
+                                 let details = ffi_try!(get_dir(&*app_handle, dir_path, is_shared));
+                                 *details_handle = Box::into_raw(Box::new(details));
+                                 0
+                             })
 }
 
 /// Modify name and/or metadata of a directory.
@@ -172,11 +173,11 @@ fn create_dir(app: &App,
     };
 
     let _ = dir_helper.create(dir_to_create,
-                              tag,
-                              user_metadata.to_owned(),
-                              is_versioned,
-                              access_level,
-                              Some(&mut parent_sub_dir))?;
+                tag,
+                user_metadata.to_owned(),
+                is_versioned,
+                access_level,
+                Some(&mut parent_sub_dir))?;
 
     Ok(())
 }
@@ -222,10 +223,14 @@ fn modify_dir(app: &App,
     }
 
     if let Some(metadata) = new_metadata {
-        dir_to_modify.get_mut_metadata().set_user_metadata(metadata);
+        dir_to_modify
+            .get_mut_metadata()
+            .set_user_metadata(metadata);
     }
 
-    dir_to_modify.get_mut_metadata().set_modified_time(time::now_utc());
+    dir_to_modify
+        .get_mut_metadata()
+        .set_modified_time(time::now_utc());
     let _ = directory_helper.update(&dir_to_modify)?;
 
     Ok(())
@@ -242,7 +247,9 @@ fn move_dir(app: &App,
     let mut src_dir = helper::get_directory(app, src_path, is_src_path_shared)?;
     let mut dst_dir = helper::get_directory(app, dst_path, is_dst_path_shared)?;
 
-    if dst_dir.find_sub_directory(src_dir.get_metadata().get_name()).is_some() {
+    if dst_dir
+           .find_sub_directory(src_dir.get_metadata().get_name())
+           .is_some() {
         return Err(FfiError::from(NfsError::DirectoryAlreadyExistsWithSameName));
     }
 
@@ -258,25 +265,32 @@ fn move_dir(app: &App,
         let created_time = *src_dir.get_metadata().get_created_time();
         let modified_time = *src_dir.get_metadata().get_modified_time();
         let (mut dir, _) = directory_helper.create(name,
-                                                   src_dir.get_metadata().get_key().get_type_tag(),
-                                                   user_metadata,
-                                                   src_dir.get_metadata().get_key().is_versioned(),
-                                                   access_level,
-                                                   Some(&mut dst_dir))?;
-        src_dir.get_files().iter().all(|file| {
-                                           dir.get_mut_files().push(file.clone());
-                                           true
-                                       });
-        src_dir.get_sub_directories().iter().all(|sub_dir| {
-                                                     dir.get_mut_sub_directories()
-                                                         .push(sub_dir.clone());
-                                                     true
-                                                 });
+                    src_dir.get_metadata().get_key().get_type_tag(),
+                    user_metadata,
+                    src_dir.get_metadata().get_key().is_versioned(),
+                    access_level,
+                    Some(&mut dst_dir))?;
+        src_dir
+            .get_files()
+            .iter()
+            .all(|file| {
+                     dir.get_mut_files().push(file.clone());
+                     true
+                 });
+        src_dir
+            .get_sub_directories()
+            .iter()
+            .all(|sub_dir| {
+                     dir.get_mut_sub_directories().push(sub_dir.clone());
+                     true
+                 });
         dir.get_mut_metadata().set_created_time(created_time);
         dir.get_mut_metadata().set_modified_time(modified_time);
         let _ = directory_helper.update(&dir)?;
     } else {
-        src_dir.get_mut_metadata().set_parent_dir_key(Some(*dst_dir.get_metadata().get_key()));
+        src_dir
+            .get_mut_metadata()
+            .set_parent_dir_key(Some(*dst_dir.get_metadata().get_key()));
         dst_dir.upsert_sub_directory(src_dir.get_metadata().clone());
         let _ = directory_helper.update(&dst_dir)?;
         let _ = directory_helper.update(&src_dir)?;

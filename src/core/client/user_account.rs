@@ -228,9 +228,9 @@ mod test {
                                                              0.to_string().as_bytes()));
         let user1_id2 = unwrap!(Account::generate_network_id(keyword1.as_bytes(),
                                                              1234.to_string().as_bytes()));
-        let user1_id3 = unwrap!(Account::generate_network_id(keyword1.as_bytes(),
-                                                             ::std::u32::MAX.to_string()
-                                                                 .as_bytes()));
+        let user1_id3 =
+            unwrap!(Account::generate_network_id(keyword1.as_bytes(),
+                                                 ::std::u32::MAX.to_string().as_bytes()));
 
         assert!(user1_id1 != user1_id2);
         assert!(user1_id1 != user1_id3);
@@ -264,9 +264,9 @@ mod test {
                                                               0.to_string().as_bytes()));
             let keys2 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
                                                               1234.to_string().as_bytes()));
-            let keys3 = unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
-                                                              ::std::u32::MAX.to_string()
-                                                                  .as_bytes()));
+            let keys3 =
+                unwrap!(Account::generate_crypto_keys(password1.as_bytes(),
+                                                      ::std::u32::MAX.to_string().as_bytes()));
 
             assert!(keys1 != keys2);
             assert!(keys1 != keys3);

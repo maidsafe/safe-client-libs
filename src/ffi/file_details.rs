@@ -114,8 +114,8 @@ impl FileMetadata {
         let created_time = file_metadata.get_created_time().to_timespec();
         let modified_time = file_metadata.get_modified_time().to_timespec();
 
-        let (name, name_len, name_cap) = helper::string_to_c_utf8(file_metadata.get_name()
-                                                                      .to_string());
+        let (name, name_len, name_cap) =
+            helper::string_to_c_utf8(file_metadata.get_name().to_string());
 
         let user_metadata = file_metadata.get_user_metadata().to_owned();
         let (user_metadata, user_metadata_len, user_metadata_cap) =

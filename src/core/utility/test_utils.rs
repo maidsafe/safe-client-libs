@@ -25,7 +25,8 @@ use std::collections::BTreeSet;
 pub fn get_client() -> Result<Client, CoreError> {
     let acc_locator = utility::generate_random_string(10)?;
     let acc_password = utility::generate_random_string(10)?;
-    Client::create_account(&acc_locator, &acc_password)
+    let invitation = unwrap!(utility::generate_random_string(10));
+    Client::create_account(&acc_locator, &acc_password, &invitation)
 }
 
 /// Generates random public keys
@@ -40,12 +41,16 @@ pub fn generate_secret_keys(len: usize) -> Vec<sign::SecretKey> {
 
 /// Generates public keys of maximum size
 pub fn get_max_sized_public_keys(len: usize) -> BTreeSet<sign::PublicKey> {
-    ::std::iter::repeat(sign::PublicKey([::std::u8::MAX; sign::PUBLICKEYBYTES])).take(len).collect()
+    ::std::iter::repeat(sign::PublicKey([::std::u8::MAX; sign::PUBLICKEYBYTES]))
+        .take(len)
+        .collect()
 }
 
 /// Generates secret keys of maximum size
 pub fn get_max_sized_secret_keys(len: usize) -> Vec<sign::SecretKey> {
-    ::std::iter::repeat(sign::SecretKey([::std::u8::MAX; sign::SECRETKEYBYTES])).take(len).collect()
+    ::std::iter::repeat(sign::SecretKey([::std::u8::MAX; sign::SECRETKEYBYTES]))
+        .take(len)
+        .collect()
 }
 
 #[cfg(test)]

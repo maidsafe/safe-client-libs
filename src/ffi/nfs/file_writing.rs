@@ -92,12 +92,12 @@ pub unsafe extern "C" fn nfs_writer_write(writer_handle: *mut Writer,
                                           len: usize)
                                           -> int32_t {
     helper::catch_unwind_i32(|| {
-        trace!("FFI Write data using nfs writer.");
+                                 trace!("FFI Write data using nfs writer.");
 
-        let data = slice::from_raw_parts(data, len);
-        ffi_try!((*writer_handle).inner.write(&data[..]));
-        0
-    })
+                                 let data = slice::from_raw_parts(data, len);
+                                 ffi_try!((*writer_handle).inner.write(&data[..]));
+                                 0
+                             })
 }
 
 /// Closes the NFS Writer handle

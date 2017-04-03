@@ -52,6 +52,7 @@ unsafe fn self_auth(session_h: *mut *mut SessionHandle) {
 
     let mut secret_0 = String::new();
     let mut secret_1 = String::new();
+    let mut invitation = String::new();
 
     println!("\n------------ Enter account-locator ---------------");
     let _ = std::io::stdin().read_line(&mut secret_0);
@@ -61,6 +62,9 @@ unsafe fn self_auth(session_h: *mut *mut SessionHandle) {
     let _ = std::io::stdin().read_line(&mut secret_1);
     secret_1 = secret_1.trim().to_string();
 
+    println!("\n------------ Enter invitation ---------------");
+    let _ = std::io::stdin().read_line(&mut invitation);
+    invitation = invitation.trim().to_string();
 
     if user_option != "Y" && user_option != "y" {
         println!("\nTrying to create an account ...");
@@ -68,6 +72,8 @@ unsafe fn self_auth(session_h: *mut *mut SessionHandle) {
                                   secret_0.as_bytes().len(),
                                   secret_1.as_bytes().as_ptr(),
                                   secret_1.as_bytes().len(),
+                                  invitation.as_bytes().as_ptr(),
+                                  invitation.as_bytes().len(),
                                   session_h),
                    0);
     } else {

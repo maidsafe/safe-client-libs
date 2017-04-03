@@ -45,7 +45,11 @@ fn handle_response(response: Response, mut queue_guard: MutexGuard<MessageQueue>
                 let _ = response_observer.send(ResponseEvent::GetResp(Ok(data)));
             }
         }
-        Response::GetFailure { id, data_id, external_error_indicator } => {
+        Response::GetFailure {
+            id,
+            data_id,
+            external_error_indicator,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let reason: GetError = match deserialise(&external_error_indicator) {
                     Ok(err) => err,
@@ -70,38 +74,62 @@ fn handle_response(response: Response, mut queue_guard: MutexGuard<MessageQueue>
                 let _ = response_observer.send(ResponseEvent::MutationResp(Ok(())));
             }
         }
-        Response::PutFailure { id, data_id, external_error_indicator } => {
+        Response::PutFailure {
+            id,
+            data_id,
+            external_error_indicator,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let err = parse_mutation_failure(external_error_indicator, data_id, "PUT");
                 let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
-        Response::PostFailure { id, data_id, external_error_indicator } => {
+        Response::PostFailure {
+            id,
+            data_id,
+            external_error_indicator,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let err = parse_mutation_failure(external_error_indicator, data_id, "POST");
                 let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
-        Response::DeleteFailure { id, data_id, external_error_indicator } => {
+        Response::DeleteFailure {
+            id,
+            data_id,
+            external_error_indicator,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let err = parse_mutation_failure(external_error_indicator, data_id, "DELETE");
                 let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
-        Response::AppendFailure { id, data_id, external_error_indicator } => {
+        Response::AppendFailure {
+            id,
+            data_id,
+            external_error_indicator,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let err = parse_mutation_failure(external_error_indicator, data_id, "APPEND");
                 let _ = response_observer.send(ResponseEvent::MutationResp(Err(err)));
             }
         }
-        Response::GetAccountInfoSuccess { id, data_stored, space_available } => {
+        Response::GetAccountInfoSuccess {
+            id,
+            data_stored,
+            space_available,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let _ =
-                    response_observer.send(ResponseEvent::GetAccountInfoResp(Ok((data_stored,
+                    response_observer
+                        .send(ResponseEvent::GetAccountInfoResp(Ok((data_stored,
                                                                     space_available))));
             }
         }
-        Response::GetAccountInfoFailure { id, external_error_indicator } => {
+        Response::GetAccountInfoFailure {
+            id,
+            external_error_indicator,
+        } => {
             if let Some(response_observer) = queue_guard.response_observers.remove(&id) {
                 let reason: GetError = match deserialise(&external_error_indicator) {
                     Ok(err) => err,

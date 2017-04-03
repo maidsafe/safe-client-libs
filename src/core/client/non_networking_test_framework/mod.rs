@@ -208,7 +208,8 @@ impl RoutingMock {
             }
 
             {
-                let account = storage.client_accounts
+                let account = storage
+                    .client_accounts
                     .entry(self.client_name())
                     .or_insert_with(ClientAccount::default);
                 account.data_stored += 1;
@@ -259,7 +260,9 @@ impl RoutingMock {
                     (Data::Structured(sd_new), Ok(Data::Structured(sd_stored))) => {
                         if sd_stored.is_deleted() {
                             Err(MutationError::InvalidOperation)
-                        } else if sd_stored.validate_self_against_successor(&sd_new).is_ok() {
+                        } else if sd_stored
+                                      .validate_self_against_successor(&sd_new)
+                                      .is_ok() {
                             Ok(Data::Structured(sd_new))
                         } else {
                             Err(MutationError::InvalidSuccessor)
@@ -463,7 +466,12 @@ impl RoutingMock {
                 Some(MutationError::NetworkOther("Max operations exhausted".to_string()))
             } else {
                 match (wrapper, storage.get_data(&data_name)) {
-                    (AppendWrapper::Priv { data, version, sign_key, .. },
+                    (AppendWrapper::Priv {
+                         data,
+                         version,
+                         sign_key,
+                         ..
+                     },
                      Ok(Data::PrivAppendable(mut ad_stored))) => {
                         if version == ad_stored.version && ad_stored.append(data, &sign_key) {
                             match storage.put_data(data_name, Data::PrivAppendable(ad_stored)) {
@@ -608,15 +616,19 @@ impl RoutingMock {
     }
 
     fn network_limits_reached(&self) -> bool {
-        self.max_ops_countdown.as_ref().map_or(false, |count| count.get() == 0)
+        self.max_ops_countdown
+            .as_ref()
+            .map_or(false, |count| count.get() == 0)
     }
 
     fn update_network_limits(&self) -> Option<u64> {
-        self.max_ops_countdown.as_ref().map(|count| {
-                                                let ops = count.get();
-                                                count.set(ops - 1);
-                                                ops
-                                            })
+        self.max_ops_countdown
+            .as_ref()
+            .map(|count| {
+                     let ops = count.get();
+                     count.set(ops - 1);
+                     ops
+                 })
     }
 }
 
@@ -728,9 +740,9 @@ mod test {
 
             match result {
                 Ok(_) => panic!("Expected Post Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. }) => {
-                    ()
-                }
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::InvalidOperation, ..
+                    }) => (),
                 Err(err) => panic!("Unexpected: {:?}", err),
             }
         }
@@ -744,9 +756,9 @@ mod test {
 
             match result {
                 Ok(_) => panic!("Expected Delete Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidOperation, .. }) => {
-                    ()
-                }
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::InvalidOperation, ..
+                    }) => (),
                 Err(err) => panic!("Unexpected: {:?}", err),
             }
         }
@@ -854,8 +866,8 @@ mod test {
 
         // GET ImmutableData from latest version of StructuredData should pass
         {
-            let mut location_vec =
-                unwrap!(deserialise::<Vec<XorName>>(received_structured_data.get_data()));
+            let mut location_vec = unwrap!(deserialise::<Vec<XorName>>(received_structured_data
+                                                                           .get_data()));
             let immut_data_id = DataIdentifier::Immutable(unwrap!(location_vec.pop(),
                                                                   "Value must exist !"));
 
@@ -918,9 +930,9 @@ mod test {
 
             match result {
                 Ok(_) => panic!("Expected Post Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. }) => {
-                    ()
-                }
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::InvalidSuccessor, ..
+                    }) => (),
                 Err(err) => panic!("Unexpected: {:?}", err),
             }
         }
@@ -934,9 +946,9 @@ mod test {
 
             match result {
                 Ok(_) => panic!("Expected Post Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. }) => {
-                    ()
-                }
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::InvalidSuccessor, ..
+                    }) => (),
                 Err(err) => panic!("Unexpected: {:?}", err),
             }
         }
@@ -962,8 +974,8 @@ mod test {
             }
         }
 
-        let location_vec =
-            unwrap!(deserialise::<Vec<XorName>>(received_structured_data.get_data()));
+        let location_vec = unwrap!(deserialise::<Vec<XorName>>(received_structured_data
+                                                                   .get_data()));
         assert_eq!(location_vec.len(), 2);
 
         // GET new ImmutableData should pass
@@ -995,9 +1007,9 @@ mod test {
 
             match result {
                 Ok(_) => panic!("Expected Delete Failure!"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. }) => {
-                    ()
-                }
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::InvalidSuccessor, ..
+                    }) => (),
                 Err(err) => panic!("Unexpected: {:?}", err),
             }
         }
@@ -1118,10 +1130,7 @@ mod test {
         }
 
         let owner_key = account_packet.get_public_maid().public_keys().0;
-        let signing_key = account_packet.get_maid()
-            .secret_keys()
-            .0
-            .clone();
+        let signing_key = account_packet.get_maid().secret_keys().0.clone();
         let signature = (owner_key, signing_key.clone());
 
         let mut owners = BTreeSet::new();
@@ -1237,12 +1246,12 @@ mod test {
         // POST with modified filter.
         let (blacklisted_pk, blacklisted_sk) = sign::gen_keypair();
         let filter = Filter::black_list(iter::once(blacklisted_pk));
-        let mut appendable_data = unwrap!(PubAppendableData::new(appendable_data.name,
-                                                                 appendable_data.version + 1,
-                                                                 appendable_data.owners.clone(),
-                                                                 appendable_data.deleted_data
-                                                                     .clone(),
-                                                                 filter));
+        let mut appendable_data =
+            unwrap!(PubAppendableData::new(appendable_data.name,
+                                           appendable_data.version + 1,
+                                           appendable_data.owners.clone(),
+                                           appendable_data.deleted_data.clone(),
+                                           filter));
         let _ = unwrap!(appendable_data.add_signature(&signature));
 
         unwrap!(do_post(&mut mock_routing,
@@ -1289,9 +1298,9 @@ mod test {
 
             match result {
                 Ok(_) => panic!("Expected APPEND failure"),
-                Err(CoreError::MutationFailure { reason: MutationError::InvalidSuccessor, .. }) => {
-                    ()
-                }
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::InvalidSuccessor, ..
+                    }) => (),
                 Err(error) => panic!("Unexpected {:?}", error),
             }
         }
@@ -1345,15 +1354,9 @@ mod test {
     fn create_account_and_full_id() -> (Account, FullId) {
         let account = Account::new(None, None);
         let id = FullId::with_keys((account.get_maid().public_keys().1,
-                                    account.get_maid()
-                                        .secret_keys()
-                                        .1
-                                        .clone()),
+                                    account.get_maid().secret_keys().1.clone()),
                                    (account.get_maid().public_keys().0,
-                                    account.get_maid()
-                                        .secret_keys()
-                                        .0
-                                        .clone()));
+                                    account.get_maid().secret_keys().0.clone()));
 
         (account, id)
     }

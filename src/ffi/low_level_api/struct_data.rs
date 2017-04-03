@@ -147,13 +147,13 @@ pub unsafe extern "C" fn struct_data_extract_data_id(sd_h: StructDataHandle,
                                                      o_handle: *mut DataIdHandle)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache());
-        let data_id = ffi_try!(obj_cache.get_sd(sd_h)).identifier();
-        let handle = obj_cache.insert_data_id(data_id);
-        ptr::write(o_handle, handle);
+                                 let mut obj_cache = unwrap!(object_cache());
+                                 let data_id = ffi_try!(obj_cache.get_sd(sd_h)).identifier();
+                                 let handle = obj_cache.insert_data_id(data_id);
+                                 ptr::write(o_handle, handle);
 
-        0
-    })
+                                 0
+                             })
 }
 
 // TODO See if we can extract common functionality and merge with new() above
@@ -224,7 +224,9 @@ pub unsafe extern "C" fn struct_data_new_data(app: *const App,
             _ => ffi_try!(Err(FfiError::InvalidStructuredDataTypeTag)),
         };
 
-        let _ = ffi_try!(new_sd.add_signature(&(owner_key, sign_key)).map_err(CoreError::from));
+        let _ = ffi_try!(new_sd
+                             .add_signature(&(owner_key, sign_key))
+                             .map_err(CoreError::from));
 
         *ffi_try!(object_cache.get_sd(sd_h)) = new_sd;
         0
@@ -290,12 +292,13 @@ pub unsafe extern "C" fn struct_data_num_of_versions(sd_h: StructDataHandle,
                                                      o_num: *mut usize)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        let mut obj_cache = unwrap!(object_cache());
-        let sd = ffi_try!(obj_cache.get_sd(sd_h));
-        let num = ffi_try!(versioned::version_count(&sd).map_err(FfiError::from));
-        ptr::write(o_num, num as usize);
-        0
-    })
+                                 let mut obj_cache = unwrap!(object_cache());
+                                 let sd = ffi_try!(obj_cache.get_sd(sd_h));
+                                 let num = ffi_try!(versioned::version_count(&sd)
+                                                        .map_err(FfiError::from));
+                                 ptr::write(o_num, num as usize);
+                                 0
+                             })
 }
 
 /// Get nth (starts from 0) version from a versioned `StructuredData`
@@ -427,7 +430,8 @@ fn struct_data_post_impl(client: Arc<Mutex<Client>>,
 
     let owner_key = *unwrap!(client.lock()).get_public_signing_key()?;
     let private_signing_key = unwrap!(client.lock()).get_secret_signing_key()?.clone();
-    let _ = new_sd.add_signature(&(owner_key, private_signing_key)).map_err(CoreError::from)?;
+    let _ = new_sd.add_signature(&(owner_key, private_signing_key))
+        .map_err(CoreError::from)?;
 
     let data = Data::Structured(new_sd.clone());
     let resp_getter = unwrap!(client.lock()).post(data, None)?;
@@ -465,7 +469,8 @@ fn struct_data_delete_impl(client: Arc<Mutex<Client>>,
 
     let owner_key = *unwrap!(client.lock()).get_public_signing_key()?;
     let private_signing_key = unwrap!(client.lock()).get_secret_signing_key()?.clone();
-    let _ = new_sd.add_signature(&(owner_key, private_signing_key)).map_err(CoreError::from)?;
+    let _ = new_sd.add_signature(&(owner_key, private_signing_key))
+        .map_err(CoreError::from)?;
 
     let data = Data::Structured(new_sd.clone());
     let resp_getter = unwrap!(client.lock()).delete(data, None)?;
@@ -481,7 +486,7 @@ pub unsafe extern "C" fn struct_data_validate_size(handle: StructDataHandle,
                                                    -> i32 {
     helper::catch_unwind_i32(|| {
                                  *o_valid = ffi_try!(unwrap!(object_cache()).get_sd(handle))
-            .validate_size();
+                                     .validate_size();
                                  0
                              })
 }
@@ -491,7 +496,7 @@ pub unsafe extern "C" fn struct_data_validate_size(handle: StructDataHandle,
 pub unsafe extern "C" fn struct_data_version(handle: StructDataHandle, o_version: *mut u64) -> i32 {
     helper::catch_unwind_i32(|| {
                                  *o_version = ffi_try!(unwrap!(object_cache()).get_sd(handle))
-            .get_version();
+                                     .get_version();
                                  0
                              })
 }
@@ -506,8 +511,9 @@ pub unsafe extern "C" fn struct_data_is_owned(app: *const App,
         let client = (*app).get_client();
         let my_key = *ffi_try!(unwrap!(client.lock()).get_public_signing_key());
 
-        *o_is_owned =
-            ffi_try!(unwrap!(object_cache()).get_sd(handle)).get_owners().contains(&my_key);
+        *o_is_owned = ffi_try!(unwrap!(object_cache()).get_sd(handle))
+            .get_owners()
+            .contains(&my_key);
 
         0
     })

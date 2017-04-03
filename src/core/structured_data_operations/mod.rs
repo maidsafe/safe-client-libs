@@ -54,10 +54,13 @@ pub fn get_approximate_space_for_data(owners: BTreeSet<sign::PublicKey>) -> Resu
                                                   owners.clone())?;
 
     // Fill it with rest of signatures
-    let max_signatures = owners.iter().cloned().fold(BTreeMap::new(), |mut signatures, owner| {
-        let _ = signatures.insert(owner, sign::Signature([u8::MAX; sign::SIGNATUREBYTES]));
-        signatures
-    });
+    let max_signatures = owners
+        .iter()
+        .cloned()
+        .fold(BTreeMap::new(), |mut signatures, owner| {
+            let _ = signatures.insert(owner, sign::Signature([u8::MAX; sign::SIGNATUREBYTES]));
+            signatures
+        });
     structured_data.replace_signatures(max_signatures);
 
     let serialised_structured_data_len = serialise(&structured_data)?.len() as u64 +

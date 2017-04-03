@@ -53,8 +53,11 @@ impl Session {
     }
 
     /// Create new account.
-    pub fn create_account(locator: &str, password: &str) -> Result<Self, FfiError> {
-        let client = Client::create_account(locator, password)?;
+    pub fn create_account(locator: &str,
+                          password: &str,
+                          invitation: &str)
+                          -> Result<Self, FfiError> {
+        let client = Client::create_account(locator, password, invitation)?;
         let client = Arc::new(Mutex::new(client));
 
         let safe_drive_dir_key = helper::get_safe_drive_key(client.clone())?;
@@ -152,12 +155,12 @@ pub type SessionHandle = Arc<Mutex<Session>>;
 pub unsafe extern "C" fn create_unregistered_client(session_handle: *mut *mut SessionHandle)
                                                     -> int32_t {
     helper::catch_unwind_i32(|| {
-        trace!("FFI create unregistered client.");
+                                 trace!("FFI create unregistered client.");
 
-        let session = ffi_try!(Session::create_unregistered_client());
-        *session_handle = allocate_handle(session);
-        0
-    })
+                                 let session = ffi_try!(Session::create_unregistered_client());
+                                 *session_handle = allocate_handle(session);
+                                 0
+                             })
 }
 
 /// Create a registered client. This or any one of the other companion functions to get a
@@ -169,6 +172,8 @@ pub unsafe extern "C" fn create_account(account_locator: *const u8,
                                         account_locator_len: usize,
                                         account_password: *const u8,
                                         account_password_len: usize,
+                                        invitation: *const u8,
+                                        invitation_len: usize,
                                         session_handle: *mut *mut SessionHandle)
                                         -> int32_t {
     helper::catch_unwind_i32(|| {
@@ -176,7 +181,8 @@ pub unsafe extern "C" fn create_account(account_locator: *const u8,
 
         let acc_locator = ffi_try!(helper::c_utf8_to_str(account_locator, account_locator_len));
         let acc_password = ffi_try!(helper::c_utf8_to_str(account_password, account_password_len));
-        let session = ffi_try!(Session::create_account(acc_locator, acc_password));
+        let invitation = ffi_try!(helper::c_utf8_to_str(invitation, invitation_len));
+        let session = ffi_try!(Session::create_account(acc_locator, acc_password, invitation));
 
         *session_handle = allocate_handle(session);
         0
@@ -319,6 +325,7 @@ mod test {
     fn create_account_and_log_in() {
         let acc_locator = test_utils::generate_random_cstring(10);
         let acc_password = test_utils::generate_random_cstring(10);
+        let invitation = test_utils::generate_random_cstring(10);
 
         {
             let mut session_handle: *mut SessionHandle = ptr::null_mut();
@@ -329,6 +336,8 @@ mod test {
                 assert_eq!(create_account(acc_locator.as_ptr() as *const u8,
                                           10,
                                           acc_password.as_ptr() as *const u8,
+                                          10,
+                                          invitation.as_ptr() as *const u8,
                                           10,
                                           session_handle_ptr),
                            0);

@@ -64,12 +64,12 @@ pub fn register_long_name(app: &App, long_name: String) -> Result<(), FfiError> 
 
     let dns_operation = DnsOperations::new(client.clone())?;
     dns_operation.register_dns(long_name,
-                               &msg_public_key,
-                               &msg_secret_key,
-                               &services,
-                               owners,
-                               &private_signing_key,
-                               None)?;
+                      &msg_public_key,
+                      &msg_secret_key,
+                      &services,
+                      owners,
+                      &private_signing_key,
+                      None)?;
 
     Ok(())
 }
@@ -95,12 +95,12 @@ pub unsafe extern "C" fn dns_get_long_names(app_handle: *const App,
                                             list_handle: *mut *mut StringList)
                                             -> int32_t {
     helper::catch_unwind_i32(|| {
-        trace!("FFI Get all dns long names.");
+                                 trace!("FFI Get all dns long names.");
 
-        let list = ffi_try!(get_long_names(&*app_handle));
-        *list_handle = ffi_try!(string_list::into_ptr(list));
-        0
-    })
+                                 let list = ffi_try!(get_long_names(&*app_handle));
+                                 *list_handle = ffi_try!(string_list::into_ptr(list));
+                                 0
+                             })
 }
 
 fn delete_long_name(app: &App, long_name: &str) -> Result<(), FfiError> {

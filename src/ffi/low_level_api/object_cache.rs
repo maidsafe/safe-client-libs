@@ -84,11 +84,15 @@ impl ObjectCache {
     pub fn get_ad(&mut self,
                   handle: AppendableDataHandle)
                   -> Result<&mut AppendableData, FfiError> {
-        self.appendable_data.get_mut(&handle).ok_or(FfiError::InvalidAppendableDataHandle)
+        self.appendable_data
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidAppendableDataHandle)
     }
 
     pub fn remove_ad(&mut self, handle: AppendableDataHandle) -> Result<AppendableData, FfiError> {
-        self.appendable_data.remove(&handle).ok_or(FfiError::InvalidAppendableDataHandle)
+        self.appendable_data
+            .remove(&handle)
+            .ok_or(FfiError::InvalidAppendableDataHandle)
     }
 
     // ----------------------------------------------------------
@@ -102,11 +106,15 @@ impl ObjectCache {
     }
 
     pub fn get_cipher_opt(&mut self, handle: CipherOptHandle) -> Result<&mut CipherOpt, FfiError> {
-        self.cipher_opt.get_mut(&handle).ok_or(FfiError::InvalidCipherOptHandle)
+        self.cipher_opt
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidCipherOptHandle)
     }
 
     pub fn remove_cipher_opt(&mut self, handle: CipherOptHandle) -> Result<CipherOpt, FfiError> {
-        self.cipher_opt.remove(&handle).ok_or(FfiError::InvalidCipherOptHandle)
+        self.cipher_opt
+            .remove(&handle)
+            .ok_or(FfiError::InvalidCipherOptHandle)
     }
 
     // ----------------------------------------------------------
@@ -120,11 +128,15 @@ impl ObjectCache {
     }
 
     pub fn get_data_id(&mut self, handle: DataIdHandle) -> Result<&mut DataIdentifier, FfiError> {
-        self.data_id.get_mut(&handle).ok_or(FfiError::InvalidDataIdHandle)
+        self.data_id
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidDataIdHandle)
     }
 
     pub fn remove_data_id(&mut self, handle: DataIdHandle) -> Result<DataIdentifier, FfiError> {
-        self.data_id.remove(&handle).ok_or(FfiError::InvalidDataIdHandle)
+        self.data_id
+            .remove(&handle)
+            .ok_or(FfiError::InvalidDataIdHandle)
     }
 
     // ----------------------------------------------------------
@@ -142,13 +154,17 @@ impl ObjectCache {
     pub fn get_se_reader(&mut self,
                          handle: SelfEncryptorReaderHandle)
                          -> Result<&mut SelfEncryptorReaderWrapper, FfiError> {
-        self.se_reader.get_mut(&handle).ok_or(FfiError::InvalidSelfEncryptorHandle)
+        self.se_reader
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidSelfEncryptorHandle)
     }
 
     pub fn remove_se_reader(&mut self,
                             handle: SelfEncryptorReaderHandle)
                             -> Result<SelfEncryptorReaderWrapper, FfiError> {
-        self.se_reader.remove(&handle).ok_or(FfiError::InvalidSelfEncryptorHandle)
+        self.se_reader
+            .remove(&handle)
+            .ok_or(FfiError::InvalidSelfEncryptorHandle)
     }
 
     // ----------------------------------------------------------
@@ -166,13 +182,17 @@ impl ObjectCache {
     pub fn get_se_writer(&mut self,
                          handle: SelfEncryptorWriterHandle)
                          -> Result<&mut SelfEncryptorWriterWrapper, FfiError> {
-        self.se_writer.get_mut(&handle).ok_or(FfiError::InvalidSelfEncryptorHandle)
+        self.se_writer
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidSelfEncryptorHandle)
     }
 
     pub fn remove_se_writer(&mut self,
                             handle: SelfEncryptorWriterHandle)
                             -> Result<SelfEncryptorWriterWrapper, FfiError> {
-        self.se_writer.remove(&handle).ok_or(FfiError::InvalidSelfEncryptorHandle)
+        self.se_writer
+            .remove(&handle)
+            .ok_or(FfiError::InvalidSelfEncryptorHandle)
     }
 
     // ----------------------------------------------------------
@@ -188,11 +208,15 @@ impl ObjectCache {
     pub fn get_sign_key(&mut self,
                         handle: SignKeyHandle)
                         -> Result<&mut sign::PublicKey, FfiError> {
-        self.sign_key.get_mut(&handle).ok_or(FfiError::InvalidSignKeyHandle)
+        self.sign_key
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidSignKeyHandle)
     }
 
     pub fn remove_sign_key(&mut self, handle: SignKeyHandle) -> Result<sign::PublicKey, FfiError> {
-        self.sign_key.remove(&handle).ok_or(FfiError::InvalidSignKeyHandle)
+        self.sign_key
+            .remove(&handle)
+            .ok_or(FfiError::InvalidSignKeyHandle)
     }
 
     // ----------------------------------------------------------
@@ -208,13 +232,17 @@ impl ObjectCache {
     pub fn get_encrypt_key(&mut self,
                            handle: EncryptKeyHandle)
                            -> Result<&mut box_::PublicKey, FfiError> {
-        self.encrypt_key.get_mut(&handle).ok_or(FfiError::InvalidEncryptKeyHandle)
+        self.encrypt_key
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidEncryptKeyHandle)
     }
 
     pub fn remove_encrypt_key(&mut self,
                               handle: EncryptKeyHandle)
                               -> Result<box_::PublicKey, FfiError> {
-        self.encrypt_key.remove(&handle).ok_or(FfiError::InvalidEncryptKeyHandle)
+        self.encrypt_key
+            .remove(&handle)
+            .ok_or(FfiError::InvalidEncryptKeyHandle)
     }
 
     // ----------------------------------------------------------
@@ -228,11 +256,15 @@ impl ObjectCache {
     }
 
     pub fn get_sd(&mut self, handle: StructDataHandle) -> Result<&mut StructuredData, FfiError> {
-        self.struct_data.get_mut(&handle).ok_or(FfiError::InvalidStructDataHandle)
+        self.struct_data
+            .get_mut(&handle)
+            .ok_or(FfiError::InvalidStructDataHandle)
     }
 
     pub fn remove_sd(&mut self, handle: StructDataHandle) -> Result<StructuredData, FfiError> {
-        self.struct_data.remove(&handle).ok_or(FfiError::InvalidStructDataHandle)
+        self.struct_data
+            .remove(&handle)
+            .ok_or(FfiError::InvalidStructDataHandle)
     }
 }
 

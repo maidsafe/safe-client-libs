@@ -133,25 +133,33 @@ impl DirectoryListing {
     /// Get DirectoryInfo of sub_directory within a DirectoryListing.
     /// Returns the Option<DirectoryInfo> for the directory_name from the DirectoryListing
     pub fn find_file(&self, file_name: &str) -> Option<&File> {
-        self.get_files().iter().find(|file| *file.get_name() == *file_name)
+        self.get_files()
+            .iter()
+            .find(|file| *file.get_name() == *file_name)
     }
 
     /// Get DirectoryInfo of sub_directory within a DirectoryListing.
     /// Returns the Option<DirectoryInfo> for the directory_name from the DirectoryListing
     pub fn find_file_by_id(&self, id: &XorName) -> Option<&File> {
-        self.get_files().iter().find(|file| *file.get_id() == *id)
+        self.get_files()
+            .iter()
+            .find(|file| *file.get_id() == *id)
     }
 
     /// Get DirectoryInfo of sub_directory within a DirectoryListing.
     /// Returns the Option<DirectoryInfo> for the directory_name from the DirectoryListing
     pub fn find_sub_directory(&self, directory_name: &str) -> Option<&DirectoryMetadata> {
-        self.get_sub_directories().iter().find(|info| *info.get_name() == *directory_name)
+        self.get_sub_directories()
+            .iter()
+            .find(|info| *info.get_name() == *directory_name)
     }
 
     /// Get DirectoryInfo of sub_directory within a DirectoryListing.
     /// Returns the Option<DirectoryInfo> for the directory_name from the DirectoryListing
     pub fn find_sub_directory_by_id(&self, id: &XorName) -> Option<&DirectoryMetadata> {
-        self.get_sub_directories().iter().find(|info| *info.get_id() == *id)
+        self.get_sub_directories()
+            .iter()
+            .find(|info| *info.get_id() == *id)
     }
 
     /// If file is present in the DirectoryListing then replace it else insert it
@@ -162,7 +170,9 @@ impl DirectoryListing {
         //     if let Some(mut existing_file) = self.files.iter_mut().find(
         //             |entry| *entry.get_name() == *file.get_name()) {
         //         *existing_file = file;
-        if let Some(index) = self.files.iter().position(|entry| *entry.get_id() == *file.get_id()) {
+        if let Some(index) = self.files
+               .iter()
+               .position(|entry| *entry.get_id() == *file.get_id()) {
             let mut existing = unwrap!(self.files.get_mut(index));
             *existing = file;
         } else {
@@ -175,10 +185,11 @@ impl DirectoryListing {
     /// then replace it else insert it
     pub fn upsert_sub_directory(&mut self, directory_metadata: DirectoryMetadata) {
         let modified_time = *directory_metadata.get_modified_time();
-        if let Some(index) = self.sub_directories.iter().position(|entry| {
-                                                                      *entry.get_key().get_id() ==
-                                                     *directory_metadata.get_key().get_id()
-                                                                  }) {
+        if let Some(index) = self.sub_directories
+               .iter()
+               .position(|entry| {
+                             *entry.get_key().get_id() == *directory_metadata.get_key().get_id()
+                         }) {
             let mut existing = unwrap!(self.sub_directories.get_mut(index));
             *existing = directory_metadata;
         } else {
@@ -255,10 +266,10 @@ mod test {
                                                               AccessLevel::Private,
                                                               None));
         let encrypted_data = unwrap!(directory_listing.encrypt(client.clone()));
-        let decrypted_listing = unwrap!(DirectoryListing::decrypt(client.clone(),
-                                                                  directory_listing.get_key()
-                                                                      .get_id(),
-                                                                  encrypted_data));
+        let decrypted_listing =
+            unwrap!(DirectoryListing::decrypt(client.clone(),
+                                              directory_listing.get_key().get_id(),
+                                              encrypted_data));
         assert_eq!(directory_listing, decrypted_listing);
     }
 
@@ -312,13 +323,17 @@ mod test {
                                                               true,
                                                               AccessLevel::Private,
                                                               None));
-        assert!(directory_listing.find_sub_directory(sub_directory.get_metadata().get_name())
+        assert!(directory_listing
+                    .find_sub_directory(sub_directory.get_metadata().get_name())
                     .is_none());
         directory_listing.upsert_sub_directory(sub_directory.get_metadata().clone());
-        assert!(directory_listing.find_sub_directory(sub_directory.get_metadata().get_name())
+        assert!(directory_listing
+                    .find_sub_directory(sub_directory.get_metadata().get_name())
                     .is_some());
 
-        sub_directory.get_mut_metadata().set_name("Child_1".to_string());
+        sub_directory
+            .get_mut_metadata()
+            .set_name("Child_1".to_string());
         directory_listing.upsert_sub_directory(sub_directory.get_metadata().clone());
         assert_eq!(directory_listing.get_sub_directories().len(), 1);
         let sub_directory_two = unwrap!(DirectoryListing::new("Child Two".to_string(),
@@ -330,24 +345,29 @@ mod test {
         directory_listing.upsert_sub_directory(sub_directory_two.get_metadata().clone());
         assert_eq!(directory_listing.get_sub_directories().len(), 2);
 
-        let _ = unwrap!(directory_listing.find_sub_directory(sub_directory.get_metadata()
-                                                                 .get_name()),
-                        "Directory not found");
-        let _ = unwrap!(directory_listing.find_sub_directory(sub_directory_two.get_metadata()
+        let _ =
+            unwrap!(directory_listing.find_sub_directory(sub_directory.get_metadata().get_name()),
+                    "Directory not found");
+        let _ = unwrap!(directory_listing.find_sub_directory(sub_directory_two
+                                                                 .get_metadata()
                                                                  .get_name()),
                         "Directory not found");
 
-        let _ = unwrap!(directory_listing.remove_sub_directory(sub_directory.get_metadata()
+        let _ = unwrap!(directory_listing.remove_sub_directory(sub_directory
+                                                                   .get_metadata()
                                                                    .get_name()));
-        assert!(directory_listing.find_sub_directory(sub_directory.get_metadata().get_name())
+        assert!(directory_listing
+                    .find_sub_directory(sub_directory.get_metadata().get_name())
                     .is_none());
-        assert!(directory_listing.find_sub_directory(sub_directory_two.get_metadata().get_name())
+        assert!(directory_listing
+                    .find_sub_directory(sub_directory_two.get_metadata().get_name())
                     .is_some());
         assert_eq!(directory_listing.get_sub_directories().len(), 1);
 
         // TODO (Spandan) - Fetch and issue a DELETE on the removed directory, check elsewhere in
         // code/test. Also check what can be done for file removals.
-        let _ = unwrap!(directory_listing.remove_sub_directory(sub_directory_two.get_metadata()
+        let _ = unwrap!(directory_listing.remove_sub_directory(sub_directory_two
+                                                                   .get_metadata()
                                                                    .get_name()));
         assert_eq!(directory_listing.get_sub_directories().len(), 0);
     }

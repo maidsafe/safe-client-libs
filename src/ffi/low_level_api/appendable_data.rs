@@ -209,20 +209,21 @@ pub unsafe extern "C" fn appendable_data_post(app: *const App,
 
             match *ad {
                 AppendableData::Pub(ref old_data) => {
-                    let mut new_data = ffi_try!(PubAppendableData::new(old_data.name,
-                                                                       old_data.version + 1,
-                                                                       old_data.owners.clone(),
-                                                                       old_data.deleted_data
-                                                                           .clone(),
-                                                                       old_data.filter.clone())
-                                                        .map_err(CoreError::from));
+                    let mut new_data =
+                        ffi_try!(PubAppendableData::new(old_data.name,
+                                                        old_data.version + 1,
+                                                        old_data.owners.clone(),
+                                                        old_data.deleted_data.clone(),
+                                                        old_data.filter.clone())
+                                         .map_err(CoreError::from));
                     if include_data {
                         new_data.data = old_data.data.clone();
                     }
                     let owner_key = *ffi_try!(unwrap!(client.lock()).get_public_signing_key());
                     let private_signing_key =
                         ffi_try!(unwrap!(client.lock()).get_secret_signing_key()).clone();
-                    let _ = ffi_try!(new_data.add_signature(&(owner_key, private_signing_key))
+                    let _ = ffi_try!(new_data
+                                         .add_signature(&(owner_key, private_signing_key))
                                          .map_err(CoreError::from));
                     AppendableData::Pub(new_data)
                 }
@@ -241,7 +242,8 @@ pub unsafe extern "C" fn appendable_data_post(app: *const App,
                     let owner_key = *ffi_try!(unwrap!(client.lock()).get_public_signing_key());
                     let private_signing_key =
                         ffi_try!(unwrap!(client.lock()).get_secret_signing_key()).clone();
-                    let _ = ffi_try!(new_data.add_signature(&(owner_key, private_signing_key))
+                    let _ = ffi_try!(new_data
+                                         .add_signature(&(owner_key, private_signing_key))
                                          .map_err(CoreError::from));
                     AppendableData::Priv(new_data)
                 }
@@ -448,9 +450,13 @@ pub unsafe extern "C" fn appendable_data_nth_data_id(app: *const App,
                                                      o_handle: *mut DataIdHandle)
                                                      -> i32 {
     helper::catch_unwind_i32(|| {
-        ffi_try!(appendable_data_nth_data_id_impl(app, ad_h, n, false, o_handle));
-        0
-    })
+                                 ffi_try!(appendable_data_nth_data_id_impl(app,
+                                                                           ad_h,
+                                                                           n,
+                                                                           false,
+                                                                           o_handle));
+                                 0
+                             })
 }
 
 /// Get nth appended `DataIdentifier` from deleted data.
@@ -461,9 +467,13 @@ pub unsafe extern "C" fn appendable_data_nth_deleted_data_id(app: *const App,
                                                              o_handle: *mut DataIdHandle)
                                                              -> i32 {
     helper::catch_unwind_i32(|| {
-        ffi_try!(appendable_data_nth_data_id_impl(app, ad_h, n, true, o_handle));
-        0
-    })
+                                 ffi_try!(appendable_data_nth_data_id_impl(app,
+                                                                           ad_h,
+                                                                           n,
+                                                                           true,
+                                                                           o_handle));
+                                 0
+                             })
 }
 
 unsafe fn appendable_data_nth_data_id_impl(app: *const App,
@@ -484,7 +494,8 @@ unsafe fn appendable_data_nth_data_id_impl(app: *const App,
                 nth(&elt.data, n)?
             };
             let &(ref pk, ref sk) = app.asym_keys()?;
-            priv_data.open(pk, sk)
+            priv_data
+                .open(pk, sk)
                 .map_err(CoreError::from)?
                 .pointer
 
@@ -512,9 +523,13 @@ pub unsafe extern "C" fn appendable_data_nth_data_sign_key(app: *const App,
                                                            o_handle: *mut SignKeyHandle)
                                                            -> i32 {
     helper::catch_unwind_i32(|| {
-        ffi_try!(appendable_data_nth_sign_key_impl(app, ad_h, n, false, o_handle));
-        0
-    })
+                                 ffi_try!(appendable_data_nth_sign_key_impl(app,
+                                                                            ad_h,
+                                                                            n,
+                                                                            false,
+                                                                            o_handle));
+                                 0
+                             })
 }
 
 /// Get nth sign key from deleted data
@@ -525,9 +540,13 @@ pub unsafe extern "C" fn appendable_data_nth_deleted_data_sign_key(app: *const A
                                                                    o_handle: *mut SignKeyHandle)
                                                                    -> i32 {
     helper::catch_unwind_i32(|| {
-        ffi_try!(appendable_data_nth_sign_key_impl(app, ad_h, n, true, o_handle));
-        0
-    })
+                                 ffi_try!(appendable_data_nth_sign_key_impl(app,
+                                                                            ad_h,
+                                                                            n,
+                                                                            true,
+                                                                            o_handle));
+                                 0
+                             })
 }
 
 unsafe fn appendable_data_nth_sign_key_impl(app: *const App,
@@ -548,7 +567,8 @@ unsafe fn appendable_data_nth_sign_key_impl(app: *const App,
                 nth(&elt.data, n)?
             };
             let &(ref pk, ref sk) = app.asym_keys()?;
-            priv_data.open(pk, sk)
+            priv_data
+                .open(pk, sk)
                 .map_err(CoreError::from)?
                 .sign_key
 

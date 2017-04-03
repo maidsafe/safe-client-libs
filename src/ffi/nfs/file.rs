@@ -39,12 +39,13 @@ pub unsafe extern "C" fn nfs_delete_file(app_handle: *const App,
                                          is_shared: bool)
                                          -> int32_t {
     helper::catch_unwind_i32(|| {
-        trace!("FFI delete file, given the path.");
+                                 trace!("FFI delete file, given the path.");
         #[cfg_attr(rustfmt, rustfmt_skip)]
-        let file_path = ffi_try!(helper::c_utf8_to_str(file_path, file_path_len));
-        ffi_try!(delete_file(&*app_handle, file_path, is_shared));
-        0
-    })
+                                 let file_path = ffi_try!(helper::c_utf8_to_str(file_path,
+                                                                                file_path_len));
+                                 ffi_try!(delete_file(&*app_handle, file_path, is_shared));
+                                 0
+                             })
 }
 
 /// Get file. The returned `FileDetails` pointer must be disposed of by calling
@@ -169,7 +170,8 @@ fn get_file(app: &App,
             include_metadata: bool)
             -> Result<FileDetails, FfiError> {
     let (directory, file_name) = helper::get_directory_and_file(app, file_path, is_path_shared)?;
-    let file = directory.find_file(&file_name).ok_or(FfiError::InvalidPath)?;
+    let file = directory.find_file(&file_name)
+        .ok_or(FfiError::InvalidPath)?;
 
     FileDetails::new(file, app.get_client(), offset, length, include_metadata)
 }
@@ -204,7 +206,8 @@ fn modify_file(app: &App,
     }
 
     if metadata_updated {
-        file.get_mut_metadata().set_modified_time(time::now_utc());
+        file.get_mut_metadata()
+            .set_modified_time(time::now_utc());
         let _ = file_helper.update_metadata(file.clone(), &mut directory)?;
     }
 
@@ -259,7 +262,8 @@ fn get_file_metadata(app: &App,
                      is_path_shared: bool)
                      -> Result<FileMetadata, FfiError> {
     let (directory, file_name) = helper::get_directory_and_file(app, file_path, is_path_shared)?;
-    let file = directory.find_file(&file_name).ok_or(FfiError::InvalidPath)?;
+    let file = directory.find_file(&file_name)
+        .ok_or(FfiError::InvalidPath)?;
 
     FileMetadata::new(file.get_metadata())
 }

@@ -128,9 +128,9 @@ fn add_service(app: &App,
     let dns_operation = DnsOperations::new(client)?;
 
     dns_operation.add_service(&long_name,
-                              (service_name, *dir_to_map.get_key()),
-                              &signing_key,
-                              None)?;
+                     (service_name, *dir_to_map.get_key()),
+                     &signing_key,
+                     None)?;
     Ok(())
 }
 

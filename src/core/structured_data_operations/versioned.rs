@@ -128,7 +128,9 @@ pub fn version_count(sd: &StructuredData) -> Result<u64, CoreError> {
     if sd.get_type_tag() != ::VERSIONED_STRUCT_DATA_TYPE_TAG {
         return Err(CoreError::InvalidStructuredDataTypeTag);
     }
-    Ok(deserialise::<VersionsInfo>(sd.get_data())?.total_versions)
+    Ok(deserialise::<VersionsInfo>(sd.get_data())
+           ?
+           .total_versions)
 }
 
 /// Get the current version of versioned `StructuredData`
@@ -136,13 +138,17 @@ pub fn current_version(sd: &StructuredData) -> Result<XorName, CoreError> {
     if sd.get_type_tag() != ::VERSIONED_STRUCT_DATA_TYPE_TAG {
         return Err(CoreError::InvalidStructuredDataTypeTag);
     }
-    Ok(deserialise::<VersionsInfo>(sd.get_data())?.ptr_to_current_version)
+    Ok(deserialise::<VersionsInfo>(sd.get_data())
+           ?
+           .ptr_to_current_version)
 }
 
 fn get_immutable_data(client: Arc<Mutex<Client>>,
                       struct_data: &StructuredData)
                       -> Result<ImmutableData, CoreError> {
-    let name = deserialise::<VersionsInfo>(struct_data.get_data())?.ptr_to_versions;
+    let name = deserialise::<VersionsInfo>(struct_data.get_data())
+        ?
+        .ptr_to_versions;
     let resp_getter = unwrap!(client.lock()).get(DataIdentifier::Immutable(name), None)?;
     let data = resp_getter.get()?;
     match data {

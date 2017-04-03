@@ -110,16 +110,18 @@ pub fn get_safe_drive_key(client: Arc<Mutex<Client>>) -> Result<DirectoryKey, Ff
     let safe_drive_dir_name = SAFE_DRIVE_DIR_NAME.to_string();
     let dir_helper = DirectoryHelper::new(client);
     let mut root_dir = dir_helper.get_user_root_directory_listing()?;
-    let dir_metadata = match root_dir.find_sub_directory(&safe_drive_dir_name).cloned() {
+    let dir_metadata = match root_dir
+              .find_sub_directory(&safe_drive_dir_name)
+              .cloned() {
         Some(metadata) => metadata,
         None => {
             trace!("SAFEDrive does not exist - creating one.");
             let (created_dir, _) = dir_helper.create(safe_drive_dir_name,
-                                                     UNVERSIONED_DIRECTORY_LISTING_TAG,
-                                                     Vec::new(),
-                                                     false,
-                                                     AccessLevel::Private,
-                                                     Some(&mut root_dir))?;
+                        UNVERSIONED_DIRECTORY_LISTING_TAG,
+                        Vec::new(),
+                        false,
+                        AccessLevel::Private,
+                        Some(&mut root_dir))?;
             created_dir.get_metadata().clone()
         }
     };

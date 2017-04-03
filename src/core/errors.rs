@@ -264,7 +264,10 @@ impl Debug for CoreError {
             CoreError::MpidMessagingError(ref error) => {
                 write!(formatter, "CoreError::MpidMessagingError -> {:?}", error)
             }
-            CoreError::GetFailure { ref data_id, ref reason } => {
+            CoreError::GetFailure {
+                ref data_id,
+                ref reason,
+            } => {
                 write!(formatter,
                        "CoreError::GetFailure::{{ reason: {:?}, data_id: {:?}}}",
                        reason,
@@ -275,7 +278,10 @@ impl Debug for CoreError {
                        "CoreError::GetAccountInfoFailure::{{ reason: {:?}}}",
                        reason)
             }
-            CoreError::MutationFailure { ref data_id, ref reason } => {
+            CoreError::MutationFailure {
+                ref data_id,
+                ref reason,
+            } => {
                 write!(formatter,
                        "CoreError::MutationFailure::{{ reason: {:?}, data_id: {:?}}}",
                        reason,

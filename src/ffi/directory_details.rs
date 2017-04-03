@@ -61,11 +61,15 @@ impl DirectoryDetails {
         };
 
         for file in listing.get_files() {
-            details.files.push(FileMetadata::new(file.get_metadata())?);
+            details
+                .files
+                .push(FileMetadata::new(file.get_metadata())?);
         }
 
         for metadata in listing.get_sub_directories() {
-            details.sub_directories.push(DirectoryMetadata::new(metadata)?);
+            details
+                .sub_directories
+                .push(DirectoryMetadata::new(metadata)?);
         }
 
         Ok(details)
@@ -112,8 +116,8 @@ impl DirectoryMetadata {
         let created_time = dir_metadata.get_created_time().to_timespec();
         let modified_time = dir_metadata.get_modified_time().to_timespec();
 
-        let (name, name_len, name_cap) = helper::string_to_c_utf8(dir_metadata.get_name()
-                                                                      .to_string());
+        let (name, name_len, name_cap) =
+            helper::string_to_c_utf8(dir_metadata.get_name().to_string());
         let user_metadata = dir_metadata.get_user_metadata().to_owned();
         let (user_metadata, user_metadata_len, user_metadata_cap) =
             helper::u8_vec_to_ptr(user_metadata);

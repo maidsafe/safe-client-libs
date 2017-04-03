@@ -53,8 +53,10 @@ impl IdType {
 
     /// Returns name
     pub fn name(&self) -> XorName {
-        let combined_iter =
-            (&self.public_keys.0).0.into_iter().chain((&self.public_keys.1).0.into_iter());
+        let combined_iter = (&self.public_keys.0)
+            .0
+            .into_iter()
+            .chain((&self.public_keys.1).0.into_iter());
         let mut combined = Vec::new();
         for iter in combined_iter {
             combined.push(*iter);
@@ -147,7 +149,10 @@ mod test {
         assert!(!(maid2 != maid2_clone));
         assert!(maid1 != maid2);
 
-        let random_bytes = rand::thread_rng().gen_iter::<u8>().take(100).collect::<Vec<u8>>();
+        let random_bytes = rand::thread_rng()
+            .gen_iter::<u8>()
+            .take(100)
+            .collect::<Vec<u8>>();
         {
             let sign1 = maid1.sign(&random_bytes);
             let sign2 = maid2.sign(&random_bytes);
@@ -166,11 +171,19 @@ mod test {
             let encrypt2 = maid2.seal(&random_bytes, &maid3.public_keys().1);
             assert!(encrypt1.0 != encrypt2.0);
 
-            assert!(maid3.open(&encrypt1.0, &encrypt1.1, &maid1.public_keys().1).is_ok());
-            assert!(maid3.open(&encrypt1.0, &encrypt1.1, &maid2.public_keys().1).is_err());
+            assert!(maid3
+                        .open(&encrypt1.0, &encrypt1.1, &maid1.public_keys().1)
+                        .is_ok());
+            assert!(maid3
+                        .open(&encrypt1.0, &encrypt1.1, &maid2.public_keys().1)
+                        .is_err());
 
-            assert!(maid3.open(&encrypt2.0, &encrypt2.1, &maid2.public_keys().1).is_ok());
-            assert!(maid3.open(&encrypt2.0, &encrypt2.1, &maid1.public_keys().1).is_err());
+            assert!(maid3
+                        .open(&encrypt2.0, &encrypt2.1, &maid2.public_keys().1)
+                        .is_ok());
+            assert!(maid3
+                        .open(&encrypt2.0, &encrypt2.1, &maid1.public_keys().1)
+                        .is_err());
         }
     }
 }

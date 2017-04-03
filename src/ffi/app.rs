@@ -85,12 +85,16 @@ impl App {
 
     /// Get app asym_keys
     pub fn asym_keys(&self) -> Result<&(box_::PublicKey, box_::SecretKey), FfiError> {
-        self.asym_keys.as_ref().ok_or(FfiError::OperationForbiddenForApp)
+        self.asym_keys
+            .as_ref()
+            .ok_or(FfiError::OperationForbiddenForApp)
     }
 
     /// Get app root directory key
     pub fn sym_key(&self) -> Result<&secretbox::Key, FfiError> {
-        self.sym_key.as_ref().ok_or(FfiError::OperationForbiddenForApp)
+        self.sym_key
+            .as_ref()
+            .ok_or(FfiError::OperationForbiddenForApp)
     }
 
     /// Get SAFEdrive directory key.
@@ -154,12 +158,12 @@ pub unsafe extern "C" fn create_unauthorised_app(session_handle: *mut SessionHan
                                                  app_handle: *mut *mut App)
                                                  -> int32_t {
     helper::catch_unwind_i32(|| {
-        let session = (*session_handle).clone();
-        let app = App::unregistered(session);
+                                 let session = (*session_handle).clone();
+                                 let app = App::unregistered(session);
 
-        *app_handle = Box::into_raw(Box::new(app));
-        0
-    })
+                                 *app_handle = Box::into_raw(Box::new(app));
+                                 0
+                             })
 }
 
 /// Discard and clean up the previously allocated app.

@@ -39,8 +39,9 @@ pub fn generate_random_cstring(len: usize) -> CString {
 pub fn create_app(has_safe_drive_access: bool) -> App {
     let acc_locator = unwrap!(utility::generate_random_string(10));
     let acc_password = unwrap!(utility::generate_random_string(10));
+    let invitation = unwrap!(utility::generate_random_string(10));
 
-    let session = unwrap!(Session::create_account(&acc_locator, &acc_password));
+    let session = unwrap!(Session::create_account(&acc_locator, &acc_password, &invitation));
     let app_name = "Test App".to_string();
     let app_id = unwrap!(utility::generate_random_string(10));
     let vendor = "Test Vendor".to_string();

@@ -47,6 +47,7 @@ fn main() {
 
     let mut secret_0 = String::new();
     let mut secret_1 = String::new();
+    let mut invitation = String::new();
 
     println!("\nDo you already have an account created (enter Y for yes) ?");
 
@@ -64,14 +65,19 @@ fn main() {
         println!("\n------------ Enter password ---------------");
         let _ = std::io::stdin().read_line(&mut secret_1);
         secret_1 = secret_1.trim().to_string();
+        println!("\n------------ Enter invitation ---------------");
+        let _ = std::io::stdin().read_line(&mut invitation);
+        invitation = invitation.trim().to_string();
 
         // Account Creation
         {
             println!("\nTrying to create an account ...");
 
-            match Client::create_account(&secret_0, &secret_1) {
+            match Client::create_account(&secret_0, &secret_1, &invitation) {
                 Ok(_) => (),
-                Err(CoreError::MutationFailure { reason: MutationError::AccountExists, .. }) => {
+                Err(CoreError::MutationFailure {
+                        reason: MutationError::AccountExists, ..
+                    }) => {
                     println!("ERROR: This domain is already taken. Please retry with different \
                               Keyword and/or PIN");
                     return;
