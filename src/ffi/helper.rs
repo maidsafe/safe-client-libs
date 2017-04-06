@@ -116,7 +116,8 @@ pub fn get_safe_drive_key(client: Arc<Mutex<Client>>) -> Result<DirectoryKey, Ff
         Some(metadata) => metadata,
         None => {
             trace!("SAFEDrive does not exist - creating one.");
-            let (created_dir, _) = dir_helper.create(safe_drive_dir_name,
+            let (created_dir, _) = dir_helper
+                .create(safe_drive_dir_name,
                         UNVERSIONED_DIRECTORY_LISTING_TAG,
                         Vec::new(),
                         false,
@@ -153,7 +154,8 @@ pub fn get_final_subdirectory(client: Arc<Mutex<Client>>,
         trace!("Traversing to dir with name: {}", *it);
 
         current_dir_listing = {
-            let current_dir_metadata = current_dir_listing.get_sub_directories()
+            let current_dir_metadata = current_dir_listing
+                .get_sub_directories()
                 .iter()
                 .find(|a| *a.get_name() == *it)
                 .ok_or(FfiError::PathNotFound)?;

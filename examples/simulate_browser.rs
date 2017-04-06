@@ -163,7 +163,8 @@ fn add_service(client: Arc<Mutex<Client>>, dns_operations: &DnsOperations) -> Re
     service_home_dir_name.push_str("_home_dir");
 
     let dir_helper = DirectoryHelper::new(client.clone());
-    let (dir_listing, _) = dir_helper.create(service_home_dir_name,
+    let (dir_listing, _) = dir_helper
+        .create(service_home_dir_name,
                 UNVERSIONED_DIRECTORY_LISTING_TAG,
                 vec![],
                 false,
@@ -171,7 +172,8 @@ fn add_service(client: Arc<Mutex<Client>>, dns_operations: &DnsOperations) -> Re
                 None)?;
 
     let mut file_helper = FileHelper::new(client.clone());
-    let mut writer = file_helper.create(HOME_PAGE_FILE_NAME.to_string(), vec![], dir_listing)?;
+    let mut writer = file_helper
+        .create(HOME_PAGE_FILE_NAME.to_string(), vec![], dir_listing)?;
 
     println!("\nEnter text that you want to display on the Home-Page:");
     let mut text = String::new();
@@ -241,40 +243,45 @@ fn parse_url_and_get_home_page(client: Arc<Mutex<Client>>,
     url = url.trim().to_string();
 
     let re_with_service =
-        try!(Regex::new(r"safe:([^.]+?)\.([^.]+?\.[^.]+)$")
-        .map_err(|_| DnsError::Unexpected("Failed to form Regular-Expression !!".to_string())));
+        Regex::new(r"safe:([^.]+?)\.([^.]+?\.[^.]+)$")
+            .map_err(|_| DnsError::Unexpected("Failed to form Regular-Expression !!".to_string()))?;
     let re_without_service =
-        try!(Regex::new(r"safe:([^.]+?\.[^.]+)$")
-        .map_err(|_| DnsError::Unexpected("Failed to form Regular-Expression !!".to_string())));
+        Regex::new(r"safe:([^.]+?\.[^.]+)$")
+            .map_err(|_| DnsError::Unexpected("Failed to form Regular-Expression !!".to_string()))?;
 
     let long_name;
     let service_name;
 
     if re_with_service.is_match(&url) {
         let captures =
-            re_with_service.captures(&url)
+            re_with_service
+                .captures(&url)
                 .ok_or_else(|| {
                                 DnsError::Unexpected("Could not capture items in Url !!"
                                                          .to_string())
                             })?;
         let caps_0 =
-            captures.at(1)
+            captures
+                .at(1)
                 .ok_or_else(|| DnsError::Unexpected("Could not access a capture !!".to_string()))?;
         let caps_1 =
-            captures.at(2)
+            captures
+                .at(2)
                 .ok_or_else(|| DnsError::Unexpected("Could not access a capture !!".to_string()))?;
 
         long_name = caps_1.to_string();
         service_name = caps_0.to_string();
     } else if re_without_service.is_match(&url) {
         let captures =
-            re_without_service.captures(&url)
+            re_without_service
+                .captures(&url)
                 .ok_or_else(|| {
                                 DnsError::Unexpected("Could not capture items in Url !!"
                                                          .to_string())
                             })?;
         let caps_0 =
-            captures.at(1)
+            captures
+                .at(1)
                 .ok_or_else(|| DnsError::Unexpected("Could not access a capture !!".to_string()))?;
 
         long_name = caps_0.to_string();
@@ -285,11 +292,13 @@ fn parse_url_and_get_home_page(client: Arc<Mutex<Client>>,
 
     println!("Fetching data...");
 
-    let dir_key = dns_operations.get_service_home_directory_key(&long_name, &service_name, None)?;
+    let dir_key = dns_operations
+        .get_service_home_directory_key(&long_name, &service_name, None)?;
     let directory_helper = DirectoryHelper::new(client.clone());
     let dir_listing = directory_helper.get(&dir_key)?;
 
-    let file = dir_listing.get_files()
+    let file = dir_listing
+        .get_files()
         .iter()
         .find(|a| *a.get_name() == HOME_PAGE_FILE_NAME.to_string())
         .ok_or_else(|| DnsError::Unexpected("Could not find homepage !!".to_string()))?;

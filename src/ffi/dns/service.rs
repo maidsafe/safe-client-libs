@@ -127,7 +127,8 @@ fn add_service(app: &App,
     let signing_key = unwrap!(client.lock()).get_secret_signing_key()?.clone();
     let dns_operation = DnsOperations::new(client)?;
 
-    dns_operation.add_service(&long_name,
+    dns_operation
+        .add_service(&long_name,
                      (service_name, *dir_to_map.get_key()),
                      &signing_key,
                      None)?;
@@ -140,7 +141,8 @@ fn delete_service(app: &App, long_name: String, service_name: String) -> Result<
     let signing_key = unwrap!(client.lock()).get_secret_signing_key()?.clone();
     let dns_ops = DnsOperations::new(client)?;
 
-    dns_ops.remove_service(&long_name, service_name, &signing_key, None)?;
+    dns_ops
+        .remove_service(&long_name, service_name, &signing_key, None)?;
 
     Ok(())
 }
@@ -154,8 +156,8 @@ fn get_service_dir(app: &App,
         None => DnsOperations::new_unregistered(app.get_client()),
     };
 
-    let directory_key =
-        dns_operations.get_service_home_directory_key(long_name, service_name, None)?;
+    let directory_key = dns_operations
+        .get_service_home_directory_key(long_name, service_name, None)?;
     DirectoryDetails::from_directory_key(app.get_client(), directory_key)
 }
 

@@ -54,7 +54,8 @@ impl Storage<SelfEncryptionStorageError> for SelfEncryptionStorage {
         }
 
         let immutable_data_request = DataIdentifier::Immutable(XorName(name_id));
-        let resp_getter = unwrap!(self.client.lock()).get(immutable_data_request, None)?;
+        let resp_getter = unwrap!(self.client.lock())
+            .get(immutable_data_request, None)?;
         match resp_getter.get()? {
             Data::Immutable(ref received_data) => Ok(received_data.value().clone()),
             _ => {

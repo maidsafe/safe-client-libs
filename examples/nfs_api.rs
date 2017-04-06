@@ -114,7 +114,8 @@ fn get_child_directory(client: Arc<Mutex<Client>>,
                        directory: &mut DirectoryListing)
                        -> Result<DirectoryListing, NfsError> {
     let directory_name = &get_user_string("Directory name");
-    let directory_metadata = directory.find_sub_directory(directory_name)
+    let directory_metadata = directory
+        .find_sub_directory(directory_name)
         .ok_or(NfsError::DirectoryNotFound)?;
     let directory_helper = DirectoryHelper::new(client);
 
@@ -162,7 +163,8 @@ fn directory_operation(option: u32,
                     };
 
                     let directory_helper = DirectoryHelper::new(client.clone());
-                    let _ = directory_helper.create(name.clone(),
+                    let _ = directory_helper
+                        .create(name.clone(),
                                 tag_type,
                                 vec![],
                                 versioned,
@@ -194,8 +196,8 @@ fn directory_operation(option: u32,
             let child = get_child_directory(client.clone(), directory)?;
             let directory_helper = DirectoryHelper::new(client.clone());
             let versions =
-                directory_helper.get_versions(child.get_key().get_id(),
-                                              child.get_key().get_type_tag())?;
+                directory_helper
+                    .get_versions(child.get_key().get_id(), child.get_key().get_type_tag())?;
             if versions.is_empty() {
                 println!("No directory versions found");
             } else {
@@ -210,7 +212,8 @@ fn directory_operation(option: u32,
         4 => {
             // Delete directory
             let directory_helper = DirectoryHelper::new(client.clone());
-            let _ = directory_helper.delete(&mut directory, &get_user_string("Directory name"))?;
+            let _ = directory_helper
+                .delete(&mut directory, &get_user_string("Directory name"))?;
             println!("Directory deleted");
         }
         _ => {}
@@ -248,7 +251,8 @@ fn file_operation(option: u32,
             let child = get_child_directory(client.clone(), directory)?;
             let data = get_user_string("text to be saved as a file").into_bytes();
             let mut file_helper = FileHelper::new(client);
-            let mut writer = file_helper.create(get_user_string("File name"), vec![], child)?;
+            let mut writer = file_helper
+                .create(get_user_string("File name"), vec![], child)?;
 
             writer.write(&data[..])?;
             let _ = writer.close()?;
@@ -264,8 +268,8 @@ fn file_operation(option: u32,
             };
             let data = get_user_string("text to be saved as a file").into_bytes();
             let mut file_helper = FileHelper::new(client);
-            let mut writer =
-                file_helper.update_content(file.clone(), Mode::Overwrite, child.clone())?;
+            let mut writer = file_helper
+                .update_content(file.clone(), Mode::Overwrite, child.clone())?;
             writer.write(&data[..])?;
             let _ = writer.close()?;
             println!("File Updated");
@@ -294,7 +298,8 @@ fn file_operation(option: u32,
             // Read file by version
             let child = get_child_directory(client.clone(), directory)?;
             let file_name = get_user_string("File name");
-            let file = child.find_file(&file_name)
+            let file = child
+                .find_file(&file_name)
                 .ok_or(NfsError::FileNotFound)?;
             let mut file_helper = FileHelper::new(client);
             let versions = file_helper.get_versions(file, &child)?;
@@ -344,7 +349,8 @@ fn file_operation(option: u32,
             // Delete file
             let mut child = get_child_directory(client.clone(), directory)?;
             let file_helper = FileHelper::new(client);
-            let _ = file_helper.delete(get_user_string("File name"), &mut child)?;
+            let _ = file_helper
+                .delete(get_user_string("File name"), &mut child)?;
             println!("File deleted");
         }
         11 => {
@@ -366,7 +372,8 @@ fn file_operation(option: u32,
                             return Err(NfsError::DestinationAndSourceAreSame);
                         }
                         let file_name = &get_user_string("File name");
-                        let file = from_directory.find_file(file_name)
+                        let file = from_directory
+                            .find_file(file_name)
                             .ok_or(NfsError::FileNotFound)?;
                         let directory_helper = DirectoryHelper::new(client);
                         let mut destination = directory_helper.get(to_dir.get_key())?;

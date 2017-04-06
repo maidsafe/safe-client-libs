@@ -58,11 +58,11 @@ pub fn hybrid_decrypt(cipher_text: &[u8],
                       -> Result<Vec<u8>, CoreError> {
     let (asym_cipher_text, sym_cipher_text): (Vec<u8>, Vec<u8>) = deserialise(cipher_text)?;
 
-    let asym_plain_text = try!(box_::open(&asym_cipher_text,
-                                          asym_nonce,
-                                          asym_public_key,
-                                          asym_secret_key)
-        .map_err(|_| CoreError::AsymmetricDecipherFailure));
+    let asym_plain_text = box_::open(&asym_cipher_text,
+                                     asym_nonce,
+                                     asym_public_key,
+                                     asym_secret_key)
+            .map_err(|_| CoreError::AsymmetricDecipherFailure)?;
 
     if asym_plain_text.len() != secretbox::KEYBYTES + secretbox::NONCEBYTES {
         Err(CoreError::AsymmetricDecipherFailure)
@@ -90,7 +90,8 @@ pub fn hybrid_decrypt(cipher_text: &[u8],
 
 /// Generates a random string for specified size
 pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = ::rand::OsRng::new()
+        .map_err(|error| {
                      error!("{:?}", error);
                      CoreError::RandomDataGenerationFailure
                  })?;
@@ -101,7 +102,8 @@ pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
 pub fn generate_random_vector<T>(length: usize) -> Result<Vec<T>, CoreError>
     where T: ::rand::Rand
 {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = ::rand::OsRng::new()
+        .map_err(|error| {
                      error!("{:?}", error);
                      CoreError::RandomDataGenerationFailure
                  })?;

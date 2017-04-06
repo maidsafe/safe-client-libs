@@ -235,7 +235,8 @@ impl Client {
                 let mut owners = BTreeSet::new();
                 owners.insert(owner_pubkey);
 
-                let cipher_text = account.encrypt(session_packet_keys.get_password(),
+                let cipher_text = account
+                    .encrypt(session_packet_keys.get_password(),
                              session_packet_keys.get_pin())?;
 
                 let mut sd = StructuredData::new(TYPE_TAG_SESSION_PACKET,
@@ -885,7 +886,8 @@ impl Client {
                     let session_packet_keys = self.session_packet_keys
                         .as_ref()
                         .ok_or(CoreError::OperationForbiddenForClient)?;
-                    account.encrypt(session_packet_keys.get_password(),
+                    account
+                        .encrypt(session_packet_keys.get_password(),
                                  session_packet_keys.get_pin())?
                 };
 

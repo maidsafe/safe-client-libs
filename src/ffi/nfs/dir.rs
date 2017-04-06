@@ -172,7 +172,8 @@ fn create_dir(app: &App,
         UNVERSIONED_DIRECTORY_LISTING_TAG
     };
 
-    let _ = dir_helper.create(dir_to_create,
+    let _ = dir_helper
+        .create(dir_to_create,
                 tag,
                 user_metadata.to_owned(),
                 is_versioned,
@@ -253,7 +254,8 @@ fn move_dir(app: &App,
         return Err(FfiError::from(NfsError::DirectoryAlreadyExistsWithSameName));
     }
 
-    let org_parent_of_src_dir = src_dir.get_metadata()
+    let org_parent_of_src_dir = src_dir
+        .get_metadata()
         .get_parent_dir_key()
         .cloned()
         .ok_or_else(|| FfiError::from("Parent directory not found"))?;
@@ -264,7 +266,8 @@ fn move_dir(app: &App,
         let access_level = *src_dir.get_metadata().get_access_level();
         let created_time = *src_dir.get_metadata().get_created_time();
         let modified_time = *src_dir.get_metadata().get_modified_time();
-        let (mut dir, _) = directory_helper.create(name,
+        let (mut dir, _) = directory_helper
+            .create(name,
                     src_dir.get_metadata().get_key().get_type_tag(),
                     user_metadata,
                     src_dir.get_metadata().get_key().is_versioned(),
@@ -296,7 +299,8 @@ fn move_dir(app: &App,
         let _ = directory_helper.update(&src_dir)?;
         let mut parent_of_src_dir = directory_helper.get(&org_parent_of_src_dir)?;
         // TODO (Spandan) - Fetch and issue a DELETE on the removed directory.
-        let _dir_meta = parent_of_src_dir.remove_sub_directory(src_dir.get_metadata().get_name())?;
+        let _dir_meta = parent_of_src_dir
+            .remove_sub_directory(src_dir.get_metadata().get_name())?;
         let _ = directory_helper.update(&parent_of_src_dir)?;
     }
 

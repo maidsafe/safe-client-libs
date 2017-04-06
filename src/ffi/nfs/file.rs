@@ -170,7 +170,8 @@ fn get_file(app: &App,
             include_metadata: bool)
             -> Result<FileDetails, FfiError> {
     let (directory, file_name) = helper::get_directory_and_file(app, file_path, is_path_shared)?;
-    let file = directory.find_file(&file_name)
+    let file = directory
+        .find_file(&file_name)
         .ok_or(FfiError::InvalidPath)?;
 
     FileDetails::new(file, app.get_client(), offset, length, include_metadata)
@@ -188,7 +189,8 @@ fn modify_file(app: &App,
     }
 
     let (mut directory, file_name) = helper::get_directory_and_file(app, file_path, is_shared)?;
-    let mut file = directory.find_file(&file_name)
+    let mut file = directory
+        .find_file(&file_name)
         .cloned()
         .ok_or(FfiError::InvalidPath)?;
 
@@ -207,11 +209,13 @@ fn modify_file(app: &App,
 
     if metadata_updated {
         file.get_mut_metadata().set_modified_time(UTC::now());
-        let _ = file_helper.update_metadata(file.clone(), &mut directory)?;
+        let _ = file_helper
+            .update_metadata(file.clone(), &mut directory)?;
     }
 
     if let Some(content) = new_content {
-        let mut writer = file_helper.update_content(file.clone(), Mode::Overwrite, directory)?;
+        let mut writer = file_helper
+            .update_content(file.clone(), Mode::Overwrite, directory)?;
         writer.write(&content[..])?;
         let _ = writer.close()?;
     }
@@ -261,7 +265,8 @@ fn get_file_metadata(app: &App,
                      is_path_shared: bool)
                      -> Result<FileMetadata, FfiError> {
     let (directory, file_name) = helper::get_directory_and_file(app, file_path, is_path_shared)?;
-    let file = directory.find_file(&file_name)
+    let file = directory
+        .find_file(&file_name)
         .ok_or(FfiError::InvalidPath)?;
 
     FileMetadata::new(file.get_metadata())

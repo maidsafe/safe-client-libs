@@ -104,12 +104,13 @@ fn get_file(app: &App,
         Some(_) => DnsOperations::new(app.get_client())?,
         None => DnsOperations::new_unregistered(app.get_client()),
     };
-    let directory_key =
-        dns_operations.get_service_home_directory_key(long_name, service_name, None)?;
+    let directory_key = dns_operations
+        .get_service_home_directory_key(long_name, service_name, None)?;
     let mut tokens = helper::tokenise_path(file_path, false);
     let file_name = tokens.pop().ok_or(FfiError::InvalidPath)?;
     let file_dir = helper::get_final_subdirectory(app.get_client(), &tokens, Some(&directory_key))?;
-    let file = file_dir.find_file(&file_name)
+    let file = file_dir
+        .find_file(&file_name)
         .ok_or(FfiError::InvalidPath)?;
 
     FileDetails::new(file, app.get_client(), offset, length, include_metadata)
@@ -125,12 +126,13 @@ fn get_file_metadata(app: &App,
         None => DnsOperations::new_unregistered(app.get_client()),
     };
 
-    let directory_key =
-        dns_operations.get_service_home_directory_key(long_name, service_name, None)?;
+    let directory_key = dns_operations
+        .get_service_home_directory_key(long_name, service_name, None)?;
     let mut tokens = helper::tokenise_path(file_path, false);
     let file_name = tokens.pop().ok_or(FfiError::InvalidPath)?;
     let file_dir = helper::get_final_subdirectory(app.get_client(), &tokens, Some(&directory_key))?;
-    let file = file_dir.find_file(&file_name)
+    let file = file_dir
+        .find_file(&file_name)
         .ok_or(FfiError::InvalidPath)?;
 
     FileMetadata::new(&file.get_metadata().clone())

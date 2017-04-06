@@ -417,20 +417,23 @@ fn struct_data_post_impl(client: Arc<Mutex<Client>>,
                                 *sd.name(),
                                 sd.get_version() + 1,
                                 vec![],
-                                owners).map_err(CoreError::from)?
+                                owners)
+                    .map_err(CoreError::from)?
         } else {
             // TODO Ask routing to remove this inefficiency of requiring to clone data and all
             StructuredData::new(sd.get_type_tag(),
                                 *sd.name(),
                                 sd.get_version() + 1,
                                 sd.get_data().clone(),
-                                sd.get_owners().clone()).map_err(CoreError::from)?
+                                sd.get_owners().clone())
+                    .map_err(CoreError::from)?
         }
     };
 
     let owner_key = *unwrap!(client.lock()).get_public_signing_key()?;
     let private_signing_key = unwrap!(client.lock()).get_secret_signing_key()?.clone();
-    let _ = new_sd.add_signature(&(owner_key, private_signing_key))
+    let _ = new_sd
+        .add_signature(&(owner_key, private_signing_key))
         .map_err(CoreError::from)?;
 
     let data = Data::Structured(new_sd.clone());
@@ -460,16 +463,17 @@ fn struct_data_delete_impl(client: Arc<Mutex<Client>>,
                            sd: &StructuredData)
                            -> Result<StructuredData, FfiError> {
     // TODO Ask routing to remove this inefficiency of requiring to clone data and all
-    let mut new_sd =
-        StructuredData::new(sd.get_type_tag(),
-                            *sd.name(),
-                            sd.get_version() + 1,
-                            vec![],
-                            sd.get_owners().clone()).map_err(CoreError::from)?;
+    let mut new_sd = StructuredData::new(sd.get_type_tag(),
+                                         *sd.name(),
+                                         sd.get_version() + 1,
+                                         vec![],
+                                         sd.get_owners().clone())
+            .map_err(CoreError::from)?;
 
     let owner_key = *unwrap!(client.lock()).get_public_signing_key()?;
     let private_signing_key = unwrap!(client.lock()).get_secret_signing_key()?.clone();
-    let _ = new_sd.add_signature(&(owner_key, private_signing_key))
+    let _ = new_sd
+        .add_signature(&(owner_key, private_signing_key))
         .map_err(CoreError::from)?;
 
     let data = Data::Structured(new_sd.clone());

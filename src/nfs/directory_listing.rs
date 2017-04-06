@@ -104,8 +104,8 @@ impl DirectoryListing {
         trace!("Self-decrypting directory listing.");
 
         let decrypted_data_map =
-            try!(unwrap!(client.lock())
-            .hybrid_decrypt(&data, Some(&DirectoryListing::generate_nonce(directory_id))));
+            unwrap!(client.lock())
+                .hybrid_decrypt(&data, Some(&DirectoryListing::generate_nonce(directory_id)))?;
         let data_map: DataMap = deserialise(&decrypted_data_map)?;
         let mut storage = SelfEncryptionStorage::new(client.clone());
         let mut self_encryptor = SelfEncryptor::new(&mut storage, data_map)?;
@@ -125,7 +125,8 @@ impl DirectoryListing {
         self_encryptor.write(&serialised_data, 0)?;
         let data_map = self_encryptor.close()?;
         let serialised_data_map = serialise(&data_map)?;
-        Ok(unwrap!(client.lock()).hybrid_encrypt(&serialised_data_map,
+        Ok(unwrap!(client.lock())
+               .hybrid_encrypt(&serialised_data_map,
                                Some(&DirectoryListing::generate_nonce(self.get_key()
                                                                           .get_id())))?)
     }

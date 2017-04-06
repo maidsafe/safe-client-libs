@@ -63,7 +63,8 @@ pub fn register_long_name(app: &App, long_name: String) -> Result<(), FfiError> 
     };
 
     let dns_operation = DnsOperations::new(client.clone())?;
-    dns_operation.register_dns(long_name,
+    dns_operation
+        .register_dns(long_name,
                       &msg_public_key,
                       &msg_secret_key,
                       &services,

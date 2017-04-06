@@ -94,18 +94,20 @@ impl DirectoryHelper {
                   -> Result<Option<DirectoryListing>, NfsError> {
         trace!("Deleting directory with name: {}", directory_to_delete);
 
-        let dir_meta = parent_directory.remove_sub_directory(directory_to_delete)?;
+        let dir_meta = parent_directory
+            .remove_sub_directory(directory_to_delete)?;
         let sign_key = unwrap!(self.client.lock())
             .get_secret_signing_key()?
             .clone();
         let sd = self.get_structured_data(dir_meta.get_id(), dir_meta.get_type_tag())?;
-        let mut delete_sd =
-            StructuredData::new(sd.get_type_tag(),
-                                *sd.name(),
-                                sd.get_version() + 1,
-                                vec![],
-                                sd.get_owners().clone()).map_err(CoreError::from)?;
-        let _ = delete_sd.add_signature(&(*unwrap!(sd.get_owners().iter().nth(0),
+        let mut delete_sd = StructuredData::new(sd.get_type_tag(),
+                                                *sd.name(),
+                                                sd.get_version() + 1,
+                                                vec![],
+                                                sd.get_owners().clone())
+                .map_err(CoreError::from)?;
+        let _ = delete_sd
+            .add_signature(&(*unwrap!(sd.get_owners().iter().nth(0),
                                       "Logic error: SD doesn't have any owners"),
                              sign_key))
             .map_err(CoreError::from)?;
@@ -180,7 +182,8 @@ impl DirectoryHelper {
 
             let versions = self.get_versions(directory_id, type_tag)?;
             let latest_version =
-                versions.last()
+                versions
+                    .last()
                     .ok_or_else(|| NfsError::from("Programming Error - Please report this bug."))?;
             self.get_by_version(directory_id, access_level, *latest_version)
         } else {
@@ -235,8 +238,8 @@ impl DirectoryHelper {
                                                          false,
                                                          AccessLevel::Private,
                                                          None)?;
-                try!(unwrap!(self.client.lock())
-                    .set_user_root_directory_id(created_directory.get_key().get_id().clone()));
+                unwrap!(self.client.lock())
+                    .set_user_root_directory_id(created_directory.get_key().get_id().clone())?;
                 Ok(created_directory)
             }
         }
@@ -271,9 +274,8 @@ impl DirectoryHelper {
                                                          false,
                                                          AccessLevel::Private,
                                                          None)?;
-                unwrap!(self.client.lock()).set_configuration_root_directory_id(*created_directory
-                                                             .get_key()
-                                                             .get_id())?;
+                unwrap!(self.client.lock())
+                    .set_configuration_root_directory_id(*created_directory.get_key().get_id())?;
                 created_directory
             }
         };
@@ -411,11 +413,13 @@ impl DirectoryHelper {
                                 encryption_keys)?
         };
 
-        let _ = updated_structured_data.add_signature(&(owner_key, signing_key))
+        let _ = updated_structured_data
+            .add_signature(&(owner_key, signing_key))
             .map_err(CoreError::from)?;
 
         debug!("Posting updated structured data to the network ...");
-        unwrap!(self.client.lock()).post(Data::Structured(updated_structured_data), None)?
+        unwrap!(self.client.lock())
+            .post(Data::Structured(updated_structured_data), None)?
             .get()?;
         Ok(())
     }

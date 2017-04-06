@@ -81,7 +81,8 @@ pub fn get_data(client: Arc<Mutex<Client>>,
     trace!("Getting data after fetching a conformant ImmutableData.");
 
     let data_identifier = DataIdentifier::Immutable(immut_data_name);
-    let response_getter = unwrap!(client.lock(), "Couldn't lock").get(data_identifier, None)?;
+    let response_getter = unwrap!(client.lock(), "Couldn't lock")
+        .get(data_identifier, None)?;
 
     match response_getter.get()? {
         Data::Immutable(immut_data) => {

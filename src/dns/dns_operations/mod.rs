@@ -91,7 +91,9 @@ impl DnsOperations {
                                                       serialise(&dns_record)?,
                                                       owners.clone(),
                                                       data_encryption_keys)?;
-            let _ = struct_data.add_signature(&(*owners.iter()
+            let _ = struct_data
+                .add_signature(&(*owners
+                                      .iter()
                                       .nth(0)
                                       .ok_or_else(|| CoreError::ReceivedUnexpectedData)?,
                                  private_signing_key.clone()))
@@ -125,7 +127,8 @@ impl DnsOperations {
         trace!("Deleting dns with name: {}", long_name);
 
         let mut saved_configs = dns_configuration::get_dns_configuration_data(self.client.clone())?;
-        let pos = saved_configs.iter()
+        let pos = saved_configs
+            .iter()
             .position(|config| config.long_name == *long_name)
             .ok_or(DnsError::DnsRecordNotFound)?;
 
@@ -139,7 +142,8 @@ impl DnsOperations {
                                                           prev_struct_data.get_owners().clone(),
                                                           None)?;
                 let owner_key = *unwrap!(self.client.lock()).get_public_signing_key()?;
-                let _ = struct_data.add_signature(&(owner_key, private_signing_key.clone()))
+                let _ = struct_data
+                    .add_signature(&(owner_key, private_signing_key.clone()))
                     .map_err(CoreError::from)?;
                 Client::delete_recover(self.client.clone(), Data::Structured(struct_data), None)?;
             }
@@ -305,11 +309,12 @@ impl DnsOperations {
                                                       data_encryption_decryption_keys)?;
             let owner_key = *unwrap!(prev_struct_data.get_owners().iter().nth(0),
                                      "Logic error: SD doesn't have any owners");
-            let _ = struct_data.add_signature(&(owner_key, private_signing_key.clone()))
+            let _ = struct_data
+                .add_signature(&(owner_key, private_signing_key.clone()))
                 .map_err(CoreError::from)?;
 
-            let resp_getter = try!(unwrap!(self.client.lock())
-                .post(Data::Structured(struct_data), None));
+            let resp_getter = unwrap!(self.client.lock())
+                .post(Data::Structured(struct_data), None)?;
             resp_getter.get()?;
 
             Ok(())

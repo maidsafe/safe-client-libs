@@ -163,8 +163,8 @@ impl Account {
                    pin: &[u8])
                    -> Result<Account, CoreError> {
         let (key, nonce) = Account::generate_crypto_keys(password, pin)?;
-        let decrypted_self = try!(secretbox::open(encrypted_self, &nonce, &key)
-            .map_err(|_| CoreError::SymmetricDecipherFailure));
+        let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
+            .map_err(|_| CoreError::SymmetricDecipherFailure)?;
 
         Ok(deserialise(&decrypted_self)?)
     }
@@ -206,7 +206,8 @@ impl Account {
                            input,
                            &salt,
                            pwhash::OPSLIMIT_INTERACTIVE,
-                           pwhash::MEMLIMIT_INTERACTIVE).map_err(|_| CoreError::UnsuccessfulPwHash)
+                           pwhash::MEMLIMIT_INTERACTIVE)
+                .map_err(|_| CoreError::UnsuccessfulPwHash)
                 .map(|_| Ok(()))?
     }
 }

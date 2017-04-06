@@ -45,8 +45,8 @@ pub fn initialise_dns_configuaration(client: Arc<Mutex<Client>>) -> Result<(), D
     trace!("Initialise dns configuration if not already done.");
 
     let dir_helper = DirectoryHelper::new(client.clone());
-    let dir_listing =
-        dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string())?;
+    let dir_listing = dir_helper
+        .get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string())?;
     let mut file_helper = FileHelper::new(client.clone());
     match file_helper.create(DNS_CONFIG_FILE_NAME.to_string(), vec![], dir_listing) {
         Ok(writer) => {
@@ -69,9 +69,10 @@ pub fn get_dns_configuration_data(client: Arc<Mutex<Client>>)
     trace!("Retrieve dns configuration data from a previously initialised dns configuration.");
 
     let dir_helper = DirectoryHelper::new(client.clone());
-    let dir_listing =
-        dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string())?;
-    let file = dir_listing.get_files()
+    let dir_listing = dir_helper
+        .get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string())?;
+    let file = dir_listing
+        .get_files()
         .iter()
         .find(|file| file.get_name() == DNS_CONFIG_FILE_NAME)
         .ok_or(DnsError::DnsConfigFileNotFoundOrCorrupted)?;
@@ -92,8 +93,8 @@ pub fn write_dns_configuration_data(client: Arc<Mutex<Client>>,
     trace!("Write new dns configuration data to the previously initialised dns configuration.");
 
     let dir_helper = DirectoryHelper::new(client.clone());
-    let dir_listing =
-        dir_helper.get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string())?;
+    let dir_listing = dir_helper
+        .get_configuration_directory_listing(DNS_CONFIG_DIR_NAME.to_string())?;
     let file = dir_listing
         .get_files()
         .iter()
@@ -101,7 +102,8 @@ pub fn write_dns_configuration_data(client: Arc<Mutex<Client>>,
         .ok_or(DnsError::DnsConfigFileNotFoundOrCorrupted)?
         .clone();
     let mut file_helper = FileHelper::new(client.clone());
-    let mut writer = file_helper.update_content(file, Mode::Overwrite, dir_listing)?;
+    let mut writer = file_helper
+        .update_content(file, Mode::Overwrite, dir_listing)?;
     writer.write(&serialise(&config)?)?;
     let _ = writer.close()?;
     Ok(())

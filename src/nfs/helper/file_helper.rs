@@ -90,7 +90,8 @@ impl FileHelper {
         trace!("Updating metadata for file.");
 
         {
-            let existing_file = parent_directory.find_file_by_id(file.get_id())
+            let existing_file = parent_directory
+                .find_file_by_id(file.get_id())
                 .ok_or(NfsError::FileNotFound)?;
             if existing_file.get_name() != file.get_name() &&
                parent_directory.find_file(file.get_name()).is_some() {
@@ -115,7 +116,8 @@ impl FileHelper {
         trace!("Updating content in file with name {}", file.get_name());
 
         {
-            let existing_file = parent_directory.find_file(file.get_name())
+            let existing_file = parent_directory
+                .find_file(file.get_name())
                 .ok_or(NfsError::FileNotFound)?;
             if *existing_file != file {
                 return Err(NfsError::FileDoesNotMatch);
@@ -139,14 +141,16 @@ impl FileHelper {
         let mut versions = Vec::<File>::new();
         let directory_helper = DirectoryHelper::new(self.client.clone());
 
-        let sdv_versions = directory_helper.get_versions(parent_directory.get_key().get_id(),
+        let sdv_versions = directory_helper
+            .get_versions(parent_directory.get_key().get_id(),
                           parent_directory.get_key().get_type_tag())?;
 
         // Because Version 0 is invalid, so can be made an initial comparison value
         let mut file_version = 0;
         for version_id in sdv_versions {
             let id = parent_directory.get_key().get_id();
-            let directory_listing = directory_helper.get_by_version(id,
+            let directory_listing = directory_helper
+                .get_by_version(id,
                                 parent_directory.get_key().get_access_level(),
                                 version_id)?;
             if let Some(file) = directory_listing

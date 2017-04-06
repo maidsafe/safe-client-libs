@@ -146,7 +146,8 @@ fn create_file(app: &App,
 fn writer_open(app: &App, file_path: &str, is_path_shared: bool) -> Result<Writer, FfiError> {
     let (directory, file_name) = helper::get_directory_and_file(app, file_path, is_path_shared)?;
 
-    let file = directory.find_file(&file_name)
+    let file = directory
+        .find_file(&file_name)
         .cloned()
         .ok_or(FfiError::InvalidPath)?;
     let mut storage = Box::new(SelfEncryptionStorage::new(app.get_client()));
