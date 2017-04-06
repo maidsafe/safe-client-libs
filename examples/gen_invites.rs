@@ -44,7 +44,7 @@ extern crate tiny_keccak;
 
 use docopt::Docopt;
 use rand::{Rng, thread_rng};
-use routing::{Data, StructuredData, XorName};
+use routing::{Data, DataIdentifier, StructuredData, XorName};
 use safe_core::core::client::Client;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -56,13 +56,15 @@ const INVITE_TOKEN_TYPE_TAG: u64 = 8;
 
 static USAGE: &'static str = "
 Usage:
-  gen_invites [--gen-seed SIZE | --get-pk | -c [-n INVITES] | -n INVITES | -h]
+  gen_invites [--gen-seed SIZE | --get-pk | --check-invite INVITE | -c [-n INVITES] | \
+               -n INVITES | -h]
 
 Options:
   --gen-seed SIZE            Only generate a random seed of given size, writing into input file.
   --get-pk                   Only get the public sign key given the seed, don't do anything extra.
+  --check-invite INVITE      Only check the status of the given invite (exists, consumed etc.).
   -c, --create               Create account using seed from input file. By default it will login.
-  -n, --num-invites INVITES  Number of invites to generate.
+  -n, --num-invites INVITES  Number of invites to generate (will populate the Network too).
   -h, --help                 Display this help message and exit.
 ";
 
@@ -70,6 +72,7 @@ Options:
 struct Args {
     flag_gen_seed: Option<usize>,
     flag_get_pk: bool,
+    flag_check_invite: Option<String>,
     flag_create: bool,
     flag_num_invites: Option<usize>,
     flag_help: bool,
@@ -98,6 +101,25 @@ fn main() {
     if args.flag_get_pk {
         let sign_pk = unwrap!(Client::sign_pk_from_seed(&seed));
         return println!("Public Signing Key: {:?}", sign_pk.0);
+    }
+
+    if let Some(invite) = args.flag_check_invite {
+        let mut cl = unwrap!(Client::create_unregistered_client());
+        let id = XorName(sha3_256(invite.as_bytes()));
+
+        let data = unwrap!(unwrap!(cl.get(DataIdentifier::Structured(id, INVITE_TOKEN_TYPE_TAG),
+                                          None))
+                                   .get()
+                                   .map_err(|e| format!("Invite does not exist: {:?}", e)));
+        match data {
+            Data::Structured(sd) => println!("Invite already consumed: {}", sd.is_deleted()),
+            x => {
+                println!("Address space taken by an unexpected data-type. Expected \
+                                StructuredData, found: {:?}",
+                         x);
+            }
+        }
+        return;
     }
 
     let mut output = {
