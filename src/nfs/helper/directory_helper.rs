@@ -239,7 +239,7 @@ impl DirectoryHelper {
                                                          AccessLevel::Private,
                                                          None)?;
                 unwrap!(self.client.lock())
-                    .set_user_root_directory_id(created_directory.get_key().get_id().clone())?;
+                    .set_user_root_directory_id(*created_directory.get_key().get_id())?;
                 Ok(created_directory)
             }
         }

@@ -1,5 +1,14 @@
 # Safe Core - Change Log
 
+## [0.23.0]
+- Integrate with routing 0.28.5
+- Invitation based account creation support in client (API change)
+- Invitation-generator and populator example binary
+- New error types for ivitation errors
+- Serde instead of rustc-serialize in production
+- Use chrono instead of time crate (default serde serialisable)
+- Fix bugs concerning to unclaimable SD and re-claiming SD via PUT; test cases updated
+
 ## [0.22.4]
 - Integrate with routing 0.28.4 (0.28.3 is skipped and is yanked from crates).
 - Use rust 1.16.0, nightly-2017-03-16 and clippy 0.0.120
