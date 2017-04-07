@@ -70,11 +70,11 @@ macro_rules! expect_failure {
 
 #[test]
 fn immutable_data_basics() {
-    let (routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id) = setup();
 
     // Create account
     let owner_key = *full_id.public_id().signing_public_key();
-    let client_mgr = create_account(&routing, &routing_rx, owner_key);
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
     // Construct ImmutableData
     let orig_data = ImmutableData::new(unwrap!(utils::generate_random_vector(100)));
@@ -100,7 +100,7 @@ fn immutable_data_basics() {
     assert_eq!(got_data, orig_data);
 
     // GetAccountInfo should pass and show one mutation performed
-    let account_info = do_get_account_info(&routing, &routing_rx, client_mgr);
+    let account_info = do_get_account_info(&mut routing, &routing_rx, client_mgr);
     assert_eq!(account_info.mutations_done, 1);
     assert_eq!(account_info.mutations_available, DEFAULT_MAX_MUTATIONS - 1);
 
@@ -116,18 +116,18 @@ fn immutable_data_basics() {
     assert_eq!(got_data, orig_data);
 
     // GetAccountInfo should pass and show two mutations performed
-    let account_info = do_get_account_info(&routing, &routing_rx, client_mgr);
+    let account_info = do_get_account_info(&mut routing, &routing_rx, client_mgr);
     assert_eq!(account_info.mutations_done, 2);
     assert_eq!(account_info.mutations_available, DEFAULT_MAX_MUTATIONS - 2);
 }
 
 #[test]
 fn mutable_data_basics() {
-    let (routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id) = setup();
 
     // Create account
     let owner_key = *full_id.public_id().signing_public_key();
-    let client_mgr = create_account(&routing, &routing_rx, owner_key);
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
     // Construct MutableData
     let name = rand::random();
@@ -291,10 +291,10 @@ fn mutable_data_basics() {
 
 #[test]
 fn mutable_data_entry_versioning() {
-    let (routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id) = setup();
 
     let owner_key = *full_id.public_id().signing_public_key();
-    let client_mgr = create_account(&routing, &routing_rx, owner_key);
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
     // Construct MutableData
     let name = rand::random();
@@ -388,10 +388,10 @@ fn mutable_data_entry_versioning() {
 
 #[test]
 fn mutable_data_permissions() {
-    let (routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id) = setup();
 
     let owner_key = *full_id.public_id().signing_public_key();
-    let client_mgr = create_account(&routing, &routing_rx, owner_key);
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
     // Construct MutableData with some entries and empty permissions.
     let name = rand::random();
@@ -434,7 +434,7 @@ fn mutable_data_permissions() {
     expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
 
     // Create app and authorise it.
-    let (app_routing, app_routing_rx, app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, app_full_id) = setup();
     let app_sign_key = *app_full_id.public_id().signing_public_key();
 
     let msg_id = MessageId::new();
@@ -646,7 +646,7 @@ fn mutable_data_permissions() {
     expect_success!(app_routing_rx, msg_id, Response::MutateMDataEntries);
 
     // Create another app and authorise it.
-    let (app2_routing, app2_routing_rx, app2_full_id) = setup();
+    let (mut app2_routing, app2_routing_rx, app2_full_id) = setup();
     let app2_sign_key = *app2_full_id.public_id().signing_public_key();
 
     let msg_id = MessageId::new();
@@ -730,13 +730,13 @@ fn mutable_data_permissions() {
 #[test]
 fn mutable_data_ownership() {
     // Create owner's routing client
-    let (owner_routing, owner_routing_rx, owner_full_id) = setup();
+    let (mut owner_routing, owner_routing_rx, owner_full_id) = setup();
 
     let owner_key = *owner_full_id.public_id().signing_public_key();
-    let client_mgr = create_account(&owner_routing, &owner_routing_rx, owner_key);
+    let client_mgr = create_account(&mut owner_routing, &owner_routing_rx, owner_key);
 
     // Create app's routing client and authorise the app.
-    let (app_routing, app_routing_rx, app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, app_full_id) = setup();
     let app_sign_key = *app_full_id.public_id().signing_public_key();
 
     let msg_id = MessageId::new();
@@ -770,52 +770,36 @@ fn mutable_data_ownership() {
     unwrap!(owner_routing.put_mdata(client_mgr, data, msg_id, owner_key));
     expect_success!(owner_routing_rx, msg_id, Response::PutMData);
 
-    // Attempt to change owner by app should fail.
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.change_mdata_owner(client_mgr,
-                                           name,
-                                           tag,
-                                           app_sign_key,
-                                           1,
-                                           msg_id,
-                                           app_sign_key));
-    expect_failure!(app_routing_rx,
-                    msg_id,
-                    Response::ChangeMDataOwner,
-                    ClientError::AccessDenied);
-
     // Attempt to change owner by app via its own account should fail.
-    let app_client_mgr = create_account(&app_routing, &app_routing_rx, app_sign_key);
+    let app_client_mgr = create_account(&mut app_routing, &app_routing_rx, app_sign_key);
     let msg_id = MessageId::new();
     unwrap!(app_routing.change_mdata_owner(app_client_mgr,
                                            name,
                                            tag,
-                                           app_sign_key,
+                                           btree_set![app_sign_key],
                                            1,
-                                           msg_id,
-                                           app_sign_key));
+                                           msg_id));
     expect_failure!(app_routing_rx,
                     msg_id,
                     Response::ChangeMDataOwner,
                     ClientError::AccessDenied);
 
-    // Chaning the owner by owner should succeed.
+    // Changing the owner by owner should succeed.
     let msg_id = MessageId::new();
     unwrap!(owner_routing.change_mdata_owner(client_mgr,
                                              name,
                                              tag,
-                                             app_sign_key,
+                                             btree_set![app_sign_key],
                                              1,
-                                             msg_id,
-                                             owner_key));
+                                             msg_id));
     expect_success!(owner_routing_rx, msg_id, Response::ChangeMDataOwner);
 }
 
 #[test]
 fn auth_keys() {
-    let (routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id) = setup();
     let owner_key = *full_id.public_id().signing_public_key();
-    let client_mgr = create_account(&routing, &routing_rx, owner_key);
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
     let (auth_key1, _) = sign::gen_keypair();
     let (auth_key2, _) = sign::gen_keypair();
@@ -895,10 +879,10 @@ fn setup() -> (Routing, Receiver<Event>, FullId) {
 }
 
 // Create account, put it to the network and return `ClientManager` authority for it.
-fn create_account(routing: &Routing,
+fn create_account(routing: &mut Routing,
                   routing_rx: &Receiver<Event>,
                   owner_key: sign::PublicKey)
-                  -> Authority {
+                  -> Authority<XorName> {
     let account_name = XorName(sha256::hash(&owner_key[..]).0);
     let account_data = unwrap!(MutableData::new(account_name,
                                                 TYPE_TAG_SESSION_PACKET,
@@ -916,9 +900,9 @@ fn create_account(routing: &Routing,
     Authority::ClientManager(account_name)
 }
 
-fn do_get_account_info(routing: &Routing,
+fn do_get_account_info(routing: &mut Routing,
                        routing_rx: &Receiver<Event>,
-                       dst: Authority)
+                       dst: Authority<XorName>)
                        -> AccountInfo {
     let msg_id = MessageId::new();
     unwrap!(routing.get_account_info(dst, msg_id));

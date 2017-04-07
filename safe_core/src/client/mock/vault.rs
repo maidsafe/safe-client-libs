@@ -54,7 +54,7 @@ impl Vault {
     }
 
     // Authorise read (non-mutation) operation.
-    pub fn authorise_read(&self, dst: &Authority, data_name: &XorName) -> bool {
+    pub fn authorise_read(&self, dst: &Authority<XorName>, data_name: &XorName) -> bool {
         match *dst {
             Authority::NaeManager(name) if name == *data_name => true,
             _ => false,
@@ -62,7 +62,7 @@ impl Vault {
     }
 
     // Authorise mutation operation.
-    pub fn authorise_mutation(&self, dst: &Authority, sign_pk: &sign::PublicKey) -> bool {
+    pub fn authorise_mutation(&self, dst: &Authority<XorName>, sign_pk: &sign::PublicKey) -> bool {
         let dst_name = match *dst {
             Authority::ClientManager(name) => name,
             x => {

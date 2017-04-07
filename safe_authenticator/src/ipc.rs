@@ -841,7 +841,7 @@ fn encode_auth_resp_impl(client: &Client,
         .and_then(move |(dir, app_keys)| {
                       Ok(AuthGranted {
                              app_keys: app_keys,
-                             bootstrap_config: c7.bootstrap_config(),
+                             bootstrap_config: c7.bootstrap_config()?,
                              access_container: AccessContInfo::from_mdata_info(dir)?,
                          })
                   })

@@ -177,7 +177,7 @@ impl Client {
         let pub_key = maid_keys.sign_pk;
         let full_id = Some(maid_keys.clone().into());
 
-        let (routing, routing_rx) = setup_routing(full_id, None)?;
+        let (mut routing, routing_rx) = setup_routing(full_id, None)?;
 
         let user_root_dir = MDataInfo::random_private(DIR_TAG)?;
         let config_dir = MDataInfo::random_private(DIR_TAG)?;
@@ -210,8 +210,8 @@ impl Client {
             }
         }
 
-        create_empty_dir(&routing, &routing_rx, cm_addr, &user_root_dir, pub_key)?;
-        create_empty_dir(&routing, &routing_rx, cm_addr, &config_dir, pub_key)?;
+        create_empty_dir(&mut routing, &routing_rx, cm_addr, &user_root_dir, pub_key)?;
+        create_empty_dir(&mut routing, &routing_rx, cm_addr, &config_dir, pub_key)?;
 
         let net_tx_clone = net_tx.clone();
         let core_tx_clone = core_tx.clone();
@@ -251,7 +251,7 @@ impl Client {
 
         let (acc_content, acc_version) = {
             trace!("Creating throw-away routing getter for account packet.");
-            let (routing, routing_rx) = setup_routing(None, None)?;
+            let (mut routing, routing_rx) = setup_routing(None, None)?;
 
             routing.get_mdata_value(dst,
                                  acc_loc,
@@ -607,10 +607,14 @@ impl Client {
                               -> Box<CoreFuture<()>> {
         trace!("ChangeMDataOwner for {:?}", name);
 
-        let requester = fry!(self.public_signing_key());
         self.mutate(|routing, dst, msg_id| {
-            routing.change_mdata_owner(dst, name, tag, new_owner, version, msg_id, requester)
-        })
+                        routing.change_mdata_owner(dst,
+                                                   name,
+                                                   tag,
+                                                   btree_set![new_owner],
+                                                   version,
+                                                   msg_id)
+                    })
     }
 
     /// Fetches a list of authorised keys and version in MaidManager
@@ -730,8 +734,8 @@ impl Client {
     }
 
     /// Returns the `crust::Config` associated with the `crust::Service` (if any).
-    pub fn bootstrap_config(&self) -> BootstrapConfig {
-        self.inner().routing.bootstrap_config()
+    pub fn bootstrap_config(&self) -> Result<BootstrapConfig, CoreError> {
+        Ok(self.inner().routing.bootstrap_config()?)
     }
 
     fn update_account_packet(&self) -> Box<CoreFuture<()>> {
@@ -786,7 +790,7 @@ impl Client {
 
     /// Generic mutation request
     fn mutate<F>(&self, req: F) -> Box<CoreFuture<()>>
-        where F: FnOnce(&mut Routing, Authority, MessageId) -> Result<(), InterfaceError>
+        where F: FnOnce(&mut Routing, Authority<XorName>, MessageId) -> Result<(), InterfaceError>
     {
         let dst = fry!(self.inner().client_type.cm_addr().map(|a| a.clone()));
 
@@ -889,12 +893,12 @@ enum ClientType {
         acc: Account,
         acc_loc: XorName,
         user_cred: UserCred,
-        cm_addr: Authority,
+        cm_addr: Authority<XorName>,
     },
     FromKeys {
         keys: ClientKeys,
         owner_key: sign::PublicKey,
-        cm_addr: Authority,
+        cm_addr: Authority<XorName>,
     },
 }
 
@@ -910,7 +914,11 @@ impl ClientType {
         }
     }
 
-    fn reg(acc: Account, acc_loc: XorName, user_cred: UserCred, cm_addr: Authority) -> Self {
+    fn reg(acc: Account,
+           acc_loc: XorName,
+           user_cred: UserCred,
+           cm_addr: Authority<XorName>)
+           -> Self {
         ClientType::Registered {
             acc: acc,
             acc_loc: acc_loc,
@@ -951,7 +959,7 @@ impl ClientType {
         }
     }
 
-    fn cm_addr(&self) -> Result<&Authority, CoreError> {
+    fn cm_addr(&self) -> Result<&Authority<XorName>, CoreError> {
         match *self {
             ClientType::FromKeys { ref cm_addr, .. } |
             ClientType::Registered { ref cm_addr, .. } => Ok(cm_addr),
@@ -1031,9 +1039,9 @@ fn spawn_routing_thread<T>(routing_rx: Receiver<Event>,
 }
 
 /// Creates an empty dir to hold configuration or user data
-fn create_empty_dir(routing: &Routing,
+fn create_empty_dir(routing: &mut Routing,
                     routing_rx: &Receiver<Event>,
-                    dst: Authority,
+                    dst: Authority<XorName>,
                     dir: &MDataInfo,
                     owner_key: sign::PublicKey)
                     -> Result<(), CoreError> {
