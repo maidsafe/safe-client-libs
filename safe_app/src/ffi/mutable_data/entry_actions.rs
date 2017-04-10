@@ -104,7 +104,8 @@ pub unsafe extern "C" fn mdata_entry_actions_free(app: *const App,
                                                   o_cb: extern "C" fn(*mut c_void, i32)) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
-            let _ = context.object_cache()
+            let _ = context
+                .object_cache()
                 .remove_mdata_entry_actions(actions_h)?;
             Ok(())
         })
@@ -127,7 +128,8 @@ unsafe fn add_action<F>(app: *const App,
         let action = f();
 
         send_sync(app, user_data, o_cb, move |_, context| {
-            let mut actions = context.object_cache()
+            let mut actions = context
+                .object_cache()
                 .get_mdata_entry_actions(actions_h)?;
             let _ = actions.insert(key, action);
             Ok(())

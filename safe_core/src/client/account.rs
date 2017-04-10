@@ -56,8 +56,8 @@ impl Account {
     /// Credentials are passed through key-derivation-function first
     pub fn decrypt(encrypted_self: &[u8], password: &[u8], pin: &[u8]) -> Result<Self, CoreError> {
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
-        let decrypted_self = try!(secretbox::open(encrypted_self, &nonce, &key)
-            .map_err(|_| CoreError::SymmetricDecipherFailure));
+        let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
+            .map_err(|_| CoreError::SymmetricDecipherFailure)?;
 
         Ok(deserialise(&decrypted_self)?)
     }

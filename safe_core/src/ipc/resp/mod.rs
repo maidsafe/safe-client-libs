@@ -239,8 +239,8 @@ pub fn access_container_enc_key(app_id: &str,
     let mut key_pt = key.to_vec();
     key_pt.extend_from_slice(&access_container_nonce[..]);
 
-    let key_nonce =
-        secretbox::Nonce::from_slice(&hash::sha256::hash(&key_pt)[..secretbox::NONCEBYTES])
+    let key_nonce = secretbox::Nonce::from_slice(&hash::sha256::hash(&key_pt)
+                                                      [..secretbox::NONCEBYTES])
             .ok_or(IpcError::EncodeDecodeError)?;
 
     Ok(secretbox::seal(key, &key_nonce, app_enc_key))

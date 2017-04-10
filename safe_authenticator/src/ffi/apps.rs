@@ -117,7 +117,8 @@ usize)){
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
-        (*auth).send(move |client| {
+        (*auth)
+            .send(move |client| {
                 let c2 = client.clone();
                 let c3 = client.clone();
 
@@ -177,7 +178,8 @@ pub unsafe extern "C" fn authenticator_registered_apps(auth: *const Authenticato
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
-        (*auth).send(move |client| {
+        (*auth)
+            .send(move |client| {
                 let c2 = client.clone();
                 let c3 = client.clone();
 

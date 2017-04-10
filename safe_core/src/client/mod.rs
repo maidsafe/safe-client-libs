@@ -253,7 +253,8 @@ impl Client {
             trace!("Creating throw-away routing getter for account packet.");
             let (mut routing, routing_rx) = setup_routing(None, None)?;
 
-            routing.get_mdata_value(dst,
+            routing
+                .get_mdata_value(dst,
                                  acc_loc,
                                  TYPE_TAG_SESSION_PACKET,
                                  b"Login".to_vec(),
