@@ -42,6 +42,8 @@
                                          option_unwrap_used))]
 #![cfg_attr(feature="cargo-clippy", allow(use_debug, too_many_arguments))]
 
+extern crate base64;
+extern crate chrono;
 extern crate ffi_utils;
 extern crate futures;
 #[macro_use]
@@ -52,10 +54,10 @@ extern crate lru_cache;
 extern crate maidsafe_utilities;
 extern crate rand;
 extern crate routing;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
 extern crate rust_sodium;
 extern crate self_encryption;
-extern crate time;
 extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;

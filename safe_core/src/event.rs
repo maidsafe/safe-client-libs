@@ -17,7 +17,7 @@
 
 use errors::CoreError;
 use futures::sync::mpsc;
-use routing::{AccountInfo, ImmutableData, PermissionSet, User, Value};
+use routing::{AccountInfo, ImmutableData, MutableData, PermissionSet, User, Value};
 use rust_sodium::crypto::sign;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -50,6 +50,8 @@ pub enum CoreEvent {
     ListMDataUserPermissions(Result<PermissionSet, CoreError>),
     /// Result of getting a list of authorised keys
     ListAuthKeysAndVersion(Result<(BTreeSet<sign::PublicKey>, u64), CoreError>),
+    /// Result of getting a mutable data shell
+    GetMDataShell(Result<MutableData, CoreError>),
 }
 
 /// Netowork Events that Client Modules need to deal with

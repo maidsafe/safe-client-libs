@@ -38,7 +38,7 @@ pub enum CipherOpt {
     },
 }
 
-#[derive(Debug, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 enum WireFormat {
     Plain(Vec<u8>),
     Symmetric {

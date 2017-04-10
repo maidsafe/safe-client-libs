@@ -41,7 +41,7 @@ use std::ptr;
 const CONFIG_FILE: &'static [u8] = b"authenticator-config";
 
 /// App data stored in the authenticator configuration
-#[derive(Clone, Debug, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppInfo {
     /// Application info (id, name, vendor, etc.)
     pub info: AppExchangeInfo,
@@ -187,7 +187,8 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(auth: *const Authenticator,
 
     catch_unwind_cb(user_data.0, o_err, || -> Result<_, AuthError> {
         let msg_raw = CStr::from_ptr(msg).to_str()?;
-        (*auth).send(move |client| {
+        (*auth)
+            .send(move |client| {
                 decode_ipc_msg(client, msg_raw)
                     .and_then(move |msg| {
                         match msg {
@@ -241,7 +242,8 @@ pub unsafe extern "C" fn authenticator_revoke_app(auth: *const Authenticator,
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         let app_id = from_c_str(app_id)?;
 
-        (*auth).send(move |client| {
+        (*auth)
+            .send(move |client| {
                 let c2 = client.clone();
                 let c3 = client.clone();
                 let c4 = client.clone();
@@ -359,7 +361,8 @@ pub unsafe extern "C" fn encode_auth_resp(auth: *const Authenticator,
         } else {
             let permissions = auth_req.containers.clone();
 
-            (*auth).send(move |client| {
+            (*auth)
+                .send(move |client| {
                     let app_id = auth_req.app.id.clone();
                     let app_id2 = app_id.clone();
                     let app_id3 = app_id.clone();
@@ -465,7 +468,8 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
             let app_id = cont_req.app.id.clone();
             let app_id2 = app_id.clone();
 
-            (*auth).send(move |client| {
+            (*auth)
+                .send(move |client| {
                     let c2 = client.clone();
                     let c3 = client.clone();
                     let c4 = client.clone();
@@ -841,7 +845,7 @@ fn encode_auth_resp_impl(client: &Client,
         .and_then(move |(dir, app_keys)| {
                       Ok(AuthGranted {
                              app_keys: app_keys,
-                             bootstrap_config: c7.bootstrap_config(),
+                             bootstrap_config: c7.bootstrap_config()?,
                              access_container: AccessContInfo::from_mdata_info(dir)?,
                          })
                   })

@@ -84,8 +84,7 @@ fn md_created_by_app_2() {
         let _ = permissions.insert(User::Key(sign_pk),
                                    PermissionSet::new().allow(Action::ManagePermissions));
 
-        let mut owners = BTreeSet::new();
-        owners.insert(unwrap!(client.owner_key()));
+        let owners = btree_set![unwrap!(client.owner_key())];
 
         let name: XorName = rng.gen();
         let mdata =
@@ -96,17 +95,16 @@ fn md_created_by_app_2() {
             .put_mdata(mdata)
             .then(move |res| {
                       unwrap!(res);
-                      cl2.change_mdata_owner(name, DIR_TAG, sign_pk, 2)
+                      cl2.change_mdata_owner(name, DIR_TAG, sign_pk, 1)
                   })
             .then(move |res| -> Result<_, ()> {
-                match res {
-                    Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
-                    Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
-                }
-                unwrap!(alt_client_tx.send((name2, sign_pk)));
-                Ok(())
-            })
+                      match res {
+                          Ok(()) => (),
+                          Err(x) => panic!("Expected Ok(()). Got {:?}", x),
+                      }
+                      unwrap!(alt_client_tx.send((name2, sign_pk)));
+                      Ok(())
+                  })
             .into_box()
             .into()
     }));
@@ -118,7 +116,7 @@ fn md_created_by_app_2() {
                 .ins_auth_key(sign_pk, 1)
                 .then(move |res| {
                           unwrap!(res);
-                          cl2.change_mdata_owner(name, DIR_TAG, sign_pk, 2)
+                          cl2.change_mdata_owner(name, DIR_TAG, sign_pk, 1)
                       })
                 .then(move |res| -> Result<(), ()> {
                     match res {

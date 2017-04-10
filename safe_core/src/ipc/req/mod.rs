@@ -29,7 +29,7 @@ use std::ffi::{CString, NulError};
 
 /// IPC request
 // TODO: `TransOwnership` variant
-#[derive(RustcEncodable, RustcDecodable, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum IpcReq {
     /// Authentication request
     Auth(AuthReq),
@@ -38,7 +38,7 @@ pub enum IpcReq {
 }
 
 /// Represents an authorization request
-#[derive(Clone, Debug, Eq, PartialEq, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AuthReq {
     /// The application identifier for this request
     pub app: AppExchangeInfo,
@@ -110,7 +110,8 @@ impl AuthReq {
             containers,
         } = self;
 
-        let containers = containers_into_vec(containers).map_err(StringError::from)?;
+        let containers = containers_into_vec(containers)
+            .map_err(StringError::from)?;
         let (containers_ptr, len, cap) = vec_into_raw_parts(containers);
 
         Ok(ffi::AuthReq {
@@ -141,7 +142,7 @@ impl ReprC for AuthReq {
 }
 
 /// Containers request
-#[derive(Clone, Eq, PartialEq, RustcEncodable, RustcDecodable, Debug)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct ContainersReq {
     /// Exchange info
     pub app: AppExchangeInfo,
@@ -157,7 +158,8 @@ impl ContainersReq {
     pub fn into_repr_c(self) -> Result<ffi::ContainersReq, IpcError> {
         let ContainersReq { app, containers } = self;
 
-        let containers = containers_into_vec(containers).map_err(StringError::from)?;
+        let containers = containers_into_vec(containers)
+            .map_err(StringError::from)?;
         let (containers_ptr, len, cap) = vec_into_raw_parts(containers);
 
         Ok(ffi::ContainersReq {
@@ -186,7 +188,7 @@ impl ReprC for ContainersReq {
 }
 
 /// Represents an application ID in the process of asking permissions
-#[derive(Clone, Eq, PartialEq, RustcEncodable, RustcDecodable, Debug)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Debug)]
 pub struct AppExchangeInfo {
     /// The ID. It must be unique.
     pub id: String,

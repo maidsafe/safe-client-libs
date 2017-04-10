@@ -15,21 +15,20 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use chrono::prelude::{DateTime, UTC};
 use ffi_utils::{ReprC, vec_into_raw_parts};
 use nfs::errors::NfsError;
 use nfs::ffi::File as FfiFile;
 use routing::XorName;
-use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
 use std::slice;
-use time::{self, Timespec, Tm};
 
 /// Representation of a File to be put into the network. Could be any kind of
 /// file: text, music, video, etc.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct File {
     size: u64,
-    created: Tm,
-    modified: Tm,
+    created: DateTime<UTC>,
+    modified: DateTime<UTC>,
     user_metadata: Vec<u8>,
     data_map_name: XorName,
 }
@@ -39,8 +38,8 @@ impl File {
     pub fn new(user_metadata: Vec<u8>) -> File {
         File {
             size: 0,
-            created: time::now_utc(),
-            modified: time::now_utc(),
+            created: UTC::now(),
+            modified: UTC::now(),
             user_metadata: user_metadata,
             data_map_name: XorName::default(),
         }
@@ -65,12 +64,12 @@ impl File {
     }
 
     /// Get time of creation
-    pub fn created_time(&self) -> &Tm {
+    pub fn created_time(&self) -> &DateTime<UTC> {
         &self.created
     }
 
     /// Get time of modification
-    pub fn modified_time(&self) -> &Tm {
+    pub fn modified_time(&self) -> &DateTime<UTC> {
         &self.modified
     }
 
@@ -100,12 +99,12 @@ impl File {
     }
 
     /// Set time of creation
-    pub fn set_created_time(&mut self, created_time: Tm) {
+    pub fn set_created_time(&mut self, created_time: DateTime<UTC>) {
         self.created = created_time
     }
 
     /// Set time of modification
-    pub fn set_modified_time(&mut self, modified_time: Tm) {
+    pub fn set_modified_time(&mut self, modified_time: DateTime<UTC>) {
         self.modified = modified_time
     }
 
@@ -133,53 +132,6 @@ impl ReprC for File {
         file.set_data_map_name(XorName((*repr_c).data_map_name));
 
         Ok(file)
-    }
-}
-
-impl Encodable for File {
-    fn encode<E: Encoder>(&self, e: &mut E) -> Result<(), E::Error> {
-        let created_time = self.created.to_timespec();
-        let modified_time = self.modified.to_timespec();
-
-        e.emit_struct("File", 7, |e| {
-            e.emit_struct_field("size", 0, |e| self.size.encode(e))?;
-            e.emit_struct_field("created_time_sec", 1, |e| created_time.sec.encode(e))?;
-            e.emit_struct_field("created_time_nsec", 2, |e| created_time.nsec.encode(e))?;
-            e.emit_struct_field("modified_time_sec", 3, |e| modified_time.sec.encode(e))?;
-            e.emit_struct_field("modified_time_nsec", 4, |e| modified_time.nsec.encode(e))?;
-            e.emit_struct_field("user_metadata", 5, |e| self.user_metadata.encode(e))?;
-            e.emit_struct_field("data_map_name", 6, |e| self.data_map_name.encode(e))?;
-
-            Ok(())
-        })
-    }
-}
-
-impl Decodable for File {
-    fn decode<D: Decoder>(d: &mut D) -> Result<File, D::Error> {
-        d.read_struct("File", 7, |d| {
-            Ok(File {
-                   size: d.read_struct_field("size", 0, Decodable::decode)?,
-                   created: ::time::at_utc(Timespec {
-                                               sec: d.read_struct_field("created_time_sec",
-                                                                        1,
-                                                                        Decodable::decode)?,
-                                               nsec: d.read_struct_field("created_time_nsec",
-                                                                         2,
-                                                                         Decodable::decode)?,
-                                           }),
-                   modified: ::time::at_utc(Timespec {
-                                                sec: d.read_struct_field("modified_time_sec",
-                                                                         3,
-                                                                         Decodable::decode)?,
-                                                nsec: d.read_struct_field("modified_time_nsec",
-                                                                          4,
-                                                                          Decodable::decode)?,
-                                            }),
-                   user_metadata: d.read_struct_field("user_metadata", 5, Decodable::decode)?,
-                   data_map_name: d.read_struct_field("data_map_name", 6, Decodable::decode)?,
-               })
-        })
     }
 }
 

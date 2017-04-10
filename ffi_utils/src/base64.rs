@@ -15,24 +15,14 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use rustc_serialize::base64::{CharacterSet, Config, FromBase64, FromBase64Error, Newline, ToBase64};
+use b64::{self, Base64Error, URL_SAFE};
 
 /// Encode the data using base64 encoding.
 pub fn base64_encode(input: &[u8]) -> String {
-    input.to_base64(config())
+    b64::encode_config(input, URL_SAFE)
 }
 
 /// Decode base64 encoded data.
-pub fn base64_decode(input: &str) -> Result<Vec<u8>, FromBase64Error> {
-    input.from_base64()
-}
-
-#[inline]
-fn config() -> Config {
-    Config {
-        char_set: CharacterSet::UrlSafe,
-        newline: Newline::LF,
-        pad: false,
-        line_length: None,
-    }
+pub fn base64_decode(input: &str) -> Result<Vec<u8>, Base64Error> {
+    b64::decode_config(input, URL_SAFE)
 }

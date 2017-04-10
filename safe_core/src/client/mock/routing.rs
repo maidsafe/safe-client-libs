@@ -59,7 +59,7 @@ lazy_static! {
 pub struct Routing {
     sender: Sender<Event>,
     full_id: FullId,
-    client_auth: Authority,
+    client_auth: Authority<XorName>,
     max_ops_countdown: Option<Cell<u64>>,
     timeout_simulation: bool,
 }
@@ -93,8 +93,8 @@ impl Routing {
     }
 
     /// Gets MAID account information.
-    pub fn get_account_info(&self,
-                            dst: Authority,
+    pub fn get_account_info(&mut self,
+                            dst: Authority<XorName>,
                             msg_id: MessageId)
                             -> Result<(), InterfaceError> {
         if self.timeout_simulation {
@@ -128,8 +128,8 @@ impl Routing {
     }
 
     /// Puts ImmutableData to the network.
-    pub fn put_idata(&self,
-                     dst: Authority,
+    pub fn put_idata(&mut self,
+                     dst: Authority<XorName>,
                      data: ImmutableData,
                      msg_id: MessageId)
                      -> Result<(), InterfaceError> {
@@ -172,8 +172,8 @@ impl Routing {
     }
 
     /// Fetches ImmutableData from the network by the given name.
-    pub fn get_idata(&self,
-                     dst: Authority,
+    pub fn get_idata(&mut self,
+                     dst: Authority<XorName>,
                      name: XorName,
                      msg_id: MessageId)
                      -> Result<(), InterfaceError> {
@@ -205,8 +205,8 @@ impl Routing {
     }
 
     /// Creates a new MutableData in the network.
-    pub fn put_mdata(&self,
-                     dst: Authority,
+    pub fn put_mdata(&mut self,
+                     dst: Authority<XorName>,
                      data: MutableData,
                      msg_id: MessageId,
                      _requester: sign::PublicKey)
@@ -271,8 +271,8 @@ impl Routing {
     }
 
     /// Fetches a latest version number.
-    pub fn get_mdata_version(&self,
-                             dst: Authority,
+    pub fn get_mdata_version(&mut self,
+                             dst: Authority<XorName>,
                              name: XorName,
                              tag: u64,
                              msg_id: MessageId)
@@ -293,8 +293,8 @@ impl Routing {
     }
 
     /// Fetches a list of entries (keys + values).
-    pub fn list_mdata_entries(&self,
-                              dst: Authority,
+    pub fn list_mdata_entries(&mut self,
+                              dst: Authority<XorName>,
                               name: XorName,
                               tag: u64,
                               msg_id: MessageId)
@@ -315,8 +315,8 @@ impl Routing {
     }
 
     /// Fetches a list of keys in MutableData.
-    pub fn list_mdata_keys(&self,
-                           dst: Authority,
+    pub fn list_mdata_keys(&mut self,
+                           dst: Authority<XorName>,
                            name: XorName,
                            tag: u64,
                            msg_id: MessageId)
@@ -340,8 +340,8 @@ impl Routing {
     }
 
     /// Fetches a list of values in MutableData.
-    pub fn list_mdata_values(&self,
-                             dst: Authority,
+    pub fn list_mdata_values(&mut self,
+                             dst: Authority<XorName>,
                              name: XorName,
                              tag: u64,
                              msg_id: MessageId)
@@ -365,8 +365,8 @@ impl Routing {
     }
 
     /// Fetches a single value from MutableData
-    pub fn get_mdata_value(&self,
-                           dst: Authority,
+    pub fn get_mdata_value(&mut self,
+                           dst: Authority<XorName>,
                            name: XorName,
                            tag: u64,
                            key: Vec<u8>,
@@ -388,8 +388,8 @@ impl Routing {
     }
 
     /// Updates MutableData entries in bulk.
-    pub fn mutate_mdata_entries(&self,
-                                dst: Authority,
+    pub fn mutate_mdata_entries(&mut self,
+                                dst: Authority<XorName>,
                                 name: XorName,
                                 tag: u64,
                                 actions: BTreeMap<Vec<u8>, EntryAction>,
@@ -413,8 +413,8 @@ impl Routing {
     }
 
     /// Fetches a complete list of permissions.
-    pub fn list_mdata_permissions(&self,
-                                  dst: Authority,
+    pub fn list_mdata_permissions(&mut self,
+                                  dst: Authority<XorName>,
                                   name: XorName,
                                   tag: u64,
                                   msg_id: MessageId)
@@ -435,8 +435,8 @@ impl Routing {
     }
 
     /// Fetches a list of permissions for a particular User.
-    pub fn list_mdata_user_permissions(&self,
-                                       dst: Authority,
+    pub fn list_mdata_user_permissions(&mut self,
+                                       dst: Authority<XorName>,
                                        name: XorName,
                                        tag: u64,
                                        user: User,
@@ -459,8 +459,8 @@ impl Routing {
 
     /// Updates or inserts a list of permissions for a particular User in the given
     /// MutableData.
-    pub fn set_mdata_user_permissions(&self,
-                                      dst: Authority,
+    pub fn set_mdata_user_permissions(&mut self,
+                                      dst: Authority<XorName>,
                                       name: XorName,
                                       tag: u64,
                                       user: User,
@@ -486,8 +486,8 @@ impl Routing {
     }
 
     /// Deletes a list of permissions for a particular User in the given MutableData.
-    pub fn del_mdata_user_permissions(&self,
-                                      dst: Authority,
+    pub fn del_mdata_user_permissions(&mut self,
+                                      dst: Authority<XorName>,
                                       name: XorName,
                                       tag: u64,
                                       user: User,
@@ -512,16 +512,31 @@ impl Routing {
     }
 
     /// Changes an owner of the given MutableData. Only the current owner can perform this action.
-    pub fn change_mdata_owner(&self,
-                              dst: Authority,
+    pub fn change_mdata_owner(&mut self,
+                              dst: Authority<XorName>,
                               name: XorName,
                               tag: u64,
-                              new_owner: sign::PublicKey,
+                              new_owners: BTreeSet<sign::PublicKey>,
                               version: u64,
-                              msg_id: MessageId,
-                              requester: sign::PublicKey)
+                              msg_id: MessageId)
                               -> Result<(), InterfaceError> {
-        let sign_pk = *self.full_id.public_id().signing_public_key();
+        let new_owners_len = new_owners.len();
+        let new_owner = match new_owners.into_iter().next() {
+            Some(owner) if new_owners_len == 1 => owner,
+            Some(_) | None => {
+                // `new_owners` must have exactly 1 element.
+                self.send_response(CHANGE_MDATA_OWNER_DELAY_MS,
+                                   dst,
+                                   self.client_auth,
+                                   Response::ChangeMDataOwner {
+                                       res: Err(ClientError::InvalidOwners),
+                                       msg_id: msg_id,
+                                   });
+                return Ok(());
+            }
+        };
+
+        let requester = *self.full_id.public_id().signing_public_key();
 
         self.mutate_mdata(dst,
                           name,
@@ -530,7 +545,11 @@ impl Routing {
                           requester,
                           "change_mdata_owner",
                           CHANGE_MDATA_OWNER_DELAY_MS,
-                          |data| data.change_owner(new_owner, version, sign_pk),
+                          |data| match self.verify_owner(&dst, data.owners()) {
+                              Err(ClientError::InvalidOwners) => Err(ClientError::AccessDenied),
+                              Err(e) => Err(e),
+                              Ok(_) => data.change_owner(new_owner, version),
+                          },
                           |res| {
                               Response::ChangeMDataOwner {
                                   res: res,
@@ -540,8 +559,8 @@ impl Routing {
     }
 
     /// Fetches a list of authorised keys and version in MaidManager
-    pub fn list_auth_keys_and_version(&self,
-                                      dst: Authority,
+    pub fn list_auth_keys_and_version(&mut self,
+                                      dst: Authority<XorName>,
                                       msg_id: MessageId)
                                       -> Result<(), InterfaceError> {
         if self.timeout_simulation {
@@ -576,8 +595,8 @@ impl Routing {
     }
 
     /// Adds a new authorised key to MaidManager
-    pub fn ins_auth_key(&self,
-                        dst: Authority,
+    pub fn ins_auth_key(&mut self,
+                        dst: Authority<XorName>,
                         key: sign::PublicKey,
                         version: u64,
                         msg_id: MessageId)
@@ -620,8 +639,8 @@ impl Routing {
     }
 
     /// Removes an authorised key from MaidManager
-    pub fn del_auth_key(&self,
-                        dst: Authority,
+    pub fn del_auth_key(&mut self,
+                        dst: Authority<XorName>,
                         key: sign::PublicKey,
                         version: u64,
                         msg_id: MessageId)
@@ -662,7 +681,11 @@ impl Routing {
         Ok(())
     }
 
-    fn send_response(&self, delay_ms: u64, src: Authority, dst: Authority, response: Response) {
+    fn send_response(&self,
+                     delay_ms: u64,
+                     src: Authority<XorName>,
+                     dst: Authority<XorName>,
+                     response: Response) {
         let event = Event::Response {
             response: response,
             src: src,
@@ -687,7 +710,7 @@ impl Routing {
     }
 
     fn read_mdata<F, G, R>(&self,
-                           dst: Authority,
+                           dst: Authority<XorName>,
                            name: XorName,
                            tag: u64,
                            msg_id: MessageId,
@@ -711,7 +734,7 @@ impl Routing {
     }
 
     fn mutate_mdata<F, G, R>(&self,
-                             dst: Authority,
+                             dst: Authority<XorName>,
                              name: XorName,
                              tag: u64,
                              msg_id: MessageId,
@@ -784,21 +807,21 @@ impl Routing {
         Ok(())
     }
 
-    fn authorise_read(&self, dst: &Authority, data_name: &XorName) {
+    fn authorise_read(&self, dst: &Authority<XorName>, data_name: &XorName) {
         let vault = unwrap!(VAULT.lock());
         assert!(vault.authorise_read(dst, data_name));
     }
 
-    fn authorise_mutation(&self, dst: &Authority) {
+    fn authorise_mutation(&self, dst: &Authority<XorName>) {
         let vault = unwrap!(VAULT.lock());
         assert!(vault.authorise_mutation(dst, self.full_id.public_id().signing_public_key()));
     }
 
-    fn commit_mutation(&self, dst: &Authority) {
+    fn commit_mutation(&self, dst: &Authority<XorName>) {
         let mut vault = unwrap!(VAULT.lock());
 
         {
-            let account = unwrap!(vault.get_account_mut(dst.name()));
+            let account = unwrap!(vault.get_account_mut(&dst.name()));
             account.increment_mutations_counter();
         }
 
@@ -806,7 +829,7 @@ impl Routing {
     }
 
     fn verify_owner(&self,
-                    dst: &Authority,
+                    dst: &Authority<XorName>,
                     owner_keys: &BTreeSet<sign::PublicKey>)
                     -> Result<(), ClientError> {
         let dst_name = match *dst {
@@ -857,8 +880,8 @@ impl Routing {
         self.timeout_simulation = enable;
     }
 
-    pub fn bootstrap_config(&self) -> BootstrapConfig {
-        BootstrapConfig::default()
+    pub fn bootstrap_config(&self) -> Result<BootstrapConfig, InterfaceError> {
+        Ok(BootstrapConfig::default())
     }
 
     fn verify_network_limits(&self, msg_id: MessageId, op: &str) -> Result<(), ClientError> {

@@ -22,7 +22,7 @@ use std::collections::{BTreeSet, HashMap};
 
 pub const DEFAULT_MAX_MUTATIONS: u64 = 100;
 
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Deserialize, Serialize)]
 pub struct Vault {
     client_manager: HashMap<XorName, Account>,
     nae_manager: HashMap<XorName, Data>,
@@ -54,7 +54,7 @@ impl Vault {
     }
 
     // Authorise read (non-mutation) operation.
-    pub fn authorise_read(&self, dst: &Authority, data_name: &XorName) -> bool {
+    pub fn authorise_read(&self, dst: &Authority<XorName>, data_name: &XorName) -> bool {
         match *dst {
             Authority::NaeManager(name) if name == *data_name => true,
             _ => false,
@@ -62,7 +62,7 @@ impl Vault {
     }
 
     // Authorise mutation operation.
-    pub fn authorise_mutation(&self, dst: &Authority, sign_pk: &sign::PublicKey) -> bool {
+    pub fn authorise_mutation(&self, dst: &Authority<XorName>, sign_pk: &sign::PublicKey) -> bool {
         let dst_name = match *dst {
             Authority::ClientManager(name) => name,
             x => {
@@ -110,13 +110,13 @@ impl Vault {
     }
 }
 
-#[derive(Clone, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Deserialize, Serialize)]
 pub enum Data {
     Immutable(ImmutableData),
     Mutable(MutableData),
 }
 
-#[derive(RustcDecodable, RustcEncodable)]
+#[derive(Deserialize, Serialize)]
 pub struct Account {
     account_info: AccountInfo,
     auth_keys: BTreeSet<sign::PublicKey>,

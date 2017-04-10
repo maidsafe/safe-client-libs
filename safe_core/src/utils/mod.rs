@@ -76,7 +76,8 @@ pub fn symmetric_decrypt(cipher_text: &[u8],
 
 /// Generates a random string for specified size
 pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = ::rand::OsRng::new()
+        .map_err(|error| {
                      error!("{:?}", error);
                      CoreError::RandomDataGenerationFailure
                  })?;
@@ -87,7 +88,8 @@ pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
 pub fn generate_random_vector<T>(length: usize) -> Result<Vec<T>, CoreError>
     where T: ::rand::Rand
 {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = ::rand::OsRng::new()
+        .map_err(|error| {
                      error!("{:?}", error);
                      CoreError::RandomDataGenerationFailure
                  })?;

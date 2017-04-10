@@ -51,13 +51,14 @@ extern crate maidsafe_utilities;
 #[cfg(test)]
 extern crate rand;
 extern crate routing;
-extern crate rustc_serialize;
 extern crate rust_sodium;
 #[cfg(any(test, feature="testing"))]
 extern crate safe_authenticator;
 #[macro_use]
 extern crate safe_core;
 extern crate self_encryption;
+#[macro_use]
+extern crate serde_derive;
 extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;

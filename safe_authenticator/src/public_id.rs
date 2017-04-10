@@ -125,7 +125,8 @@ pub fn get(client: &Client) -> Box<AuthFuture<String>> {
     client
         .config_root_dir()
         .and_then(|config_root_dir| {
-                      let key = config_root_dir.enc_entry_key(PUBLIC_ID_CONFIG_ROOT_ENTRY_KEY)?;
+                      let key = config_root_dir
+                          .enc_entry_key(PUBLIC_ID_CONFIG_ROOT_ENTRY_KEY)?;
                       Ok((config_root_dir, key))
                   })
         .map_err(AuthError::from)

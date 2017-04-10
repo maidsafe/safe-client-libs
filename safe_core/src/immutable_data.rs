@@ -25,7 +25,7 @@ use self_encryption::{DataMap, SelfEncryptor};
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::{self, FutureExt};
 
-#[derive(RustcEncodable, RustcDecodable)]
+#[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
     Serialised(Vec<u8>),
     DataMap(DataMap),

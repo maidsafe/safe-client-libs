@@ -15,15 +15,15 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use base64::Base64Error;
 use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
-use rustc_serialize::base64::FromBase64Error;
 use std::error::Error;
 use std::str::Utf8Error;
 
 /// Ipc error
-#[derive(RustcEncodable, RustcDecodable, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum IpcError {
     /// Authentication denied
     AuthDenied,
@@ -56,8 +56,8 @@ impl From<Utf8Error> for IpcError {
     }
 }
 
-impl From<FromBase64Error> for IpcError {
-    fn from(_err: FromBase64Error) -> Self {
+impl From<Base64Error> for IpcError {
+    fn from(_err: Base64Error) -> Self {
         IpcError::EncodeDecodeError
     }
 }

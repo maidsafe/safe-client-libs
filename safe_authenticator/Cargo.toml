@@ -13,13 +13,14 @@ version = "0.1.0"
 ffi_utils = { path = "../ffi_utils", version = "~0.1.0" }
 futures = "~0.1.11"
 log = "~0.3.7"
-maidsafe_utilities = "~0.10.0"
+maidsafe_utilities = "~0.11.0"
 # routing = "~0.27.1"
 routing = { git = "https://github.com/maidsafe/routing.git", branch = "mutable-data" }
-rust_sodium = "~0.1.2"
-rustc-serialize = "~0.3.22"
+rust_sodium = "~0.2.0"
+serde = "~0.9.12"
+serde_derive = "~0.9.12"
 safe_core = { path = "../safe_core", version = "~0.22.0" }
-tokio-core = "~0.1.4"
+tokio-core = "~0.1.6"
 unwrap = "~1.1.0"
 
 [features]

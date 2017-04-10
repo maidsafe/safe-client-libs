@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use utils::{symmetric_decrypt, symmetric_encrypt};
 
 /// Information allowing to locate and access mutable data on the network.
-#[derive(Clone, Debug, PartialEq, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct MDataInfo {
     /// Name of the data where the directory is stored.
     pub name: XorName,

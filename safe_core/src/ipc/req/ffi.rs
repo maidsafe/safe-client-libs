@@ -21,7 +21,7 @@ use std::os::raw::c_char;
 
 /// Permission action
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, RustcEncodable, RustcDecodable)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Permission {
     /// Read
     Read,

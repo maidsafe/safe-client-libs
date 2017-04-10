@@ -41,9 +41,11 @@
                                          option_unwrap_used))]
 #![cfg_attr(feature="cargo-clippy", allow(use_debug, too_many_arguments))]
 
+extern crate base64 as b64;
 #[macro_use]
 extern crate log;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate unwrap;
 

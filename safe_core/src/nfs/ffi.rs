@@ -15,8 +15,8 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use chrono::prelude::{DateTime, UTC};
 use routing::XOR_NAME_LEN;
-use time::Tm;
 
 /// FFI-wrapper for `File`.
 #[repr(C)]
@@ -24,9 +24,9 @@ pub struct File {
     /// File size in bytes.
     pub size: u64,
     /// Creation time.
-    pub created: Tm,
+    pub created: DateTime<UTC>,
     /// Modification time.
-    pub modified: Tm,
+    pub modified: DateTime<UTC>,
     /// Pointer to the user metadata.
     pub user_metadata_ptr: *mut u8,
     /// Size of the user metadata.

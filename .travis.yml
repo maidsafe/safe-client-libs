@@ -48,11 +48,11 @@ script:
             echo "--- Check compilation against actual routing ---" &&
             cd ../safe_core &&
             cargo rustc --verbose --release &&
-            cargo rustc --verbose --features testing --release -- --test -Zno-trans &&
+            cargo rustc --verbose --features testing --release --profile test --lib -- -Zno-trans &&
             cd ../safe_app &&
-            cargo rustc --verbose --features testing --release -- --test -Zno-trans &&
+            cargo rustc --verbose --features testing --release --profile test --lib -- -Zno-trans &&
             cd ../safe_authenticator &&
-            cargo rustc --verbose --features testing --release -- --test -Zno-trans &&
+            cargo rustc --verbose --features testing --release --profile test --lib -- -Zno-trans &&
             echo "--- Test against mock ---" &&
             cd ../safe_core &&
             cargo test --verbose --release --features "$Features" &&

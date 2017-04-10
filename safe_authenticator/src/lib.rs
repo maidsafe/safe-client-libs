@@ -48,7 +48,8 @@ extern crate futures;
 extern crate log;
 extern crate maidsafe_utilities;
 extern crate routing;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
 extern crate rust_sodium;
 #[macro_use]
 extern crate safe_core;

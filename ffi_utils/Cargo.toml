@@ -10,12 +10,11 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.1.0"
 
 [dependencies]
+base64 = "~0.4.1"
 log = "~0.3.7"
-# TODO rand is only used by tests but putting it as dev-dependency fails to compile with
-# cargo rustc --release --features clippy --verbose -- --test -Zno-trans
-# cargo rustc --release -- --test -Zno-trans
-# See if this is a bug with using `cargo rustc` instead of normal cargo tests and if so
-# file a bug report and track it.
-rand = "~0.3.15"
-rustc-serialize = "~0.3.22"
+serde = "~0.9.12"
+serde_derive = "~0.9.12"
 unwrap = "~1.1.0"
+
+[dev-dependencies]
+rand = "~0.3.15"

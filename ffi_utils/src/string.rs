@@ -37,7 +37,7 @@ impl ReprC for String {
 }
 
 /// Error type for strings
-#[derive(RustcEncodable, RustcDecodable, Debug, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum StringError {
     /// UTF8 error
     Utf8(String),

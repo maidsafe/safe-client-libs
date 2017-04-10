@@ -23,7 +23,7 @@ use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
 use rust_sodium::crypto::hash::sha256;
 
 /// Representing the User Account information on the network
-#[derive(Debug, PartialEq, RustcDecodable, RustcEncodable)]
+#[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Account {
     /// The User Account Keys
     pub maid_keys: ClientKeys,
@@ -56,8 +56,8 @@ impl Account {
     /// Credentials are passed through key-derivation-function first
     pub fn decrypt(encrypted_self: &[u8], password: &[u8], pin: &[u8]) -> Result<Self, CoreError> {
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
-        let decrypted_self = try!(secretbox::open(encrypted_self, &nonce, &key)
-            .map_err(|_| CoreError::SymmetricDecipherFailure));
+        let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
+            .map_err(|_| CoreError::SymmetricDecipherFailure)?;
 
         Ok(deserialise(&decrypted_self)?)
     }
@@ -109,7 +109,7 @@ impl Account {
 }
 
 /// Client signing and encryption keypairs
-#[derive(Clone, Debug, PartialEq, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ClientKeys {
     /// Signing public key
     pub sign_pk: sign::PublicKey,
