@@ -31,7 +31,7 @@ use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataInfoHandle,
                    MDataPermissionSetHandle, MDataPermissionsHandle, MDataValuesHandle,
                    SignKeyHandle};
 use routing::MutableData;
-use safe_core::{CoreError, FutureExt, mdata_info};
+use safe_core::{CoreError, FutureExt};
 use std::os::raw::c_void;
 use std::ptr;
 
@@ -75,13 +75,10 @@ pub unsafe extern "C" fn mdata_put(app: *const App,
             };
 
             let entries = if entries_h != 0 {
-                let entries = try_cb!(context.object_cache().get_mdata_entries(entries_h),
-                                      user_data,
-                                      o_cb);
-
-                try_cb!(mdata_info::encrypt_entries(&info, &*entries).map_err(AppError::from),
+                try_cb!(context.object_cache().get_mdata_entries(entries_h),
                         user_data,
                         o_cb)
+                        .clone()
             } else {
                 Default::default()
             };
@@ -189,10 +186,7 @@ pub unsafe extern "C" fn mdata_list_entries(app: *const App,
             client
                 .list_mdata_entries(info.name, info.type_tag)
                 .map_err(AppError::from)
-                .and_then(move |entries| {
-                              let entries = mdata_info::decrypt_entries(&info, &entries)?;
-                              Ok(context.object_cache().insert_mdata_entries(entries))
-                          })
+                .and_then(move |entries| Ok(context.object_cache().insert_mdata_entries(entries)))
         })
     })
 }
@@ -211,10 +205,7 @@ pub unsafe extern "C" fn mdata_list_keys(app: *const App,
             client
                 .list_mdata_keys(info.name, info.type_tag)
                 .map_err(AppError::from)
-                .and_then(move |keys| {
-                              let keys = mdata_info::decrypt_keys(&info, &keys)?;
-                              Ok(context.object_cache().insert_mdata_keys(keys))
-                          })
+                .and_then(move |keys| Ok(context.object_cache().insert_mdata_keys(keys)))
         })
     })
 }
@@ -235,10 +226,7 @@ pub unsafe extern "C" fn mdata_list_values(app: *const App,
             client
                 .list_mdata_values(info.name, info.type_tag)
                 .map_err(AppError::from)
-                .and_then(move |values| {
-                              let values = mdata_info::decrypt_values(&info, &values)?;
-                              Ok(context.object_cache().insert_mdata_values(values))
-                          })
+                .and_then(move |values| Ok(context.object_cache().insert_mdata_values(values)))
         })
     })
 }
