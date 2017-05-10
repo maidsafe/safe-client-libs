@@ -36,22 +36,36 @@ pub struct MDataInfo {
 }
 
 impl MDataInfo {
-    /// Construct `MDataInfo` for private (encrypted) data.
-    pub fn new_private(name: XorName, type_tag: u64) -> Self {
+    /// Construct `MDataInfo` for private (encrypted) data with a
+    /// provided private key.
+    pub fn new_private(name: XorName,
+                       type_tag: u64,
+                       enc_info: (secretbox::Key, Option<secretbox::Nonce>))
+                       -> Self {
+        MDataInfo {
+            name,
+            type_tag,
+            enc_info: Some(enc_info),
+        }
+    }
+
+    /// Construct `MDataInfo` for private (encrypted) data with a
+    /// randomly generated private key.
+    pub fn gen_private(name: XorName, type_tag: u64) -> Self {
         let enc_info = Some((secretbox::gen_key(), Some(secretbox::gen_nonce())));
 
         MDataInfo {
-            name: name,
-            type_tag: type_tag,
-            enc_info: enc_info,
+            name,
+            type_tag,
+            enc_info,
         }
     }
 
     /// Construct `MDataInfo` for public data.
     pub fn new_public(name: XorName, type_tag: u64) -> Self {
         MDataInfo {
-            name: name,
-            type_tag: type_tag,
+            name,
+            type_tag,
             enc_info: None,
         }
     }
@@ -59,7 +73,7 @@ impl MDataInfo {
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(type_tag: u64) -> Result<Self, CoreError> {
         let mut rng = os_rng()?;
-        Ok(Self::new_private(rng.gen(), type_tag))
+        Ok(Self::gen_private(rng.gen(), type_tag))
     }
     /// Generate random `MDataInfo` for public mutable data.
     pub fn random_public(type_tag: u64) -> Result<Self, CoreError> {

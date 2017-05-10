@@ -21,7 +21,7 @@
 
 use super::App;
 use super::errors::AppError;
-use ffi_utils::{OpaqueCtx, ReprC, catch_unwind_error_code, from_c_str};
+use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, catch_unwind_error_code, from_c_str};
 use safe_core::NetworkEvent;
 use safe_core::ipc::AuthGranted;
 use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
@@ -50,7 +50,7 @@ mod helper;
 #[no_mangle]
 pub unsafe extern "C" fn app_unregistered(user_data: *mut c_void,
                                           network_observer_cb: unsafe extern "C" fn(*mut c_void,
-                                                                                    i32,
+                                                                                    FfiResult,
                                                                                     i32),
                                           o_app: *mut *mut App)
                                           -> i32 {
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn app_registered(app_id: *const c_char,
                                         auth_granted: *const FfiAuthGranted,
                                         user_data: *mut c_void,
                                         network_observer_cb: unsafe extern "C" fn(*mut c_void,
-                                                                                  i32,
+                                                                                  FfiResult,
                                                                                   i32),
                                         o_app: *mut *mut App)
                                         -> i32 {
@@ -104,9 +104,17 @@ pub unsafe extern "C" fn app_free(app: *mut App) {
 
 unsafe fn call_network_observer(event: Result<NetworkEvent, AppError>,
                                 user_data: *mut c_void,
-                                cb: unsafe extern "C" fn(*mut c_void, i32, i32)) {
+                                o_cb: unsafe extern "C" fn(*mut c_void, FfiResult, i32)) {
     match event {
-        Ok(event) => cb(user_data, 0, event.into()),
-        Err(err) => cb(user_data, ffi_error_code!(err), 0),
+        Ok(event) => o_cb(user_data, FFI_RESULT_OK, event.into()),
+        Err(err) => {
+            let (error_code, description) = ffi_error!(err);
+            o_cb(user_data,
+                 FfiResult {
+                     error_code,
+                     description: description.as_ptr(),
+                 },
+                 0)
+        }
     }
 }
