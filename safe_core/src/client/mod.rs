@@ -522,10 +522,7 @@ impl Client {
 
             let inner = self.inner.clone();
             rx.map(move |data| {
-                         let _ = inner
-                             .borrow_mut()
-                             .cache
-                             .insert(*data.name(), data.clone());
+                         let _ = inner.borrow_mut().cache.insert(*data.name(), data.clone());
                          data
                      })
                 .into_box()
@@ -1256,13 +1253,14 @@ mod tests {
             let client2 = client.clone();
             let client3 = client.clone();
 
-            client.get_idata(*orig_data.name())
+            client
+                .get_idata(*orig_data.name())
                 .then(move |res| {
-                    let data = unwrap!(res);
-                    assert_eq!(data, orig_data);
-                    let dir = unwrap!(MDataInfo::random_private(DIR_TAG));
-                    client2.set_user_root_dir(dir)
-                })
+                          let data = unwrap!(res);
+                          assert_eq!(data, orig_data);
+                          let dir = unwrap!(MDataInfo::random_private(DIR_TAG));
+                          client2.set_user_root_dir(dir)
+                      })
                 .then(move |res| {
                     let e = match res {
                         Ok(_) => {

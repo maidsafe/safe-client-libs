@@ -592,9 +592,7 @@ fn mutable_data_permissions() {
     // App can no longer mutate the entries.
     let key2 = b"key2";
     let value2_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .ins(key2.to_vec(), value2_v0, 0)
-        .into();
+    let actions = EntryActions::new().ins(key2.to_vec(), value2_v0, 0).into();
     let msg_id = MessageId::new();
     unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
     expect_failure!(app_routing_rx,
@@ -668,12 +666,8 @@ fn mutable_data_permissions() {
         .ins(key3.to_vec(), value3_v0.clone(), 0)
         .into();
     let msg_id = MessageId::new();
-    unwrap!(app2_routing.mutate_mdata_entries(client_mgr,
-                                              name,
-                                              tag,
-                                              actions,
-                                              msg_id,
-                                              app2_sign_key));
+    unwrap!(app2_routing
+                .mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app2_sign_key));
     expect_failure!(app2_routing_rx,
                     msg_id,
                     Response::MutateMDataEntries,
@@ -693,16 +687,10 @@ fn mutable_data_permissions() {
     expect_success!(routing_rx, msg_id, Response::SetMDataUserPermissions);
 
     // The new app can now mutate entries
-    let actions = EntryActions::new()
-        .ins(key3.to_vec(), value3_v0, 0)
-        .into();
+    let actions = EntryActions::new().ins(key3.to_vec(), value3_v0, 0).into();
     let msg_id = MessageId::new();
-    unwrap!(app2_routing.mutate_mdata_entries(client_mgr,
-                                              name,
-                                              tag,
-                                              actions,
-                                              msg_id,
-                                              app2_sign_key));
+    unwrap!(app2_routing
+                .mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app2_sign_key));
     expect_success!(app2_routing_rx, msg_id, Response::MutateMDataEntries);
 
     // Revoke the insert permission for anyone.
@@ -723,12 +711,8 @@ fn mutable_data_permissions() {
         .ins(key4.to_vec(), value4_v0.clone(), 0)
         .into();
     let msg_id = MessageId::new();
-    unwrap!(app2_routing.mutate_mdata_entries(client_mgr,
-                                              name,
-                                              tag,
-                                              actions,
-                                              msg_id,
-                                              app2_sign_key));
+    unwrap!(app2_routing
+                .mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app2_sign_key));
     expect_failure!(app2_routing_rx,
                     msg_id,
                     Response::MutateMDataEntries,

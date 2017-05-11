@@ -431,8 +431,8 @@ mod tests {
     fn get_container_names() {
         let mut container_permissions = HashMap::new();
         let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
-        let _ = container_permissions.insert("_downloads".to_string(),
-                                             btree_set![Permission::Read]);
+        let _ = container_permissions
+            .insert("_downloads".to_string(), btree_set![Permission::Read]);
 
         let app = create_app_with_access(container_permissions);
 

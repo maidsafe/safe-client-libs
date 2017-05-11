@@ -411,11 +411,7 @@ fn revoke_app() {
 
     let _ = run(&authenticator, move |client| {
         file_helper::create(client.clone(), videos_md2, "video.mp4", Vec::new())
-            .and_then(move |writer| {
-                          writer
-                              .write(&[1u8; 10])
-                              .and_then(move |_| writer.close())
-                      })
+            .and_then(move |writer| writer.write(&[1u8; 10]).and_then(move |_| writer.close()))
             .map_err(From::from)
     });
 
@@ -487,11 +483,7 @@ fn revoke_app_reencryption() {
 
     let _ = run(&authenticator, move |client| {
         file_helper::create(client.clone(), videos_md2, "video.mp4", vec![1, 2, 3])
-            .and_then(move |writer| {
-                          writer
-                              .write(&[1u8; 10])
-                              .and_then(move |_| writer.close())
-                      })
+            .and_then(move |writer| writer.write(&[1u8; 10]).and_then(move |_| writer.close()))
             .map_err(From::from)
     });
 

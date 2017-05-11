@@ -145,9 +145,7 @@ pub unsafe extern "C" fn cipher_opt_new_asymmetric(app: *const App,
 
     catch_unwind_cb(user_data, o_cb, || {
         (*app).send(move |_, context| {
-            let pk = match context
-                      .object_cache()
-                      .get_encrypt_key(peer_encrypt_key_h) {
+            let pk = match context.object_cache().get_encrypt_key(peer_encrypt_key_h) {
                 Ok(pk) => *pk,
                 Err(e) => {
                     let (error_code, description) = ffi_error!(e);
