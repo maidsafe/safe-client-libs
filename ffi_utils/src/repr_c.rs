@@ -82,3 +82,13 @@ impl ReprC for [u8; 32] {
         Ok(*c_repr)
     }
 }
+
+/// Nonce
+impl ReprC for [u8; 24] {
+    type C = *const [u8; 24];
+    type Error = ();
+
+    unsafe fn clone_from_repr_c(c_repr: *const [u8; 24]) -> Result<[u8; 24], ()> {
+        Ok(*c_repr)
+    }
+}

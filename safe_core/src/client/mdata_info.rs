@@ -49,18 +49,6 @@ impl MDataInfo {
         }
     }
 
-    /// Construct `MDataInfo` for private (encrypted) data with a
-    /// randomly generated private key.
-    pub fn gen_private(name: XorName, type_tag: u64) -> Self {
-        let enc_info = Some((secretbox::gen_key(), Some(secretbox::gen_nonce())));
-
-        MDataInfo {
-            name,
-            type_tag,
-            enc_info,
-        }
-    }
-
     /// Construct `MDataInfo` for public data.
     pub fn new_public(name: XorName, type_tag: u64) -> Self {
         MDataInfo {
@@ -73,8 +61,10 @@ impl MDataInfo {
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(type_tag: u64) -> Result<Self, CoreError> {
         let mut rng = os_rng()?;
-        Ok(Self::gen_private(rng.gen(), type_tag))
+        let enc_info = (secretbox::gen_key(), Some(secretbox::gen_nonce()));
+        Ok(Self::new_private(rng.gen(), type_tag, enc_info))
     }
+
     /// Generate random `MDataInfo` for public mutable data.
     pub fn random_public(type_tag: u64) -> Result<Self, CoreError> {
         let mut rng = os_rng()?;

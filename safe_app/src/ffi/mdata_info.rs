@@ -76,26 +76,6 @@ pub unsafe extern "C" fn mdata_info_new_private(app: *const App,
     })
 }
 
-/// Create encrypted mdata info with explicit data name and a
-/// randomly generated private key.
-#[no_mangle]
-pub unsafe extern "C" fn mdata_info_gen_private(app: *const App,
-                                                name: *const [u8; XOR_NAME_LEN],
-                                                type_tag: u64,
-                                                user_data: *mut c_void,
-                                                o_cb: extern "C" fn(*mut c_void,
-                                                                    FfiResult,
-                                                                    MDataInfoHandle)) {
-    catch_unwind_cb(user_data, o_cb, || {
-        let name = XorName(*name);
-
-        send_sync(app, user_data, o_cb, move |_, context| {
-            let info = MDataInfo::gen_private(name, type_tag);
-            Ok(context.object_cache().insert_mdata_info(info))
-        })
-    })
-}
-
 /// Create random, non-encrypted mdata info.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_random_public(app: *const App,
@@ -288,7 +268,7 @@ pub unsafe extern "C" fn mdata_info_deserialise(app: *const App,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi_utils::test_utils::{call_1, call_2, call_vec_u8};
+    use ffi_utils::test_utils::{call_1, call_vec_u8};
     use rand;
     use routing::XOR_NAME_LEN;
     use rust_sodium::crypto::secretbox;
@@ -314,17 +294,6 @@ mod tests {
     fn create_private() {
         let app = create_app();
         let type_tag: u64 = rand::random();
-
-        let gen_info_h = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                               mdata_info_gen_private(&app, &[1; XOR_NAME_LEN], type_tag, ud, cb)
-                           }))
-        };
-        let (got_name, got_type_tag): ([u8; XOR_NAME_LEN], u64) = unsafe {
-            unwrap!(call_2(|ud, cb| mdata_info_extract_name_and_type_tag(&app, gen_info_h, ud, cb)))
-        };
-        assert_eq!(got_type_tag, type_tag);
-        assert_eq!(XorName(got_name), XorName([1; XOR_NAME_LEN]));
 
         let rand_info_h =
             unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_private(&app, type_tag, ud, cb))) };

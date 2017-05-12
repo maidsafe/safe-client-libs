@@ -29,6 +29,7 @@ use tiny_keccak::sha3_256;
 
 type SecKey = [u8; box_::SECRETKEYBYTES];
 type PubKey = [u8; box_::PUBLICKEYBYTES];
+type Nonce = [u8; box_::NONCEBYTES];
 
 /// Get the public signing key of the app.
 #[no_mangle]
@@ -388,10 +389,21 @@ pub unsafe extern "C" fn sha3_hash(data: *const u8,
                                    o_cb: extern "C" fn(*mut c_void, FfiResult, *const u8, usize)) {
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
         let plaintext = slice::from_raw_parts(data, len);
-        let user_data = OpaqueCtx(user_data);
 
         let hash = sha3_256(plaintext);
-        o_cb(user_data.0, FFI_RESULT_OK, hash.as_ptr(), hash.len());
+        o_cb(user_data, FFI_RESULT_OK, hash.as_ptr(), hash.len());
+
+        Ok(())
+    });
+}
+
+/// Generates a unique nonce and returns the result.
+#[no_mangle]
+pub unsafe extern "C" fn generate_nonce(user_data: *mut c_void,
+                                        o_cb: extern "C" fn(*mut c_void, FfiResult, *const Nonce)) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
+        let nonce = box_::gen_nonce();
+        o_cb(user_data, FFI_RESULT_OK, &nonce.0);
 
         Ok(())
     });
@@ -401,7 +413,7 @@ pub unsafe extern "C" fn sha3_hash(data: *const u8,
 mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_1, call_2, call_vec_u8};
-    use routing::XOR_NAME_LEN;
+    use rust_sodium::crypto::{box_, sign};
     use test_utils::{create_app, run_now};
 
     #[test]
@@ -416,9 +428,9 @@ mod tests {
 
         // Copying app2 pubkey to app1 object cache
         // and app1 pubkey to app2 object cache
-        let pk2_raw: [u8; XOR_NAME_LEN] =
+        let pk2_raw: [u8; box_::PUBLICKEYBYTES] =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app2, app2_pk2_h, ud, cb))) };
-        let pk1_raw: [u8; XOR_NAME_LEN] =
+        let pk1_raw: [u8; box_::PUBLICKEYBYTES] =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app1, app1_pk1_h, ud, cb))) };
 
         let app1_pk2_h =
@@ -466,7 +478,7 @@ mod tests {
 
         // Copying app2 pubkey to app1 object cache
         // and app1 pubkey to app2 object cache
-        let pk2_raw: [u8; XOR_NAME_LEN] =
+        let pk2_raw: [u8; box_::PUBLICKEYBYTES] =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app2, app2_pk2_h, ud, cb))) };
 
         let app1_pk2_h =
@@ -514,7 +526,7 @@ mod tests {
             app_sign_key1
         });
 
-        let app_sign_key1_raw: [u8; XOR_NAME_LEN] =
+        let app_sign_key1_raw: [u8; sign::PUBLICKEYBYTES] =
             unsafe { unwrap!(call_1(|ud, cb| sign_key_get(&app, app_sign_key1_h, ud, cb))) };
 
         let app_sign_key2_h =
@@ -540,7 +552,7 @@ mod tests {
             app_enc_key1
         });
 
-        let app_enc_key1_raw: [u8; XOR_NAME_LEN] =
+        let app_enc_key1_raw: [u8; box_::PUBLICKEYBYTES] =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app, app_enc_key1_h, ud, cb))) };
 
         let app_enc_key2_h =
@@ -551,5 +563,12 @@ mod tests {
         });
 
         assert_eq!(app_enc_key1, app_enc_key2);
+    }
+
+    #[test]
+    fn nonce_smoke_test() {
+        let nonce: [u8; box_::NONCEBYTES] =
+            unsafe { unwrap!(call_1(|ud, cb| generate_nonce(ud, cb))) };
+        assert_eq!(nonce.len(), box_::NONCEBYTES);
     }
 }
