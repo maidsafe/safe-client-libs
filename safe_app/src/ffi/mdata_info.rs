@@ -265,10 +265,25 @@ pub unsafe extern "C" fn mdata_info_deserialise(app: *const App,
     })
 }
 
+/// Free `MDataInfo` from memory.
+#[no_mangle]
+pub unsafe extern "C" fn mdata_info_free(app: *const App,
+                                         info_h: MDataInfoHandle,
+                                         user_data: *mut c_void,
+                                         o_cb: extern "C" fn(*mut c_void, FfiResult)) {
+
+    catch_unwind_cb(user_data, o_cb, || {
+        send_sync(app, user_data, o_cb, move |_, context| {
+            let _ = context.object_cache().remove_mdata_info(info_h);
+            Ok(())
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi_utils::test_utils::{call_1, call_vec_u8};
+    use ffi_utils::test_utils::{call_0, call_1, call_vec_u8};
     use rand;
     use routing::XOR_NAME_LEN;
     use rust_sodium::crypto::secretbox;
@@ -351,10 +366,14 @@ mod tests {
             unwrap!(res)
         };
 
-        let info2 = run_now(&app, move |_, context| {
-            unwrap!(context.object_cache().remove_mdata_info(info2_h))
+        run_now(&app, move |_, context| {
+            let info2 = unwrap!(context.object_cache().get_mdata_info(info2_h));
+            assert_eq!(info1, *info2);
         });
 
-        assert_eq!(info1, info2);
+        unsafe {
+            unwrap!(call_0(|ud, cb| mdata_info_free(&app, info1_h, ud, cb)));
+            unwrap!(call_0(|ud, cb| mdata_info_free(&app, info2_h, ud, cb)));
+        }
     }
 }
