@@ -77,11 +77,8 @@ pub unsafe extern "C" fn authenticator_rm_revoked_app(auth: *const Authenticator
 
             get_config(client)
                 .and_then(move |(cfg_version, auth_cfg)| {
-                              app_state(&c2, &auth_cfg, app_id).map(move |app_state| {
-                                                                        (app_state,
-                                                                         auth_cfg,
-                                                                         cfg_version)
-                                                                    })
+                              app_state(&c2, &auth_cfg, app_id)
+                                  .map(move |app_state| (app_state, auth_cfg, cfg_version))
                           })
                 .and_then(move |(app_state, auth_cfg, cfg_version)| match app_state {
                               AppState::Revoked => Ok((auth_cfg, cfg_version)),
@@ -91,12 +88,15 @@ pub unsafe extern "C" fn authenticator_rm_revoked_app(auth: *const Authenticator
                               }
                           })
                 .and_then(move |(mut auth_cfg, cfg_version)| {
-                              let _app = fry!(auth_cfg.remove(&app_id_hash)
-                        .ok_or_else(|| AuthError::from("Logical error: app isn't found in \
-                                                        authenticator config")));
+                    let _app = fry!(auth_cfg
+                                        .remove(&app_id_hash)
+                                        .ok_or_else(|| {
+                        AuthError::from("Logical error: app isn't found in \
+                                                        authenticator config")
+                    }));
 
-                              update_config(&c3, Some(cfg_version + 1), &auth_cfg)
-                          })
+                    update_config(&c3, Some(cfg_version + 1), &auth_cfg)
+                })
                 .and_then(move |_| remove_app_container(c4, &app_id2))
                 .then(move |res| {
                     let (error_code, description) = ffi_result!(res);
@@ -130,9 +130,8 @@ usize)){
 
                 get_config(client)
                     .and_then(move |(_, auth_cfg)| {
-                                  access_container(&c2).map(move |access_container| {
-                                                                (access_container, auth_cfg)
-                                                            })
+                                  access_container(&c2)
+                                      .map(move |access_container| (access_container, auth_cfg))
                               })
                     .and_then(move |(access_container, auth_cfg)| {
                                   c3.list_mdata_entries(access_container.name,
@@ -200,9 +199,8 @@ pub unsafe extern "C" fn authenticator_registered_apps(auth: *const Authenticato
 
                 get_config(client)
                     .and_then(move |(_, auth_cfg)| {
-                                  access_container(&c2).map(move |access_container| {
-                                                                (access_container, auth_cfg)
-                                                            })
+                                  access_container(&c2)
+                                      .map(move |access_container| (access_container, auth_cfg))
                               })
                     .and_then(move |(access_container, auth_cfg)| {
                                   c3.list_mdata_entries(access_container.name,

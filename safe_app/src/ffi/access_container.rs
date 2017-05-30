@@ -74,15 +74,13 @@ pub unsafe extern "C" fn access_container_get_names(app: *const App,
                               Ok(c_str_vec)
                           })
                 .map(move |c_str_vec| {
-                    let ptr_vec: Vec<*const c_char> = c_str_vec
-                        .iter()
-                        .map(|c_string| c_string.as_ptr())
-                        .collect();
-                    o_cb(user_data.0,
-                         FFI_RESULT_OK,
-                         ptr_vec.as_safe_ptr(),
-                         c_str_vec.len() as u32);
-                })
+                         let ptr_vec: Vec<*const c_char> =
+                             c_str_vec.iter().map(|c_string| c_string.as_ptr()).collect();
+                         o_cb(user_data.0,
+                              FFI_RESULT_OK,
+                              ptr_vec.as_safe_ptr(),
+                              c_str_vec.len() as u32);
+                     })
                 .map_err(move |e| {
                     let (error_code, description) = ffi_error!(e);
                     o_cb(user_data.0,

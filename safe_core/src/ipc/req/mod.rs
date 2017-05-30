@@ -110,8 +110,7 @@ impl AuthReq {
             containers,
         } = self;
 
-        let containers = containers_into_vec(containers)
-            .map_err(StringError::from)?;
+        let containers = containers_into_vec(containers).map_err(StringError::from)?;
         let (containers_ptr, len, cap) = vec_into_raw_parts(containers);
 
         Ok(ffi::AuthReq {
@@ -158,8 +157,7 @@ impl ContainersReq {
     pub fn into_repr_c(self) -> Result<ffi::ContainersReq, IpcError> {
         let ContainersReq { app, containers } = self;
 
-        let containers = containers_into_vec(containers)
-            .map_err(StringError::from)?;
+        let containers = containers_into_vec(containers).map_err(StringError::from)?;
         let (containers_ptr, len, cap) = vec_into_raw_parts(containers);
 
         Ok(ffi::ContainersReq {
@@ -215,18 +213,12 @@ impl AppExchangeInfo {
         Ok(ffi::AppExchangeInfo {
                id: CString::new(id).map_err(StringError::from)?.into_raw(),
                scope: if let Some(scope) = scope {
-                   CString::new(scope)
-                       .map_err(StringError::from)?
-                       .into_raw()
+                   CString::new(scope).map_err(StringError::from)?.into_raw()
                } else {
                    ptr::null()
                },
-               name: CString::new(name)
-                   .map_err(StringError::from)?
-                   .into_raw(),
-               vendor: CString::new(vendor)
-                   .map_err(StringError::from)?
-                   .into_raw(),
+               name: CString::new(name).map_err(StringError::from)?.into_raw(),
+               vendor: CString::new(vendor).map_err(StringError::from)?.into_raw(),
            })
     }
 }

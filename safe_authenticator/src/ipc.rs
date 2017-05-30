@@ -247,9 +247,8 @@ pub unsafe extern "C" fn authenticator_revoke_app(auth: *const Authenticator,
                 app_info(client, &app_id)
                     .and_then(move |app| Ok(app.ok_or(AuthError::IpcError(IpcError::UnknownApp))?))
                     .and_then(move |app| {
-                                  access_container(&c2).map(move |access_container| {
-                                                                (access_container, app)
-                                                            })
+                                  access_container(&c2)
+                                      .map(move |access_container| (access_container, app))
                               })
                     .and_then(move |(access_container, app)| {
                         // Get an access container entry for the app being revoked
@@ -258,11 +257,12 @@ pub unsafe extern "C" fn authenticator_revoke_app(auth: *const Authenticator,
                                                &app.info.id,
                                                app.keys.clone())
                                 .and_then(move |(version, permissions)| {
-                                              Ok((version, app,
-                                        permissions.ok_or(AuthError::IpcError(
-                                            IpcError::UnknownApp))?,
+                                    Ok((version,
+                                        app,
+                                        permissions
+                                            .ok_or(AuthError::IpcError(IpcError::UnknownApp))?,
                                         access_container))
-                                          })
+                                })
                     })
                     .and_then(move |(version, app, permissions, access_container)| {
                         // Remove the revoked app from the access container
@@ -355,9 +355,9 @@ pub unsafe extern "C" fn encode_auth_resp(auth: *const Authenticator,
 
         if !is_granted {
             let resp = encode_response(&IpcMsg::Resp {
-                                            req_id: req_id,
-                                            resp: IpcResp::Auth(Err(IpcError::AuthDenied)),
-                                        },
+                                           req_id: req_id,
+                                           resp: IpcResp::Auth(Err(IpcError::AuthDenied)),
+                                       },
                                        &auth_req.app.id)?;
 
             let (error_code, description) = ffi_error!(AuthError::from(IpcError::AuthDenied));
@@ -444,24 +444,26 @@ pub unsafe extern "C" fn encode_auth_resp(auth: *const Authenticator,
                                 .and_then(move |auth_granted| {
                                     let resp =
                                         encode_response(&IpcMsg::Resp {
-                                                             req_id: req_id,
-                                                             resp: IpcResp::Auth(Ok(auth_granted)),
-                                                         },
+                                                            req_id: req_id,
+                                                            resp: IpcResp::Auth(Ok(auth_granted)),
+                                                        },
                                                         &app_id2)?;
                                     Ok(o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr()))
                                 })
                                 .or_else(move |e| -> Result<(), AuthError> {
                                     let (error_code, description) = ffi_error!(e);
                                     let resp = encode_response(&IpcMsg::Resp {
-                                        req_id: req_id,
-                                        resp:
-                                        IpcResp::Auth(Err(e.into())),
-                                    },
+                                                                   req_id: req_id,
+                                                                   resp:
+                                                                       IpcResp::Auth(Err(e.into())),
+                                                               },
                                                                &app_id3)?;
-                                    Ok(o_cb(user_data.0, FfiResult {
-                                        error_code,
-                                        description: description.as_ptr()
-                                    }, resp.as_ptr()))
+                                    Ok(o_cb(user_data.0,
+                                            FfiResult {
+                                                error_code,
+                                                description: description.as_ptr(),
+                                            },
+                                            resp.as_ptr()))
                                 })
                                 .into_box()
                         })
@@ -500,9 +502,9 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
 
         if !is_granted {
             let resp = encode_response(&IpcMsg::Resp {
-                                            req_id: req_id,
-                                            resp: IpcResp::Containers(Err(IpcError::AuthDenied)),
-                                        },
+                                           req_id: req_id,
+                                           resp: IpcResp::Containers(Err(IpcError::AuthDenied)),
+                                       },
                                        &cont_req.app.id)?;
             let (error_code, description) = ffi_error!(AuthError::from(IpcError::AuthDenied));
             o_cb(user_data.0,
@@ -526,11 +528,11 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
                     app_info(client, &app_id)
                         .and_then(move |app| match app {
                                       Some(app) => {
-                            let sign_pk = app.keys.sign_pk;
-                            update_container_perms(&c2, permissions, sign_pk)
-                                .map(move |perms| (app, perms))
-                                .into_box()
-                        }
+                                          let sign_pk = app.keys.sign_pk;
+                                          update_container_perms(&c2, permissions, sign_pk)
+                                              .map(move |perms| (app, perms))
+                                              .into_box()
+                                      }
                                       None => err!(IpcError::UnknownApp),
                                   })
                         .and_then(move |(app, perms)| {
@@ -575,9 +577,9 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
                                   })
                         .and_then(move |_| {
                             let resp = encode_response(&IpcMsg::Resp {
-                                                            req_id: req_id,
-                                                            resp: IpcResp::Containers(Ok(())),
-                                                        },
+                                                           req_id: req_id,
+                                                           resp: IpcResp::Containers(Ok(())),
+                                                       },
                                                        &cont_req.app.id)?;
                             o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
                             Ok(())
@@ -585,10 +587,9 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
                         .or_else(move |e| -> Result<(), AuthError> {
                             let (error_code, description) = ffi_error!(e);
                             let resp = encode_response(&IpcMsg::Resp {
-                                                            req_id: req_id,
-                                                            resp:
-                                                                IpcResp::Containers(Err(e.into())),
-                                                        },
+                                                           req_id: req_id,
+                                                           resp: IpcResp::Containers(Err(e.into())),
+                                                       },
                                                        &app_id2)?;
                             Ok(o_cb(user_data.0,
                                     FfiResult {
