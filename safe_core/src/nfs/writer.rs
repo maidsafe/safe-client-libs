@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use chrono::prelude::UTC;
+use chrono::Utc;
 use client::{Client, MDataInfo};
 use futures::{Future, future};
 use maidsafe_utilities::serialisation::serialise;
@@ -112,7 +112,7 @@ impl Writer {
             .and_then(move |(data_map, _)| data_map::put(&client, &data_map))
             .and_then(move |data_map_name| {
                 file.set_data_map_name(data_map_name);
-                file.set_modified_time(UTC::now());
+                file.set_modified_time(Utc::now());
                 file.set_size(size);
 
                 let key = fry!(parent.enc_entry_key(file_name.as_bytes()));

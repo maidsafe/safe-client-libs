@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use chrono::prelude::{DateTime, NaiveDateTime, UTC};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use ffi_utils::{ReprC, vec_into_raw_parts};
 use nfs::errors::NfsError;
 use nfs::ffi::File as FfiFile;
@@ -27,8 +27,8 @@ use std::slice;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct File {
     size: u64,
-    created: DateTime<UTC>,
-    modified: DateTime<UTC>,
+    created: DateTime<Utc>,
+    modified: DateTime<Utc>,
     user_metadata: Vec<u8>,
     data_map_name: XorName,
 }
@@ -38,8 +38,8 @@ impl File {
     pub fn new(user_metadata: Vec<u8>) -> File {
         File {
             size: 0,
-            created: UTC::now(),
-            modified: UTC::now(),
+            created: Utc::now(),
+            modified: Utc::now(),
             user_metadata: user_metadata,
             data_map_name: XorName::default(),
         }
@@ -66,12 +66,12 @@ impl File {
     }
 
     /// Get time of creation
-    pub fn created_time(&self) -> &DateTime<UTC> {
+    pub fn created_time(&self) -> &DateTime<Utc> {
         &self.created
     }
 
     /// Get time of modification
-    pub fn modified_time(&self) -> &DateTime<UTC> {
+    pub fn modified_time(&self) -> &DateTime<Utc> {
         &self.modified
     }
 
@@ -101,12 +101,12 @@ impl File {
     }
 
     /// Set time of creation
-    pub fn set_created_time(&mut self, created_time: DateTime<UTC>) {
+    pub fn set_created_time(&mut self, created_time: DateTime<Utc>) {
         self.created = created_time
     }
 
     /// Set time of modification
-    pub fn set_modified_time(&mut self, modified_time: DateTime<UTC>) {
+    pub fn set_modified_time(&mut self, modified_time: DateTime<Utc>) {
         self.modified = modified_time
     }
 
@@ -141,10 +141,10 @@ impl ReprC for File {
 }
 
 #[inline]
-fn convert_date_time(sec: i64, nsec: u32) -> Result<DateTime<UTC>, NfsError> {
+fn convert_date_time(sec: i64, nsec: u32) -> Result<DateTime<Utc>, NfsError> {
     let naive = NaiveDateTime::from_timestamp_opt(sec, nsec)
         .ok_or_else(|| NfsError::Unexpected("Invalid date format".to_string()))?;
-    Ok(DateTime::<UTC>::from_utc(naive, UTC))
+    Ok(DateTime::<Utc>::from_utc(naive, Utc))
 }
 
 #[cfg(test)]
