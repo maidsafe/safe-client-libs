@@ -468,6 +468,13 @@ fn app_revocation() {
     let (videos_md2, _) = unwrap!(ac_entries.remove("_videos"));
     unwrap!(create_file(&authenticator, videos_md2.clone(), "2.mp4", vec![1; 10]));
 
+    let app_container_name = format!("apps/{}", app_id2.clone());
+    let (app_container_md, _) = unwrap!(ac_entries.remove(&app_container_name));
+    unwrap!(create_file(&authenticator,
+                        app_container_md.clone(),
+                        "3.mp4",
+                        vec![1; 10]));
+
     // There should be 2 entries.
     assert_eq!(count_mdata_entries(&authenticator, videos_md1.clone()), 2);
 
@@ -550,6 +557,28 @@ fn app_revocation() {
     let (videos_md2, _) = unwrap!(ac_entries.remove("_videos"));
     let _ = unwrap!(fetch_file(&authenticator, videos_md2.clone(), "1.mp4"));
     let _ = unwrap!(fetch_file(&authenticator, videos_md2.clone(), "2.mp4"));
+
+    // Revoke the second app that has created its own app container.
+    revoke(&authenticator, &app_id2);
+
+    match fetch_file(&authenticator, videos_md2.clone(), "1.mp4") {
+        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+        x => panic!("Unexpected {:?}", x),
+    }
+
+    // Try to reauthorise and revoke the second app again - as it should have reused its
+    // app container, the subsequent reauthorisation + revocation should work correctly too.
+    let auth_granted2 = unwrap!(register_app(&authenticator, &auth_req2));
+
+    // The second app should be able to access data from its own container,
+    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
+    let (app_container_md, _) = unwrap!(ac_entries.remove(&app_container_name));
+
+    assert_eq!(count_mdata_entries(&authenticator, app_container_md.clone()),
+               2);
+    let _ = unwrap!(fetch_file(&authenticator, app_container_md.clone(), "3.mp4"));
+
+    revoke(&authenticator, &app_id2);
 }
 
 struct RegisteredAppId(String);

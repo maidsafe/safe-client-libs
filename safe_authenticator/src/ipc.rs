@@ -959,8 +959,8 @@ fn encode_auth_resp_impl(client: &Client,
         .map_err(AuthError::from)
         .and_then(move |_| update_container_perms(&c3, permissions, sign_pk))
         .and_then(move |perms| if app_container {
-                      check_app_container(c4, app_id, sign_pk)
-                          .map(move |mdata_info| (mdata_info, perms))
+                      fetch_app_container(c4, app_id, sign_pk)
+                          .map(move |mdata_info| (Some(mdata_info), perms))
                           .into_box()
                   } else {
                       ok!((None, perms))
@@ -1043,6 +1043,7 @@ fn create_app_container(client: Client,
             c2.set_mdata_user_permissions(dir.name, dir.type_tag, User::Key(app_sign_pk), ps, 1)
                 .map_err(From::from)
                 .map(move |_| dir)
+                .into_box()
         })
         .into_box()
 }
@@ -1101,37 +1102,53 @@ pub fn remove_app_container(client: Client, app_id: &str) -> Box<AuthFuture<bool
 }
 
 /// Checks if an app's dedicated container is available and stored in the user's root dir.
-/// If `Some(MDataInfo)` is returned then the container has been created or previously existed.
-fn check_app_container(client: Client,
+/// If no previously created container has been found, then it will be created.
+fn fetch_app_container(client: Client,
                        app_id: String,
                        app_sign_pk: sign::PublicKey)
-                       -> Box<AuthFuture<Option<MDataInfo>>> {
+                       -> Box<AuthFuture<MDataInfo>> {
     let root = fry!(client.user_root_dir());
     let app_cont_name = format!("apps/{}", app_id);
     let key = fry!(root.enc_entry_key(app_cont_name.as_bytes()));
+
+    let c2 = client.clone();
 
     client
         .get_mdata_value(root.name, root.type_tag, key)
         .then(move |res| {
             match res {
+                // If the container is not found, create it
                 Ok(ref v) if v.content.is_empty() => {
-                    // Proceed to create a container
                     create_app_container(client, &app_id, app_sign_pk)
-                        .map(Some)
-                        .into_box()
                 }
                 Err(CoreError::RoutingClientError(ClientError::NoSuchEntry)) => {
-                    // Proceed to create a container
                     create_app_container(client, &app_id, app_sign_pk)
-                        .map(Some)
-                        .into_box()
                 }
-                Err(e) => err!(e),
+                // Reuse the already existing app container
                 Ok(val) => {
                     let plaintext = fry!(root.decrypt(&val.content));
                     let mdata_info = fry!(deserialise::<MDataInfo>(&plaintext));
-                    ok!(Some(mdata_info))
+
+                    // Update permissions for the app container
+                    let ps = PermissionSet::new()
+                        .allow(Action::Insert)
+                        .allow(Action::Update)
+                        .allow(Action::Delete)
+                        .allow(Action::ManagePermissions);
+
+                    c2.get_mdata_version(mdata_info.name, mdata_info.type_tag)
+                        .and_then(move |version| {
+                                      c2.set_mdata_user_permissions(mdata_info.name,
+                                                                    mdata_info.type_tag,
+                                                                    User::Key(app_sign_pk),
+                                                                    ps,
+                                                                    version + 1)
+                                          .map(move |_| mdata_info)
+                                  })
+                        .map_err(From::from)
+                        .into_box()
                 }
+                Err(e) => err!(e),
             }
         })
         .into_box()
