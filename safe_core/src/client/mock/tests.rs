@@ -179,6 +179,12 @@ fn mutable_data_basics() {
     let version = expect_success!(routing_rx, msg_id, Response::GetMDataVersion);
     assert_eq!(version, 0);
 
+    // GetMData should return the entire MutableData object
+    let msg_id = MessageId::new();
+    unwrap!(routing.get_mdata(nae_mgr, name, tag, msg_id));
+    let mdata = expect_success!(routing_rx, msg_id, Response::GetMData);
+    assert!(mdata.serialised_size() > 0);
+
     // ListMDataEntries, ListMDataKeys and ListMDataValues should all respond
     // with empty collections.
     let msg_id = MessageId::new();

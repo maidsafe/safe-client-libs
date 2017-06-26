@@ -127,6 +127,22 @@ pub unsafe extern "C" fn mdata_get_version(app: *const App,
     })
 }
 
+/// Get size of serialised mutable data.
+#[no_mangle]
+pub unsafe extern "C" fn mdata_serialised_size(app: *const App,
+                                               info_h: MDataInfoHandle,
+                                               user_data: *mut c_void,
+                                               o_cb: extern "C" fn(*mut c_void, FfiResult, u64)) {
+    catch_unwind_cb(user_data, o_cb, || {
+        send_with_mdata_info(app, info_h, user_data, o_cb, |client, _, info| {
+            client
+                .get_mdata(info.name, info.type_tag)
+                .map_err(AppError::from)
+                .and_then(move |mdata| Ok(mdata.serialised_size()))
+        })
+    })
+}
+
 /// Get value at the given key from the mutable data.
 /// The arguments to the callback are:
 ///     1. user data

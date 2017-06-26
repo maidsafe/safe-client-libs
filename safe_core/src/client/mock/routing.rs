@@ -44,6 +44,7 @@ const GET_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const PUT_MDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_MDATA_VERSION_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_MDATA_SHELL_DELAY_MS: u64 = DEFAULT_DELAY_MS;
+const GET_MDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_MDATA_ENTRIES_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const SET_MDATA_ENTRIES_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_MDATA_PERMISSIONS_DELAY_MS: u64 = DEFAULT_DELAY_MS;
@@ -281,6 +282,28 @@ impl Routing {
                         |data| Ok(data.version()),
                         |res| {
                             Response::GetMDataVersion {
+                                res: res,
+                                msg_id: msg_id,
+                            }
+                        })
+    }
+
+    /// Fetches a complete MutableData object.
+    pub fn get_mdata(&mut self,
+                     dst: Authority<XorName>,
+                     name: XorName,
+                     tag: u64,
+                     msg_id: MessageId)
+                     -> Result<(), InterfaceError> {
+        self.read_mdata(dst,
+                        name,
+                        tag,
+                        msg_id,
+                        "get_mdata",
+                        GET_MDATA_DELAY_MS,
+                        |data| Ok(data),
+                        |res| {
+                            Response::GetMData {
                                 res: res,
                                 msg_id: msg_id,
                             }

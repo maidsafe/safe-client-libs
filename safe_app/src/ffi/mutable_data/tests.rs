@@ -1104,6 +1104,18 @@ fn entries_crud_ffi() {
         unwrap!(call_0(|ud, cb| mdata_mutate_entries(&app, md_info_priv_h, actions_priv_h, ud, cb)))
     }
 
+    // Try to fetch the serialised size of MD
+    {
+        let size: u64 = unsafe {
+            unwrap!(call_1(|ud, cb| mdata_serialised_size(&app, md_info_priv_h, ud, cb)))
+        };
+        assert!(size > 0);
+
+        let size: u64 =
+            unsafe { unwrap!(call_1(|ud, cb| mdata_serialised_size(&app, md_info_pub_h, ud, cb))) };
+        assert!(size > 0);
+    }
+
     // Retrieve added entry from private MD
     {
         let (tx, rx) = mpsc::channel::<Result<Vec<u8>, i32>>();

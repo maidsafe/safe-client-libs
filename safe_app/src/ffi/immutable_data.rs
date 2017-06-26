@@ -229,6 +229,37 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(app: *const App,
     });
 }
 
+/// Get serialised size of ImmutableData
+#[no_mangle]
+pub unsafe extern "C" fn idata_serialised_size(app: *const App,
+                                               name: XorNamePtr,
+                                               user_data: *mut c_void,
+                                               o_cb: extern "C" fn(*mut c_void, FfiResult, u64)) {
+    let user_data = OpaqueCtx(user_data);
+
+    catch_unwind_cb(user_data, o_cb, || {
+        let name = XorName(*name);
+
+        (*app).send(move |client, _| {
+            client
+                .get_idata(name)
+                .map(move |idata| o_cb(user_data.0, FFI_RESULT_OK, idata.serialised_size()))
+                .map_err(move |e| {
+                    let e = AppError::from(e);
+                    let (error_code, description) = ffi_error!(e);
+                    o_cb(user_data.0,
+                         FfiResult {
+                             error_code,
+                             description: description.as_ptr(),
+                         },
+                         0);
+                })
+                .into_box()
+                .into()
+        })
+    });
+}
+
 /// Get data size from Self Encryptor
 #[no_mangle]
 pub unsafe extern "C" fn idata_size(app: *const App,
@@ -428,6 +459,10 @@ mod tests {
             // Invalid Self encryptor reader.
             let res: Result<u64, _> = call_1(|ud, cb| idata_size(&app, se_writer_h, ud, cb));
             assert_eq!(res, Err(AppError::InvalidSelfEncryptorHandle.error_code()));
+
+            // Invalid Self encryptor reader.
+            let res: u64 = unwrap!(call_1(|ud, cb| idata_serialised_size(&app, &name, ud, cb)));
+            assert!(res > 0);
 
             let se_reader_h = {
                 unwrap!(call_1(|ud, cb| idata_fetch_self_encryptor(&app, &name, ud, cb)))

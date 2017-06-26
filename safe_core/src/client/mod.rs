@@ -575,6 +575,17 @@ impl Client {
                     })
     }
 
+    /// Get entire `MutableData` from the network.
+    pub fn get_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<MutableData>> {
+        trace!("GetMData for {:?}", name);
+
+        self.get(CoreEvent::GetMData, |routing, msg_id| {
+                routing.get_mdata(Authority::NaeManager(name), name, tag, msg_id)
+            })
+            .and_then(|event| match_event!(event, CoreEvent::GetMData))
+            .into_box()
+    }
+
     /// Get a shell (bare bones) version of `MutableData` from the network.
     pub fn get_mdata_shell(&self, name: XorName, tag: u64) -> Box<CoreFuture<MutableData>> {
         trace!("GetMDataShell for {:?}", name);
