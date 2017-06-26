@@ -17,7 +17,7 @@ futures = "~0.1.11"
 lazy_static = "~0.2.4"
 log = "~0.3.7"
 lru-cache = "~0.1.0"
-maidsafe_utilities = "~0.12.0"
+maidsafe_utilities = "~0.13.0"
 rand = "~0.3.15"
 # routing = "~0.27.1"
 routing = { git = "https://github.com/maidsafe/routing.git" }

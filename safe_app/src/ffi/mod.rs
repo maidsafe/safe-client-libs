@@ -37,6 +37,8 @@ pub mod cipher_opt;
 pub mod immutable_data;
 /// IPC utilities
 pub mod ipc;
+/// Logging operations
+pub mod logging;
 /// `MDataInfo` operations
 pub mod mdata_info;
 /// Crypto-related routines

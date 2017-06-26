@@ -10,10 +10,11 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.1.0"
 
 [dependencies]
+config_file_handler = "~0.7.0"
 ffi_utils = { path = "../ffi_utils", version = "~0.1.0" }
 futures = "~0.1.11"
 log = "~0.3.7"
-maidsafe_utilities = "~0.12.0"
+maidsafe_utilities = "~0.13.0"
 # routing = "~0.27.1"
 routing = { git = "https://github.com/maidsafe/routing.git" }
 rust_sodium = "~0.3.0"

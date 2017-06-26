@@ -229,7 +229,7 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(app: *const App,
     });
 }
 
-/// Get serialised size of ImmutableData
+/// Get serialised size of `ImmutableData`
 #[no_mangle]
 pub unsafe extern "C" fn idata_serialised_size(app: *const App,
                                                name: XorNamePtr,

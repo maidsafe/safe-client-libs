@@ -19,6 +19,8 @@
 pub mod public_id;
 /// Apps management.
 pub mod apps;
+/// Logging utilities
+pub mod logging;
 
 use Authenticator;
 use errors::AuthError;

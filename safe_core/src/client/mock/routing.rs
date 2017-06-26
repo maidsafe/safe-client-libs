@@ -301,7 +301,7 @@ impl Routing {
                         msg_id,
                         "get_mdata",
                         GET_MDATA_DELAY_MS,
-                        |data| Ok(data),
+                        Ok,
                         |res| {
                             Response::GetMData {
                                 res: res,

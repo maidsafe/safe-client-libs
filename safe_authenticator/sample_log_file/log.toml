@@ -1,0 +1,9 @@
+[appenders.async_file]
+kind = "async_file"
+output_file_name = "This-is-a-sample-output.log"
+file_timestamp = false
+append = false
+
+[root]
+level = "error"
+appenders = ["async_file"]

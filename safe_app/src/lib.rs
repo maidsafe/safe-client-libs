@@ -41,6 +41,7 @@
                                          option_unwrap_used))]
 #![cfg_attr(feature="cargo-clippy", allow(use_debug, too_many_arguments))]
 
+extern crate config_file_handler;
 #[macro_use]
 extern crate ffi_utils;
 extern crate futures;
