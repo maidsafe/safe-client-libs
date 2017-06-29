@@ -15,6 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+pub use self::locking::{VaultGuard, lock};
 use super::DataId;
 use routing::{AccountInfo, Authority, ClientError, ImmutableData, MutableData, XorName};
 use rust_sodium::crypto::sign;
@@ -25,28 +26,26 @@ use tiny_keccak::sha3_256;
 pub const DEFAULT_MAX_MUTATIONS: u64 = 500;
 
 #[derive(Deserialize, Serialize)]
-pub struct InnerVault {
+pub struct Storage {
     client_manager: HashMap<XorName, Account>,
     nae_manager: HashMap<DataId, Data>,
 }
 
 pub struct Vault {
-    storage: InnerVault,
+    storage: Storage,
     #[allow(dead_code)]
     sync_time: SystemTime,
 }
 
 impl Vault {
     pub fn new() -> Self {
-        let mut vault = Vault {
-            storage: InnerVault {
+        Vault {
+            storage: Storage {
                 client_manager: HashMap::new(),
                 nae_manager: HashMap::new(),
             },
             sync_time: SystemTime::now(),
-        };
-        let _ = vault.load();
-        vault
+        }
     }
 
     // Get account for the client manager name.
@@ -65,10 +64,16 @@ impl Vault {
     }
 
     // Authorise read (non-mutation) operation.
-    pub fn authorise_read(&self, dst: &Authority<XorName>, data_name: &XorName) -> bool {
+    pub fn authorise_read(&self,
+                          dst: &Authority<XorName>,
+                          data_name: &XorName)
+                          -> Result<(), ClientError> {
         match *dst {
-            Authority::NaeManager(name) if name == *data_name => true,
-            _ => false,
+            Authority::NaeManager(name) if name == *data_name => Ok(()),
+            x => {
+                println!("Unexpected authority for read: {:?}", x);
+                Err(ClientError::InvalidOperation)
+            }
         }
     }
 
@@ -113,8 +118,6 @@ impl Vault {
             let account = unwrap!(self.get_account_mut(&dst.name()));
             account.increment_mutations_counter();
         }
-
-        self.sync();
     }
 
     // Check if data with the given name is in the storage.
@@ -209,26 +212,30 @@ impl Account {
 }
 
 #[cfg(test)]
-mod sync {
+mod locking {
     use super::Vault;
+    use std::sync::{Mutex, MutexGuard};
 
-    impl Vault {
-        pub fn load(&mut self) -> bool {
-            false
-        }
+    pub type VaultGuard<'a> = MutexGuard<'a, Vault>;
 
-        pub fn sync(&mut self) {}
+    pub fn lock(vault: &Mutex<Vault>, _write: bool) -> Option<VaultGuard> {
+        Some(unwrap!(vault.lock()))
     }
 }
 
 #[cfg(not(test))]
-mod sync {
-    use super::{InnerVault, Vault};
+mod locking {
+    extern crate fs2;
+
+    use self::fs2::FileExt;
+    use super::{Storage, Vault};
     use maidsafe_utilities::serialisation::{deserialise, serialise};
     use std::env;
-    use std::fs::File;
+    use std::fs::{File, OpenOptions};
     use std::io::{Read, Write};
+    use std::ops::{Deref, DerefMut};
     use std::path::PathBuf;
+    use std::sync::{Mutex, MutexGuard};
     use std::time::Duration;
 
     const FILE_NAME: &'static str = "MockVault";
@@ -237,39 +244,85 @@ mod sync {
         env::temp_dir().join(FILE_NAME)
     }
 
-    impl Vault {
-        pub fn load(&mut self) -> bool {
-            if let Ok(mut file) = File::open(path()) {
-                let mtime = unwrap!(unwrap!(file.metadata()).modified());
-                let mtime_duration = mtime
-                    .duration_since(self.sync_time)
-                    .unwrap_or(Duration::from_millis(1));
+    pub struct VaultGuard<'a> {
+        vault: MutexGuard<'a, Vault>,
+        write: bool,
+        file: File,
+    }
 
-                if mtime_duration.as_secs() == 0 && mtime_duration.subsec_nanos() == 0 {
-                    // Don't update vault if it's already synchronised
-                    return false;
-                }
+    impl<'a> Deref for VaultGuard<'a> {
+        type Target = Vault;
+        fn deref(&self) -> &Self::Target {
+            &*self.vault
+        }
+    }
 
-                let mut raw_disk_data = Vec::with_capacity(unwrap!(file.metadata()).len() as usize);
-                if file.read_to_end(&mut raw_disk_data).is_ok() && !raw_disk_data.is_empty() {
-                    if let Ok(storage) = deserialise::<InnerVault>(&raw_disk_data) {
-                        self.storage = storage;
-                        self.sync_time = mtime;
-                        return true;
-                    }
-                }
+    impl<'a> DerefMut for VaultGuard<'a> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut *self.vault
+        }
+    }
+
+    impl<'a> Drop for VaultGuard<'a> {
+        fn drop(&mut self) {
+            // Write the data to the storage file (if in write mode) and remove
+            // the lock.
+
+            if self.write {
+                let raw_data = unwrap!(serialise(&self.vault.storage));
+                unwrap!(self.file.write_all(&raw_data));
+                unwrap!(self.file.sync_all());
+
+                let mtime = unwrap!(unwrap!(self.file.metadata()).modified());
+                self.vault.sync_time = mtime;
             }
 
-            false
+            let _ = self.file.unlock();
+        }
+    }
+
+    pub fn lock(vault: &Mutex<Vault>, write: bool) -> Option<VaultGuard> {
+        // Create the file if it doesn't exist yet.
+        let mut file = unwrap!(OpenOptions::new()
+                                   .read(true)
+                                   .write(true)
+                                   .truncate(false)
+                                   .open(path()));
+
+        let lock_result = if write {
+            file.try_lock_exclusive()
+        } else {
+            file.try_lock_shared()
+        };
+
+        if let Err(_) = lock_result {
+            return None;
         }
 
-        pub fn sync(&mut self) {
-            let mut file = unwrap!(File::create(path()));
-            let _ = file.write_all(&unwrap!(serialise(&self.storage)));
-            unwrap!(file.sync_all());
+        let mut vault = unwrap!(vault.lock());
 
-            let mtime = unwrap!(unwrap!(file.metadata()).modified());
-            self.sync_time = mtime;
+        let metadata = unwrap!(file.metadata());
+        let mtime = unwrap!(metadata.modified());
+        let mtime_duration = mtime
+            .duration_since(vault.sync_time)
+            .unwrap_or(Duration::from_millis(1));
+
+        // Update vault only if it's not already synchronised
+        if mtime_duration.as_secs() != 0 || mtime_duration.subsec_nanos() != 0 {
+            let mut raw_data = Vec::with_capacity(metadata.len() as usize);
+
+            if file.read_to_end(&mut raw_data).is_ok() && !raw_data.is_empty() {
+                if let Ok(storage) = deserialise::<Storage>(&raw_data) {
+                    vault.storage = storage;
+                    vault.sync_time = mtime;
+                }
+            }
         }
+
+        Some(VaultGuard {
+                 vault: vault,
+                 write: write,
+                 file: file,
+             })
     }
 }
