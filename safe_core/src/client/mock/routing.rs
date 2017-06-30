@@ -59,14 +59,8 @@ lazy_static! {
     static ref VAULT: Mutex<Vault> = Mutex::new(Vault::new());
 }
 
-macro_rules! lock_vault {
-    ($self:expr, $exclusive:expr, $msg_id:expr) => {
-        if let Some(guard) = $self.lock_vault($exclusive, $msg_id) {
-            guard
-        } else {
-            return Ok(());
-        }
-    }
+fn lock_vault(write: bool) -> VaultGuard<'static> {
+    vault::lock(&VAULT, write)
 }
 
 pub struct Routing {
@@ -123,7 +117,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let vault = lock_vault!(self, false, msg_id);
+            let vault = lock_vault(false);
             match vault.get_account(&name) {
                 Some(account) => Ok(*account.account_info()),
                 None => Err(ClientError::NoSuchAccount),
@@ -151,7 +145,7 @@ impl Routing {
             return Ok(());
         }
 
-        let mut vault = lock_vault!(self, true, msg_id);
+        let mut vault = lock_vault(true);
         let data_name = *data.name();
 
         let res = {
@@ -192,7 +186,7 @@ impl Routing {
             return Ok(());
         }
 
-        let vault = lock_vault!(self, false, msg_id);
+        let vault = lock_vault(false);
 
         let res = if let Err(err) = self.verify_network_limits(msg_id, "get_idata") {
             Err(err)
@@ -229,7 +223,7 @@ impl Routing {
             return Ok(());
         }
 
-        let mut vault = lock_vault!(self, true, msg_id);
+        let mut vault = lock_vault(true);
         let data_name = DataId::mutable(*data.name(), data.tag());
 
         let res = if let Err(err) = self.verify_network_limits(msg_id, "put_mdata") {
@@ -638,8 +632,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let vault = lock_vault!(self, false, msg_id);
-
+            let vault = lock_vault(false);
             if let Some(account) = vault.get_account(&name) {
                 Ok((account.auth_keys().clone(), account.version()))
             } else {
@@ -676,7 +669,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let mut vault = lock_vault!(self, true, msg_id);
+            let mut vault = lock_vault(true);
             let res = if let Some(account) = vault.get_account_mut(&name) {
                 account.ins_auth_key(key, version)
             } else {
@@ -716,7 +709,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let mut vault = lock_vault!(self, true, msg_id);
+            let mut vault = lock_vault(true);
             let res = if let Some(account) = vault.get_account_mut(&name) {
                 account.del_auth_key(&key, version)
             } else {
@@ -856,7 +849,7 @@ impl Routing {
         } else if let Err(err) = self.verify_requester(requester) {
             Err(err)
         } else {
-            let mut vault = lock_vault!(self, write, msg_id);
+            let mut vault = lock_vault(write);
             match vault.get_data(&DataId::mutable(name, tag)) {
                 Some(Data::Mutable(data)) => f(data, &mut *vault),
                 _ => {
@@ -872,15 +865,6 @@ impl Routing {
         let nae_auth = Authority::NaeManager(name);
         self.send_response(delay_ms, nae_auth, self.client_auth, g(res));
         Ok(())
-    }
-
-    fn lock_vault(&self, write: bool, msg_id: MessageId) -> Option<VaultGuard<'static>> {
-        if let Some(guard) = vault::lock(&VAULT, write) {
-            Some(guard)
-        } else {
-            self.send_event(0, Event::ProxyRateLimitExceeded(msg_id));
-            None
-        }
     }
 
     fn verify_owner(&self,

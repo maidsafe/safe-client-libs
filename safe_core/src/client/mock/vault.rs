@@ -218,8 +218,8 @@ mod locking {
 
     pub type VaultGuard<'a> = MutexGuard<'a, Vault>;
 
-    pub fn lock(vault: &Mutex<Vault>, _write: bool) -> Option<VaultGuard> {
-        Some(unwrap!(vault.lock()))
+    pub fn lock(vault: &Mutex<Vault>, _write: bool) -> VaultGuard {
+        unwrap!(vault.lock())
     }
 }
 
@@ -281,23 +281,20 @@ mod locking {
         }
     }
 
-    pub fn lock(vault: &Mutex<Vault>, write: bool) -> Option<VaultGuard> {
+    pub fn lock(vault: &Mutex<Vault>, write: bool) -> VaultGuard {
         // Create the file if it doesn't exist yet.
         let mut file = unwrap!(OpenOptions::new()
                                    .read(true)
                                    .write(true)
+                                   .create(true)
                                    .truncate(false)
                                    .open(path()));
 
-        let lock_result = if write {
-            file.try_lock_exclusive()
+        if write {
+            unwrap!(file.lock_exclusive());
         } else {
-            file.try_lock_shared()
+            unwrap!(file.lock_shared());
         };
-
-        if let Err(_) = lock_result {
-            return None;
-        }
 
         let mut vault = unwrap!(vault.lock());
 
@@ -319,10 +316,10 @@ mod locking {
             }
         }
 
-        Some(VaultGuard {
-                 vault: vault,
-                 write: write,
-                 file: file,
-             })
+        VaultGuard {
+            vault: vault,
+            write: write,
+            file: file,
+        }
     }
 }
