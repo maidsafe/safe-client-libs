@@ -208,7 +208,6 @@ impl Account {
     }
 }
 
-
 #[cfg(test)]
 mod sync {
     use super::Vault;

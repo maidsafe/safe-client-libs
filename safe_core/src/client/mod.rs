@@ -75,6 +75,15 @@ macro_rules! match_event {
     }
 }
 
+macro_rules! try_request {
+    ($op:expr) => {
+        match $op {
+            Ok(x) => x,
+            Err(err) => return SyncLoop::Break(Err(CoreError::from(err))),
+        }
+    }
+}
+
 macro_rules! wait_for_response {
     ($rx:expr, $res:path, $msg_id:expr) => {
         match $rx.recv_timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS)) {
@@ -83,19 +92,24 @@ macro_rules! wait_for_response {
                 ..
             }) => {
                 if res_msg_id == $msg_id {
-                    res.map_err(CoreError::RoutingClientError)
+                    SyncLoop::Break(res.map_err(CoreError::RoutingClientError))
                 } else {
                     warn!("Received response with unexpected message id");
-                    Err(CoreError::OperationAborted)
+                    SyncLoop::Break(Err(CoreError::OperationAborted))
                 }
+            }
+            Ok(Event::ProxyRateLimitExceeded(_)) => {
+                use std::thread::sleep;
+                sleep(Duration::from_millis(RETRY_DELAY_MS));
+                SyncLoop::Continue
             }
             Ok(x) => {
                 warn!("Received unexpected response: {:?}", x);
-                Err(CoreError::OperationAborted)
+                SyncLoop::Break(Err(CoreError::OperationAborted))
             }
             Err(err) => {
                 warn!("Failed to receive response: {:?}", err);
-                Err(CoreError::OperationAborted)
+                SyncLoop::Break(Err(CoreError::OperationAborted))
             }
         }
     }
@@ -263,10 +277,16 @@ impl<T: 'static> Client<T> {
         let digest = sha3_256(&pub_key.0);
         let cm_addr = Authority::ClientManager(XorName(digest));
 
-        let msg_id = MessageId::new();
-        routing.put_mdata(cm_addr, acc_md, msg_id, pub_key)?;
+        let res = sync_loop_fn(|| {
+                                   let msg_id = MessageId::new();
+                                   try_request!(routing.put_mdata(cm_addr,
+                                                                  acc_md.clone(),
+                                                                  msg_id,
+                                                                  pub_key));
+                                   wait_for_response!(routing_rx, Response::PutMData, msg_id)
+                               });
 
-        match wait_for_response!(routing_rx, Response::PutMData, msg_id) {
+        match res {
             Ok(_) => (),
             Err(err) => {
                 warn!("Could not put account to the Network: {:?}", err);
@@ -337,21 +357,22 @@ impl<T: 'static> Client<T> {
         let acc_loc = Account::generate_network_id(&keyword, &pin)?;
         let user_cred = UserCred::new(password, pin);
 
-        let msg_id = MessageId::new();
         let dst = Authority::NaeManager(acc_loc);
 
         let (acc_content, acc_version) = {
             trace!("Creating throw-away routing getter for account packet.");
             let (mut routing, routing_rx) = setup_routing(None, None)?;
 
-            routing
-                .get_mdata_value(dst,
-                                 acc_loc,
-                                 TYPE_TAG_SESSION_PACKET,
-                                 ACC_LOGIN_ENTRY_KEY.to_owned(),
-                                 msg_id)?;
-
-            match wait_for_response!(routing_rx, Response::GetMDataValue, msg_id) {
+            let res = sync_loop_fn(|| {
+                let msg_id = MessageId::new();
+                try_request!(routing.get_mdata_value(dst,
+                                                     acc_loc,
+                                                     TYPE_TAG_SESSION_PACKET,
+                                                     ACC_LOGIN_ENTRY_KEY.to_owned(),
+                                                     msg_id));
+                wait_for_response!(routing_rx, Response::GetMDataValue, msg_id)
+            });
+            match res {
                 Ok(Value {
                        content,
                        entry_version,
@@ -1050,6 +1071,23 @@ type TimeoutFuture = Either<FutureResult<CoreEvent, CoreError>,
                                  Result<CoreEvent, CoreError>,
                                  fn(io::Result<()>) -> Result<CoreEvent, CoreError>>>;
 
+enum SyncLoop<T> {
+    Break(Result<T, CoreError>),
+    Continue,
+}
+
+// Keep calling the given function until it returns `SyncLoop::Break(_)`.
+fn sync_loop_fn<F, T>(mut f: F) -> Result<T, CoreError>
+    where F: FnMut() -> SyncLoop<T>
+{
+    loop {
+        match f() {
+            SyncLoop::Break(res) => return res,
+            SyncLoop::Continue => (),
+        }
+    }
+}
+
 // ------------------------------------------------------------
 // Helper Struct
 // ------------------------------------------------------------
@@ -1250,18 +1288,17 @@ fn create_empty_dir(routing: &mut Routing,
                                   BTreeMap::new(),
                                   btree_set![owner_key])?;
 
-    let msg_id = MessageId::new();
-    routing.put_mdata(dst, dir_md, msg_id, owner_key)?;
+    let res =
+        sync_loop_fn(|| {
+                         let msg_id = MessageId::new();
+                         try_request!(routing.put_mdata(dst, dir_md.clone(), msg_id, owner_key));
+                         wait_for_response!(routing_rx, Response::PutMData, msg_id)
+                     });
 
-    match wait_for_response!(routing_rx, Response::PutMData, msg_id) {
-        Ok(_) => (),
-        Err(err) => {
-            warn!("Could not put directory to the Network: {:?}", err);
-            return Err(err);
-        }
-    }
-
-    Ok(())
+    res.map_err(|err| {
+                    warn!("Could not put directory to the Network: {:?}", err);
+                    err
+                })
 }
 
 #[cfg(test)]
