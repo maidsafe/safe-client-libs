@@ -14,7 +14,7 @@ This is the crate for interfacing with application frontends. It contains code f
 To use it with the Mock:
 ```
 cargo build --features "use-mock-routing"
-cargo test --features "use-mock-routing"
+cargo test --features "use-mock-routing testing"
 ```
 
 To interface it with actual routing (default):

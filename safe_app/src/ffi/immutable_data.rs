@@ -30,7 +30,7 @@ use std::ptr;
 
 type SEWriterHandle = SelfEncryptorWriterHandle;
 type SEReaderHandle = SelfEncryptorReaderHandle;
-type XorNamePtr = *const [u8; XOR_NAME_LEN];
+type XorNameArray = [u8; XOR_NAME_LEN];
 
 /// Get a Self Encryptor
 #[no_mangle]
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn idata_close_self_encryptor(app: *const App,
                                                     user_data: *mut c_void,
                                                     o_cb: extern "C" fn(*mut c_void,
                                                                         FfiResult,
-                                                                        XorNamePtr)) {
+                                                                        *const XorNameArray)) {
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data, o_cb, || {
@@ -182,7 +182,7 @@ pub unsafe extern "C" fn idata_close_self_encryptor(app: *const App,
 /// Fetch Self Encryptor
 #[no_mangle]
 pub unsafe extern "C" fn idata_fetch_self_encryptor(app: *const App,
-                                                    name: XorNamePtr,
+                                                    name: *const XorNameArray,
                                                     user_data: *mut c_void,
                                                     o_cb: extern "C" fn(*mut c_void,
                                                                         FfiResult,
@@ -232,7 +232,7 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(app: *const App,
 /// Get serialised size of `ImmutableData`
 #[no_mangle]
 pub unsafe extern "C" fn idata_serialised_size(app: *const App,
-                                               name: XorNamePtr,
+                                               name: *const XorNameArray,
                                                user_data: *mut c_void,
                                                o_cb: extern "C" fn(*mut c_void, FfiResult, u64)) {
     let user_data = OpaqueCtx(user_data);
