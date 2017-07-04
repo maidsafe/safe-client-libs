@@ -1285,3 +1285,126 @@ fn entries_crud_ffi() {
         }
     }
 }
+
+// Test `MutableData` functions from the FFI point of view,
+// with simulated network errors.
+#[cfg(feature = "use-mock-routing")]
+#[test]
+fn entries_crud_ffi_with_network_errors() {
+    use ffi::mdata_info::*;
+    use ffi::mutable_data::*;
+    use ffi::mutable_data::entry_actions::*;
+    use ffi::mutable_data::permissions::*;
+    use ffi_utils::{FfiResult, vec_clone_from_raw_parts};
+    use ffi_utils::test_utils::{call_0, call_1, send_via_user_data, sender_as_user_data};
+    use object_cache::{MDataEntryActionsHandle, MDataInfoHandle, MDataPermissionSetHandle,
+                       MDataPermissionsHandle};
+
+    let app = create_app();
+
+    const KEY: &[u8] = b"hello";
+    const VALUE: &[u8] = b"world";
+
+    // Create a permissions set
+    let perms_set_h: MDataPermissionSetHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_permission_set_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+                           mdata_permissions_set_allow(&app,
+                                                       perms_set_h,
+                                                       MDataAction::Insert,
+                                                       ud,
+                                                       cb)
+                       }))
+    };
+
+    // Create permissions for anyone
+    let perms_h: MDataPermissionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+                           mdata_permissions_insert(&app, perms_h, USER_ANYONE, perms_set_h, ud, cb)
+                       }))
+    };
+
+    // Try to create an empty public MD
+    let md_info_pub_h: MDataInfoHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_public(&app, 10000, ud, cb))) };
+
+    // Simulate failing requests
+    unwrap!(app.send(move |client, _| {
+                         client.simulate_rate_limit_errors(10);
+                         None
+                     }));
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_put(&app, md_info_pub_h, perms_h, ENTRIES_EMPTY, ud, cb)))
+    };
+
+    // Try to add entries to a public MD
+    let actions_h: MDataEntryActionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_entry_actions_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_entry_actions_insert(&app,
+                                       actions_h,
+                                       KEY.as_ptr(),
+                                       KEY.len(),
+                                       VALUE.as_ptr(),
+                                       VALUE.len(),
+                                       ud,
+                                       cb)
+        }))
+    };
+
+    // Simulate failing requests
+    unwrap!(app.send(move |client, _| {
+                         client.simulate_rate_limit_errors(30);
+                         None
+                     }));
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_mutate_entries(&app, md_info_pub_h, actions_h, ud, cb)))
+    }
+
+    // Retrieve added entry with network errors
+    {
+        unwrap!(app.send(move |client, _| {
+                             client.simulate_rate_limit_errors(50);
+                             None
+                         }));
+
+        let (tx, rx) = mpsc::channel::<Result<Vec<u8>, i32>>();
+        let ud = sender_as_user_data(&tx);
+
+        unsafe {
+            mdata_get_value(&app,
+                            md_info_pub_h,
+                            KEY.as_ptr(),
+                            KEY.len(),
+                            ud,
+                            get_value_cb)
+        };
+
+        let result = unwrap!(rx.recv());
+        assert_eq!(&unwrap!(result), &VALUE, "got back invalid value");
+    }
+
+    extern "C" fn get_value_cb(user_data: *mut c_void,
+                               res: FfiResult,
+                               val: *const u8,
+                               len: usize,
+                               _version: u64) {
+        let result: Result<Vec<u8>, i32> = if res.error_code == 0 {
+            Ok(unsafe { vec_clone_from_raw_parts(val, len) })
+        } else {
+            Err(res.error_code)
+        };
+        unsafe {
+            send_via_user_data(user_data, result);
+        }
+    }
+}

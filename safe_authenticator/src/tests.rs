@@ -128,6 +128,73 @@ fn config_root_dir() {
     assert!(permissions.is_empty());
 }
 
+// Test app authentication with network errors simulation.
+#[cfg(feature = "use-mock-routing")]
+#[test]
+fn app_authentication_with_network_errors() {
+    let authenticator = create_account_and_login();
+
+    // Try to send IpcReq::Auth - it should pass
+    let req_id = ipc::gen_req_id();
+    let app_exchange_info = unwrap!(rand_app());
+    let app_id = app_exchange_info.id.clone();
+
+    let auth_req = AuthReq {
+        app: app_exchange_info.clone(),
+        app_container: true,
+        containers: create_containers_req(),
+    };
+
+    let encoded_msg = unwrap!(ipc::encode_msg(&IpcMsg::Req {
+                                                   req_id: req_id,
+                                                   req: IpcReq::Auth(auth_req.clone()),
+                                               },
+                                              "safe-auth"));
+    match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
+        IpcMsg::Req { req: IpcReq::Auth(..), .. } => (),
+        x => panic!("Unexpected {:?}", x),
+    }
+
+    // Simulate network errors - these should not affect the
+    // result in any way.
+    unwrap!(authenticator.send(move |client| {
+                                   client.simulate_rate_limit_errors(30);
+                                   None
+                               }));
+
+    let encoded_auth_resp: String = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            let auth_req = unwrap!(auth_req.into_repr_c());
+            encode_auth_resp(&authenticator,
+                             &auth_req,
+                             req_id,
+                             true, // is_granted
+                             ud,
+                             cb)
+        }))
+    };
+
+    match unwrap!(ipc::decode_msg(&encoded_auth_resp)) {
+        IpcMsg::Resp {
+            req_id: received_req_id,
+            resp: IpcResp::Auth(Ok(..)),
+        } => {
+            assert_eq!(received_req_id, req_id);
+            ()
+        }
+        x => panic!("Unexpected {:?}", x),
+    };
+
+    // Check the app info is present in the config file.
+    let config = run(&authenticator,
+                     |client| get_config(client).map(|(_, config)| config));
+
+    let app_config_key = sha3_256(app_id.as_bytes());
+    let app_info = unwrap!(config.get(&app_config_key));
+
+    assert_eq!(app_info.info, app_exchange_info);
+}
+
 // Test app authentication.
 #[test]
 fn app_authentication() {

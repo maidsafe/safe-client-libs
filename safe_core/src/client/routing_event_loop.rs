@@ -38,6 +38,7 @@ pub fn run<T>(routing_rx: &Receiver<Event>, mut core_tx: CoreMsgTx<T>, net_tx: &
                 }
             }
             Event::ProxyRateLimitExceeded(msg_id) => {
+                debug!("Rate limit exceeded; retrying request");
                 if !fire(&mut core_tx, msg_id, CoreEvent::RateLimitExceeded) {
                     break;
                 }

@@ -100,6 +100,7 @@ macro_rules! wait_for_response {
             }
             Ok(Event::ProxyRateLimitExceeded(_)) => {
                 use std::thread::sleep;
+                debug!("Rate limit exceeded; retrying request after {} ms", RETRY_DELAY_MS);
                 sleep(Duration::from_millis(RETRY_DELAY_MS));
                 SyncLoop::Continue
             }
