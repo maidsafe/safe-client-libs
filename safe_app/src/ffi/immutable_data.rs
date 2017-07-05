@@ -32,7 +32,7 @@ use std::ptr;
 pub type SEWriterHandle = SelfEncryptorWriterHandle;
 /// Handle of a Self Encryptor Reader object
 pub type SEReaderHandle = SelfEncryptorReaderHandle;
-/// XoR Name bytes
+/// Xor Name bytes
 pub type XorNameArray = [u8; XOR_NAME_LEN];
 
 /// Get a Self Encryptor

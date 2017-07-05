@@ -32,7 +32,7 @@ use std::slice;
 pub type SecretKey = [u8; secretbox::KEYBYTES];
 /// Array containing nonce bytes
 pub type Nonce = [u8; secretbox::NONCEBYTES];
-/// XoR Name bytes
+/// Xor Name bytes
 pub type XorNameArray = [u8; XOR_NAME_LEN];
 
 /// Create non-encrypted mdata info with explicit data name.
