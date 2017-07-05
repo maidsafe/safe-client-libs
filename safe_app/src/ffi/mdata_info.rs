@@ -28,9 +28,12 @@ use safe_core::MDataInfo;
 use std::os::raw::c_void;
 use std::slice;
 
-type SecretKey = [u8; secretbox::KEYBYTES];
-type Nonce = [u8; secretbox::NONCEBYTES];
-type XorNameArray = [u8; XOR_NAME_LEN];
+/// Array containing private key bytes
+pub type SecretKey = [u8; secretbox::KEYBYTES];
+/// Array containing nonce bytes
+pub type Nonce = [u8; secretbox::NONCEBYTES];
+/// XoR Name bytes
+pub type XorNameArray = [u8; XOR_NAME_LEN];
 
 /// Create non-encrypted mdata info with explicit data name.
 #[no_mangle]
@@ -210,10 +213,11 @@ pub unsafe extern "C" fn mdata_info_decrypt(app: *const App,
 pub unsafe extern "C" fn mdata_info_extract_name_and_type_tag(app: *const App,
                                                               info_h: MDataInfoHandle,
                                                               user_data: *mut c_void,
-                                                              o_cb: extern "C" fn(*mut c_void,
-                                                                                  FfiResult,
-                                                                                  *const XorNameArray,
-                                                                                  u64))
+                                                              o_cb: extern "C" fn(
+                                                                              *mut c_void,
+                                                                              FfiResult,
+                                                                              *const XorNameArray,
+                                                                              u64))
 {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {

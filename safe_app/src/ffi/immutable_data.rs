@@ -28,9 +28,12 @@ use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
 use std::ptr;
 
-type SEWriterHandle = SelfEncryptorWriterHandle;
-type SEReaderHandle = SelfEncryptorReaderHandle;
-type XorNameArray = [u8; XOR_NAME_LEN];
+/// Handle of a Self Encryptor Writer object
+pub type SEWriterHandle = SelfEncryptorWriterHandle;
+/// Handle of a Self Encryptor Reader object
+pub type SEReaderHandle = SelfEncryptorReaderHandle;
+/// XoR Name bytes
+pub type XorNameArray = [u8; XOR_NAME_LEN];
 
 /// Get a Self Encryptor
 #[no_mangle]
