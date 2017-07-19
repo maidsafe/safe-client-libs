@@ -20,7 +20,7 @@ use errors::CoreError;
 use event_loop::CoreFuture;
 use futures::Future;
 use futures::future::{self, Loop};
-use routing::{ClientError, EntryAction, EntryError, Value, XorName};
+use routing::{ClientError, EntryAction, EntryError, PermissionSet, User, Value, XorName};
 use std::collections::BTreeMap;
 use utils::FutureExt;
 
@@ -32,20 +32,18 @@ pub fn mutate_mdata_entries<T: 'static>(client: &Client<T>,
                                         tag: u64,
                                         actions: BTreeMap<Vec<u8>, EntryAction>)
                                         -> Box<CoreFuture<()>> {
-    let state = MutateEntriesState {
-        client: client.clone(),
-        actions: actions,
-        attempts: 0,
-    };
+    let state = (0, actions);
+    let client = client.clone();
 
-    future::loop_fn(state, move |state| {
-        state.client
-            .mutate_mdata_entries(name, tag, state.actions.clone())
+    future::loop_fn(state, move |(attempts, actions)| {
+        client
+            .mutate_mdata_entries(name, tag, actions.clone())
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
                 CoreError::RoutingClientError(ClientError::InvalidEntryActions(errors)) => {
-                    if state.attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue(state.next(&errors)))
+                    if attempts < MAX_ATTEMPTS {
+                        let actions = fix_entry_actions(actions, &errors);
+                        Ok(Loop::Continue((attempts + 1, actions)))
                     } else {
                         Err(CoreError::RoutingClientError(ClientError::InvalidEntryActions(errors)))
                     }
@@ -56,18 +54,60 @@ pub fn mutate_mdata_entries<T: 'static>(client: &Client<T>,
             .into_box()
 }
 
-struct MutateEntriesState<T> {
-    client: Client<T>,
-    actions: BTreeMap<Vec<u8>, EntryAction>,
-    attempts: usize,
+/// Sets user permission on the mutable data and tries to recover from errors.
+pub fn set_mdata_user_permissions<T: 'static>(client: &Client<T>,
+                                              name: XorName,
+                                              tag: u64,
+                                              user: User,
+                                              permissions: PermissionSet,
+                                              version: u64)
+                                              -> Box<CoreFuture<()>> {
+    let state = (0, version);
+    let client = client.clone();
+
+    future::loop_fn(state, move |(attempts, version)| {
+        client.set_mdata_user_permissions(name, tag, user, permissions, version)
+        .map(|_| Loop::Break(()))
+        .or_else(move |error| match error {
+            CoreError::RoutingClientError(ClientError::InvalidSuccessor(current_version)) => {
+                if attempts < MAX_ATTEMPTS {
+                    Ok(Loop::Continue((attempts + 1, current_version + 1)))
+                } else {
+                    Err(error)
+                }
+            }
+            error => Err(error)
+        })
+    })
+            .into_box()
 }
 
-impl<T> MutateEntriesState<T> {
-    fn next(mut self, errors: &BTreeMap<Vec<u8>, EntryError>) -> Self {
-        self.actions = fix_entry_actions(self.actions, errors);
-        self.attempts += 1;
-        self
-    }
+/// Deletes user permission on the mutable data and tries to recover from errors.
+pub fn del_mdata_user_permissions<T: 'static>(client: &Client<T>,
+                                              name: XorName,
+                                              tag: u64,
+                                              user: User,
+                                              version: u64)
+                                              -> Box<CoreFuture<()>> {
+    let state = (0, version);
+    let client = client.clone();
+
+    future::loop_fn(state, move |(attempts, version)| {
+        client.del_mdata_user_permissions(name, tag, user, version)
+        .map(|_| Loop::Break(()))
+        .or_else(move |error| match error {
+            CoreError::RoutingClientError(ClientError::InvalidSuccessor(current_version)) => {
+                if attempts < MAX_ATTEMPTS {
+                    Ok(Loop::Continue((attempts + 1, current_version + 1)))
+                } else {
+                    Err(error)
+                }
+            }
+            CoreError::RoutingClientError(ClientError::NoSuchKey) => Ok(Loop::Break(())),
+            error => Err(error)
+        })
+    })
+            .into_box()
 }
 
 // Modify the given entry actions to fix the entry errors.
@@ -207,7 +247,8 @@ mod tests {
 mod tests_with_mock_routing {
     use super::*;
     use rand;
-    use routing::{EntryActions, MutableData};
+    use routing::{Action, EntryActions, MutableData};
+    use rust_sodium::crypto::sign;
     use utils::test_utils::random_client;
 
     #[test]
@@ -308,6 +349,66 @@ mod tests_with_mock_routing {
 
                     Ok::<_, CoreError>(())
                 })
+        })
+    }
+
+    #[test]
+    fn set_and_del_mdata_user_permissions_with_recovery() {
+        random_client(|client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+            let client5 = client.clone();
+            let client6 = client.clone();
+
+            let name = rand::random();
+            let tag = 10_000;
+            let owners = btree_set![unwrap!(client.public_signing_key())];
+            let data = unwrap!(MutableData::new(name,
+                                                tag,
+                                                Default::default(),
+                                                Default::default(),
+                                                owners));
+
+            let user0 = User::Key(sign::gen_keypair().0);
+            let user1 = User::Key(sign::gen_keypair().0);
+            let permissions = PermissionSet::new().allow(Action::Insert);
+
+            client
+                .put_mdata(data)
+                .then(move |res| {
+                          unwrap!(res);
+                          // invalid version
+                          set_mdata_user_permissions(&client2, name, tag, user0, permissions, 0)
+                      })
+                .then(move |res| {
+                          unwrap!(res);
+                          client3.list_mdata_user_permissions(name, tag, user0)
+                      })
+                .then(move |res| {
+                          let retrieved_permissions = unwrap!(res);
+                          assert_eq!(retrieved_permissions, permissions);
+
+                          // invalid version
+                          del_mdata_user_permissions(&client4, name, tag, user0, 0)
+                      })
+                .then(move |res| {
+                          unwrap!(res);
+                          client5.list_mdata_user_permissions(name, tag, user0)
+                      })
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::RoutingClientError(ClientError::NoSuchKey)) => (),
+                        x => panic!("Unexpected {:?}", x),
+                    }
+
+                    // deleting non-existing user
+                    del_mdata_user_permissions(&client6, name, tag, user1, 3)
+                })
+                .then(move |res| {
+                          unwrap!(res);
+                          Ok::<_, CoreError>(())
+                      })
         })
     }
 }
