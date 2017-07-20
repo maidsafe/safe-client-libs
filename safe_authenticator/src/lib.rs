@@ -67,8 +67,9 @@ pub mod ipc;
 /// Public ID routines
 pub mod public_id;
 
-mod errors;
 mod access_container;
+mod errors;
+mod revocation;
 
 /// Provides utilities to test the authenticator functionality
 #[cfg(any(test, feature="testing"))]

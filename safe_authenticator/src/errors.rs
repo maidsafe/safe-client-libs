@@ -61,7 +61,6 @@ mod codes {
     pub const ERR_DATA_EXISTS: i32 = -104;
     pub const ERR_DATA_TOO_LARGE: i32 = -105;
     pub const ERR_NO_SUCH_ENTRY: i32 = -106;
-    pub const ERR_ENTRY_EXISTS: i32 = -107;
     pub const ERR_TOO_MANY_ENTRIES: i32 = -108;
     pub const ERR_NO_SUCH_KEY: i32 = -109;
     pub const ERR_INVALID_OWNERS: i32 = -110;
@@ -72,6 +71,7 @@ mod codes {
     pub const ERR_NETWORK_OTHER: i32 = -115;
     pub const ERR_INVALID_INVITATION: i32 = -116;
     pub const ERR_INVITATION_ALREADY_CLAIMED: i32 = -117;
+    pub const ERR_INVALID_ENTRY_ACTIONS: i32 = -118;
 
     // IPC errors.
     pub const ERR_AUTH_DENIED: i32 = -200;
@@ -273,11 +273,11 @@ fn core_error_code(err: &CoreError) -> i32 {
                 ClientError::DataExists => ERR_DATA_EXISTS,
                 ClientError::DataTooLarge => ERR_DATA_TOO_LARGE,
                 ClientError::NoSuchEntry => ERR_NO_SUCH_ENTRY,
-                ClientError::EntryExists => ERR_ENTRY_EXISTS,
                 ClientError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
+                ClientError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
                 ClientError::NoSuchKey => ERR_NO_SUCH_KEY,
                 ClientError::InvalidOwners => ERR_INVALID_OWNERS,
-                ClientError::InvalidSuccessor => ERR_INVALID_SUCCESSOR,
+                ClientError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
                 ClientError::InvalidOperation => ERR_INVALID_OPERATION,
                 ClientError::LowBalance => ERR_LOW_BALANCE,
                 ClientError::NetworkFull => ERR_NETWORK_FULL,
