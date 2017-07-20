@@ -19,12 +19,32 @@ use super::Client;
 use errors::CoreError;
 use event_loop::CoreFuture;
 use futures::Future;
-use futures::future::{self, Loop};
-use routing::{ClientError, EntryAction, EntryError, PermissionSet, User, Value, XorName};
+use futures::future::{self, Either, Loop};
+use routing::{Action, ClientError, EntryAction, EntryError, MutableData, PermissionSet, User,
+              Value, XorName};
 use std::collections::BTreeMap;
 use utils::FutureExt;
 
 const MAX_ATTEMPTS: usize = 10;
+
+/// Puts mutable data on the network and tries to recover from errors.
+///
+/// If the data already exists, it tries to mutate it so its entries and permissions
+/// are the same as those of the data being put, except it wont delete existing
+/// entries or remove existing permissions.
+pub fn put_mdata<T: 'static>(client: &Client<T>, data: MutableData) -> Box<CoreFuture<()>> {
+    let client2 = client.clone();
+
+    client
+        .put_mdata(data.clone())
+        .or_else(move |error| match error {
+                     CoreError::RoutingClientError(ClientError::DataExists) => {
+                         Either::A(update_mdata(&client2, data))
+                     }
+                     error => Either::B(future::err(error)),
+                 })
+        .into_box()
+}
 
 /// Mutates mutable data entries and tries to recover from errors.
 pub fn mutate_mdata_entries<T: 'static>(client: &Client<T>,
@@ -46,6 +66,13 @@ pub fn mutate_mdata_entries<T: 'static>(client: &Client<T>,
                         Ok(Loop::Continue((attempts + 1, actions)))
                     } else {
                         Err(CoreError::RoutingClientError(ClientError::InvalidEntryActions(errors)))
+                    }
+                }
+                CoreError::RequestTimeout => {
+                    if attempts < MAX_ATTEMPTS {
+                        Ok(Loop::Continue((attempts + 1, actions)))
+                    } else {
+                        Err(CoreError::RequestTimeout)
                     }
                 }
                 error => Err(error)
@@ -76,6 +103,13 @@ pub fn set_mdata_user_permissions<T: 'static>(client: &Client<T>,
                     Err(error)
                 }
             }
+            CoreError::RequestTimeout => {
+                if attempts < MAX_ATTEMPTS {
+                    Ok(Loop::Continue((attempts + 1, version)))
+                } else {
+                    Err(CoreError::RequestTimeout)
+                }
+            }
             error => Err(error)
         })
     })
@@ -96,6 +130,7 @@ pub fn del_mdata_user_permissions<T: 'static>(client: &Client<T>,
         client.del_mdata_user_permissions(name, tag, user, version)
         .map(|_| Loop::Break(()))
         .or_else(move |error| match error {
+            CoreError::RoutingClientError(ClientError::NoSuchKey) => Ok(Loop::Break(())),
             CoreError::RoutingClientError(ClientError::InvalidSuccessor(current_version)) => {
                 if attempts < MAX_ATTEMPTS {
                     Ok(Loop::Continue((attempts + 1, current_version + 1)))
@@ -103,10 +138,99 @@ pub fn del_mdata_user_permissions<T: 'static>(client: &Client<T>,
                     Err(error)
                 }
             }
-            CoreError::RoutingClientError(ClientError::NoSuchKey) => Ok(Loop::Break(())),
+            CoreError::RequestTimeout => {
+                if attempts < MAX_ATTEMPTS {
+                    Ok(Loop::Continue((attempts + 1, version)))
+                } else {
+                    Err(CoreError::RequestTimeout)
+                }
+            }
             error => Err(error)
         })
     })
+            .into_box()
+}
+
+fn update_mdata<T: 'static>(client: &Client<T>, data: MutableData) -> Box<CoreFuture<()>> {
+    let client2 = client.clone();
+    let client3 = client.clone();
+
+    let f0 = client.list_mdata_entries(*data.name(), data.tag());
+    let f1 = client.list_mdata_permissions(*data.name(), data.tag());
+    let f2 = client.get_mdata_version(*data.name(), data.tag());
+
+    f0.join3(f1, f2)
+        .and_then(move |(entries, permissions, version)| {
+            update_mdata_permissions(&client2,
+                                     *data.name(),
+                                     data.tag(),
+                                     permissions,
+                                     data.permissions().clone(),
+                                     version + 1)
+                    .map(move |_| (data, entries))
+        })
+        .and_then(move |(data, entries)| {
+                      update_mdata_entries(&client3,
+                                           *data.name(),
+                                           data.tag(),
+                                           entries,
+                                           data.entries().clone())
+                  })
+        .into_box()
+}
+
+// Update the mutable data on the network so it has all the `desired_entries`.
+fn update_mdata_entries<T: 'static>(client: &Client<T>,
+                                    name: XorName,
+                                    tag: u64,
+                                    current_entries: BTreeMap<Vec<u8>, Value>,
+                                    desired_entries: BTreeMap<Vec<u8>, Value>)
+                                    -> Box<CoreFuture<()>> {
+    let actions = desired_entries
+        .into_iter()
+        .filter_map(|(key, value)| if let Some(current_value) = current_entries.get(&key) {
+                        if current_value.entry_version <= value.entry_version {
+                            Some((key, EntryAction::Update(value)))
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some((key, EntryAction::Ins(value)))
+                    })
+        .collect();
+
+    mutate_mdata_entries(client, name, tag, actions)
+}
+
+fn update_mdata_permissions<T: 'static>(client: &Client<T>,
+                                        name: XorName,
+                                        tag: u64,
+                                        current_permissions: BTreeMap<User, PermissionSet>,
+                                        desired_permissions: BTreeMap<User, PermissionSet>,
+                                        version: u64)
+                                        -> Box<CoreFuture<()>> {
+    let permissions: Vec<_> = desired_permissions
+        .into_iter()
+        .map(|(user, desired_set)| if let Some(current_set) = current_permissions.get(&user) {
+                 (user, union_permission_sets(current_set, &desired_set))
+             } else {
+                 (user, desired_set)
+             })
+        .collect();
+
+    let state = (client.clone(), permissions, version);
+    future::loop_fn(state,
+                    move |(client, mut permissions, version)| if let Some((user, set)) =
+        permissions.pop() {
+                        let f =
+                            set_mdata_user_permissions(&client, name, tag, user, set, version)
+                                .map(move |_| {
+                                         Loop::Continue((client, permissions, version + 1))
+                                     });
+                        Either::A(f)
+                    } else {
+                        Either::B(future::ok(Loop::Break(())))
+                    })
             .into_box()
 }
 
@@ -151,12 +275,29 @@ fn fix_entry_action(action: EntryAction, error: &EntryError) -> Option<EntryActi
     }
 }
 
+// Create union of the two permission sets, preffering allows to deny's.
+fn union_permission_sets(a: &PermissionSet, b: &PermissionSet) -> PermissionSet {
+    let actions = [Action::Insert,
+                   Action::Update,
+                   Action::Delete,
+                   Action::ManagePermissions];
+    actions
+        .into_iter()
+        .fold(PermissionSet::new(),
+              |set, &action| match (a.is_allowed(action), b.is_allowed(action)) {
+                  (Some(true), _) | (_, Some(true)) => set.allow(action),
+                  (Some(false), _) | (_, Some(false)) => set.deny(action),
+                  _ => set,
+              })
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn fixing_entry_actions() {
+    fn test_fix_entry_actions() {
         let mut actions = BTreeMap::new();
         let _ = actions.insert(vec![0],
                                EntryAction::Ins(Value {
@@ -241,6 +382,22 @@ mod tests {
         assert_eq!(*unwrap!(actions.get([7].as_ref())), EntryAction::Del(3));
     }
 
+    #[test]
+    fn test_union_permission_sets() {
+        let a = PermissionSet::new()
+            .allow(Action::Insert)
+            .deny(Action::Update)
+            .deny(Action::ManagePermissions);
+        let b = PermissionSet::new()
+            .allow(Action::Update)
+            .allow(Action::Delete);
+
+        let c = union_permission_sets(&a, &b);
+        assert_eq!(c.is_allowed(Action::Insert), Some(true));
+        assert_eq!(c.is_allowed(Action::Update), Some(true));
+        assert_eq!(c.is_allowed(Action::Delete), Some(true));
+        assert_eq!(c.is_allowed(Action::ManagePermissions), Some(false));
+    }
 }
 
 #[cfg(all(test, feature = "use-mock-routing"))]
@@ -250,6 +407,100 @@ mod tests_with_mock_routing {
     use routing::{Action, EntryActions, MutableData};
     use rust_sodium::crypto::sign;
     use utils::test_utils::random_client;
+
+    #[test]
+    fn put_mdata_with_recovery() {
+        random_client(|client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+
+            let name = rand::random();
+            let tag = 10_000;
+            let owners = btree_set![unwrap!(client.public_signing_key())];
+
+            let entries = btree_map![
+                vec![0] => Value {
+                    content: vec![0, 0],
+                    entry_version: 0,
+                },
+                vec![1] => Value {
+                    content: vec![1, 0],
+                    entry_version: 1,
+                },
+                vec![2] => Value {
+                    content: vec![2, 0],
+                    entry_version: 0,
+                }
+            ];
+            let permissions = btree_map![
+                User::Anyone => PermissionSet::new().allow(Action::Insert)
+            ];
+            let data0 = unwrap!(MutableData::new(name, tag, permissions, entries, owners.clone()));
+
+            let entries = btree_map![
+                vec![0] => Value {
+                    content: vec![0, 1],
+                    entry_version: 1,
+                },
+                vec![1] => Value {
+                    content: vec![1, 1],
+                    entry_version: 0,
+                },
+                vec![3] => Value {
+                    content: vec![3, 1],
+                    entry_version: 0,
+                }
+            ];
+
+            let user = User::Key(sign::gen_keypair().0);
+            let permissions = btree_map![
+                User::Anyone => PermissionSet::new().allow(Action::Insert).allow(Action::Update),
+                user => PermissionSet::new().allow(Action::Delete)
+            ];
+
+            let data1 = unwrap!(MutableData::new(name, tag, permissions, entries, owners));
+
+            client
+                .put_mdata(data0)
+                .then(move |res| {
+                          unwrap!(res);
+                          put_mdata(&client2, data1)
+                      })
+                .then(move |res| {
+                          unwrap!(res);
+                          client3.list_mdata_entries(name, tag)
+                      })
+                .then(move |res| {
+                    let entries = unwrap!(res);
+                    assert_eq!(entries.len(), 4);
+                    assert_eq!(*unwrap!(entries.get([0].as_ref())),
+                               Value {
+                                   content: vec![0, 1],
+                                   entry_version: 1,
+                               });
+                    assert_eq!(*unwrap!(entries.get([1].as_ref())),
+                               Value {
+                                   content: vec![1, 0],
+                                   entry_version: 1,
+                               });
+
+                    client4.list_mdata_permissions(name, tag)
+                })
+                .then(move |res| {
+                    let permissions = unwrap!(res);
+                    assert_eq!(permissions.len(), 2);
+                    assert_eq!(*unwrap!(permissions.get(&User::Anyone)),
+                               PermissionSet::new()
+                                   .allow(Action::Insert)
+                                   .allow(Action::Update));
+                    assert_eq!(*unwrap!(permissions.get(&user)),
+                               PermissionSet::new().allow(Action::Delete));
+
+                    Ok::<_, CoreError>(())
+                })
+        })
+    }
 
     #[test]
     fn mutate_mdata_entries_with_recovery() {
@@ -378,7 +629,7 @@ mod tests_with_mock_routing {
                 .put_mdata(data)
                 .then(move |res| {
                           unwrap!(res);
-                          // invalid version
+                          // set with invalid version
                           set_mdata_user_permissions(&client2, name, tag, user0, permissions, 0)
                       })
                 .then(move |res| {
@@ -389,7 +640,7 @@ mod tests_with_mock_routing {
                           let retrieved_permissions = unwrap!(res);
                           assert_eq!(retrieved_permissions, permissions);
 
-                          // invalid version
+                          // delete with invalid version
                           del_mdata_user_permissions(&client4, name, tag, user0, 0)
                       })
                 .then(move |res| {
@@ -402,7 +653,7 @@ mod tests_with_mock_routing {
                         x => panic!("Unexpected {:?}", x),
                     }
 
-                    // deleting non-existing user
+                    // delete of non-existing user
                     del_mdata_user_permissions(&client6, name, tag, user1, 3)
                 })
                 .then(move |res| {
