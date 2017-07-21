@@ -50,6 +50,7 @@ extern crate futures;
 extern crate log;
 extern crate maidsafe_utilities;
 extern crate routing;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate rust_sodium;
@@ -68,6 +69,7 @@ pub mod ipc;
 pub mod public_id;
 
 mod access_container;
+mod config;
 mod errors;
 mod revocation;
 
@@ -78,6 +80,7 @@ pub mod test_utils;
 mod tests;
 
 pub use self::errors::AuthError;
+use config::{KEY_ACCESS_CONTAINER, KEY_APPS};
 use futures::Future;
 use futures::stream::Stream;
 use futures::sync::mpsc;
@@ -170,8 +173,8 @@ impl Authenticator {
                         let config_dir = unwrap!(client.config_root_dir());
 
                         let actions = EntryActions::new()
-                            .ins(b"authenticator-config".to_vec(), Vec::new(), 0)
-                            .ins(b"access-container".to_vec(), serialise(&dir)?, 0)
+                            .ins(KEY_APPS.to_vec(), Vec::new(), 0)
+                            .ins(KEY_ACCESS_CONTAINER.to_vec(), serialise(&dir)?, 0)
                             .into();
                         let actions = mdata_info::encrypt_entry_actions(&config_dir, &actions)?;
 

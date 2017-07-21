@@ -16,6 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use super::{AccessContainerEntry, AuthError, AuthFuture};
+use config::KEY_ACCESS_CONTAINER;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::EntryActions;
@@ -30,7 +31,7 @@ pub fn access_container<T>(client: &Client<T>) -> Box<AuthFuture<MDataInfo>>
     where T: 'static
 {
     let parent = fry!(client.config_root_dir());
-    let key = fry!(parent.enc_entry_key(b"access-container"));
+    let key = fry!(parent.enc_entry_key(KEY_ACCESS_CONTAINER));
 
     client
         .get_mdata_value(parent.name, parent.type_tag, key)

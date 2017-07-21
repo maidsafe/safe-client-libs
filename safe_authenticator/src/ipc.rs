@@ -17,6 +17,7 @@
 
 use super::{AccessContainerEntry, AuthError, AuthFuture, Authenticator};
 use super::access_container::{access_container, access_container_entry, put_access_container_entry};
+use config::{self, Apps};
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, StringError, base64_encode,
                 catch_unwind_cb, from_c_str};
 use futures::{Future, future};
@@ -37,8 +38,6 @@ use std::os::raw::{c_char, c_void};
 use std::ptr;
 use tiny_keccak::sha3_256;
 
-const CONFIG_FILE: &'static [u8] = b"authenticator-config";
-
 /// App data stored in the authenticator configuration.
 ///
 /// We need to store it even for revoked apps because we need to
@@ -52,38 +51,6 @@ pub struct AppInfo {
     pub info: AppExchangeInfo,
     /// Application keys
     pub keys: AppKeys,
-}
-
-/// Maps from a SHA-3 hash of an app ID to app info
-type AuthenticatorConfig = HashMap<[u8; 32], AppInfo>;
-
-/// Retrieves the authenticator configuration file
-pub fn get_config(client: &Client<()>) -> Box<AuthFuture<(u64, AuthenticatorConfig)>> {
-    let parent = fry!(client.config_root_dir());
-    let key = fry!(parent.enc_entry_key(CONFIG_FILE));
-
-    client
-        .get_mdata_value(parent.name, parent.type_tag, key)
-        .and_then(move |val| {
-            let plaintext = parent.decrypt(&val.content)?;
-            let file = if !plaintext.is_empty() {
-                deserialise(&plaintext)?
-            } else {
-                Default::default()
-            };
-
-            Ok((val.entry_version, file))
-        })
-        .map_err(From::from)
-        .into_box()
-}
-
-/// Retrieves an app info by the given key from the config file
-pub fn app_info(client: &Client<()>, app_id: &str) -> Box<AuthFuture<Option<AppInfo>>> {
-    let app_id_hash = sha3_256(app_id.as_bytes());
-    get_config(client)
-        .and_then(move |(_, config)| Ok(config.get(&app_id_hash).cloned()))
-        .into_box()
 }
 
 /// Decodes a given encoded IPC message and returns either an `IpcMsg` struct or
@@ -122,7 +89,7 @@ pub fn decode_ipc_msg(client: &Client<()>,
 
             let c2 = client.clone();
 
-            get_config(client)
+            config::list_apps(client)
                 .and_then(move |(_config_version, config)| app_state(&c2, &config, app_id))
                 .and_then(move |app_state| {
                     match app_state {
@@ -405,7 +372,7 @@ pub unsafe extern "C" fn encode_auth_resp(auth: *const Authenticator,
                     let c3 = client.clone();
                     let c4 = client.clone();
 
-                    get_config(client)
+                    config::list_apps(client)
                         .and_then(move |(_cfg_version, config)| {
                                       app_state(&c2, &config, app_id.clone())
                                           .map(move |app_state| (config, app_state, app_id))
@@ -422,7 +389,7 @@ pub unsafe extern "C" fn encode_auth_resp(auth: *const Authenticator,
                                         info: auth_req.app,
                                         keys: keys,
                                     };
-                                    insert_app_to_config(&c3, app.clone())
+                                    config::insert_app(&c3, app.clone())
                                         .map(move |_| (app, app_state))
                                         .into_box()
                                 }
@@ -548,15 +515,11 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
                     let c4 = client.clone();
                     let c5 = client.clone();
 
-                    app_info(client, &app_id)
-                        .and_then(move |app| match app {
-                                      Some(app) => {
-                            let sign_pk = app.keys.sign_pk;
-                            update_container_perms(&c2, permissions, sign_pk)
-                                .map(move |perms| (app, perms))
-                                .into_box()
-                        }
-                                      None => err!(IpcError::UnknownApp),
+                    config::get_app(client, &app_id)
+                        .and_then(move |app| {
+                                      let sign_pk = app.keys.sign_pk;
+                                      update_container_perms(&c2, permissions, sign_pk)
+                                          .map(move |perms| (app, perms))
                                   })
                         .and_then(move |(app, perms)| {
                                       access_container(&c3).map(move |dir| (dir, app, perms))
@@ -630,43 +593,6 @@ pub unsafe extern "C" fn encode_containers_resp(auth: *const Authenticator,
 
         Ok(())
     });
-}
-
-/// Updates the authenticator configuration file and returns the updated `File` struct.
-pub fn update_config(client: &Client<()>,
-                     version: Option<u64>,
-                     auth_cfg: &AuthenticatorConfig)
-                     -> Box<AuthFuture<()>> {
-    let parent = fry!(client.config_root_dir());
-
-    let key = fry!(parent.enc_entry_key(CONFIG_FILE));
-    let plaintext = fry!(serialise(&auth_cfg));
-    let ciphertext = fry!(parent.enc_entry_value(&plaintext));
-
-    let actions = if let Some(version) = version {
-        EntryActions::new().update(key, ciphertext, version)
-    } else {
-        EntryActions::new().ins(key, ciphertext, 0)
-    };
-
-    client
-        .mutate_mdata_entries(parent.name, parent.type_tag, actions.into())
-        .map_err(From::from)
-        .into_box()
-}
-
-/// Adds the given app info to the configuration file
-fn insert_app_to_config(client: &Client<()>, app: AppInfo) -> Box<AuthFuture<()>> {
-    let c2 = client.clone();
-    let app_id_hash = sha3_256(app.info.id.as_bytes());
-
-    get_config(client)
-        .and_then(move |(version, mut auth_cfg)| {
-                      // Add app info to the authenticator config
-                      let _ = auth_cfg.insert(app_id_hash, app);
-                      update_config(&c2, Some(version + 1), &auth_cfg)
-                  })
-        .into_box()
 }
 
 /// Updates containers permissions
@@ -958,33 +884,29 @@ pub enum AppState {
 /// in the config file AND the access container, `Revoked` if it has
 /// an entry in the config but not in the access container, and `NotAuthenticated`
 /// if it's not registered anywhere).
-pub fn app_state(client: &Client<()>,
-                 config: &AuthenticatorConfig,
-                 app_id: String)
-                 -> Box<AuthFuture<AppState>> {
+pub fn app_state(client: &Client<()>, apps: &Apps, app_id: String) -> Box<AuthFuture<AppState>> {
     let c2 = client.clone();
     let app_id_hash = sha3_256(app_id.clone().as_bytes());
 
-    match config.get(&app_id_hash) {
-        Some(app) => {
-            let app_keys = app.keys.clone();
-            access_container(client)
-                .and_then(move |dir| access_container_entry(&c2, &dir, &app_id, app_keys))
-                .then(move |res| {
-                    match res {
-                        Ok((_version, Some(_))) => Ok(AppState::Authenticated),
-                        Ok((_, None)) |
+    if let Some(app) = apps.get(&app_id_hash) {
+        let app_keys = app.keys.clone();
+        access_container(client)
+            .and_then(move |dir| access_container_entry(&c2, &dir, &app_id, app_keys))
+            .then(move |res| {
+                match res {
+                    Ok((_version, Some(_))) => Ok(AppState::Authenticated),
+                    Ok((_, None)) |
                         Err(AuthError::CoreError(
                             CoreError::RoutingClientError(
                                 ClientError::NoSuchEntry))) => {
                             // App is not in access container, so it is revoked
                             Ok(AppState::Revoked)
                         }
-                        Err(e) => Err(e),
-                    }
-                })
-                .into_box()
-        }
-        None => ok!(AppState::NotAuthenticated),
+                    Err(e) => Err(e),
+                }
+            })
+            .into_box()
+    } else {
+        ok!(AppState::NotAuthenticated)
     }
 }

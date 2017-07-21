@@ -18,8 +18,9 @@
 use super::{AccessContainerEntry, AuthError, AuthFuture};
 use access_container::{access_container, access_container_entry, access_container_key,
                        delete_access_container_entry};
+use config;
 use futures::{Future, future};
-use ipc::{AppInfo, app_info, get_config};
+use ipc::AppInfo;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{EntryActions, User};
 use rust_sodium::crypto::sign;
@@ -37,8 +38,7 @@ pub fn revoke_app(client: &Client<()>, app_id: &str) -> Box<AuthFuture<String>> 
     let c6 = client.clone();
     let c7 = client.clone();
 
-    app_info(client, app_id)
-        .and_then(move |app| Ok(app.ok_or(AuthError::IpcError(IpcError::UnknownApp))?))
+    config::get_app(client, app_id)
         .and_then(move |app| delete_app_auth_key(&c2, app.keys.sign_pk).map(move |_| app))
         .and_then(move |app| {
                       access_container(&c3).map(move |access_container| (app, access_container))
@@ -201,7 +201,7 @@ fn update_access_container(client: &Client<()>,
                            -> Box<AuthFuture<()>> {
     let c2 = client.clone();
 
-    let f_config = get_config(client).map(|(_, config)| config);
+    let f_config = config::list_apps(client).map(|(_, apps)| apps);
     let f_entries = client
         .list_mdata_entries(access_container.name, access_container.type_tag)
         .map_err(From::from)
@@ -214,10 +214,10 @@ fn update_access_container(client: &Client<()>,
 
     f_config
         .join(f_entries)
-        .and_then(move |(config, entries)| {
+        .and_then(move |(apps, entries)| {
             let mut actions = EntryActions::new();
 
-            for app in config.values() {
+            for app in apps.values() {
                 let key = access_container_key(&access_container, &app.info.id, &app.keys)?;
 
                 if let Some(raw) = entries.get(&key) {
