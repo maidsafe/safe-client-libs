@@ -1,3 +1,4 @@
+
 // Copyright 2016 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
@@ -16,13 +17,14 @@
 // relating to use of the SAFE Network Software.
 
 use Authenticator;
+use config::{self, KEY_ACCESS_CONTAINER, KEY_APPS};
 use errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
 use ffi::apps::*;
 use ffi_utils::{FfiResult, ReprC, StringError, base64_encode, from_c_str};
 use ffi_utils::test_utils::{call_1, call_vec, send_via_user_data, sender_as_user_data};
 use futures::{Future, future};
 use ipc::{authenticator_revoke_app, encode_auth_resp, encode_containers_resp,
-          encode_unregistered_resp, get_config};
+          encode_unregistered_resp};
 use maidsafe_utilities::serialisation::deserialise;
 use routing::User;
 use safe_core::{CoreError, MDataInfo, mdata_info};
@@ -110,10 +112,10 @@ fn config_root_dir() {
     let entries = unwrap!(mdata_info::decrypt_entries(&dir, &entries));
 
     // Verify it contains the required entries.
-    let config = unwrap!(entries.get(&b"authenticator-config"[..]));
+    let config = unwrap!(entries.get(KEY_APPS));
     assert!(config.content.is_empty());
 
-    let ac = unwrap!(entries.get(&b"access-container"[..]));
+    let ac = unwrap!(entries.get(KEY_ACCESS_CONTAINER));
     let ac: MDataInfo = unwrap!(deserialise(&ac.content));
 
     // Fetch access container and verify it's empty.
@@ -186,11 +188,11 @@ fn app_authentication_with_network_errors() {
     };
 
     // Check the app info is present in the config file.
-    let config = run(&authenticator,
-                     |client| get_config(client).map(|(_, config)| config));
+    let apps = run(&authenticator,
+                   |client| config::list_apps(client).map(|(_, apps)| apps));
 
     let app_config_key = sha3_256(app_id.as_bytes());
-    let app_info = unwrap!(config.get(&app_config_key));
+    let app_info = unwrap!(apps.get(&app_config_key));
 
     assert_eq!(app_info.info, app_exchange_info);
 }
@@ -287,11 +289,11 @@ fn app_authentication() {
     let (app_dir_info, _) = unwrap!(access_container.remove(&format!("apps/{}", app_id)));
 
     // Check the app info is present in the config file.
-    let config = run(&authenticator,
-                     |client| get_config(client).map(|(_, config)| config));
+    let apps = run(&authenticator,
+                   |client| config::list_apps(client).map(|(_, apps)| apps));
 
     let app_config_key = sha3_256(app_id.as_bytes());
-    let app_info = unwrap!(config.get(&app_config_key));
+    let app_info = unwrap!(apps.get(&app_config_key));
 
     assert_eq!(app_info.info, app_exchange_info);
     assert_eq!(app_info.keys, app_keys);

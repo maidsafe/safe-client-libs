@@ -199,11 +199,7 @@ impl AccessContInfo {
 
     /// Creates `MDataInfo` from this `AccessContInfo`
     pub fn into_mdata_info(self, enc_key: secretbox::Key) -> MDataInfo {
-        MDataInfo {
-            name: self.id,
-            type_tag: self.tag,
-            enc_info: Some((enc_key, Some(self.nonce))),
-        }
+        MDataInfo::new_private(self.id, self.tag, (enc_key, Some(self.nonce)))
     }
 
     /// Creates an `AccessContInfo` from a given `MDataInfo`

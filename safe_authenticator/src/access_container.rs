@@ -16,6 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use super::{AccessContainerEntry, AuthError, AuthFuture};
+use config::KEY_ACCESS_CONTAINER;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::EntryActions;
@@ -30,7 +31,7 @@ pub fn access_container<T>(client: &Client<T>) -> Box<AuthFuture<MDataInfo>>
     where T: 'static
 {
     let parent = fry!(client.config_root_dir());
-    let key = fry!(parent.enc_entry_key(b"access-container"));
+    let key = fry!(parent.enc_entry_key(KEY_ACCESS_CONTAINER));
 
     client
         .get_mdata_value(parent.name, parent.type_tag, key)
@@ -53,6 +54,15 @@ pub fn access_container_nonce(access_container: &MDataInfo)
     }
 }
 
+/// Gets access container entry key corresponding to the given app.
+pub fn access_container_key(access_container: &MDataInfo,
+                            app_id: &str,
+                            app_keys: &AppKeys)
+                            -> Result<Vec<u8>, AuthError> {
+    let nonce = access_container_nonce(access_container)?;
+    Ok(access_container_enc_key(app_id, &app_keys.enc_key, nonce)?)
+}
+
 /// Gets an access container entry
 pub fn access_container_entry<T>(client: &Client<T>,
                                  access_container: &MDataInfo,
@@ -61,8 +71,7 @@ pub fn access_container_entry<T>(client: &Client<T>,
                                  -> Box<AuthFuture<(u64, Option<AccessContainerEntry>)>>
     where T: 'static
 {
-    let nonce = fry!(access_container_nonce(access_container));
-    let key = fry!(access_container_enc_key(app_id, &app_keys.enc_key, nonce));
+    let key = fry!(access_container_key(access_container, app_id, &app_keys));
 
     client
         .get_mdata_value(access_container.name, access_container.type_tag, key)
@@ -86,21 +95,37 @@ pub fn put_access_container_entry<T>(client: &Client<T>,
                                      app_id: &str,
                                      app_keys: &AppKeys,
                                      permissions: &AccessContainerEntry,
-                                     version: Option<u64>)
+                                     version: u64)
                                      -> Box<AuthFuture<()>>
     where T: 'static
 {
-    let nonce = fry!(access_container_nonce(access_container));
-    let key = fry!(access_container_enc_key(app_id, &app_keys.enc_key, nonce));
+    let key = fry!(access_container_key(access_container, app_id, app_keys));
     let plaintext = fry!(serialise(&permissions));
     let ciphertext = fry!(symmetric_encrypt(&plaintext, &app_keys.enc_key, None));
 
-    let actions = if let Some(version) = version {
-        EntryActions::new().update(key, ciphertext, version)
-    } else {
+    let actions = if version == 0 {
         EntryActions::new().ins(key, ciphertext, 0)
+    } else {
+        EntryActions::new().update(key, ciphertext, version)
     };
 
+    client
+        .mutate_mdata_entries(access_container.name,
+                              access_container.type_tag,
+                              actions.into())
+        .map_err(From::from)
+        .into_box()
+}
+
+/// Deletes entry from the access container.
+pub fn delete_access_container_entry<T: 'static>(client: &Client<T>,
+                                                 access_container: &MDataInfo,
+                                                 app_id: &str,
+                                                 app_keys: &AppKeys,
+                                                 version: u64)
+                                                 -> Box<AuthFuture<()>> {
+    let key = fry!(access_container_key(access_container, app_id, app_keys));
+    let actions = EntryActions::new().del(key, version);
     client
         .mutate_mdata_entries(access_container.name,
                               access_container.type_tag,

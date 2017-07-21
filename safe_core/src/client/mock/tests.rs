@@ -364,7 +364,7 @@ fn mutable_data_entry_versioning() {
     expect_failure!(routing_rx,
                     msg_id,
                     Response::MutateMDataEntries,
-                    ClientError::InvalidSuccessor);
+                    ClientError::InvalidEntryActions(_));
 
     // Attempt to update it with incorrect version fails.
     let actions = EntryActions::new()
@@ -375,7 +375,7 @@ fn mutable_data_entry_versioning() {
     expect_failure!(routing_rx,
                     msg_id,
                     Response::MutateMDataEntries,
-                    ClientError::InvalidSuccessor);
+                    ClientError::InvalidEntryActions(_));
 
     // Update with correct version bump succeeds.
     let actions = btree_map![
@@ -399,7 +399,7 @@ fn mutable_data_entry_versioning() {
     expect_failure!(routing_rx,
                     msg_id,
                     Response::MutateMDataEntries,
-                    ClientError::InvalidSuccessor);
+                    ClientError::InvalidEntryActions(_));
 
     // Delete with correct version bump succeeds.
     let actions = btree_map![
@@ -574,7 +574,7 @@ fn mutable_data_permissions() {
     expect_failure!(routing_rx,
                     msg_id,
                     Response::SetMDataUserPermissions,
-                    ClientError::InvalidSuccessor);
+                    ClientError::InvalidSuccessor(_));
 
     // Modifing permissions with version bump succeeds.
     let perms = PermissionSet::new()
@@ -864,7 +864,7 @@ fn auth_keys() {
     expect_failure!(routing_rx,
                     msg_id,
                     Response::InsAuthKey,
-                    ClientError::InvalidSuccessor);
+                    ClientError::InvalidSuccessor(_));
 
     // Insert an auth key with proper version bump succeeds.
     let msg_id = MessageId::new();
@@ -886,7 +886,7 @@ fn auth_keys() {
     expect_failure!(routing_rx,
                     msg_id,
                     Response::DelAuthKey,
-                    ClientError::InvalidSuccessor);
+                    ClientError::InvalidSuccessor(_));
 
     // Attempt to delete non-existing key fails.
     let msg_id = MessageId::new();

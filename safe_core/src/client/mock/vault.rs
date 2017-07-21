@@ -206,7 +206,7 @@ impl Account {
         if version == self.version + 1 {
             Ok(())
         } else {
-            Err(ClientError::InvalidSuccessor)
+            Err(ClientError::InvalidSuccessor(self.version))
         }
     }
 }

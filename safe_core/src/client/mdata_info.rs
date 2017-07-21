@@ -23,6 +23,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::sha3_256;
 use utils::{symmetric_decrypt, symmetric_encrypt};
 
+const REENCRYPT_ERROR: &'static str = "Cannot reencrypt without new_enc_info";
+
 /// Information allowing to locate and access mutable data on the network.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct MDataInfo {
@@ -33,6 +35,9 @@ pub struct MDataInfo {
     /// Key to encrypt/decrypt the directory content.
     /// and the nonce to be used for keys
     pub enc_info: Option<(secretbox::Key, Option<secretbox::Nonce>)>,
+
+    /// Future encryption info, used for two-phase data reencryption.
+    pub new_enc_info: Option<(secretbox::Key, Option<secretbox::Nonce>)>,
 }
 
 impl MDataInfo {
@@ -46,6 +51,7 @@ impl MDataInfo {
             name,
             type_tag,
             enc_info: Some(enc_info),
+            new_enc_info: None,
         }
     }
 
@@ -55,6 +61,7 @@ impl MDataInfo {
             name,
             type_tag,
             enc_info: None,
+            new_enc_info: None,
         }
     }
 
@@ -74,15 +81,7 @@ impl MDataInfo {
     /// encrypt the the key for the mdata entry accordingly
     pub fn enc_entry_key(&self, plain_text: &[u8]) -> Result<Vec<u8>, CoreError> {
         if let Some((ref key, seed)) = self.enc_info {
-            let nonce = match seed {
-                Some(secretbox::Nonce(ref dir_nonce)) => {
-                    let mut pt = plain_text.to_vec();
-                    pt.extend_from_slice(&dir_nonce[..]);
-                    unwrap!(secretbox::Nonce::from_slice(&sha3_256(&pt)[..secretbox::NONCEBYTES]))
-                }
-                None => secretbox::gen_nonce(),
-            };
-            symmetric_encrypt(plain_text, key, Some(&nonce))
+            enc_entry_key(plain_text, key, seed)
         } else {
             Ok(plain_text.to_vec())
         }
@@ -103,6 +102,49 @@ impl MDataInfo {
             symmetric_decrypt(cipher, key)
         } else {
             Ok(cipher.to_vec())
+        }
+    }
+
+    /// Start the encryption info re-generation by populating the `new_enc_info`
+    /// field with random keys.
+    pub fn start_new_enc_info(&mut self) {
+        if self.enc_info.is_some() {
+            self.new_enc_info = Some((secretbox::gen_key(), Some(secretbox::gen_nonce())));
+        }
+    }
+
+    /// Commit the encryption info re-generation by replacing the current encryption info
+    /// with `new_enc_info` (if any).
+    pub fn commit_new_enc_info(&mut self) {
+        if let Some(new_enc_info) = self.new_enc_info.take() {
+            self.enc_info = Some(new_enc_info);
+        }
+    }
+
+    /// Abort the encryption info regeneration by clearing the `new_enc_info` field.
+    pub fn abort_new_enc_info(&mut self) {
+        self.new_enc_info = None;
+    }
+
+    /// Re-encrypt entry key (decrypt using current enc_info, encrypt using
+    /// `new_enc_info`).
+    pub fn reencrypt_entry_key(&self, cipher: &[u8]) -> Result<Vec<u8>, CoreError> {
+        if let Some((ref new_key, new_nonce)) = self.new_enc_info {
+            let plain_text = self.decrypt(cipher)?;
+            enc_entry_key(&plain_text, new_key, new_nonce)
+        } else {
+            Err(CoreError::from(REENCRYPT_ERROR))
+        }
+    }
+
+    /// Re-encrypt entry value (decrypt using current enc_info, encrypt using
+    /// `new_enc_info`).
+    pub fn reencrypt_entry_value(&self, cipher: &[u8]) -> Result<Vec<u8>, CoreError> {
+        if let Some((ref new_key, _)) = self.new_enc_info {
+            let plain_text = self.decrypt(cipher)?;
+            symmetric_encrypt(&plain_text, new_key, None)
+        } else {
+            Err(CoreError::from(REENCRYPT_ERROR))
         }
     }
 }
@@ -200,6 +242,22 @@ fn decrypt_value(info: &MDataInfo, value: &Value) -> Result<Value, CoreError> {
            entry_version: value.entry_version,
        })
 }
+
+fn enc_entry_key(plain_text: &[u8],
+                 key: &secretbox::Key,
+                 seed: Option<secretbox::Nonce>)
+                 -> Result<Vec<u8>, CoreError> {
+    let nonce = match seed {
+        Some(secretbox::Nonce(ref nonce)) => {
+            let mut pt = plain_text.to_vec();
+            pt.extend_from_slice(&nonce[..]);
+            unwrap!(secretbox::Nonce::from_slice(&sha3_256(&pt)[..secretbox::NONCEBYTES]))
+        }
+        None => secretbox::gen_nonce(),
+    };
+    symmetric_encrypt(plain_text, key, Some(&nonce))
+}
+
 
 #[cfg(test)]
 mod tests {
