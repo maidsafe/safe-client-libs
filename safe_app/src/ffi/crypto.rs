@@ -26,9 +26,12 @@ use std::os::raw::c_void;
 use std::slice;
 use tiny_keccak::sha3_256;
 
-type SecKey = [u8; box_::SECRETKEYBYTES];
-type PubKey = [u8; box_::PUBLICKEYBYTES];
-type Nonce = [u8; box_::NONCEBYTES];
+/// Private Key bytes array
+pub type SecKey = [u8; box_::SECRETKEYBYTES];
+/// Public Key bytes array
+pub type PubKey = [u8; box_::PUBLICKEYBYTES];
+/// Nonce bytes
+pub type Nonce = [u8; box_::NONCEBYTES];
 
 /// Get the public signing key of the app.
 #[no_mangle]
