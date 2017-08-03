@@ -1,5 +1,13 @@
 # Safe Core - Change Log
 
+## [0.25.0]
+- Add new functions for operations recovery in the `safe_core::recovery` module (e.g. if a `mutate_mdata_entries` operation is failed with the `InvalidSuccessor` error, it will be retried with an increased version)
+- Add new testing features to mock-routing (allowing to override certain requests with predefined responses)
+- Improve the NFS test coverage
+- Update to use Rust Stable 1.19.0 / Nightly 2017-07-20, clippy 0.0.144, and rustfmt 0.9.0
+- Update `routing` to 0.32.0 to include more descriptive MutableData errors
+- Update other dependencies
+
 ## [0.24.0]
 - Use asynchronous I/O and futures for interfacing with Routing
 - Deprecate and remove StructuredData and AppendableData types
