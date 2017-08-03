@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.25.1]
+- Update routing to 0.32.2
+
 ## [0.25.0]
 - Add new functions for operations recovery in the `safe_core::recovery` module (e.g. if a `mutate_mdata_entries` operation is failed with the `InvalidSuccessor` error, it will be retried with an increased version)
 - Add new testing features to mock-routing (allowing to override certain requests with predefined responses)

@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.2.1]
+- Update routing to 0.32.2
+
 ## [0.2.0]
 - Implement operation recovery for account creation, app authentication, and app revocation
 - Change naming to be consistent (several functions prefixed with `authenticator_*` has been renamed to use the `auth_*` prefix instead)

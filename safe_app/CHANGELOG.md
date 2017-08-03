@@ -1,5 +1,8 @@
 # SAFE App
 
+## [0.2.1]
+- Update routing to 0.32.2
+
 ## [0.2.0]
 - Add new FFI function to get the account info from the network (a number of available/used mutations)
 - Improve the NFS test coverage
