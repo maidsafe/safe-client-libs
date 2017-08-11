@@ -1805,7 +1805,7 @@ fn count_mdata_entries(authenticator: &Authenticator, info: MDataInfo) -> usize 
     })
 }
 
-fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<String, AuthError> {
+fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
     let app_id = app_id.to_string();
 
     try_run(authenticator, move |client| {

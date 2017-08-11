@@ -434,7 +434,7 @@ pub unsafe extern "C" fn auth_revoke_app(
 
         (*auth).send(move |client| {
             revoke_app(client, &app_id)
-                .and_then(move |app_id| {
+                .and_then(move |_| {
                     let resp =
                         encode_response(&IpcMsg::Revoked { app_id: app_id.clone() }, &app_id)?;
                     o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());

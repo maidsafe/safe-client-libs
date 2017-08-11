@@ -18,8 +18,7 @@
 use super::{AccessContainerEntry, AuthError, AuthFuture};
 use access_container::{access_container, access_container_entry, access_container_key,
                        delete_access_container_entry};
-use config;
-use config::AppInfo;
+use config::{self, AppInfo, RevocationQueue};
 use futures::Future;
 use futures::future::{self, Either, Loop};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -32,75 +31,62 @@ use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
 use std::collections::HashMap;
 
 /// Revokes app access using a revocation queue
-pub fn revoke_app(client: &Client<()>, app_id: &str) -> Box<AuthFuture<String>> {
+pub fn revoke_app(client: &Client<()>, app_id: &str) -> Box<AuthFuture<()>> {
     let app_id = app_id.to_string();
     let client = client.clone();
+    let c2 = client.clone();
 
-    // 1. Get the topmost queue item which contains an app ID
-    //    (or use the provided app_id if it's empty)
-    // 2. Revoke a single app from the queue
-    // 3. Remove the app_id from the queue, start over with step 1 if the queue is not empty
-    future::loop_fn(app_id, move |app_id| {
-        let c2 = client.clone();
-        let c3 = client.clone();
-        let c4 = client.clone();
-        let c5 = client.clone();
-        let app_id2 = app_id.clone();
-
-        config::get_revocation_queue(&c2)
-            .and_then(move |res| {
-                let (_version, queue) = res.unwrap_or_else(|| (0, Default::default()));
-                let current_item = queue.front().cloned().unwrap_or_else(|| app_id.clone());
-                let fut = if !queue.contains(&app_id) {
-                    config::push_to_revocation_queue(&c3, app_id)
-                } else {
-                    // The queue already contains this app, do nothing
-                    ok!(())
-                };
-                fut.map(move |_| current_item)
-            })
-            .and_then(move |app_id| revoke_single_app(&c4, &app_id))
-            .and_then(move |_| config::pop_from_revocation_queue(&c5))
-            .and_then(move |opt_queue| {
-                let (app_id, queue) = opt_queue.ok_or_else(|| {
-                    AuthError::from(
-                        "No revocation queue \
-                                                     found in the config file",
-                    )
-                })?;
-
-                if let Some(next_app_id) = queue.front().cloned() {
-                    Ok(Loop::Continue(next_app_id))
-                } else {
-                    Ok(Loop::Break(app_id.unwrap_or(app_id2)))
-                }
-            })
-    }).into_box()
-
+    config::get_app_revocation_queue(&client)
+        .and_then(move |(version, queue)| {
+            config::push_to_app_revocation_queue(
+                &client,
+                queue,
+                config::next_version(version),
+                app_id,
+            )
+        })
+        .and_then(move |(version, queue)| {
+            flush_app_revocation_queue_impl(&c2, queue, version + 1)
+        })
+        .into_box()
 }
 
 /// Revoke all apps currently in the revocation queue.
 pub fn flush_app_revocation_queue(client: &Client<()>) -> Box<AuthFuture<()>> {
     let client = client.clone();
 
-    future::loop_fn((), move |_| {
+    config::get_app_revocation_queue(&client)
+        .and_then(move |(version, queue)| if let Some(version) = version {
+            flush_app_revocation_queue_impl(&client, queue, version + 1)
+        } else {
+            future::ok(()).into_box()
+        })
+        .into_box()
+}
+
+fn flush_app_revocation_queue_impl(
+    client: &Client<()>,
+    queue: RevocationQueue,
+    version: u64,
+) -> Box<AuthFuture<()>> {
+    let client = client.clone();
+
+    future::loop_fn((queue, version), move |(queue, version)| {
         let c2 = client.clone();
         let c3 = client.clone();
 
-        config::get_revocation_queue(&client)
-            .map(|queue| {
-                queue.map(|(_, queue)| queue).unwrap_or_else(
-                    Default::default,
-                )
-            })
-            .and_then(move |queue| if let Some(app_id) = queue.front().cloned() {
-                let f = revoke_single_app(&c2, &app_id)
-                    .and_then(move |_| config::pop_from_revocation_queue(&c3))
-                    .and_then(move |_| Ok(Loop::Continue(())));
-                Either::A(f)
-            } else {
-                Either::B(future::ok(Loop::Break(())))
-            })
+        if let Some(app_id) = queue.front().cloned() {
+            let f = revoke_single_app(&c2, &app_id)
+                .and_then(move |_| {
+                    config::remove_from_app_revocation_queue(&c3, queue, version, app_id)
+                })
+                .and_then(move |(version, queue)| {
+                    Ok(Loop::Continue((queue, version + 1)))
+                });
+            Either::A(f)
+        } else {
+            Either::B(future::ok(Loop::Break(())))
+        }
     }).into_box()
 }
 

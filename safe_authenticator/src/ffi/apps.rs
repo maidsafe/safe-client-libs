@@ -32,7 +32,6 @@ use safe_core::ipc::req::ffi::{self, ContainerPermissions};
 use safe_core::utils::symmetric_decrypt;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
-use tiny_keccak::sha3_256;
 
 /// Application registered in the authenticator
 #[repr(C)]
@@ -74,7 +73,7 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         let app_id = from_c_str(app_id)?;
         let app_id2 = app_id.clone();
-        let app_id_hash = sha3_256(app_id.clone().as_bytes());
+        let app_id3 = app_id.clone();
 
         (*auth).send(move |client| {
             let c2 = client.clone();
@@ -82,27 +81,20 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
             let c4 = client.clone();
 
             config::list_apps(client)
-                .and_then(move |(cfg_version, auth_cfg)| {
-                    app_state(&c2, &auth_cfg, app_id).map(move |app_state| {
-                        (app_state, auth_cfg, cfg_version)
+                .and_then(move |(apps_version, apps)| {
+                    app_state(&c2, &apps, app_id).map(move |app_state| {
+                        (app_state, apps, apps_version)
                     })
                 })
-                .and_then(move |(app_state, auth_cfg, cfg_version)| match app_state {
-                    AppState::Revoked => Ok((auth_cfg, cfg_version)),
+                .and_then(move |(app_state, apps, apps_version)| match app_state {
+                    AppState::Revoked => Ok((apps, apps_version)),
                     AppState::Authenticated => Err(AuthError::from("App is not revoked")),
                     AppState::NotAuthenticated => Err(AuthError::IpcError(IpcError::UnknownApp)),
                 })
-                .and_then(move |(mut auth_cfg, cfg_version)| {
-                    let _app = fry!(auth_cfg.remove(&app_id_hash).ok_or_else(|| {
-                        AuthError::from(
-                            "Logical error: app isn't found in \
-                                                        authenticator config",
-                        )
-                    }));
-
-                    config::update_apps(&c3, &auth_cfg, cfg_version + 1)
+                .and_then(move |(apps, apps_version)| {
+                    config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2)
                 })
-                .and_then(move |_| app_container::remove(c4, &app_id2))
+                .and_then(move |_| app_container::remove(c4, &app_id3))
                 .then(move |res| {
                     call_result_cb!(res, user_data, o_cb);
                     Ok(())
