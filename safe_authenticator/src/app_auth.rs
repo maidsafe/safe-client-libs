@@ -21,7 +21,7 @@ use super::{AuthError, AuthFuture};
 use access_container::{access_container, access_container_entry, put_access_container_entry};
 use app_container;
 use config::{self, AppInfo, Apps};
-use futures::{Future, future};
+use futures::Future;
 use ipc::update_container_perms;
 use routing::ClientError;
 use safe_core::{Client, CoreError, FutureExt, recovery};
@@ -91,13 +91,13 @@ pub fn authenticate(client: &Client<()>, auth_req: AuthReq) -> Box<AuthFuture<Au
 
     config::list_apps(client)
         .join(check_revocation(client, app_id.clone()))
-        .and_then(move |((_, apps), ())| {
+        .and_then(move |((apps_version, apps), ())| {
             app_state(&c2, &apps, app_id.clone())
                 .map(move |app_state| {
-                    (apps, app_state, app_id)
+                    (apps_version, apps, app_state, app_id)
                 })
         })
-        .and_then(move |(mut config, app_state, app_id)| {
+        .and_then(move |(apps_version, mut apps, app_state, app_id)| {
             // Determine an app state. If it's revoked we can reuse existing
             // keys stored in the config. And if it is authorised, we just
             // return the app info from the config.
@@ -109,19 +109,22 @@ pub fn authenticate(client: &Client<()>, auth_req: AuthReq) -> Box<AuthFuture<Au
                         info: auth_req.app,
                         keys: keys,
                     };
-                    config::insert_app(&c3, app.clone())
+                    config::insert_app(
+                        &c3,
+                        apps,
+                        config::next_version(apps_version),
+                        app.clone()
+                    )
                         .map(move |_| (app, app_state))
                         .into_box()
                 }
                 AppState::Authenticated | AppState::Revoked => {
                     let app_entry_name = sha3_256(app_id.as_bytes());
-                    if let Some(app) = config.remove(&app_entry_name) {
+                    if let Some(app) = apps.remove(&app_entry_name) {
                         ok!((app, app_state))
                     } else {
-                        err!(AuthError::Unexpected(
-                            "Logical error - couldn't \
-                                                                    find a revoked app in config"
-                                .to_owned(),
+                        err!(AuthError::from(
+                            "Logical error - couldn't find a revoked app in config"
                         ))
                     }
                 }
@@ -244,18 +247,13 @@ fn authenticate_new_app(
 }
 
 fn check_revocation(client: &Client<()>, app_id: String) -> Box<AuthFuture<()>> {
-    config::get_revocation_queue(client)
-        .map(|queue| if let Some((_, queue)) = queue {
-            queue
-        } else {
-            Default::default()
-        })
-        .and_then(move |queue| if queue.contains(&app_id) {
-            future::err(AuthError::from(
+    config::get_app_revocation_queue(client)
+        .and_then(move |(_, queue)| if queue.contains(&app_id) {
+            Err(AuthError::from(
                 "Couldn't authenticate app that is pending revocation",
             ))
         } else {
-            future::ok(())
+            Ok(())
         })
         .into_box()
 }

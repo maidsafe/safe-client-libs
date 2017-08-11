@@ -17,10 +17,10 @@
 
 use super::{AuthError, AuthFuture};
 use futures::Future;
-use futures::future::{self, Either};
+use futures::future::{self, Either, Loop};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{ClientError, EntryActions};
-use safe_core::{Client, CoreError, FutureExt, recovery};
+use routing::{ClientError, EntryActions, EntryError};
+use safe_core::{Client, CoreError, FutureExt};
 use safe_core::ipc::IpcError;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::AppKeys;
@@ -28,8 +28,6 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::{HashMap, VecDeque};
 use tiny_keccak::sha3_256;
-
-// TODO: remove the `allow(unused)` attributes.
 
 /// App data stored in the authenticator configuration.
 ///
@@ -53,7 +51,7 @@ pub const KEY_APPS: &'static [u8] = b"apps";
 pub const KEY_ACCESS_CONTAINER: &'static [u8] = b"access-container";
 
 /// Config file key under which the revocation queue is stored.
-pub const KEY_REVOCATION_QUEUE: &'static [u8] = b"revocation-queue";
+pub const KEY_APP_REVOCATION_QUEUE: &'static [u8] = b"revocation-queue";
 
 /// Maps from a SHA-3 hash of an app ID to app info
 pub type Apps = HashMap<[u8; 32], AppInfo>;
@@ -61,8 +59,13 @@ pub type Apps = HashMap<[u8; 32], AppInfo>;
 /// String refers to `app_id`.
 pub type RevocationQueue = VecDeque<String>;
 
+/// Bump the current version to obtain new version.
+pub fn next_version(version: Option<u64>) -> u64 {
+    version.map(|v| v + 1).unwrap_or(0)
+}
+
 /// Retrieves apps registered with the authenticator
-pub fn list_apps(client: &Client<()>) -> Box<AuthFuture<(u64, Apps)>> {
+pub fn list_apps(client: &Client<()>) -> Box<AuthFuture<(Option<u64>, Apps)>> {
     get_entry(client, KEY_APPS)
 }
 
@@ -78,87 +81,88 @@ pub fn get_app(client: &Client<()>, app_id: &str) -> Box<AuthFuture<AppInfo>> {
         .into_box()
 }
 
-/// Updates the list of apps registered with authenticator.
-pub fn update_apps(client: &Client<()>, apps: &Apps, version: u64) -> Box<AuthFuture<()>> {
-    update_entry(client, KEY_APPS, apps, version)
-}
-
 /// Register the given app with authenticator.
-pub fn insert_app(client: &Client<()>, app: AppInfo) -> Box<AuthFuture<()>> {
-    let c2 = client.clone();
-
-    list_apps(client)
-        .and_then(move |(version, mut apps)| {
-            // Add app info to the authenticator config
-            let hash = sha3_256(app.info.id.as_bytes());
-            let _ = apps.insert(hash, app);
-            update_apps(&c2, &apps, version + 1)
-        })
-        .into_box()
-}
-
-
-/// Push a new operation to the revocation queue.
-pub fn push_to_revocation_queue(client: &Client<()>, app_id: String) -> Box<AuthFuture<()>> {
-    let client = client.clone();
-    get_revocation_queue(&client)
-        .and_then(move |res| {
-            let (version, mut queue) = res.map(|(version, queue)| (version + 1, queue))
-                .unwrap_or_else(|| (0, Default::default()));
-            queue.push_back(app_id);
-            update_revocation_queue(&client, &queue, version)
-        })
-        .into_box()
-}
-
-/// Pop from the revocation queue.
-/// Returns the removed entry & the revocation queue with the removed entry in a tuple.
-/// If there are no entries left in the queue, returns just `None` along with the revocation queue.
-/// If no revocation queue is found in the config, returns `None`
-#[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
-pub fn pop_from_revocation_queue(
+pub fn insert_app(
     client: &Client<()>,
-) -> Box<AuthFuture<Option<(Option<String>, RevocationQueue)>>> {
+    apps: Apps,
+    new_version: u64,
+    app: AppInfo,
+) -> Box<AuthFuture<(u64, Apps)>> {
     let client = client.clone();
-    get_revocation_queue(&client)
-        .and_then(move |res| if let Some((version, mut queue)) = res {
-            let op = queue.pop_front();
-            Either::B(update_revocation_queue(&client, &queue, version + 1).map(
-                move |_| Some((op, queue)),
-            ))
-        } else {
-            return Either::A(future::ok(None));
-        })
-        .into_box()
+    let hash = sha3_256(app.info.id.as_bytes());
+
+    mutate_entry(&client, KEY_APPS, apps, new_version, move |apps| {
+        apps.insert(hash, app.clone()).is_none()
+    })
+}
+
+/// Remove the given app from the list of registered apps.
+pub fn remove_app(
+    client: &Client<()>,
+    apps: Apps,
+    new_version: u64,
+    app_id: &str,
+) -> Box<AuthFuture<(u64, Apps)>> {
+    let hash = sha3_256(app_id.as_bytes());
+    mutate_entry(client, KEY_APPS, apps, new_version, move |apps| {
+        apps.remove(&hash).is_some()
+    })
 }
 
 /// Get authenticator's revocation queue.
 /// Returns version and the revocation queue in a tuple.
 /// If the queue is not found on the config file, returns `None`.
-pub fn get_revocation_queue(
+pub fn get_app_revocation_queue(
     client: &Client<()>,
-) -> Box<AuthFuture<Option<(u64, RevocationQueue)>>> {
-    get_entry(client, KEY_REVOCATION_QUEUE)
-        .then(move |res| match res {
-            Ok(value) => ok!(Some(value)),
-            Err(AuthError::CoreError(CoreError::RoutingClientError(ClientError::NoSuchEntry))) => {
-                ok!(None)
-            }
-            Err(error) => return err!(error),
-        })
-        .into_box()
+) -> Box<AuthFuture<(Option<u64>, RevocationQueue)>> {
+    get_entry(client, KEY_APP_REVOCATION_QUEUE)
 }
 
-/// Update authenticator's operation queue.
-pub fn update_revocation_queue(
+/// Push new `app_id` into the revocation queue and put it onto the network.
+/// Does nothing if the queue already contains `app_id`.
+pub fn push_to_app_revocation_queue(
     client: &Client<()>,
-    queue: &RevocationQueue,
-    version: u64,
-) -> Box<AuthFuture<()>> {
-    update_entry(client, KEY_REVOCATION_QUEUE, queue, version)
+    queue: RevocationQueue,
+    new_version: u64,
+    app_id: String,
+) -> Box<AuthFuture<(u64, RevocationQueue)>> {
+    mutate_entry(
+        client,
+        KEY_APP_REVOCATION_QUEUE,
+        queue,
+        new_version,
+        move |queue| if !queue.contains(&app_id) {
+            queue.push_back(app_id.clone());
+            true
+        } else {
+            false
+        },
+    )
 }
 
-fn get_entry<T>(client: &Client<()>, key: &[u8]) -> Box<AuthFuture<(u64, T)>>
+/// Remove `app_id` from the revocation queue.
+/// Does nothing if the queue doesn't contain `app_id`.
+pub fn remove_from_app_revocation_queue(
+    client: &Client<()>,
+    queue: RevocationQueue,
+    new_version: u64,
+    app_id: String,
+) -> Box<AuthFuture<(u64, RevocationQueue)>> {
+    mutate_entry(
+        client,
+        KEY_APP_REVOCATION_QUEUE,
+        queue,
+        new_version,
+        move |queue| if let Some(index) = queue.iter().position(|item| *item == app_id) {
+            let _ = queue.remove(index);
+            true
+        } else {
+            false
+        },
+    )
+}
+
+fn get_entry<T>(client: &Client<()>, key: &[u8]) -> Box<AuthFuture<(Option<u64>, T)>>
 where
     T: Default + DeserializeOwned + Serialize + 'static,
 {
@@ -175,9 +179,14 @@ where
                 Default::default()
             };
 
-            Ok((value.entry_version, decoded))
+            Ok((Some(value.entry_version), decoded))
         })
-        .map_err(From::from)
+        .or_else(|error| match error {
+            CoreError::RoutingClientError(ClientError::NoSuchEntry) => Ok(
+                (None, Default::default()),
+            ),
+            _ => Err(AuthError::from(error)),
+        })
         .into_box()
 }
 
@@ -185,7 +194,7 @@ fn update_entry<T>(
     client: &Client<()>,
     key: &[u8],
     content: &T,
-    version: u64,
+    new_version: u64,
 ) -> Box<AuthFuture<()>>
 where
     T: Serialize,
@@ -196,13 +205,74 @@ where
     let encoded = fry!(serialise(content));
     let encoded = fry!(parent.enc_entry_value(&encoded));
 
-    let actions = if version == 0 {
-        EntryActions::new().ins(key, encoded, 0)
+    let actions = if new_version == 0 {
+        EntryActions::new().ins(key.clone(), encoded, 0)
     } else {
-        EntryActions::new().update(key, encoded, version)
+        EntryActions::new().update(key.clone(), encoded, new_version)
     };
 
-    recovery::mutate_mdata_entries(client, parent.name, parent.type_tag, actions.into())
+    client
+        .mutate_mdata_entries(parent.name, parent.type_tag, actions.into())
+        .or_else(move |error| {
+            // As we are mutating only one entry, let's make the common error
+            // more convenient to handle.
+            if let CoreError::RoutingClientError(ClientError::InvalidEntryActions(ref errors)) =
+                error
+            {
+                if let Some(error) = errors.get(&key) {
+                    if let EntryError::InvalidSuccessor(version) = *error {
+                        return Err(CoreError::RoutingClientError(
+                            ClientError::InvalidSuccessor(version),
+                        ));
+                    }
+                }
+            }
+
+            Err(error)
+        })
         .map_err(From::from)
         .into_box()
+}
+
+/// Atomically mutate the given value and store it in the network.
+fn mutate_entry<T, F>(
+    client: &Client<()>,
+    key: &[u8],
+    item: T,
+    new_version: u64,
+    f: F,
+) -> Box<AuthFuture<(u64, T)>>
+where
+    T: Default + DeserializeOwned + Serialize + 'static,
+    F: Fn(&mut T) -> bool + 'static,
+{
+    let client = client.clone();
+    let key = key.to_vec();
+
+    future::loop_fn((key, new_version, item), move |(key,
+           new_version,
+           mut item)| {
+        let c2 = client.clone();
+        let c3 = client.clone();
+
+        if f(&mut item) {
+            let f = update_entry(&c2, &key, &item, new_version)
+                .map(move |_| Loop::Break((new_version, item)))
+                .or_else(move |error| match error {
+                    AuthError::CoreError(
+                        CoreError::RoutingClientError(ClientError::InvalidSuccessor(_))
+                    ) => {
+                        let f = get_entry(&c3, &key)
+                            .map(move |(version, item)| {
+                                Loop::Continue((key, next_version(version), item))
+                            });
+                        Either::A(f)
+                    }
+                    _ => Either::B(future::err(error)),
+                });
+            Either::A(f)
+        } else {
+            Either::B(future::ok(Loop::Break((new_version - 1, item))))
+        }
+    }).into_box()
 }
