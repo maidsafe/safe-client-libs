@@ -28,11 +28,18 @@ use safe_core::MDataInfo;
 use std::os::raw::c_void;
 use std::slice;
 
+/// Array containing private key bytes
+pub type SecretKey = [u8; secretbox::KEYBYTES];
+/// Array containing nonce bytes
+pub type Nonce = [u8; secretbox::NONCEBYTES];
+/// Xor Name bytes
+pub type XorNameArray = [u8; XOR_NAME_LEN];
+
 /// Create non-encrypted mdata info with explicit data name.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_new_public(
     app: *const App,
-    name: *const [u8; XOR_NAME_LEN],
+    name: *const XorNameArray,
     type_tag: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(*mut c_void, FfiResult, MDataInfoHandle),
@@ -52,10 +59,10 @@ pub unsafe extern "C" fn mdata_info_new_public(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_new_private(
     app: *const App,
-    name: *const [u8; XOR_NAME_LEN],
+    name: *const XorNameArray,
     type_tag: u64,
-    secret_key: *const [u8; secretbox::KEYBYTES],
-    nonce: *const [u8; secretbox::NONCEBYTES],
+    secret_key: *const SecretKey,
+    nonce: *const Nonce,
     user_data: *mut c_void,
     o_cb: extern "C" fn(*mut c_void, FfiResult, MDataInfoHandle),
 ) {
@@ -218,7 +225,7 @@ pub unsafe extern "C" fn mdata_info_extract_name_and_type_tag(
     app: *const App,
     info_h: MDataInfoHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult, *const [u8; XOR_NAME_LEN], u64),
+    o_cb: extern "C" fn(*mut c_void, FfiResult, *const XorNameArray, u64),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
