@@ -1,61 +1,129 @@
 env:
   global:
-    - Features="use-mock-routing testing"
+    - FEATURES=use-mock-routing,testing
     - RUST_BACKTRACE=1
     - PATH=$PATH:$HOME/.cargo/bin
     - SAFE_MEMORY_STORE=1
-os:
-  - linux
-  - osx
 language: rust
-rust:
-  - 1.19.0
-  - nightly-2017-07-20
+matrix:
+  include:
+    - os: linux
+      rust: 1.19.0
+    - os: linux
+      rust: 1.19.0-i686-unknown-linux-gnu
+      addons:
+        apt:
+          packages:
+            - gcc-multilib
+    - os: linux
+      rust: nightly-2017-07-20
+    - os: osx
+      rust: 1.19.0
 sudo: false
 cache:
   cargo: true
-
 before_script:
+  # Expected version change PR title format:
+  # Version change: safe_app to 0.2.2; safe_authenticator to 0.2.3; safe_core to 0.26.0;
+  - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) ]]; then
+      SAFE_AUTHENTICATOR_VERSION=v$(cargo pkgid --manifest-path=safe_authenticator/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
+      if [[ "v${BASH_REMATCH[1]}" != $SAFE_AUTHENTICATOR_VERSION ]]; then
+        echo "Version mismatch between commit message and Cargo.toml for safe_authenticator.";
+        false;
+      fi;
+    else
+      SAFE_AUTHENTICATOR_VERSION=${TRAVIS_COMMIT:0:7};
+    fi
+  - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
+      SAFE_APP_VERSION=v$(cargo pkgid --manifest-path=safe_app/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
+      if [[ "v${BASH_REMATCH[1]}" != $SAFE_APP_VERSION ]]; then
+        echo "Version mismatch between commit message and Cargo.toml for safe_app.";
+        false;
+      fi;
+    else
+      SAFE_APP_VERSION=${TRAVIS_COMMIT:0:7};
+    fi
   - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
   - bash cargo_install.sh cargo-prune;
-  - if [ "${TRAVIS_RUST_VERSION}" = 1.19.0 ]; then
+  - if [[ "$TRAVIS_RUST_VERSION" == 1.19.0 ]]; then
       bash cargo_install.sh rustfmt 0.9.0;
-    elif [ "${TRAVIS_OS_NAME}" = linux ]; then
+    elif [[ "$TRAVIS_RUST_VERSION" =~ nightly ]]; then
       bash cargo_install.sh clippy 0.0.144;
     fi
 script:
-  - if [ "${TRAVIS_RUST_VERSION}" = 1.19.0 ]; then
-        (
-            set -x;
-            echo "--- Check format ---" &&
-            cargo fmt --all -- --write-mode=diff &&
-            echo "--- Test ffi_utils ---" &&
-            cd ffi_utils &&
-            cargo test  --verbose --release &&
-            echo "--- Check compilation against actual routing ---" &&
-            cd ../safe_core &&
-            cargo check --verbose --release &&
-            cargo check --verbose --features testing --release --lib --tests &&
-            cd ../safe_authenticator &&
-            cargo check --verbose --features testing --release --lib --tests &&
-            cd ../safe_app &&
-            cargo check --verbose --features testing --release --lib --tests &&
-            echo "--- Test against mock ---" &&
-            cd ../safe_core &&
-            cargo test --verbose --release --features "$Features" &&
-            cd ../safe_authenticator &&
-            cargo test --verbose --release --features "$Features" &&
-            cd ../safe_app &&
-            cargo test --verbose --release --features "$Features";
-        );
-    elif [ "${TRAVIS_OS_NAME}" = linux ]; then
-        (
-            set -x;
-            cd ffi_utils && unset Features && cargo clippy && cargo clippy --profile=test && export Features="use-mock-routing testing" &&
-            cd ../safe_core && cargo clippy && cargo clippy --profile=test --features="$Features" &&
-            cd ../safe_authenticator && cargo clippy --profile=test --features="$Features" &&
-            cd ../safe_app && cargo clippy --profile=test --features="$Features";
-        )
+  - if [[ "$TRAVIS_RUST_VERSION" =~ 1.19.0 ]]; then
+      (
+        set -x;
+        if [[ "$TRAVIS_RUST_VERSION" == 1.19.0 ]]; then
+          echo "--- Check format ---" &&
+          cargo fmt --all -- --write-mode=diff;
+        fi &&
+        echo "--- Test ffi_utils ---" &&
+        cargo test --verbose --release --manifest-path=ffi_utils/Cargo.toml &&
+        echo "--- Check compilation against actual routing ---" &&
+        cargo check --verbose --release --manifest-path=safe_core/Cargo.toml &&
+        cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
+        cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
+        cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
+        echo "--- Test against mock ---" &&
+        cargo test --verbose --release --features=$FEATURES --manifest-path=safe_core/Cargo.toml &&
+        cargo test --verbose --release --features=$FEATURES --manifest-path=safe_authenticator/Cargo.toml &&
+        cargo test --verbose --release --features=$FEATURES --manifest-path=safe_app/Cargo.toml;
+      );
+    else
+      (
+        set -x;
+        cd ffi_utils && cargo clippy && cargo clippy --profile=test &&
+        cd ../safe_core && cargo clippy && cargo clippy --profile=test --features=$FEATURES &&
+        cd ../safe_authenticator && cargo clippy --profile=test --features=$FEATURES &&
+        cd ../safe_app && cargo clippy --profile=test --features=$FEATURES;
+      )
+    fi
+after_script:
+  - if [[ -n $(git diff --shortstat 2> /dev/null | tail -n1) ]]; then
+      echo "Working tree is dirty after building.  Probably Cargo.lock should be updated.";
+      git status;
+      travis_terminate 1;
     fi
 before_cache:
   - cargo prune
+before_deploy:
+  - mkdir -p target/deploy
+  - if [[ "$TRAVIS_RUST_VERSION" =~ i686 ]]; then
+      ARCH=x86;
+    else
+      ARCH=x64;
+    fi
+  # We need to use `-x` on OS X since `strip` fails to remove global symbols from release builds on OS X.
+  - if [[ "$TRAVIS_OS_NAME" = linux ]]; then
+      SUFFIX=so;
+    else
+      SUFFIX=dylib STRIP_ARG=-x;
+    fi
+  # Build for mock.
+  - cargo build --verbose --release --features=$FEATURES --manifest-path=safe_authenticator/Cargo.toml
+  - cargo build --verbose --release --features=$FEATURES --manifest-path=safe_app/Cargo.toml
+  - strip $STRIP_ARG target/release/libsafe_authenticator.$SUFFIX target/release/libsafe_app.$SUFFIX
+  - zip target/deploy/safe_authenticator-mock-$SAFE_AUTHENTICATOR_VERSION-$TRAVIS_OS_NAME-$ARCH.zip target/release/libsafe_authenticator.$SUFFIX
+  - zip target/deploy/safe_app-mock-$SAFE_APP_VERSION-$TRAVIS_OS_NAME-$ARCH.zip target/release/libsafe_app.$SUFFIX
+  # Build for production.
+  - cargo build --verbose --release --manifest-path=safe_authenticator/Cargo.toml
+  - cargo build --verbose --release --manifest-path=safe_app/Cargo.toml
+  - strip $STRIP_ARG target/release/libsafe_authenticator.$SUFFIX target/release/libsafe_app.$SUFFIX
+  - zip target/deploy/safe_authenticator-$SAFE_AUTHENTICATOR_VERSION-$TRAVIS_OS_NAME-$ARCH.zip target/release/libsafe_authenticator.$SUFFIX
+  - zip target/deploy/safe_app-$SAFE_APP_VERSION-$TRAVIS_OS_NAME-$ARCH.zip target/release/libsafe_app.$SUFFIX
+deploy:
+  provider: s3
+  access_key_id: AKIAIA2TXTG7EV5VIG2Q
+  secret_access_key:
+    secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+  bucket: safe-client-libs
+  local-dir: target/deploy
+  acl: public_read
+  region: eu-west-2
+  skip_cleanup: true
+  on:
+    branch: master
+    tags: false
+    condition: $TRAVIS_RUST_VERSION =~ 1.19.0 && $TRAVIS_EVENT_TYPE = push
+after_deploy: rm -rf target/deploy

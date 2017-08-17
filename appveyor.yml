@@ -24,16 +24,77 @@ platform:
 configuration:
   - Release
 
+skip_tags: true
+
+before_build:
+  - ps: |
+        $COMMIT_MESSAGE = "$env:APPVEYOR_REPO_COMMIT_MESSAGE $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED"
+        if ($COMMIT_MESSAGE -match "[Vv]ersion change.*safe_authenticator to ([^;]+)") {
+          $COMMIT_MESSAGE_VERSION = "v" + $Matches[1]
+          $env:SAFE_AUTHENTICATOR_VERSION = (cargo pkgid --manifest-path=safe_authenticator/Cargo.toml) -Replace '.*[:#](.*)', 'v$1'
+          if ($COMMIT_MESSAGE_VERSION -ne $env:SAFE_AUTHENTICATOR_VERSION) {
+            Write-Error "Version mismatch between commit message and Cargo.toml for safe_authenticator."
+            exit 1
+          }
+        } else {
+          $env:SAFE_AUTHENTICATOR_VERSION = $env:APPVEYOR_REPO_COMMIT.Substring(0,7)
+        }
+        if ($COMMIT_MESSAGE -match "[Vv]ersion change.*safe_app to ([^;]+)") {
+          $COMMIT_MESSAGE_VERSION = "v" + $Matches[1]
+          $env:SAFE_APP_VERSION = (cargo pkgid --manifest-path=safe_app/Cargo.toml) -Replace '.*[:#](.*)', 'v$1'
+          if ($COMMIT_MESSAGE_VERSION -ne $env:SAFE_APP_VERSION) {
+            Write-Error "Version mismatch between commit message and Cargo.toml for safe_app."
+            exit 1
+          }
+        } else {
+          $env:SAFE_APP_VERSION = $env:APPVEYOR_REPO_COMMIT.Substring(0,7)
+        }
+
 build_script:
   - |-
-    cd ffi_utils && cargo check --verbose --release --lib --tests
-    cd ..\safe_core && cargo check --verbose --release --features testing --lib --tests
-    cd ..\safe_app && cargo check --verbose --release --features testing --lib --tests
-    cd ..\safe_authenticator && cargo check --verbose --features testing --release --lib --tests
+    cargo check --verbose --release --lib --tests --manifest-path=ffi_utils/Cargo.toml
+    cargo check --verbose --release --features testing --lib --tests --manifest-path=safe_core/Cargo.toml
+    cargo check --verbose --features testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml
+    cargo check --verbose --release --features testing --lib --tests --manifest-path=safe_app/Cargo.toml
+
+after_build:
+  - ps: |
+        if (git diff --shortstat) {
+          Write-Error "Working tree is dirty after building.  Probably Cargo.lock should be updated."
+          git status
+          exit 1
+        }
 
 test_script:
   - |-
-    cd ..\ffi_utils && cargo test --verbose --release
-    cd ..\safe_core && cargo test --verbose --release --features "use-mock-routing testing"
-    cd ..\safe_app && cargo test --verbose --release --features "use-mock-routing testing"
-    cd ..\safe_authenticator && cargo test --verbose --release --features "use-mock-routing testing"
+    cargo test --verbose --release --manifest-path=ffi_utils/Cargo.toml
+    cargo test --verbose --release --features=use-mock-routing,testing --manifest-path=safe_core/Cargo.toml
+    cargo test --verbose --release --features=use-mock-routing,testing --manifest-path=safe_authenticator/Cargo.toml
+    cargo test --verbose --release --features=use-mock-routing,testing --manifest-path=safe_app/Cargo.toml
+
+before_deploy:
+  - cargo build --verbose --release --features=use-mock-routing,testing --manifest-path=safe_authenticator/Cargo.toml
+  - cargo build --verbose --release --features=use-mock-routing,testing --manifest-path=safe_app/Cargo.toml
+  - strip target\release\safe_authenticator.dll target\release\safe_app.dll
+  - ps: |
+        Push-AppveyorArtifact target\release\safe_authenticator.dll -FileName safe_authenticator-mock-$env:SAFE_AUTHENTICATOR_VERSION-win-$env:PLATFORM.zip
+        Push-AppveyorArtifact target\release\safe_app.dll -FileName safe_app-mock-$env:SAFE_APP_VERSION-win-$env:PLATFORM.zip
+  - cargo build --verbose --release --manifest-path=safe_authenticator/Cargo.toml
+  - cargo build --verbose --release --manifest-path=safe_app/Cargo.toml
+  - strip target\release\safe_authenticator.dll target\release\safe_app.dll
+  - ps: |
+        Push-AppveyorArtifact target\release\safe_authenticator.dll -FileName safe_authenticator-$env:SAFE_AUTHENTICATOR_VERSION-win-$env:PLATFORM.zip
+        Push-AppveyorArtifact target\release\safe_app.dll -FileName safe_app-$env:SAFE_APP_VERSION-win-$env:PLATFORM.zip
+
+deploy:
+  provider: S3
+  access_key_id: AKIAIA2TXTG7EV5VIG2Q
+  secret_access_key:
+    secure: bj+Mv0HEJazcY+q3Lt16Ui/PjJwTO8GNRAmsZeOO4GYG2LJyhCqpNja1zrs0LHcv
+  bucket: safe-client-libs
+  region: eu-west-2
+  set_public: true
+  artifact: /.*\.zip/
+  on:
+    branch: master
+    RUST_TOOLCHAIN: 1.19.0
