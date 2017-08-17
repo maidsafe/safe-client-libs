@@ -1,12 +1,16 @@
 env:
   global:
-    - Features="use-mock-routing testing"
+    - FEATURES=use-mock-routing,testing
     - RUST_BACKTRACE=1
     - PATH=$PATH:$HOME/.cargo/bin
     - SAFE_MEMORY_STORE=1
 os:
   - linux
   - osx
+addons:
+  apt:
+    packages:
+      - gcc-multilib
 language: rust
 rust:
   - 1.19.0
@@ -14,7 +18,6 @@ rust:
 sudo: false
 cache:
   cargo: true
-
 before_script:
   - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
   - bash cargo_install.sh cargo-prune;
@@ -25,37 +28,94 @@ before_script:
     fi
 script:
   - if [ "${TRAVIS_RUST_VERSION}" = 1.19.0 ]; then
-        (
-            set -x;
-            echo "--- Check format ---" &&
-            cargo fmt --all -- --write-mode=diff &&
-            echo "--- Test ffi_utils ---" &&
-            cd ffi_utils &&
-            cargo test  --verbose --release &&
-            echo "--- Check compilation against actual routing ---" &&
-            cd ../safe_core &&
-            cargo check --verbose --release &&
-            cargo check --verbose --features testing --release --lib --tests &&
-            cd ../safe_authenticator &&
-            cargo check --verbose --features testing --release --lib --tests &&
-            cd ../safe_app &&
-            cargo check --verbose --features testing --release --lib --tests &&
-            echo "--- Test against mock ---" &&
-            cd ../safe_core &&
-            cargo test --verbose --release --features "$Features" &&
-            cd ../safe_authenticator &&
-            cargo test --verbose --release --features "$Features" &&
-            cd ../safe_app &&
-            cargo test --verbose --release --features "$Features";
-        );
+      (
+        set -x;
+        echo "--- Check format ---" &&
+        cargo fmt --all -- --write-mode=diff &&
+        echo "--- Test ffi_utils ---" &&
+        cargo test --verbose --release --manifest-path=ffi_utils/Cargo.toml &&
+        echo "--- Check compilation against actual routing ---" &&
+        cargo check --verbose --release --manifest-path=safe_core/Cargo.toml &&
+        cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
+        cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
+        cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
+        echo "--- Test against mock ---" &&
+        cargo test --verbose --release --features=$FEATURES --manifest-path=safe_core/Cargo.toml &&
+        cargo test --verbose --release --features=$FEATURES --manifest-path=safe_authenticator/Cargo.toml &&
+        cargo test --verbose --release --features=$FEATURES --manifest-path=safe_app/Cargo.toml;
+      );
     elif [ "${TRAVIS_OS_NAME}" = linux ]; then
-        (
-            set -x;
-            cd ffi_utils && unset Features && cargo clippy && cargo clippy --profile=test && export Features="use-mock-routing testing" &&
-            cd ../safe_core && cargo clippy && cargo clippy --profile=test --features="$Features" &&
-            cd ../safe_authenticator && cargo clippy --profile=test --features="$Features" &&
-            cd ../safe_app && cargo clippy --profile=test --features="$Features";
-        )
+      (
+        set -x;
+        cd ffi_utils && cargo clippy && cargo clippy --profile=test &&
+        cd ../safe_core && cargo clippy && cargo clippy --profile=test --features=$FEATURES &&
+        cd ../safe_authenticator && cargo clippy --profile=test --features=$FEATURES &&
+        cd ../safe_app && cargo clippy --profile=test --features=$FEATURES;
+      )
     fi
 before_cache:
   - cargo prune
+# This builds and zips the shared libraries for safe_app and safe_authenticator.  It makes a release
+# build for each, with and without the mock-routing feature, and targets 32-bit Linux, 64-bit Linux,
+# and OS X.  Each shared library is zipped into its own individual file and named appropriately.
+# These artifacts are then deployed to our Amazon S3 `safe-client-libs` bucket, into a folder named
+# with the merge commit SHA.
+before_deploy:
+  - mkdir -p target/deploy
+  - cargo build --verbose --release --features=$FEATURES --manifest-path=safe_app/Cargo.toml
+  - cargo build --verbose --release --features=$FEATURES --manifest-path=safe_authenticator/Cargo.toml
+  - export SAFE_APP_VERSION=v$(cargo pkgid --manifest-path=safe_app/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/")
+  - export SAFE_AUTHENTICATOR_VERSION=v$(cargo pkgid --manifest-path=safe_authenticator/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/")
+  - if [ "${TRAVIS_OS_NAME}" = linux ]; then
+      export SUFFIX=so &&
+      strip target/release/libsafe_app.$SUFFIX target/release/libsafe_authenticator.$SUFFIX
+    else
+      export SUFFIX=dylib
+      # We need to use `-x` here since `strip` fails to strip global symbols from release builds on OS X.
+      strip -x target/release/libsafe_app.$SUFFIX target/release/libsafe_authenticator.$SUFFIX
+    fi
+  - zip target/deploy/safe_app-mock-$SAFE_APP_VERSION-$TRAVIS_OS_NAME-x64.zip target/release/libsafe_app.$SUFFIX
+  - zip target/deploy/safe_authenticator-mock-$SAFE_AUTHENTICATOR_VERSION-$TRAVIS_OS_NAME-x64.zip target/release/libsafe_authenticator.$SUFFIX
+  - cargo build --verbose --release --manifest-path=safe_app/Cargo.toml
+  - cargo build --verbose --release --manifest-path=safe_authenticator/Cargo.toml
+  - if [ "${TRAVIS_OS_NAME}" = linux ]; then
+      strip target/release/libsafe_app.$SUFFIX target/release/libsafe_authenticator.$SUFFIX
+    else
+      strip -x target/release/libsafe_app.$SUFFIX target/release/libsafe_authenticator.$SUFFIX
+    fi
+  - zip target/deploy/safe_app-$SAFE_APP_VERSION-$TRAVIS_OS_NAME-x64.zip target/release/libsafe_app.$SUFFIX
+  - zip target/deploy/safe_authenticator-$SAFE_AUTHENTICATOR_VERSION-$TRAVIS_OS_NAME-x64.zip target/release/libsafe_authenticator.$SUFFIX
+  # Travis only supports 64-bit versions of Linux, so we cross-compile the 32-bit targets here.
+  - if [ "${TRAVIS_OS_NAME}" = linux ]; then
+      (
+        set -x;
+        rustup target add i686-unknown-linux-gnu &&
+        cargo build --verbose --release --features=$FEATURES --manifest-path=safe_app/Cargo.toml --target=i686-unknown-linux-gnu &&
+        cargo build --verbose --release --features=$FEATURES --manifest-path=safe_authenticator/Cargo.toml --target=i686-unknown-linux-gnu &&
+        strip target/i686-unknown-linux-gnu/release/libsafe_app.$SUFFIX target/i686-unknown-linux-gnu/release/libsafe_authenticator.$SUFFIX &&
+        zip target/deploy/safe_app-mock-$SAFE_APP_VERSION-$TRAVIS_OS_NAME-x86.zip target/i686-unknown-linux-gnu/release/libsafe_app.$SUFFIX &&
+        zip target/deploy/safe_authenticator-mock-$SAFE_AUTHENTICATOR_VERSION-$TRAVIS_OS_NAME-x86.zip target/i686-unknown-linux-gnu/release/libsafe_authenticator.$SUFFIX &&
+        cargo build --verbose --release --manifest-path=safe_app/Cargo.toml --target=i686-unknown-linux-gnu &&
+        cargo build --verbose --release --manifest-path=safe_authenticator/Cargo.toml --target=i686-unknown-linux-gnu &&
+        strip target/i686-unknown-linux-gnu/release/libsafe_app.$SUFFIX target/i686-unknown-linux-gnu/release/libsafe_authenticator.$SUFFIX &&
+        zip target/deploy/safe_app-$SAFE_APP_VERSION-$TRAVIS_OS_NAME-x86.zip target/i686-unknown-linux-gnu/release/libsafe_app.$SUFFIX &&
+        zip target/deploy/safe_authenticator-$SAFE_AUTHENTICATOR_VERSION-$TRAVIS_OS_NAME-x86.zip target/i686-unknown-linux-gnu/release/libsafe_authenticator.$SUFFIX;
+      )
+    fi
+deploy:
+  provider: s3
+  access_key_id: AKIAIA2TXTG7EV5VIG2Q
+  secret_access_key:
+    secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+  bucket: safe-client-libs
+  local-dir: target/deploy
+  upload-dir: $TRAVIS_COMMIT
+  acl: public_read
+  region: eu-west-2
+  skip_cleanup: true
+  on:
+    branch: master
+    tags: false
+    condition: "$TRAVIS_EVENT_TYPE = push"
+    rust: 1.19.0
+after_deploy: rm -rf target/deploy
