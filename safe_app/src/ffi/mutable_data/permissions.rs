@@ -21,7 +21,7 @@ use App;
 use errors::AppError;
 use ffi::helper::send_sync;
 use ffi::mutable_data::helper;
-use ffi_utils::{FfiResult, OpaqueCtx, catch_unwind_cb};
+use ffi_utils::{FfiResult, OpaqueCtx, ReprC, catch_unwind_cb};
 use ffi_utils::callback::CallbackArgs;
 use object_cache::{MDataPermissionSetHandle, MDataPermissionsHandle, SignKeyHandle};
 use routing::{Action, PermissionSet, User};
@@ -45,6 +45,7 @@ pub enum MDataAction {
 }
 
 /// State of action in the permission set
+#[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(C)]
 pub enum PermissionValue {
     /// Explicit permission is not set
@@ -314,5 +315,14 @@ fn permission_set_into_permission_value(val: &Option<bool>) -> PermissionValue {
 impl CallbackArgs for PermissionValue {
     fn default() -> Self {
         PermissionValue::NotSet
+    }
+}
+
+impl ReprC for PermissionValue {
+    type C = PermissionValue;
+    type Error = ();
+
+    unsafe fn clone_from_repr_c(c_repr: PermissionValue) -> Result<PermissionValue, ()> {
+        Ok(c_repr)
     }
 }

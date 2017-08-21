@@ -103,6 +103,9 @@ macro_rules! try_tx {
 
 type AppFuture<T> = Future<Item = T, Error = AppError>;
 
+/// Represents an entry for a single app in the access container
+type AccessContainerEntry = HashMap<String, (MDataInfo, BTreeSet<Permission>)>;
+
 /// Handle to an application instance.
 pub struct App {
     core_tx: Mutex<CoreMsgTx<AppContext>>,
@@ -319,7 +322,7 @@ pub struct Registered {
     app_id: String,
     sym_enc_key: secretbox::Key,
     access_container_info: AccessContInfo,
-    access_info: RefCell<HashMap<String, (MDataInfo, BTreeSet<Permission>)>>,
+    access_info: RefCell<AccessContainerEntry>,
 }
 
 impl AppContext {
@@ -360,58 +363,17 @@ impl AppContext {
         refresh_access_info(reg, client)
     }
 
-    /// Fetch a list of container names that this app has access to
-    pub fn get_container_names(
+    /// Fetch a list of containers that this app has access to
+    pub fn get_access_info(
         &self,
         client: &Client<AppContext>,
-    ) -> Box<AppFuture<BTreeSet<String>>> {
+    ) -> Box<AppFuture<AccessContainerEntry>> {
         let reg = fry!(self.as_registered()).clone();
 
         fetch_access_info(reg.clone(), client)
             .map(move |_| {
                 let access_info = reg.access_info.borrow();
-                access_info.keys().cloned().collect()
-            })
-            .into_box()
-    }
-
-    /// Fetch mdata_info for the given container name.
-    pub fn get_container_mdata_info<T: Into<String>>(
-        &self,
-        client: &Client<AppContext>,
-        name: T,
-    ) -> Box<AppFuture<MDataInfo>> {
-        let reg = fry!(self.as_registered()).clone();
-        let name = name.into();
-
-        fetch_access_info(reg.clone(), client)
-            .and_then(move |_| {
-                let access_info = reg.access_info.borrow();
-                access_info
-                    .get(&name)
-                    .map(|&(ref mdata_info, _)| mdata_info.clone())
-                    .ok_or(AppError::NoSuchContainer)
-            })
-            .into_box()
-    }
-
-    /// Check the given permission for the given directory.
-    pub fn is_permitted<T: Into<String>>(
-        &self,
-        client: &Client<AppContext>,
-        name: T,
-        permission: Permission,
-    ) -> Box<AppFuture<bool>> {
-        let reg = fry!(self.as_registered()).clone();
-        let name = name.into();
-
-        fetch_access_info(reg.clone(), client)
-            .and_then(move |_| {
-                let access_info = reg.access_info.borrow();
-                access_info
-                    .get(&name)
-                    .map(|&(_, ref permissions)| permissions.contains(&permission))
-                    .ok_or(AppError::NoSuchContainer)
+                access_info.clone()
             })
             .into_box()
     }
@@ -504,73 +466,30 @@ mod tests {
     }
 
     #[test]
-    fn get_container_mdata_info() {
-        // Shared container
-        let cont_name = "_videos".to_string();
-
-        let mut container_permissions = HashMap::new();
-        let _ = container_permissions.insert(cont_name.clone(), btree_set![Permission::Read]);
-
-        let app = create_app_with_access(container_permissions);
-
-        run(&app, move |client, context| {
-            context.get_container_mdata_info(client, cont_name).then(
-                move |res| {
-                    let _info = unwrap!(res);
-                    Ok(())
-                },
-            )
-        });
-    }
-
-    #[test]
-    fn get_container_names() {
+    fn get_access_info() {
         let mut container_permissions = HashMap::new();
         let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
         let _ =
-            container_permissions.insert("_downloads".to_string(), btree_set![Permission::Read]);
+            container_permissions.insert("_downloads".to_string(), btree_set![Permission::Insert]);
 
         let app = create_app_with_access(container_permissions);
 
         run(&app, move |client, context| {
-            context.get_container_names(client).then(move |res| {
+            context.get_access_info(client).then(move |res| {
                 let info = unwrap!(res);
-                assert!(info.contains(&"_videos".to_string()));
-                assert!(info.contains(&"_downloads".to_string()));
+                assert!(info.contains_key(&"_videos".to_string()));
+                assert!(info.contains_key(&"_downloads".to_string()));
                 assert_eq!(info.len(), 3); // third item is the app container
+
+                let (ref _md_info, ref perms) = info["_videos"];
+                assert_eq!(perms, &btree_set![Permission::Read]);
+
+                let (ref _md_info, ref perms) = info["_downloads"];
+                assert_eq!(perms, &btree_set![Permission::Insert]);
+
                 Ok(())
             })
         });
-    }
-
-    #[test]
-    fn is_permitted() {
-        // Shared container
-        let cont_name = "_videos".to_string();
-
-        let mut container_permissions = HashMap::new();
-        let _ = container_permissions.insert(cont_name.clone(), btree_set![Permission::Read]);
-
-        let app = create_app_with_access(container_permissions);
-
-        run(&app, move |client, context| {
-            let f1 = context
-                .is_permitted(client, cont_name.clone(), Permission::Read)
-                .then(move |res| {
-                    assert!(unwrap!(res));
-                    Ok(())
-                });
-
-            let f2 = context
-                .is_permitted(client, cont_name.clone(), Permission::Insert)
-                .then(move |res| {
-                    assert!(!unwrap!(res));
-                    Ok(())
-                });
-
-            f1.join(f2).map(|_| ())
-        });
-
     }
 
     // Make sure we can login to a registered app with low balance.
@@ -676,7 +595,7 @@ mod tests {
     // Get the number of containers for `app`
     fn num_containers(app: &App) -> usize {
         run(app, move |client, context| {
-            context.get_container_names(client).then(move |res| {
+            context.get_access_info(client).then(move |res| {
                 let info = unwrap!(res);
                 Ok(info.len())
             })

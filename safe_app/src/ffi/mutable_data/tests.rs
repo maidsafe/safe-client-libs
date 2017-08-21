@@ -1147,6 +1147,20 @@ fn entries_crud_ffi() {
         }))
     };
 
+    let permission_value: PermissionValue = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            mdata_permissions_set_is_allowed(&app, perms_set_h, MDataAction::Insert, ud, cb)
+        }))
+    };
+    assert_eq!(permission_value, PermissionValue::Allowed);
+
+    let permission_value: PermissionValue = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            mdata_permissions_set_is_allowed(&app, perms_set_h, MDataAction::Update, ud, cb)
+        }))
+    };
+    assert_eq!(permission_value, PermissionValue::NotSet);
+
     // Create permissions for anyone
     let perms_h: MDataPermissionsHandle =
         unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
@@ -1251,6 +1265,26 @@ fn entries_crud_ffi() {
         ))
     };
     assert_eq!(ver, 0);
+
+    // Check permissions
+    let read_perms_h: MDataPermissionSetHandle = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            mdata_list_user_permissions(&app, md_info_pub_h, USER_ANYONE, ud, cb)
+        }))
+    };
+    let permission_value: PermissionValue = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            mdata_permissions_set_is_allowed(&app, read_perms_h, MDataAction::Insert, ud, cb)
+        }))
+    };
+    assert_eq!(permission_value, PermissionValue::Allowed);
+
+    let permission_value: PermissionValue = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            mdata_permissions_set_is_allowed(&app, read_perms_h, MDataAction::Update, ud, cb)
+        }))
+    };
+    assert_eq!(permission_value, PermissionValue::NotSet);
 
     // Try to create a private MD
     let md_info_priv_h = unsafe {

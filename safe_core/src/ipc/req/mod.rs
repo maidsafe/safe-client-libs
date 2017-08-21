@@ -73,6 +73,9 @@ pub enum IpcReq {
 /// representation `ContainerPermissions`.
 ///
 /// You're now responsible for freeing this memory once you're done.
+/// However, notice that the `ffi::ContainerPermissions` struct has
+/// a `Drop` impl, so when it goes out of a scope, it will free allocated
+/// strings automatically.
 pub fn containers_into_vec<ContainersIter>(
     containers: ContainersIter,
 ) -> Result<Vec<ffi::ContainerPermissions>, NulError>
@@ -116,7 +119,9 @@ fn container_perms_into_repr_c(perms: &ContainerPermissions) -> FfiPermissionSet
 }
 
 /// Tranform an FFI representation into container permissions
-fn container_perms_from_repr_c(perms: FfiPermissionSet) -> Result<ContainerPermissions, IpcError> {
+pub fn container_perms_from_repr_c(
+    perms: FfiPermissionSet,
+) -> Result<ContainerPermissions, IpcError> {
     let mut output = BTreeSet::new();
 
     if perms.read {
