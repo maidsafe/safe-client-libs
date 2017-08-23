@@ -1,5 +1,14 @@
 # SAFE App
 
+## [0.3.0]
+- Update routing to 0.33.0
+- Fix UB in tests
+- Improve access container functions
+- Refactor out common types in `safe_core::ffi`
+- Make permission handling uniform
+- Support sharing of arbitrary MData
+- Tests for logging in with low balance
+
 ## [0.2.1]
 - Update routing to 0.32.2
 

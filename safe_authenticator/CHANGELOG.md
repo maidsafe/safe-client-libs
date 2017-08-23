@@ -1,5 +1,12 @@
 # SAFE Authenticator - Change Log
 
+## [0.3.0]
+- Update routing to 0.33.0
+- Sharing of arbitrary MData
+- Operation Recovery implementation
+- Optimise account packet creation
+- Fix builds without feature flags
+
 ## [0.2.1]
 - Update routing to 0.32.2
 

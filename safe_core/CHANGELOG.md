@@ -1,5 +1,12 @@
 # Safe Core - Change Log
 
+## [0.26.0]
+- Update routing to 0.33.0
+- Decryption in MDataInfo tries both the new and old encryption keys before giving up
+- Env var to control in-mem or on-disk storage for mock vault
+- Change and improve account packet structure
+- Fix mock vault deserialisation
+
 ## [0.25.1]
 - Update routing to 0.32.2
 
