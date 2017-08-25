@@ -200,6 +200,7 @@ mod tests {
     use safe_core::ffi::AccountInfo;
     use test_utils::create_app;
 
+    // Test account usage statistics before and after a mutation.
     #[test]
     fn account_info() {
         let app = create_app();
@@ -229,6 +230,7 @@ mod tests {
         unsafe { app_free(app) };
     }
 
+    // Test disconnection and reconnection with apps.
     #[cfg(all(test, feature = "use-mock-routing"))]
     #[test]
     fn network_status_callback() {

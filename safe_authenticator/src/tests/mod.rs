@@ -475,6 +475,7 @@ fn authenticated_app_can_be_authenticated_again() {
     };
 }
 
+// Create and serialize a containers request for a random app, make sure we get an error.
 #[test]
 fn containers_unknown_app() {
     let authenticator = create_account_and_login();
@@ -503,6 +504,7 @@ fn containers_unknown_app() {
     };
 }
 
+// Test making a containers access request.
 #[test]
 fn containers_access_request() {
     let authenticator = create_account_and_login();
@@ -659,6 +661,11 @@ impl ReprC for RevokedAppId {
     }
 }
 
+// Test app registration and revocation.
+// 1. Initially there should be no registerd or revoked apps.
+// 2. Register two apps. There should be two registered apps, but no revoked apps.
+// 3. Revoke the first app. There should be one registered and one revoked app.
+// 4. Re-register the first app. There should be two registered apps again.
 #[test]
 fn lists_of_registered_and_revoked_apps() {
     let authenticator = create_account_and_login();

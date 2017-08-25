@@ -361,6 +361,7 @@ mod tests {
     use std::sync::mpsc::{self, Sender};
     use test_utils::{create_app, run_now};
 
+    // Test entry FFI operations.
     #[test]
     fn entries() {
         let app = create_app();

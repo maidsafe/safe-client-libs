@@ -195,6 +195,7 @@ mod tests {
     use safe_core::{Client, utils};
     use test_utils::{create_app, run_now};
 
+    // Test plaintext "encryption" and decryption.
     #[test]
     fn app_0_to_app_0_plain() {
         let app_0 = create_app();
@@ -227,6 +228,7 @@ mod tests {
         });
     }
 
+    // Test symmetric encryption and decryption.
     #[test]
     fn app_0_to_app_0_sym() {
         let app_0 = create_app();
@@ -259,6 +261,7 @@ mod tests {
         });
     }
 
+    // Test asymmetric encryption and decryption.
     // NOTE: rustfmt is behaving erratically on this function. Disabling it for now.
     #[cfg_attr(rustfmt, rustfmt_skip)]
     #[test]
@@ -309,6 +312,7 @@ mod tests {
         });
     }
 
+    // Test creating and freeing the different possible cipher option handles.
     #[test]
     fn create_and_free() {
         let app = create_app();

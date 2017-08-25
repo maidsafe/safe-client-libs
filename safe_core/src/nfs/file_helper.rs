@@ -343,6 +343,8 @@ mod tests {
         });
     }
 
+    // Test appending to a file.
+    // Read the file afterwards and test that it has both the original and the new contnet.
     #[test]
     fn file_update_append() {
         random_client(|client| {
@@ -382,6 +384,8 @@ mod tests {
         });
     }
 
+    // Test updating file metadata.
+    // Fetch the file afterwards and test that it has the new metadata.
     #[test]
     fn file_update_metadata() {
         random_client(|client| {
@@ -406,6 +410,8 @@ mod tests {
                 })
         });
     }
+
+    // Test deleting a file entry, and that fetching it after is an error.
     #[test]
     fn file_delete() {
         random_client(|client| {

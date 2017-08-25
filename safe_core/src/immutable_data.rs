@@ -159,21 +159,25 @@ mod tests {
     use utils;
     use utils::test_utils::{finish, random_client};
 
+    // Test creating and retrieving a 1kb idata.
     #[test]
     fn create_and_retrieve_1kb() {
         create_and_retrieve(1024)
     }
 
+    // Test creating and retrieving a 1mb idata.
     #[test]
     fn create_and_retrieve_1mb() {
         create_and_retrieve(1024 * 1024)
     }
 
+    // Test creating and retrieving a 2mb idata.
     #[test]
     fn create_and_retrieve_2mb() {
         create_and_retrieve(2 * 1024 * 1024)
     }
 
+    // Test creating and retrieving a 10mb idata.
     #[cfg(not(debug_assertions))]
     #[test]
     fn create_and_retrieve_10mb() {

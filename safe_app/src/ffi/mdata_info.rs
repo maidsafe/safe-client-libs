@@ -300,6 +300,7 @@ mod tests {
     use safe_core::MDataInfo;
     use test_utils::{create_app, run_now};
 
+    // Test creating non-encrypted mdata info.
     #[test]
     fn create_public() {
         let app = create_app();
@@ -318,6 +319,7 @@ mod tests {
         })
     }
 
+    // Test creating encrypted mdata info.
     #[test]
     fn create_private() {
         let app = create_app();
@@ -358,6 +360,7 @@ mod tests {
         });
     }
 
+    // Test serialising and deserialising mdata_info.
     #[test]
     fn serialise_deserialise() {
         let app = create_app();

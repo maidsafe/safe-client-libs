@@ -250,6 +250,7 @@ mod tests {
     use std::os::raw::c_void;
     use test_utils::gen_app_exchange_info;
 
+    // Test encoding and decoding authorization requests.
     #[test]
     fn encode_auth_req_basics() {
         let req = AuthReq {
@@ -279,6 +280,7 @@ mod tests {
         assert_eq!(decoded_req, req);
     }
 
+    // Test encoding and decoding containers requests.
     #[test]
     fn encode_containers_req_basics() {
         let mut container_permissions = HashMap::new();
@@ -313,6 +315,7 @@ mod tests {
         assert_eq!(decoded_req, req);
     }
 
+    // Test encoding and decoding requests to share mutable data
     #[test]
     fn encode_share_mdata_basics() {
         let req = ShareMDataReq {
@@ -349,6 +352,7 @@ mod tests {
         assert_eq!(decoded_req, req);
     }
 
+    // Test that `decode_ipc_msg` calls the `o_auth` callback.
     #[test]
     fn decode_ipc_msg_with_auth_granted() {
         let req_id = ipc::gen_req_id();
@@ -460,6 +464,7 @@ mod tests {
         assert_eq!(unwrap!(context.auth_granted), auth_granted);
     }
 
+    // Test that `decode_ipc_msg` calls the `o_containers` callback.
     #[test]
     fn decode_ipc_msg_with_containers_granted() {
         let req_id = ipc::gen_req_id();
@@ -551,6 +556,7 @@ mod tests {
         assert_eq!(context.req_id, req_id);
     }
 
+    // Test that `decode_ipc_msg` calls the `o_share_mdata` callback.
     #[test]
     fn decode_ipc_msg_with_share_mdata_granted() {
         let req_id = ipc::gen_req_id();

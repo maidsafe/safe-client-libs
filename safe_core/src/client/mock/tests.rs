@@ -68,6 +68,7 @@ macro_rules! expect_failure {
     }
 }
 
+// Test the basics idata operations.
 #[test]
 fn immutable_data_basics() {
     let (mut routing, routing_rx, full_id) = setup();
@@ -123,6 +124,7 @@ fn immutable_data_basics() {
     assert_eq!(acct_info.mutations_available, DEFAULT_MAX_MUTATIONS - 2);
 }
 
+// Test the basic mdata operations.
 #[test]
 fn mutable_data_basics() {
     let (mut routing, routing_rx, full_id) = setup();
@@ -354,6 +356,7 @@ fn mutable_data_basics() {
     assert_eq!(entry.entry_version, 0);
 }
 
+// Test valid and invalid mdata entry versioning.
 #[test]
 fn mutable_data_entry_versioning() {
     let (mut routing, routing_rx, full_id) = setup();
@@ -469,6 +472,7 @@ fn mutable_data_entry_versioning() {
     expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
 }
 
+// Test various operations with and without proper permissions.
 #[test]
 fn mutable_data_permissions() {
     let (mut routing, routing_rx, full_id) = setup();
@@ -486,7 +490,6 @@ fn mutable_data_permissions() {
     let entries = btree_map![
         key0.to_vec() => Value { content: value0_v0, entry_version: 0 }
     ];
-
 
     let data = unwrap!(MutableData::new(name,
                                         tag,
@@ -634,7 +637,7 @@ fn mutable_data_permissions() {
                     Response::SetMDataUserPermissions,
                     ClientError::InvalidSuccessor(_));
 
-    // Modifing permissions with version bump succeeds.
+    // Modifying permissions with version bump succeeds.
     let perms = PermissionSet::new().allow(Action::Insert).allow(
         Action::Update,
     );
@@ -814,6 +817,7 @@ fn mutable_data_permissions() {
                     ClientError::AccessDenied);
 }
 
+// Test mdata operations with valid and invalid owners.
 #[test]
 fn mutable_data_ownership() {
     // Create owner's routing client
@@ -895,6 +899,7 @@ fn mutable_data_ownership() {
     expect_success!(owner_routing_rx, msg_id, Response::ChangeMDataOwner);
 }
 
+// Test auth key operations with valid and invalid version bumps.
 #[test]
 fn auth_keys() {
     let (mut routing, routing_rx, full_id) = setup();
@@ -964,7 +969,7 @@ fn auth_keys() {
     assert_eq!(version, 2);
 }
 
-// Exhaust the account balance and ensure that mutations fail
+// Exhaust the account balance and ensure that mutations fail.
 #[test]
 fn balance_check() {
     let (mut routing, routing_rx, full_id) = setup();
@@ -1018,6 +1023,7 @@ fn balance_check() {
     assert!(mdata.serialised_size() > 0);
 }
 
+// Test routing request hooks.
 #[test]
 fn request_hooks() {
     let (mut routing, routing_rx, full_id) = setup();

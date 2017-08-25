@@ -85,6 +85,7 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
+    // Test logging errors to file.
     #[test]
     fn file_logging() {
         setup_log_config();

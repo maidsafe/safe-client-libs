@@ -426,6 +426,7 @@ mod tests {
     use safe_core::ffi::{AsymNonce, AsymPublicKey, SignPublicKey};
     use test_utils::{create_app, run_now};
 
+    // Test encrypting and decrypting messages between apps.
     #[test]
     fn encrypt_decrypt() {
         let app1 = create_app();
@@ -482,6 +483,7 @@ mod tests {
         assert_eq!(&decrypted, data);
     }
 
+    // Test encrypting and decrypting sealed box messages between apps.
     #[test]
     fn encrypt_decrypt_sealed() {
         let app1 = create_app();
@@ -524,6 +526,7 @@ mod tests {
         assert_eq!(&decrypted, data);
     }
 
+    // Test creating and fetching sign keys.
     #[test]
     fn sign_key_basics() {
         let app = create_app();
@@ -553,6 +556,7 @@ mod tests {
         assert_eq!(app_sign_key1, app_sign_key2);
     }
 
+    // Test creating and fetching encryption keys.
     #[test]
     fn enc_key_basics() {
         let app = create_app();
@@ -585,6 +589,7 @@ mod tests {
         assert_eq!(app_enc_key1, app_enc_key2);
     }
 
+    // Test that generated nonces are the correct length.
     #[test]
     fn nonce_smoke_test() {
         let nonce: AsymNonce = unsafe { unwrap!(call_1(|ud, cb| generate_nonce(ud, cb))) };

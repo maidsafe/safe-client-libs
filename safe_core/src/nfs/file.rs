@@ -155,6 +155,7 @@ mod tests {
     use super::*;
     use maidsafe_utilities::serialisation::{deserialise, serialise};
 
+    // Test that serialising and deserialising a file restores the original file.
     #[test]
     fn serialise_deserialise() {
         let obj_before = File::new("{mime:\"application/json\"}".to_string().into_bytes());

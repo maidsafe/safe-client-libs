@@ -389,6 +389,11 @@ mod tests {
         (app, container_info_h)
     }
 
+    // Test the basics of NFS.
+    // 1. Fetching a non-existing file should fail.
+    // 2. Create an empty file.
+    // 3. Fetch it back, assert that all file info is correct.
+    // 4. Delete the file.
     #[test]
     fn basics() {
         let (app, container_info_h) = setup();

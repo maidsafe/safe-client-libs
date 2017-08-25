@@ -162,6 +162,7 @@ mod tests {
     use maidsafe_utilities::serialisation::{deserialise, serialise};
     use self_encryption::DataMap;
 
+    // Test that serialising and deserialising file metadata restores the original contents.
     #[test]
     fn serialise_and_deserialise_file_metadata() {
         let obj_before = FileMetadata::new("hello.txt".to_string(),

@@ -127,6 +127,7 @@ mod tests {
     use std::ffi::CString;
     use test_utils::{create_app_with_access, run_now};
 
+    // Test getting info about access containers and their mutable data.
     #[test]
     fn get_access_info() {
         let mut container_permissions = HashMap::new();
