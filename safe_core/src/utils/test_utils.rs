@@ -142,12 +142,12 @@ where
     let core_tx_clone = core_tx.clone();
     let (result_tx, result_rx) = std_mpsc::channel();
 
-    unwrap!(core_tx.send(CoreMsg::new(move |client, &()| {
+    unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
         let fut = r(client).into_future()
             .map_err(|e| panic!("{:?}", e))
             .map(move |value| {
                 unwrap!(result_tx.send(value));
-                unwrap!(core_tx_clone.send(CoreMsg::build_terminator()));
+                unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()));
             })
             .into_box();
 

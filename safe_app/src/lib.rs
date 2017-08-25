@@ -281,7 +281,7 @@ impl App {
     {
         let msg = CoreMsg::new(f);
         let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.send(msg).map_err(AppError::from)
+        core_tx.unbounded_send(msg).map_err(AppError::from)
     }
 }
 
@@ -296,7 +296,7 @@ impl Drop for App {
         };
 
         let msg = CoreMsg::build_terminator();
-        if let Err(err) = core_tx.send(msg) {
+        if let Err(err) = core_tx.unbounded_send(msg) {
             info!("Unexpected error in drop: {:?}", err);
         }
     }

@@ -134,7 +134,7 @@ fn main() {
             None,
         ));
 
-        unwrap!(core_tx.send(CoreMsg::new(move |client, &()| {
+        unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
             let id = XorName(sha3_256(invite.as_bytes()));
 
             client.get_mdata_version(id, INVITE_TOKEN_TYPE_TAG)
@@ -147,7 +147,7 @@ fn main() {
                 })
                 .map_err(|e| panic!("{:?}", e))
                 .map(move |_| {
-                    unwrap!(core_tx_clone.send(CoreMsg::build_terminator()));
+                    unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()));
                 })
                 .into_box()
                 .into()
@@ -180,7 +180,7 @@ fn main() {
         Client::login_with_seed(&seed, el_h, core_tx.clone(), net_tx.clone())
     });
 
-    unwrap!(core_tx.send(CoreMsg::new(move |client, &()| {
+    unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
         println!("Success !");
 
         let num_invites = args.flag_num_invites.unwrap_or_else(|| {
@@ -194,7 +194,7 @@ fn main() {
         let owner_key = unwrap!(client.owner_key());
         let client2 = client.clone();
 
-        stream::iter((0..num_invites).map(Ok))
+        stream::iter_ok(0..num_invites)
             .for_each(move |i| {
                 let invitation = generate_random_printable(INVITE_TOKEN_SIZE);
                 let id = XorName(sha3_256(invitation.as_bytes()));
@@ -221,7 +221,7 @@ fn main() {
                                   Ok(())
                               })
             })
-            .map(move |_| unwrap!(core_tx_clone.send(CoreMsg::build_terminator())))
+            .map(move |_| unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator())))
             .map_err(|e| panic!("{:?}", e))
             .into_box()
             .into()

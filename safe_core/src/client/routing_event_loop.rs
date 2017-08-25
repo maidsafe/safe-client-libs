@@ -39,7 +39,7 @@ where
                 }
             }
             Event::Terminate => {
-                if let Err(e) = net_tx.send(NetworkEvent::Disconnected) {
+                if let Err(e) = net_tx.unbounded_send(NetworkEvent::Disconnected) {
                     trace!("Couldn't send NetworkEvent::Disconnected: {:?}", e);
                 }
                 break;
@@ -145,5 +145,5 @@ fn fire<T: 'static>(core_tx: &mut CoreMsgTx<T>, msg_id: MessageId, event: CoreEv
         None
     });
 
-    core_tx.send(msg).is_ok()
+    core_tx.unbounded_send(msg).is_ok()
 }

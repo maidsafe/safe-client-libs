@@ -162,7 +162,7 @@ fn main() {
     let public_key = unwrap!(client.public_signing_key());
     let core_tx_clone = core_tx.clone();
 
-    unwrap!(core_tx.send(CoreMsg::new(move |client, _| {
+    unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, _| {
         let mut stored_data = Vec::with_capacity(mutable_data_count + immutable_data_count);
 
         for _ in 0..immutable_data_count {
@@ -186,7 +186,7 @@ fn main() {
         let underline = (0..message.len()).map(|_| "=").collect::<String>();
         println!("\n\t{}\n\t{}", message, underline);
 
-        stream::iter(stored_data.into_iter().enumerate().map(Ok))
+        stream::iter_ok(stored_data.into_iter().enumerate())
             .fold((client.clone(), args, rng), |(client, args, rng),
              (i, data)| {
                 let c2 = client.clone();
@@ -276,7 +276,7 @@ fn main() {
                 }
             })
             .map(move |_| {
-                unwrap!(core_tx_clone.send(CoreMsg::build_terminator()))
+                unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()))
             })
             .into_box()
             .into()

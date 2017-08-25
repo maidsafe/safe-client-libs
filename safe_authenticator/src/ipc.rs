@@ -290,7 +290,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
                         let app_id = share_mdata_req.app.id;
                         let user = User::Key(app_info.keys.sign_pk);
                         let num_mdata = share_mdata_req.mdata.len();
-                        stream::iter(share_mdata_req.mdata.into_iter().map(Ok))
+                        stream::iter_ok(share_mdata_req.mdata.into_iter())
                         .map(move |mdata| {
                             client_cloned0.get_mdata_shell(mdata.name, mdata.type_tag)
                                           .map(|md| (md.version(), mdata))

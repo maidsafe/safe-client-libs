@@ -540,7 +540,7 @@ impl<T: 'static> Client<T> {
         self.inner_mut().routing = routing;
         self.inner_mut().joiner = joiner;
 
-        self.inner().net_tx.send(NetworkEvent::Connected)?;
+        self.inner().net_tx.unbounded_send(NetworkEvent::Connected)?;
 
         Ok(())
     }
