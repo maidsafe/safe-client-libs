@@ -1,5 +1,9 @@
 # SAFE Authenticator - Change Log
 
+## [0.3.1]
+- Update routing to 0.33.1
+- Fix concurrent revocation bugs
+
 ## [0.3.0]
 - Update routing to 0.33.0
 - Sharing of arbitrary MData

@@ -1,5 +1,8 @@
 # SAFE App
 
+## [0.3.1]
+- Update routing to 0.33.1
+
 ## [0.3.0]
 - Update routing to 0.33.0
 - Fix UB in tests

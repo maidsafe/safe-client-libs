@@ -1,5 +1,9 @@
 # Safe Core - Change Log
 
+## [0.26.1]
+- Update routing to 0.33.1
+- Fix mock vault write mode
+
 ## [0.26.0]
 - Update routing to 0.33.0
 - Decryption in MDataInfo tries both the new and old encryption keys before giving up
