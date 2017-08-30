@@ -15,6 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use errors::ERR_NO_SUCH_ENTRY;
 use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
@@ -1402,6 +1403,29 @@ fn entries_crud_ffi() {
             ))
         };
 
+        // Try with a fake entry key, expect error.
+        let (tx, rx) = mpsc::channel::<Result<Vec<u8>, i32>>();
+        let ud = sender_as_user_data(&tx);
+
+        let fake_key = vec![0];
+        unsafe {
+            mdata_entries_get(
+                &app,
+                entries_list_h,
+                fake_key.as_ptr(),
+                fake_key.len(),
+                ud,
+                get_value_cb,
+            )
+        };
+
+        let result = unwrap!(rx.recv());
+        match result {
+            Err(ERR_NO_SUCH_ENTRY) => (),
+            _ => panic!("Got mdata entry with a fake entry key"),
+        };
+
+        // Try with the real encrypted entry key.
         let (tx, rx) = mpsc::channel::<Result<Vec<u8>, i32>>();
         let ud = sender_as_user_data(&tx);
 
