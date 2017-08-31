@@ -489,6 +489,13 @@ mod tests {
             }))
         };
 
+        let size: Result<u64, i32> = unsafe { call_1(|ud, cb| file_size(&app, write_h, ud, cb)) };
+        match size {
+            Err(code) if code == AppError::InvalidFileMode.error_code() => (),
+            Err(x) => panic!("Unexpected: {:?}", x),
+            Ok(_) => panic!("Unexpected success"),
+        }
+
         let written_file: NativeFile = unsafe {
             unwrap!(call_0(|ud, cb| {
                 file_write(&app, write_h, content.as_ptr(), content.len(), ud, cb)
@@ -522,6 +529,8 @@ mod tests {
         };
         assert_eq!(version, 0);
 
+        let size0 = file.size();
+
         // Read the content
         let read_write_h = unsafe {
             unwrap!(call_1(|ud, cb| {
@@ -535,6 +544,9 @@ mod tests {
                 )
             }))
         };
+
+        let size1: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_write_h, ud, cb))) };
+        assert_eq!(size0, size1);
 
         let retrieved_content = unsafe {
             unwrap!(call_vec_u8(|ud, cb| {
@@ -616,6 +628,9 @@ mod tests {
                 )
             }))
         };
+
+        let size: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_h, ud, cb))) };
+        assert_eq!(size, orig_file.size());
 
         let retrieved_content = unsafe {
             unwrap!(call_vec_u8(|ud, cb| {

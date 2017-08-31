@@ -162,18 +162,18 @@ pub unsafe extern "C" fn enc_pub_key_get(
     })
 }
 
-/// Retrieve the private encryption key as raw array.
+/// Free encryption key from memory
 #[no_mangle]
-pub unsafe extern "C" fn enc_secret_key_get(
+pub unsafe extern "C" fn enc_pub_key_free(
     app: *const App,
-    handle: EncryptSecKeyHandle,
+    handle: EncryptPubKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult, *const AsymSecretKey),
+    o_cb: extern "C" fn(*mut c_void, FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
-            let key = context.object_cache().get_secret_key(handle)?;
-            Ok(&key.0)
+            let _ = context.object_cache().remove_encrypt_key(handle)?;
+            Ok(())
         })
     })
 }
@@ -194,18 +194,18 @@ pub unsafe extern "C" fn enc_secret_key_new(
     })
 }
 
-/// Free encryption key from memory
+/// Retrieve the private encryption key as raw array.
 #[no_mangle]
-pub unsafe extern "C" fn enc_pub_key_free(
+pub unsafe extern "C" fn enc_secret_key_get(
     app: *const App,
-    handle: EncryptPubKeyHandle,
+    handle: EncryptSecKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult),
+    o_cb: extern "C" fn(*mut c_void, FfiResult, *const AsymSecretKey),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
-            let _ = context.object_cache().remove_encrypt_key(handle)?;
-            Ok(())
+            let key = context.object_cache().get_secret_key(handle)?;
+            Ok(&key.0)
         })
     })
 }
@@ -421,7 +421,7 @@ pub unsafe extern "C" fn generate_nonce(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi_utils::test_utils::{call_1, call_2, call_vec_u8};
+    use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
     use rust_sodium::crypto::box_;
     use safe_core::ffi::{AsymNonce, AsymPublicKey, SignPublicKey};
     use test_utils::{create_app, run_now};
@@ -554,11 +554,17 @@ mod tests {
         });
 
         assert_eq!(app_sign_key1, app_sign_key2);
+
+        unsafe {
+            unwrap!(call_0(
+                |ud, cb| sign_key_free(&app, app_sign_key2_h, ud, cb),
+            ))
+        }
     }
 
-    // Test creating and fetching encryption keys.
+    // Test creating and fetching public encryption keys.
     #[test]
-    fn enc_key_basics() {
+    fn enc_public_key_basics() {
         let app = create_app();
         let app_enc_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_enc_key(&app, ud, cb))) };
 
@@ -587,6 +593,64 @@ mod tests {
         });
 
         assert_eq!(app_enc_key1, app_enc_key2);
+
+        unsafe {
+            unwrap!(call_0(
+                |ud, cb| enc_pub_key_free(&app, app_enc_key2_h, ud, cb),
+            ))
+        }
+    }
+
+    // Test creating and fetching secret encryption keys.
+    #[test]
+    fn enc_secret_key_basics() {
+        let app = create_app();
+        let (app_public_key_h, app_secret_key1_h) =
+            unsafe { unwrap!(call_2(|ud, cb| enc_generate_key_pair(&app, ud, cb))) };
+
+        let app_public_key1: AsymPublicKey = unsafe {
+            unwrap!(call_1(
+                |ud, cb| enc_pub_key_get(&app, app_public_key_h, ud, cb),
+            ))
+        };
+        let app_secret_key1: AsymSecretKey = unsafe {
+            unwrap!(call_1(
+                |ud, cb| enc_secret_key_get(&app, app_secret_key1_h, ud, cb),
+            ))
+        };
+
+        let app_secret_key1 = run_now(&app, move |_client, context| {
+            let app_public_key2 = unwrap!(context.object_cache().get_encrypt_key(app_public_key_h));
+            assert_eq!(box_::PublicKey(app_public_key1), *app_public_key2);
+
+            let app_secret_key2 = unwrap!(context.object_cache().get_secret_key(app_secret_key1_h));
+            assert_eq!(box_::SecretKey(app_secret_key1), *app_secret_key2);
+
+            app_secret_key1
+        });
+
+        let app_secret_key1_raw: AsymSecretKey = unsafe {
+            unwrap!(call_1(
+                |ud, cb| enc_secret_key_get(&app, app_secret_key1_h, ud, cb),
+            ))
+        };
+
+        let app_secret_key2_h = unsafe {
+            unwrap!(call_1(|ud, cb| {
+                enc_secret_key_new(&app, &app_secret_key1_raw, ud, cb)
+            }))
+        };
+
+        run_now(&app, move |_, context| {
+            let app_secret_key2 = unwrap!(context.object_cache().get_secret_key(app_secret_key2_h));
+            assert_eq!(box_::SecretKey(app_secret_key1), *app_secret_key2);
+        });
+
+        unsafe {
+            unwrap!(call_0(|ud, cb| {
+                enc_secret_key_free(&app, app_secret_key2_h, ud, cb)
+            }))
+        }
     }
 
     // Test that generated nonces are the correct length.
@@ -594,5 +658,27 @@ mod tests {
     fn nonce_smoke_test() {
         let nonce: AsymNonce = unsafe { unwrap!(call_1(|ud, cb| generate_nonce(ud, cb))) };
         assert_eq!(nonce.len(), box_::NONCEBYTES);
+    }
+
+    // Test that generated sha3 hashes are the correct length.
+    #[test]
+    fn sha3_smoke_test() {
+        let data = b"test message";
+        let sha3 = unsafe {
+            unwrap!(call_vec_u8(
+                |ud, cb| sha3_hash(data.as_ptr(), data.len(), ud, cb),
+            ))
+        };
+
+        assert_eq!(sha3.len(), 256 / 8);
+
+        let data = b"";
+        let sha3 = unsafe {
+            unwrap!(call_vec_u8(
+                |ud, cb| sha3_hash(data.as_ptr(), data.len(), ud, cb),
+            ))
+        };
+
+        assert_eq!(sha3.len(), 256 / 8);
     }
 }

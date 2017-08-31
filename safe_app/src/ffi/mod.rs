@@ -195,10 +195,18 @@ unsafe fn call_network_observer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi_utils::test_utils::call_1;
+    use App;
+    use ffi_utils::test_utils::{call_0, call_1, send_via_user_data, sender_as_user_data};
+    use maidsafe_utilities::serialisation::serialise;
     use routing::ImmutableData;
+    use safe_core::NetworkEvent;
     use safe_core::ffi::AccountInfo;
+    use safe_core::ipc::BootstrapConfig;
+    use std::os::raw::c_void;
+    use std::sync::mpsc;
+    use std::time::Duration;
     use test_utils::create_app;
+
 
     // Test account usage statistics before and after a mutation.
     #[test]
@@ -234,15 +242,6 @@ mod tests {
     #[cfg(all(test, feature = "use-mock-routing"))]
     #[test]
     fn network_status_callback() {
-        use App;
-        use ffi_utils::test_utils::{call_0, send_via_user_data, sender_as_user_data};
-        use maidsafe_utilities::serialisation::serialise;
-        use safe_core::NetworkEvent;
-        use safe_core::ipc::BootstrapConfig;
-        use std::os::raw::c_void;
-        use std::sync::mpsc;
-        use std::time::Duration;
-
         {
             let (tx, rx) = mpsc::channel();
 
