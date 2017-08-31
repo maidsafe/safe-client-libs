@@ -1,5 +1,8 @@
 # SAFE App
 
+## [0.3.2]
+- Return a null ptr instead of default Rust's (0x01) when vector has had no heap allocations
+
 ## [0.3.1]
 - Update routing to 0.33.1
 

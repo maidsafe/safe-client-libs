@@ -795,7 +795,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "safe_app"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "config_file_handler 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ffi_utils 0.2.0",
