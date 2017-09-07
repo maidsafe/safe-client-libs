@@ -1,4 +1,4 @@
-// Copyright 2016 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use routing::XOR_NAME_LEN;
+use arrays::XorNameArray;
 
 /// FFI-wrapper for `File`.
 #[repr(C)]
@@ -37,7 +37,7 @@ pub struct File {
     /// Capacity of the user metadata (internal field).
     pub user_metadata_cap: usize,
     /// Name of the `ImmutableData` containing the content of this file.
-    pub data_map_name: [u8; XOR_NAME_LEN],
+    pub data_map_name: XorNameArray,
 }
 
 impl Drop for File {

@@ -62,8 +62,23 @@ extern crate tokio_core;
 extern crate unwrap;
 
 pub mod ffi;
-pub mod object_cache;
 
+pub use ffi::*;
+pub use ffi::access_container::*;
+pub use ffi::cipher_opt::*;
+pub use ffi::crypto::*;
+pub use ffi::immutable_data::*;
+pub use ffi::ipc::*;
+pub use ffi::logging::*;
+pub use ffi::mdata_info::*;
+pub use ffi::mutable_data::*;
+pub use ffi::mutable_data::entries::*;
+pub use ffi::mutable_data::entry_actions::*;
+pub use ffi::mutable_data::metadata::*;
+pub use ffi::mutable_data::permissions::*;
+pub use ffi::nfs::*;
+
+pub mod object_cache;
 mod errors;
 /// Utility functions to test apps functionality
 #[cfg(any(test, feature = "testing"))]

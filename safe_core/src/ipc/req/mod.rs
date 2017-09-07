@@ -17,16 +17,14 @@
 
 #![allow(unsafe_code)]
 
-/// Ffi module
-pub mod ffi;
 mod auth;
 mod containers;
 mod share_mdata;
 
 pub use self::auth::AuthReq;
 pub use self::containers::ContainersReq;
-use self::ffi::PermissionSet as FfiPermissionSet;
 pub use self::share_mdata::{ShareMData, ShareMDataReq};
+use ffi::ipc::req as ffi;
 use ffi_utils::{ReprC, StringError, from_c_str};
 use ipc::errors::IpcError;
 use routing::{Action, PermissionSet};
@@ -94,8 +92,8 @@ where
 }
 
 /// Transform a set of container permissions into its FFI representation
-fn container_perms_into_repr_c(perms: &ContainerPermissions) -> FfiPermissionSet {
-    let mut output = FfiPermissionSet::default();
+fn container_perms_into_repr_c(perms: &ContainerPermissions) -> ffi::PermissionSet {
+    let mut output = ffi::PermissionSet::default();
 
     for perm in perms {
         match *perm {
@@ -120,7 +118,7 @@ fn container_perms_into_repr_c(perms: &ContainerPermissions) -> FfiPermissionSet
 
 /// Transform an FFI representation into container permissions
 pub fn container_perms_from_repr_c(
-    perms: FfiPermissionSet,
+    perms: ffi::PermissionSet,
 ) -> Result<ContainerPermissions, IpcError> {
     let mut output = BTreeSet::new();
 
@@ -292,7 +290,7 @@ impl ReprC for AppExchangeInfo {
 #[allow(unsafe_code)]
 mod tests {
     use super::*;
-    use super::ffi::PermissionSet as FfiPermissionSet;
+    use ffi::ipc::req::PermissionSet as FfiPermissionSet;
     use ffi_utils::ReprC;
     use std::collections::HashMap;
     use std::ffi::CStr;

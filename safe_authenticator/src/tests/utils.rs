@@ -19,12 +19,11 @@ use Authenticator;
 use ffi_utils::{FfiResult, ReprC};
 use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use routing::XorName;
+use safe_core::ffi::ipc::req::{AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq,
+                               ShareMDataReq as FfiShareMDataReq};
+use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::{self, AuthReq, ContainersReq, IpcMsg, IpcReq, Permission, ShareMDataReq};
-use safe_core::ipc::req::ffi::AuthReq as FfiAuthReq;
-use safe_core::ipc::req::ffi::ContainersReq as FfiContainersReq;
-use safe_core::ipc::req::ffi::ShareMDataReq as FfiShareMDataReq;
 use safe_core::ipc::resp::UserMetadata;
-use safe_core::ipc::resp::ffi::MetadataResponse as FfiUserMetadata;
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
@@ -137,7 +136,7 @@ pub fn decode_ipc_msg(authenticator: &Authenticator, msg: &str) -> ChannelType {
     let ffi_msg = unwrap!(CString::new(msg));
 
     unsafe {
-        use ipc::auth_decode_ipc_msg;
+        use ffi::ipc::auth_decode_ipc_msg;
         auth_decode_ipc_msg(
             authenticator,
             ffi_msg.as_ptr(),

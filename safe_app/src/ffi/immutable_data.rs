@@ -24,7 +24,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use object_cache::{CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle};
 use routing::XorName;
 use safe_core::{FutureExt, SelfEncryptionStorage, immutable_data};
-use safe_core::ffi::XorNameArray;
+use safe_core::arrays::XorNameArray;
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
 

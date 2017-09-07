@@ -1,4 +1,4 @@
-// Copyright 2016 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -17,10 +17,8 @@
 
 #![allow(unsafe_code)]
 
-/// Ffi module
-pub mod ffi;
-
 use client::MDataInfo;
+use ffi::ipc::resp as ffi;
 use ffi_utils::{ReprC, StringError, vec_into_raw_parts};
 use ipc::IpcError;
 use ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};

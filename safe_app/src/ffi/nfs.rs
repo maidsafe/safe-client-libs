@@ -24,9 +24,9 @@ use futures::Future;
 use futures::future::{self, Either};
 use object_cache::{FileContextHandle, MDataInfoHandle};
 use safe_core::FutureExt;
+use safe_core::ffi::nfs::File;
 use safe_core::nfs::{Mode, Reader, Writer, file_helper};
 use safe_core::nfs::File as NativeFile;
-use safe_core::nfs::ffi::File;
 use std::os::raw::{c_char, c_void};
 
 /// Holds context for file operations, depending on the mode.

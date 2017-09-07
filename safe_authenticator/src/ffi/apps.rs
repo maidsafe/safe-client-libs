@@ -29,12 +29,12 @@ use routing::User::Key;
 use routing::XorName;
 use rust_sodium::crypto::sign::PublicKey;
 use safe_core::FutureExt;
-use safe_core::ffi::XorNameArray;
+use safe_core::arrays::XorNameArray;
+use safe_core::ffi::ipc::req::{AppExchangeInfo as FfiAppExchangeInfo, ContainerPermissions};
+use safe_core::ffi::ipc::resp::AppAccess as FfiAppAccess;
 use safe_core::ipc::{IpcError, access_container_enc_key};
 use safe_core::ipc::req::{AppExchangeInfo, containers_into_vec};
-use safe_core::ipc::req::ffi::{self, ContainerPermissions};
 use safe_core::ipc::resp::AppAccess;
-use safe_core::ipc::resp::ffi::AppAccess as FfiAppAccess;
 use safe_core::utils::symmetric_decrypt;
 use std::collections::HashMap;
 use std::os::raw::{c_char, c_void};
@@ -43,7 +43,7 @@ use std::os::raw::{c_char, c_void};
 #[repr(C)]
 pub struct RegisteredApp {
     /// Unique application identifier
-    pub app_info: ffi::AppExchangeInfo,
+    pub app_info: FfiAppExchangeInfo,
     /// List of containers that this application has access to
     pub containers: *const ContainerPermissions,
     /// Length of the containers array
@@ -112,10 +112,11 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
 }
 
 /// Get a list of apps revoked from authenticator
+#[no_mangle]
 pub unsafe extern "C" fn auth_revoked_apps(
     auth: *const Authenticator,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult, *const ffi::AppExchangeInfo, usize),
+    o_cb: extern "C" fn(*mut c_void, FfiResult, *const FfiAppExchangeInfo, usize),
 ) {
     let user_data = OpaqueCtx(user_data);
 

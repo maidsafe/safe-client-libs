@@ -15,8 +15,6 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-/// FFI representation of NFS structures
-pub mod ffi;
 /// `FileHelper` provides functions for CRUD on file
 pub mod file_helper;
 

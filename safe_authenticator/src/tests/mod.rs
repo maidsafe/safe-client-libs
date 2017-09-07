@@ -27,19 +27,19 @@ use app_container;
 use config::{self, KEY_APPS};
 use errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
 use ffi::apps::*;
+use ffi::ipc::{encode_auth_resp, encode_containers_resp, encode_unregistered_resp};
 use ffi_utils::{ReprC, StringError, base64_encode, from_c_str};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use futures::{Future, future};
-use ipc::{encode_auth_resp, encode_containers_resp, encode_unregistered_resp};
 #[cfg(feature = "use-mock-routing")]
 use routing::{ClientError, Request, Response, User};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::CoreError;
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting;
+use safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use safe_core::ipc::{self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq,
                      IpcResp, Permission};
-use safe_core::ipc::req::ffi::AppExchangeInfo as FfiAppExchangeInfo;
 use safe_core::mdata_info;
 #[cfg(feature = "use-mock-routing")]
 use safe_core::nfs::NfsError;
@@ -957,7 +957,7 @@ fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {
     let ffi_msg = unwrap!(CString::new(msg));
 
     unsafe {
-        use ipc::auth_unregistered_decode_ipc_msg;
+        use ffi::ipc::auth_unregistered_decode_ipc_msg;
         auth_unregistered_decode_ipc_msg(
             ffi_msg.as_ptr(),
             sender_as_user_data(&tx),

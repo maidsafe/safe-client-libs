@@ -20,8 +20,8 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, SafePtr, catch_unwind_cb, f
 use futures::Future;
 use object_cache::MDataInfoHandle;
 use safe_core::FutureExt;
+use safe_core::ffi::ipc::req::ContainerPermissions;
 use safe_core::ipc::req::containers_into_vec;
-use safe_core::ipc::req::ffi::ContainerPermissions;
 use std::os::raw::{c_char, c_void};
 
 /// Fetch access info from the network.

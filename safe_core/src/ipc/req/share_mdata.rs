@@ -15,7 +15,8 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software
 
-use super::{AppExchangeInfo, ffi, permission_set_clone_from_repr_c, permission_set_into_repr_c};
+use super::{AppExchangeInfo, permission_set_clone_from_repr_c, permission_set_into_repr_c};
+use ffi::ipc::req as ffi;
 use ffi_utils::{ReprC, vec_into_raw_parts};
 use ipc::errors::IpcError;
 use routing::{PermissionSet, XorName};

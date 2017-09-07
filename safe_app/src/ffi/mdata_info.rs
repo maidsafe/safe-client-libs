@@ -25,7 +25,7 @@ use object_cache::MDataInfoHandle;
 use routing::XorName;
 use rust_sodium::crypto::secretbox;
 use safe_core::MDataInfo;
-use safe_core::ffi::{SymNonce, SymSecretKey, XorNameArray};
+use safe_core::arrays::{SymNonce, SymSecretKey, XorNameArray};
 use std::os::raw::c_void;
 
 /// Create non-encrypted mdata info with explicit data name.

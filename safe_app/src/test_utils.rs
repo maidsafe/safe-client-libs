@@ -21,8 +21,9 @@ use ffi_utils::catch_unwind_error_code;
 use futures::{Future, IntoFuture};
 use safe_authenticator::test_utils as authenticator;
 use safe_core::{Client, FutureExt, utils};
+use safe_core::ffi::ipc::req::ContainerPermissions;
 use safe_core::ipc::{AppExchangeInfo, Permission};
-use safe_core::ipc::req::{AuthReq, containers_from_repr_c, ffi};
+use safe_core::ipc::req::{AuthReq, containers_from_repr_c};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
 
@@ -136,7 +137,7 @@ pub extern "C" fn test_create_app(o_app: *mut *mut App) -> i32 {
 #[allow(unsafe_code)]
 #[cfg_attr(feature = "cargo-clippy", allow(not_unsafe_ptr_arg_deref))]
 pub extern "C" fn test_create_app_with_access(
-    access_info: *const ffi::ContainerPermissions,
+    access_info: *const ContainerPermissions,
     access_info_len: usize,
     o_app: *mut *mut App,
 ) -> i32 {

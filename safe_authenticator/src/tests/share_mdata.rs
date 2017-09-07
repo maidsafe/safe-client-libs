@@ -18,10 +18,10 @@
 use super::utils::{Payload, decode_ipc_msg};
 use errors::{AuthError, ERR_INVALID_OWNER, ERR_SHARE_MDATA_DENIED};
 use ffi::apps::*;
+use ffi::ipc::encode_share_mdata_resp;
 use ffi_utils::FfiResult;
 use ffi_utils::test_utils::{call_vec, send_via_user_data, sender_as_user_data};
 use futures::Future;
-use ipc::encode_share_mdata_resp;
 use maidsafe_utilities::serialisation::serialise;
 use rand;
 use routing::{Action, MutableData, PermissionSet, User, Value};

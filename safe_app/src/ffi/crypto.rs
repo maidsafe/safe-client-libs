@@ -22,7 +22,7 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, catch_unwind_cb, vec_clone_
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use object_cache::{EncryptPubKeyHandle, EncryptSecKeyHandle, SignKeyHandle};
 use rust_sodium::crypto::{box_, sealedbox, sign};
-use safe_core::ffi::{AsymNonce, AsymPublicKey, AsymSecretKey};
+use safe_core::arrays::{AsymNonce, AsymPublicKey, AsymSecretKey};
 use std::os::raw::c_void;
 use std::slice;
 use tiny_keccak::sha3_256;
@@ -423,7 +423,7 @@ mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_1, call_2, call_vec_u8};
     use rust_sodium::crypto::box_;
-    use safe_core::ffi::{AsymNonce, AsymPublicKey, SignPublicKey};
+    use safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey};
     use test_utils::{create_app, run_now};
 
     #[test]

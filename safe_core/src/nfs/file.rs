@@ -16,9 +16,9 @@
 // relating to use of the SAFE Network Software.
 
 use chrono::{DateTime, NaiveDateTime, Utc};
+use ffi::nfs::File as FfiFile;
 use ffi_utils::{ReprC, vec_into_raw_parts};
 use nfs::errors::NfsError;
-use nfs::ffi::File as FfiFile;
 use routing::XorName;
 use std::slice;
 

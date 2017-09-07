@@ -15,12 +15,6 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! This module contains common FFI types and structures used by both authenticator and apps.
-
-#![allow(unsafe_code)]
-
-use errors::CoreError;
-use ffi_utils::ReprC;
 use routing::XOR_NAME_LEN;
 use rust_sodium::crypto::{box_, secretbox, sign};
 
@@ -43,22 +37,3 @@ pub type SignSecretKey = [u8; sign::SECRETKEYBYTES];
 
 /// Array containing `XorName` bytes
 pub type XorNameArray = [u8; XOR_NAME_LEN];
-
-/// Represents the FFI-safe account info
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AccountInfo {
-    /// Number of used mutations
-    pub mutations_done: u64,
-    /// Number of available mutations
-    pub mutations_available: u64,
-}
-
-impl ReprC for AccountInfo {
-    type C = *const AccountInfo;
-    type Error = CoreError;
-
-    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(*repr_c)
-    }
-}

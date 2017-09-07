@@ -26,8 +26,8 @@ use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
 use safe_core::{FutureExt, NetworkEvent};
 use safe_core::ffi::AccountInfo as FfiAccountInfo;
+use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::{AuthGranted, BootstrapConfig};
-use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
 use std::os::raw::{c_char, c_void};
 use std::slice;
 

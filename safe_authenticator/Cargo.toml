@@ -8,6 +8,7 @@ name = "safe_authenticator"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.3.1"
+build = "build.rs"
 
 [dependencies]
 config_file_handler = "~0.8.1"
@@ -23,6 +24,10 @@ serde_derive = "~1.0.11"
 safe_core = { path = "../safe_core", version = "~0.26.1" }
 tokio-core = "~0.1.9"
 tiny-keccak = "~1.3.1"
+unwrap = "~1.1.0"
+
+[build-dependencies]
+ffi_utils = { path = "../ffi_utils", version = "~0.2.0" }
 unwrap = "~1.1.0"
 
 [features]
