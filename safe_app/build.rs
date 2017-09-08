@@ -21,29 +21,14 @@ extern crate ffi_utils;
 #[macro_use]
 extern crate unwrap;
 
-static MODULES: [&'static str; 13] = [
-    "ffi::access_container",
-    "ffi::cipher_opt",
-    "ffi::immutable_data",
-    "ffi::ipc",
-    "ffi::logging",
-    "ffi::mdata_info",
-    "ffi::crypto",
-    "ffi::mutable_data",
-    "ffi::mutable_data::entry_actions",
-    "ffi::mutable_data::entries",
-    "ffi::mutable_data::permissions",
-    "ffi::mutable_data::metadata",
-    "ffi::nfs",
-];
-
 static HEADER_NAME: &'static str = "safe_app";
-static HEADER_DIRECTORY: &'static str = "../include/";
+static HEADER_DIRECTORY: &'static str = "../auto-gen/c-include/";
+static ROOT_FILE: &'static str = "src/lib.rs";
 
 fn main() {
     unwrap!(ffi_utils::header_gen::gen_headers(
         HEADER_NAME,
         HEADER_DIRECTORY,
-        &MODULES,
+        ROOT_FILE,
     ));
 }

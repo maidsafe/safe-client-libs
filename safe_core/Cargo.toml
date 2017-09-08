@@ -36,6 +36,8 @@ rustc-serialize = "~0.3.23"
 
 [build-dependencies]
 ffi_utils = { path = "../ffi_utils", version = "~0.2.0" }
+routing = "~0.33.1"
+rust_sodium = "~0.5.0"
 unwrap = "~1.1.0"
 
 [features]

@@ -17,7 +17,7 @@
 
 #![allow(unsafe_code)]
 
-use arrays::*;
+use ffi::arrays::*;
 use ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use rust_sodium::crypto::sign;
 use std::ffi::CString;
@@ -75,7 +75,6 @@ pub struct AppKeys {
 
 impl Clone for AppKeys {
     // Implemented manually because:
-    //
     // error[E0277]: the trait bound `[u8; 64]: std::clone::Clone` is not satisfied
     //
     // There is a default implementation only until size 32

@@ -69,6 +69,7 @@ extern crate unwrap;
 pub mod ffi;
 
 pub use ffi::*;
+pub use ffi::arrays::*;
 pub use ffi::ipc::req::*;
 pub use ffi::ipc::resp::*;
 pub use ffi::nfs::*;
@@ -86,8 +87,6 @@ pub mod ipc;
 pub mod nfs;
 /// Implements the Self Encryption storage trait
 pub mod self_encryption_storage;
-/// Type definitions for arrays that are FFI input params
-pub mod arrays;
 
 mod client;
 mod errors;

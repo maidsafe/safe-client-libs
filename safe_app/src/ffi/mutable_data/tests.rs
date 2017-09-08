@@ -18,10 +18,10 @@
 use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
-use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value,
-              XOR_NAME_LEN, XorName};
+use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
 use rust_sodium::crypto::sign;
 use safe_core::{CoreError, DIR_TAG, FutureExt};
+use safe_core::ffi::arrays::XorNameArray;
 use safe_core::utils::test_utils::random_client;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc;
@@ -1196,7 +1196,7 @@ fn entries_crud_ffi() {
     }
 
     // Try to create a MD instance using the same name & a different type tag - it should pass.
-    let (xor_name, _type_tag): ([u8; XOR_NAME_LEN], u64) = unsafe {
+    let (xor_name, _type_tag): (XorNameArray, u64) = unsafe {
         unwrap!(call_2(|ud, cb| {
             mdata_info_extract_name_and_type_tag(&app, md_info_pub_h, ud, cb)
         }))

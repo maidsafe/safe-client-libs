@@ -29,7 +29,7 @@ use routing::User::Key;
 use routing::XorName;
 use rust_sodium::crypto::sign::PublicKey;
 use safe_core::FutureExt;
-use safe_core::arrays::XorNameArray;
+use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo as FfiAppExchangeInfo, ContainerPermissions};
 use safe_core::ffi::ipc::resp::AppAccess as FfiAppAccess;
 use safe_core::ipc::{IpcError, access_container_enc_key};

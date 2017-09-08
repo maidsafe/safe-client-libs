@@ -23,6 +23,8 @@
 pub mod ipc;
 /// NFS API
 pub mod nfs;
+/// Type definitions for arrays that are FFI input params
+pub mod arrays;
 
 use errors::CoreError;
 use ffi_utils::ReprC;

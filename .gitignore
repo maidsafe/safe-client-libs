@@ -34,4 +34,4 @@ packages/
 .DS_Store
 *.bootstrap.cache
 cargo-all.sh
-
+auto-gen/

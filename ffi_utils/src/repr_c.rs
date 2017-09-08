@@ -34,7 +34,7 @@ impl ReprC for u64 {
     type C = u64;
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: u64) -> Result<u64, ()> {
+    unsafe fn clone_from_repr_c(c_repr: u64) -> Result<u64, Self::Error> {
         Ok(c_repr)
     }
 }
@@ -43,7 +43,7 @@ impl ReprC for u32 {
     type C = u32;
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: u32) -> Result<u32, ()> {
+    unsafe fn clone_from_repr_c(c_repr: u32) -> Result<u32, Self::Error> {
         Ok(c_repr)
     }
 }
@@ -52,7 +52,7 @@ impl ReprC for usize {
     type C = usize;
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: usize) -> Result<usize, ()> {
+    unsafe fn clone_from_repr_c(c_repr: usize) -> Result<usize, Self::Error> {
         Ok(c_repr)
     }
 }
@@ -80,7 +80,7 @@ impl ReprC for [u8; 32] {
     type C = *const [u8; 32];
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: *const [u8; 32]) -> Result<[u8; 32], ()> {
+    unsafe fn clone_from_repr_c(c_repr: *const [u8; 32]) -> Result<[u8; 32], Self::Error> {
         Ok(*c_repr)
     }
 }
@@ -90,7 +90,7 @@ impl ReprC for [u8; 24] {
     type C = *const [u8; 24];
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: *const [u8; 24]) -> Result<[u8; 24], ()> {
+    unsafe fn clone_from_repr_c(c_repr: *const [u8; 24]) -> Result<[u8; 24], Self::Error> {
         Ok(*c_repr)
     }
 }

@@ -24,7 +24,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use object_cache::{CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle};
 use routing::XorName;
 use safe_core::{FutureExt, SelfEncryptionStorage, immutable_data};
-use safe_core::arrays::XorNameArray;
+use safe_core::ffi::arrays::XorNameArray;
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
 
@@ -347,7 +347,6 @@ mod tests {
     use ffi::cipher_opt::*;
     use ffi_utils::ErrorCode;
     use ffi_utils::test_utils::{call_0, call_1, call_vec_u8};
-    use routing::XOR_NAME_LEN;
     use safe_core::utils;
     use test_utils::create_app;
 
@@ -384,7 +383,7 @@ mod tests {
                 )
             }));
 
-            let name: [u8; XOR_NAME_LEN];
+            let name: XorNameArray;
             name = unwrap!(call_1(|ud, cb| {
                 idata_close_self_encryptor(&app, se_writer_h, cipher_opt_h, ud, cb)
             }));

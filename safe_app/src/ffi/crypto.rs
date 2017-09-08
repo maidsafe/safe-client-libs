@@ -22,7 +22,7 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, catch_unwind_cb, vec_clone_
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use object_cache::{EncryptPubKeyHandle, EncryptSecKeyHandle, SignKeyHandle};
 use rust_sodium::crypto::{box_, sealedbox, sign};
-use safe_core::arrays::{AsymNonce, AsymPublicKey, AsymSecretKey};
+use safe_core::ffi::arrays::*;
 use std::os::raw::c_void;
 use std::slice;
 use tiny_keccak::sha3_256;
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn app_pub_sign_key(
 #[no_mangle]
 pub unsafe extern "C" fn sign_key_new(
     app: *const App,
-    data: *const AsymPublicKey,
+    data: *const SignPublicKey,
     user_data: *mut c_void,
     o_cb: extern "C" fn(*mut c_void, FfiResult, SignKeyHandle),
 ) {
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn sign_key_get(
     app: *const App,
     handle: SignKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult, *const AsymPublicKey),
+    o_cb: extern "C" fn(*mut c_void, FfiResult, *const SignPublicKey),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
@@ -162,18 +162,18 @@ pub unsafe extern "C" fn enc_pub_key_get(
     })
 }
 
-/// Retrieve the private encryption key as raw array.
+/// Free encryption key from memory
 #[no_mangle]
-pub unsafe extern "C" fn enc_secret_key_get(
+pub unsafe extern "C" fn enc_pub_key_free(
     app: *const App,
-    handle: EncryptSecKeyHandle,
+    handle: EncryptPubKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult, *const AsymSecretKey),
+    o_cb: extern "C" fn(*mut c_void, FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
-            let key = context.object_cache().get_secret_key(handle)?;
-            Ok(&key.0)
+            let _ = context.object_cache().remove_encrypt_key(handle)?;
+            Ok(())
         })
     })
 }
@@ -194,18 +194,18 @@ pub unsafe extern "C" fn enc_secret_key_new(
     })
 }
 
-/// Free encryption key from memory
+/// Retrieve the private encryption key as raw array.
 #[no_mangle]
-pub unsafe extern "C" fn enc_pub_key_free(
+pub unsafe extern "C" fn enc_secret_key_get(
     app: *const App,
-    handle: EncryptPubKeyHandle,
+    handle: EncryptSecKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, FfiResult),
+    o_cb: extern "C" fn(*mut c_void, FfiResult, *const AsymSecretKey),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
-            let _ = context.object_cache().remove_encrypt_key(handle)?;
-            Ok(())
+            let key = context.object_cache().get_secret_key(handle)?;
+            Ok(&key.0)
         })
     })
 }
