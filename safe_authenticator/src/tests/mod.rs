@@ -28,7 +28,7 @@ use ffi::apps::*;
 use ffi_utils::{ReprC, StringError, base64_encode, from_c_str};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use futures::{Future, future};
-use ipc::{encode_auth_resp, encode_containers_resp, encode_unregistered_resp};
+use ipc::{auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp};
 use safe_core::ipc::{self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq,
                      IpcResp, Permission};
 use safe_core::ipc::req::ffi::AppExchangeInfo as FfiAppExchangeInfo;
@@ -39,7 +39,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 use std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use test_utils::{access_container, compare_access_container_entries, create_account_and_login,
-                 rand_app, register_app, revoke, run};
+                 rand_app, register_app, run};
 use tiny_keccak::sha3_256;
 
 #[cfg(feature = "use-mock-routing")]
@@ -932,7 +932,12 @@ fn lists_of_registered_and_revoked_apps() {
     assert!(revoked.is_empty());
 
     // Revoke the first app.
-    revoke(&authenticator, &auth_req1.app.id);
+    let id_str = unwrap!(CString::new(auth_req1.app.id.clone()));
+    let _: String = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            auth_revoke_app(&authenticator, id_str.as_ptr(), ud, cb)
+        }))
+    };
 
     // There is now one registered and one revoked app.
     let registered: Vec<RegisteredAppId> = unsafe {

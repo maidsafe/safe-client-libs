@@ -16,6 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY, ERR_NO_SUCH_KEY};
+use ffi::crypto::sign_key_new;
 use ffi::mdata_info::*;
 use ffi::mutable_data::*;
 use ffi::mutable_data::entries::*;
@@ -26,9 +27,70 @@ use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8, send_via_user_d
                             sender_as_user_data};
 use object_cache::{MDataInfoHandle, MDataPermissionSetHandle, MDataPermissionsHandle};
 use routing::XOR_NAME_LEN;
+use rust_sodium::crypto::sign;
 use std::sync::mpsc;
 use std::time::Duration;
 use test_utils::create_app;
+
+// Test changing the owner of mutable data.
+// TODO: fix and complete this test
+#[ignore]
+#[test]
+fn test_change_owner() {
+    let app = create_app();
+
+    let (random_key, _) = sign::gen_keypair();
+
+    let random_key_h =
+        unsafe { unwrap!(call_1(|ud, cb| sign_key_new(&app, &random_key.0, ud, cb))) };
+
+    // Try to create an empty public MD
+    let md_info1_h: MDataInfoHandle = unsafe {
+        unwrap!(call_1(
+            |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+        ))
+    };
+
+    let result = unsafe {
+        // Try changing the owner - should fail due to access denied
+        call_0(|ud, cb| {
+            mdata_change_owner(&app, md_info1_h, random_key_h, 1, ud, cb)
+        })
+    };
+
+    match result {
+        Err(ERR_ACCESS_DENIED) => (),
+        Err(e) => panic!("{}", e),
+        _ => panic!("Changed permissions without permission"),
+    };
+
+    // Try to create a new empty public MD
+    let md_info2_h: MDataInfoHandle = unsafe {
+        unwrap!(call_1(
+            |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+        ))
+    };
+
+    let result = unsafe {
+        // Try changing the owner - should fail due to invalid successor
+        call_0(|ud, cb| {
+            mdata_change_owner(&app, md_info2_h, random_key_h, 0, ud, cb)
+        })
+    };
+
+    match result {
+        Err(ERR_INVALID_SUCCESSOR) => (),
+        Err(e) => panic!("{}", e),
+        _ => panic!("Invalid version specified has succeeded"),
+    };
+
+    unsafe {
+        // Try changing the owner - should succeed
+        unwrap!(call_0(|ud, cb| {
+            mdata_change_owner(&app, md_info2_h, random_key_h, 2, ud, cb)
+        }))
+    }
+}
 
 // The usual test to insert, update, delete and list all permissions from the FFI point of view.
 #[test]
@@ -256,7 +318,7 @@ fn permissions_crud_ffi() {
 
         match result {
             Err(ERR_INVALID_SUCCESSOR) => (),
-            _ => panic!("Changed permissions without permission"),
+            _ => panic!("Invalid version specified has succeeded"),
         };
 
         let result = unsafe {

@@ -36,9 +36,10 @@ mod mock_routing {
     use access_container;
     use app_auth::{AppState, app_state};
     use config;
+    use ffi_utils::test_utils::call_0;
     use futures::future;
+    use ipc::auth_flush_app_revocation_queue;
     use rand::{self, Rng};
-    use revocation::flush_app_revocation_queue;
     use routing::{ClientError, Request, Response};
     use safe_core::{Client, FutureExt};
     use safe_core::MockRouting;
@@ -311,19 +312,20 @@ mod mock_routing {
         let auth = unwrap!(Authenticator::login(locator, password, |_| ()));
 
         // Flush the revocation queue and verify both apps get revoked.
+        unsafe {
+            unwrap!(call_0(
+                |ud, cb| auth_flush_app_revocation_queue(&auth, ud, cb),
+            ))
+        }
+
         run(&auth, |client| {
             let c2 = client.clone();
-            let c3 = client.clone();
 
-            flush_app_revocation_queue(client)
-                .then(move |res| {
-                    unwrap!(res);
-                    config::list_apps(&c2)
-                })
+            config::list_apps(client)
                 .then(move |res| {
                     let (_, apps) = unwrap!(res);
-                    let f_0 = app_state(&c3, &apps, &app_id_0);
-                    let f_1 = app_state(&c3, &apps, &app_id_1);
+                    let f_0 = app_state(&c2, &apps, &app_id_0);
+                    let f_1 = app_state(&c2, &apps, &app_id_1);
 
                     f_0.join(f_1)
                 })

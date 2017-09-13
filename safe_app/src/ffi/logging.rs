@@ -78,12 +78,27 @@ pub unsafe extern "C" fn app_output_log_path(
 mod tests {
     use super::*;
     use config_file_handler::current_bin_dir;
-    use ffi_utils::test_utils::call_0;
+    use ffi_utils::test_utils::{call_0, call_1};
     use std::env;
     use std::fs::{self, File};
     use std::io::Read;
     use std::thread;
     use std::time::Duration;
+
+    // Test path where log file is created.
+    #[test]
+    fn output_log_path() {
+        let name = "_test path";
+        let path_str = unwrap!(CString::new(name));
+
+        let path: String = unsafe {
+            unwrap!(call_1(
+                |ud, cb| app_output_log_path(path_str.as_ptr(), ud, cb),
+            ))
+        };
+
+        assert!(path.contains(name));
+    }
 
     // Test logging errors to file.
     #[test]

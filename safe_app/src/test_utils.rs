@@ -26,7 +26,7 @@ use safe_core::ipc::req::{AuthReq, containers_from_repr_c, ffi};
 use std::collections::{BTreeSet, HashMap};
 use std::sync::mpsc;
 
-/// Generates an `AppExchangeInfo` strucutre for a mock application
+/// Generates an `AppExchangeInfo` structure for a mock application
 pub fn gen_app_exchange_info() -> AppExchangeInfo {
     AppExchangeInfo {
         id: unwrap!(utils::generate_random_string(10)),

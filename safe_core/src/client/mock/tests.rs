@@ -356,6 +356,136 @@ fn mutable_data_basics() {
     assert_eq!(entry.entry_version, 0);
 }
 
+// Test reclamation of deleted mdata.
+#[test]
+fn mutable_data_reclaim() {
+    let (mut routing, routing_rx, full_id) = setup();
+
+    // Create account
+    let owner_key = *full_id.public_id().signing_public_key();
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+
+    // Construct MutableData
+    let name = rand::random();
+    let tag = 1000u64;
+
+    let data = unwrap!(MutableData::new(
+        name,
+        tag,
+        Default::default(),
+        Default::default(),
+        btree_set!(owner_key),
+    ));
+    let nae_mgr = Authority::NaeManager(*data.name());
+
+    // PutMData
+    let msg_id = MessageId::new();
+    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
+    expect_success!(routing_rx, msg_id, Response::PutMData);
+
+    // Mutate the entries: insert, delete and insert again
+    let key0 = b"key0";
+    let value0 = unwrap!(utils::generate_random_vector(10));
+    let actions =
+        btree_map![
+            key0.to_vec() => EntryAction::Ins(Value {
+                content: value0.clone(),
+                entry_version: 0,
+            }),
+        ];
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.mutate_mdata_entries(
+        client_mgr,
+        name,
+        tag,
+        actions,
+        msg_id,
+        owner_key,
+    ));
+    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+
+    let actions =
+        btree_map![
+            key0.to_vec() => EntryAction::Del(1),
+        ];
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.mutate_mdata_entries(
+        client_mgr,
+        name,
+        tag,
+        actions,
+        msg_id,
+        owner_key,
+    ));
+    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+
+    let actions =
+        btree_map![
+            key0.to_vec() => EntryAction::Update(Value {
+                content: value0.clone(),
+                entry_version: 2,
+            })
+        ];
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.mutate_mdata_entries(
+        client_mgr,
+        name,
+        tag,
+        actions,
+        msg_id,
+        owner_key,
+    ));
+    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+
+    // GetMDataVersion should respond with 0 as the mdata itself hasn't changed.
+    let msg_id = MessageId::new();
+    unwrap!(routing.get_mdata_version(nae_mgr, name, tag, msg_id));
+    let version = expect_success!(routing_rx, msg_id, Response::GetMDataVersion);
+    assert_eq!(version, 0);
+
+    // Try deleting the entry with an invalid entry_version and make sure it fails
+    let actions =
+        btree_map![
+            key0.to_vec() => EntryAction::Del(4),
+        ];
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.mutate_mdata_entries(
+        client_mgr,
+        name,
+        tag,
+        actions,
+        msg_id,
+        owner_key,
+    ));
+    expect_failure!(
+        routing_rx,
+        msg_id,
+        Response::MutateMDataEntries,
+        ClientError::InvalidSuccessor(2)
+    );
+
+    // Try deleting the entry with an entry_version of 3 and make sure it succeeds
+    let actions =
+        btree_map![
+            key0.to_vec() => EntryAction::Del(3),
+        ];
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.mutate_mdata_entries(
+        client_mgr,
+        name,
+        tag,
+        actions,
+        msg_id,
+        owner_key,
+    ));
+    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+}
+
 // Test valid and invalid mdata entry versioning.
 #[test]
 fn mutable_data_entry_versioning() {

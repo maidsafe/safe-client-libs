@@ -87,7 +87,7 @@ impl MDataInfo {
         self.enc_info.as_ref().map(|&(_, ref nonce)| nonce)
     }
 
-    /// encrypt the the key for the mdata entry accordingly
+    /// encrypt the key for the mdata entry accordingly
     pub fn enc_entry_key(&self, plain_text: &[u8]) -> Result<Vec<u8>, CoreError> {
         if let Some((ref key, seed)) = self.new_enc_info {
             enc_entry_key(plain_text, key, seed)
