@@ -1,4 +1,4 @@
-// Copyright 2016 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -15,22 +15,25 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-/// `FileHelper` provides functions for CRUD on file
-pub mod file_helper;
+use routing::XOR_NAME_LEN;
+use rust_sodium::crypto::{box_, secretbox, sign};
 
-mod errors;
-mod data_map;
-mod dir;
-mod file;
-mod reader;
-mod writer;
+/// Array containing public key bytes.
+pub type AsymPublicKey = [u8; box_::PUBLICKEYBYTES];
+/// Array containing private key bytes.
+pub type AsymSecretKey = [u8; box_::SECRETKEYBYTES];
+/// Array containing nonce bytes.
+pub type AsymNonce = [u8; box_::NONCEBYTES];
 
-pub use self::dir::create_dir;
-pub use self::errors::NfsError;
-pub use self::file::File;
-pub use self::reader::Reader;
-pub use self::writer::{Mode, Writer};
-use futures::Future;
+/// Array containing private key bytes.
+pub type SymSecretKey = [u8; secretbox::KEYBYTES];
+/// Array containing nonce bytes.
+pub type SymNonce = [u8; secretbox::NONCEBYTES];
 
-/// Helper type for futures that can result in `NfsError`
-pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;
+/// Array containing sign public key bytes.
+pub type SignPublicKey = [u8; sign::PUBLICKEYBYTES];
+/// Array containing sign private key bytes.
+pub type SignSecretKey = [u8; sign::SECRETKEYBYTES];
+
+/// Array containing `XorName` bytes.
+pub type XorNameArray = [u8; XOR_NAME_LEN];

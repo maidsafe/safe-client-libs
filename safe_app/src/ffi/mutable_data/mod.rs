@@ -274,7 +274,7 @@ pub unsafe extern "C" fn mdata_list_values(
 
 /// Mutate entries of the mutable data.
 #[no_mangle]
-pub unsafe fn mdata_mutate_entries(
+pub unsafe extern "C" fn mdata_mutate_entries(
     app: *const App,
     info_h: MDataInfoHandle,
     actions_h: MDataEntryActionsHandle,
@@ -310,7 +310,7 @@ pub unsafe fn mdata_mutate_entries(
 
 /// Get list of all permissions set on the mutable data
 #[no_mangle]
-pub unsafe fn mdata_list_permissions(
+pub unsafe extern "C" fn mdata_list_permissions(
     app: *const App,
     info_h: MDataInfoHandle,
     user_data: *mut c_void,
@@ -332,7 +332,7 @@ pub unsafe fn mdata_list_permissions(
 ///
 /// User is either handle to a signing key or `USER_ANYONE`.
 #[no_mangle]
-pub unsafe fn mdata_list_user_permissions(
+pub unsafe extern "C" fn mdata_list_user_permissions(
     app: *const App,
     info_h: MDataInfoHandle,
     user_h: SignKeyHandle,
@@ -376,7 +376,7 @@ pub unsafe fn mdata_list_user_permissions(
 ///
 /// User is either handle to a signing key or `USER_ANYONE`.
 #[no_mangle]
-pub unsafe fn mdata_set_user_permissions(
+pub unsafe extern "C" fn mdata_set_user_permissions(
     app: *const App,
     info_h: MDataInfoHandle,
     user_h: SignKeyHandle,
@@ -424,7 +424,7 @@ pub unsafe fn mdata_set_user_permissions(
 ///
 /// User is either handle to a signing key or `USER_ANYONE`.
 #[no_mangle]
-pub unsafe fn mdata_del_user_permissions(
+pub unsafe extern "C" fn mdata_del_user_permissions(
     app: *const App,
     info_h: MDataInfoHandle,
     user_h: SignKeyHandle,

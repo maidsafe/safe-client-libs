@@ -20,12 +20,11 @@
 use errors::AppError;
 use ffi_utils::{FFI_RESULT_OK, FfiResult, ReprC, catch_unwind_cb, from_c_str};
 use maidsafe_utilities::serialisation::serialise;
+use safe_core::ffi::ipc::req::{AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq,
+                               ShareMDataReq as FfiShareMDataReq};
+use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::{self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp,
                      ShareMDataReq};
-use safe_core::ipc::req::ffi::AuthReq as FfiAuthReq;
-use safe_core::ipc::req::ffi::ContainersReq as FfiContainersReq;
-use safe_core::ipc::req::ffi::ShareMDataReq as FfiShareMDataReq;
-use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 
@@ -240,10 +239,10 @@ mod tests {
     use rand;
     use routing::{Action, PermissionSet};
     use rust_sodium::crypto::{box_, secretbox, sign};
+    use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
     use safe_core::ipc::{self, AccessContInfo, AppKeys, AuthGranted, AuthReq, BootstrapConfig,
-                         ContainersReq, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
-    use safe_core::ipc::req::Permission;
-    use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
+                         ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData,
+                         ShareMDataReq};
     use safe_core::utils;
     use std::collections::HashMap;
     use std::ffi::CString;

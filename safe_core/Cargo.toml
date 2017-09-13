@@ -8,6 +8,7 @@ name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.26.1"
+build = "build.rs"
 
 [dependencies]
 base64 = "~0.4.1"
@@ -32,6 +33,12 @@ unwrap = "~1.1.0"
 [dev-dependencies]
 docopt = "~0.7.0"
 rustc-serialize = "~0.3.23"
+
+[build-dependencies]
+ffi_utils = { path = "../ffi_utils", version = "~0.2.0" }
+routing = "~0.33.1"
+rust_sodium = "~0.5.0"
+unwrap = "~1.1.0"
 
 [features]
 use-mock-routing = []

@@ -59,6 +59,7 @@ mod vec;
 pub mod callback;
 pub mod test_utils;
 pub mod string;
+pub mod header_gen;
 
 pub use self::base64::{base64_decode, base64_encode};
 pub use self::catch_unwind::{catch_unwind_cb, catch_unwind_error_code};

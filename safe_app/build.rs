@@ -1,4 +1,4 @@
-// Copyright 2016 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -15,22 +15,20 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-/// `FileHelper` provides functions for CRUD on file
-pub mod file_helper;
+//! Build script for generating C header files from FFI modules.
 
-mod errors;
-mod data_map;
-mod dir;
-mod file;
-mod reader;
-mod writer;
+extern crate ffi_utils;
+#[macro_use]
+extern crate unwrap;
 
-pub use self::dir::create_dir;
-pub use self::errors::NfsError;
-pub use self::file::File;
-pub use self::reader::Reader;
-pub use self::writer::{Mode, Writer};
-use futures::Future;
+static HEADER_NAME: &'static str = "safe_app";
+static HEADER_DIRECTORY: &'static str = "../auto-gen/c-include/";
+static ROOT_FILE: &'static str = "src/lib.rs";
 
-/// Helper type for futures that can result in `NfsError`
-pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;
+fn main() {
+    unwrap!(ffi_utils::header_gen::gen_headers(
+        HEADER_NAME,
+        HEADER_DIRECTORY,
+        ROOT_FILE,
+    ));
+}

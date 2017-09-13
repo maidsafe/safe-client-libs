@@ -63,24 +63,27 @@ extern crate unwrap;
 #[cfg(any(test, feature = "testing"))]
 extern crate rand;
 
-/// Provides utilities to test the authenticator functionality
-#[cfg(any(test, feature = "testing"))]
-#[macro_use]
-pub mod test_utils;
-
 /// FFI routines
 pub mod ffi;
-/// Authenticator communication with apps
-pub mod ipc;
+
+pub use ffi::*;
+pub use ffi::apps::*;
+pub use ffi::ipc::*;
+pub use ffi::logging::*;
 
 mod access_container;
 mod app_auth;
 mod app_container;
 mod config;
 mod errors;
+mod ipc;
 mod revocation;
 mod std_dirs;
 
+/// Provides utilities to test the authenticator functionality
+#[cfg(any(test, feature = "testing"))]
+#[macro_use]
+pub mod test_utils;
 #[cfg(test)]
 mod tests;
 

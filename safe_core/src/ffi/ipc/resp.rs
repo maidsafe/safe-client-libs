@@ -1,4 +1,4 @@
-// Copyright 2016 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -17,8 +17,8 @@
 
 #![allow(unsafe_code)]
 
-use ffi::*;
-use ipc::req::ffi::PermissionSet as FfiPermissionSet;
+use ffi::arrays::*;
+use ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use rust_sodium::crypto::sign;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -75,7 +75,6 @@ pub struct AppKeys {
 
 impl Clone for AppKeys {
     // Implemented manually because:
-    //
     // error[E0277]: the trait bound `[u8; 64]: std::clone::Clone` is not satisfied
     //
     // There is a default implementation only until size 32

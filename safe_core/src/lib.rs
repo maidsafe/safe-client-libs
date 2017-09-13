@@ -66,6 +66,14 @@ extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 
+pub mod ffi;
+
+pub use ffi::*;
+pub use ffi::arrays::*;
+pub use ffi::ipc::req::*;
+pub use ffi::ipc::resp::*;
+pub use ffi::nfs::*;
+
 /// Utility functions
 #[macro_use]
 pub mod utils;
@@ -83,7 +91,6 @@ pub mod self_encryption_storage;
 mod client;
 mod errors;
 mod event;
-pub mod ffi;
 
 pub use self::client::{Client, ClientKeys, MDataInfo, mdata_info, recovery};
 #[cfg(feature = "use-mock-routing")]
@@ -93,6 +100,7 @@ pub use self::event::{CoreEvent, NetworkEvent, NetworkRx, NetworkTx};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::self_encryption_storage::{SelfEncryptionStorage, SelfEncryptionStorageError};
 pub use self::utils::FutureExt;
+pub use ffi::*;
 
 /// All Maidsafe tagging should positive-offset from this
 pub const MAIDSAFE_TAG: u64 = 5483_000;

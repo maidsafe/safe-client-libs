@@ -25,7 +25,6 @@ mod errors;
 pub use self::errors::IpcError;
 pub use self::req::{AppExchangeInfo, AuthReq, ContainersReq, IpcReq, Permission, ShareMData,
                     ShareMDataReq};
-pub use self::req::ffi::PermissionSet;
 pub use self::resp::{AccessContInfo, AppKeys, AuthGranted, IpcResp, access_container_enc_key};
 use ffi_utils::{base64_decode, base64_encode};
 use maidsafe_utilities::serialisation::{deserialise, serialise};

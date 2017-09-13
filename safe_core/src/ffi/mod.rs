@@ -15,34 +15,19 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! This module contains common FFI types and structures used by both authenticator and apps.
+//! FFI
 
 #![allow(unsafe_code)]
 
+/// IPC utilities
+pub mod ipc;
+/// NFS API
+pub mod nfs;
+/// Type definitions for arrays that are FFI input params
+pub mod arrays;
+
 use errors::CoreError;
 use ffi_utils::ReprC;
-use routing::XOR_NAME_LEN;
-use rust_sodium::crypto::{box_, secretbox, sign};
-
-/// Array containing public key bytes
-pub type AsymPublicKey = [u8; box_::PUBLICKEYBYTES];
-/// Array containing private key bytes
-pub type AsymSecretKey = [u8; box_::SECRETKEYBYTES];
-/// Array containing nonce bytes
-pub type AsymNonce = [u8; box_::NONCEBYTES];
-
-/// Array containing private key bytes
-pub type SymSecretKey = [u8; secretbox::KEYBYTES];
-/// Array containing nonce bytes
-pub type SymNonce = [u8; secretbox::NONCEBYTES];
-
-/// Array containing sign public key bytes
-pub type SignPublicKey = [u8; sign::PUBLICKEYBYTES];
-/// Array containing sign private key bytes
-pub type SignSecretKey = [u8; sign::SECRETKEYBYTES];
-
-/// Array containing `XorName` bytes
-pub type XorNameArray = [u8; XOR_NAME_LEN];
 
 /// Represents the FFI-safe account info
 #[repr(C)]

@@ -1,4 +1,4 @@
-// Copyright 2016 MaidSafe.net limited.
+// Copyright 2017 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
 // version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
@@ -15,22 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-/// `FileHelper` provides functions for CRUD on file
-pub mod file_helper;
-
-mod errors;
-mod data_map;
-mod dir;
-mod file;
-mod reader;
-mod writer;
-
-pub use self::dir::create_dir;
-pub use self::errors::NfsError;
-pub use self::file::File;
-pub use self::reader::Reader;
-pub use self::writer::{Mode, Writer};
-use futures::Future;
-
-/// Helper type for futures that can result in `NfsError`
-pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;
+/// Request FFI module
+pub mod req;
+/// Response FFI module
+pub mod resp;
