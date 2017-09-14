@@ -15,6 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use crypto::shared_secretbox;
 use errors::CoreError;
 use rand::{OsRng, Rng};
 use routing::{EntryAction, Value, XorName};
@@ -32,10 +33,10 @@ pub struct MDataInfo {
     pub type_tag: u64,
     /// Key to encrypt/decrypt the directory content.
     /// and the nonce to be used for keys
-    pub enc_info: Option<(secretbox::Key, secretbox::Nonce)>,
+    pub enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
 
     /// Future encryption info, used for two-phase data reencryption.
-    pub new_enc_info: Option<(secretbox::Key, secretbox::Nonce)>,
+    pub new_enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
 }
 
 impl MDataInfo {
@@ -44,7 +45,7 @@ impl MDataInfo {
     pub fn new_private(
         name: XorName,
         type_tag: u64,
-        enc_info: (secretbox::Key, secretbox::Nonce),
+        enc_info: (shared_secretbox::Key, secretbox::Nonce),
     ) -> Self {
         MDataInfo {
             name,
@@ -67,7 +68,7 @@ impl MDataInfo {
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(type_tag: u64) -> Result<Self, CoreError> {
         let mut rng = os_rng()?;
-        let enc_info = (secretbox::gen_key(), secretbox::gen_nonce());
+        let enc_info = (shared_secretbox::gen_key(), secretbox::gen_nonce());
         Ok(Self::new_private(rng.gen(), type_tag, enc_info))
     }
 
@@ -78,7 +79,7 @@ impl MDataInfo {
     }
 
     /// Returns the encryption key, if any.
-    pub fn enc_key(&self) -> Option<&secretbox::Key> {
+    pub fn enc_key(&self) -> Option<&shared_secretbox::Key> {
         self.enc_info.as_ref().map(|&(ref key, _)| key)
     }
 
@@ -128,7 +129,7 @@ impl MDataInfo {
     /// field with random keys, unless it's already populated.
     pub fn start_new_enc_info(&mut self) {
         if self.enc_info.is_some() && self.new_enc_info.is_none() {
-            self.new_enc_info = Some((secretbox::gen_key(), secretbox::gen_nonce()));
+            self.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
         }
     }
 

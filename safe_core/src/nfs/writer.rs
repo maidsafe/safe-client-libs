@@ -17,9 +17,9 @@
 
 use chrono::Utc;
 use client::Client;
+use crypto::shared_secretbox;
 use futures::Future;
 use nfs::{File, NfsFuture, data_map};
-use rust_sodium::crypto::secretbox;
 use self_encryption::SequentialEncryptor;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
@@ -38,7 +38,7 @@ pub struct Writer<T> {
     client: Client<T>,
     file: File,
     self_encryptor: SequentialEncryptor<SelfEncryptionStorage<T>>,
-    encryption_key: Option<secretbox::Key>,
+    encryption_key: Option<shared_secretbox::Key>,
 }
 
 impl<T: 'static> Writer<T> {
@@ -48,7 +48,7 @@ impl<T: 'static> Writer<T> {
         storage: SelfEncryptionStorage<T>,
         file: File,
         mode: Mode,
-        encryption_key: Option<secretbox::Key>,
+        encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Writer<T>>> {
         let fut = match mode {
             Mode::Append => {

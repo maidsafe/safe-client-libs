@@ -76,11 +76,11 @@ use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread::{self, Joiner};
-use rust_sodium::crypto::secretbox;
 use safe_core::{Client, ClientKeys, CoreMsg, CoreMsgTx, FutureExt, MDataInfo, NetworkEvent,
                 NetworkTx, event_loop, utils};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting as Routing;
+use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig, Permission};
 use safe_core::ipc::resp::access_container_enc_key;
 use std::cell::RefCell;
@@ -319,7 +319,7 @@ pub struct Unregistered {
 pub struct Registered {
     object_cache: ObjectCache,
     app_id: String,
-    sym_enc_key: secretbox::Key,
+    sym_enc_key: shared_secretbox::Key,
     access_container_info: AccessContInfo,
     access_info: RefCell<AccessContainerEntry>,
 }
@@ -331,7 +331,7 @@ impl AppContext {
 
     fn registered(
         app_id: String,
-        sym_enc_key: secretbox::Key,
+        sym_enc_key: shared_secretbox::Key,
         access_container_info: AccessContInfo,
     ) -> Self {
         AppContext::Registered(Rc::new(Registered {
@@ -352,7 +352,7 @@ impl AppContext {
     }
 
     /// Symmetric encryption/decryption key.
-    pub fn sym_enc_key(&self) -> Result<&secretbox::Key, AppError> {
+    pub fn sym_enc_key(&self) -> Result<&shared_secretbox::Key, AppError> {
         Ok(&self.as_registered()?.sym_enc_key)
     }
 

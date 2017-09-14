@@ -22,6 +22,7 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, catch_unwind_cb, vec_clone_
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use object_cache::{EncryptPubKeyHandle, EncryptSecKeyHandle, SignKeyHandle};
 use rust_sodium::crypto::{box_, sealedbox, sign};
+use safe_core::crypto::shared_box;
 use safe_core::ffi::{AsymNonce, AsymPublicKey, AsymSecretKey};
 use std::os::raw::c_void;
 use std::slice;
@@ -116,7 +117,7 @@ pub unsafe extern "C" fn enc_generate_key_pair(
                         EncryptSecKeyHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let (ourpk, oursk) = box_::gen_keypair();
+        let (ourpk, oursk) = shared_box::gen_keypair();
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |_, context| {
@@ -187,7 +188,7 @@ pub unsafe extern "C" fn enc_secret_key_new(
     o_cb: extern "C" fn(*mut c_void, FfiResult, EncryptSecKeyHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = box_::SecretKey(*data);
+        let key = shared_box::SecretKey::from_raw(&*data);
         send_sync(app, user_data, o_cb, move |_, context| {
             Ok(context.object_cache().insert_secret_key(key))
         })

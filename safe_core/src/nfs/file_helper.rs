@@ -16,12 +16,12 @@
 // relating to use of the SAFE Network Software.
 
 use client::{Client, MDataInfo};
+use crypto::shared_secretbox;
 use errors::CoreError;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
 use routing::{ClientError, EntryActions};
-use rust_sodium::crypto::secretbox;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
 
@@ -86,7 +86,7 @@ where
 pub fn read<T: 'static>(
     client: Client<T>,
     file: &File,
-    encryption_key: Option<secretbox::Key>,
+    encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<Reader<T>>> {
     trace!("Reading file {:?}", file);
     Reader::new(
@@ -178,7 +178,7 @@ pub fn write<T>(
     client: Client<T>,
     file: File,
     mode: Mode,
-    encryption_key: Option<secretbox::Key>,
+    encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<Writer<T>>>
 where
     T: 'static,
@@ -208,11 +208,11 @@ fn convert_error(err: CoreError) -> NfsError {
 mod tests {
     use DIR_TAG;
     use client::{Client, MDataInfo};
+    use crypto::shared_secretbox;
     use errors::CoreError;
     use futures::Future;
     use nfs::{File, Mode, NfsError, NfsFuture, create_dir, file_helper};
     use rand::{self, Rng};
-    use rust_sodium::crypto::secretbox;
     use utils::FutureExt;
     use utils::test_utils::random_client;
 
@@ -555,8 +555,8 @@ mod tests {
             let content: Vec<u8> = rng.gen_iter().take(ORIG_SIZE).collect();
             let content2 = content.clone();
 
-            let key = secretbox::gen_key();
-            let wrong_key = secretbox::gen_key();
+            let key = shared_secretbox::gen_key();
+            let wrong_key = shared_secretbox::gen_key();
 
             file_helper::write(
                 client.clone(),

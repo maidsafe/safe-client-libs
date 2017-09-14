@@ -16,9 +16,9 @@
 // relating to use of the SAFE Network Software.
 
 use client::Client;
+use crypto::shared_secretbox;
 use futures::Future;
 use nfs::{File, NfsError, NfsFuture, data_map};
-use rust_sodium::crypto::secretbox;
 use self_encryption::SelfEncryptor;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
@@ -37,7 +37,7 @@ impl<T: 'static> Reader<T> {
         client: Client<T>,
         storage: SelfEncryptionStorage<T>,
         file: &File,
-        encryption_key: Option<secretbox::Key>,
+        encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Reader<T>>> {
         data_map::get(&client, file.data_map_name(), encryption_key)
             .and_then(move |data_map| {

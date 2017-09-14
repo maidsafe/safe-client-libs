@@ -57,6 +57,7 @@ extern crate lru_cache;
 extern crate maidsafe_utilities;
 extern crate rand;
 extern crate routing;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate rust_sodium;
@@ -79,6 +80,8 @@ pub mod ipc;
 pub mod nfs;
 /// Implements the Self Encryption storage trait
 pub mod self_encryption_storage;
+/// Cryptographic utilities
+pub mod crypto;
 
 mod client;
 mod errors;
