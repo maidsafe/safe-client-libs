@@ -25,6 +25,7 @@ use object_cache::MDataInfoHandle;
 use routing::XorName;
 use rust_sodium::crypto::secretbox;
 use safe_core::MDataInfo;
+use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::{SymNonce, SymSecretKey, XorNameArray};
 use std::os::raw::c_void;
 
@@ -62,7 +63,7 @@ pub unsafe extern "C" fn mdata_info_new_private(
     catch_unwind_cb(user_data, o_cb, || {
         let name = XorName(*name);
 
-        let sk = secretbox::Key(*secret_key);
+        let sk = shared_secretbox::Key::from_raw(&*secret_key);
         let nonce = secretbox::Nonce(*nonce);
 
         send_sync(app, user_data, o_cb, move |_, context| {
@@ -329,7 +330,7 @@ mod tests {
             ))
         };
 
-        let key = secretbox::gen_key();
+        let key = shared_secretbox::gen_key();
         let nonce = secretbox::gen_nonce();
         let new_info_h = unsafe {
             unwrap!(call_1(|ud, cb| {

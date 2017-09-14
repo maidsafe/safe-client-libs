@@ -239,7 +239,8 @@ mod tests {
     use ffi_utils::test_utils::call_2;
     use rand;
     use routing::{Action, PermissionSet};
-    use rust_sodium::crypto::{box_, secretbox, sign};
+    use rust_sodium::crypto::secretbox;
+    use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
     use safe_core::ipc::{self, AccessContInfo, AppKeys, AuthGranted, AuthReq, BootstrapConfig,
                          ContainersReq, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
     use safe_core::ipc::req::Permission;
@@ -643,10 +644,10 @@ mod tests {
     }
 
     fn gen_app_keys() -> AppKeys {
-        let (owner_key, _) = sign::gen_keypair();
-        let enc_key = secretbox::gen_key();
-        let (sign_pk, sign_sk) = sign::gen_keypair();
-        let (enc_pk, enc_sk) = box_::gen_keypair();
+        let (owner_key, _) = shared_sign::gen_keypair();
+        let enc_key = shared_secretbox::gen_key();
+        let (sign_pk, sign_sk) = shared_sign::gen_keypair();
+        let (enc_pk, enc_sk) = shared_box::gen_keypair();
 
         AppKeys {
             owner_key: owner_key,

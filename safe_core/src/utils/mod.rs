@@ -17,6 +17,7 @@
 
 #[macro_use]
 mod futures;
+
 /// Common utility functions for writing test cases
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;

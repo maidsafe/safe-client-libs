@@ -26,6 +26,7 @@ use lru_cache::LruCache;
 use routing::{EntryAction, PermissionSet, User, Value};
 use rust_sodium::crypto::{box_, sign};
 use safe_core::{MDataInfo, SelfEncryptionStorage};
+use safe_core::crypto::shared_box;
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, BTreeSet};
@@ -80,7 +81,7 @@ pub struct ObjectCache {
     handle_gen: HandleGenerator,
     cipher_opt: Store<CipherOpt>,
     encrypt_key: Store<box_::PublicKey>,
-    secret_key: Store<box_::SecretKey>,
+    secret_key: Store<shared_box::SecretKey>,
     mdata_info: Store<MDataInfo>,
     mdata_entries: Store<BTreeMap<Vec<u8>, Value>>,
     mdata_keys: Store<BTreeSet<Vec<u8>>>,
@@ -185,7 +186,7 @@ impl_cache!(
 );
 impl_cache!(
     secret_key,
-    box_::SecretKey,
+    shared_box::SecretKey,
     EncryptSecKeyHandle,
     InvalidEncryptSecKeyHandle,
     get_secret_key,

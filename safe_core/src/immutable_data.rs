@@ -16,11 +16,11 @@
 // relating to use of the SAFE Network Software.
 
 use client::Client;
+use crypto::shared_secretbox;
 use event_loop::CoreFuture;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{ImmutableData, XorName};
-use rust_sodium::crypto::secretbox;
 use self_encryption::{DataMap, SelfEncryptor};
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::{self, FutureExt};
@@ -37,7 +37,7 @@ enum DataTypeEncoding {
 pub fn create<T: 'static>(
     client: &Client<T>,
     value: &[u8],
-    encryption_key: Option<secretbox::Key>,
+    encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<ImmutableData>> {
     trace!("Creating conformant ImmutableData.");
 
@@ -71,7 +71,7 @@ pub fn create<T: 'static>(
 pub fn extract_value<T: 'static>(
     client: &Client<T>,
     data: &ImmutableData,
-    decryption_key: Option<secretbox::Key>,
+    decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client = client.clone();
 
@@ -100,7 +100,7 @@ pub fn extract_value<T: 'static>(
 pub fn get_value<T: 'static>(
     client: &Client<T>,
     name: &XorName,
-    decryption_key: Option<secretbox::Key>,
+    decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client2 = client.clone();
     client
@@ -155,7 +155,6 @@ fn unpack<T: 'static>(client: Client<T>, data: &ImmutableData) -> Box<CoreFuture
 mod tests {
     use super::*;
     use futures::Future;
-    use rust_sodium::crypto::secretbox;
     use utils;
     use utils::test_utils::{finish, random_client};
 
@@ -212,7 +211,7 @@ mod tests {
         // Encrypted
         {
             let value_before = value.clone();
-            let key = secretbox::gen_key();
+            let key = shared_secretbox::gen_key();
 
             random_client(move |client| {
                 let client2 = client.clone();
@@ -239,7 +238,7 @@ mod tests {
         // Put unencrypted Retrieve encrypted - Should fail
         {
             let value = value.clone();
-            let key = secretbox::gen_key();
+            let key = shared_secretbox::gen_key();
 
             random_client(move |client| {
                 let client2 = client.clone();
@@ -265,7 +264,7 @@ mod tests {
         // Put encrypted Retrieve unencrypted - Should fail
         {
             let value = value.clone();
-            let key = secretbox::gen_key();
+            let key = shared_secretbox::gen_key();
 
             random_client(move |client| {
                 let client2 = client.clone();

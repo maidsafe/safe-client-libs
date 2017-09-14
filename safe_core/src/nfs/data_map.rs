@@ -18,12 +18,12 @@
 //! `DataMap` utilities
 
 use client::Client;
+use crypto::shared_secretbox;
 use futures::{Future, future};
 use immutable_data;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::NfsFuture;
 use routing::XorName;
-use rust_sodium::crypto::secretbox;
 use self_encryption::DataMap;
 use utils::FutureExt;
 
@@ -32,7 +32,7 @@ use utils::FutureExt;
 pub fn get<T: 'static>(
     client: &Client<T>,
     name: &XorName,
-    encryption_key: Option<secretbox::Key>,
+    encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<DataMap>> {
     immutable_data::get_value(client, name, encryption_key)
         .map_err(From::from)
@@ -45,7 +45,7 @@ pub fn get<T: 'static>(
 pub fn put<T: 'static>(
     client: &Client<T>,
     data_map: &DataMap,
-    encryption_key: Option<secretbox::Key>,
+    encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<XorName>> {
     let client = client.clone();
     let client2 = client.clone();
