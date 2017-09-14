@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.3.2]
+- Update routing to 0.33.2
+
 ## [0.3.1]
 - Update routing to 0.33.1
 - Fix concurrent revocation bugs

@@ -98,5 +98,6 @@ deploy:
   set_public: true
   artifact: /.*\.zip/
   on:
-    branch: master
+    # Force the build to get pushed to S3 once merged to upstream branch
+    # branch: master
     RUST_TOOLCHAIN: 1.19.0

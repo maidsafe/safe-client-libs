@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.26.2]
+- Update routing to 0.33.2
+
 ## [0.26.1]
 - Update routing to 0.33.1
 - Fix mock vault write mode

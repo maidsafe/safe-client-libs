@@ -128,7 +128,8 @@ deploy:
   region: eu-west-2
   skip_cleanup: true
   on:
-    branch: master
+    # Force the build to get pushed to S3 once merged to upstream branch
+    # branch: master
     tags: false
     condition: $TRAVIS_RUST_VERSION =~ 1.19.0 && $TRAVIS_EVENT_TYPE = push
 after_deploy: rm -rf target/deploy
