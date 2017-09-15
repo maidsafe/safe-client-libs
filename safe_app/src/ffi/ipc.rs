@@ -250,6 +250,7 @@ mod tests {
     use std::os::raw::c_void;
     use test_utils::gen_app_exchange_info;
 
+    // Test encoding and decoding authorization requests.
     #[test]
     fn encode_auth_req_basics() {
         let req = AuthReq {
@@ -279,6 +280,7 @@ mod tests {
         assert_eq!(decoded_req, req);
     }
 
+    // Test encoding and decoding containers requests.
     #[test]
     fn encode_containers_req_basics() {
         let mut container_permissions = HashMap::new();
@@ -313,6 +315,29 @@ mod tests {
         assert_eq!(decoded_req, req);
     }
 
+    // Test encoding and decoding unregistered requests.
+    #[test]
+    fn encode_unregistered_req_basics() {
+        let (req_id, encoded): (u32, String) =
+            unsafe { unwrap!(call_2(|ud, cb| encode_unregistered_req(ud, cb))) };
+
+        // Decode it and verify it's the same we encoded.
+        assert!(encoded.starts_with("safe-auth:"));
+        let msg = unwrap!(ipc::decode_msg(&encoded));
+
+        let (decoded_req_id, decoded_req) = match msg {
+            IpcMsg::Req {
+                req_id,
+                req: IpcReq::Unregistered,
+            } => (req_id, IpcReq::Unregistered),
+            x => panic!("Unexpected {:?}", x),
+        };
+
+        assert_eq!(decoded_req_id, req_id);
+        assert_eq!(decoded_req, IpcReq::Unregistered);
+    }
+
+    // Test encoding and decoding requests to share mutable data
     #[test]
     fn encode_share_mdata_basics() {
         let req = ShareMDataReq {
@@ -349,6 +374,7 @@ mod tests {
         assert_eq!(decoded_req, req);
     }
 
+    // Test that `decode_ipc_msg` calls the `o_auth` callback.
     #[test]
     fn decode_ipc_msg_with_auth_granted() {
         let req_id = ipc::gen_req_id();
@@ -372,12 +398,6 @@ mod tests {
 
         let encoded = unwrap!(ipc::encode_msg(&msg, "app-id"));
         let encoded = unwrap!(CString::new(encoded));
-
-        struct Context {
-            unexpected_cb: bool,
-            req_id: u32,
-            auth_granted: Option<AuthGranted>,
-        };
 
         let context = unsafe {
             let mut context = Context {
@@ -433,13 +453,6 @@ mod tests {
                 }
             }
 
-            extern "C" fn err_cb(ctx: *mut c_void, _res: FfiResult, _req_id: u32) {
-                unsafe {
-                    let ctx = ctx as *mut Context;
-                    (*ctx).unexpected_cb = true;
-                }
-            }
-
             let context_ptr: *mut Context = &mut context;
             decode_ipc_msg(
                 encoded.as_ptr(),
@@ -460,6 +473,7 @@ mod tests {
         assert_eq!(unwrap!(context.auth_granted), auth_granted);
     }
 
+    // Test that `decode_ipc_msg` calls the `o_containers` callback.
     #[test]
     fn decode_ipc_msg_with_containers_granted() {
         let req_id = ipc::gen_req_id();
@@ -472,14 +486,10 @@ mod tests {
         let encoded = unwrap!(ipc::encode_msg(&msg, "app-id"));
         let encoded = unwrap!(CString::new(encoded));
 
-        struct Context {
-            unexpected_cb: bool,
-            req_id: u32,
-        };
-
         let mut context = Context {
             unexpected_cb: false,
             req_id: 0,
+            auth_granted: None,
         };
 
         unsafe {
@@ -527,10 +537,84 @@ mod tests {
                 }
             }
 
-            extern "C" fn err_cb(ctx: *mut c_void, _res: FfiResult, _req_id: u32) {
+            let context_ptr: *mut Context = &mut context;
+            decode_ipc_msg(
+                encoded.as_ptr(),
+                context_ptr as *mut c_void,
+                auth_cb,
+                unregistered_cb,
+                containers_cb,
+                share_mdata_cb,
+                revoked_cb,
+                err_cb,
+            );
+        }
+
+        assert!(!context.unexpected_cb);
+        assert_eq!(context.req_id, req_id);
+    }
+
+    // Test that `decode_ipc_msg` calls the `o_unregistered` callback.
+    #[test]
+    fn decode_ipc_msg_with_unregistered_granted() {
+        let req_id = ipc::gen_req_id();
+
+        let msg = IpcMsg::Resp {
+            req_id: req_id,
+            resp: IpcResp::Unregistered(Ok(BootstrapConfig::default())),
+        };
+
+        let encoded = unwrap!(ipc::encode_msg(&msg, "app-id"));
+        let encoded = unwrap!(CString::new(encoded));
+
+        let mut context = Context {
+            unexpected_cb: false,
+            req_id: 0,
+            auth_granted: None,
+        };
+
+        unsafe {
+            extern "C" fn auth_cb(
+                ctx: *mut c_void,
+                _req_id: u32,
+                _auth_granted: *const FfiAuthGranted,
+            ) {
                 unsafe {
                     let ctx = ctx as *mut Context;
                     (*ctx).unexpected_cb = true;
+                }
+            }
+
+            extern "C" fn containers_cb(ctx: *mut c_void, _req_id: u32) {
+                unsafe {
+                    let ctx = ctx as *mut Context;
+                    (*ctx).unexpected_cb = true;
+                }
+            }
+
+            extern "C" fn share_mdata_cb(ctx: *mut c_void, _req_id: u32) {
+                unsafe {
+                    let ctx = ctx as *mut Context;
+                    (*ctx).unexpected_cb = true;;
+                }
+            }
+
+            extern "C" fn revoked_cb(ctx: *mut c_void) {
+                unsafe {
+                    let ctx = ctx as *mut Context;
+                    (*ctx).unexpected_cb = true;
+                }
+            }
+
+            extern "C" fn unregistered_cb(
+                ctx: *mut c_void,
+                req_id: u32,
+                _bootstrap_cfg_ptr: *const u8,
+                _bootstrap_cfg_len: usize,
+            ) {
+                unsafe {
+                    let ctx = ctx as *mut Context;
+                    (*ctx).req_id = req_id;
                 }
             }
 
@@ -551,6 +635,7 @@ mod tests {
         assert_eq!(context.req_id, req_id);
     }
 
+    // Test that `decode_ipc_msg` calls the `o_share_mdata` callback.
     #[test]
     fn decode_ipc_msg_with_share_mdata_granted() {
         let req_id = ipc::gen_req_id();
@@ -563,14 +648,10 @@ mod tests {
         let encoded = unwrap!(ipc::encode_msg(&msg, "app-id"));
         let encoded = unwrap!(CString::new(encoded));
 
-        struct Context {
-            unexpected_cb: bool,
-            req_id: u32,
-        };
-
         let mut context = Context {
             unexpected_cb: false,
             req_id: 0,
+            auth_granted: None,
         };
 
         unsafe {
@@ -618,13 +699,6 @@ mod tests {
                 }
             }
 
-            extern "C" fn err_cb(ctx: *mut c_void, _res: FfiResult, _req_id: u32) {
-                unsafe {
-                    let ctx = ctx as *mut Context;
-                    (*ctx).unexpected_cb = true;
-                }
-            }
-
             let context_ptr: *mut Context = &mut context;
             decode_ipc_msg(
                 encoded.as_ptr(),
@@ -655,6 +729,19 @@ mod tests {
             sign_sk: sign_sk,
             enc_pk: enc_pk,
             enc_sk: enc_sk,
+        }
+    }
+
+    struct Context {
+        unexpected_cb: bool,
+        req_id: u32,
+        auth_granted: Option<AuthGranted>,
+    }
+
+    extern "C" fn err_cb(ctx: *mut c_void, _res: FfiResult, _req_id: u32) {
+        unsafe {
+            let ctx = ctx as *mut Context;
+            (*ctx).unexpected_cb = true;
         }
     }
 }

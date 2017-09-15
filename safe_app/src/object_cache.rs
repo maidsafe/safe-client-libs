@@ -334,6 +334,7 @@ mod tests {
     use super::*;
     use rust_sodium::crypto::sign;
 
+    // Test resetting the object cache.
     #[test]
     fn reset() {
         let object_cache = ObjectCache::new();

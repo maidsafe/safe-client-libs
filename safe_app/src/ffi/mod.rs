@@ -19,18 +19,6 @@
 
 #![allow(unsafe_code)]
 
-use super::App;
-use super::errors::AppError;
-use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, catch_unwind_cb, from_c_str};
-use futures::Future;
-use maidsafe_utilities::serialisation::deserialise;
-use safe_core::{FutureExt, NetworkEvent};
-use safe_core::ffi::AccountInfo as FfiAccountInfo;
-use safe_core::ipc::{AuthGranted, BootstrapConfig};
-use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
-use std::os::raw::{c_char, c_void};
-use std::slice;
-
 /// Access container
 pub mod access_container;
 /// Cipher Options
@@ -51,6 +39,18 @@ pub mod mutable_data;
 pub mod nfs;
 
 mod helper;
+
+use super::App;
+use super::errors::AppError;
+use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, catch_unwind_cb, from_c_str};
+use futures::Future;
+use maidsafe_utilities::serialisation::deserialise;
+use safe_core::{FutureExt, NetworkEvent};
+use safe_core::ffi::AccountInfo as FfiAccountInfo;
+use safe_core::ipc::{AuthGranted, BootstrapConfig};
+use safe_core::ipc::resp::ffi::AuthGranted as FfiAuthGranted;
+use std::os::raw::{c_char, c_void};
+use std::slice;
 
 /// Create unregistered app.
 /// The `user_data` parameter corresponds to the first parameter of the
@@ -200,6 +200,7 @@ mod tests {
     use safe_core::ffi::AccountInfo;
     use test_utils::create_app;
 
+    // Test account usage statistics before and after a mutation.
     #[test]
     fn account_info() {
         let app = create_app();
@@ -229,6 +230,7 @@ mod tests {
         unsafe { app_free(app) };
     }
 
+    // Test disconnection and reconnection with apps.
     #[cfg(all(test, feature = "use-mock-routing"))]
     #[test]
     fn network_status_callback() {

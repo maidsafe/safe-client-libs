@@ -87,7 +87,7 @@ impl MDataInfo {
         self.enc_info.as_ref().map(|&(_, ref nonce)| nonce)
     }
 
-    /// encrypt the the key for the mdata entry accordingly
+    /// encrypt the key for the mdata entry accordingly
     pub fn enc_entry_key(&self, plain_text: &[u8]) -> Result<Vec<u8>, CoreError> {
         if let Some((ref key, seed)) = self.new_enc_info {
             enc_entry_key(plain_text, key, seed)
@@ -260,6 +260,7 @@ fn enc_entry_key(
 mod tests {
     use super::*;
 
+    // Ensure that a private mdata info is encrypted.
     #[test]
     fn private_mdata_info_encrypts() {
         let info = unwrap!(MDataInfo::random_private(0));
@@ -273,6 +274,7 @@ mod tests {
         assert_eq!(unwrap!(info.decrypt(&enc_val)), val);
     }
 
+    // Ensure that a public mdata info is not encrypted.
     #[test]
     fn public_mdata_info_doesnt_encrypt() {
         let info = unwrap!(MDataInfo::random_public(0));
@@ -283,6 +285,7 @@ mod tests {
         assert_eq!(unwrap!(info.decrypt(&val)), val);
     }
 
+    // Test creating and committing new encryption info.
     #[test]
     fn decrypt() {
         let mut info = unwrap!(MDataInfo::random_private(0));

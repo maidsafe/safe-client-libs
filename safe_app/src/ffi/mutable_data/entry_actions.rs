@@ -145,6 +145,7 @@ mod tests {
     use safe_core::utils;
     use test_utils::{create_app, run_now};
 
+    // Test entry action basics such as insert, update, and delete.
     #[test]
     fn basics() {
         let app = create_app();

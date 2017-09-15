@@ -297,6 +297,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CStr;
 
+    // Test converting `ContainerPermissions` to its FFI representation and back again.
     #[test]
     fn container_permissions() {
         let mut cp = HashMap::new();
@@ -311,6 +312,7 @@ mod tests {
         assert_eq!(unwrap!(cp.get("foobar")), &btree_set![Permission::Insert]);
     }
 
+    // Test that cloning an empty `ContainerPermissions` from FFI produces an error.
     #[test]
     fn empty_container_permissions() {
         // Expect an error for an empty permission set
@@ -324,6 +326,9 @@ mod tests {
         assert!(cp.is_err());
     }
 
+    // Test cloning a permission set for the following two cases:
+    // 1. If only the `read` perm is set - return an error.
+    // 2. The `read` perm should be ignored in all other cases.
     #[test]
     fn permissions_set_conversion() {
         // It should return an error in case if we have set only the `read` perm
@@ -338,7 +343,7 @@ mod tests {
         let res = permission_set_clone_from_repr_c(&ps);
         assert!(res.is_err());
 
-        // It should ignore read perms in all other cases
+        // It should ignore `read` perms in all other cases
         let ps = FfiPermissionSet {
             read: true,
             insert: false,
@@ -354,6 +359,7 @@ mod tests {
         assert!(res.is_allowed(Action::ManagePermissions).is_none());
     }
 
+    // Testing converting an `AppExchangeInfo` object to its FFI representation and back again.
     #[test]
     fn app_exchange_info() {
         let a = AppExchangeInfo {
@@ -391,6 +397,7 @@ mod tests {
         }
     }
 
+    // Test converting an `AuthReq` object to its FFI representation and back again.
     #[test]
     fn auth_request() {
         let app = AppExchangeInfo {
@@ -421,6 +428,7 @@ mod tests {
         assert_eq!(a.containers.len(), 0);
     }
 
+    // Test converting a `ContainersReq` object to its FFI representation and back again.
     #[test]
     fn containers_req() {
         let app = AppExchangeInfo {

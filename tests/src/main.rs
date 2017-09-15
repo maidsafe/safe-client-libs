@@ -74,6 +74,7 @@ use std::sync::mpsc;
 struct SendWrapper<T>(T);
 unsafe impl<T> Send for SendWrapper<T> {}
 
+// Main integration test for safe_client_libs.
 #[test]
 fn test() {
     let app_id = unwrap!(utils::generate_random_string(10));

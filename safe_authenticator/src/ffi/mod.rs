@@ -185,6 +185,7 @@ mod tests {
     use std::ffi::CString;
     use std::os::raw::c_void;
 
+    // Test creating an account and logging in.
     #[test]
     fn create_account_and_login() {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
@@ -227,6 +228,7 @@ mod tests {
         }
     }
 
+    // Test disconnection and reconnection with the authenticator.
     #[cfg(all(test, feature = "use-mock-routing"))]
     #[test]
     fn network_status_callback() {
@@ -301,6 +303,7 @@ mod tests {
         }
     }
 
+    // Test account usage statistics before and after a mutation.
     #[test]
     fn account_info() {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));

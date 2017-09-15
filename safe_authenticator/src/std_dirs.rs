@@ -170,6 +170,7 @@ mod tests {
     use futures::Future;
     use test_utils::{create_account_and_login, run};
 
+    // Test creation of default dirs.
     #[test]
     fn creates_default_dirs() {
         let auth = create_account_and_login();
@@ -199,7 +200,7 @@ mod tests {
                         DEFAULT_PRIVATE_DIRS.iter(),
                     )
                     {
-                        // let's check whether all our entires have been created properly
+                        // let's check whether all our entries have been created properly
                         assert!(mdata_entries.contains_key(*key));
                     }
 

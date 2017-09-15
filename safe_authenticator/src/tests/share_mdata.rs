@@ -36,6 +36,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 use test_utils::{create_account_and_login, rand_app, register_app, run};
 
+// Test making an empty request to share mutable data.
 #[test]
 fn share_zero_mdatas() {
     let authenticator = create_account_and_login();
@@ -60,6 +61,7 @@ fn share_zero_mdatas() {
     };
 }
 
+// Test making a request to share mutable data with barebones mdata.
 #[test]
 fn share_some_mdatas() {
     let authenticator = create_account_and_login();
@@ -119,6 +121,7 @@ fn share_some_mdatas() {
     };
 }
 
+// Test making a request to share mdata with valid metadata.
 #[test]
 fn share_some_mdatas_with_valid_metadata() {
     let authenticator = create_account_and_login();
@@ -227,6 +230,7 @@ fn share_some_mdatas_with_valid_metadata() {
     }
 }
 
+// Test making a request to share mdata with invalid owners.
 #[test]
 fn share_some_mdatas_with_ownership_error() {
     let authenticator = create_account_and_login();

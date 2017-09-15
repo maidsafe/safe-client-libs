@@ -37,3 +37,35 @@ pub unsafe extern "C" fn mdata_encode_metadata(
         Ok(())
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use ffi::mutable_data::metadata::mdata_encode_metadata;
+    use ffi_utils::test_utils::call_vec_u8;
+    use maidsafe_utilities::serialisation::deserialise;
+    use safe_core::ipc::resp::UserMetadata;
+
+    // Test serializing and deserializing metadata.
+    #[test]
+    fn serialize_metadata() {
+        let metadata1 = UserMetadata {
+            name: None,
+            description: Some(String::from("test")),
+        };
+
+        let metadata_resp = match metadata1.clone().into_md_response(Default::default(), 0) {
+            Ok(val) => val,
+            _ => panic!("An error occurred"),
+        };
+
+        let serialised = unsafe {
+            unwrap!(call_vec_u8(
+                |ud, cb| mdata_encode_metadata(&metadata_resp, ud, cb),
+            ))
+        };
+
+        let metadata2 = unwrap!(deserialise::<UserMetadata>(&serialised));
+
+        assert_eq!(metadata1, metadata2);
+    }
+}

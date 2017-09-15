@@ -281,7 +281,7 @@ fn fix_entry_action(action: EntryAction, error: &EntryError) -> Option<EntryActi
     }
 }
 
-// Create union of the two permission sets, preffering allows to deny's.
+// Create union of the two permission sets, preferring allows to deny's.
 fn union_permission_sets(a: &PermissionSet, b: &PermissionSet) -> PermissionSet {
     let actions = [
         Action::Insert,
@@ -345,6 +345,7 @@ pub fn ins_auth_key<T: 'static>(
 mod tests {
     use super::*;
 
+    // Test modifying given entry actions to fix entry errors
     #[test]
     fn test_fix_entry_actions() {
         let mut actions = BTreeMap::new();
@@ -451,6 +452,7 @@ mod tests {
         assert_eq!(*unwrap!(actions.get([7].as_ref())), EntryAction::Del(3));
     }
 
+    // Test creating a union of two permission sets
     #[test]
     fn test_union_permission_sets() {
         let a = PermissionSet::new()
@@ -477,6 +479,7 @@ mod tests_with_mock_routing {
     use rust_sodium::crypto::sign;
     use utils::test_utils::random_client;
 
+    // Test putting mdata and recovering from errors
     #[test]
     fn put_mdata_with_recovery() {
         random_client(|client| {
@@ -589,6 +592,7 @@ mod tests_with_mock_routing {
         })
     }
 
+    // Test mutating mdata entries and recovering from errors
     #[test]
     fn mutate_mdata_entries_with_recovery() {
         random_client(|client| {
@@ -711,6 +715,7 @@ mod tests_with_mock_routing {
         })
     }
 
+    // Test setting and deleting user permissions and recovering from errors
     #[test]
     fn set_and_del_mdata_user_permissions_with_recovery() {
         random_client(|client| {
