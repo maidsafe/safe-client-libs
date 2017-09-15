@@ -238,8 +238,8 @@ mod tests {
         use ffi_utils::test_utils::{call_0, send_via_user_data, sender_as_user_data};
         use maidsafe_utilities::serialisation::serialise;
         use safe_core::NetworkEvent;
-        use std::os::raw::c_void;
         use safe_core::ipc::BootstrapConfig;
+        use std::os::raw::c_void;
         use std::sync::mpsc;
         use std::time::Duration;
 

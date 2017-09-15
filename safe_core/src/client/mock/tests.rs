@@ -465,12 +465,11 @@ fn mutable_data_reclaim() {
         routing_rx,
         msg_id,
         Response::MutateMDataEntries,
-        ClientError::InvalidSuccessor(2)
+        ClientError::InvalidEntryActions(_)
     );
 
     // Try deleting the entry with an entry_version of 3 and make sure it succeeds
-    let actions =
-        btree_map![
+    let actions = btree_map![
             key0.to_vec() => EntryAction::Del(3),
         ];
 
@@ -514,8 +513,7 @@ fn mutable_data_entry_versioning() {
     // Insert a new entry
     let key = b"key0";
     let value_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions =
-        btree_map![
+    let actions = btree_map![
             key.to_vec() => EntryAction::Ins(Value {
                 content: value_v0,
                 entry_version: 0,
@@ -535,8 +533,7 @@ fn mutable_data_entry_versioning() {
 
     // Attempt to update it without version bump fails.
     let value_v1 = unwrap!(utils::generate_random_vector(10));
-    let actions =
-        btree_map![
+    let actions = btree_map![
             key.to_vec() => EntryAction::Update(Value {
                 content: value_v1.clone(),
                 entry_version: 0,
