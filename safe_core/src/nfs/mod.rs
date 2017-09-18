@@ -25,6 +25,8 @@ mod data_map;
 mod dir;
 mod file;
 mod reader;
+#[cfg(test)]
+mod tests;
 mod writer;
 
 pub use self::dir::create_dir;
