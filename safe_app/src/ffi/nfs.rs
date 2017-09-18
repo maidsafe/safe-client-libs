@@ -902,4 +902,121 @@ mod tests {
 
         let _: NativeFile = unsafe { unwrap!(call_1(|ud, cb| file_close(&app, append_h, ud, cb))) };
     }
+
+    // Test reading files in chunks.
+    #[test]
+    fn file_read_chunks() {
+        const ORIG_SIZE: usize = 5555;
+
+        let (app, container_info_h) = setup();
+
+        // Create non-empty file.
+        let file = NativeFile::new(Vec::new());
+        let ffi_file = file.into_repr_c();
+
+        let file_name = "file.txt";
+        let ffi_file_name = unwrap!(CString::new(file_name));
+
+        let content = [0u8; ORIG_SIZE];
+
+        let write_h = unsafe {
+            unwrap!(call_1(|ud, cb| {
+                file_open(
+                    &app,
+                    container_info_h,
+                    &ffi_file,
+                    OPEN_MODE_OVERWRITE,
+                    ud,
+                    cb,
+                )
+            }))
+        };
+
+        let written_file: NativeFile = unsafe {
+            unwrap!(call_0(|ud, cb| {
+                file_write(&app, write_h, content.as_ptr(), content.len(), ud, cb)
+            }));
+            unwrap!(call_1(|ud, cb| file_close(&app, write_h, ud, cb)))
+        };
+        unsafe {
+            unwrap!(call_0(|ud, cb| {
+                dir_insert_file(
+                    &app,
+                    container_info_h,
+                    ffi_file_name.as_ptr(),
+                    &written_file.into_repr_c(),
+                    ud,
+                    cb,
+                )
+            }))
+        }
+
+        // Fetch it back.
+        let (file, version): (NativeFile, u64) = {
+            unsafe {
+                unwrap!(call_2(|ud, cb| {
+                    dir_fetch_file(&app, container_info_h, ffi_file_name.as_ptr(), ud, cb)
+                }))
+            }
+        };
+        assert_eq!(version, 0);
+
+        // Read the content in chunks
+        let read_h = unsafe {
+            unwrap!(call_1(|ud, cb| {
+                file_open(
+                    &app,
+                    container_info_h,
+                    &file.into_repr_c(),
+                    OPEN_MODE_READ,
+                    ud,
+                    cb,
+                )
+            }))
+        };
+
+        let size = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_h, ud, cb))) };
+        const CHUNK_SIZE: u64 = 1000;
+        let mut size_read = 0;
+        let mut result = Vec::new();
+
+        while size_read < size {
+            let to_read = if size_read + CHUNK_SIZE >= size {
+                size - size_read
+            } else {
+                CHUNK_SIZE
+            };
+
+            let mut retrieved_content = unsafe {
+                unwrap!(call_vec_u8(
+                    |ud, cb| file_read(&app, read_h, size_read, to_read, ud, cb),
+                ))
+            };
+
+            size_read += retrieved_content.len() as u64;
+            result.append(&mut retrieved_content);
+        }
+
+        assert_eq!(size, size_read);
+        assert_eq!(result, vec![0u8; ORIG_SIZE]);
+
+        // Read 0 bytes, should succeed
+
+        let retrieved_content = unsafe {
+            unwrap!(call_vec_u8(
+                |ud, cb| file_read(&app, read_h, size, 0, ud, cb),
+            ))
+        };
+        assert_eq!(retrieved_content, Vec::<u8>::new());
+
+        // Read 1 byte past end of file, should fail
+        let retrieved_content =
+            unsafe { call_vec_u8(|ud, cb| file_read(&app, read_h, size, 1, ud, cb)) };
+
+        match retrieved_content {
+            Err(code) if code == AppError::from(NfsError::InvalidRange).error_code() => (),
+            Err(x) => panic!("Unexpected: {:?}", x),
+            Ok(_) => panic!("Unexpected success"),
+        }
+    }
 }
