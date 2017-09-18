@@ -96,17 +96,21 @@ fn parse_root(fname: &str) -> io::Result<Vec<String>> {
     let contents = read_file_str(fname)?;
     let mut modules = Vec::new();
     let mut found = false;
-    let re_pub_use = unwrap!(regex::Regex::new(r"^pub use ffi::.*\*;$"));
-    let re_module = unwrap!(regex::Regex::new(r"ffi::.*\*"));
+    let re_pub_use = unwrap!(regex::Regex::new(r"^pub use (ffi(::.+)*)::\*;$"));
+    // let re_module = unwrap!(regex::Regex::new(r"ffi::.*\*"));
 
     for line in contents.lines() {
-        if re_pub_use.is_match(line) {
-            let mat = unwrap!(re_module.find(line));
-            let module = String::from(&line[mat.start()..mat.end() - 3]);
-            if module == "ffi" {
-                found = true;
-            } else {
-                modules.push(module)
+        let captures = re_pub_use.captures(line);
+        if let Some(captures) = captures {
+            // Get module path
+            let module = captures.get(1);
+            if let Some(module) = module {
+                let module = module.as_str();
+                if module == "ffi" {
+                    found = true;
+                } else {
+                    modules.push(String::from(module))
+                }
             }
         }
     }
