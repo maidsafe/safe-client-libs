@@ -15,18 +15,16 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-use errors::ERR_NO_SUCH_ENTRY;
 use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
-use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value,
-              XOR_NAME_LEN, XorName};
+use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
 use rust_sodium::crypto::sign;
 use safe_core::{CoreError, DIR_TAG, FutureExt};
 use safe_core::utils::test_utils::random_client;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc;
-use std::time::Duration;
+use test_utils::{create_app, run};
 
 // MD created by App. App lists its own sign_pk in owners field: Put should
 // fail - Rejected by MaidManagers. Should pass when it lists the owner's

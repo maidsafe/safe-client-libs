@@ -39,6 +39,8 @@ pub mod mutable_data;
 pub mod nfs;
 
 mod helper;
+#[cfg(test)]
+mod tests;
 
 use super::App;
 use super::errors::AppError;
@@ -198,119 +200,6 @@ unsafe fn call_network_observer(
         Ok(event) => o_cb(user_data, FFI_RESULT_OK, event.into()),
         res @ Err(..) => {
             call_result_cb!(res, user_data, o_cb);
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ffi_utils::test_utils::call_1;
-    use routing::ImmutableData;
-    use safe_core::ffi::AccountInfo;
-    use test_utils::create_app;
-
-    // Test account usage statistics before and after a mutation.
-    #[test]
-    fn account_info() {
-        let app = create_app();
-        let app = Box::into_raw(Box::new(app));
-
-        let orig_stats: AccountInfo =
-            unsafe { unwrap!(call_1(|ud, cb| app_account_info(app, ud, cb))) };
-        assert!(orig_stats.mutations_available > 0);
-
-        unsafe {
-            unwrap!((*app).send(move |client, _| {
-                client
-                    .put_idata(ImmutableData::new(vec![1, 2, 3]))
-                    .map_err(move |_| ())
-                    .into_box()
-                    .into()
-            }));
-        }
-
-        let stats: AccountInfo = unsafe { unwrap!(call_1(|ud, cb| app_account_info(app, ud, cb))) };
-        assert_eq!(stats.mutations_done, orig_stats.mutations_done + 1);
-        assert_eq!(
-            stats.mutations_available,
-            orig_stats.mutations_available - 1
-        );
-
-        unsafe { app_free(app) };
-    }
-
-    // Test disconnection and reconnection with apps.
-    #[cfg(all(test, feature = "use-mock-routing"))]
-    #[test]
-    fn network_status_callback() {
-        use App;
-        use ffi_utils::test_utils::{call_0, send_via_user_data, sender_as_user_data};
-        use maidsafe_utilities::serialisation::serialise;
-        use safe_core::NetworkEvent;
-        use safe_core::ipc::BootstrapConfig;
-        use std::os::raw::c_void;
-        use std::sync::mpsc;
-        use std::time::Duration;
-
-        {
-            let (tx, rx) = mpsc::channel();
-
-            let bootstrap_cfg = unwrap!(serialise(&BootstrapConfig::default()));
-
-            let app: *mut App = unsafe {
-                unwrap!(call_1(|ud, cb| {
-                    app_unregistered(
-                        bootstrap_cfg.as_ptr(),
-                        bootstrap_cfg.len(),
-                        sender_as_user_data(&tx),
-                        ud,
-                        net_event_cb,
-                        cb,
-                    )
-                }))
-            };
-
-            unsafe {
-                unwrap!((*app).send(move |client, _| {
-                    client.simulate_network_disconnect();
-                    None
-                }));
-            }
-
-            let (error_code, event): (i32, i32) = unwrap!(rx.recv_timeout(Duration::from_secs(10)));
-            assert_eq!(error_code, 0);
-
-            let disconnected: i32 = NetworkEvent::Disconnected.into();
-            assert_eq!(event, disconnected);
-
-            // Reconnect with the network
-            unsafe { unwrap!(call_0(|ud, cb| app_reconnect(app, ud, cb))) };
-
-            let (err_code, event): (i32, i32) = unwrap!(rx.recv_timeout(Duration::from_secs(10)));
-            assert_eq!(err_code, 0);
-
-            let connected: i32 = NetworkEvent::Connected.into();
-            assert_eq!(event, connected);
-
-            // The reconnection should be fine if we're already connected.
-            unsafe { unwrap!(call_0(|ud, cb| app_reconnect(app, ud, cb))) };
-
-            let (err_code, event): (i32, i32) = unwrap!(rx.recv_timeout(Duration::from_secs(10)));
-            assert_eq!(err_code, 0);
-            assert_eq!(event, disconnected);
-
-            let (err_code, event): (i32, i32) = unwrap!(rx.recv_timeout(Duration::from_secs(10)));
-            assert_eq!(err_code, 0);
-            assert_eq!(event, connected);
-
-            unsafe { app_free(app) };
-        }
-
-        extern "C" fn net_event_cb(user_data: *mut c_void, res: FfiResult, event: i32) {
-            unsafe {
-                send_via_user_data(user_data, (res.error_code, event));
-            }
         }
     }
 }

@@ -1,3 +1,20 @@
+// Copyright 2017 MaidSafe.net limited.
+//
+// This SAFE Network Software is licensed to you under (1) the MaidSafe.net Commercial License,
+// version 1.0 or later, or (2) The General Public License (GPL), version 3, depending on which
+// licence you accepted on initial access to the Software (the "Licences").
+//
+// By contributing code to the SAFE Network Software, or to this project generally, you agree to be
+// bound by the terms of the MaidSafe Contributor Agreement.  This, along with the Licenses can be
+// found in the root directory of this project at LICENSE, COPYING and CONTRIBUTOR.
+//
+// Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
+// under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.
+//
+// Please review the Licences for the specific language governing permissions and limitations
+// relating to use of the SAFE Network Software.
+
 use DIR_TAG;
 use client::{Client, MDataInfo};
 use crypto::shared_secretbox;
@@ -6,6 +23,7 @@ use futures::Future;
 use futures::future::{self, Loop};
 use nfs::{File, Mode, NfsError, NfsFuture, create_dir, file_helper};
 use nfs::reader::Reader;
+use nfs::writer::Writer;
 use rand::{self, Rng};
 use utils::FutureExt;
 use utils::test_utils::random_client;
@@ -113,7 +131,6 @@ fn file_read_chunks() {
                     println!("reading {} bytes", to_read);
                     reader.read(size_read, to_read).then(move |res| {
                         let mut data = unwrap!(res);
-                        println!("finished reading {} bytes", data.len());
 
                         size_read += data.len() as u64;
                         result.append(&mut data);
@@ -137,7 +154,6 @@ fn file_read_chunks() {
                     .then(|res| {
                         let (reader, size, data) = unwrap!(res);
                         assert_eq!(data, Vec::<u8>::new());
-                        println!("finishing reading 0 bytes");
 
                         // Read past the end of the file, expect an error
                         reader.read(size, 1)
@@ -153,6 +169,125 @@ fn file_read_chunks() {
                     })
             })
     });
+}
+
+// Test writing to files in chunks.
+#[test]
+fn file_write_chunks() {
+    const CHUNK_SIZE: usize = 1000;
+    const GOAL_SIZE: usize = 5555;
+    let content = [0u8; GOAL_SIZE];
+
+    random_client(move |client| {
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+
+        create_test_file(client)
+            .then(move |res| {
+                // Updating file - overwrite
+                let (dir, file) = unwrap!(res);
+
+                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
+                    .map(move |writer| (writer, dir))
+            })
+            .then(move |res| {
+                let (writer, dir) = unwrap!(res);
+
+                let size_written = 0;
+                future::loop_fn((writer, size_written), move |(writer, mut size_written)| {
+                    let to_write = if size_written + CHUNK_SIZE >= GOAL_SIZE {
+                        GOAL_SIZE - size_written
+                    } else {
+                        CHUNK_SIZE
+                    };
+                    println!("writing {} bytes", to_write);
+
+                    writer
+                        .write(&content[size_written..size_written + to_write])
+                        .then(move |res| {
+                            unwrap!(res);
+
+                            size_written += to_write;
+                            if size_written < GOAL_SIZE {
+                                Ok(Loop::Continue((writer, size_written)))
+                            } else {
+                                Ok(Loop::Break(writer))
+                            }
+                        })
+                }).map(move |writer| (writer, dir))
+            })
+            .then(move |res: Result<(Writer<()>, MDataInfo), NfsError>| {
+                let (writer, dir) = unwrap!(res);
+                // Write 0 bytes, should succeed
+                writer.write(&content[GOAL_SIZE..GOAL_SIZE]).map(move |_| {
+                    (writer, dir)
+                })
+            })
+            .then(move |res| {
+                let (writer, dir) = unwrap!(res);
+                writer.close().map(move |file| (file, dir))
+            })
+            .then(move |res| {
+                // Updating file - append
+                let (file, dir) = unwrap!(res);
+
+                file_helper::write(c3, file, Mode::Append, dir.enc_key().cloned())
+                    .map(move |writer| (writer, dir))
+            })
+            .then(move |res| {
+                let (writer, dir) = unwrap!(res);
+
+                let size_written = 0;
+                future::loop_fn((writer, size_written), move |(writer, mut size_written)| {
+                    let to_write = if size_written + CHUNK_SIZE >= GOAL_SIZE {
+                        GOAL_SIZE - size_written
+                    } else {
+                        CHUNK_SIZE
+                    };
+                    println!("writing {} bytes", to_write);
+
+                    writer
+                        .write(&content[size_written..size_written + to_write])
+                        .then(move |res| {
+                            unwrap!(res);
+
+                            size_written += to_write;
+                            if size_written < GOAL_SIZE {
+                                Ok(Loop::Continue((writer, size_written)))
+                            } else {
+                                Ok(Loop::Break(writer))
+                            }
+                        })
+                }).map(move |writer| (writer, dir))
+            })
+            .then(move |res: Result<(Writer<()>, MDataInfo), NfsError>| {
+                let (writer, dir) = unwrap!(res);
+                // Write 0 bytes, should succeed
+                writer.write(&content[GOAL_SIZE..GOAL_SIZE]).map(move |_| {
+                    (writer, dir)
+                })
+            })
+            .then(move |res| {
+                let (writer, dir) = unwrap!(res);
+                writer.close().map(move |file| (file, dir))
+            })
+            .then(move |res| {
+                let (file, dir) = unwrap!(res);
+
+                file_helper::read(c4, &file, dir.enc_key().cloned())
+            })
+            .then(move |res| {
+                let reader = unwrap!(res);
+                let size = reader.size();
+
+                assert_eq!(size, 2 * GOAL_SIZE as u64);
+                reader.read(0, size)
+            })
+            .map(move |data| {
+                assert_eq!(data, vec![0u8; 2 * GOAL_SIZE]);
+            })
+    })
 }
 
 // Test writing to a file in Overwrite mode.
@@ -222,7 +357,7 @@ fn file_update_append() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                // Update - should append (after S.E behaviour changed)
+                // Updating file - append
                 file_helper::write(c2, file, Mode::Append, dir.enc_key().cloned())
                     .map(move |writer| (dir, writer))
             })

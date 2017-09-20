@@ -71,13 +71,9 @@ macro_rules! call_result_cb {
         #[allow(unused)]
         use $crate::callback::{Callback, CallbackArgs};
         let (error_code, description) = ffi_result!($result);
-        let desc = format!("{} (error at {}:{})",
-                           description.clone().into_string().unwrap_or(String::default()),
-                           file!(), line!());
-        let desc = ::std::ffi::CString::new(desc).unwrap_or(description);
         $cb.call($user_data.into(), FfiResult {
             error_code,
-            description: desc.as_ptr()
+            description: description.as_ptr()
         }, CallbackArgs::default());
     }
 }
