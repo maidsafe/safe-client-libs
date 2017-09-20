@@ -133,19 +133,18 @@ pub unsafe extern "C" fn auth_reconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: FfiResult),
 ) {
-    let user_data = OpaqueCtx(user_data);
-    let res = (*auth).send(move |client| {
-        try_cb!(
-            client.restart_routing().map_err(AuthError::from),
-            user_data.0,
-            o_cb
-        );
-        o_cb(user_data.0, FFI_RESULT_OK);
-        None
-    });
-    if let Err(..) = res {
-        call_result_cb!(res, user_data, o_cb);
-    }
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+        let user_data = OpaqueCtx(user_data);
+        (*auth).send(move |client| {
+            try_cb!(
+                client.restart_routing().map_err(AuthError::from),
+                user_data.0,
+                o_cb
+            );
+            o_cb(user_data.0, FFI_RESULT_OK);
+            None
+        })
+    })
 }
 
 /// Get the account usage statistics.
@@ -159,26 +158,25 @@ pub unsafe extern "C" fn auth_account_info(
                         result: FfiResult,
                         account_info: *const FfiAccountInfo),
 ) {
-    let user_data = OpaqueCtx(user_data);
-    let res = (*auth).send(move |client| {
-        client
-            .get_account_info()
-            .map(move |acc_info| {
-                let ffi_acc = FfiAccountInfo {
-                    mutations_done: acc_info.mutations_done,
-                    mutations_available: acc_info.mutations_available,
-                };
-                o_cb(user_data.0, FFI_RESULT_OK, &ffi_acc);
-            })
-            .map_err(move |e| {
-                call_result_cb!(Err::<(), _>(AuthError::from(e)), user_data, o_cb);
-            })
-            .into_box()
-            .into()
-    });
-    if let Err(..) = res {
-        call_result_cb!(res, user_data, o_cb);
-    }
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+        let user_data = OpaqueCtx(user_data);
+        (*auth).send(move |client| {
+            client
+                .get_account_info()
+                .map(move |acc_info| {
+                    let ffi_acc = FfiAccountInfo {
+                        mutations_done: acc_info.mutations_done,
+                        mutations_available: acc_info.mutations_available,
+                    };
+                    o_cb(user_data.0, FFI_RESULT_OK, &ffi_acc);
+                })
+                .map_err(move |e| {
+                    call_result_cb!(Err::<(), _>(AuthError::from(e)), user_data, o_cb);
+                })
+                .into_box()
+                .into()
+        })
+    })
 }
 
 /// Discard and clean up the previously allocated authenticator instance.
