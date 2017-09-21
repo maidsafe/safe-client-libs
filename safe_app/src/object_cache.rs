@@ -22,17 +22,14 @@ use super::errors::AppError;
 use AppContext;
 use ffi::cipher_opt::CipherOpt;
 use ffi::nfs::FileContext;
-use lru_cache::LruCache;
 use routing::{EntryAction, PermissionSet, User, Value};
 use rust_sodium::crypto::{box_, sign};
 use safe_core::SelfEncryptionStorage;
 use safe_core::crypto::shared_box;
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::u64;
-
-const DEFAULT_CAPACITY: usize = 1000;
 
 /// Object handle associated with objects. In normal C API one would expect rust
 /// code to pass pointers to opaque object to C. C code would then need to pass
@@ -285,12 +282,12 @@ impl HandleGenerator {
 }
 
 struct Store<V> {
-    inner: RefCell<LruCache<ObjectHandle, V>>,
+    inner: RefCell<HashMap<ObjectHandle, V>>,
 }
 
 impl<V> Store<V> {
     fn new() -> Self {
-        Store { inner: RefCell::new(LruCache::new(DEFAULT_CAPACITY)) }
+        Store { inner: RefCell::new(HashMap::new()) }
     }
 
     fn get(&self, handle: ObjectHandle) -> Option<RefMut<V>> {

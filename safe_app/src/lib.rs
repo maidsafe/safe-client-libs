@@ -43,7 +43,6 @@ extern crate ffi_utils;
 extern crate futures;
 #[macro_use]
 extern crate log;
-extern crate lru_cache;
 extern crate maidsafe_utilities;
 #[cfg(test)]
 extern crate rand;

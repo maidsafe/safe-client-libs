@@ -189,6 +189,24 @@ pub unsafe extern "C" fn app_free(app: *mut App) {
     let _ = Box::from_raw(app);
 }
 
+/// Resets the object cache. Removes all objects currently in the object cache
+/// and invalidates all existing object handles.
+#[no_mangle]
+pub unsafe extern "C" fn app_reset_object_cache(
+    app: *mut App,
+    user_data: *mut c_void,
+    o_cb: extern "C" fn(user_data: *mut c_void, result: FfiResult),
+) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+        let user_data = OpaqueCtx(user_data);
+        (*app).send(move |_, context| {
+            context.object_cache().reset();
+            o_cb(user_data.0, FFI_RESULT_OK);
+            None
+        })
+    })
+}
+
 unsafe fn call_network_observer(
     event: Result<NetworkEvent, AppError>,
     user_data: *mut c_void,
