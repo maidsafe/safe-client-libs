@@ -15,28 +15,28 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! FFI
+//! FFI.
 
 #![allow(unsafe_code)]
 
-/// IPC utilities
+/// IPC utilities.
 pub mod ipc;
-/// NFS API
+/// NFS API.
 pub mod nfs;
-/// Type definitions for arrays that are FFI input params
+/// Type definitions for arrays that are FFI input params.
 pub mod arrays;
 
 use self::arrays::*;
 use errors::CoreError;
 use ffi_utils::ReprC;
 
-/// Represents the FFI-safe account info
+/// Represents the FFI-safe account info.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AccountInfo {
-    /// Number of used mutations
+    /// Number of used mutations.
     pub mutations_done: u64,
-    /// Number of available mutations
+    /// Number of available mutations.
     pub mutations_available: u64,
 }
 
@@ -49,7 +49,7 @@ impl ReprC for AccountInfo {
     }
 }
 
-/// FFI wrapper for `MDataInfo`
+/// FFI wrapper for `MDataInfo`.
 #[repr(C)]
 #[derive(Clone)]
 pub struct MDataInfo {
@@ -58,7 +58,7 @@ pub struct MDataInfo {
     /// Type tag of the mutable data.
     pub type_tag: u64,
 
-    /// Flag indicating whether the encryption info (`enc_key` and `enc_nonce`)
+    /// Flag indicating whether the encryption info (`enc_key` and `enc_nonce`).
     /// is set.
     pub has_enc_info: bool,
     /// Encryption key. Meaningful only if `has_enc_info` is `true`.
@@ -74,4 +74,29 @@ pub struct MDataInfo {
     /// New encryption nonce (used for two-phase reencryption). Meaningful only if
     /// `has_new_enc_info` is `true`.
     pub new_enc_nonce: SymNonce,
+}
+
+/// Returns true if this crate was compiled against mock-routing.
+#[no_mangle]
+pub extern "C" fn is_mock_build() -> bool {
+    cfg!(use_mock_routing)
+}
+
+#[cfg(test)]
+mod tests {
+    use ffi::is_mock_build;
+
+    // Test `is_mock_build` when compiled against mock-routing.
+    #[test]
+    #[cfg(use_mock_routing)]
+    fn test_mock_build() {
+        assert_eq!(is_mock_build(), true);
+    }
+
+    // Test `is_mock_build` when not compiled against mock-routing.
+    #[test]
+    #[cfg(not(use_mock_routing))]
+    fn test_not_mock_build() {
+        assert_eq!(is_mock_build(), false);
+    }
 }
