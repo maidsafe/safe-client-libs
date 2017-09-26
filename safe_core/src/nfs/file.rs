@@ -122,7 +122,7 @@ impl ReprC for File {
 
     /// Convert to the native rust equivalent by cloning the internal data, preserving self.
     #[allow(unsafe_code)]
-    unsafe fn clone_from_repr_c(repr_c: *const FfiFile) -> Result<File, NfsError> {
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let user_metadata =
             slice::from_raw_parts((*repr_c).user_metadata_ptr, (*repr_c).user_metadata_len)
                 .to_vec();

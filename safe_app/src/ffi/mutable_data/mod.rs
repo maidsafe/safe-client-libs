@@ -30,20 +30,21 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, SafePtr, catch_unwin
                 vec_clone_from_raw_parts};
 use futures::Future;
 use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataKeysHandle,
-                   MDataPermissionSetHandle, MDataPermissionsHandle, MDataValuesHandle,
-                   SignKeyHandle};
+                   MDataPermissionsHandle, MDataValuesHandle, NULL_OBJECT_HANDLE, SignKeyHandle};
 use routing::MutableData;
 use safe_core::{CoreError, FutureExt, MDataInfo};
 use safe_core::ffi::MDataInfo as FfiMDataInfo;
+use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
+use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use std::os::raw::c_void;
 
 /// Special value that represents an empty permission set.
 #[no_mangle]
-pub static PERMISSIONS_EMPTY: u64 = 0;
+pub static PERMISSIONS_EMPTY: u64 = NULL_OBJECT_HANDLE;
 
 /// Special value that represents an empty entry set.
 #[no_mangle]
-pub static ENTRIES_EMPTY: u64 = 0;
+pub static ENTRIES_EMPTY: u64 = NULL_OBJECT_HANDLE;
 
 /// Create new mutable data and put it on the network.
 ///
@@ -70,7 +71,7 @@ pub unsafe extern "C" fn mdata_put(
         (*app).send(move |client, context| {
             let owner_key = try_cb!(client.owner_key().map_err(AppError::from), user_data, o_cb);
 
-            let permissions = if permissions_h != 0 {
+            let permissions = if permissions_h != PERMISSIONS_EMPTY {
                 try_cb!(
                     helper::get_permissions(context.object_cache(), permissions_h),
                     user_data,
@@ -80,7 +81,7 @@ pub unsafe extern "C" fn mdata_put(
                 Default::default()
             };
 
-            let entries = if entries_h != 0 {
+            let entries = if entries_h != ENTRIES_EMPTY {
                 try_cb!(
                     context.object_cache().get_mdata_entries(entries_h),
                     user_data,
@@ -370,7 +371,7 @@ pub unsafe extern "C" fn mdata_list_user_permissions(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: FfiResult,
-                        perm_set_h: MDataPermissionSetHandle),
+                        perm_set: FfiPermissionSet),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
@@ -383,13 +384,10 @@ pub unsafe extern "C" fn mdata_list_user_permissions(
                 o_cb
             );
 
-            let context = context.clone();
-
             client
                 .list_mdata_user_permissions(info.name, info.type_tag, user)
                 .map(move |set| {
-                    let handle = context.object_cache().insert_mdata_permission_set(set);
-                    o_cb(user_data.0, FFI_RESULT_OK, handle);
+                    o_cb(user_data.0, FFI_RESULT_OK, permission_set_into_repr_c(set));
                 })
                 .map_err(AppError::from)
                 .map_err(move |err| {
@@ -411,7 +409,7 @@ pub unsafe extern "C" fn mdata_set_user_permissions(
     app: *const App,
     info: *const FfiMDataInfo,
     user_h: SignKeyHandle,
-    permission_set_h: MDataPermissionSetHandle,
+    permission_set: FfiPermissionSet,
     version: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: FfiResult),
@@ -426,13 +424,7 @@ pub unsafe extern "C" fn mdata_set_user_permissions(
                 user_data,
                 o_cb
             );
-            let permission_set = *try_cb!(
-                context.object_cache().get_mdata_permission_set(
-                    permission_set_h,
-                ),
-                user_data,
-                o_cb
-            );
+            let permission_set = unwrap!(permission_set_clone_from_repr_c(&permission_set));
 
             client
                 .set_mdata_user_permissions(info.name, info.type_tag, user, permission_set, version)

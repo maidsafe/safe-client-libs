@@ -39,14 +39,6 @@ pub fn insert_permissions(
     object_cache: &ObjectCache,
     permissions: BTreeMap<User, PermissionSet>,
 ) -> MDataPermissionsHandle {
-    let permissions = permissions
-        .into_iter()
-        .map(|(user, permission_set)| {
-            let permission_set_h = object_cache.insert_mdata_permission_set(permission_set);
-            (user, permission_set_h)
-        })
-        .collect();
-
     object_cache.insert_mdata_permissions(permissions)
 }
 
@@ -55,13 +47,7 @@ pub fn get_permissions(
     object_cache: &ObjectCache,
     handle: MDataPermissionsHandle,
 ) -> Result<BTreeMap<User, PermissionSet>, AppError> {
-    let input = object_cache.get_mdata_permissions(handle)?.clone();
-    let mut output = BTreeMap::new();
-
-    for (user, permission_set_h) in input {
-        let permission_set = *object_cache.get_mdata_permission_set(permission_set_h)?;
-        let _ = output.insert(user, permission_set);
-    }
+    let output = object_cache.get_mdata_permissions(handle)?.clone();
 
     Ok(output)
 }

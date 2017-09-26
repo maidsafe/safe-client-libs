@@ -78,8 +78,9 @@ pub use ffi::mutable_data::metadata::*;
 pub use ffi::mutable_data::permissions::*;
 pub use ffi::nfs::*;
 
-pub mod object_cache;
 mod errors;
+pub mod object_cache;
+pub mod permissions;
 /// Utility functions to test apps functionality
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;

@@ -32,6 +32,9 @@ use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, BTreeSet};
 use std::u64;
 
+/// Value of handles which should receive special handling.
+pub const NULL_OBJECT_HANDLE: u64 = 0;
+
 const DEFAULT_CAPACITY: usize = 1000;
 
 /// Object handle associated with objects. In normal C API one would expect rust
@@ -64,8 +67,6 @@ pub type MDataEntryActionsHandle = ObjectHandle;
 /// Disambiguating `ObjectHandle`
 pub type MDataPermissionsHandle = ObjectHandle;
 /// Disambiguating `ObjectHandle`
-pub type MDataPermissionSetHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
 pub type SelfEncryptorReaderHandle = ObjectHandle;
 /// Disambiguating `ObjectHandle`
 pub type SelfEncryptorWriterHandle = ObjectHandle;
@@ -84,8 +85,7 @@ pub struct ObjectCache {
     mdata_keys: Store<BTreeSet<Vec<u8>>>,
     mdata_values: Store<Vec<Value>>,
     mdata_entry_actions: Store<BTreeMap<Vec<u8>, EntryAction>>,
-    mdata_permissions: Store<BTreeMap<User, MDataPermissionSetHandle>>,
-    mdata_permission_set: Store<PermissionSet>,
+    mdata_permissions: Store<BTreeMap<User, PermissionSet>>,
     se_reader: Store<SelfEncryptor<SelfEncryptionStorage<AppContext>>>,
     se_writer: Store<SequentialEncryptor<SelfEncryptionStorage<AppContext>>>,
     sign_key: Store<sign::PublicKey>,
@@ -105,7 +105,6 @@ impl ObjectCache {
             mdata_values: Store::new(),
             mdata_entry_actions: Store::new(),
             mdata_permissions: Store::new(),
-            mdata_permission_set: Store::new(),
             se_reader: Store::new(),
             se_writer: Store::new(),
             sign_key: Store::new(),
@@ -124,7 +123,6 @@ impl ObjectCache {
         self.mdata_values.clear();
         self.mdata_entry_actions.clear();
         self.mdata_permissions.clear();
-        self.mdata_permission_set.clear();
         self.se_reader.clear();
         self.se_writer.clear();
         self.sign_key.clear();
@@ -217,19 +215,12 @@ impl_cache!(mdata_entry_actions,
             insert_mdata_entry_actions,
             remove_mdata_entry_actions);
 impl_cache!(mdata_permissions,
-            BTreeMap<User, MDataPermissionSetHandle>,
+            BTreeMap<User, PermissionSet>,
             MDataPermissionsHandle,
             InvalidMDataPermissionsHandle,
             get_mdata_permissions,
             insert_mdata_permissions,
             remove_mdata_permissions);
-impl_cache!(mdata_permission_set,
-            PermissionSet,
-            MDataPermissionSetHandle,
-            InvalidMDataPermissionSetHandle,
-            get_mdata_permission_set,
-            insert_mdata_permission_set,
-            remove_mdata_permission_set);
 impl_cache!(se_reader,
             SelfEncryptor<SelfEncryptionStorage<AppContext>>,
             SelfEncryptorReaderHandle,
@@ -270,7 +261,7 @@ struct HandleGenerator(Cell<ObjectHandle>);
 
 impl HandleGenerator {
     fn new() -> Self {
-        HandleGenerator(Cell::new(u64::MAX))
+        HandleGenerator(Cell::new(NULL_OBJECT_HANDLE))
     }
 
     fn gen(&self) -> ObjectHandle {
@@ -280,7 +271,7 @@ impl HandleGenerator {
     }
 
     fn reset(&self) {
-        self.0.set(u64::MAX)
+        self.0.set(NULL_OBJECT_HANDLE)
     }
 }
 

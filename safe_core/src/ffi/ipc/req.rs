@@ -15,6 +15,10 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use ffi_utils::ReprC;
+use ffi_utils::callback::CallbackArgs;
+use ipc::req::permission_set_into_repr_c;
+use routing;
 use routing::XorName;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -33,6 +37,25 @@ pub struct PermissionSet {
     pub delete: bool,
     /// How to modify the manage permissions permission.
     pub manage_permissions: bool,
+}
+
+impl ReprC for PermissionSet {
+    type C = PermissionSet;
+    type Error = ();
+
+    /// Constructs the object from a raw pointer.
+    ///
+    /// After calling this function, the raw pointer is owned by the resulting
+    /// object.
+    unsafe fn clone_from_repr_c(raw: PermissionSet) -> Result<Self, Self::Error> {
+        Ok(raw)
+    }
+}
+
+impl CallbackArgs for PermissionSet {
+    fn default() -> Self {
+        permission_set_into_repr_c(routing::PermissionSet::new())
+    }
 }
 
 /// Represents an authorization request

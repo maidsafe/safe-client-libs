@@ -390,7 +390,7 @@ mod tests {
     use ffi_utils::test_utils::{call_0, call_1, send_via_user_data, sender_as_user_data};
     use ffi_utils::vec_clone_from_raw_parts;
     use object_cache::MDataEntryActionsHandle;
-    use routing::Value;
+    use routing::{Action, PermissionSet, Value};
     use safe_core::utils;
     use std::collections::BTreeMap;
     use std::os::raw::c_void;
@@ -583,14 +583,7 @@ mod tests {
         };
 
         // Create a permissions set
-        let perms_set_h: MDataPermissionSetHandle =
-            unsafe { unwrap!(call_1(|ud, cb| mdata_permission_set_new(&app, ud, cb))) };
-
-        unsafe {
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_allow(&app, perms_set_h, MDataAction::Insert, ud, cb)
-            }))
-        };
+        let perms_set = PermissionSet::new().allow(Action::Insert);
 
         // Create permissions for anyone
         let perms_h: MDataPermissionsHandle =
@@ -598,7 +591,14 @@ mod tests {
 
         unsafe {
             unwrap!(call_0(|ud, cb| {
-                mdata_permissions_insert(&app, perms_h, USER_ANYONE, perms_set_h, ud, cb)
+                mdata_permissions_insert(
+                    &app,
+                    perms_h,
+                    USER_ANYONE,
+                    permission_set_into_repr_c(perms_set),
+                    ud,
+                    cb,
+                )
             }))
         };
 

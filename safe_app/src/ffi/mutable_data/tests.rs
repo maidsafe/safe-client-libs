@@ -23,9 +23,14 @@ use ffi::mutable_data::entries::*;
 use ffi::mutable_data::entry_actions::*;
 use ffi::mutable_data::permissions::*;
 use ffi_utils::{FfiResult, vec_clone_from_raw_parts};
-use ffi_utils::test_utils::{call_0, call_1, call_vec_u8, send_via_user_data, sender_as_user_data};
-use object_cache::{MDataPermissionSetHandle, MDataPermissionsHandle};
+use ffi_utils::test_utils::{call_0, call_1, call_vec, call_vec_u8, send_via_user_data,
+                            sender_as_user_data};
+use object_cache::MDataPermissionsHandle;
+use permissions;
+use routing::{Action, PermissionSet};
 use rust_sodium::crypto::sign;
+use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
+use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use std::mem;
 use std::sync::mpsc;
 use test_utils::create_app;
@@ -92,86 +97,9 @@ fn permissions_crud_ffi() {
     let app = create_app();
 
     // Create a permissions set
-    let perm_set_h: MDataPermissionSetHandle =
-        unsafe { unwrap!(call_1(|ud, cb| mdata_permission_set_new(&app, ud, cb))) };
-
-    // Test permission setting
-    {
-        unsafe {
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_allow(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }));
-        }
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
-
-        unsafe {
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_deny(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }));
-        }
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Denied);
-
-        unsafe {
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_clear(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }));
-        }
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::NotSet);
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(
-                    &app,
-                    perm_set_h,
-                    MDataAction::ManagePermissions,
-                    ud,
-                    cb,
-                )
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::NotSet);
-
-        // Allow Insert and ManagePermissions
-        unsafe {
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_allow(&app, perm_set_h, MDataAction::Insert, ud, cb)
-            }));
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_allow(&app, perm_set_h, MDataAction::ManagePermissions, ud, cb)
-            }))
-        };
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(
-                    &app,
-                    perm_set_h,
-                    MDataAction::ManagePermissions,
-                    ud,
-                    cb,
-                )
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
-    }
+    let perm_set = PermissionSet::new().allow(Action::Insert).allow(
+        Action::ManagePermissions,
+    );
 
     // Create permissions
     let perms_h: MDataPermissionsHandle =
@@ -181,7 +109,14 @@ fn permissions_crud_ffi() {
         // Create permissions for anyone
         let len: usize = unsafe {
             unwrap!(call_0(|ud, cb| {
-                mdata_permissions_insert(&app, perms_h, USER_ANYONE, perm_set_h, ud, cb)
+                mdata_permissions_insert(
+                    &app,
+                    perms_h,
+                    USER_ANYONE,
+                    permission_set_into_repr_c(perm_set),
+                    ud,
+                    cb,
+                )
             }));
             unwrap!(call_1(
                 |ud, cb| mdata_permissions_len(&app, perms_h, ud, cb),
@@ -189,33 +124,25 @@ fn permissions_crud_ffi() {
         };
         assert_eq!(len, 1);
 
-        let perm_set2_h = unsafe {
+        let perm_set2 = unsafe {
             unwrap!(call_1(|ud, cb| {
                 mdata_permissions_get(&app, perms_h, USER_ANYONE, ud, cb)
             }))
         };
+        let perm_set2 = unwrap!(permission_set_clone_from_repr_c(&perm_set2));
 
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set2_h, MDataAction::Insert, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
+        assert_eq!(Some(true), perm_set2.is_allowed(Action::Insert));
+        assert_eq!(None, perm_set2.is_allowed(Action::Update));
 
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set2_h, MDataAction::Update, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::NotSet);
-
-        let result = unsafe {
-            call_permissions(|ud, iter_cb, done_cb| {
-                mdata_permissions_for_each(&app, perms_h, ud, iter_cb, done_cb)
-            })
+        let result: Vec<permissions::UserPermissionSet> = unsafe {
+            unwrap!(call_vec(
+                |ud, cb| mdata_list_permission_sets(&app, perms_h, ud, cb),
+            ))
         };
 
         assert_eq!(result.len(), 1);
+        assert_eq!(result[0].user_h, USER_ANYONE);
+        assert_eq!(result[0].perm_set, perm_set);
     }
 
     // Try to create an empty public MD
@@ -230,66 +157,21 @@ fn permissions_crud_ffi() {
     };
 
     {
-        let read_perm_set_h: MDataPermissionSetHandle = unsafe {
+        let read_perm_set: FfiPermissionSet = unsafe {
             unwrap!(call_1(|ud, cb| {
                 mdata_list_user_permissions(&app, &md_info_pub, USER_ANYONE, ud, cb)
             }))
         };
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, read_perm_set_h, MDataAction::Insert, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, read_perm_set_h, MDataAction::Update, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::NotSet);
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(
-                    &app,
-                    read_perm_set_h,
-                    MDataAction::ManagePermissions,
-                    ud,
-                    cb,
-                )
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
+        let read_perm_set = unwrap!(permission_set_clone_from_repr_c(&read_perm_set));
+        assert_eq!(Some(true), read_perm_set.is_allowed(Action::Insert));
+        assert_eq!(
+            Some(true),
+            read_perm_set.is_allowed(Action::ManagePermissions)
+        );
+        assert_eq!(None, read_perm_set.is_allowed(Action::Update));
 
         // Create a new permissions set
-        let perm_set_new_h: MDataPermissionSetHandle =
-            unsafe { unwrap!(call_1(|ud, cb| mdata_permission_set_new(&app, ud, cb))) };
-
-        unsafe {
-            unwrap!(call_0(|ud, cb| {
-                mdata_permission_set_allow(
-                    &app,
-                    perm_set_new_h,
-                    MDataAction::ManagePermissions,
-                    ud,
-                    cb,
-                )
-            }))
-        };
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(
-                    &app,
-                    perm_set_h,
-                    MDataAction::ManagePermissions,
-                    ud,
-                    cb,
-                )
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
+        let perm_set_new = PermissionSet::new().allow(Action::ManagePermissions);
 
         let result = unsafe {
             // Should fail due to invalid version
@@ -298,7 +180,7 @@ fn permissions_crud_ffi() {
                     &app,
                     &md_info_pub,
                     USER_ANYONE,
-                    perm_set_new_h,
+                    permission_set_into_repr_c(perm_set_new),
                     0,
                     ud,
                     cb,
@@ -318,7 +200,7 @@ fn permissions_crud_ffi() {
                     &app,
                     &md_info_pub,
                     USER_ANYONE,
-                    perm_set_new_h,
+                    permission_set_into_repr_c(perm_set_new),
                     1,
                     ud,
                     cb,
@@ -336,7 +218,7 @@ fn permissions_crud_ffi() {
                     &app,
                     &md_info_pub,
                     USER_ANYONE,
-                    perm_set_new_h,
+                    permission_set_into_repr_c(perm_set_new),
                     3,
                     ud,
                     cb,
@@ -349,7 +231,7 @@ fn permissions_crud_ffi() {
             _ => panic!("Changed permissions without permission"),
         };
 
-        let result: Result<MDataPermissionSetHandle, i32> = unsafe {
+        let result: Result<FfiPermissionSet, i32> = unsafe {
             call_1(|ud, cb| {
                 mdata_list_user_permissions(&app, &md_info_pub, USER_ANYONE, ud, cb)
             })
@@ -372,14 +254,7 @@ fn entries_crud_ffi() {
     const VALUE: &[u8] = b"world";
 
     // Create a permissions set
-    let perm_set_h: MDataPermissionSetHandle =
-        unsafe { unwrap!(call_1(|ud, cb| mdata_permission_set_new(&app, ud, cb))) };
-
-    unsafe {
-        unwrap!(call_0(|ud, cb| {
-            mdata_permission_set_allow(&app, perm_set_h, MDataAction::Insert, ud, cb)
-        }))
-    };
+    let perm_set = PermissionSet::new().allow(Action::Insert);
 
     // Create permissions
     let perms_h: MDataPermissionsHandle =
@@ -387,7 +262,14 @@ fn entries_crud_ffi() {
 
     unsafe {
         unwrap!(call_0(|ud, cb| {
-            mdata_permissions_insert(&app, perms_h, USER_ANYONE, perm_set_h, ud, cb)
+            mdata_permissions_insert(
+                &app,
+                perms_h,
+                USER_ANYONE,
+                permission_set_into_repr_c(perm_set),
+                ud,
+                cb,
+            )
         }))
     }
 
@@ -482,34 +364,15 @@ fn entries_crud_ffi() {
     assert_eq!(ver, 0);
 
     // Check that permissions on the public MD haven't changed
-    {
+    let read_perm_set: FfiPermissionSet = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            mdata_list_user_permissions(&app, &md_info_pub, USER_ANYONE, ud, cb)
+        }))
+    };
+    let read_perm_set = unwrap!(permission_set_clone_from_repr_c(&read_perm_set));
 
-        let read_perms_h: MDataPermissionsHandle = unsafe {
-            unwrap!(call_1(
-                |ud, cb| mdata_list_permissions(&app, &md_info_pub, ud, cb),
-            ))
-        };
-
-        let perm_set_h = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permissions_get(&app, read_perms_h, USER_ANYONE, ud, cb)
-            }))
-        };
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set_h, MDataAction::Insert, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::Allowed);
-
-        let permission_value: PermissionValue = unsafe {
-            unwrap!(call_1(|ud, cb| {
-                mdata_permission_set_is_allowed(&app, perm_set_h, MDataAction::Update, ud, cb)
-            }))
-        };
-        assert_eq!(permission_value, PermissionValue::NotSet);
-    }
+    assert_eq!(Some(true), read_perm_set.is_allowed(Action::Insert));
+    assert_eq!(None, read_perm_set.is_allowed(Action::Update));
 
     // Try to create a private MD
     let md_info_priv: MDataInfo =
@@ -735,9 +598,6 @@ fn entries_crud_ffi() {
     // Free everything.
     unsafe {
         unwrap!(call_0(
-            |ud, cb| mdata_permission_set_free(&app, perm_set_h, ud, cb),
-        ));
-        unwrap!(call_0(
             |ud, cb| mdata_permissions_free(&app, perms_h, ud, cb),
         ));
     }
@@ -757,69 +617,6 @@ fn entries_crud_ffi() {
             };
 
             send_via_user_data(user_data, result);
-        }
-    }
-}
-
-// Helper function to call FFI function that iterates over permission sets in permissions.
-unsafe fn call_permissions<F>(f: F) -> Vec<(SignKeyHandle, MDataPermissionSetHandle)>
-where
-    F: FnOnce(*mut c_void,
-           extern "C" fn(*mut c_void, SignKeyHandle, MDataPermissionSetHandle),
-           extern "C" fn(*mut c_void, FfiResult)),
-{
-    let mut context = PermissionEntriesContext::new();
-    f(
-        context.user_data(),
-        PermissionEntriesContext::permissions_cb,
-        PermissionEntriesContext::done_cb,
-    );
-    context.take_result()
-}
-
-struct PermissionEntriesContext {
-    tx: mpsc::Sender<()>,
-    rx: mpsc::Receiver<()>,
-    items: Vec<(SignKeyHandle, MDataPermissionSetHandle)>,
-}
-
-impl PermissionEntriesContext {
-    fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
-        PermissionEntriesContext {
-            tx,
-            rx,
-            items: Vec::new(),
-        }
-    }
-
-    fn user_data(&mut self) -> *mut c_void {
-        let ptr: *mut _ = self;
-        ptr as *mut c_void
-    }
-
-    fn take_result(&mut self) -> Vec<(SignKeyHandle, MDataPermissionSetHandle)> {
-        unwrap!(self.rx.recv());
-        mem::replace(&mut self.items, Vec::new())
-    }
-
-    extern "C" fn permissions_cb(
-        user_data: *mut c_void,
-        sign_key_h: SignKeyHandle,
-        perm_set_h: MDataPermissionSetHandle,
-    ) {
-        unsafe {
-            let data = (sign_key_h, perm_set_h);
-
-            let context = user_data as *mut Self;
-            (*context).items.push(data);
-        }
-    }
-
-    extern "C" fn done_cb(user_data: *mut c_void, _res: FfiResult) {
-        unsafe {
-            let context = user_data as *const Self;
-            unwrap!((*context).tx.send(()));
         }
     }
 }
