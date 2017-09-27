@@ -23,7 +23,8 @@ use ffi::mutable_data::entries::*;
 use ffi::mutable_data::entry_actions::*;
 use ffi::mutable_data::permissions::*;
 use ffi_utils::{FfiResult, vec_clone_from_raw_parts};
-use ffi_utils::test_utils::{call_0, call_1, call_vec_u8, send_via_user_data, sender_as_user_data};
+use ffi_utils::test_utils::{call_0, call_1, call_vec, call_vec_u8, send_via_user_data,
+                            sender_as_user_data};
 use object_cache::{MDataPermissionSetHandle, MDataPermissionsHandle};
 use rust_sodium::crypto::sign;
 use std::mem;
@@ -688,22 +689,22 @@ fn entries_crud_ffi() {
 
     // Check mdata_list_keys
     {
-        let keys_list_h: MDataKeysHandle = unsafe {
-            unwrap!(call_1(
+        let keys_list: Vec<MDataKey> = unsafe {
+            unwrap!(call_vec(
                 |ud, cb| mdata_list_keys(&app, &md_info_priv, ud, cb),
             ))
         };
+        assert_eq!(keys_list.len(), 1);
 
-        let result = unsafe {
-            call_keys(|ud, iter_cb, done_cb| {
-                mdata_keys_for_each(&app, keys_list_h, ud, iter_cb, done_cb)
-            })
-        };
-
-        assert_eq!(result.len(), 1);
         let decrypted = unsafe {
             unwrap!(call_vec_u8(|ud, cb| {
-                mdata_info_decrypt(&md_info_priv, result[0].as_ptr(), result[0].len(), ud, cb)
+                mdata_info_decrypt(
+                    &md_info_priv,
+                    keys_list[0].val.as_ptr(),
+                    keys_list[0].val.len(),
+                    ud,
+                    cb,
+                )
             }))
         };
         assert_eq!(&decrypted, &KEY, "decrypted invalid key");
@@ -711,22 +712,22 @@ fn entries_crud_ffi() {
 
     // Check mdata_list_values
     {
-        let vals_list_h: MDataValuesHandle = unsafe {
-            unwrap!(call_1(
+        let vals_list: Vec<MDataValue> = unsafe {
+            unwrap!(call_vec(
                 |ud, cb| mdata_list_values(&app, &md_info_priv, ud, cb),
             ))
         };
+        assert_eq!(vals_list.len(), 1);
 
-        let result = unsafe {
-            call_values(|ud, iter_cb, done_cb| {
-                mdata_values_for_each(&app, vals_list_h, ud, iter_cb, done_cb)
-            })
-        };
-
-        assert_eq!(result.len(), 1);
         let decrypted = unsafe {
             unwrap!(call_vec_u8(|ud, cb| {
-                mdata_info_decrypt(&md_info_priv, result[0].as_ptr(), result[0].len(), ud, cb)
+                mdata_info_decrypt(
+                    &md_info_priv,
+                    vals_list[0].content.as_ptr(),
+                    vals_list[0].content.len(),
+                    ud,
+                    cb,
+                )
             }))
         };
         assert_eq!(&decrypted, &VALUE, "decrypted invalid value");
@@ -810,90 +811,6 @@ impl PermissionEntriesContext {
     ) {
         unsafe {
             let data = (sign_key_h, perm_set_h);
-
-            let context = user_data as *mut Self;
-            (*context).items.push(data);
-        }
-    }
-
-    extern "C" fn done_cb(user_data: *mut c_void, _res: FfiResult) {
-        unsafe {
-            let context = user_data as *const Self;
-            unwrap!((*context).tx.send(()));
-        }
-    }
-}
-
-// Helper function to call FFI function that iterates over mdata entry keys.
-unsafe fn call_keys<F>(f: F) -> Vec<Vec<u8>>
-where
-    F: FnOnce(*mut c_void,
-           extern "C" fn(*mut c_void, *const u8, usize),
-           extern "C" fn(*mut c_void, FfiResult)),
-{
-    let mut context = KeyValueEntriesContext::new();
-    f(
-        context.user_data(),
-        KeyValueEntriesContext::keys_cb,
-        KeyValueEntriesContext::done_cb,
-    );
-    context.take_result()
-}
-
-// Helper function to call FFI function that iterates over mdata entry values.
-unsafe fn call_values<F>(f: F) -> Vec<Vec<u8>>
-where
-    F: FnOnce(*mut c_void,
-           extern "C" fn(*mut c_void, *const u8, usize, u64),
-           extern "C" fn(*mut c_void, FfiResult)),
-{
-    let mut context = KeyValueEntriesContext::new();
-    f(
-        context.user_data(),
-        KeyValueEntriesContext::values_cb,
-        KeyValueEntriesContext::done_cb,
-    );
-    context.take_result()
-}
-
-struct KeyValueEntriesContext {
-    tx: mpsc::Sender<()>,
-    rx: mpsc::Receiver<()>,
-    items: Vec<Vec<u8>>,
-}
-
-impl KeyValueEntriesContext {
-    fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
-        KeyValueEntriesContext {
-            tx,
-            rx,
-            items: Vec::new(),
-        }
-    }
-
-    fn user_data(&mut self) -> *mut c_void {
-        let ptr: *mut _ = self;
-        ptr as *mut c_void
-    }
-
-    fn take_result(&mut self) -> Vec<Vec<u8>> {
-        unwrap!(self.rx.recv());
-        mem::replace(&mut self.items, Vec::new())
-    }
-
-    extern "C" fn values_cb(user_data: *mut c_void, val: *const u8, len: usize, _version: u64) {
-        unsafe {
-            let data = vec_clone_from_raw_parts(val, len);
-
-            let context = user_data as *mut Self;
-            (*context).items.push(data);
-        }
-    }
-
-    extern "C" fn keys_cb(user_data: *mut c_void, val: *const u8, len: usize) {
-        unsafe {
-            let data = vec_clone_from_raw_parts(val, len);
 
             let context = user_data as *mut Self;
             (*context).items.push(data);

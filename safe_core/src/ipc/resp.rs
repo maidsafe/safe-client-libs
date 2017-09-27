@@ -27,6 +27,7 @@ use ipc::req::{ContainerPermissions, container_perms_from_repr_c, container_perm
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{BootstrapConfig, XorName};
 use routing::PermissionSet;
+use routing::Value;
 use rust_sodium::crypto::{box_, secretbox};
 use rust_sodium::crypto::sign::PublicKey;
 use std::collections::HashMap;
@@ -417,6 +418,82 @@ impl ReprC for UserMetadata {
             } else {
                 Some(String::clone_from_repr_c((*repr_c).description)?)
             },
+        })
+    }
+}
+
+/// Redefine the Value from routing so that we can `impl ReprC`.
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+pub struct MDataValue {
+    /// Content of the entry.
+    pub content: Vec<u8>,
+    /// Version of the entry.
+    pub entry_version: u64,
+}
+
+impl MDataValue {
+    /// Returns FFI counterpart without consuming the object.
+    pub fn as_repr_c(&self) -> ffi::MDataValue {
+        ffi::MDataValue {
+            content_ptr: self.content.as_ptr(),
+            content_len: self.content.len(),
+            entry_version: self.entry_version,
+        }
+    }
+
+    /// Converts the `MDataValue` into its routing representation.
+    pub fn as_routing(&self) -> Value {
+        Value {
+            content: self.content.clone(),
+            entry_version: self.entry_version,
+        }
+    }
+}
+
+impl ReprC for MDataValue {
+    type C = *const ffi::MDataValue;
+    type Error = ();
+
+    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
+        let ffi::MDataValue {
+            content_ptr,
+            content_len,
+            entry_version,
+        } = *c_repr;
+
+        Ok(MDataValue {
+            content: slice::from_raw_parts(content_ptr, content_len).to_vec(),
+            entry_version: entry_version,
+        })
+    }
+}
+
+/// Mutable data key.
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+pub struct MDataKey {
+    /// Key value.
+    pub val: Vec<u8>,
+}
+
+impl MDataKey {
+    /// Returns FFI counterpart without consuming the object.
+    pub fn as_repr_c(&self) -> ffi::MDataKey {
+        ffi::MDataKey {
+            val_ptr: self.val.as_ptr(),
+            val_len: self.val.len(),
+        }
+    }
+}
+
+impl ReprC for MDataKey {
+    type C = *const ffi::MDataKey;
+    type Error = ();
+
+    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
+        let ffi::MDataKey { val_ptr, val_len } = *c_repr;
+
+        Ok(MDataKey {
+            val: slice::from_raw_parts(val_ptr, val_len).to_vec(),
         })
     }
 }

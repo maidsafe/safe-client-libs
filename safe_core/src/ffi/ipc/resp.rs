@@ -158,7 +158,6 @@ pub struct AppAccess {
     /// App's user-facing name
     pub name: *const c_char,
     /// App id.
-    /// This is u8, as the app-id can contain non-printable characters.
     pub app_id: *const c_char,
 }
 
@@ -199,4 +198,26 @@ impl Drop for MetadataResponse {
             }
         }
     }
+}
+
+/// Represents the FFI-safe mutable data value.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct MDataValue {
+    /// Content pointer.
+    pub content_ptr: *const u8,
+    /// Content length.
+    pub content_len: usize,
+    /// Entry version.
+    pub entry_version: u64,
+}
+
+/// Represents an FFI-safe mutable data key.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct MDataKey {
+    /// Key value pointer.
+    pub val_ptr: *const u8,
+    /// Key length.
+    pub val_len: usize,
 }

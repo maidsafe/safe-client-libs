@@ -29,12 +29,14 @@ use ffi::helper::send;
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, SafePtr, catch_unwind_cb,
                 vec_clone_from_raw_parts};
 use futures::Future;
-use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataKeysHandle,
-                   MDataPermissionSetHandle, MDataPermissionsHandle, MDataValuesHandle,
-                   SignKeyHandle};
+use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataPermissionSetHandle,
+                   MDataPermissionsHandle, SignKeyHandle};
 use routing::MutableData;
 use safe_core::{CoreError, FutureExt, MDataInfo};
 use safe_core::ffi::MDataInfo as FfiMDataInfo;
+use safe_core::ffi::ipc::resp::MDataKey as FfiMDataKey;
+use safe_core::ffi::ipc::resp::MDataValue as FfiMDataValue;
+use safe_core::ipc::resp::{MDataKey, MDataValue};
 use std::os::raw::c_void;
 
 /// Special value that represents an empty permission set.
@@ -239,9 +241,9 @@ pub unsafe extern "C" fn mdata_list_entries(
     })
 }
 
-/// Get list of keys in the mutable data.
+/// Get list of all keys in the mutable data.
 ///
-/// Callback parameters: user data, error code, keys handle
+/// Callback parameters: user data, error code, vector of keys, vector size
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_keys(
     app: *const App,
@@ -249,27 +251,47 @@ pub unsafe extern "C" fn mdata_list_keys(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: FfiResult,
-                        keys_h: MDataKeysHandle),
+                        keys: *const FfiMDataKey,
+                        len: usize),
 ) {
+    let user_data = OpaqueCtx(user_data);
+
     catch_unwind_cb(user_data, o_cb, || {
         let info = MDataInfo::clone_from_repr_c(info)?;
 
-        send(app, user_data, o_cb, move |client, context| {
-            let context = context.clone();
-
+        (*app).send(move |client, _context| {
             client
                 .list_mdata_keys(info.name, info.type_tag)
                 .map_err(AppError::from)
-                .and_then(move |keys| {
-                    Ok(context.object_cache().insert_mdata_keys(keys))
+                .and_then(move |keys_set| {
+                    let keys: Vec<MDataKey> = keys_set
+                        .iter()
+                        .map(|key| MDataKey { val: key.clone() })
+                        .collect();
+                    let keys: Vec<FfiMDataKey> =
+                        keys.into_iter().map(|key| key.as_repr_c()).collect();
+                    ok!(keys)
                 })
+                .then(move |result| {
+                    match result {
+                        Ok(keys) => {
+                            o_cb(user_data.0, FFI_RESULT_OK, keys.as_safe_ptr(), keys.len())
+                        }
+                        res @ Err(..) => {
+                            call_result_cb!(res, user_data, o_cb);
+                        }
+                    }
+                    Ok(())
+                })
+                .into_box()
+                .into()
         })
     })
 }
 
-/// Get list of values in the mutable data.
+/// Get list of all values in the mutable data.
 ///
-/// Callback parameters: user data, error code, values handle
+/// Callback parameters: user data, error code, vector of values, vector size
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_values(
     app: *const App,
@@ -277,20 +299,50 @@ pub unsafe extern "C" fn mdata_list_values(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: FfiResult,
-                        values_h: MDataValuesHandle),
+                        values: *const FfiMDataValue,
+                        len: usize),
 ) {
+    let user_data = OpaqueCtx(user_data);
+
     catch_unwind_cb(user_data, o_cb, || {
         let info = MDataInfo::clone_from_repr_c(info)?;
 
-        send(app, user_data, o_cb, move |client, context| {
-            let context = context.clone();
-
+        (*app).send(move |client, _context| {
             client
                 .list_mdata_values(info.name, info.type_tag)
                 .map_err(AppError::from)
-                .and_then(move |values| {
-                    Ok(context.object_cache().insert_mdata_values(values))
+                .and_then(move |values_set| {
+                    let values: Vec<MDataValue> = values_set
+                        .iter()
+                        .map(|value| {
+                            MDataValue {
+                                content: value.content.clone(),
+                                entry_version: value.entry_version,
+                            }
+                        })
+                        .collect();
+                    let values: Vec<FfiMDataValue> =
+                        values.into_iter().map(|value| value.as_repr_c()).collect();
+                    ok!(values)
                 })
+                .then(move |result| {
+                    match result {
+                        Ok(values) => {
+                            o_cb(
+                                user_data.0,
+                                FFI_RESULT_OK,
+                                values.as_safe_ptr(),
+                                values.len(),
+                            )
+                        }
+                        res @ Err(..) => {
+                            call_result_cb!(res, user_data, o_cb);
+                        }
+                    }
+                    Ok(())
+                })
+                .into_box()
+                .into()
         })
     })
 }
