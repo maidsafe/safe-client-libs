@@ -15,6 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use config_file_handler;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::{ClientError, InterfaceError, RoutingError};
@@ -28,46 +29,47 @@ use std::sync::mpsc;
 /// Client Errors
 #[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 pub enum CoreError {
-    /// Could not Serialise or Deserialise
+    /// Could not Serialise or Deserialise.
     EncodeDecodeError(SerialisationError),
-    /// Asymmetric Key Decryption Failed
+    /// Asymmetric Key Decryption Failed.
     AsymmetricDecipherFailure,
-    /// Symmetric Key Decryption Failed
+    /// Symmetric Key Decryption Failed.
     SymmetricDecipherFailure,
-    /// Received unexpected data
+    /// Received unexpected data.
     ReceivedUnexpectedData,
-    /// Received unexpected event
+    /// Received unexpected event.
     ReceivedUnexpectedEvent,
-    /// No such data found in local version cache
+    /// No such data found in local version cache.
     VersionCacheMiss,
-    /// Cannot overwrite a root directory if it already exists
+    /// Cannot overwrite a root directory if it already exists.
     RootDirectoryExists,
-    /// Unable to obtain generator for random data
+    /// Unable to obtain generator for random data.
     RandomDataGenerationFailure,
-    /// Forbidden operation
+    /// Forbidden operation.
     OperationForbidden,
-    /// Unexpected - Probably a Logic error
+    /// Unexpected - Probably a Logic error.
     Unexpected(String),
-    /// Routing Error
+    /// Routing Error.
     RoutingError(RoutingError),
-    /// Interface Error
+    /// Interface Error.
     RoutingInterfaceError(InterfaceError),
-    /// Routing Client Error
+    /// Routing Client Error.
     RoutingClientError(ClientError),
-    /// Unable to pack into or operate with size of Salt
+    /// Unable to pack into or operate with size of Salt.
     UnsupportedSaltSizeForPwHash,
-    /// Unable to complete computation for password hashing - usually because
-    /// OS refused to
-    /// allocate amount of requested memory
+    /// Unable to complete computation for password hashing - usually because OS
+    /// refused to allocate amount of requested memory.
     UnsuccessfulPwHash,
-    /// Blocking operation was cancelled
+    /// Blocking operation was cancelled.
     OperationAborted,
-    /// MpidMessaging Error
+    /// MpidMessaging Error.
     MpidMessagingError(messaging::Error),
-    /// Error while self-encrypting data
+    /// Error while self-encrypting data.
     SelfEncryption(SelfEncryptionError<SelfEncryptionStorageError>),
-    /// The request has timed out
+    /// The request has timed out.
     RequestTimeout,
+    /// Configuration file error.
+    ConfigError(config_file_handler::Error),
 }
 
 impl<'a> From<&'a str> for CoreError {
@@ -130,6 +132,12 @@ impl From<SelfEncryptionError<SelfEncryptionStorageError>> for CoreError {
     }
 }
 
+impl From<config_file_handler::Error> for CoreError {
+    fn from(error: config_file_handler::Error) -> CoreError {
+        CoreError::ConfigError(error)
+    }
+}
+
 impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         write!(formatter, "{} - ", self.description())?;
@@ -179,6 +187,9 @@ impl Debug for CoreError {
                 write!(formatter, "CoreError::SelfEncryption -> {:?}", error)
             }
             CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
+            CoreError::ConfigError(ref error) => {
+                write!(formatter, "CoreError::ConfigError -> {:?}", error)
+            }
         }
     }
 }
@@ -244,6 +255,7 @@ impl Display for CoreError {
                 write!(formatter, "Self-encryption error: {}", error)
             }
             CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
+            CoreError::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
         }
     }
 }
@@ -272,6 +284,7 @@ impl Error for CoreError {
             CoreError::MpidMessagingError(_) => "Mpid messaging error",
             CoreError::SelfEncryption(ref error) => error.description(),
             CoreError::RequestTimeout => "Request has timed out",
+            CoreError::ConfigError(ref error) => error.description(),
         }
     }
 

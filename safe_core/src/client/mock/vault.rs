@@ -17,6 +17,7 @@
 
 use super::Account;
 use super::DataId;
+use config_handler::Config;
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};
@@ -36,17 +37,18 @@ const FILE_NAME: &'static str = "MockVault";
 
 pub struct Vault {
     cache: Cache,
+    config: Config,
     store: Box<Store>,
 }
 
 impl Vault {
-    pub fn new() -> Self {
-        let store: Box<Store> = match env::var("SAFE_MEMORY_STORE") {
-            Ok(_) => {
+    pub fn new(config: Config) -> Self {
+        let store: Box<Store> = match config.dev {
+            Some(dev) if dev.mock_in_memory_storage => {
                 trace!("Mock vault: using memory store");
                 Box::new(MemoryStore)
             }
-            Err(_) => {
+            Some(_) | None => {
                 trace!("Mock vault: using file store");
                 Box::new(FileStore::new())
             }
@@ -57,6 +59,7 @@ impl Vault {
                 client_manager: HashMap::new(),
                 nae_manager: HashMap::new(),
             },
+            config: config,
             store: store,
         }
     }
@@ -71,9 +74,17 @@ impl Vault {
         self.cache.client_manager.get_mut(name)
     }
 
+    // Get the config for this vault.
+    pub fn config(&self) -> Config {
+        self.config
+    }
+
     // Create account for the given client manager name.
     pub fn insert_account(&mut self, name: XorName) {
-        let _ = self.cache.client_manager.insert(name, Account::new());
+        let _ = self.cache.client_manager.insert(
+            name,
+            Account::new(self.config),
+        );
     }
 
     // Authorise read (non-mutation) operation.
@@ -120,7 +131,11 @@ impl Vault {
             return Err(ClientError::AccessDenied);
         }
 
-        if account.account_info().mutations_available == 0 {
+        let unlimited_mut = match self.config.dev {
+            Some(dev) => dev.mock_unlimited_mutations,
+            None => false,
+        };
+        if !unlimited_mut && account.account_info().mutations_available == 0 {
             return Err(ClientError::LowBalance);
         }
 
