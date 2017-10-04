@@ -95,6 +95,8 @@ mod test {
             path.display()
         );
 
-        let _dev_config = unwrap!(config.dev, "{} is missing `dev` field.", path.display());
+        let dev_config = unwrap!(config.dev, "{} is missing `dev` field.", path.display());
+        assert_eq!(dev_config.mock_unlimited_mutations, true);
+        assert_eq!(dev_config.mock_in_memory_storage, true);
     }
 }
