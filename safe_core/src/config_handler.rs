@@ -50,7 +50,7 @@ impl Default for DevConfig {
     fn default() -> DevConfig {
         DevConfig {
             mock_unlimited_mutations: false,
-            mock_in_memory_storage: cfg!(testing),
+            mock_in_memory_storage: false,
         }
     }
 }
