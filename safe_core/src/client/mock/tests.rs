@@ -38,6 +38,7 @@ lazy_static! {
                 DevConfig {
                     mock_unlimited_mutations: false,
                     mock_in_memory_storage: true,
+                    mock_vault_path: None,
                 }
             )
         })));
@@ -1125,6 +1126,7 @@ fn low_balance_check() {
             dev: Some(DevConfig {
                 mock_unlimited_mutations: custom_vault,
                 mock_in_memory_storage: true,
+                mock_vault_path: None,
             }),
         });
         let owner_key = *full_id.public_id().signing_public_key();

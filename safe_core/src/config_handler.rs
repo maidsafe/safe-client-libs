@@ -19,7 +19,7 @@ use CoreError;
 use config_file_handler::{self, FileHandler};
 
 /// Configuration for routing.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     /// Developer options.
     pub dev: Option<DevConfig>,
@@ -38,12 +38,14 @@ impl Default for Config {
 }
 
 /// Extra configuration options intended for developers.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct DevConfig {
     /// Switch off mutations limit in mock-vault.
     pub mock_unlimited_mutations: bool,
     /// Use memory store instead of file store in mock-vault.
     pub mock_in_memory_storage: bool,
+    /// Set the mock-vault path if using file store (`mock_in_memory_storage` is `false`).
+    pub mock_vault_path: Option<String>,
 }
 
 impl Default for DevConfig {
@@ -51,6 +53,7 @@ impl Default for DevConfig {
         DevConfig {
             mock_unlimited_mutations: false,
             mock_in_memory_storage: false,
+            mock_vault_path: None,
         }
     }
 }
@@ -80,8 +83,8 @@ mod test {
     use std::path::Path;
 
     #[test]
-    fn parse_sample_config_file() {
-        let path = Path::new("sample_config/sample.safe_core.config").to_path_buf();
+    fn parse_sample_config_file_memory() {
+        let path = Path::new("sample_config/sample_memory.safe_core.config").to_path_buf();
         let mut file = unwrap!(File::open(&path), "Error opening {}:", path.display());
         let mut encoded_contents = String::new();
         let _ = unwrap!(
@@ -98,5 +101,27 @@ mod test {
         let dev_config = unwrap!(config.dev, "{} is missing `dev` field.", path.display());
         assert_eq!(dev_config.mock_unlimited_mutations, true);
         assert_eq!(dev_config.mock_in_memory_storage, true);
+    }
+
+    #[test]
+    fn parse_sample_config_file_disk() {
+        let path = Path::new("sample_config/sample_disk.safe_core.config").to_path_buf();
+        let mut file = unwrap!(File::open(&path), "Error opening {}:", path.display());
+        let mut encoded_contents = String::new();
+        let _ = unwrap!(
+            file.read_to_string(&mut encoded_contents),
+            "Error reading {}:",
+            path.display()
+        );
+        let config: Config = unwrap!(
+            serde_json::from_str(&encoded_contents),
+            "Error parsing {} as JSON:",
+            path.display()
+        );
+
+        let dev_config = unwrap!(config.dev, "{} is missing `dev` field.", path.display());
+        assert_eq!(dev_config.mock_unlimited_mutations, false);
+        assert_eq!(dev_config.mock_in_memory_storage, false);
+        assert_eq!(dev_config.mock_vault_path, Some(String::from("./tmp")));
     }
 }

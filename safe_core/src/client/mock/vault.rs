@@ -27,6 +27,7 @@ use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
@@ -44,13 +45,17 @@ pub struct Vault {
 impl Vault {
     pub fn new(config: Config) -> Self {
         let store: Box<Store> = match config.dev {
-            Some(dev) if dev.mock_in_memory_storage => {
+            Some(ref dev) if dev.mock_in_memory_storage => {
                 trace!("Mock vault: using memory store");
                 Box::new(MemoryStore)
             }
-            Some(_) | None => {
+            Some(ref dev) => {
                 trace!("Mock vault: using file store");
-                Box::new(FileStore::new())
+                Box::new(FileStore::new(dev.mock_vault_path.clone()))
+            }
+            None => {
+                trace!("Mock vault: using file store");
+                Box::new(FileStore::new(None))
             }
         };
 
@@ -76,14 +81,14 @@ impl Vault {
 
     // Get the config for this vault.
     pub fn config(&self) -> Config {
-        self.config
+        self.config.clone()
     }
 
     // Create account for the given client manager name.
     pub fn insert_account(&mut self, name: XorName) {
         let _ = self.cache.client_manager.insert(
             name,
-            Account::new(self.config),
+            Account::new(self.config.clone()),
         );
     }
 
@@ -132,7 +137,7 @@ impl Vault {
         }
 
         let unlimited_mut = match self.config.dev {
-            Some(dev) => dev.mock_unlimited_mutations,
+            Some(ref dev) => dev.mock_unlimited_mutations,
             None => false,
         };
         if !unlimited_mut && account.account_info().mutations_available == 0 {
@@ -229,18 +234,23 @@ struct FileStore {
     // `bool` element indicates whether the store is being written to.
     file: Option<(File, bool)>,
     sync_time: Option<SystemTime>,
+    path: PathBuf,
 }
 
 impl FileStore {
-    fn new() -> Self {
+    fn new(dirpath: Option<String>) -> Self {
         FileStore {
             file: None,
             sync_time: None,
+            path: match dirpath {
+                Some(dirpath) => Path::new(&dirpath).join(FILE_NAME),
+                None => env::temp_dir().join(FILE_NAME),
+            },
         }
     }
 
-    fn path() -> PathBuf {
-        env::temp_dir().join(FILE_NAME)
+    fn path(&self) -> PathBuf {
+        self.path.clone()
     }
 }
 
@@ -253,7 +263,7 @@ impl Store for FileStore {
                 .write(true)
                 .create(true)
                 .truncate(false)
-                .open(Self::path())
+                .open(self.path())
         );
 
         if writing {
