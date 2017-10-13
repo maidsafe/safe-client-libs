@@ -1202,6 +1202,53 @@ fn low_balance_check() {
     }
 }
 
+// Test setting a custom mock-vault path. Make sure basic operations work as expected.
+#[test]
+fn config_mock_vault_path() {
+    use std;
+
+    match std::fs::create_dir("./tmp") {
+        Ok(_) => (),
+        Err(ref e) if e.kind() == std::io::ErrorKind::AlreadyExists => (),
+        _ => panic!("Error creating directory"),
+    }
+
+    let (mut routing, routing_rx, full_id) = setup_with_config(Config {
+        dev: Some(DevConfig {
+            mock_unlimited_mutations: false,
+            mock_in_memory_storage: false,
+            mock_vault_path: Some(String::from("./tmp")),
+        }),
+    });
+    let owner_key = *full_id.public_id().signing_public_key();
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+
+    // Put MutableData.
+    let name = rand::random();
+    let tag = 1000u64;
+
+    let data = unwrap!(MutableData::new(
+        name,
+        tag,
+        Default::default(),
+        Default::default(),
+        btree_set!(owner_key),
+    ));
+    let nae_mgr = Authority::NaeManager(*data.name());
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
+    expect_success!(routing_rx, msg_id, Response::PutMData);
+
+    // Try getting MutableData back.
+    let msg_id = MessageId::new();
+    unwrap!(routing.get_mdata(nae_mgr, name, tag, msg_id));
+    let mdata = expect_success!(routing_rx, msg_id, Response::GetMData);
+    assert!(mdata.serialised_size() > 0);
+
+    unwrap!(std::fs::remove_dir_all("./tmp"));
+}
+
 // Test routing request hooks.
 #[test]
 fn request_hooks() {
