@@ -82,7 +82,7 @@ impl Account {
         self.account_info.mutations_done += 1;
         // Decrement mutations available, unless we're at 0 and we have unlimited mutations.
         let unlimited_muts = match self.config.dev {
-            Some(dev) => dev.mock_unlimited_mutations,
+            Some(ref dev) => dev.mock_unlimited_mutations,
             None => false,
         };
         if self.account_info.mutations_available > 0 && !unlimited_muts {

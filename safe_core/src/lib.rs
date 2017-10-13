@@ -39,6 +39,13 @@
 //! `--features=use-mock-routing`, then setting this option will use mock-vault's memory store,
 //! which is faster than reading/writing to disk. `safe_core` does not need to be rebuilt for this
 //! to take effect. The default value is false (true when running tests).
+//!
+//! ```ignore
+//! mock_vault_path
+//! ```
+//!
+//! If this variable is set and we are using file storage (`mock_in_memory_storage` is `false`),
+//! use this as the path for mock-vault, overriding the default
 
 #![doc(html_logo_url =
            "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
