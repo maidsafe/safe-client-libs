@@ -25,10 +25,9 @@ use ffi_utils::{FfiResult, vec_clone_from_raw_parts};
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8, send_via_user_data,
                             sender_as_user_data};
 use object_cache::MDataPermissionsHandle;
-use permissions::UserPermissionSet;
-use routing::{Action, PermissionSet};
-use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
-use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
+use routing::XOR_NAME_LEN;
+use safe_core::arrays::XorNameArray;
+use std::mem;
 use std::sync::mpsc;
 use test_utils::create_app;
 
