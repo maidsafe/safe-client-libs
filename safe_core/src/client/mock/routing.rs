@@ -90,7 +90,7 @@ impl Routing {
         _bootstrap_config: Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
-        ::rust_sodium::init();
+        let _ = ::rust_sodium::init();
 
         let cloned_sender = sender.clone();
         let _ = thread::named(CONNECT_THREAD_NAME, move || {

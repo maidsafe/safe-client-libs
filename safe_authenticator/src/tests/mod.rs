@@ -16,6 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 mod revocation;
+mod serialisation;
 mod share_mdata;
 mod utils;
 

@@ -49,13 +49,11 @@ impl Vault {
                 trace!("Mock vault: using memory store");
                 Box::new(MemoryStore)
             }
-            Some(ref dev) => {
+            _ => {
+                let path = file_store_path(&config);
+
                 trace!("Mock vault: using file store");
-                Box::new(FileStore::new(dev.mock_vault_path.clone()))
-            }
-            None => {
-                trace!("Mock vault: using file store");
-                Box::new(FileStore::new(None))
+                Box::new(FileStore::new(path))
             }
         };
 
@@ -238,19 +236,12 @@ struct FileStore {
 }
 
 impl FileStore {
-    fn new(dirpath: Option<String>) -> Self {
+    fn new(path: PathBuf) -> Self {
         FileStore {
             file: None,
             sync_time: None,
-            path: match dirpath {
-                Some(dirpath) => Path::new(&dirpath).join(FILE_NAME),
-                None => env::temp_dir().join(FILE_NAME),
-            },
+            path: path,
         }
-    }
-
-    fn path(&self) -> PathBuf {
-        self.path.clone()
     }
 }
 
@@ -263,7 +254,7 @@ impl Store for FileStore {
                 .write(true)
                 .create(true)
                 .truncate(false)
-                .open(self.path())
+                .open(&self.path)
         );
 
         if writing {
@@ -329,4 +320,15 @@ impl Store for FileStore {
             let _ = file.unlock();
         }
     }
+}
+
+/// Path to the mock vault store file.
+pub fn file_store_path(config: &Config) -> PathBuf {
+    if let Some(ref dev) = config.dev {
+        if let Some(ref dirpath) = dev.mock_vault_path {
+            return Path::new(dirpath).join(FILE_NAME);
+        }
+    }
+
+    env::temp_dir().join(FILE_NAME)
 }
