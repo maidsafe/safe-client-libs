@@ -16,29 +16,21 @@
 // relating to use of the SAFE Network Software.
 
 use CoreError;
-use config_file_handler::{self, FileHandler};
+use config_file_handler;
+use std::ffi::OsString;
+
+#[cfg(test)]
+use std::path::PathBuf;
 
 /// Configuration for routing.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     /// Developer options.
     pub dev: Option<DevConfig>,
 }
 
-impl Default for Config {
-    fn default() -> Config {
-        Config {
-            dev: if cfg!(testing) {
-                Some(Default::default())
-            } else {
-                None
-            },
-        }
-    }
-}
-
 /// Extra configuration options intended for developers.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct DevConfig {
     /// Switch off mutations limit in mock-vault.
     pub mock_unlimited_mutations: bool,
@@ -46,16 +38,6 @@ pub struct DevConfig {
     pub mock_in_memory_storage: bool,
     /// Set the mock-vault path if using file store (`mock_in_memory_storage` is `false`).
     pub mock_vault_path: Option<String>,
-}
-
-impl Default for DevConfig {
-    fn default() -> DevConfig {
-        DevConfig {
-            mock_unlimited_mutations: false,
-            mock_in_memory_storage: false,
-            mock_vault_path: None,
-        }
-    }
 }
 
 /// Reads the `safe_core` config file and returns it or a default if this fails.
@@ -66,12 +48,55 @@ pub fn get_config() -> Config {
     })
 }
 
+// **Non-test version**. If config file is not found, generate a blank one.
+#[cfg(not(test))]
 fn read_config_file() -> Result<Config, CoreError> {
+    // If the config file is not present, a default one will be generated.
+    let file_handler = config_file_handler::FileHandler::new(&get_file_name()?, false)?;
+    Ok(file_handler.read_file()?)
+}
+
+// **Test version**. If config file is not found, generate one with `dev` options.
+#[cfg(test)]
+fn read_config_file() -> Result<Config, CoreError> {
+    // When running tests, use a `dev` config with the in-mem storage option enabled.
+    let config = Config {
+        dev: Some(DevConfig {
+            mock_unlimited_mutations: false,
+            mock_in_memory_storage: true,
+            mock_vault_path: None,
+        }),
+    };
+    let _ = write_config_file(&config)?;
+
+    Ok(config)
+}
+
+/// Writes a `safe_core` config file **for use by tests and examples**.
+///
+/// The file is written to the [`current_bin_dir()`](file_handler/fn.current_bin_dir.html)
+/// with the appropriate file name.
+#[cfg(test)]
+pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
+    use std::io::Write;
+    use serde_json;
+
+    let mut config_path = config_file_handler::current_bin_dir()?;
+    config_path.push(get_file_name()?);
+    let mut file = ::std::fs::File::create(&config_path)?;
+    write!(
+        &mut file,
+        "{}",
+        unwrap!(serde_json::to_string_pretty(config))
+    )?;
+    file.sync_all()?;
+    Ok(config_path)
+}
+
+fn get_file_name() -> Result<OsString, CoreError> {
     let mut name = config_file_handler::exe_file_stem()?;
     name.push(".safe_core.config");
-    // If the config file is not present, a default one will be generated.
-    let file_handler = FileHandler::new(&name, false)?;
-    Ok(file_handler.read_file()?)
+    Ok(name)
 }
 
 #[cfg(test)]

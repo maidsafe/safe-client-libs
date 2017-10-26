@@ -24,6 +24,7 @@ use self_encryption::SelfEncryptionError;
 use self_encryption_storage::SelfEncryptionStorageError;
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
+use std::io;
 use std::sync::mpsc;
 
 /// Client Errors
@@ -70,6 +71,8 @@ pub enum CoreError {
     RequestTimeout,
     /// Configuration file error.
     ConfigError(config_file_handler::Error),
+    /// Io error.
+    IoError(io::Error),
 }
 
 impl<'a> From<&'a str> for CoreError {
@@ -138,6 +141,12 @@ impl From<config_file_handler::Error> for CoreError {
     }
 }
 
+impl From<io::Error> for CoreError {
+    fn from(error: io::Error) -> CoreError {
+        CoreError::IoError(error)
+    }
+}
+
 impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         write!(formatter, "{} - ", self.description())?;
@@ -190,6 +199,7 @@ impl Debug for CoreError {
             CoreError::ConfigError(ref error) => {
                 write!(formatter, "CoreError::ConfigError -> {:?}", error)
             }
+            CoreError::IoError(ref error) => write!(formatter, "CoreError::IoError -> {:?}", error),
         }
     }
 }
@@ -256,6 +266,7 @@ impl Display for CoreError {
             }
             CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
             CoreError::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
+            CoreError::IoError(ref error) => write!(formatter, "Io error: {}", error),
         }
     }
 }
@@ -285,6 +296,7 @@ impl Error for CoreError {
             CoreError::SelfEncryption(ref error) => error.description(),
             CoreError::RequestTimeout => "Request has timed out",
             CoreError::ConfigError(ref error) => error.description(),
+            CoreError::IoError(ref error) => error.description(),
         }
     }
 
