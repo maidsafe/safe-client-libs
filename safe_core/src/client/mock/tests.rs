@@ -30,25 +30,6 @@ use std::time::Duration;
 use tiny_keccak::sha3_256;
 use utils;
 
-// A global vault used by default in tests; see `setup()`.
-lazy_static! {
-    static ref TEST_VAULT: Arc<Mutex<Vault>> =
-        Arc::new(Mutex::new(Vault::new(Config {
-            dev: Some(
-                DevConfig {
-                    mock_unlimited_mutations: false,
-                    mock_in_memory_storage: true,
-                    mock_vault_path: None,
-                }
-            )
-        })));
-}
-
-/// Creates a thread-safe reference-counted pointer to the global test vault.
-pub fn clone_test_vault() -> Arc<Mutex<Vault>> {
-    TEST_VAULT.clone()
-}
-
 // Helper macro to receive a routing event and assert it's a response
 // success.
 macro_rules! expect_success {
@@ -1361,11 +1342,9 @@ fn request_hooks() {
     expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
 }
 
-// Setup routing with a shared, global testing vault.
+// Setup routing with a shared, global vault.
 fn setup() -> (Routing, Receiver<Event>, FullId) {
-    let (mut routing, routing_rx, full_id) = setup_impl();
-
-    routing.set_vault(clone_test_vault());
+    let (routing, routing_rx, full_id) = setup_impl();
 
     (routing, routing_rx, full_id)
 }
