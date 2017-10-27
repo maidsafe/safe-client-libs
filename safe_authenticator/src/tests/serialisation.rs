@@ -38,6 +38,7 @@ use std::path::PathBuf;
 use std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 
 #[test]
+#[ignore]
 fn write_data() {
     let (stash, vault_path) = setup();
 
@@ -64,6 +65,7 @@ fn write_data() {
 }
 
 #[test]
+#[ignore]
 fn read_data() {
     let (stash, _) = setup();
 
