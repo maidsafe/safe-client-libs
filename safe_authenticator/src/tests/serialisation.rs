@@ -15,7 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
-//! These tests ensure binary compatibility between different versions of safe_client_libs.
+//! These tests ensure binary compatibility between different versions of `safe_client_libs`.
 
 #![cfg(feature = "use-mock-routing")]
 
@@ -24,10 +24,11 @@ use AuthError;
 use AuthFuture;
 use Authenticator;
 use access_container;
-use app_auth;
+use app_auth::{self, AppState};
 use config;
 use futures::{Future, future};
 use rand::{Rng, SeedableRng, XorShiftRng};
+use revocation;
 use safe_core::{Client, FutureExt, MDataInfo};
 use safe_core::{config_handler, mock_vault_path};
 use safe_core::ipc::{AppExchangeInfo, AuthReq, Permission};
@@ -54,9 +55,28 @@ fn write_data() {
     ));
 
     unwrap!(auth.send(move |client| {
-        app_auth::authenticate(client, stash.auth_req.clone())
-            .then(|res| {
+        let client = client.clone();
+
+        app_auth::authenticate(&client, stash.auth_req0.clone())
+            .then(move |res| {
+                // authenticate app 0
                 let _ = unwrap!(res);
+                app_auth::authenticate(&client, stash.auth_req0.clone())
+                    .map(move |_| (client, stash))
+            })
+            .then(move |res| {
+                // authenticate app 1
+                let (client, stash) = unwrap!(res);
+                app_auth::authenticate(&client, stash.auth_req1.clone())
+                    .map(move |_| (client, stash))
+            })
+            .then(move |res| {
+                // revoke app 1
+                let (client, stash) = unwrap!(res);
+                revocation::revoke_app(&client, &stash.auth_req1.app.id)
+            })
+            .then(|res| {
+                unwrap!(res);
                 Ok(())
             })
             .into_box()
@@ -76,32 +96,45 @@ fn read_data() {
     ));
 
     unwrap!(auth.send(move |client| {
-        let c0 = client.clone();
-        let c1 = client.clone();
-        let c2 = client.clone();
+        let client = client.clone();
 
         // Read access container and ensure all standard containers exists.
-        access_container::fetch_authenticator_entry(client)
+        access_container::fetch_authenticator_entry(&client)
             .then(move |res| {
                 let (_, containers) = unwrap!(res);
-                verify_std_dirs(&c0, &containers)
+                verify_std_dirs(&client, &containers).map(move |_| client)
             })
             .then(move |res| {
-                unwrap!(res);
-                config::get_app(&c1, &stash.auth_req.app.id).map(move |app_info| (app_info, stash))
+                let client = unwrap!(res);
+                config::get_app(&client, &stash.auth_req0.app.id).map(
+                    move |app_info| (client, stash, app_info),
+                )
             })
             .then(move |res| {
-                let (app_info, stash) = unwrap!(res);
-                assert_eq!(app_info.info, stash.auth_req.app);
+                let (client, stash, app_info) = unwrap!(res);
+                assert_eq!(app_info.info, stash.auth_req0.app);
 
-                access_container::fetch_entry(&c2, &app_info.info.id, app_info.keys)
-                    .map(move |(_, ac_entry)| (ac_entry, stash))
+                access_container::fetch_entry(&client, &app_info.info.id, app_info.keys)
+                    .map(move |(_, ac_entry)| (client, stash, ac_entry))
             })
             .then(move |res| {
-                let (ac_entry, stash) = unwrap!(res);
+                let (client, stash, ac_entry) = unwrap!(res);
                 let ac_entry = unwrap!(ac_entry);
-                verify_access_container_entry(&ac_entry, &stash.auth_req.containers);
+                verify_access_container_entry(&ac_entry, &stash.auth_req0.containers);
 
+                Ok::<_, AuthError>((client, stash))
+            })
+            .then(move |res| {
+                let (client, stash) = unwrap!(res);
+                config::list_apps(&client).map(move |(_, apps)| (client, stash, apps))
+            })
+            .then(move |res| {
+                let (client, stash, apps) = unwrap!(res);
+                app_auth::app_state(&client, &apps, &stash.auth_req1.app.id)
+            })
+            .then(move |res| {
+                let state = unwrap!(res);
+                assert_eq!(state, AppState::Revoked);
                 Ok(())
             })
             .into_box()
@@ -147,7 +180,8 @@ struct Stash {
     locator: String,
     password: String,
     invitation: String,
-    auth_req: AuthReq,
+    auth_req1: AuthReq,
+    auth_req0: AuthReq,
 }
 
 fn setup() -> (Stash, PathBuf) {
@@ -167,13 +201,6 @@ fn setup() -> (Stash, PathBuf) {
     // IMPORTANT: Use constant seed for repeatability.
     let mut rng = XorShiftRng::from_seed([0, 1, 2, 3]);
 
-    let app_exchange_info = AppExchangeInfo {
-        id: random_string(&mut rng, 16),
-        scope: None,
-        name: "test-app-0".to_string(),
-        vendor: "test-vendor-0".to_string(),
-    };
-
     let mut containers = HashMap::new();
     let _ = containers.insert(
         "_documents".to_string(),
@@ -185,17 +212,42 @@ fn setup() -> (Stash, PathBuf) {
         ],
     );
 
-    let auth_req = AuthReq {
-        app: app_exchange_info,
-        app_container: false,
-        containers,
+    let auth_req0 = {
+        let app_exchange_info = AppExchangeInfo {
+            id: random_string(&mut rng, 16),
+            scope: None,
+            name: "test-app-0".to_string(),
+            vendor: "test-vendor-0".to_string(),
+        };
+
+        AuthReq {
+            app: app_exchange_info,
+            app_container: false,
+            containers: containers.clone(),
+        }
+    };
+
+    let auth_req1 = {
+        let app_exchange_info = AppExchangeInfo {
+            id: random_string(&mut rng, 16),
+            scope: None,
+            name: "test-app-1".to_string(),
+            vendor: "test-vendor-1".to_string(),
+        };
+
+        AuthReq {
+            app: app_exchange_info,
+            app_container: false,
+            containers: containers.clone(),
+        }
     };
 
     let stash = Stash {
         locator: random_string(&mut rng, 16),
         password: random_string(&mut rng, 16),
         invitation: String::new(),
-        auth_req,
+        auth_req0,
+        auth_req1,
     };
 
     (stash, mock_vault_path(&config))
