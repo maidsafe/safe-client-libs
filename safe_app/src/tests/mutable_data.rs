@@ -54,7 +54,7 @@ fn md_created_by_app_1() {
                     Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
                 }
                 let mut owners = BTreeSet::new();
-                owners.insert(unwrap!(cl2.owner_key()));
+                let _ = owners.insert(unwrap!(cl2.owner_key()));
                 let mdata = unwrap!(MutableData::new(
                     name,
                     DIR_TAG,
@@ -221,7 +221,7 @@ fn md_created_by_app_3() {
             );
 
             let mut owners = BTreeSet::new();
-            owners.insert(unwrap!(client.owner_key()));
+            let _ = owners.insert(unwrap!(client.owner_key()));
 
             let name: XorName = rng.gen();
 
@@ -367,7 +367,7 @@ fn md_created_by_app_4() {
             );
 
             let mut owners = BTreeSet::new();
-            owners.insert(unwrap!(client.owner_key()));
+            let _ = owners.insert(unwrap!(client.owner_key()));
 
             let name: XorName = rng.gen();
 
@@ -419,7 +419,7 @@ fn multiple_apps() {
         );
 
         let mut owners = BTreeSet::new();
-        owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(unwrap!(client.owner_key()));
 
         let name: XorName = rng.gen();
         let mdata = unwrap!(MutableData::new(
@@ -545,7 +545,7 @@ fn permissions_and_version() {
         );
 
         let mut owners = BTreeSet::new();
-        owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(unwrap!(client.owner_key()));
 
         let name: XorName = rng.gen();
         let mdata = unwrap!(MutableData::new(
@@ -675,7 +675,7 @@ fn permissions_crud() {
         );
 
         let mut owners = BTreeSet::new();
-        owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(unwrap!(client.owner_key()));
 
         let name: XorName = rng.gen();
         let mdata = unwrap!(MutableData::new(
@@ -999,7 +999,7 @@ fn entries_crud() {
         );
 
         let mut owners = BTreeSet::new();
-        owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(unwrap!(client.owner_key()));
 
         let name: XorName = rng.gen();
         let mdata = unwrap!(MutableData::new(name, DIR_TAG, permissions, data, owners));

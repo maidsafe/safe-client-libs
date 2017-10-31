@@ -556,7 +556,7 @@ fn mutable_data_entry_versioning() {
 
     // Attempt to update it with incorrect version fails.
     let actions = EntryActions::new()
-        .update(key.to_vec(), value_v1.clone(), 314159265)
+        .update(key.to_vec(), value_v1.clone(), 314_159_265)
         .into();
     let msg_id = MessageId::new();
     unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
@@ -1157,14 +1157,14 @@ fn request_hooks() {
 
     routing.set_request_hook(move |req| {
         match *req {
-            Request::PutMData { ref data, msg_id, .. } if data.tag() == 10000u64 => {
+            Request::PutMData { ref data, msg_id, .. } if data.tag() == 10_000u64 => {
                 // Send an OK response but don't put data on the mock vault
                 Some(Response::PutMData {
                     res: Ok(()),
                     msg_id,
                 })
             }
-            Request::MutateMDataEntries { tag, msg_id, .. } if tag == 12345u64 => {
+            Request::MutateMDataEntries { tag, msg_id, .. } if tag == 12_345u64 => {
                 Some(Response::MutateMDataEntries {
                     res: Err(ClientError::from("hello world")),
                     msg_id,
@@ -1182,7 +1182,7 @@ fn request_hooks() {
     // Construct MutableData (but hook won't allow to store it on the network
     // if the tag is 10000)
     let name = rand::random();
-    let tag = 10000u64;
+    let tag = 10_000u64;
 
     let data = unwrap!(MutableData::new(name,
                                         tag,
@@ -1204,7 +1204,7 @@ fn request_hooks() {
 
     // Put an MData with a different tag, this should be stored now
     let name = rand::random();
-    let tag = 12345u64;
+    let tag = 12_345u64;
 
     let data = unwrap!(MutableData::new(name,
                                         tag,

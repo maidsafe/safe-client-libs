@@ -106,6 +106,6 @@ pub use self::utils::FutureExt;
 pub use ffi::*;
 
 /// All Maidsafe tagging should positive-offset from this
-pub const MAIDSAFE_TAG: u64 = 5483_000;
+pub const MAIDSAFE_TAG: u64 = 5_483_000;
 /// `MutableData` type tag for a directory
-pub const DIR_TAG: u64 = 15000;
+pub const DIR_TAG: u64 = 15_000;

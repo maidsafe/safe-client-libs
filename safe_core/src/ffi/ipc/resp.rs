@@ -73,6 +73,7 @@ pub struct AppKeys {
     pub enc_sk: AsymSecretKey,
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(expl_impl_clone_on_copy))]
 impl Clone for AppKeys {
     // Implemented manually because:
     // error[E0277]: the trait bound `[u8; 64]: std::clone::Clone` is not satisfied

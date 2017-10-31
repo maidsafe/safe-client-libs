@@ -128,7 +128,7 @@ struct Inner<T> {
 
 impl<T> Clone for Client<T> {
     fn clone(&self) -> Self {
-        Client { inner: self.inner.clone() }
+        Client { inner: Rc::clone(&self.inner) }
     }
 }
 

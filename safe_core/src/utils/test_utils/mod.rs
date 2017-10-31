@@ -15,6 +15,11 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+#[cfg(feature = "use-mock-routing")]
+mod sync;
+
+#[cfg(feature = "use-mock-routing")]
+pub use self::sync::Synchronizer;
 use Client;
 use errors::CoreError;
 use event::{NetworkEvent, NetworkTx};

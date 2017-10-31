@@ -136,6 +136,7 @@ mod tests {
     use safe_core::ipc::req::{Permission, container_perms_from_repr_c};
     use std::collections::{BTreeSet, HashMap};
     use std::ffi::CString;
+    use std::rc::Rc;
     use test_utils::{create_app_with_access, run, run_now};
 
     // Test refreshing access info by fetching it from the network.
@@ -151,7 +152,7 @@ mod tests {
         let app = create_app_with_access(container_permissions.clone());
 
         run(&app, move |_client, context| {
-            let reg = unwrap!(context.as_registered()).clone();
+            let reg = Rc::clone(unwrap!(context.as_registered()));
             assert!(reg.access_info.borrow().is_empty());
             Ok(())
         });
@@ -163,7 +164,7 @@ mod tests {
         }
 
         run(&app, move |_client, context| {
-            let reg = unwrap!(context.as_registered()).clone();
+            let reg = Rc::clone(unwrap!(context.as_registered()));
             assert!(!reg.access_info.borrow().is_empty());
 
             let access_info = reg.access_info.borrow();

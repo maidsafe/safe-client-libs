@@ -343,7 +343,7 @@ mod tests {
         let cipher_opt_handle_asym = unsafe {
             let err_code = AppError::InvalidEncryptPubKeyHandle.error_code();
             let res: Result<CipherOptHandle, _> =
-                call_1(|ud, cb| cipher_opt_new_asymmetric(&app, 29293290, ud, cb));
+                call_1(|ud, cb| cipher_opt_new_asymmetric(&app, 29_293_290, ud, cb));
             assert_eq!(unwrap!(res.err()), err_code);
 
             unwrap!(call_1(|ud, cb| {

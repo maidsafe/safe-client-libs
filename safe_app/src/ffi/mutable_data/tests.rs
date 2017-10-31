@@ -48,7 +48,7 @@ fn test_change_owner() {
     // Try to create an empty public MD
     let md_info1_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(
-            |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+            |ud, cb| mdata_info_random_public(&app, 10_000, ud, cb),
         ))
     };
 
@@ -68,7 +68,7 @@ fn test_change_owner() {
     // Try to create a new empty public MD
     let md_info2_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(
-            |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+            |ud, cb| mdata_info_random_public(&app, 10_000, ud, cb),
         ))
     };
 
@@ -228,7 +228,7 @@ fn permissions_crud_ffi() {
     // Try to create an empty public MD
     let md_info_pub_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(
-            |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+            |ud, cb| mdata_info_random_public(&app, 10_000, ud, cb),
         ))
     };
 
@@ -403,7 +403,7 @@ fn entries_crud_ffi() {
     // Try to create an empty public MD
     let md_info_pub_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(
-            |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+            |ud, cb| mdata_info_random_public(&app, 10_000, ud, cb),
         ))
     };
 
@@ -430,11 +430,11 @@ fn entries_crud_ffi() {
             mdata_info_extract_name_and_type_tag(&app, md_info_pub_h, ud, cb)
         }))
     };
-    assert_eq!(type_tag, 10000);
+    assert_eq!(type_tag, 10_000);
 
     let md_info_pub_2_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(|ud, cb| {
-            mdata_info_new_public(&app, &xor_name, 10001, ud, cb)
+            mdata_info_new_public(&app, &xor_name, 10_001, ud, cb)
         }))
     };
     let (xor_name2, type_tag2): ([u8; XOR_NAME_LEN], u64) = unsafe {
@@ -443,7 +443,7 @@ fn entries_crud_ffi() {
         }))
     };
     assert_eq!(xor_name, xor_name2);
-    assert_eq!(type_tag2, 10001);
+    assert_eq!(type_tag2, 10_001);
 
     unsafe {
         unwrap!(call_0(|ud, cb| {
@@ -536,7 +536,7 @@ fn entries_crud_ffi() {
     // Try to create a private MD
     let md_info_priv_h = unsafe {
         unwrap!(call_1(
-            |ud, cb| mdata_info_random_private(&app, 10001, ud, cb),
+            |ud, cb| mdata_info_random_private(&app, 10_001, ud, cb),
         ))
     };
     let (_xor_name, type_tag): (XorNameArray, u64) = unsafe {
@@ -544,7 +544,7 @@ fn entries_crud_ffi() {
             mdata_info_extract_name_and_type_tag(&app, md_info_priv_h, ud, cb)
         }))
     };
-    assert_eq!(type_tag, 10001);
+    assert_eq!(type_tag, 10_001);
 
     unsafe {
         unwrap!(call_0(|ud, cb| {

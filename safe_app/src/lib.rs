@@ -376,7 +376,7 @@ impl AppContext {
 
     /// Refresh access info by fetching it from the network.
     pub fn refresh_access_info(&self, client: &Client<AppContext>) -> Box<AppFuture<()>> {
-        let reg = fry!(self.as_registered()).clone();
+        let reg = Rc::clone(fry!(self.as_registered()));
         refresh_access_info(reg, client)
     }
 
@@ -385,9 +385,9 @@ impl AppContext {
         &self,
         client: &Client<AppContext>,
     ) -> Box<AppFuture<AccessContainerEntry>> {
-        let reg = fry!(self.as_registered()).clone();
+        let reg = Rc::clone(fry!(self.as_registered()));
 
-        fetch_access_info(reg.clone(), client)
+        fetch_access_info(Rc::clone(&reg), client)
             .map(move |_| {
                 let access_info = reg.access_info.borrow();
                 access_info.clone()

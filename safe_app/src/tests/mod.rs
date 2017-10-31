@@ -31,6 +31,7 @@ use safe_core::ipc::Permission;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::req::AuthReq;
 use std::collections::HashMap;
+use std::rc::Rc;
 use test_utils::{create_app_with_access, run};
 use test_utils::gen_app_exchange_info;
 
@@ -47,7 +48,7 @@ fn refresh_access_info() {
     let app = create_app_with_access(container_permissions.clone());
 
     run(&app, move |client, context| {
-        let reg = unwrap!(context.as_registered()).clone();
+        let reg = Rc::clone(unwrap!(context.as_registered()));
         assert!(reg.access_info.borrow().is_empty());
 
         context.refresh_access_info(client).then(move |result| {

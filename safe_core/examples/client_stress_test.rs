@@ -173,7 +173,7 @@ fn main() {
 
         for _ in immutable_data_count..(immutable_data_count + mutable_data_count) {
             // Construct data
-            let mutable_data = random_mutable_data(100000, &public_key, &mut rng);
+            let mutable_data = random_mutable_data(100_000, &public_key, &mut rng);
             stored_data.push(Data::Mutable(mutable_data));
         }
 

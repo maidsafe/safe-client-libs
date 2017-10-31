@@ -605,7 +605,7 @@ mod tests {
         // Create an empty public mdata
         let md_info_h: MDataInfoHandle = unsafe {
             unwrap!(call_1(
-                |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
+                |ud, cb| mdata_info_random_public(&app, 10_000, ud, cb),
             ))
         };
 
