@@ -1,7 +1,6 @@
 environment:
   global:
     RUST_BACKTRACE: 1
-    SAFE_MEMORY_STORE: 1
   matrix:
     - RUST_TOOLCHAIN: 1.19.0
 

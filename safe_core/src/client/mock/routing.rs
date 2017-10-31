@@ -17,6 +17,7 @@
 
 use super::DataId;
 use super::vault::{self, Data, Vault, VaultGuard};
+use config_handler::{Config, get_config};
 use maidsafe_utilities::thread;
 use rand;
 use routing::{Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, ImmutableData,
@@ -26,7 +27,7 @@ use rust_sodium::crypto::sign;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
@@ -60,16 +61,18 @@ const INS_AUTH_KEY_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const DEL_AUTH_KEY_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
 lazy_static! {
-    static ref VAULT: Mutex<Vault> = Mutex::new(Vault::new());
+    static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));
 }
 
-fn lock_vault(write: bool) -> VaultGuard<'static> {
-    vault::lock(&VAULT, write)
+/// Creates a thread-safe reference-counted pointer to the global vault.
+pub fn clone_vault() -> Arc<Mutex<Vault>> {
+    VAULT.clone()
 }
 
 /// Mock routing implementation that mirrors the behaviour
 /// of the real network but is not connected to it
 pub struct Routing {
+    vault: Arc<Mutex<Vault>>,
     sender: Sender<Event>,
     full_id: FullId,
     client_auth: Authority<XorName>,
@@ -84,10 +87,10 @@ impl Routing {
     pub fn new(
         sender: Sender<Event>,
         id: Option<FullId>,
-        _config: Option<BootstrapConfig>,
+        _bootstrap_config: Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
-        ::rust_sodium::init();
+        let _ = ::rust_sodium::init();
 
         let cloned_sender = sender.clone();
         let _ = thread::named(CONNECT_THREAD_NAME, move || {
@@ -101,6 +104,7 @@ impl Routing {
         };
 
         Ok(Routing {
+            vault: clone_vault(),
             sender: sender,
             full_id: id.unwrap_or_else(FullId::new),
             client_auth: client_auth,
@@ -108,6 +112,11 @@ impl Routing {
             timeout_simulation: false,
             request_hook: None,
         })
+    }
+
+    /// Sets the vault for this routing instance.
+    pub fn set_vault(&mut self, vault: Arc<Mutex<Vault>>) {
+        self.vault = vault.clone();
     }
 
     /// Gets MAID account information.
@@ -128,7 +137,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let vault = lock_vault(false);
+            let vault = self.lock_vault(false);
             match vault.get_account(&name) {
                 Some(account) => Ok(*account.account_info()),
                 None => Err(ClientError::NoSuchAccount),
@@ -175,9 +184,9 @@ impl Routing {
             return Ok(());
         }
 
-        let mut vault = lock_vault(true);
-
         let res = {
+            let mut vault = self.lock_vault(true);
+
             self.verify_network_limits(msg_id, "put_idata")
                 .and_then(|_| vault.authorise_mutation(&dst, self.client_key()))
                 .and_then(|_| {
@@ -226,16 +235,18 @@ impl Routing {
             return Ok(());
         }
 
-        let vault = lock_vault(false);
+        let res = {
+            let vault = self.lock_vault(false);
 
-        let res = if let Err(err) = self.verify_network_limits(msg_id, "get_idata") {
-            Err(err)
-        } else if let Err(err) = vault.authorise_read(&dst, &name) {
-            Err(err)
-        } else {
-            match vault.get_data(&DataId::immutable(name)) {
-                Some(Data::Immutable(data)) => Ok(data),
-                _ => Err(ClientError::NoSuchData),
+            if let Err(err) = self.verify_network_limits(msg_id, "get_idata") {
+                Err(err)
+            } else if let Err(err) = vault.authorise_read(&dst, &name) {
+                Err(err)
+            } else {
+                match vault.get_data(&DataId::immutable(name)) {
+                    Some(Data::Immutable(data)) => Ok(data),
+                    _ => Err(ClientError::NoSuchData),
+                }
             }
         };
 
@@ -277,36 +288,38 @@ impl Routing {
             return Ok(());
         }
 
-        let mut vault = lock_vault(true);
+        let res = {
+            let mut vault = self.lock_vault(true);
 
-        let res = if let Err(err) = self.verify_network_limits(msg_id, "put_mdata") {
-            Err(err)
-        } else if data.tag() == TYPE_TAG_SESSION_PACKET {
-            // Put Account.
-            let dst_name = match dst {
-                Authority::ClientManager(name) => name,
-                x => panic!("Unexpected authority: {:?}", x),
-            };
+            if let Err(err) = self.verify_network_limits(msg_id, "put_mdata") {
+                Err(err)
+            } else if data.tag() == TYPE_TAG_SESSION_PACKET {
+                // Put Account.
+                let dst_name = match dst {
+                    Authority::ClientManager(name) => name,
+                    x => panic!("Unexpected authority: {:?}", x),
+                };
 
-            if vault.contains_data(&data_name) {
-                Err(ClientError::AccountExists)
-            } else {
-                vault.insert_account(dst_name);
-                vault.insert_data(data_name, Data::Mutable(data));
-                Ok(())
-            }
-        } else {
-            // Put normal data.
-            vault
-                .authorise_mutation(&dst, self.client_key())
-                .and_then(|_| Self::verify_owner(&dst, data.owners()))
-                .and_then(|_| if vault.contains_data(&data_name) {
-                    Err(ClientError::DataExists)
+                if vault.contains_data(&data_name) {
+                    Err(ClientError::AccountExists)
                 } else {
+                    vault.insert_account(dst_name);
                     vault.insert_data(data_name, Data::Mutable(data));
                     Ok(())
-                })
-                .map(|_| vault.commit_mutation(&dst))
+                }
+            } else {
+                // Put normal data.
+                vault
+                    .authorise_mutation(&dst, self.client_key())
+                    .and_then(|_| Self::verify_owner(&dst, data.owners()))
+                    .and_then(|_| if vault.contains_data(&data_name) {
+                        Err(ClientError::DataExists)
+                    } else {
+                        vault.insert_data(data_name, Data::Mutable(data));
+                        Ok(())
+                    })
+                    .map(|_| vault.commit_mutation(&dst))
+            }
         };
 
         self.send_response(
@@ -688,7 +701,7 @@ impl Routing {
                     x => panic!("Unexpected authority: {:?}", x),
                 };
 
-                let vault = lock_vault(false);
+                let vault = self.lock_vault(false);
                 if let Some(account) = vault.get_account(&name) {
                     Ok((account.auth_keys().clone(), account.version()))
                 } else {
@@ -739,7 +752,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let mut vault = lock_vault(true);
+            let mut vault = self.lock_vault(true);
             if let Some(account) = vault.get_account_mut(&name) {
                 account.ins_auth_key(key, version)
             } else {
@@ -791,7 +804,7 @@ impl Routing {
                 x => panic!("Unexpected authority: {:?}", x),
             };
 
-            let mut vault = lock_vault(true);
+            let mut vault = self.lock_vault(true);
             if let Some(account) = vault.get_account_mut(&name) {
                 account.del_auth_key(&key, version)
             } else {
@@ -955,7 +968,7 @@ impl Routing {
         } else if let Err(err) = self.verify_requester(requester) {
             Err(err)
         } else {
-            let mut vault = lock_vault(write);
+            let mut vault = self.lock_vault(write);
             match vault.get_data(&DataId::mutable(name, tag)) {
                 Some(Data::Mutable(data)) => f(data, &mut *vault),
                 _ => {
@@ -1006,9 +1019,19 @@ impl Routing {
         }
     }
 
-    /// Returns the default boostrap config
+    fn lock_vault(&self, write: bool) -> VaultGuard {
+        vault::lock(&self.vault, write)
+    }
+
+    /// Returns the default boostrap config.
     pub fn bootstrap_config() -> Result<BootstrapConfig, InterfaceError> {
         Ok(BootstrapConfig::default())
+    }
+
+    /// Returns the config settings.
+    pub fn config(&self) -> Config {
+        let vault = self.lock_vault(false);
+        vault.config()
     }
 
     fn verify_network_limits(&self, msg_id: MessageId, op: &str) -> Result<(), ClientError> {

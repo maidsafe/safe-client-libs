@@ -53,6 +53,8 @@ mod codes {
     pub const ERR_MPID_MESSAGING_ERROR: i32 = -15;
     pub const ERR_SELF_ENCRYPTION: i32 = -16;
     pub const ERR_REQUEST_TIMEOUT: i32 = -17;
+    pub const ERR_CONFIG_FILE: i32 = -18;
+    pub const ERR_IO: i32 = -19;
 
     // routing Client errors
     pub const ERR_ACCESS_DENIED: i32 = -100;
@@ -303,6 +305,8 @@ fn core_error_code(err: &CoreError) -> i32 {
         CoreError::MpidMessagingError(_) => ERR_MPID_MESSAGING_ERROR,
         CoreError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
         CoreError::RequestTimeout => ERR_REQUEST_TIMEOUT,
+        CoreError::ConfigError(_) => ERR_CONFIG_FILE,
+        CoreError::IoError(_) => ERR_IO,
         CoreError::Unexpected(_) => ERR_UNEXPECTED,
     }
 }

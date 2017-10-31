@@ -2,7 +2,6 @@ env:
   global:
     - RUST_BACKTRACE=1
     - PATH=$PATH:$HOME/.cargo/bin
-    - SAFE_MEMORY_STORE=1
 language: rust
 matrix:
   include:

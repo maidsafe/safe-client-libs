@@ -19,7 +19,7 @@ mod account;
 mod routing;
 #[cfg(test)]
 mod tests;
-mod vault;
+pub mod vault;
 
 pub use self::account::{Account, DEFAULT_MAX_MUTATIONS};
 pub use self::routing::{RequestHookFn, Routing};

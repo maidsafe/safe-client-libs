@@ -29,9 +29,11 @@ use self::account::Account;
 pub use self::account::ClientKeys;
 pub use self::mdata_info::MDataInfo;
 #[cfg(feature = "use-mock-routing")]
+pub use self::mock::Routing as MockRouting;
+#[cfg(feature = "use-mock-routing")]
 use self::mock::Routing;
 #[cfg(feature = "use-mock-routing")]
-pub use self::mock::Routing as MockRouting;
+pub use self::mock::vault::file_store_path as mock_vault_path;
 use crypto::{shared_box, shared_secretbox, shared_sign};
 use errors::CoreError;
 use event::{CoreEvent, NetworkEvent, NetworkTx};
