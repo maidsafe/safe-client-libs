@@ -17,6 +17,7 @@
 
 use super::DataId;
 use super::vault::{self, Data, Vault, VaultGuard};
+use SAFE_MOCK_UNLIMITED_MUTATIONS;
 use config_handler::{Config, get_config};
 use maidsafe_utilities::thread;
 use rand;
@@ -27,6 +28,7 @@ use rust_sodium::crypto::sign;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::env;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
@@ -67,6 +69,18 @@ lazy_static! {
 /// Creates a thread-safe reference-counted pointer to the global vault.
 pub fn clone_vault() -> Arc<Mutex<Vault>> {
     VAULT.clone()
+}
+
+pub fn unlimited_muts(config: &Config) -> bool {
+    match env::var(SAFE_MOCK_UNLIMITED_MUTATIONS) {
+        Ok(_) => true,
+        Err(_) => {
+            match config.dev {
+                Some(ref dev) => dev.mock_unlimited_mutations,
+                None => false,
+            }
+        }
+    }
 }
 
 /// Mock routing implementation that mirrors the behaviour

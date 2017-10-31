@@ -64,6 +64,8 @@ script:
         cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
         cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
         echo "--- Test against mock ---" &&
+        cargo test config_mock_vault_path --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml &&
+        export SAFE_MOCK_IN_MEMORY_STORAGE=1 &&
         cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml &&
         cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml &&
         cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_app/Cargo.toml;

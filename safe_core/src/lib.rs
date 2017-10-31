@@ -17,10 +17,39 @@
 
 //! SAFE core.
 //!
+//! # Environment Variables
+//!
+//! The following environment variables can be set to enable custom options. Each one has higher
+//! precedence than its respective config file option (see the "Config" section below).
+//!
+//! ```ignore
+//! SAFE_MOCK_UNLIMITED_MUTATIONS
+//! ```
+//!
+//! If set, switch off mutations limit in mock-vault. If `safe_core` is built with
+//! `--features=use-mock-routing`, then setting this option will allow an unlimited number of
+//! mutations. `safe_core` does not need to be rebuilt for this to take effect.
+//!
+//! ```ignore
+//! SAFE_MOCK_IN_MEMORY_STORAGE
+//! ```
+//!
+//! If set, use memory store instead of file store in mock-vault. If `safe_core` is built with
+//! `--features=use-mock-routing`, then setting this option will use mock-vault's memory store,
+//! which is faster than reading/writing to disk. `safe_core` does not need to be rebuilt for this
+//! to take effect.
+//!
+//! ```ignore
+//! SAFE_MOCK_VAULT_PATH
+//! ```
+//!
+//! If this is set and file storage is being used (`mock_in_memory_storage` is `false`), use this as
+//! the path for mock-vault.
+//!
 //! # Config
 //!
-//! You can create a config file with custom options following the example in sample_config/. The
-//! file should be named <exe>.safe_core.config. The available options are as follows:
+//! You can create a config file with custom options following the example in `sample_config/`. The
+//! file should be named `<exe>.safe_core.config`. The available options are as follows:
 //!
 //! ```ignore
 //! mock_unlimited_mutations
@@ -38,14 +67,14 @@
 //! If true, use memory store instead of file store in mock-vault. If `safe_core` is built with
 //! `--features=use-mock-routing`, then setting this option will use mock-vault's memory store,
 //! which is faster than reading/writing to disk. `safe_core` does not need to be rebuilt for this
-//! to take effect. The default value is false (true when running tests).
+//! to take effect. The default value is false.
 //!
 //! ```ignore
 //! mock_vault_path
 //! ```
 //!
-//! If this variable is set and we are using file storage (`mock_in_memory_storage` is `false`),
-//! use this as the path for mock-vault, overriding the default
+//! If this variable is set and file storage is being used (`mock_in_memory_storage` is `false`),
+//! use this as the path for mock-vault.
 
 #![doc(html_logo_url =
            "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
@@ -145,3 +174,10 @@ pub use ffi::*;
 pub const MAIDSAFE_TAG: u64 = 5_483_000;
 /// `MutableData` type tag for a directory.
 pub const DIR_TAG: u64 = 15_000;
+
+/// Environment variable for unlimited mutations (see module-level documentation).
+pub const SAFE_MOCK_UNLIMITED_MUTATIONS: &'static str = "SAFE_MOCK_UNLIMITED_MUTATIONS";
+/// Environment variable for in-memory storage (see module-level documentation).
+pub const SAFE_MOCK_IN_MEMORY_STORAGE: &'static str = "SAFE_MOCK_IN_MEMORY_STORAGE";
+/// Environment variable for custom vault path (see module-level documentation).
+pub const SAFE_MOCK_VAULT_PATH: &'static str = "SAFE_MOCK_VAULT_PATH";

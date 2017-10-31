@@ -1187,6 +1187,14 @@ fn low_balance_check() {
 #[test]
 #[should_panic]
 fn invalid_config_mock_vault_path() {
+    use SAFE_MOCK_IN_MEMORY_STORAGE;
+    use std;
+
+    // Don't run this test when the env var is set.
+    if std::env::var(SAFE_MOCK_IN_MEMORY_STORAGE).is_ok() {
+        panic!("This test should run without env vars set.");
+    }
+
     // Make sure that using a non-existant mock-vault path fails.
     let (mut routing, routing_rx, full_id) = setup_with_config(Config {
         dev: Some(DevConfig {
@@ -1204,7 +1212,13 @@ fn invalid_config_mock_vault_path() {
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
 #[test]
 fn config_mock_vault_path() {
+    use SAFE_MOCK_IN_MEMORY_STORAGE;
     use std;
+
+    // Don't run this test when the env var is set.
+    if std::env::var(SAFE_MOCK_IN_MEMORY_STORAGE).is_ok() {
+        return;
+    }
 
     // Create temporary directory.
     match std::fs::create_dir("./tmp") {

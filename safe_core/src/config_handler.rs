@@ -48,28 +48,10 @@ pub fn get_config() -> Config {
     })
 }
 
-// **Non-test version**. If config file is not found, generate a blank one.
-#[cfg(not(test))]
 fn read_config_file() -> Result<Config, CoreError> {
     // If the config file is not present, a default one will be generated.
     let file_handler = config_file_handler::FileHandler::new(&get_file_name()?, false)?;
     Ok(file_handler.read_file()?)
-}
-
-// **Test version**. If config file is not found, generate one with `dev` options.
-#[cfg(test)]
-fn read_config_file() -> Result<Config, CoreError> {
-    // When running tests, use a `dev` config with the in-mem storage option enabled.
-    let config = Config {
-        dev: Some(DevConfig {
-            mock_unlimited_mutations: false,
-            mock_in_memory_storage: true,
-            mock_vault_path: None,
-        }),
-    };
-    let _ = write_config_file(&config)?;
-
-    Ok(config)
 }
 
 /// Writes a `safe_core` config file **for use by tests and examples**.

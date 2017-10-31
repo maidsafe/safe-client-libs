@@ -17,7 +17,9 @@
 
 use super::Account;
 use super::DataId;
-use config_handler::Config;
+use {SAFE_MOCK_IN_MEMORY_STORAGE, SAFE_MOCK_VAULT_PATH};
+use client::mock::routing::unlimited_muts;
+use config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};
@@ -42,30 +44,63 @@ pub struct Vault {
     store: Box<Store>,
 }
 
+// Initializes mock-vault path with the following precedence:
+// 1. `SAFE_MOCK_VAULT_PATH` env var
+// 2. DevConfig `mock_vault_path` option
+// 3. None
+fn init_vault_path(devconfig: Option<&DevConfig>) -> Option<String> {
+    match env::var(SAFE_MOCK_VAULT_PATH) {
+        Ok(path) => Some(path),
+        Err(_) => {
+            match devconfig {
+                Some(dev) => dev.mock_vault_path.clone(),
+                None => None,
+            }
+        }
+    }
+}
+
+// Initializes vault storage. The type of storage is chosen with the following precedence:
+// 1. `SAFE_MOCK_IN_MEMORY_STORAGE` env var => in-memory storage
+// 2. DevConfig `mock_in_memory_storage` option => in-memory storage
+// 3. Else => file storage, use path from `init_vault_path`
+fn init_vault_store(config: &Config) -> Box<Store> {
+    match env::var(SAFE_MOCK_IN_MEMORY_STORAGE) {
+        Ok(_) => {
+            // If the env var is set, override config file option.
+            trace!("Mock vault: using memory store");
+            Box::new(MemoryStore)
+        }
+        Err(_) => {
+            match config.dev {
+                Some(ref dev) if dev.mock_in_memory_storage => {
+                    trace!("Mock vault: using memory store");
+                    Box::new(MemoryStore)
+                }
+                Some(ref dev) => {
+                    trace!("Mock vault: using file store");
+                    Box::new(FileStore::new(init_vault_path(Some(dev))))
+                }
+                None => {
+                    trace!("Mock vault: using file store");
+                    Box::new(FileStore::new(init_vault_path(None)))
+                }
+            }
+        }
+    }
+}
+
 impl Vault {
     pub fn new(config: Config) -> Self {
-        let store: Box<Store> = match config.dev {
-            Some(ref dev) if dev.mock_in_memory_storage => {
-                trace!("Mock vault: using memory store");
-                Box::new(MemoryStore)
-            }
-            Some(ref dev) => {
-                trace!("Mock vault: using file store");
-                Box::new(FileStore::new(dev.mock_vault_path.clone()))
-            }
-            None => {
-                trace!("Mock vault: using file store");
-                Box::new(FileStore::new(None))
-            }
-        };
+        let store = init_vault_store(&config);
 
         Vault {
             cache: Cache {
                 client_manager: HashMap::new(),
                 nae_manager: HashMap::new(),
             },
-            config: config,
-            store: store,
+            config,
+            store,
         }
     }
 
@@ -136,10 +171,7 @@ impl Vault {
             return Err(ClientError::AccessDenied);
         }
 
-        let unlimited_mut = match self.config.dev {
-            Some(ref dev) => dev.mock_unlimited_mutations,
-            None => false,
-        };
+        let unlimited_mut = unlimited_muts(&self.config);
         if !unlimited_mut && account.account_info().mutations_available == 0 {
             return Err(ClientError::LowBalance);
         }

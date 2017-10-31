@@ -15,6 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use client::mock::routing::unlimited_muts;
 use config_handler::Config;
 use routing::{AccountInfo, ClientError};
 use rust_sodium::crypto::sign;
@@ -81,10 +82,7 @@ impl Account {
     pub fn increment_mutations_counter(&mut self) {
         self.account_info.mutations_done += 1;
         // Decrement mutations available, unless we're at 0 and we have unlimited mutations.
-        let unlimited_muts = match self.config.dev {
-            Some(ref dev) => dev.mock_unlimited_mutations,
-            None => false,
-        };
+        let unlimited_muts = unlimited_muts(&self.config);
         if self.account_info.mutations_available > 0 && !unlimited_muts {
             self.account_info.mutations_available -= 1;
 
