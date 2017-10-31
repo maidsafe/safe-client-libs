@@ -17,6 +17,9 @@
 
 use super::Account;
 use super::DataId;
+use {SAFE_MOCK_IN_MEMORY_STORAGE, SAFE_MOCK_VAULT_PATH};
+use client::mock::routing::unlimited_muts;
+use config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};
@@ -26,6 +29,7 @@ use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
@@ -36,28 +40,67 @@ const FILE_NAME: &'static str = "MockVault";
 
 pub struct Vault {
     cache: Cache,
+    config: Config,
     store: Box<Store>,
 }
 
+// Initializes mock-vault path with the following precedence:
+// 1. `SAFE_MOCK_VAULT_PATH` env var
+// 2. DevConfig `mock_vault_path` option
+// 3. None
+fn init_vault_path(devconfig: Option<&DevConfig>) -> Option<String> {
+    match env::var(SAFE_MOCK_VAULT_PATH) {
+        Ok(path) => Some(path),
+        Err(_) => {
+            match devconfig {
+                Some(dev) => dev.mock_vault_path.clone(),
+                None => None,
+            }
+        }
+    }
+}
+
+// Initializes vault storage. The type of storage is chosen with the following precedence:
+// 1. `SAFE_MOCK_IN_MEMORY_STORAGE` env var => in-memory storage
+// 2. DevConfig `mock_in_memory_storage` option => in-memory storage
+// 3. Else => file storage, use path from `init_vault_path`
+fn init_vault_store(config: &Config) -> Box<Store> {
+    match env::var(SAFE_MOCK_IN_MEMORY_STORAGE) {
+        Ok(_) => {
+            // If the env var is set, override config file option.
+            trace!("Mock vault: using memory store");
+            Box::new(MemoryStore)
+        }
+        Err(_) => {
+            match config.dev {
+                Some(ref dev) if dev.mock_in_memory_storage => {
+                    trace!("Mock vault: using memory store");
+                    Box::new(MemoryStore)
+                }
+                Some(ref dev) => {
+                    trace!("Mock vault: using file store");
+                    Box::new(FileStore::new(init_vault_path(Some(dev))))
+                }
+                None => {
+                    trace!("Mock vault: using file store");
+                    Box::new(FileStore::new(init_vault_path(None)))
+                }
+            }
+        }
+    }
+}
+
 impl Vault {
-    pub fn new() -> Self {
-        let store: Box<Store> = match env::var("SAFE_MEMORY_STORE") {
-            Ok(_) => {
-                trace!("Mock vault: using memory store");
-                Box::new(MemoryStore)
-            }
-            Err(_) => {
-                trace!("Mock vault: using file store");
-                Box::new(FileStore::new())
-            }
-        };
+    pub fn new(config: Config) -> Self {
+        let store = init_vault_store(&config);
 
         Vault {
             cache: Cache {
                 client_manager: HashMap::new(),
                 nae_manager: HashMap::new(),
             },
-            store: store,
+            config,
+            store,
         }
     }
 
@@ -71,9 +114,17 @@ impl Vault {
         self.cache.client_manager.get_mut(name)
     }
 
+    // Get the config for this vault.
+    pub fn config(&self) -> Config {
+        self.config.clone()
+    }
+
     // Create account for the given client manager name.
     pub fn insert_account(&mut self, name: XorName) {
-        let _ = self.cache.client_manager.insert(name, Account::new());
+        let _ = self.cache.client_manager.insert(
+            name,
+            Account::new(self.config.clone()),
+        );
     }
 
     // Authorise read (non-mutation) operation.
@@ -120,7 +171,8 @@ impl Vault {
             return Err(ClientError::AccessDenied);
         }
 
-        if account.account_info().mutations_available == 0 {
+        let unlimited_mut = unlimited_muts(&self.config);
+        if !unlimited_mut && account.account_info().mutations_available == 0 {
             return Err(ClientError::LowBalance);
         }
 
@@ -214,18 +266,23 @@ struct FileStore {
     // `bool` element indicates whether the store is being written to.
     file: Option<(File, bool)>,
     sync_time: Option<SystemTime>,
+    path: PathBuf,
 }
 
 impl FileStore {
-    fn new() -> Self {
+    fn new(dirpath: Option<String>) -> Self {
         FileStore {
             file: None,
             sync_time: None,
+            path: match dirpath {
+                Some(dirpath) => Path::new(&dirpath).join(FILE_NAME),
+                None => env::temp_dir().join(FILE_NAME),
+            },
         }
     }
 
-    fn path() -> PathBuf {
-        env::temp_dir().join(FILE_NAME)
+    fn path(&self) -> PathBuf {
+        self.path.clone()
     }
 }
 
@@ -238,7 +295,7 @@ impl Store for FileStore {
                 .write(true)
                 .create(true)
                 .truncate(false)
-                .open(Self::path())
+                .open(self.path())
         );
 
         if writing {

@@ -15,6 +15,8 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use client::mock::routing::unlimited_muts;
+use config_handler::Config;
 use routing::{AccountInfo, ClientError};
 use rust_sodium::crypto::sign;
 use std::collections::BTreeSet;
@@ -26,10 +28,11 @@ pub struct Account {
     account_info: AccountInfo,
     auth_keys: BTreeSet<sign::PublicKey>,
     version: u64,
+    config: Config,
 }
 
 impl Account {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         Account {
             account_info: AccountInfo {
                 mutations_done: 0,
@@ -37,6 +40,7 @@ impl Account {
             },
             auth_keys: Default::default(),
             version: 0,
+            config: config,
         }
     }
 
@@ -77,7 +81,12 @@ impl Account {
 
     pub fn increment_mutations_counter(&mut self) {
         self.account_info.mutations_done += 1;
-        self.account_info.mutations_available -= 1;
+        // Decrement mutations available, unless we're at 0 and we have unlimited mutations.
+        let unlimited_muts = unlimited_muts(&self.config);
+        if self.account_info.mutations_available > 0 && !unlimited_muts {
+            self.account_info.mutations_available -= 1;
+
+        }
         self.version += 1;
     }
 

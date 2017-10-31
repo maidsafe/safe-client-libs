@@ -215,7 +215,7 @@ fn share_some_mdatas_with_valid_metadata() {
         );
     }
 
-    unwrap!(unwrap!(rx.recv_timeout(Duration::from_secs(15))));
+    unwrap!(unwrap!(rx.recv_timeout(Duration::from_secs(30))));
 
     for share_mdata in &mdatas {
         let name = share_mdata.name;
@@ -303,7 +303,7 @@ fn share_some_mdatas_with_ownership_error() {
         );
     }
 
-    match unwrap!(rx.recv_timeout(Duration::from_secs(15))) {
+    match unwrap!(rx.recv_timeout(Duration::from_secs(30))) {
         Ok(()) => panic!("unexpected success"),
         Err((ERR_SHARE_MDATA_DENIED, _)) => (),
         Err((code, description)) => panic!("Unexpected error ({}): {}", code, description),
@@ -444,7 +444,7 @@ fn auth_apps_accessing_mdatas() {
             );
         }
 
-        unwrap!(unwrap!(rx.recv_timeout(Duration::from_secs(15))));
+        unwrap!(unwrap!(rx.recv_timeout(Duration::from_secs(30))));
 
         apps.push((app_key, app_id));
     }
