@@ -25,6 +25,8 @@ use nfs::{File, Mode, NfsError, NfsFuture, create_dir, file_helper};
 use nfs::reader::Reader;
 use nfs::writer::Writer;
 use rand::{self, Rng};
+use rust_sodium::crypto::secretbox;
+use std;
 use utils::FutureExt;
 use utils::test_utils::random_client;
 
@@ -62,6 +64,95 @@ fn create_test_file(client: &Client<()>) -> Box<NfsFuture<(MDataInfo, File)>> {
             file_helper::insert(c3, root2.clone(), "hello.txt", &file).map(move |_| (root2, file))
         })
         .into_box()
+}
+
+// Test inserting files to, and fetching from, a public mdata.
+// 1. Create a private mdata with random bytes in `enc_info` and `new_enc_info`.
+// 2. Create a directory for the mdata.
+// 3. Insert a file with an empty filename.
+// 4. Immediately fetch it back and check the contents.
+// 5. Sleep several seconds and repeat step 3.
+#[test]
+fn file_fetch_public_md() {
+    random_client(|client| {
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
+        let c7 = client.clone();
+        let mut root = unwrap!(MDataInfo::random_public(DIR_TAG));
+        root.enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+        root.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+        let root2 = root.clone();
+
+        create_dir(client, &root, btree_map![], btree_map![])
+            .then(move |res| {
+                assert!(res.is_ok());
+
+                file_helper::write(
+                    c2.clone(),
+                    File::new(Vec::new()),
+                    Mode::Overwrite,
+                    root.enc_key().cloned(),
+                )
+            })
+            .then(move |res| {
+                let writer = unwrap!(res);
+
+                writer.write(&[0u8; ORIG_SIZE]).and_then(
+                    move |_| writer.close(),
+                )
+            })
+            .then(move |res| {
+                let file = unwrap!(res);
+
+                file_helper::insert(c3, root2.clone(), "", &file).map(move |_| root2)
+            })
+            .then(move |res| {
+                let dir = unwrap!(res);
+
+                file_helper::fetch(c4, dir.clone(), "").map(move |(_version, file)| (dir, file))
+            })
+            .then(move |res| {
+                let (dir, file) = unwrap!(res);
+
+                file_helper::read(c5, &file, dir.enc_key().cloned()).map(
+                    move |reader| (reader, dir),
+                )
+            })
+            .then(move |res| {
+                let (reader, dir) = unwrap!(res);
+                let size = reader.size();
+                println!("reading {} bytes", size);
+                reader.read(0, size).map(move |data| {
+                    assert_eq!(data, vec![0u8; ORIG_SIZE]);
+                    dir
+                })
+            })
+            .then(move |res| {
+                let dir = unwrap!(res);
+
+                std::thread::sleep(std::time::Duration::new(3, 0));
+
+                file_helper::fetch(c6, dir.clone(), "").map(move |(_version, file)| (dir, file))
+            })
+            .then(move |res| {
+                let (dir, file) = unwrap!(res);
+
+                file_helper::read(c7, &file, dir.enc_key().cloned()).map(
+                    move |reader| (reader, dir),
+                )
+            })
+            .then(move |res| {
+                let (reader, _dir) = unwrap!(res);
+                let size = reader.size();
+                println!("reading {} bytes", size);
+                reader.read(0, size).map(move |data| {
+                    assert_eq!(data, vec![0u8; ORIG_SIZE]);
+                })
+            })
+    });
 }
 
 // Create a file and open it for reading.
@@ -323,11 +414,12 @@ fn file_update_overwrite() {
             })
             .then(move |res| {
                 let (dir, creation_time) = unwrap!(res);
-                let fut = file_helper::fetch(c4, dir.clone(), "hello.txt");
-                fut.map(move |(version, file)| (dir, version, file, creation_time))
+                file_helper::fetch(c4, dir.clone(), "hello.txt").map(
+                    move |(_version, file)| (dir, file, creation_time),
+                )
             })
             .then(move |res| {
-                let (dir, _version, file, creation_time) = unwrap!(res);
+                let (dir, file, creation_time) = unwrap!(res);
 
                 // Check file timestamps
                 assert_eq!(creation_time, *file.created_time());
@@ -342,7 +434,7 @@ fn file_update_overwrite() {
                 reader.read(0, size)
             })
             .map(move |data| {
-                assert_eq!(data, vec![1u8; 50]);
+                assert_eq!(data, vec![1u8; NEW_SIZE]);
             })
     });
 }

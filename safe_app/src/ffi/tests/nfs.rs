@@ -27,6 +27,7 @@ use safe_core::ffi::nfs::File;
 use safe_core::ipc::Permission;
 use safe_core::nfs::File as NativeFile;
 use safe_core::nfs::NfsError;
+use std;
 use std::collections::HashMap;
 use std::ffi::CString;
 use test_utils::{create_app_with_access, run};
@@ -310,6 +311,133 @@ fn open_file() {
         unsafe { unwrap!(call_1(|ud, cb| file_close(&app, read_h, ud, cb))) };
 
     assert_eq!(returned_file, orig_file);
+}
+
+// Test fetching files from a container.
+// 1. Create a file with contents but an empty filename.
+// 2. Insert file into container.
+// 3. Immediately fetch it back and check the contents.
+// 4. Sleep several seconds and repeat step 3.
+#[test]
+fn fetch_file() {
+    let (app, container_info) = setup();
+
+    // Create non-empty file.
+    let file = NativeFile::new(Vec::new());
+    let ffi_file = file.into_repr_c();
+
+    let file_name1 = "";
+    let ffi_file_name1 = unwrap!(CString::new(file_name1));
+
+    let content = b"hello world";
+
+    let write_h = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            file_open(
+                &app,
+                &container_info,
+                &ffi_file,
+                OPEN_MODE_OVERWRITE,
+                ud,
+                cb,
+            )
+        }))
+    };
+
+    let written_file: NativeFile = unsafe {
+        unwrap!(call_0(|ud, cb| {
+            file_write(&app, write_h, content.as_ptr(), content.len(), ud, cb)
+        }));
+        unwrap!(call_1(|ud, cb| file_close(&app, write_h, ud, cb)))
+    };
+
+    // Insert file into container.
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            dir_insert_file(
+                &app,
+                &container_info,
+                ffi_file_name1.as_ptr(),
+                &written_file.into_repr_c(),
+                ud,
+                cb,
+            )
+        }))
+    }
+
+    // Fetch it back.
+    let (file, version): (NativeFile, u64) = {
+        unsafe {
+            unwrap!(call_2(|ud, cb| {
+                dir_fetch_file(&app, &container_info, ffi_file_name1.as_ptr(), ud, cb)
+            }))
+        }
+    };
+    assert_eq!(version, 0);
+
+    let size0 = file.size();
+
+    // Read the content
+    let read_write_h = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            file_open(
+                &app,
+                &container_info,
+                &file.into_repr_c(),
+                OPEN_MODE_READ | OPEN_MODE_APPEND,
+                ud,
+                cb,
+            )
+        }))
+    };
+
+    let size1: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_write_h, ud, cb))) };
+    assert_eq!(size0, size1);
+
+    let retrieved_content = unsafe {
+        unwrap!(call_vec_u8(|ud, cb| {
+            file_read(&app, read_write_h, 0, FILE_READ_TO_END, ud, cb)
+        }))
+    };
+    assert_eq!(retrieved_content, content);
+
+    std::thread::sleep(std::time::Duration::new(2, 0));
+
+    // Fetch it back.
+    let (file, version): (NativeFile, u64) = {
+        unsafe {
+            unwrap!(call_2(|ud, cb| {
+                dir_fetch_file(&app, &container_info, ffi_file_name1.as_ptr(), ud, cb)
+            }))
+        }
+    };
+    assert_eq!(version, 0);
+
+    let size0 = file.size();
+
+    // Read the content
+    let read_write_h = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            file_open(
+                &app,
+                &container_info,
+                &file.into_repr_c(),
+                OPEN_MODE_READ | OPEN_MODE_APPEND,
+                ud,
+                cb,
+            )
+        }))
+    };
+
+    let size1: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_write_h, ud, cb))) };
+    assert_eq!(size0, size1);
+
+    let retrieved_content = unsafe {
+        unwrap!(call_vec_u8(|ud, cb| {
+            file_read(&app, read_write_h, 0, FILE_READ_TO_END, ud, cb)
+        }))
+    };
+    assert_eq!(retrieved_content, content);
 }
 
 // Test that NFS functions still work after deleting and updating file contents.
