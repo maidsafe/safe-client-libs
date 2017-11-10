@@ -75,14 +75,14 @@ pub unsafe extern "C" fn idata_write_to_self_encryptor(
     app: *const App,
     se_h: SEWriterHandle,
     data: *const u8,
-    size: usize,
+    data_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data, o_cb, || {
-        let data_slice = vec_clone_from_raw_parts(data, size);
+        let data_slice = vec_clone_from_raw_parts(data, data_len);
 
         (*app).send(move |_, context| {
             let fut = {

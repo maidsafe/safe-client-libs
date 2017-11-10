@@ -63,7 +63,7 @@ use std::slice;
 /// Callback parameters: user data, error code, app
 #[no_mangle]
 pub unsafe extern "C" fn app_unregistered(
-    bootstrap_config_ptr: *const u8,
+    bootstrap_config: *const u8,
     bootstrap_config_len: usize,
     user_data: *mut c_void,
     o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
@@ -74,11 +74,10 @@ pub unsafe extern "C" fn app_unregistered(
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let user_data = OpaqueCtx(user_data);
 
-        let config = if bootstrap_config_len == 0 || bootstrap_config_ptr.is_null() {
+        let config = if bootstrap_config_len == 0 || bootstrap_config.is_null() {
             None
         } else {
-            let config_serialised =
-                slice::from_raw_parts(bootstrap_config_ptr, bootstrap_config_len);
+            let config_serialised = slice::from_raw_parts(bootstrap_config, bootstrap_config_len);
             Some(deserialise::<BootstrapConfig>(config_serialised)?)
         };
 

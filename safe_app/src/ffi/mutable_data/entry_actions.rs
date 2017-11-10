@@ -50,16 +50,16 @@ pub unsafe extern "C" fn mdata_entry_actions_new(
 pub unsafe extern "C" fn mdata_entry_actions_insert(
     app: *const App,
     actions_h: MDataEntryActionsHandle,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
-    value_ptr: *const u8,
+    value: *const u8,
     value_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    add_action(app, actions_h, key_ptr, key_len, user_data, o_cb, || {
+    add_action(app, actions_h, key, key_len, user_data, o_cb, || {
         EntryAction::Ins(Value {
-            content: vec_clone_from_raw_parts(value_ptr, value_len),
+            content: vec_clone_from_raw_parts(value, value_len),
             entry_version: 0,
         })
     })
@@ -72,17 +72,17 @@ pub unsafe extern "C" fn mdata_entry_actions_insert(
 pub unsafe extern "C" fn mdata_entry_actions_update(
     app: *const App,
     actions_h: MDataEntryActionsHandle,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
-    value_ptr: *const u8,
+    value: *const u8,
     value_len: usize,
     entry_version: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    add_action(app, actions_h, key_ptr, key_len, user_data, o_cb, || {
+    add_action(app, actions_h, key, key_len, user_data, o_cb, || {
         EntryAction::Update(Value {
-            content: vec_clone_from_raw_parts(value_ptr, value_len),
+            content: vec_clone_from_raw_parts(value, value_len),
             entry_version: entry_version,
         })
     })
@@ -95,13 +95,13 @@ pub unsafe extern "C" fn mdata_entry_actions_update(
 pub unsafe extern "C" fn mdata_entry_actions_delete(
     app: *const App,
     actions_h: MDataEntryActionsHandle,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
     entry_version: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    add_action(app, actions_h, key_ptr, key_len, user_data, o_cb, || {
+    add_action(app, actions_h, key, key_len, user_data, o_cb, || {
         EntryAction::Del(entry_version)
     })
 }
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn mdata_entry_actions_free(
 unsafe fn add_action<F>(
     app: *const App,
     actions_h: MDataEntryActionsHandle,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
@@ -138,7 +138,7 @@ unsafe fn add_action<F>(
     F: FnOnce() -> EntryAction,
 {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = vec_clone_from_raw_parts(key_ptr, key_len);
+        let key = vec_clone_from_raw_parts(key, key_len);
         let action = f();
 
         send_sync(app, user_data, o_cb, move |_, context| {

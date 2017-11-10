@@ -56,16 +56,16 @@ pub unsafe extern "C" fn mdata_entries_new(
 pub unsafe extern "C" fn mdata_entries_insert(
     app: *const App,
     entries_h: MDataEntriesHandle,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
-    value_ptr: *const u8,
+    value: *const u8,
     value_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = vec_clone_from_raw_parts(key_ptr, key_len);
-        let value = vec_clone_from_raw_parts(value_ptr, value_len);
+        let key = vec_clone_from_raw_parts(key, key_len);
+        let value = vec_clone_from_raw_parts(value, value_len);
 
         with_entries(app, entries_h, user_data, o_cb, |entries| {
             let _ = entries.insert(
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn mdata_entries_len(
 pub unsafe extern "C" fn mdata_entries_get(
     app: *const App,
     entries_h: MDataEntriesHandle,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn mdata_entries_get(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let key = vec_clone_from_raw_parts(key_ptr, key_len);
+        let key = vec_clone_from_raw_parts(key, key_len);
 
         (*app).send(move |_, context| {
             let entries = context.object_cache().get_mdata_entries(entries_h);

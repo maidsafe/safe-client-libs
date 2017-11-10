@@ -179,7 +179,7 @@ pub unsafe extern "C" fn mdata_serialised_size(
 pub unsafe extern "C" fn mdata_get_value(
     app: *const App,
     info: *const FfiMDataInfo,
-    key_ptr: *const u8,
+    key: *const u8,
     key_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
@@ -190,7 +190,7 @@ pub unsafe extern "C" fn mdata_get_value(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let key = vec_clone_from_raw_parts(key_ptr, key_len);
+        let key = vec_clone_from_raw_parts(key, key_len);
         let info = MDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, _| {
