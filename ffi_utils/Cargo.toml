@@ -7,15 +7,15 @@ license = "GPL-3.0"
 name = "ffi_utils"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.3.0"
+version = "0.4.0"
 
 [dependencies]
 base64 = "~0.7.0"
 log = "~0.3.7"
 moz-cheddar = "~0.4.0"
 regex = "~0.2"
-serde = "~1.0.9"
-serde_derive = "~1.0.9"
+serde = "~1.0.11"
+serde_derive = "~1.0.11"
 unwrap = "~1.1.0"
 
 [dev-dependencies]

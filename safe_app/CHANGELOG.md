@@ -1,5 +1,23 @@
 # SAFE App
 
+## [0.5.0]
+- Remove `MDataPermissionSetHandle` and related functions
+- Fix a bug with object cache handles starting at 0 and conflicting with "special" handles which are defined to be 0
+- Rename `mdata_permissions_for_each` to `mdata_list_permission_sets`
+- Remove `MDataKeysHandle` and related functions; replaced by `MDataKey` struct in safe_core
+- Remove `MDataValuesHandle` and related and functions; replaced by `MDataValue` struct in safe_core
+- Add `mdata_get_all_keys` and add `mdata_get_all_values`
+- Remove `mdata_info_new_public`
+- The object cache capacity limit was removed
+- Add `app_reset_object_cache`
+- Do not require the scheme in URIs (e.g. "safe-app:")
+- Remove `change_mdata_owner`
+- Replace network event callback with a simpler, disconnect-only callback
+- Use a single user data parameter for multiple callbacks
+- Use pointers in FFI in place of value structs
+- Add crypto API for secret signing keys and add secret sign key handle
+- Add crypto API for signing/verifying
+
 ## [0.4.0]
 - Improve documentation and fix bugs
 - Add more tests for NFS (reading and writing files in chunks)

@@ -1,5 +1,14 @@
 # SAFE Authenticator - Change Log
 
+## [0.5.0]
+- Move `AccessContainerEntry` to safe_core
+- Fix revocation bugs
+- Do not require the scheme in URIs (e.g. "safe-auth:")
+- Replace network event callback with a simpler, disconnect-only callback
+- Use a single user data parameter for multiple callbacks
+- Fix app re-authorisation using 2 PUTs
+- Fix revocation crash with unencrypted entries
+
 ## [0.4.0]
 - Add more tests for revocation
 - Remove of the neccessity to pass `--feature testing` to run tests

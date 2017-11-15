@@ -1,5 +1,14 @@
 # Safe Core - Change Log
 
+## [0.28.0]
+- Move `AccessContainerEntry` to safe_core
+- Add FFI wrapper for `MDataInfo`
+- Add access container entry to `AuthGranted`
+- Add `MDataKey` and `MDataValue` structs
+- Add function for checking mock-routing status of build
+- Add config file functionality with options for unlimited mock mutations, in-memory mock storage, and custom mock vault path.
+- Add environment variables to override config options for unlimited mock mutations and custom mock vault path.
+
 ## [0.27.0]
 - Improve documentation and fix bugs
 - Nonce in the MDataInfo struct is no longer optional. This is a breaking external change
