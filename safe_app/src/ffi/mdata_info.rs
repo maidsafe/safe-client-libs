@@ -101,7 +101,7 @@ pub unsafe extern "C" fn mdata_info_random_private(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
     info: *const FfiMDataInfo,
-    input_ptr: *const u8,
+    input: *const u8,
     input_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
@@ -111,7 +111,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let info = MDataInfo::clone_from_repr_c(info)?;
-        let input = slice::from_raw_parts(input_ptr, input_len);
+        let input = slice::from_raw_parts(input, input_len);
         let encoded = info.enc_entry_key(input).map_err(AppError::from)?;
 
         o_cb(
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
     info: *const FfiMDataInfo,
-    input_ptr: *const u8,
+    input: *const u8,
     input_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let info = MDataInfo::clone_from_repr_c(info)?;
-        let input = slice::from_raw_parts(input_ptr, input_len);
+        let input = slice::from_raw_parts(input, input_len);
         let encoded = info.enc_entry_value(input).map_err(AppError::from)?;
 
         o_cb(
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_decrypt(
     info: *const FfiMDataInfo,
-    input_ptr: *const u8,
+    input: *const u8,
     input_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
@@ -169,7 +169,7 @@ pub unsafe extern "C" fn mdata_info_decrypt(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let info = MDataInfo::clone_from_repr_c(info)?;
-        let encoded = slice::from_raw_parts(input_ptr, input_len);
+        let encoded = slice::from_raw_parts(input, input_len);
         let decoded = info.decrypt(encoded).map_err(AppError::from)?;
 
         o_cb(

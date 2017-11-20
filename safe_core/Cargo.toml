@@ -7,14 +7,14 @@ license = "GPL-3.0"
 name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.27.0"
+version = "0.28.0"
 build = "build.rs"
 
 [dependencies]
 base64 = "~0.7.0"
 chrono = { version = "~0.4.0", features = ["serde"] }
 config_file_handler = "~0.8.1"
-ffi_utils = { path = "../ffi_utils", version = "~0.3.0" }
+ffi_utils = { path = "../ffi_utils", version = "~0.4.0" }
 fs2 = "~0.4.2"
 futures = "~0.1.15"
 lazy_static = "~0.2.4"
@@ -37,7 +37,7 @@ rustc-serialize = "~0.3.23"
 serde_json = "~1.0.2"
 
 [build-dependencies]
-ffi_utils = { path = "../ffi_utils", version = "~0.3.0" }
+ffi_utils = { path = "../ffi_utils", version = "~0.4.0" }
 routing = "~0.33.1"
 rust_sodium = "~0.5.0"
 unwrap = "~1.1.0"

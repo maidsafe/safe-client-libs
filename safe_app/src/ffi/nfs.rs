@@ -293,13 +293,13 @@ pub unsafe extern "C" fn file_write(
     app: *const App,
     file_h: FileContextHandle,
     data: *const u8,
-    size: usize,
+    data_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let data = vec_clone_from_raw_parts(data, size);
+        let data = vec_clone_from_raw_parts(data, data_len);
 
         (*app).send(move |_client, context| {
             let file_ctx = try_cb!(context.object_cache().get_file(file_h), user_data, o_cb);
