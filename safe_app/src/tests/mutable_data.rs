@@ -15,24 +15,33 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use ffi_utils::test_utils::call_1;
 use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
 use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
 use rust_sodium::crypto::sign;
-use safe_core::{CoreError, DIR_TAG, FutureExt};
+use safe_core::{CoreError, DIR_TAG, FutureExt, utils};
 use safe_core::utils::test_utils::random_client;
 use std::collections::{BTreeMap, BTreeSet};
+use std::ffi::CString;
 use std::sync::mpsc;
-use test_utils::{create_app, run};
+use test_utils::{create_app, run, test_create_app};
 
 // MD created by App. App lists its own sign_pk in owners field: Put should
 // fail - Rejected by MaidManagers. Should pass when it lists the owner's
 // sign_pk instead
 #[test]
+#[allow(unsafe_code)]
 fn md_created_by_app_1() {
-    let app = create_app();
-    run(&app, |client, _app_context| {
+    use App;
+
+    let app_id = unwrap!(utils::generate_random_string(10));
+    let app_id = unwrap!(CString::new(app_id));
+    let app: *mut App =
+        unsafe { unwrap!(call_1(|ud, cb| test_create_app(app_id.as_ptr(), ud, cb))) };
+
+    run(unsafe { &*app }, |client, _app_context| {
         let mut rng = unwrap!(OsRng::new());
 
         let owners = btree_set![unwrap!(client.public_signing_key())];
