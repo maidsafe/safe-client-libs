@@ -19,7 +19,7 @@ use {AuthError, Authenticator};
 use access_container;
 use app_auth;
 use config;
-use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, catch_unwind_cb, from_c_str};
+use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, SafePtr, catch_unwind_cb, from_c_str};
 use futures::{Future, Stream, stream};
 use ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
 use revocation::{flush_app_revocation_queue, revoke_app};
@@ -34,13 +34,18 @@ use safe_core::ipc::resp::IpcResp;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 
-/// Decodes a given encoded IPC message without requiring an authorised account
+/// Decodes a given encoded IPC message without requiring an authorised account.
 #[no_mangle]
 pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
     msg: *const c_char,
     user_data: *mut c_void,
-    o_unregistered: extern "C" fn(*mut c_void, u32),
-    o_err: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_unregistered: extern "C" fn(user_data: *mut c_void,
+                                  req_id: u32,
+                                  extra_data_ptr: *const u8,
+                                  extra_data_len: usize),
+    o_err: extern "C" fn(user_data: *mut c_void,
+                         result: *const FfiResult,
+                         response: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -50,10 +55,15 @@ pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
 
         match msg {
             IpcMsg::Req {
-                req: IpcReq::Unregistered,
+                req: IpcReq::Unregistered(extra_data),
                 req_id,
             } => {
-                o_unregistered(user_data.0, req_id);
+                o_unregistered(
+                    user_data.0,
+                    req_id,
+                    extra_data.as_safe_ptr(),
+                    extra_data.len(),
+                );
             }
             _ => {
                 call_result_cb!(
@@ -68,20 +78,27 @@ pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
     })
 }
 
-/// Decodes a given encoded IPC message and calls a corresponding callback
+/// Decodes a given encoded IPC message and calls a corresponding callback.
 #[no_mangle]
 pub unsafe extern "C" fn auth_decode_ipc_msg(
     auth: *const Authenticator,
     msg: *const c_char,
     user_data: *mut c_void,
-    o_auth: extern "C" fn(*mut c_void, u32, *const FfiAuthReq),
-    o_containers: extern "C" fn(*mut c_void, u32, *const FfiContainersReq),
-    o_unregistered: extern "C" fn(*mut c_void, u32),
-    o_share_mdata: extern "C" fn(*mut c_void,
-                                 u32,
-                                 *const FfiShareMDataReq,
-                                 *const FfiUserMetadata),
-    o_err: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_auth: extern "C" fn(user_data: *mut c_void, req_id: u32, req: *const FfiAuthReq),
+    o_containers: extern "C" fn(user_data: *mut c_void,
+                                req_id: u32,
+                                req: *const FfiContainersReq),
+    o_unregistered: extern "C" fn(user_data: *mut c_void,
+                                  req_id: u32,
+                                  extra_data_ptr: *const u8,
+                                  extra_data_len: usize),
+    o_share_mdata: extern "C" fn(user_data: *mut c_void,
+                                 req_id: u32,
+                                 req: *const FfiShareMDataReq,
+                                 metadata: *const FfiUserMetadata),
+    o_err: extern "C" fn(user_data: *mut c_void,
+                         result: *const FfiResult,
+                         response: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -110,10 +127,15 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         ok!(())
                     }
                     Ok(IpcMsg::Req {
-                           req: IpcReq::Unregistered,
+                           req: IpcReq::Unregistered(extra_data),
                            req_id,
                        }) => {
-                        o_unregistered(user_data.0, req_id);
+                        o_unregistered(
+                            user_data.0,
+                            req_id,
+                            extra_data.as_safe_ptr(),
+                            extra_data.len(),
+                        );
                         ok!(())
                     }
                     Ok(IpcMsg::Req {
@@ -175,6 +197,8 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
 }
 
 /// Encode share mutable data response.
+///
+/// Callback parameters: user data, error code, response ptr
 #[no_mangle]
 pub unsafe extern "C" fn encode_share_mdata_resp(
     auth: *const Authenticator,
@@ -182,7 +206,9 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_cb: extern "C" fn(user_data: *mut c_void,
+                        result: *const FfiResult,
+                        response: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -253,13 +279,17 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
     })
 }
 
-/// Revoke app access
+/// Revoke app access.
+///
+/// Callback parameters: user data, error code, response ptr
 #[no_mangle]
 pub unsafe extern "C" fn auth_revoke_app(
     auth: *const Authenticator,
     app_id: *const c_char,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_cb: extern "C" fn(user_data: *mut c_void,
+                        result: *const FfiResult,
+                        response: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -285,11 +315,13 @@ pub unsafe extern "C" fn auth_revoke_app(
 }
 
 /// Flush the revocation queue.
+///
+/// Callback parameters: user data, error code
 #[no_mangle]
 pub unsafe extern "C" fn auth_flush_app_revocation_queue(
     auth: *const Authenticator,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, *const FfiResult),
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -306,13 +338,17 @@ pub unsafe extern "C" fn auth_flush_app_revocation_queue(
     })
 }
 
-/// Encodes a response to unregistered client authentication request
+/// Encodes a response to unregistered client authentication request.
+///
+/// Callback parameters: user data, error code, response ptr
 #[no_mangle]
 pub unsafe extern "C" fn encode_unregistered_resp(
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_cb: extern "C" fn(user_data: *mut c_void,
+                        result: *const FfiResult,
+                        response: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -343,7 +379,9 @@ pub unsafe extern "C" fn encode_unregistered_resp(
     })
 }
 
-/// Provides and encodes an Authenticator response
+/// Provides and encodes an Authenticator response.
+///
+/// Callback parameters: user data, error code, response ptr
 #[no_mangle]
 pub unsafe extern "C" fn encode_auth_resp(
     auth: *const Authenticator,
@@ -351,7 +389,9 @@ pub unsafe extern "C" fn encode_auth_resp(
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_cb: extern "C" fn(user_data: *mut c_void,
+                        result: *const FfiResult,
+                        repsonse: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -405,7 +445,9 @@ pub unsafe extern "C" fn encode_auth_resp(
     })
 }
 
-/// Update containers permissions for an App
+/// Update containers permissions for an App.
+///
+/// Callback parameters: user data, error code, response ptr
 #[no_mangle]
 pub unsafe extern "C" fn encode_containers_resp(
     auth: *const Authenticator,
@@ -413,7 +455,9 @@ pub unsafe extern "C" fn encode_containers_resp(
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(*mut c_void, *const FfiResult, *const c_char),
+    o_cb: extern "C" fn(user_data: *mut c_void,
+                        result: *const FfiResult,
+                        response: *const c_char),
 ) {
     let user_data = OpaqueCtx(user_data);
 

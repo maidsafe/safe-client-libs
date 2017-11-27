@@ -54,12 +54,12 @@ pub fn decode_ipc_msg(
             }))
         }
         IpcMsg::Req {
-            req: IpcReq::Unregistered,
+            req: IpcReq::Unregistered(extra_data),
             req_id,
         } => {
             ok!(Ok(IpcMsg::Req {
                 req_id: req_id,
-                req: IpcReq::Unregistered,
+                req: IpcReq::Unregistered(extra_data),
             }))
         }
         IpcMsg::Req {

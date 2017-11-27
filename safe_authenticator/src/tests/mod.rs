@@ -643,23 +643,26 @@ fn unregistered_authentication() {
     }
 
     // Try to send IpcReq::Unregistered - it should pass
+    let test_data = vec![0u8; 10];
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id: req_id,
-        req: IpcReq::Unregistered,
+        req: IpcReq::Unregistered(test_data.clone()),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let received_req_id = match unwrap!(unregistered_decode_ipc_msg(&encoded_msg)) {
-        (IpcMsg::Req {
-             req_id,
-             req: IpcReq::Unregistered,
-         },
-         _) => req_id,
-        x => panic!("Unexpected {:?}", x),
-    };
+    let (received_req_id, received_data) =
+        match unwrap!(unregistered_decode_ipc_msg(&encoded_msg)) {
+            (IpcMsg::Req {
+                 req_id,
+                 req: IpcReq::Unregistered(extra_data),
+             },
+             _) => (req_id, extra_data),
+            x => panic!("Unexpected {:?}", x),
+        };
 
     assert_eq!(received_req_id, req_id);
+    assert_eq!(received_data, test_data);
 
     let encoded_resp: String = unsafe {
         unwrap!(call_1(|ud, cb| {
@@ -686,16 +689,18 @@ fn unregistered_authentication() {
     // Try to send IpcReq::Unregistered to logged in authenticator
     let authenticator = create_account_and_login();
 
-    let received_req_id = match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
-        (IpcMsg::Req {
-             req_id,
-             req: IpcReq::Unregistered,
-         },
-         _) => req_id,
-        x => panic!("Unexpected {:?}", x),
-    };
+    let (received_req_id, received_data) =
+        match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
+            (IpcMsg::Req {
+                 req_id,
+                 req: IpcReq::Unregistered(extra_data),
+             },
+             _) => (req_id, extra_data),
+            x => panic!("Unexpected {:?}", x),
+        };
 
     assert_eq!(received_req_id, req_id);
+    assert_eq!(received_data, test_data);
 }
 
 // Authenticate an app - it must pass.

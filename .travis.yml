@@ -18,8 +18,7 @@ matrix:
     - os: osx
       rust: 1.19.0
 sudo: false
-cache:
-  cargo: true
+cache: cargo
 before_script:
   # Expected version change PR title format:
   # Version change: safe_app to 0.2.2; safe_authenticator to 0.2.3; safe_core to 0.26.0;
@@ -49,6 +48,7 @@ before_script:
       bash cargo_install.sh clippy 0.0.144;
     fi
 script:
+  - export RUSTFLAGS="-C opt-level=2 -C codegen-units=8"
   - if [[ "$TRAVIS_RUST_VERSION" =~ 1.19.0 && $TRAVIS_EVENT_TYPE = pull_request ]]; then
       (
         set -x;

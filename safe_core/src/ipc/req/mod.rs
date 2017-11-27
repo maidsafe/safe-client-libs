@@ -54,17 +54,18 @@ pub enum Permission {
 /// In FFI represented as `ffi::PermissionSet`
 pub type ContainerPermissions = BTreeSet<Permission>;
 
-/// IPC request
+/// IPC request.
 // TODO: `TransOwnership` variant
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum IpcReq {
-    /// Authentication request
+    /// Authentication request.
     Auth(AuthReq),
-    /// Containers request
+    /// Containers request.
     Containers(ContainersReq),
-    /// Unregistered client authenticator request, returning bootstrap config
-    Unregistered,
-    /// Share mutable data
+    /// Unregistered client authenticator request.
+    /// Takes arbitrary user data as `Vec<u8>`, returns bootstrap config.
+    Unregistered(Vec<u8>),
+    /// Share mutable data.
     ShareMData(ShareMDataReq),
 }
 

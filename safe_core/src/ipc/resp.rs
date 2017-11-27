@@ -44,18 +44,18 @@ pub static METADATA_KEY: &'static [u8] = b"_metadata";
 #[no_mangle]
 pub static METADATA_KEY_LEN: usize = 9;
 
-/// IPC response
+/// IPC response.
 // TODO: `TransOwnership` variant
 #[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum IpcResp {
-    /// Authentication
+    /// Authentication.
     Auth(Result<AuthGranted, IpcError>),
-    /// Containers
+    /// Containers.
     Containers(Result<(), IpcError>),
-    /// Unregistered client
+    /// Unregistered client.
     Unregistered(Result<BootstrapConfig, IpcError>),
-    /// Share mutable data
+    /// Share mutable data.
     ShareMData(Result<(), IpcError>),
 }
 

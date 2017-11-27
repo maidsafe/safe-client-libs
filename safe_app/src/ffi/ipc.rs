@@ -18,7 +18,8 @@
 //! App-related IPC utilities.
 
 use errors::AppError;
-use ffi_utils::{FFI_RESULT_OK, FfiResult, ReprC, catch_unwind_cb, from_c_str};
+use ffi_utils::{FFI_RESULT_OK, FfiResult, ReprC, catch_unwind_cb, from_c_str,
+                vec_clone_from_raw_parts};
 use maidsafe_utilities::serialisation::serialise;
 use safe_core::ffi::ipc::req::{AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq,
                                ShareMDataReq as FfiShareMDataReq};
@@ -77,6 +78,8 @@ pub unsafe extern "C" fn encode_containers_req(
 /// Callback parameters: user data, error code, request id, encoded request
 #[no_mangle]
 pub unsafe extern "C" fn encode_unregistered_req(
+    extra_data: *const u8,
+    extra_data_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
@@ -84,8 +87,10 @@ pub unsafe extern "C" fn encode_unregistered_req(
                         encoded_ptr: *const c_char),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+        let data = vec_clone_from_raw_parts(extra_data, extra_data_len);
+
         let req_id = ipc::gen_req_id();
-        let encoded = encode_ipc(req_id, IpcReq::Unregistered)?;
+        let encoded = encode_ipc(req_id, IpcReq::Unregistered(data))?;
         o_cb(user_data, FFI_RESULT_OK, req_id, encoded.as_ptr());
         Ok(())
     })
@@ -328,22 +333,26 @@ mod tests {
     // Test encoding and decoding unregistered requests.
     #[test]
     fn encode_unregistered_req_basics() {
-        let (req_id, encoded): (u32, String) =
-            unsafe { unwrap!(call_2(|ud, cb| encode_unregistered_req(ud, cb))) };
+        let test_data = vec![1u8, 10];
+        let (req_id, encoded): (u32, String) = unsafe {
+            unwrap!(call_2(|ud, cb| {
+                encode_unregistered_req(test_data.as_ptr(), test_data.len(), ud, cb)
+            }))
+        };
 
         // Decode it and verify it's the same we encoded.
         let msg = unwrap!(ipc::decode_msg(&encoded));
 
-        let (decoded_req_id, decoded_req) = match msg {
+        let (decoded_req_id, decoded_data) = match msg {
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Unregistered,
-            } => (req_id, IpcReq::Unregistered),
+                req: IpcReq::Unregistered(extra_data),
+            } => (req_id, extra_data),
             x => panic!("Unexpected {:?}", x),
         };
 
         assert_eq!(decoded_req_id, req_id);
-        assert_eq!(decoded_req, IpcReq::Unregistered);
+        assert_eq!(decoded_data, vec![1u8, 10]);
     }
 
     // Test encoding and decoding requests to share mutable data

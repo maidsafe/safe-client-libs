@@ -16,7 +16,7 @@
 // relating to use of the SAFE Network Software.
 
 use Authenticator;
-use ffi_utils::{FfiResult, ReprC};
+use ffi_utils::{FfiResult, ReprC, vec_clone_from_raw_parts};
 use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use routing::XorName;
 use safe_core::ffi::ipc::req::{AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq,
@@ -159,11 +159,16 @@ pub fn decode_ipc_msg(authenticator: &Authenticator, msg: &str) -> ChannelType {
     ret
 }
 
-pub extern "C" fn unregistered_cb(user_data: *mut c_void, req_id: u32) {
+pub extern "C" fn unregistered_cb(
+    user_data: *mut c_void,
+    req_id: u32,
+    extra_data: *const u8,
+    extra_data_len: usize,
+) {
     unsafe {
         let msg = IpcMsg::Req {
             req_id: req_id,
-            req: IpcReq::Unregistered,
+            req: IpcReq::Unregistered(vec_clone_from_raw_parts(extra_data, extra_data_len)),
         };
 
         send_via_user_data::<ChannelType>(user_data, Ok((msg, None)))
