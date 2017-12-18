@@ -17,7 +17,6 @@
 
 use super::Account;
 use super::DataId;
-use {SAFE_MOCK_IN_MEMORY_STORAGE, SAFE_MOCK_VAULT_PATH};
 use client::mock::routing::unlimited_muts;
 use config_handler::{Config, DevConfig};
 use fs2::FileExt;
@@ -44,11 +43,11 @@ pub struct Vault {
 }
 
 // Initializes mock-vault path with the following precedence:
-// 1. `SAFE_MOCK_VAULT_PATH` env var
+// 1. "SAFE_MOCK_VAULT_PATH" env var
 // 2. DevConfig `mock_vault_path` option
 // 3. default temp dir
 fn init_vault_path(devconfig: Option<&DevConfig>) -> PathBuf {
-    match env::var(SAFE_MOCK_VAULT_PATH) {
+    match env::var("SAFE_MOCK_VAULT_PATH") {
         Ok(path) => PathBuf::from(path),
         Err(_) => {
             match devconfig.and_then(|dev| dev.mock_vault_path.clone()) {
@@ -60,11 +59,11 @@ fn init_vault_path(devconfig: Option<&DevConfig>) -> PathBuf {
 }
 
 // Initializes vault storage. The type of storage is chosen with the following precedence:
-// 1. `SAFE_MOCK_IN_MEMORY_STORAGE` env var => in-memory storage
+// 1. "SAFE_MOCK_IN_MEMORY_STORAGE" env var => in-memory storage
 // 2. DevConfig `mock_in_memory_storage` option => in-memory storage
 // 3. Else => file storage, use path from `init_vault_path`
 fn init_vault_store(config: &Config) -> Box<Store> {
-    match env::var(SAFE_MOCK_IN_MEMORY_STORAGE) {
+    match env::var("SAFE_MOCK_IN_MEMORY_STORAGE") {
         Ok(_) => {
             // If the env var is set, override config file option.
             trace!("Mock vault: using memory store");
