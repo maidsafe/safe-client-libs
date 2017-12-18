@@ -1187,11 +1187,10 @@ fn low_balance_check() {
 #[test]
 #[should_panic]
 fn invalid_config_mock_vault_path() {
-    use SAFE_MOCK_IN_MEMORY_STORAGE;
     use std;
 
     // Don't run this test when the env var is set.
-    if std::env::var(SAFE_MOCK_IN_MEMORY_STORAGE).is_ok() {
+    if std::env::var("SAFE_MOCK_IN_MEMORY_STORAGE").is_ok() {
         panic!("This test should run without env vars set.");
     }
 
@@ -1212,11 +1211,10 @@ fn invalid_config_mock_vault_path() {
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
 #[test]
 fn config_mock_vault_path() {
-    use SAFE_MOCK_IN_MEMORY_STORAGE;
     use std;
 
     // Don't run this test when the env var is set.
-    if std::env::var(SAFE_MOCK_IN_MEMORY_STORAGE).is_ok() {
+    if std::env::var("SAFE_MOCK_IN_MEMORY_STORAGE").is_ok() {
         return;
     }
 

@@ -174,13 +174,6 @@ pub const MAIDSAFE_TAG: u64 = 5_483_000;
 /// `MutableData` type tag for a directory.
 pub const DIR_TAG: u64 = 15_000;
 
-/// Environment variable for unlimited mutations (see module-level documentation).
-pub const SAFE_MOCK_UNLIMITED_MUTATIONS: &'static str = "SAFE_MOCK_UNLIMITED_MUTATIONS";
-/// Environment variable for in-memory storage (see module-level documentation).
-pub const SAFE_MOCK_IN_MEMORY_STORAGE: &'static str = "SAFE_MOCK_IN_MEMORY_STORAGE";
-/// Environment variable for custom vault path (see module-level documentation).
-pub const SAFE_MOCK_VAULT_PATH: &'static str = "SAFE_MOCK_VAULT_PATH";
-
 /// Gets name of the dedicated container of the given app.
 pub fn app_container_name(app_id: &str) -> String {
     format!("apps/{}", app_id)

@@ -73,10 +73,6 @@ use std::io;
 use std::io::{Read, Write};
 use std::os::raw::c_void;
 
-// Env variables containing account credentials.
-static TEST_ACC_LOCATOR: &'static str = "TEST_ACC_LOCATOR";
-static TEST_ACC_PASSWORD: &'static str = "TEST_ACC_PASSWORD";
-
 // Configuration for tests.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct TestConfig {
@@ -94,8 +90,8 @@ struct AccountConfig {
 // Gets account credentials from the env vars "TEST_ACC_LOCATOR" and "TEST_ACC_PASSWORD".
 // If not found, reads the `tests.config` config file and returns it or panics if this fails.
 fn get_config() -> TestConfig {
-    let env_locator = env::var(TEST_ACC_LOCATOR);
-    let env_password = env::var(TEST_ACC_PASSWORD);
+    let env_locator = env::var("TEST_ACC_LOCATOR");
+    let env_password = env::var("TEST_ACC_PASSWORD");
     let env = env_locator.iter().zip(env_password.iter()).next();
 
     match env {

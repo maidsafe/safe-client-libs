@@ -17,7 +17,6 @@
 
 use super::DataId;
 use super::vault::{self, Data, Vault, VaultGuard};
-use SAFE_MOCK_UNLIMITED_MUTATIONS;
 use config_handler::{Config, get_config};
 use maidsafe_utilities::thread;
 use rand;
@@ -75,7 +74,7 @@ pub fn clone_vault() -> Arc<Mutex<Vault>> {
 }
 
 pub fn unlimited_muts(config: &Config) -> bool {
-    match env::var(SAFE_MOCK_UNLIMITED_MUTATIONS) {
+    match env::var("SAFE_MOCK_UNLIMITED_MUTATIONS") {
         Ok(_) => true,
         Err(_) => {
             match config.dev {
