@@ -62,7 +62,7 @@ pub mod string;
 pub mod header_gen;
 
 pub use self::b64::{base64_decode, base64_encode};
-pub use self::catch_unwind::{catch_unwind_cb, catch_unwind_error_code};
+pub use self::catch_unwind::catch_unwind_cb;
 pub use self::repr_c::ReprC;
 pub use self::string::{StringError, from_c_str};
 pub use self::vec::{SafePtr, vec_clone_from_raw_parts, vec_into_raw_parts};

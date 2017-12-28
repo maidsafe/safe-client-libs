@@ -32,15 +32,6 @@ where
     }
 }
 
-/// Catch panics. On error return the error code.
-pub fn catch_unwind_error_code<'a, F, E>(f: F) -> i32
-where
-    F: FnOnce() -> Result<(), E>,
-    E: Debug + ErrorCode + From<&'a str>,
-{
-    ffi_result_code!(catch_unwind_result(f))
-}
-
 /// Catch panics. On error call the callback.
 pub fn catch_unwind_cb<'a, U, C, F, E>(user_data: U, cb: C, f: F)
 where
@@ -74,19 +65,6 @@ mod tests {
         });
 
         assert!(res.is_err());
-        assert!(did_unwind);
-    }
-
-    #[test]
-    fn panic_inside_catch_unwind_error_code() {
-        let mut did_unwind = false;
-
-        let res = catch_unwind_error_code(|| -> Result<(), TestError> {
-            let _probe = DropProbe::new(|| did_unwind = true);
-            panic!("simulated panic");
-        });
-
-        assert!(res < 0);
         assert!(did_unwind);
     }
 
