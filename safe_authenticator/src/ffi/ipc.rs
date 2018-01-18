@@ -359,12 +359,7 @@ pub unsafe extern "C" fn encode_unregistered_resp(
                 resp: IpcResp::Unregistered(Err(IpcError::AuthDenied)),
             })?;
 
-            let (error_code, description) = ffi_error!(AuthError::from(IpcError::AuthDenied));
-            let res = FfiResult {
-                error_code,
-                description: description.as_ptr(),
-            };
-            o_cb(user_data.0, &res, resp.as_ptr());
+            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
         } else {
             let bootstrap_cfg = Client::<()>::bootstrap_config()?;
 
@@ -404,12 +399,7 @@ pub unsafe extern "C" fn encode_auth_resp(
                 resp: IpcResp::Auth(Err(IpcError::AuthDenied)),
             })?;
 
-            let (error_code, description) = ffi_error!(AuthError::from(IpcError::AuthDenied));
-            let res = FfiResult {
-                error_code,
-                description: description.as_ptr(),
-            };
-            o_cb(user_data.0, &res, resp.as_ptr());
+            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
         } else {
             (*auth).send(move |client| {
                 app_auth::authenticate(client, auth_req)
@@ -469,12 +459,8 @@ pub unsafe extern "C" fn encode_containers_resp(
                 req_id: req_id,
                 resp: IpcResp::Containers(Err(IpcError::AuthDenied)),
             })?;
-            let (error_code, description) = ffi_error!(AuthError::from(IpcError::AuthDenied));
-            let res = FfiResult {
-                error_code,
-                description: description.as_ptr(),
-            };
-            o_cb(user_data.0, &res, resp.as_ptr());
+
+            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
         } else {
             let permissions = cont_req.containers.clone();
             let app_id = cont_req.app.id.clone();

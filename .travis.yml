@@ -13,31 +13,33 @@ jobs:
   include:
     # Stable
     - stage: stable
-      script: scripts/stable
+      script: set -x; scripts/stable
       os: linux
       rust: 1.22.1
     - os: linux
-      script: scripts/stable
+      script: set -x; scripts/stable
       rust: 1.22.1-i686-unknown-linux-gnu
       addons:
         apt:
           packages:
             - gcc-multilib
     - os: osx
-      script: scripts/stable
+      script: set -x; scripts/stable
       rust: 1.22.1
-    # Nightly compiler warm-up
+    # Nightly compiler warm-up + clippy
     - stage: nightly-warmup
       script: set -x; scripts/build-all
       os: linux
       rust: nightly-2018-01-10
-    # Nightly clippy + tests
-    - stage: nightly-tests
-      script: set -x; scripts/clippy-all
+    - script: set -x; scripts/clippy-ffi-utils && scripts/clippy-real
       os: linux
       rust: nightly-2018-01-10
+    # Nightly tests + clippy
     - stage: nightly-tests
       script: set -x; scripts/test-all
+      os: linux
+      rust: nightly-2018-01-10
+    - script: set -x; scripts/clippy-mock
       os: linux
       rust: nightly-2018-01-10
 sudo: false

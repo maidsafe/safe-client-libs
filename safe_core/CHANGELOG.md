@@ -1,5 +1,10 @@
 # Safe Core - Change Log
 
+## [0.29.0]
+- Use rust 1.22.1 stable / 2018-01-10 nightly
+- rustfmt 0.9.0 and clippy-0.0.179
+- Fix naming conventions in callback parameters and elsewhere
+
 ## [0.28.0]
 - Move `AccessContainerEntry` to safe_core
 - Add FFI wrapper for `MDataInfo`

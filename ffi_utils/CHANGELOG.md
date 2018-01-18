@@ -1,5 +1,10 @@
 # FFI utils - Change Log
 
+## [0.5.0]
+- Use rust 1.22.1 stable / 2018-01-10 nightly
+- rustfmt 0.9.0 and clippy-0.0.179
+- `catch_unwind_error_code` function removed as it was no longer used
+
 ## [0.4.0]
 - Use pointers to `FfiResult` instead of passing by value
 - Change type of `FFI_RESULT_OK` to a static reference

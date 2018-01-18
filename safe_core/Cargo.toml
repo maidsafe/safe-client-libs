@@ -7,39 +7,39 @@ license = "GPL-3.0"
 name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.28.0"
+version = "0.29.0"
 build = "build.rs"
 
 [dependencies]
-base64 = "~0.7.0"
+base64 = "~0.9.0"
 chrono = { version = "~0.4.0", features = ["serde"] }
-config_file_handler = "~0.8.3"
-ffi_utils = { path = "../ffi_utils", version = "~0.4.0" }
-fs2 = "~0.4.2"
-futures = "~0.1.15"
-lazy_static = "~0.2.11"
-log = "~0.3.7"
-lru-cache = "~0.1.0"
-maidsafe_utilities = "~0.14.1"
+config_file_handler = "~0.9.0"
+ffi_utils = { path = "../ffi_utils", version = "~0.5.0" }
+fs2 = "~0.4.3"
+futures = "~0.1.17"
+lazy_static = "~1.0.0"
+log = "~0.4.1"
+lru-cache = "~0.1.1"
+maidsafe_utilities = "~0.15.0"
 rand = "~0.3.18"
-routing = "~0.34.0"
-rust_sodium = "~0.6.0"
-serde = "~1.0.24"
-serde_derive = "~1.0.11"
-self_encryption = "~0.11.2"
+routing = "~0.35.0"
+rust_sodium = "~0.7.0"
+self_encryption = "~0.12.0"
+serde = "~1.0.27"
+serde_derive = "~1.0.27"
 tiny-keccak = "~1.3.1"
-tokio-core = "~0.1.9"
+tokio-core = "~0.1.12"
 unwrap = "~1.1.0"
 
 [dev-dependencies]
 docopt = "~0.7.0"
-rustc-serialize = "~0.3.23"
-serde_json = "~1.0.2"
+rustc-serialize = "~0.3.24"
+serde_json = "~1.0.9"
 
 [build-dependencies]
-ffi_utils = { path = "../ffi_utils", version = "~0.4.0" }
-routing = "~0.34.0"
-rust_sodium = "~0.6.0"
+ffi_utils = { path = "../ffi_utils", version = "~0.5.0" }
+routing = "~0.35.0"
+rust_sodium = "~0.7.0"
 unwrap = "~1.1.0"
 
 [features]

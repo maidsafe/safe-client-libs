@@ -17,7 +17,7 @@
 
 pub use self::codes::*;
 use config_file_handler::Error as ConfigFileHandlerError;
-use ffi_utils::ErrorCode;
+use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::ClientError;
@@ -267,6 +267,12 @@ impl From<SerialisationError> for AppError {
 
 impl From<Utf8Error> for AppError {
     fn from(_err: Utf8Error) -> Self {
+        AppError::EncodeDecodeError
+    }
+}
+
+impl From<StringError> for AppError {
+    fn from(_err: StringError) -> Self {
         AppError::EncodeDecodeError
     }
 }

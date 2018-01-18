@@ -1,5 +1,9 @@
 # SAFE Authenticator - Change Log
 
+## [0.6.0]
+- Use rust 1.22.1 stable / 2018-01-10 nightly
+- rustfmt 0.9.0 and clippy-0.0.179
+
 ## [0.5.0]
 - Move `AccessContainerEntry` to safe_core
 - Fix revocation bugs

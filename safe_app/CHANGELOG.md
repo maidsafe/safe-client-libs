@@ -1,5 +1,11 @@
 # SAFE App
 
+## [0.6.0]
+- Use rust 1.22.1 stable / 2018-01-10 nightly
+- rustfmt 0.9.0 and clippy-0.0.179
+- Improve test app creation APIs
+- Move ffi test_utils functions to an ffi module
+
 ## [0.5.0]
 - Remove `MDataPermissionSetHandle` and related functions
 - Fix a bug with object cache handles starting at 0 and conflicting with "special" handles which are defined to be 0
