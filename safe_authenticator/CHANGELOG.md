@@ -3,6 +3,7 @@
 ## [0.6.0]
 - Use rust 1.22.1 stable / 2018-01-10 nightly
 - rustfmt 0.9.0 and clippy-0.0.179
+- In `encode_auth_resp` and related functions, if authentication is not granted, return a result of `FFI_RESULT_OK` instead of `ERR_AUTH_DENIED`.
 
 ## [0.5.0]
 - Move `AccessContainerEntry` to safe_core
