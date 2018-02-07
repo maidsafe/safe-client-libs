@@ -99,4 +99,3 @@ deploy:
   artifact: /.*\.zip/
   on:
     branch: master
-    RUST_TOOLCHAIN: 1.19.0
