@@ -70,18 +70,49 @@ fn flush_app_revocation_queue_impl(
     version: u64,
 ) -> Box<AuthFuture<()>> {
     let client = client.clone();
+    let moved_apps = Vec::new();
 
-    future::loop_fn((queue, version), move |(queue, version)| {
+    future::loop_fn((queue, version, moved_apps), move |(queue,
+           version,
+           mut moved_apps)| {
         let c2 = client.clone();
         let c3 = client.clone();
 
         if let Some(app_id) = queue.front().cloned() {
             let f = revoke_single_app(&c2, &app_id)
-                .and_then(move |_| {
-                    config::remove_from_app_revocation_queue(&c3, queue, version, app_id)
+                .then(move |result| match result {
+                    Ok(_) => {
+                        config::remove_from_app_revocation_queue(&c3, queue, version, app_id)
+                            .map(|(version, queue)| (version, queue, moved_apps))
+                            .into_box()
+                    }
+                    Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
+                        // The app entry can't be decrypted. No way to revoke app, so just remove
+                        // it from the queue.
+
+                        // TODO: Show an error message that the app can't be revoked?
+
+                        // Remove it from the revocation queue.
+                        config::remove_from_app_revocation_queue(&c3, queue, version, app_id)
+                            .map(|(version, queue)| (version, queue, moved_apps))
+                            .into_box()
+                    }
+                    Err(error) => {
+                        if moved_apps.contains(&app_id) {
+                            // If this app has already been moved to the back of the queue,
+                            // return the error.
+                            err!(error)
+                        } else {
+                            // Move the app to the end of the queue.
+                            moved_apps.push(app_id.clone());
+                            config::repush_to_app_revocation_queue(&c3, queue, version, app_id)
+                                .map(|(version, queue)| (version, queue, moved_apps))
+                                .into_box()
+                        }
+                    }
                 })
-                .and_then(move |(version, queue)| {
-                    Ok(Loop::Continue((queue, version + 1)))
+                .and_then(move |(version, queue, moved_apps)| {
+                    Ok(Loop::Continue((queue, version + 1, moved_apps)))
                 });
             Either::A(f)
         } else {
@@ -137,14 +168,13 @@ fn delete_app_auth_key(client: &Client<()>, key: sign::PublicKey) -> Box<AuthFut
 
     client
         .list_auth_keys_and_version()
-        .and_then(move |(listed_keys, version)| if listed_keys.contains(
-            &key,
-        )
-        {
-            client.del_auth_key(key, version + 1)
-        } else {
-            // The key has been removed already
-            ok!(())
+        .and_then(move |(listed_keys, version)| {
+            if listed_keys.contains(&key) {
+                client.del_auth_key(key, version + 1)
+            } else {
+                // The key has been removed already
+                ok!(())
+            }
         })
         .or_else(|error| match error {
             CoreError::RoutingClientError(ClientError::NoSuchKey) => Ok(()),
