@@ -38,8 +38,14 @@ pub unsafe extern "C" fn test_create_app(
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
         let app_id = from_c_str(app_id)?;
         let auth_req = create_auth_req(Some(app_id), None);
-        let app = create_app_by_req(&auth_req);
-        o_cb(user_data, FFI_RESULT_OK, Box::into_raw(Box::new(app)));
+        match create_app_by_req(&auth_req) {
+            Ok(app) => {
+                o_cb(user_data, FFI_RESULT_OK, Box::into_raw(Box::new(app)));
+            }
+            res @ Err(..) => {
+                call_result_cb!(res, user_data, o_cb);
+            }
+        }
         Ok(())
     })
 }
@@ -56,8 +62,46 @@ pub unsafe extern "C" fn test_create_app_with_access(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
         let auth_req = NativeAuthReq::clone_from_repr_c(auth_req)?;
-        let app = create_app_by_req(&auth_req);
-        o_cb(user_data, FFI_RESULT_OK, Box::into_raw(Box::new(app)));
+        match create_app_by_req(&auth_req) {
+            Ok(app) => {
+                o_cb(user_data, FFI_RESULT_OK, Box::into_raw(Box::new(app)));
+            }
+            res @ Err(..) => {
+                call_result_cb!(res, user_data, o_cb);
+            }
+        }
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_create_app_with_access;
+    use {App, AppError};
+    use ffi_utils::ErrorCode;
+    use ffi_utils::test_utils::call_1;
+    use safe_authenticator::test_utils::rand_app;
+    use safe_core::ipc::Permission;
+    use safe_core::ipc::req::AuthReq;
+    use std::collections::HashMap;
+
+    #[test]
+    fn create_app_with_invalid_access() {
+        let mut containers = HashMap::new();
+        let _ = containers.insert("_app".to_owned(), btree_set![Permission::Insert]);
+
+        let auth_req = AuthReq {
+            app: rand_app(),
+            app_container: false,
+            containers: containers,
+        };
+        let auth_req = unwrap!(auth_req.into_repr_c());
+
+        let result: Result<*mut App, i32> =
+            unsafe { call_1(|ud, cb| test_create_app_with_access(&auth_req, ud, cb)) };
+        match result {
+            Err(error) if error == AppError::NoSuchContainer("_app".into()).error_code() => (),
+            _ => panic!("Unexpected"),
+        }
+    }
 }

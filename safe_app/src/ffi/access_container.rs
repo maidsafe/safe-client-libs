@@ -113,7 +113,11 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
                     let mdata_info = mdata_info.into_repr_c();
                     o_cb(user_data.0, FFI_RESULT_OK, &mdata_info);
                 } else {
-                    call_result_cb!(Err::<(), _>(AppError::NoSuchContainer), user_data, o_cb);
+                    call_result_cb!(
+                        Err::<(), _>(AppError::NoSuchContainer(name)),
+                        user_data,
+                        o_cb
+                    );
                 })
                 .map_err(move |err| {
                     call_result_cb!(Err::<(), _>(err), user_data, o_cb);
@@ -149,7 +153,9 @@ mod tests {
             btree_set![Permission::Read, Permission::Insert],
         );
 
-        let app = create_app_by_req(&create_auth_req_with_access(container_permissions.clone()));
+        let app = unwrap!(create_app_by_req(
+            &create_auth_req_with_access(container_permissions.clone()),
+        ));
 
         run(&app, move |_client, context| {
             let reg = Rc::clone(unwrap!(context.as_registered()));
@@ -182,7 +188,9 @@ mod tests {
     fn get_access_info() {
         let mut container_permissions = HashMap::new();
         let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
-        let app = create_app_by_req(&create_auth_req_with_access(container_permissions));
+        let app = unwrap!(create_app_by_req(
+            &create_auth_req_with_access(container_permissions),
+        ));
 
         // Get access container info
         let perms: Vec<PermSet> =

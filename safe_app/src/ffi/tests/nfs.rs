@@ -44,7 +44,9 @@ fn setup() -> (App, MDataInfo) {
         ],
     );
 
-    let app = create_app_by_req(&create_auth_req_with_access(container_permissions));
+    let app = unwrap!(create_app_by_req(
+        &create_auth_req_with_access(container_permissions),
+    ));
 
     let container_info = run(&app, move |client, context| {
         context.get_access_info(client).then(move |res| {

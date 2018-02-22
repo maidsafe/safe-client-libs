@@ -94,6 +94,7 @@ mod codes {
     // Authenticator errors
     pub const ERR_IO_ERROR: i32 = -1013;
     pub const ERR_ACCOUNT_CONTAINERS_CREATION: i32 = -1014;
+    pub const ERR_NO_SUCH_CONTAINER: i32 = -1015;
     pub const ERR_UNEXPECTED: i32 = -2000;
 }
 
@@ -101,20 +102,22 @@ mod codes {
 #[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 #[derive(Debug)]
 pub enum AuthError {
-    /// Unexpected - Probably a Logic error
+    /// Unexpected - probably a logic error.
     Unexpected(String),
     /// Error from safe_core.
     CoreError(CoreError),
-    /// Input/output error
+    /// Input/output error.
     IoError(IoError),
     /// NFS error
     NfsError(NfsError),
-    /// Serialisation error
+    /// Serialisation error.
     EncodeDecodeError,
-    /// IPC error
+    /// IPC error.
     IpcError(IpcError),
     /// Failure during the creation of standard account containers.
     AccountContainersCreation(String),
+    /// Failure due to the attempted creation of an invalid container.
+    NoSuchContainer(String),
 }
 
 impl Display for AuthError {
@@ -134,6 +137,9 @@ impl Display for AuthError {
                     "Account containers creation error: {}. Login to attempt recovery.",
                     reason
                 )
+            }
+            AuthError::NoSuchContainer(ref name) => {
+                write!(formatter, "'{}' not found in the access container", name)
             }
         }
     }
@@ -265,6 +271,7 @@ impl ErrorCode for AuthError {
             AuthError::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
             AuthError::IoError(_) => ERR_IO_ERROR,
             AuthError::AccountContainersCreation(_) => ERR_ACCOUNT_CONTAINERS_CREATION,
+            AuthError::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
             AuthError::Unexpected(_) => ERR_UNEXPECTED,
         }
     }

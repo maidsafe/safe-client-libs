@@ -126,7 +126,7 @@ pub enum AppError {
     /// Forbidden operation
     OperationForbidden,
     /// Container not found
-    NoSuchContainer,
+    NoSuchContainer(String),
     /// Invalid file mode (e.g. trying to write when file is opened for reading only)
     InvalidFileMode,
 
@@ -156,7 +156,7 @@ pub enum AppError {
     /// Invalid offsets (from-position and length combination) provided for
     /// reading form SelfEncryptor. Would have probably caused an overflow.
     InvalidSelfEncryptorReadOffsets,
-    /// Input/output Error
+    /// Input/output error
     IoError(IoError),
     /// Unexpected error
     Unexpected(String),
@@ -170,7 +170,9 @@ impl Display for AppError {
             AppError::NfsError(ref error) => write!(formatter, "NFS error: {}", error),
             AppError::EncodeDecodeError => write!(formatter, "Serialisation error"),
             AppError::OperationForbidden => write!(formatter, "Forbidden operation"),
-            AppError::NoSuchContainer => write!(formatter, "Container not found"),
+            AppError::NoSuchContainer(ref name) => {
+                write!(formatter, "'{}' not found in the access container", name)
+            }
             AppError::InvalidCipherOptHandle => write!(formatter, "Invalid CipherOpt handle"),
             AppError::InvalidFileMode => {
                 write!(
@@ -358,7 +360,7 @@ impl ErrorCode for AppError {
             }
             AppError::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
             AppError::OperationForbidden => ERR_OPERATION_FORBIDDEN,
-            AppError::NoSuchContainer => ERR_NO_SUCH_CONTAINER,
+            AppError::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
             AppError::InvalidCipherOptHandle => ERR_INVALID_CIPHER_OPT_HANDLE,
             AppError::InvalidEncryptPubKeyHandle => ERR_INVALID_ENCRYPT_PUB_KEY_HANDLE,
             AppError::InvalidMDataEntriesHandle => ERR_INVALID_MDATA_ENTRIES_HANDLE,

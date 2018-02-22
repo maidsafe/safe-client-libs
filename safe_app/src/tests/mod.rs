@@ -46,7 +46,9 @@ fn refresh_access_info() {
         btree_set![Permission::Read, Permission::Insert],
     );
 
-    let app = create_app_by_req(&create_auth_req_with_access(container_permissions.clone()));
+    let app = unwrap!(create_app_by_req(
+        &create_auth_req_with_access(container_permissions.clone()),
+    ));
 
     run(&app, move |client, context| {
         let reg = Rc::clone(unwrap!(context.as_registered()));

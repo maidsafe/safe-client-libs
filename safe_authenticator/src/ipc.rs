@@ -133,10 +133,7 @@ pub fn update_container_perms(
             for (container_key, access) in permissions {
                 let c2 = client.clone();
                 let mdata_info = fry!(root_containers.remove(&container_key).ok_or_else(|| {
-                    AuthError::from(format!(
-                        "'{}' not found in the access container",
-                        container_key
-                    ))
+                    AuthError::NoSuchContainer(container_key.clone())
                 }));
                 let perm_set = container_perms_into_permission_set(&access);
 
