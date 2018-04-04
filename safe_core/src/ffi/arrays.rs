@@ -16,24 +16,30 @@
 // relating to use of the SAFE Network Software.
 
 use routing::XOR_NAME_LEN;
-use rust_sodium::crypto::{box_, secretbox, sign};
+use rust_sodium::crypto::box_::{NONCEBYTES as ASYM_NONCE_LEN,
+                                PUBLICKEYBYTES as ASYM_PUBLIC_KEY_LEN,
+                                SECRETKEYBYTES as ASYM_SECRET_KEY_LEN};
+use rust_sodium::crypto::secretbox::{KEYBYTES as SYM_KEY_LEN, NONCEBYTES as SYM_NONCE_LEN};
+use rust_sodium::crypto::sign::{PUBLICKEYBYTES as SIGN_PUBLIC_KEY_LEN,
+                                SECRETKEYBYTES as SIGN_SECRET_KEY_LEN};
+
 
 /// Array containing public key bytes.
-pub type AsymPublicKey = [u8; box_::PUBLICKEYBYTES];
+pub type AsymPublicKey = [u8; ASYM_PUBLIC_KEY_LEN];
 /// Array containing private key bytes.
-pub type AsymSecretKey = [u8; box_::SECRETKEYBYTES];
+pub type AsymSecretKey = [u8; ASYM_SECRET_KEY_LEN];
 /// Array containing nonce bytes.
-pub type AsymNonce = [u8; box_::NONCEBYTES];
+pub type AsymNonce = [u8; ASYM_NONCE_LEN];
 
 /// Array containing private key bytes.
-pub type SymSecretKey = [u8; secretbox::KEYBYTES];
+pub type SymSecretKey = [u8; SYM_KEY_LEN];
 /// Array containing nonce bytes.
-pub type SymNonce = [u8; secretbox::NONCEBYTES];
+pub type SymNonce = [u8; SYM_NONCE_LEN];
 
 /// Array containing sign public key bytes.
-pub type SignPublicKey = [u8; sign::PUBLICKEYBYTES];
+pub type SignPublicKey = [u8; SIGN_PUBLIC_KEY_LEN];
 /// Array containing sign private key bytes.
-pub type SignSecretKey = [u8; sign::SECRETKEYBYTES];
+pub type SignSecretKey = [u8; SIGN_SECRET_KEY_LEN];
 
 /// Array containing `XorName` bytes.
 pub type XorNameArray = [u8; XOR_NAME_LEN];

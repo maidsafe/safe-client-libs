@@ -26,18 +26,19 @@ mod tests;
 use App;
 use errors::AppError;
 use ffi::helper::send;
+use ffi::object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataPermissionsHandle,
+                        NULL_OBJECT_HANDLE, SignPubKeyHandle};
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, SafePtr, catch_unwind_cb,
                 vec_clone_from_raw_parts};
 use futures::Future;
-use object_cache::{MDataEntriesHandle, MDataEntryActionsHandle, MDataPermissionsHandle,
-                   NULL_OBJECT_HANDLE, SignPubKeyHandle};
 use routing::MutableData;
-use safe_core::{CoreError, FutureExt, MDataInfo};
-use safe_core::ffi::MDataInfo as FfiMDataInfo;
-use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
-use safe_core::ffi::ipc::resp::{MDataKey as FfiMDataKey, MDataValue as FfiMDataValue};
+use safe_core::{CoreError, FutureExt, MDataInfo as NativeMDataInfo};
+use safe_core::ffi::MDataInfo;
+use safe_core::ffi::ipc::req::PermissionSet;
+use safe_core::ffi::ipc::resp::MDataKey;
+use safe_core::ffi::ipc::resp::MDataValue;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
-use safe_core::ipc::resp::{MDataKey, MDataValue};
+use safe_core::ipc::resp::{MDataKey as NativeMDataKey, MDataValue as NativeMDataValue};
 use std::os::raw::c_void;
 
 /// Special value that represents an empty permission set.
@@ -60,14 +61,14 @@ pub static ENTRIES_EMPTY: u64 = NULL_OBJECT_HANDLE;
 #[no_mangle]
 pub unsafe extern "C" fn mdata_put(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     permissions_h: MDataPermissionsHandle,
     entries_h: MDataEntriesHandle,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |client, context| {
@@ -125,14 +126,14 @@ pub unsafe extern "C" fn mdata_put(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_get_version(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
                         version: u64),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         send(app, user_data, o_cb, move |client, _| {
             client.get_mdata_version(info.name, info.type_tag)
@@ -146,14 +147,14 @@ pub unsafe extern "C" fn mdata_get_version(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_serialised_size(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
                         serialised_size: u64),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         send(app, user_data, o_cb, move |client, _| {
             client
@@ -177,7 +178,7 @@ pub unsafe extern "C" fn mdata_serialised_size(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_get_value(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     key: *const u8,
     key_len: usize,
     user_data: *mut c_void,
@@ -190,7 +191,7 @@ pub unsafe extern "C" fn mdata_get_value(
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
         let key = vec_clone_from_raw_parts(key, key_len);
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, _| {
             client
@@ -221,14 +222,14 @@ pub unsafe extern "C" fn mdata_get_value(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_entries(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
                         entries_h: MDataEntriesHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         send(app, user_data, o_cb, move |client, context| {
             let context = context.clone();
@@ -250,17 +251,17 @@ pub unsafe extern "C" fn mdata_entries(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_keys(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        keys: *const FfiMDataKey,
-                        len: usize),
+                        keys: *const MDataKey,
+                        keys_len: usize),
 ) {
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, _context| {
             client
@@ -270,8 +271,9 @@ pub unsafe extern "C" fn mdata_list_keys(
                     match result {
                         Ok(keys) => {
                             let keys: Vec<_> =
-                                keys.into_iter().map(MDataKey::from_routing).collect();
-                            let repr_c: Vec<_> = keys.iter().map(MDataKey::as_repr_c).collect();
+                                keys.into_iter().map(NativeMDataKey::from_routing).collect();
+                            let repr_c: Vec<_> =
+                                keys.iter().map(NativeMDataKey::as_repr_c).collect();
 
                             o_cb(
                                 user_data.0,
@@ -298,17 +300,17 @@ pub unsafe extern "C" fn mdata_list_keys(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_values(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        values: *const FfiMDataValue,
-                        len: usize),
+                        values: *const MDataValue,
+                        values_len: usize),
 ) {
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, _context| {
             client
@@ -317,9 +319,12 @@ pub unsafe extern "C" fn mdata_list_values(
                 .then(move |result| {
                     match result {
                         Ok(values) => {
-                            let values: Vec<_> =
-                                values.into_iter().map(MDataValue::from_routing).collect();
-                            let repr_c: Vec<_> = values.iter().map(MDataValue::as_repr_c).collect();
+                            let values: Vec<_> = values
+                                .into_iter()
+                                .map(NativeMDataValue::from_routing)
+                                .collect();
+                            let repr_c: Vec<_> =
+                                values.iter().map(NativeMDataValue::as_repr_c).collect();
 
                             o_cb(
                                 user_data.0,
@@ -346,14 +351,14 @@ pub unsafe extern "C" fn mdata_list_values(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_mutate_entries(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     actions_h: MDataEntryActionsHandle,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, context| {
             let actions = try_cb!(
@@ -381,14 +386,14 @@ pub unsafe extern "C" fn mdata_mutate_entries(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_permissions(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
                         perm_h: MDataPermissionsHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         send(app, user_data, o_cb, move |client, context| {
             let context = context.clone();
@@ -410,16 +415,16 @@ pub unsafe extern "C" fn mdata_list_permissions(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_user_permissions(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_h: SignPubKeyHandle,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        perm_set: *const FfiPermissionSet),
+                        perm_set: *const PermissionSet),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, context| {
             let user = try_cb!(
@@ -452,16 +457,16 @@ pub unsafe extern "C" fn mdata_list_user_permissions(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_set_user_permissions(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_h: SignPubKeyHandle,
-    permission_set: *const FfiPermissionSet,
+    permission_set: *const PermissionSet,
     version: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let permission_set = *permission_set;
 
         (*app).send(move |client, context| {
@@ -493,7 +498,7 @@ pub unsafe extern "C" fn mdata_set_user_permissions(
 #[no_mangle]
 pub unsafe extern "C" fn mdata_del_user_permissions(
     app: *const App,
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_h: SignPubKeyHandle,
     version: u64,
     user_data: *mut c_void,
@@ -501,7 +506,7 @@ pub unsafe extern "C" fn mdata_del_user_permissions(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, context| {
             let user = try_cb!(

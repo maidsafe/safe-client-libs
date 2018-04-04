@@ -18,10 +18,10 @@
 use App;
 use errors::AppError;
 use ffi::nfs::*;
+use ffi::object_cache::FileContextHandle;
 use ffi_utils::ErrorCode;
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
 use futures::Future;
-use object_cache::FileContextHandle;
 use safe_core::ffi::MDataInfo;
 use safe_core::ffi::nfs::File;
 use safe_core::ipc::Permission;

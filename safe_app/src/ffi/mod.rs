@@ -37,6 +37,8 @@ pub mod crypto;
 pub mod mutable_data;
 /// NFS API.
 pub mod nfs;
+/// `ObjectCache` handles
+pub mod object_cache;
 /// Testing utilities.
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
@@ -52,9 +54,9 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, ReprC, catch_unwind_cb, fro
 use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
 use safe_core::{self, FutureExt};
-use safe_core::ffi::AccountInfo as FfiAccountInfo;
-use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
-use safe_core::ipc::{AuthGranted, BootstrapConfig};
+use safe_core::ffi::AccountInfo;
+use safe_core::ffi::ipc::resp::AuthGranted;
+use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::slice;
@@ -100,7 +102,7 @@ pub unsafe extern "C" fn app_unregistered(
 #[no_mangle]
 pub unsafe extern "C" fn app_registered(
     app_id: *const c_char,
-    auth_granted: *const FfiAuthGranted,
+    auth_granted: *const AuthGranted,
     user_data: *mut c_void,
     o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
     o_cb: extern "C" fn(user_data: *mut c_void,
@@ -110,7 +112,7 @@ pub unsafe extern "C" fn app_registered(
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let user_data = OpaqueCtx(user_data);
         let app_id = from_c_str(app_id)?;
-        let auth_granted = AuthGranted::clone_from_repr_c(auth_granted)?;
+        let auth_granted = NativeAuthGranted::clone_from_repr_c(auth_granted)?;
 
         let app = App::registered(app_id, auth_granted, move || {
             o_disconnect_notifier_cb(user_data.0)
@@ -154,7 +156,7 @@ pub unsafe extern "C" fn app_account_info(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        account_info: *const FfiAccountInfo),
+                        account_info: *const AccountInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let user_data = OpaqueCtx(user_data);
@@ -162,7 +164,7 @@ pub unsafe extern "C" fn app_account_info(
             client
                 .get_account_info()
                 .map(move |acc_info| {
-                    let ffi_acc = FfiAccountInfo {
+                    let ffi_acc = AccountInfo {
                         mutations_done: acc_info.mutations_done,
                         mutations_available: acc_info.mutations_available,
                     };

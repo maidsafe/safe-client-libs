@@ -86,7 +86,7 @@ impl ShareMData {
     pub fn into_repr_c(self) -> Result<ffi::ShareMData, IpcError> {
         Ok(ffi::ShareMData {
             type_tag: self.type_tag,
-            name: self.name,
+            name: self.name.0,
             perms: permission_set_into_repr_c(self.perms),
         })
     }
@@ -100,7 +100,7 @@ impl ReprC for ShareMData {
     unsafe fn clone_from_repr_c(raw: *const ffi::ShareMData) -> Result<Self, IpcError> {
         Ok(ShareMData {
             type_tag: (*raw).type_tag,
-            name: (*raw).name,
+            name: XorName((*raw).name),
             perms: permission_set_clone_from_repr_c(&(*raw).perms)?,
         })
     }

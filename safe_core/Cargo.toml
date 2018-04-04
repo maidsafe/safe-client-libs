@@ -45,6 +45,7 @@ unwrap = "~1.1.0"
 [features]
 use-mock-routing = []
 testing = []
+bindings = []
 
 [[example]]
 bench = false

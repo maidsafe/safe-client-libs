@@ -20,9 +20,9 @@ use ffi_utils::{FFI_RESULT_OK, FfiResult, ReprC, SafePtr, catch_unwind_cb};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::XorName;
 use rust_sodium::crypto::secretbox;
-use safe_core::MDataInfo;
+use safe_core::MDataInfo as NativeMDataInfo;
 use safe_core::crypto::shared_secretbox;
-use safe_core::ffi::MDataInfo as FfiMDataInfo;
+use safe_core::ffi::MDataInfo;
 use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
 use std::os::raw::c_void;
 use std::slice;
@@ -40,14 +40,14 @@ pub unsafe extern "C" fn mdata_info_new_private(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        mdata_info: *const FfiMDataInfo),
+                        mdata_info: *const MDataInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let name = XorName(*name);
         let sk = shared_secretbox::Key::from_raw(&*secret_key);
         let nonce = secretbox::Nonce(*nonce);
 
-        let info = MDataInfo::new_private(name, type_tag, (sk, nonce));
+        let info = NativeMDataInfo::new_private(name, type_tag, (sk, nonce));
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -64,10 +64,10 @@ pub unsafe extern "C" fn mdata_info_random_public(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        mdata_info: *const FfiMDataInfo),
+                        mdata_info: *const MDataInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = MDataInfo::random_public(type_tag)?;
+        let info = NativeMDataInfo::random_public(type_tag)?;
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -84,10 +84,10 @@ pub unsafe extern "C" fn mdata_info_random_private(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        mdata_info: *const FfiMDataInfo),
+                        mdata_info: *const MDataInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = MDataInfo::random_private(type_tag)?;
+        let info = NativeMDataInfo::random_private(type_tag)?;
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn mdata_info_random_private(
 /// Callback parameters: user data, error code, encrypted entry key vector, vector size
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     input: *const u8,
     input_len: usize,
     user_data: *mut c_void,
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
                         enc_entry_key_len: usize),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let input = slice::from_raw_parts(input, input_len);
         let encoded = info.enc_entry_key(input).map_err(AppError::from)?;
 
@@ -129,7 +129,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
 /// Callback parameters: user data, error code, encrypted entry value vector, vector size
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     input: *const u8,
     input_len: usize,
     user_data: *mut c_void,
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
                         enc_entry_value_len: usize),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let input = slice::from_raw_parts(input, input_len);
         let encoded = info.enc_entry_value(input).map_err(AppError::from)?;
 
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
 /// Callback parameters: user data, error code, decrypted mdata info vector, vector size
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_decrypt(
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     input: *const u8,
     input_len: usize,
     user_data: *mut c_void,
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn mdata_info_decrypt(
                         mdata_info_decrypt_len: usize),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let encoded = slice::from_raw_parts(input, input_len);
         let decoded = info.decrypt(encoded).map_err(AppError::from)?;
 
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn mdata_info_decrypt(
 /// Callback parameters: user data, error code, serialised mdata info
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_serialise(
-    info: *const FfiMDataInfo,
+    info: *const MDataInfo,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn mdata_info_serialise(
                         encoded_len: usize),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = MDataInfo::clone_from_repr_c(info)?;
+        let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let encoded = serialise(&info).map_err(AppError::from)?;
 
         o_cb(
@@ -213,16 +213,16 @@ pub unsafe extern "C" fn mdata_info_serialise(
 /// Callback parameters: user data, error code, mdata info handle
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_deserialise(
-    ptr: *const u8,
-    len: usize,
+    encoded_ptr: *const u8,
+    encoded_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        mdata_info: *const FfiMDataInfo),
+                        mdata_info: *const MDataInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let encoded = slice::from_raw_parts(ptr, len);
-        let info: MDataInfo = deserialise(encoded)?;
+        let encoded = slice::from_raw_parts(encoded_ptr, encoded_len);
+        let info: NativeMDataInfo = deserialise(encoded)?;
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);

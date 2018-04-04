@@ -28,7 +28,7 @@ use errors::AuthError;
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, catch_unwind_cb, from_c_str};
 use futures::Future;
 use safe_core::FutureExt;
-use safe_core::ffi::AccountInfo as FfiAccountInfo;
+use safe_core::ffi::AccountInfo;
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
 
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn auth_account_info(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        account_info: *const FfiAccountInfo),
+                        account_info: *const AccountInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
         let user_data = OpaqueCtx(user_data);
@@ -151,7 +151,7 @@ pub unsafe extern "C" fn auth_account_info(
             client
                 .get_account_info()
                 .map(move |acc_info| {
-                    let ffi_acc = FfiAccountInfo {
+                    let ffi_acc = AccountInfo {
                         mutations_done: acc_info.mutations_done,
                         mutations_available: acc_info.mutations_available,
                     };

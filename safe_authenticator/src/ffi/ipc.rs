@@ -25,11 +25,11 @@ use ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_contai
 use revocation::{flush_app_revocation_queue, revoke_app};
 use routing::{ClientError, User};
 use safe_core::{Client, CoreError, FutureExt};
-use safe_core::ffi::ipc::req::{AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq,
-                               ShareMDataReq as FfiShareMDataReq};
-use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
+use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
+use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::ipc::{IpcError, IpcMsg, decode_msg};
-use safe_core::ipc::req::{AuthReq, ContainersReq, IpcReq, ShareMDataReq};
+use safe_core::ipc::req::{AuthReq as NativeAuthReq, ContainersReq as NativeContainersReq, IpcReq,
+                          ShareMDataReq as NativeShareMDataReq};
 use safe_core::ipc::resp::IpcResp;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
@@ -84,18 +84,18 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
     auth: *const Authenticator,
     msg: *const c_char,
     user_data: *mut c_void,
-    o_auth: extern "C" fn(user_data: *mut c_void, req_id: u32, req: *const FfiAuthReq),
+    o_auth: extern "C" fn(user_data: *mut c_void, req_id: u32, req: *const AuthReq),
     o_containers: extern "C" fn(user_data: *mut c_void,
                                 req_id: u32,
-                                req: *const FfiContainersReq),
+                                req: *const ContainersReq),
     o_unregistered: extern "C" fn(user_data: *mut c_void,
                                   req_id: u32,
                                   extra_data: *const u8,
                                   extra_data_len: usize),
     o_share_mdata: extern "C" fn(user_data: *mut c_void,
                                  req_id: u32,
-                                 req: *const FfiShareMDataReq,
-                                 metadata: *const FfiUserMetadata),
+                                 req: *const ShareMDataReq,
+                                 metadata: *const MetadataResponse),
     o_err: extern "C" fn(user_data: *mut c_void,
                          result: *const FfiResult,
                          response: *const c_char),
@@ -151,7 +151,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                                     if let Some(metadata) = metadata {
                                         ffi_metadata_cont.push(metadata);
                                     } else {
-                                        ffi_metadata_cont.push(FfiUserMetadata::invalid());
+                                        ffi_metadata_cont.push(MetadataResponse::invalid());
                                     }
                                 }
 
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
 #[no_mangle]
 pub unsafe extern "C" fn encode_share_mdata_resp(
     auth: *const Authenticator,
-    req: *const FfiShareMDataReq,
+    req: *const ShareMDataReq,
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
-        let share_mdata_req = ShareMDataReq::clone_from_repr_c(req)?;
+        let share_mdata_req = NativeShareMDataReq::clone_from_repr_c(req)?;
         if is_granted {
             (*auth).send(move |client| {
                 let client_cloned0 = client.clone();
@@ -380,7 +380,7 @@ pub unsafe extern "C" fn encode_unregistered_resp(
 #[no_mangle]
 pub unsafe extern "C" fn encode_auth_resp(
     auth: *const Authenticator,
-    req: *const FfiAuthReq,
+    req: *const AuthReq,
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
@@ -391,7 +391,7 @@ pub unsafe extern "C" fn encode_auth_resp(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
-        let auth_req = AuthReq::clone_from_repr_c(req)?;
+        let auth_req = NativeAuthReq::clone_from_repr_c(req)?;
 
         if !is_granted {
             let resp = encode_response(&IpcMsg::Resp {
@@ -443,7 +443,7 @@ pub unsafe extern "C" fn encode_auth_resp(
 #[no_mangle]
 pub unsafe extern "C" fn encode_containers_resp(
     auth: *const Authenticator,
-    req: *const FfiContainersReq,
+    req: *const ContainersReq,
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,
@@ -454,7 +454,7 @@ pub unsafe extern "C" fn encode_containers_resp(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
-        let cont_req = ContainersReq::clone_from_repr_c(req)?;
+        let cont_req = NativeContainersReq::clone_from_repr_c(req)?;
 
         if !is_granted {
             let resp = encode_response(&IpcMsg::Resp {

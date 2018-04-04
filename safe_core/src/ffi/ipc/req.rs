@@ -15,11 +15,11 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use ffi::arrays::XorNameArray;
 use ffi_utils::ReprC;
 use ffi_utils::callback::CallbackArgs;
 use ipc::req::permission_set_into_repr_c;
 use routing;
-use routing::XorName;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
@@ -200,7 +200,7 @@ pub struct ShareMData {
     /// The mutable data type.
     pub type_tag: u64,
     /// The mutable data name.
-    pub name: XorName,
+    pub name: XorNameArray,
     /// The permissions being requested.
     pub perms: PermissionSet,
 }

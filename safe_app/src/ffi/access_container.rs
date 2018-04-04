@@ -19,8 +19,8 @@ use {App, AppError};
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, SafePtr, catch_unwind_cb, from_c_str};
 use futures::Future;
 use safe_core::FutureExt;
-use safe_core::ffi::MDataInfo as FfiMDataInfo;
-use safe_core::ffi::ipc::req::ContainerPermissions as FfiContainerPermissions;
+use safe_core::ffi::MDataInfo;
+use safe_core::ffi::ipc::req::ContainerPermissions;
 use safe_core::ipc::req::containers_into_vec;
 use std::os::raw::{c_char, c_void};
 
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn access_container_fetch(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        container_perms: *const FfiContainerPermissions,
+                        container_perms: *const ContainerPermissions,
                         container_perms_len: usize),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
@@ -98,7 +98,7 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        mdata_info: *const FfiMDataInfo),
+                        mdata_info: *const MDataInfo),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);

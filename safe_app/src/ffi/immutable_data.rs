@@ -18,10 +18,10 @@
 use super::cipher_opt::CipherOpt;
 use App;
 use errors::AppError;
+use ffi::object_cache::{CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle};
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, catch_unwind_cb, vec_clone_from_raw_parts};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use object_cache::{CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle};
 use routing::XorName;
 use safe_core::{FutureExt, SelfEncryptionStorage, immutable_data};
 use safe_core::ffi::arrays::XorNameArray;

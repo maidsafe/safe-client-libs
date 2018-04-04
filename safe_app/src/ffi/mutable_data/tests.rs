@@ -21,14 +21,16 @@ use ffi::mutable_data::*;
 use ffi::mutable_data::entries::*;
 use ffi::mutable_data::entry_actions::*;
 use ffi::mutable_data::permissions::*;
+use ffi::object_cache::MDataPermissionsHandle;
 use ffi_utils::{FfiResult, vec_clone_from_raw_parts};
 use ffi_utils::test_utils::{call_0, call_1, call_vec, call_vec_u8, send_via_user_data,
                             sender_as_user_data};
-use object_cache::MDataPermissionsHandle;
 use permissions::UserPermissionSet;
-use routing::{Action, PermissionSet};
+use routing::{Action, PermissionSet as NativePermissionSet};
+use safe_core::MDataInfo as NativeMDataInfo;
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
+use safe_core::ipc::resp::{MDataKey, MDataValue};
 use std::sync::mpsc;
 use test_utils::create_app;
 
@@ -38,7 +40,7 @@ fn permissions_crud_ffi() {
     let app = create_app();
 
     // Create a permissions set
-    let perm_set = PermissionSet::new().allow(Action::Insert).allow(
+    let perm_set = NativePermissionSet::new().allow(Action::Insert).allow(
         Action::ManagePermissions,
     );
 
@@ -84,7 +86,7 @@ fn permissions_crud_ffi() {
     }
 
     // Try to create an empty public MD
-    let md_info_pub: MDataInfo =
+    let md_info_pub: NativeMDataInfo =
         unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_public(10_000, ud, cb))) };
     let md_info_pub = md_info_pub.into_repr_c();
 
@@ -109,7 +111,7 @@ fn permissions_crud_ffi() {
         assert_eq!(None, read_perm_set.is_allowed(Action::Update));
 
         // Create a new permissions set
-        let perm_set_new = PermissionSet::new().allow(Action::ManagePermissions);
+        let perm_set_new = NativePermissionSet::new().allow(Action::ManagePermissions);
 
         let result = unsafe {
             // Should fail due to invalid version
@@ -192,7 +194,7 @@ fn entries_crud_ffi() {
     const VALUE: &[u8] = b"world";
 
     // Create a permissions set
-    let perm_set = PermissionSet::new().allow(Action::Insert);
+    let perm_set = NativePermissionSet::new().allow(Action::Insert);
 
     // Create permissions
     let perms_h: MDataPermissionsHandle =
@@ -212,7 +214,7 @@ fn entries_crud_ffi() {
     }
 
     // Try to create an empty public MD
-    let md_info_pub: MDataInfo =
+    let md_info_pub: NativeMDataInfo =
         unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_public(10_000, ud, cb))) };
     let md_info_pub = md_info_pub.into_repr_c();
 
@@ -235,7 +237,7 @@ fn entries_crud_ffi() {
 
     // Try to create a MD instance using the same name & a different type tag - it should pass.
     let xor_name = md_info_pub.name;
-    let md_info_pub_2 = FfiMDataInfo {
+    let md_info_pub_2 = MDataInfo {
         name: xor_name,
         type_tag: 10_001,
         has_enc_info: false,
@@ -317,7 +319,7 @@ fn entries_crud_ffi() {
     assert_eq!(None, read_perm_set.is_allowed(Action::Update));
 
     // Try to create a private MD
-    let md_info_priv: MDataInfo =
+    let md_info_priv: NativeMDataInfo =
         unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_private(10_001, ud, cb))) };
     let md_info_priv = md_info_priv.into_repr_c();
 

@@ -21,11 +21,11 @@ use App;
 use errors::AppError;
 use ffi::helper::send_sync;
 use ffi::mutable_data::helper;
+use ffi::object_cache::{MDataPermissionsHandle, NULL_OBJECT_HANDLE, SignPubKeyHandle};
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, SafePtr, catch_unwind_cb};
-use object_cache::{MDataPermissionsHandle, NULL_OBJECT_HANDLE, SignPubKeyHandle};
 use permissions;
 use routing::{Action, User};
-use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
+use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use std::os::raw::c_void;
 
@@ -63,7 +63,7 @@ pub struct UserPermissionSet {
     /// User's sign key handle.
     pub user_h: SignPubKeyHandle,
     /// User's permission set.
-    pub perm_set: FfiPermissionSet,
+    pub perm_set: PermissionSet,
 }
 
 /// Create new permissions.
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn mdata_permissions_get(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        perm_set: *const FfiPermissionSet),
+                        perm_set: *const PermissionSet),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn mdata_list_permission_sets(
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
                         user_perm_sets: *const UserPermissionSet,
-                        len: usize),
+                        user_perm_sets_len: usize),
 ) {
     let user_data = OpaqueCtx(user_data);
 
@@ -208,7 +208,7 @@ pub unsafe extern "C" fn mdata_permissions_insert(
     app: *const App,
     permissions_h: MDataPermissionsHandle,
     user_h: SignPubKeyHandle,
-    permission_set: *const FfiPermissionSet,
+    permission_set: *const PermissionSet,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {

@@ -33,11 +33,15 @@ features = ["testing"]
 
 [build-dependencies]
 ffi_utils = { path = "../ffi_utils", version = "~0.5.0" }
+routing = "~0.35.0"
+rust_sodium = "~0.7.0"
+safe_bindgen = { git = "https://github.com/maidsafe/safe_bindgen.git" }
 unwrap = "~1.1.0"
 
 [features]
 use-mock-routing = ["testing", "safe_core/use-mock-routing"]
 testing = ["safe_core/testing"]
+bindings = ["safe_core/bindings"]
 
 [lib]
 crate_type = ["staticlib", "rlib", "cdylib"]

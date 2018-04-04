@@ -26,15 +26,13 @@ use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
 use routing::User::Key;
 use routing::XorName;
-use rust_sodium::crypto::sign::PublicKey;
 use safe_core::FutureExt;
 use safe_core::ffi::arrays::XorNameArray;
-use safe_core::ffi::ipc::req::{AppExchangeInfo as FfiAppExchangeInfo,
-                               ContainerPermissions as FfiContainerPermissions};
-use safe_core::ffi::ipc::resp::AppAccess as FfiAppAccess;
+use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
+use safe_core::ffi::ipc::resp::AppAccess;
 use safe_core::ipc::{IpcError, access_container_enc_key};
-use safe_core::ipc::req::{AppExchangeInfo, containers_into_vec};
-use safe_core::ipc::resp::{AccessContainerEntry, AppAccess};
+use safe_core::ipc::req::containers_into_vec;
+use safe_core::ipc::resp::{AccessContainerEntry, AppAccess as NativeAppAccess};
 use safe_core::utils::symmetric_decrypt;
 use std::collections::HashMap;
 use std::os::raw::{c_char, c_void};
@@ -43,9 +41,9 @@ use std::os::raw::{c_char, c_void};
 #[repr(C)]
 pub struct RegisteredApp {
     /// Unique application identifier
-    pub app_info: FfiAppExchangeInfo,
+    pub app_info: AppExchangeInfo,
     /// List of containers that this application has access to
-    pub containers: *const FfiContainerPermissions,
+    pub containers: *const ContainerPermissions,
     /// Length of the containers array
     pub containers_len: usize,
     /// Capacity of the containers array. Internal data required
@@ -57,7 +55,7 @@ impl Drop for RegisteredApp {
     fn drop(&mut self) {
         unsafe {
             let _ = Vec::from_raw_parts(
-                self.containers as *mut FfiContainerPermissions,
+                self.containers as *mut ContainerPermissions,
                 self.containers_len,
                 self.containers_cap,
             );
@@ -122,7 +120,7 @@ pub unsafe extern "C" fn auth_revoked_apps(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        app_exchange_info: *const FfiAppExchangeInfo,
+                        app_exchange_info: *const AppExchangeInfo,
                         app_exchange_info_len: usize),
 ) {
     let user_data = OpaqueCtx(user_data);
@@ -273,7 +271,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
-                        app_access: *const FfiAppAccess,
+                        app_access: *const AppAccess,
                         app_access_len: usize),
 ) {
     let user_data = OpaqueCtx(user_data);
@@ -292,19 +290,19 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
                         // Convert the HashMap keyed by id to one keyed by public key
                         apps.into_iter()
                             .map(|(_, app_info)| (app_info.keys.sign_pk, app_info.info))
-                            .collect::<HashMap<PublicKey, AppExchangeInfo>>()
+                            .collect::<HashMap<_, _>>()
                     }),
                 )
                 .and_then(move |(permissions, apps)| {
                     // Map the list of keys retrieved from MD to a list of registered apps (even if
                     // they're in the Revoked state) and create a new `AppAccess` struct object
-                    let mut app_access_vec: Vec<FfiAppAccess> = Vec::new();
+                    let mut app_access_vec: Vec<AppAccess> = Vec::new();
 
                     for (user, perm_set) in permissions {
                         if let Key(public_key) = user {
                             let app_access = match apps.get(&public_key) {
                                 Some(app_info) => {
-                                    AppAccess {
+                                    NativeAppAccess {
                                         sign_key: public_key,
                                         permissions: perm_set,
                                         name: Some(app_info.name.clone()),
@@ -316,7 +314,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
                                     // listed in the registered apps list in Authenticator, then set
                                     // the app_id and app_name fields to ptr::null(), but provide
                                     // the public sign key and the list of permissions.
-                                    AppAccess {
+                                    NativeAppAccess {
                                         sign_key: public_key,
                                         permissions: perm_set,
                                         name: None,

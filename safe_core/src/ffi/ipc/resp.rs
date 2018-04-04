@@ -19,7 +19,7 @@
 
 use ffi::MDataInfo;
 use ffi::arrays::*;
-use ffi::ipc::req::PermissionSet as FfiPermissionSet;
+use ffi::ipc::req::PermissionSet;
 use rust_sodium::crypto::sign;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -142,7 +142,7 @@ pub struct ContainerInfo {
     /// Container's `MDataInfo`
     pub mdata_info: MDataInfo,
     /// App's permissions in the container.
-    pub permissions: FfiPermissionSet,
+    pub permissions: PermissionSet,
 }
 
 impl Drop for ContainerInfo {
@@ -159,7 +159,7 @@ pub struct AppAccess {
     /// App's or user's public key
     pub sign_key: SignPublicKey,
     /// A list of permissions
-    pub permissions: FfiPermissionSet,
+    pub permissions: PermissionSet,
     /// App's user-facing name
     pub name: *const c_char,
     /// App id.

@@ -17,7 +17,8 @@
 
 use errors::AppError;
 use ffi::mutable_data::permissions::USER_ANYONE;
-use object_cache::{MDataPermissionsHandle, ObjectCache, SignPubKeyHandle};
+use ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle};
+use object_cache::ObjectCache;
 use routing::{PermissionSet, User};
 use std::collections::BTreeMap;
 

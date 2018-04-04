@@ -27,12 +27,17 @@ use routing::XOR_NAME_LEN;
 use rust_sodium::crypto::{box_, secretbox, sign};
 use std::collections::HashMap;
 use std::collections::HashSet;
-
-static HEADER_NAME: &'static str = "safe_core";
-static HEADER_DIRECTORY: &'static str = "../auto-gen/c-include/";
-static ROOT_FILE: &'static str = "src/lib.rs";
+use std::env;
 
 fn main() {
+    if env::var("CARGO_FEATURE_BINDINGS").is_err() {
+        return;
+    }
+
+    gen_bindings_c();
+}
+
+fn gen_bindings_c() {
     // Ignore the ffi::arrays module until moz_cheddar can handle it.
     let mut ignore_modules = HashSet::new();
     ignore_modules.insert(String::from("ffi::arrays"));
@@ -42,13 +47,13 @@ fn main() {
         String::from("ffi::arrays"),
         format!(
             "typedef unsigned char AsymPublicKey[{}];\n\
-typedef unsigned char AsymSecretKey[{}];\n\
-typedef unsigned char AsymNonce[{}];\n\
-typedef unsigned char SymSecretKey[{}];\n\
-typedef unsigned char SymNonce[{}];\n\
-typedef unsigned char SignPublicKey[{}];\n\
-typedef unsigned char SignSecretKey[{}];\n\
-typedef unsigned char XorNameArray[{}];",
+             typedef unsigned char AsymSecretKey[{}];\n\
+             typedef unsigned char AsymNonce[{}];\n\
+             typedef unsigned char SymSecretKey[{}];\n\
+             typedef unsigned char SymNonce[{}];\n\
+             typedef unsigned char SignPublicKey[{}];\n\
+             typedef unsigned char SignSecretKey[{}];\n\
+             typedef unsigned char XorNameArray[{}];",
             box_::PUBLICKEYBYTES,
             box_::SECRETKEYBYTES,
             box_::NONCEBYTES,
@@ -61,9 +66,9 @@ typedef unsigned char XorNameArray[{}];",
     );
 
     unwrap!(ffi_utils::header_gen::gen_headers_custom_code(
-        HEADER_NAME,
-        HEADER_DIRECTORY,
-        ROOT_FILE,
+        &env::var("CARGO_PKG_NAME").unwrap(),
+        "../bindings/c/",
+        "src/lib.rs",
         &custom_code,
         &ignore_modules,
     ));

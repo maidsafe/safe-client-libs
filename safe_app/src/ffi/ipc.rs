@@ -21,11 +21,10 @@ use errors::AppError;
 use ffi_utils::{FFI_RESULT_OK, FfiResult, ReprC, catch_unwind_cb, from_c_str,
                 vec_clone_from_raw_parts};
 use maidsafe_utilities::serialisation::serialise;
-use safe_core::ffi::ipc::req::{AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq,
-                               ShareMDataReq as FfiShareMDataReq};
-use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
-use safe_core::ipc::{self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp,
-                     ShareMDataReq};
+use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
+use safe_core::ffi::ipc::resp::AuthGranted;
+use safe_core::ipc::{self, AuthReq as NativeAuthReq, ContainersReq as NativeContainersReq,
+                     IpcError, IpcMsg, IpcReq, IpcResp, ShareMDataReq as NativeShareMDataReq};
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 
@@ -34,7 +33,7 @@ use std::os::raw::{c_char, c_void};
 /// Callback parameters: user data, error code, request id, encoded request
 #[no_mangle]
 pub unsafe extern "C" fn encode_auth_req(
-    req: *const FfiAuthReq,
+    req: *const AuthReq,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
@@ -43,7 +42,7 @@ pub unsafe extern "C" fn encode_auth_req(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let req_id = ipc::gen_req_id();
-        let req = AuthReq::clone_from_repr_c(req)?;
+        let req = NativeAuthReq::clone_from_repr_c(req)?;
 
         let encoded = encode_ipc(req_id, IpcReq::Auth(req))?;
         o_cb(user_data, FFI_RESULT_OK, req_id, encoded.as_ptr());
@@ -56,7 +55,7 @@ pub unsafe extern "C" fn encode_auth_req(
 /// Callback parameters: user data, error code, request id, encoded request
 #[no_mangle]
 pub unsafe extern "C" fn encode_containers_req(
-    req: *const FfiContainersReq,
+    req: *const ContainersReq,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
@@ -65,7 +64,7 @@ pub unsafe extern "C" fn encode_containers_req(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let req_id = ipc::gen_req_id();
-        let req = ContainersReq::clone_from_repr_c(req)?;
+        let req = NativeContainersReq::clone_from_repr_c(req)?;
 
         let encoded = encode_ipc(req_id, IpcReq::Containers(req))?;
         o_cb(user_data, FFI_RESULT_OK, req_id, encoded.as_ptr());
@@ -101,7 +100,7 @@ pub unsafe extern "C" fn encode_unregistered_req(
 /// Callback parameters: user data, error code, request id, encoded request
 #[no_mangle]
 pub unsafe extern "C" fn encode_share_mdata_req(
-    req: *const FfiShareMDataReq,
+    req: *const ShareMDataReq,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void,
                         result: *const FfiResult,
@@ -110,7 +109,7 @@ pub unsafe extern "C" fn encode_share_mdata_req(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let req_id = ipc::gen_req_id();
-        let req = ShareMDataReq::clone_from_repr_c(req)?;
+        let req = NativeShareMDataReq::clone_from_repr_c(req)?;
 
         let encoded = encode_ipc(req_id, IpcReq::ShareMData(req))?;
         o_cb(user_data, FFI_RESULT_OK, req_id, encoded.as_ptr());
@@ -130,7 +129,7 @@ pub unsafe extern "C" fn decode_ipc_msg(
     user_data: *mut c_void,
     o_auth: extern "C" fn(user_data: *mut c_void,
                           req_id: u32,
-                          auth_granted: *const FfiAuthGranted),
+                          auth_granted: *const AuthGranted),
     o_unregistered: extern "C" fn(user_data: *mut c_void,
                                   req_id: u32,
                                   serialised_cfg: *const u8,

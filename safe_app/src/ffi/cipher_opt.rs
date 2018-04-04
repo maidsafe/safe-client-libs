@@ -17,9 +17,9 @@
 
 use {App, AppContext};
 use errors::AppError;
+use ffi::object_cache::{CipherOptHandle, EncryptPubKeyHandle};
 use ffi_utils::{FFI_RESULT_OK, FfiResult, OpaqueCtx, catch_unwind_cb};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use object_cache::{CipherOptHandle, EncryptPubKeyHandle};
 use rust_sodium::crypto::{box_, sealedbox, secretbox};
 use safe_core::{Client, CoreError};
 use std::os::raw::c_void;
@@ -200,9 +200,9 @@ mod tests {
     use super::*;
     use {App, AppContext};
     use errors::AppError;
+    use ffi::object_cache::CipherOptHandle;
     use ffi_utils::ErrorCode;
     use ffi_utils::test_utils::{call_0, call_1};
-    use object_cache::CipherOptHandle;
     use rust_sodium::crypto::box_;
     use safe_core::{Client, utils};
     use test_utils::{create_app, run_now};
