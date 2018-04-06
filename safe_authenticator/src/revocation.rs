@@ -64,6 +64,13 @@ pub fn flush_app_revocation_queue(client: &Client<()>) -> Box<AuthFuture<()>> {
         .into_box()
 }
 
+// Try to revoke all apps in the revocation queue. If app revocation results in an error, move the
+// app to the back of the queue. Keep track of failed apps and if one fails again after moving to
+// the end of the queue, return its error. In other words, we revoke all the apps that we can and
+// return an error for the first app that fails twice.
+//
+// The exception to this is if we encounter a `SymmetricDecipherFailure` error, which we know is
+// irrecoverable, so in this case we remove the app from the queue and return an error immediately.
 fn flush_app_revocation_queue_impl(
     client: &Client<()>,
     queue: RevocationQueue,
@@ -90,11 +97,11 @@ fn flush_app_revocation_queue_impl(
                         // The app entry can't be decrypted. No way to revoke app, so just remove
                         // it from the queue.
 
-                        // TODO: Show an error message that the app can't be revoked?
-
                         // Remove it from the revocation queue.
                         config::remove_from_app_revocation_queue(&c3, queue, version, app_id)
-                            .map(|(version, queue)| (version, queue, moved_apps))
+                            .and_then(|_| {
+                                err!(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
+                            })
                             .into_box()
                     }
                     Err(error) => {
