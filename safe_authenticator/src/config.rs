@@ -159,6 +159,33 @@ pub fn remove_from_app_revocation_queue(
     )
 }
 
+/// Moves `app_id` to the back of the revocation queue.
+/// Does nothing if the queue doesn't contain `app_id`.
+pub fn repush_to_app_revocation_queue(
+    client: &Client<()>,
+    queue: RevocationQueue,
+    new_version: u64,
+    app_id: String,
+) -> Box<AuthFuture<(u64, RevocationQueue)>> {
+    mutate_entry(
+        client,
+        KEY_APP_REVOCATION_QUEUE,
+        queue,
+        new_version,
+        move |queue| if let Some(index) = queue.iter().position(|item| *item == app_id) {
+            match queue.remove(index) {
+                Some(app_id) => {
+                    queue.push_back(app_id);
+                    true
+                }
+                None => false,
+            }
+        } else {
+            false
+        },
+    )
+}
+
 fn get_entry<T>(client: &Client<()>, key: &[u8]) -> Box<AuthFuture<(Option<u64>, T)>>
 where
     T: Default + DeserializeOwned + Serialize + 'static,
