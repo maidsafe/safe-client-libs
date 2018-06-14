@@ -44,7 +44,7 @@ ffi_utils = { path = "../ffi_utils", version = "~0.6.0" }
 jni = "~0.10.1"
 routing = "~0.35.0"
 rust_sodium = "~0.7.0"
-safe_bindgen = { git = "https://github.com/maidsafe/safe_bindgen.git" }
+safe_bindgen = "~0.5.0"
 unwrap = "~1.1.0"
 
 [features]
