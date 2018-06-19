@@ -54,7 +54,7 @@ use futures::Future;
 use rand::{Rng, SeedableRng};
 use routing::{ImmutableData, MutableData};
 use rust_sodium::crypto::sign::PublicKey;
-use safe_core::{event_loop, Client, CoreMsg, FutureExt};
+use safe_core::{client, event_loop, CoreMsg, FutureExt};
 use tokio_core::reactor::Core;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
@@ -135,7 +135,7 @@ fn main() {
     }
 
     let client = if args.flag_get_only {
-        unwrap!(Client::login(
+        unwrap!(client::login(
             &secret_0,
             &secret_1,
             el_h,
@@ -146,7 +146,7 @@ fn main() {
         println!("\n\tAccount Creation");
         println!("\t================");
         println!("\nTrying to create an account ...");
-        unwrap!(Client::registered(
+        unwrap!(client::registered(
             &secret_0,
             &secret_1,
             &invitation,

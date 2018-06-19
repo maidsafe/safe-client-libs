@@ -49,7 +49,7 @@ use futures::sync::mpsc;
 use futures::Future;
 use rand::{thread_rng, Rng};
 use routing::{Action, MutableData, PermissionSet, User, XorName};
-use safe_core::{event_loop, Client, CoreMsg, FutureExt};
+use safe_core::{client, event_loop, Client, CoreMsg, FutureExt};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::time::UNIX_EPOCH;
@@ -125,7 +125,7 @@ fn main() {
 
     // Check a single invite
     if let Some(invite) = args.flag_check_invite {
-        let cl = unwrap!(Client::unregistered(
+        let cl = unwrap!(client::unregistered(
             el_h,
             core_tx.clone(),
             net_tx.clone(),
@@ -170,13 +170,13 @@ fn main() {
             "\nTrying to create an account \
              using given seed from file..."
         );
-        Client::registered_with_seed(&seed, el_h, core_tx.clone(), net_tx.clone())
+        client::registered_with_seed(&seed, el_h, core_tx.clone(), net_tx.clone())
     } else {
         println!(
             "\nTrying to log into the created \
              account using given seed from file..."
         );
-        Client::login_with_seed(&seed, el_h, core_tx.clone(), net_tx.clone())
+        client::login_with_seed(&seed, el_h, core_tx.clone(), net_tx.clone())
     });
 
     unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {

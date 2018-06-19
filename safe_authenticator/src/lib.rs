@@ -91,7 +91,7 @@ use maidsafe_utilities::thread::{self, Joiner};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting;
 use safe_core::{
-    event_loop, Client, CoreError, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx,
+    client, event_loop, Client, CoreError, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx,
 };
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
@@ -146,7 +146,7 @@ impl Authenticator {
 
         Self::create_acc_impl(
             move |el_h, core_tx, net_tx| {
-                Client::registered(&locator, &password, &invitation, el_h, core_tx, net_tx)
+                client::registered(&locator, &password, &invitation, el_h, core_tx, net_tx)
             },
             disconnect_notifier,
         )
@@ -227,7 +227,7 @@ impl Authenticator {
         let password = password.into();
 
         Self::login_impl(
-            move |el_h, core_tx, net_tx| Client::login(&locator, &password, el_h, core_tx, net_tx),
+            move |el_h, core_tx, net_tx| client::login(&locator, &password, el_h, core_tx, net_tx),
             disconnect_notifier,
         )
     }
@@ -324,7 +324,7 @@ impl Authenticator {
 
         Self::login_impl(
             move |el_h, core_tx, net_tx| {
-                Client::login_with_hook(
+                client::login_with_hook(
                     &locator,
                     &password,
                     el_h,
@@ -356,7 +356,7 @@ impl Authenticator {
 
         Self::create_acc_impl(
             move |el_h, core_tx_clone, net_tx| {
-                Client::registered_with_hook(
+                client::registered_with_hook(
                     &locator,
                     &password,
                     &invitation,

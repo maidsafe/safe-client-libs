@@ -68,7 +68,10 @@ pub use routing::{
     Action, ClientError, EntryAction, ImmutableData, MutableData, PermissionSet, User, Value,
     XorName, XOR_NAME_LEN,
 };
-pub use safe_core::*;
+pub use safe_core::{
+    app_container_name, immutable_data, ipc, mdata_info, nfs, Client, ClientKeys, MDataInfo,
+    DIR_TAG, MAIDSAFE_TAG,
+};
 
 // Export FFI interface.
 
@@ -122,7 +125,7 @@ use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting as Routing;
 use safe_core::{
-    event_loop, utils, Client, ClientKeys, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx,
+    client, event_loop, utils, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -158,7 +161,7 @@ impl App {
         N: FnMut() + Send + 'static,
     {
         Self::new(disconnect_notifier, |el_h, core_tx, net_tx| {
-            let client = Client::unregistered(el_h, core_tx, net_tx, config)?;
+            let client = client::unregistered(el_h, core_tx, net_tx, config)?;
             let context = AppContext::unregistered();
             Ok((client, context))
         })
@@ -208,7 +211,7 @@ impl App {
         };
 
         Self::new(disconnect_notifier, move |el_h, core_tx, net_tx| {
-            let client = Client::from_keys(
+            let client = client::from_keys(
                 client_keys,
                 owner_key,
                 el_h,
@@ -257,7 +260,7 @@ impl App {
         };
 
         Self::new(disconnect_notifier, move |el_h, core_tx, net_tx| {
-            let client = Client::from_keys_with_hook(
+            let client = client::from_keys_with_hook(
                 client_keys,
                 owner_key,
                 el_h,
