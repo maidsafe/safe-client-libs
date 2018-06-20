@@ -104,6 +104,442 @@ macro_rules! wait_for_response {
     };
 }
 
+/// This is a getter-only Gateway function to the Maidsafe network. It will
+/// create an unregistered random client, which can do very limited set of
+/// operations - eg., a Network-Get
+pub fn unregistered<T>(
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    config: Option<BootstrapConfig>,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+{
+    trace!("Creating unregistered client.");
+
+    let (routing, routing_rx) = setup_routing(None, config.clone())?;
+    let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+
+    Ok(new(Inner {
+        el_handle,
+        routing,
+        hooks: HashMap::with_capacity(10),
+        cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
+        client_type: ClientType::unreg(config),
+        timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
+        joiner,
+        session_packet_version: 0,
+        net_tx,
+        core_tx,
+    }))
+}
+
+/// This is one of the Gateway functions to the Maidsafe network, the others being
+/// `unregistered`, `registered`, and `login`. This will help create an account given a seed.
+/// Everything including both account secrets and all MAID keys will be deterministically
+/// derived from the supplied seed, so this seed needs to be strong. For ordinary users, it's
+/// recommended to use the normal `registered` function where the secrets can be what's easy
+/// to remember for the user while also being strong.
+pub fn registered_with_seed<T>(
+    seed: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+{
+    let arr = Client::<T>::divide_seed(seed)?;
+
+    let id_seed = Seed(sha3_256(arr[SEED_SUBPARTS - 2]));
+
+    registered_impl(
+        arr[0],
+        arr[1],
+        "",
+        el_handle,
+        core_tx,
+        net_tx,
+        Some(&id_seed),
+        |routing| routing,
+    )
+}
+
+/// This is a Gateway function to the Maidsafe network. This will help
+/// create a fresh acc for the user in the SAFE-network.
+pub fn registered<T>(
+    acc_locator: &str,
+    acc_password: &str,
+    invitation: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+{
+    registered_impl(
+        acc_locator.as_bytes(),
+        acc_password.as_bytes(),
+        invitation,
+        el_handle,
+        core_tx,
+        net_tx,
+        None,
+        |routing| routing,
+    )
+}
+
+/// Allows customising the mock Routing client before registering a new account
+#[cfg(
+    any(
+        all(test, feature = "use-mock-routing"),
+        all(feature = "testing", feature = "use-mock-routing")
+    )
+)]
+pub fn registered_with_hook<T, F>(
+    acc_locator: &str,
+    acc_password: &str,
+    invitation: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    routing_wrapper_fn: F,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+    F: Fn(Routing) -> Routing,
+{
+    registered_impl(
+        acc_locator.as_bytes(),
+        acc_password.as_bytes(),
+        invitation,
+        el_handle,
+        core_tx,
+        net_tx,
+        None,
+        routing_wrapper_fn,
+    )
+}
+
+/// This is a Gateway function to the Maidsafe network. This will help
+/// create a fresh acc for the user in the SAFE-network.
+fn registered_impl<T, F>(
+    acc_locator: &[u8],
+    acc_password: &[u8],
+    invitation: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    id_seed: Option<&Seed>,
+    routing_wrapper_fn: F,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+    F: Fn(Routing) -> Routing,
+{
+    trace!("Creating an account.");
+
+    let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
+
+    let acc_loc = Account::generate_network_id(&keyword, &pin)?;
+    let user_cred = UserCred::new(password, pin);
+
+    let maid_keys = ClientKeys::new(id_seed);
+    let pub_key = maid_keys.sign_pk;
+    let full_id = Some(maid_keys.clone().into());
+
+    let (mut routing, routing_rx) = setup_routing(full_id, None)?;
+    routing = routing_wrapper_fn(routing);
+
+    let acc = Account::new(maid_keys)?;
+
+    let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
+    let acc_data = btree_map![
+            ACC_LOGIN_ENTRY_KEY.to_owned() => Value {
+                content: serialise(&if !invitation.is_empty() {
+                    AccountPacket::WithInvitation {
+                        invitation_string: invitation.to_owned(),
+                        acc_pkt: acc_ciphertext
+                    }
+                } else {
+                    AccountPacket::AccPkt(acc_ciphertext)
+                })?,
+                entry_version: 0,
+            }
+        ];
+
+    let acc_md = MutableData::new(
+        acc_loc,
+        TYPE_TAG_SESSION_PACKET,
+        BTreeMap::new(),
+        acc_data,
+        btree_set![pub_key],
+    )?;
+
+    let digest = sha3_256(&pub_key.0);
+    let cm_addr = Authority::ClientManager(XorName(digest));
+
+    let msg_id = MessageId::new();
+    routing
+        .put_mdata(cm_addr, acc_md.clone(), msg_id, pub_key)
+        .map_err(CoreError::from)
+        .and_then(|_| wait_for_response!(routing_rx, Response::PutMData, msg_id))
+        .map_err(|e| {
+            warn!("Could not put account to the Network: {:?}", e);
+            e
+        })?;
+
+    // Create the client
+    let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+
+    Ok(new(Inner {
+        el_handle,
+        routing,
+        hooks: HashMap::with_capacity(10),
+        cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
+        client_type: ClientType::reg(acc, acc_loc, user_cred, cm_addr),
+        timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
+        joiner,
+        session_packet_version: 0,
+        net_tx,
+        core_tx,
+    }))
+}
+
+/// Login using seeded account
+pub fn login_with_seed<T>(
+    seed: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+{
+    let arr = Client::<T>::divide_seed(seed)?;
+    login_impl(arr[0], arr[1], el_handle, core_tx, net_tx, |routing| {
+        routing
+    })
+}
+
+/// This is a Gateway function to the Maidsafe network. This will help
+/// login to an already existing account of the user in the SAFE-network.
+pub fn login<T>(
+    acc_locator: &str,
+    acc_password: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+{
+    login_impl(
+        acc_locator.as_bytes(),
+        acc_password.as_bytes(),
+        el_handle,
+        core_tx,
+        net_tx,
+        |routing| routing,
+    )
+}
+
+/// Allows to customise the mock Routing client before logging into the network
+#[cfg(
+    any(
+        all(test, feature = "use-mock-routing"),
+        all(feature = "testing", feature = "use-mock-routing")
+    )
+)]
+pub fn login_with_hook<T, F>(
+    acc_locator: &str,
+    acc_password: &str,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    routing_wrapper_fn: F,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+    F: Fn(Routing) -> Routing,
+{
+    login_impl(
+        acc_locator.as_bytes(),
+        acc_password.as_bytes(),
+        el_handle,
+        core_tx,
+        net_tx,
+        routing_wrapper_fn,
+    )
+}
+
+fn login_impl<T, F>(
+    acc_locator: &[u8],
+    acc_password: &[u8],
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    routing_wrapper_fn: F,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+    F: Fn(Routing) -> Routing,
+{
+    trace!("Attempting to log into an acc.");
+
+    let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
+
+    let acc_loc = Account::generate_network_id(&keyword, &pin)?;
+    let user_cred = UserCred::new(password, pin);
+
+    let dst = Authority::NaeManager(acc_loc);
+
+    let (acc_content, acc_version) = {
+        trace!("Creating throw-away routing getter for account packet.");
+        let (mut routing, routing_rx) = setup_routing(None, None)?;
+        routing = routing_wrapper_fn(routing);
+
+        let msg_id = MessageId::new();
+        let val = routing
+            .get_mdata_value(
+                dst,
+                acc_loc,
+                TYPE_TAG_SESSION_PACKET,
+                ACC_LOGIN_ENTRY_KEY.to_owned(),
+                msg_id,
+            )
+            .map_err(CoreError::from)
+            .and_then(|_| wait_for_response!(routing_rx, Response::GetMDataValue, msg_id))
+            .map_err(|e| {
+                warn!("Could not fetch account from the Network: {:?}", e);
+                e
+            })?;
+        (val.content, val.entry_version)
+    };
+
+    let acc = match deserialise::<AccountPacket>(&acc_content)? {
+        AccountPacket::AccPkt(acc_content)
+        | AccountPacket::WithInvitation {
+            acc_pkt: acc_content,
+            ..
+        } => Account::decrypt(&acc_content, &user_cred.password, &user_cred.pin)?,
+    };
+
+    let id_packet = acc.maid_keys.clone().into();
+
+    let pub_key = acc.maid_keys.sign_pk;
+    let digest = sha3_256(&pub_key.0);
+    let cm_addr = Authority::ClientManager(XorName(digest));
+
+    trace!("Creating an actual routing...");
+    let (mut routing, routing_rx) = setup_routing(Some(id_packet), None)?;
+    routing = routing_wrapper_fn(routing);
+
+    let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+
+    Ok(new(Inner {
+        el_handle,
+        routing,
+        hooks: HashMap::with_capacity(10),
+        cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
+        client_type: ClientType::reg(acc, acc_loc, user_cred, cm_addr),
+        timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
+        joiner,
+        session_packet_version: acc_version,
+        net_tx,
+        core_tx,
+    }))
+}
+
+/// This is a Gateway function to the Maidsafe network. This will help
+/// apps to authorise using an existing pair of keys.
+pub fn from_keys<T>(
+    keys: ClientKeys,
+    owner: sign::PublicKey,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    config: BootstrapConfig,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+{
+    from_keys_impl(keys, owner, el_handle, core_tx, net_tx, config, |routing| {
+        routing
+    })
+}
+
+/// Allows customising the mock Routing client before logging in using client keys
+#[cfg(
+    any(
+        all(test, feature = "use-mock-routing"),
+        all(feature = "testing", feature = "use-mock-routing")
+    )
+)]
+pub fn from_keys_with_hook<T, F>(
+    keys: ClientKeys,
+    owner: sign::PublicKey,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    config: BootstrapConfig,
+    routing_wrapper_fn: F,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+    F: Fn(Routing) -> Routing,
+{
+    from_keys_impl(
+        keys,
+        owner,
+        el_handle,
+        core_tx,
+        net_tx,
+        config,
+        routing_wrapper_fn,
+    )
+}
+
+fn from_keys_impl<T, F>(
+    keys: ClientKeys,
+    owner: sign::PublicKey,
+    el_handle: Handle,
+    core_tx: CoreMsgTx<T>,
+    net_tx: NetworkTx,
+    config: BootstrapConfig,
+    routing_wrapper_fn: F,
+) -> Result<Client<T>, CoreError>
+where
+    T: 'static,
+    F: Fn(Routing) -> Routing,
+{
+    trace!("Attempting to log into an acc using client keys.");
+    let (mut routing, routing_rx) = setup_routing(Some(keys.clone().into()), Some(config.clone()))?;
+    routing = routing_wrapper_fn(routing);
+    let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+
+    Ok(new(Inner {
+        el_handle,
+        routing,
+        hooks: HashMap::with_capacity(10),
+        cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
+        client_type: ClientType::from_keys(keys, owner, config),
+        timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
+        joiner,
+        session_packet_version: 0,
+        net_tx,
+        core_tx,
+    }))
+}
+
+fn new<T>(inner: Inner<T>) -> Client<T> {
+    Client {
+        inner: Rc::new(RefCell::new(inner)),
+    }
+}
+
 /// The main self-authentication client instance that will interface all the
 /// request from high level API's to the actual routing layer and manage all
 /// interactions with it. This is essentially a non-blocking Client with
@@ -134,381 +570,12 @@ impl<T> Clone for Client<T> {
 }
 
 impl<T: 'static> Client<T> {
-    /// This is a getter-only Gateway function to the Maidsafe network. It will
-    /// create an unregistered random client, which can do very limited set of
-    /// operations - eg., a Network-Get
-    pub fn unregistered(
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        config: Option<BootstrapConfig>,
-    ) -> Result<Self, CoreError> {
-        trace!("Creating unregistered client.");
-
-        let (routing, routing_rx) = setup_routing(None, config.clone())?;
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
-
-        Ok(Self::new(Inner {
-            el_handle,
-            routing,
-            hooks: HashMap::with_capacity(10),
-            cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
-            client_type: ClientType::unreg(config),
-            timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
-            joiner,
-            session_packet_version: 0,
-            net_tx,
-            core_tx,
-        }))
-    }
-
     /// Calculate sign key from seed
     pub fn sign_pk_from_seed(seed: &str) -> Result<sign::PublicKey, CoreError> {
         let arr = Self::divide_seed(seed)?;
         let id_seed = Seed(sha3_256(arr[SEED_SUBPARTS - 2]));
         let maid_keys = ClientKeys::new(Some(&id_seed));
         Ok(maid_keys.sign_pk)
-    }
-
-    /// This is one of the Gateway functions to the Maidsafe network, the others being
-    /// `unregistered`, `registered`, and `login`. This will help create an account given a seed.
-    /// Everything including both account secrets and all MAID keys will be deterministically
-    /// derived from the supplied seed, so this seed needs to be strong. For ordinary users, it's
-    /// recommended to use the normal `registered` function where the secrets can be what's easy
-    /// to remember for the user while also being strong.
-    pub fn registered_with_seed(
-        seed: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-    {
-        let arr = Self::divide_seed(seed)?;
-
-        let id_seed = Seed(sha3_256(arr[SEED_SUBPARTS - 2]));
-
-        Self::registered_impl(
-            arr[0],
-            arr[1],
-            "",
-            el_handle,
-            core_tx,
-            net_tx,
-            Some(&id_seed),
-            |routing| routing,
-        )
-    }
-
-    /// This is a Gateway function to the Maidsafe network. This will help
-    /// create a fresh acc for the user in the SAFE-network.
-    pub fn registered(
-        acc_locator: &str,
-        acc_password: &str,
-        invitation: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-    {
-        Self::registered_impl(
-            acc_locator.as_bytes(),
-            acc_password.as_bytes(),
-            invitation,
-            el_handle,
-            core_tx,
-            net_tx,
-            None,
-            |routing| routing,
-        )
-    }
-
-    /// This is a Gateway function to the Maidsafe network. This will help
-    /// create a fresh acc for the user in the SAFE-network.
-    fn registered_impl<F>(
-        acc_locator: &[u8],
-        acc_password: &[u8],
-        invitation: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        id_seed: Option<&Seed>,
-        routing_wrapper_fn: F,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-        F: Fn(Routing) -> Routing,
-    {
-        trace!("Creating an account.");
-
-        let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
-
-        let acc_loc = Account::generate_network_id(&keyword, &pin)?;
-        let user_cred = UserCred::new(password, pin);
-
-        let maid_keys = ClientKeys::new(id_seed);
-        let pub_key = maid_keys.sign_pk;
-        let full_id = Some(maid_keys.clone().into());
-
-        let (mut routing, routing_rx) = setup_routing(full_id, None)?;
-        routing = routing_wrapper_fn(routing);
-
-        let acc = Account::new(maid_keys)?;
-
-        let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
-        let acc_data = btree_map![
-            ACC_LOGIN_ENTRY_KEY.to_owned() => Value {
-                content: serialise(&if !invitation.is_empty() {
-                    AccountPacket::WithInvitation {
-                        invitation_string: invitation.to_owned(),
-                        acc_pkt: acc_ciphertext
-                    }
-                } else {
-                    AccountPacket::AccPkt(acc_ciphertext)
-                })?,
-                entry_version: 0,
-            }
-        ];
-
-        let acc_md = MutableData::new(
-            acc_loc,
-            TYPE_TAG_SESSION_PACKET,
-            BTreeMap::new(),
-            acc_data,
-            btree_set![pub_key],
-        )?;
-
-        let digest = sha3_256(&pub_key.0);
-        let cm_addr = Authority::ClientManager(XorName(digest));
-
-        let msg_id = MessageId::new();
-        routing
-            .put_mdata(cm_addr, acc_md.clone(), msg_id, pub_key)
-            .map_err(CoreError::from)
-            .and_then(|_| wait_for_response!(routing_rx, Response::PutMData, msg_id))
-            .map_err(|e| {
-                warn!("Could not put account to the Network: {:?}", e);
-                e
-            })?;
-
-        // Create the client
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
-
-        Ok(Self::new(Inner {
-            el_handle,
-            routing,
-            hooks: HashMap::with_capacity(10),
-            cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
-            client_type: ClientType::reg(acc, acc_loc, user_cred, cm_addr),
-            timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
-            joiner,
-            session_packet_version: 0,
-            net_tx,
-            core_tx,
-        }))
-    }
-
-    /// Login using seeded account
-    pub fn login_with_seed(
-        seed: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-    {
-        let arr = Self::divide_seed(seed)?;
-        Self::login_impl(arr[0], arr[1], el_handle, core_tx, net_tx, |routing| {
-            routing
-        })
-    }
-
-    /// This is a Gateway function to the Maidsafe network. This will help
-    /// login to an already existing account of the user in the SAFE-network.
-    pub fn login(
-        acc_locator: &str,
-        acc_password: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-    {
-        Self::login_impl(
-            acc_locator.as_bytes(),
-            acc_password.as_bytes(),
-            el_handle,
-            core_tx,
-            net_tx,
-            |routing| routing,
-        )
-    }
-
-    fn login_impl<F>(
-        acc_locator: &[u8],
-        acc_password: &[u8],
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        routing_wrapper_fn: F,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-        F: Fn(Routing) -> Routing,
-    {
-        trace!("Attempting to log into an acc.");
-
-        let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
-
-        let acc_loc = Account::generate_network_id(&keyword, &pin)?;
-        let user_cred = UserCred::new(password, pin);
-
-        let dst = Authority::NaeManager(acc_loc);
-
-        let (acc_content, acc_version) = {
-            trace!("Creating throw-away routing getter for account packet.");
-            let (mut routing, routing_rx) = setup_routing(None, None)?;
-            routing = routing_wrapper_fn(routing);
-
-            let msg_id = MessageId::new();
-            let val = routing
-                .get_mdata_value(
-                    dst,
-                    acc_loc,
-                    TYPE_TAG_SESSION_PACKET,
-                    ACC_LOGIN_ENTRY_KEY.to_owned(),
-                    msg_id,
-                )
-                .map_err(CoreError::from)
-                .and_then(|_| wait_for_response!(routing_rx, Response::GetMDataValue, msg_id))
-                .map_err(|e| {
-                    warn!("Could not fetch account from the Network: {:?}", e);
-                    e
-                })?;
-            (val.content, val.entry_version)
-        };
-
-        let acc = match deserialise::<AccountPacket>(&acc_content)? {
-            AccountPacket::AccPkt(acc_content)
-            | AccountPacket::WithInvitation {
-                acc_pkt: acc_content,
-                ..
-            } => Account::decrypt(&acc_content, &user_cred.password, &user_cred.pin)?,
-        };
-
-        let id_packet = acc.maid_keys.clone().into();
-
-        let pub_key = acc.maid_keys.sign_pk;
-        let digest = sha3_256(&pub_key.0);
-        let cm_addr = Authority::ClientManager(XorName(digest));
-
-        trace!("Creating an actual routing...");
-        let (mut routing, routing_rx) = setup_routing(Some(id_packet), None)?;
-        routing = routing_wrapper_fn(routing);
-
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
-
-        Ok(Self::new(Inner {
-            el_handle,
-            routing,
-            hooks: HashMap::with_capacity(10),
-            cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
-            client_type: ClientType::reg(acc, acc_loc, user_cred, cm_addr),
-            timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
-            joiner,
-            session_packet_version: acc_version,
-            net_tx,
-            core_tx,
-        }))
-    }
-
-    /// This is a Gateway function to the Maidsafe network. This will help
-    /// apps to authorise using an existing pair of keys.
-    pub fn from_keys(
-        keys: ClientKeys,
-        owner: sign::PublicKey,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        config: BootstrapConfig,
-    ) -> Result<Client<T>, CoreError> {
-        Self::from_keys_impl(keys, owner, el_handle, core_tx, net_tx, config, |routing| {
-            routing
-        })
-    }
-
-    fn from_keys_impl<F>(
-        keys: ClientKeys,
-        owner: sign::PublicKey,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        config: BootstrapConfig,
-        routing_wrapper_fn: F,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-        F: Fn(Routing) -> Routing,
-    {
-        trace!("Attempting to log into an acc using client keys.");
-        let (mut routing, routing_rx) =
-            setup_routing(Some(keys.clone().into()), Some(config.clone()))?;
-        routing = routing_wrapper_fn(routing);
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
-
-        Ok(Self::new(Inner {
-            el_handle,
-            routing,
-            hooks: HashMap::with_capacity(10),
-            cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
-            client_type: ClientType::from_keys(keys, owner, config),
-            timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
-            joiner,
-            session_packet_version: 0,
-            net_tx,
-            core_tx,
-        }))
-    }
-
-    /// Allows customising the mock Routing client before logging in using client keys
-    #[cfg(
-        any(
-            all(test, feature = "use-mock-routing"),
-            all(feature = "testing", feature = "use-mock-routing")
-        )
-    )]
-    pub fn from_keys_with_hook<F>(
-        keys: ClientKeys,
-        owner: sign::PublicKey,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        config: BootstrapConfig,
-        routing_wrapper_fn: F,
-    ) -> Result<Client<T>, CoreError>
-    where
-        F: Fn(Routing) -> Routing,
-    {
-        Self::from_keys_impl(
-            keys,
-            owner,
-            el_handle,
-            core_tx,
-            net_tx,
-            config,
-            routing_wrapper_fn,
-        )
-    }
-
-    fn new(inner: Inner<T>) -> Self {
-        Client {
-            inner: Rc::new(RefCell::new(inner)),
-        }
     }
 
     /// Set request timeout.
@@ -1061,55 +1128,6 @@ impl<T: 'static> Client<T> {
     )
 )]
 impl<T: 'static> Client<T> {
-    /// Allows customising the mock Routing client before registering a new account
-    pub fn registered_with_hook<F>(
-        acc_locator: &str,
-        acc_password: &str,
-        invitation: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        routing_wrapper_fn: F,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-        F: Fn(Routing) -> Routing,
-    {
-        Self::registered_impl(
-            acc_locator.as_bytes(),
-            acc_password.as_bytes(),
-            invitation,
-            el_handle,
-            core_tx,
-            net_tx,
-            None,
-            routing_wrapper_fn,
-        )
-    }
-
-    /// Allows to customise the mock Routing client before logging into the network
-    pub fn login_with_hook<F>(
-        acc_locator: &str,
-        acc_password: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<T>,
-        net_tx: NetworkTx,
-        routing_wrapper_fn: F,
-    ) -> Result<Client<T>, CoreError>
-    where
-        T: 'static,
-        F: Fn(Routing) -> Routing,
-    {
-        Self::login_impl(
-            acc_locator.as_bytes(),
-            acc_password.as_bytes(),
-            el_handle,
-            core_tx,
-            net_tx,
-            routing_wrapper_fn,
-        )
-    }
-
     #[doc(hidden)]
     pub fn set_network_limits(&self, max_ops_count: Option<u64>) {
         self.inner
@@ -1448,7 +1466,7 @@ mod tests {
             let (core_tx, _): (CoreMsgTx<()>, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
 
-            match Client::registered_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
+            match registered_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
                 Err(CoreError::Unexpected(_)) => (),
                 _ => panic!("Expected a failure"),
             }
@@ -1458,7 +1476,7 @@ mod tests {
             let (core_tx, _): (CoreMsgTx<()>, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
 
-            match Client::login_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
+            match login_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
                 Err(CoreError::Unexpected(_)) => (),
                 _ => panic!("Expected a failure"),
             }
@@ -1468,18 +1486,17 @@ mod tests {
 
         setup_client(
             |el_h, core_tx, net_tx| {
-                match Client::login_with_seed(&seed, el_h.clone(), core_tx.clone(), net_tx.clone())
-                {
+                match login_with_seed(&seed, el_h.clone(), core_tx.clone(), net_tx.clone()) {
                     Err(CoreError::RoutingClientError(ClientError::NoSuchAccount)) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
-                Client::registered_with_seed(&seed, el_h, core_tx, net_tx)
+                registered_with_seed(&seed, el_h, core_tx, net_tx)
             },
             |_| finish(),
         );
 
         setup_client(
-            |el_h, core_tx, net_tx| Client::login_with_seed(&seed, el_h, core_tx, net_tx),
+            |el_h, core_tx, net_tx| login_with_seed(&seed, el_h, core_tx, net_tx),
             |_| finish(),
         );
     }
@@ -1500,7 +1517,7 @@ mod tests {
 
         // Unregistered Client should be able to retrieve the data
         setup_client(
-            |el_h, core_tx, net_tx| Client::unregistered(el_h, core_tx, net_tx, None),
+            |el_h, core_tx, net_tx| unregistered(el_h, core_tx, net_tx, None),
             move |client| {
                 let client2 = client.clone();
                 let client3 = client.clone();
@@ -1559,7 +1576,7 @@ mod tests {
         let inv = unwrap!(utils::generate_random_string(10));
 
         // Account creation for the 1st time - should succeed
-        let _ = unwrap!(Client::registered(
+        let _ = unwrap!(registered(
             &sec_0,
             &sec_1,
             &inv,
@@ -1569,7 +1586,7 @@ mod tests {
         ));
 
         // Account creation - same secrets - should fail
-        match Client::registered(&sec_0, &sec_1, &inv, el.handle(), core_tx, net_tx) {
+        match registered(&sec_0, &sec_1, &inv, el.handle(), core_tx, net_tx) {
             Ok(_) => panic!("Account name hijacking should fail"),
             Err(CoreError::RoutingClientError(ClientError::AccountExists)) => (),
             Err(err) => panic!("{:?}", err),
@@ -1578,14 +1595,14 @@ mod tests {
 
     // Test creating and logging in to an account on the network.
     #[test]
-    fn login() {
+    fn login_account() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let inv = unwrap!(utils::generate_random_string(10));
 
         setup_client(
             |el_h, core_tx, net_tx| {
-                match Client::login(
+                match login(
                     &sec_0,
                     &sec_1,
                     el_h.clone(),
@@ -1595,13 +1612,13 @@ mod tests {
                     Err(CoreError::RoutingClientError(ClientError::NoSuchAccount)) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
-                Client::registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx)
+                registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx)
             },
             |_| finish(),
         );
 
         setup_client(
-            |el_h, core_tx, net_tx| Client::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
+            |el_h, core_tx, net_tx| login(&sec_0, &sec_1, el_h, core_tx, net_tx),
             |_| finish(),
         );
     }
@@ -1617,7 +1634,7 @@ mod tests {
         let dir_clone = dir.clone();
 
         setup_client(
-            |el_h, core_tx, net_tx| Client::registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx),
+            |el_h, core_tx, net_tx| registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx),
             move |client| {
                 assert!(client.access_container().is_ok());
                 assert!(client.set_access_container(dir).is_ok());
@@ -1626,7 +1643,7 @@ mod tests {
         );
 
         setup_client(
-            |el_h, core_tx, net_tx| Client::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
+            |el_h, core_tx, net_tx| login(&sec_0, &sec_1, el_h, core_tx, net_tx),
             move |client| {
                 let got_dir = unwrap!(client.access_container());
                 assert_eq!(got_dir, dir_clone);
@@ -1646,7 +1663,7 @@ mod tests {
         let dir_clone = dir.clone();
 
         setup_client(
-            |el_h, core_tx, net_tx| Client::registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx),
+            |el_h, core_tx, net_tx| registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx),
             move |client| {
                 assert!(client.config_root_dir().is_ok());
                 assert!(client.set_config_root_dir(dir).is_ok());
@@ -1655,7 +1672,7 @@ mod tests {
         );
 
         setup_client(
-            |el_h, core_tx, net_tx| Client::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
+            |el_h, core_tx, net_tx| login(&sec_0, &sec_1, el_h, core_tx, net_tx),
             move |client| {
                 let got_dir = unwrap!(client.config_root_dir());
                 assert_eq!(got_dir, dir_clone);

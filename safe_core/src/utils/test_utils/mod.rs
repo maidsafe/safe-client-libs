@@ -11,6 +11,7 @@ mod sync;
 
 #[cfg(feature = "use-mock-routing")]
 pub use self::sync::Synchronizer;
+use client;
 use errors::CoreError;
 use event::{NetworkEvent, NetworkTx};
 use event_loop::{self, CoreMsg, CoreMsgTx};
@@ -76,7 +77,7 @@ where
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
         let invitation = unwrap!(utils::generate_random_string(10));
-        Client::registered(
+        client::registered(
             &acc_locator,
             &acc_password,
             &invitation,

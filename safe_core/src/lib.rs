@@ -138,6 +138,8 @@ pub use ffi::*;
 #[macro_use]
 pub mod utils;
 
+/// Client objects and constructors.
+pub mod client;
 /// Config file handling.
 pub mod config_handler;
 /// Cryptographic utilities.
@@ -153,7 +155,6 @@ pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
 
-mod client;
 mod errors;
 mod event;
 

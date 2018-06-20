@@ -13,19 +13,40 @@ env:
     - RUST_CLIPPY=0.0.207
 language: rust
 stages:
+  - warmup-ffi
   - warmup-real
   - warmup-mock
   - tests-stable
   - tests-nightly
 jobs:
   include:
+    # Warm up the cache dependencies
+    - stage: warmup-ffi
+      script: set -x; scripts/build-ffi-utils && scripts/build-real-core
+      os: linux
+      rust: *stable
+    - stage: warmup-ffi
+      script: set -x; scripts/build-ffi-utils && scripts/build-real-core
+      if: type = push
+      os: linux
+      rust: *stable-i686
+      addons:
+        apt:
+          packages:
+            - gcc-multilib
+    - stage: warmup-ffi
+      script: set -x; scripts/build-ffi-utils && scripts/build-real-core
+      if: type = pull_request
+      os: linux
+      rust: *nightly
+    
     # Warm up the cache for a real build
     - stage: warmup-real
-      script: set -x; scripts/build-ffi-utils && scripts/build-real
+      script: set -x; scripts/build-real
       os: linux
       rust: *stable
     - stage: warmup-real
-      script: set -x; scripts/build-ffi-utils && scripts/build-real
+      script: set -x; scripts/build-real
       if: type = push
       os: linux
       rust: *stable-i686
@@ -34,7 +55,7 @@ jobs:
           packages:
             - gcc-multilib
     - stage: warmup-real
-      script: set -x; scripts/build-ffi-utils && scripts/build-real
+      script: set -x; scripts/build-real
       if: type = pull_request
       os: linux
       rust: *nightly
