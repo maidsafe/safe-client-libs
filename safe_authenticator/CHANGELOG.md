@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.8.0]
+- Implement `AuthClient` with authenticator-specific features, decoupling it from the base `safe_core::Client`
+
 ## [0.7.0]
 - Use rust 1.26.1 stable / 2018-02-29 nightly
 - rustfmt-nightly 0.8.2 and clippy-0.0.206

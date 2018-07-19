@@ -1,5 +1,10 @@
 # Safe Core - Change Log
 
+## [0.31.0]
+- Refactor `Client` struct to a trait for a better separation of concerns
+- Implement `CoreClient` as a bare-bones network client for tests
+- Move Authenticator-related `Client` functions to `safe_authenticator`
+
 ## [0.30.0]
 - Use rust 1.26.1 stable / 2018-02-29 nightly
 - rustfmt-nightly 0.8.2 and clippy-0.0.206

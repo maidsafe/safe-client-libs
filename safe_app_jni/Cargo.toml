@@ -10,12 +10,12 @@ version = "0.1.0"
 [dependencies]
 ffi_utils = { path = "../ffi_utils", version = "~0.6.0" }
 jni = "~0.10.1"
-safe_core = { path = "../safe_core", version = "~0.30.0" }
+safe_core = { path = "../safe_core", version = "~0.31.0" }
 unwrap = "~1.1.0"
 
 [dependencies.safe_app]
 path = "../safe_app"
-version = "~0.7.0"
+version = "~0.8.0"
 features = ["bindings"]
 
 [lib]

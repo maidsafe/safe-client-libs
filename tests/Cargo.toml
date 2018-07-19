@@ -17,17 +17,17 @@ unwrap = "~1.1.0"
 
 [dependencies.safe_app]
 path = "../safe_app"
-version = "~0.7.0"
+version = "~0.8.0"
 features = ["testing"]
 
 [dependencies.safe_authenticator]
 path = "../safe_authenticator"
-version = "~0.7.0"
+version = "~0.8.0"
 features = ["testing"]
 
 [dependencies.safe_core]
 path = "../safe_core"
-version = "~0.30.0"
+version = "~0.31.0"
 features = ["testing"]
 
 [features]

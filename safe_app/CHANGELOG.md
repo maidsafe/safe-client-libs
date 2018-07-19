@@ -1,5 +1,11 @@
 # SAFE App
 
+## [0.8.0]
+- Implement `AppClient` with app-specific functions on top of the base abstract `Client`
+- Provide SAFE App API to be used as the only required dependency for apps built in Rust
+- Refactor examples to use the new API
+- Remove unneccessary structures from the API (`MDataAction` was no longer used)
+
 ## [0.7.0]
 - Use rust 1.26.1 stable / 2018-02-29 nightly
 - rustfmt-nightly 0.8.2 and clippy-0.0.206
