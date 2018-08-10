@@ -1,5 +1,8 @@
 # FFI utils - Change Log
 
+## [0.7.0]
+- Add a public helper function `catch_unwind_result` for synchronous APIs (in addition to `catch_unwind_cb` for async)
+
 ## [0.6.0]
 - Use rust 1.26.1 stable / 2018-02-29 nightly
 - rustfmt-nightly 0.8.2 and clippy-0.0.206
