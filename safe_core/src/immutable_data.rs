@@ -7,14 +7,14 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use client::Client;
-use crypto::shared_secretbox;
 use event_loop::CoreFuture;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{ImmutableData, XorName};
+use safe_crypto::SymmetricKey;
 use self_encryption::{DataMap, SelfEncryptor};
 use self_encryption_storage::SelfEncryptionStorage;
-use utils::{self, FutureExt};
+use utils::FutureExt;
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
@@ -28,7 +28,7 @@ enum DataTypeEncoding {
 pub fn create(
     client: &impl Client,
     value: &[u8],
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 ) -> Box<CoreFuture<ImmutableData>> {
     trace!("Creating conformant ImmutableData.");
 
@@ -44,7 +44,7 @@ pub fn create(
             let serialised_data_map = fry!(serialise(&data_map));
 
             let value = if let Some(key) = encryption_key {
-                let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
+                let cipher_text = fry!(key.encrypt_bytes(&serialised_data_map));
                 fry!(serialise(&DataTypeEncoding::Serialised(cipher_text)))
             } else {
                 fry!(serialise(&DataTypeEncoding::Serialised(
@@ -61,14 +61,14 @@ pub fn create(
 pub fn extract_value(
     client: &impl Client,
     data: &ImmutableData,
-    decryption_key: Option<shared_secretbox::Key>,
+    decryption_key: Option<SymmetricKey>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client = client.clone();
 
     unpack(client.clone(), data)
         .and_then(move |value| {
             let data_map = if let Some(key) = decryption_key {
-                let plain_text = utils::symmetric_decrypt(&value, &key)?;
+                let plain_text = key.decrypt_bytes(&value)?;
                 deserialise(&plain_text)?
             } else {
                 deserialise(&value)?
@@ -88,7 +88,7 @@ pub fn extract_value(
 pub fn get_value(
     client: &impl Client,
     name: &XorName,
-    decryption_key: Option<shared_secretbox::Key>,
+    decryption_key: Option<SymmetricKey>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client2 = client.clone();
     client
@@ -141,6 +141,7 @@ fn unpack(client: impl Client, data: &ImmutableData) -> Box<CoreFuture<Vec<u8>>>
 mod tests {
     use super::*;
     use futures::Future;
+    use safe_crypto::SymmetricKey;
     use utils;
     use utils::test_utils::{finish, random_client};
 
@@ -199,7 +200,7 @@ mod tests {
         // Encrypted
         {
             let value_before = value.clone();
-            let key = shared_secretbox::gen_key();
+            let key = SymmetricKey::new();
 
             random_client(move |client| {
                 let client2 = client.clone();
@@ -224,7 +225,7 @@ mod tests {
         // Put unencrypted Retrieve encrypted - Should fail
         {
             let value = value.clone();
-            let key = shared_secretbox::gen_key();
+            let key = SymmetricKey::new();
 
             random_client(move |client| {
                 let client2 = client.clone();
@@ -248,7 +249,7 @@ mod tests {
         // Put encrypted Retrieve unencrypted - Should fail
         {
             let value = value.clone();
-            let key = shared_secretbox::gen_key();
+            let key = SymmetricKey::new();
 
             random_client(move |client| {
                 let client2 = client.clone();

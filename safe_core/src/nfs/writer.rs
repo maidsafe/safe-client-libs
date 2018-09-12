@@ -8,9 +8,9 @@
 
 use chrono::Utc;
 use client::Client;
-use crypto::shared_secretbox;
 use futures::Future;
 use nfs::{data_map, File, NfsFuture};
+use safe_crypto::SymmetricKey;
 use self_encryption::SequentialEncryptor;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
@@ -30,7 +30,7 @@ pub struct Writer<C: Client> {
     client: C,
     file: File,
     self_encryptor: SequentialEncryptor<SelfEncryptionStorage<C>>,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 }
 
 impl<C: Client> Writer<C> {
@@ -40,7 +40,7 @@ impl<C: Client> Writer<C> {
         storage: SelfEncryptionStorage<C>,
         file: File,
         mode: Mode,
-        encryption_key: Option<shared_secretbox::Key>,
+        encryption_key: Option<SymmetricKey>,
     ) -> Box<NfsFuture<Writer<C>>> {
         let fut = match mode {
             Mode::Append => data_map::get(client, file.data_map_name(), encryption_key.clone())

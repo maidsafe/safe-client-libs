@@ -18,7 +18,9 @@ use event_loop::{self, CoreMsg, CoreMsgTx};
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
-use rust_sodium::crypto::sign;
+use safe_crypto::{
+    self, PublicSignKey, SecretSignKey, PUBLIC_SIGN_KEY_BYTES, SECRET_SIGN_KEY_BYTES,
+};
 use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use std::{iter, u8};
@@ -26,25 +28,29 @@ use tokio_core::reactor::{Core, Handle};
 use utils::{self, FutureExt};
 
 /// Generates random public keys
-pub fn generate_public_keys(len: usize) -> Vec<sign::PublicKey> {
-    (0..len).map(|_| sign::gen_keypair().0).collect()
+pub fn generate_public_keys(len: usize) -> Vec<PublicSignKey> {
+    (0..len)
+        .map(|_| safe_crypto::gen_sign_keypair().0)
+        .collect()
 }
 
 /// Generates random secret keys
-pub fn generate_secret_keys(len: usize) -> Vec<sign::SecretKey> {
-    (0..len).map(|_| sign::gen_keypair().1).collect()
+pub fn generate_secret_keys(len: usize) -> Vec<SecretSignKey> {
+    (0..len)
+        .map(|_| safe_crypto::gen_sign_keypair().1)
+        .collect()
 }
 
 /// Generates public keys of maximum size
-pub fn get_max_sized_public_keys(len: usize) -> Vec<sign::PublicKey> {
-    iter::repeat(sign::PublicKey([u8::MAX; sign::PUBLICKEYBYTES]))
+pub fn get_max_sized_public_keys(len: usize) -> Vec<PublicSignKey> {
+    iter::repeat(PublicSignKey::from_bytes([u8::MAX; PUBLIC_SIGN_KEY_BYTES]))
         .take(len)
         .collect()
 }
 
 /// Generates secret keys of maximum size
-pub fn get_max_sized_secret_keys(len: usize) -> Vec<sign::SecretKey> {
-    iter::repeat(sign::SecretKey([u8::MAX; sign::SECRETKEYBYTES]))
+pub fn get_max_sized_secret_keys(len: usize) -> Vec<SecretSignKey> {
+    iter::repeat(SecretSignKey::from_bytes([u8::MAX; SECRET_SIGN_KEY_BYTES]))
         .take(len)
         .collect()
 }

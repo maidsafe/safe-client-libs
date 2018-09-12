@@ -11,53 +11,28 @@
 use ffi::arrays::*;
 use ffi::ipc::req::PermissionSet;
 use ffi::MDataInfo;
-use rust_sodium::crypto::sign;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
 
 /// Represents the needed keys to work with the data.
 #[repr(C)]
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct AppKeys {
     /// Owner signing public key
-    pub owner_key: SignPublicKey,
+    pub owner_key: PublicSignKeyArray,
     /// Data symmetric encryption key
-    pub enc_key: SymSecretKey,
+    pub enc_key: SymmetricKeyArray,
     /// Asymmetric sign public key.
     ///
     /// This is the identity of the App in the Network.
-    pub sign_pk: SignPublicKey,
+    pub sign_pk: PublicSignKeyArray,
     /// Asymmetric sign private key.
-    pub sign_sk: SignSecretKey,
+    pub sign_sk: SecretSignKeyArray,
     /// Asymmetric enc public key.
-    pub enc_pk: AsymPublicKey,
+    pub enc_pk: PublicEncryptKeyArray,
     /// Asymmetric enc private key.
-    pub enc_sk: AsymSecretKey,
-}
-
-#[cfg_attr(feature = "cargo-clippy", allow(expl_impl_clone_on_copy))]
-impl Clone for AppKeys {
-    // Implemented manually because:
-    // error[E0277]: the trait bound `[u8; 64]: std::clone::Clone` is not satisfied
-    //
-    // There is a default implementation only until size 32
-    fn clone(&self) -> Self {
-        let mut sign_pk = [0; sign::PUBLICKEYBYTES];
-        let mut sign_sk = [0; sign::SECRETKEYBYTES];
-
-        sign_pk.copy_from_slice(&self.sign_pk);
-        sign_sk.copy_from_slice(&self.sign_sk);
-
-        AppKeys {
-            owner_key: self.owner_key,
-            enc_key: self.enc_key,
-            sign_pk,
-            sign_sk,
-            enc_pk: self.enc_pk,
-            enc_sk: self.enc_sk,
-        }
-    }
+    pub enc_sk: SecretEncryptKeyArray,
 }
 
 /// Access container info.
@@ -69,7 +44,7 @@ pub struct AccessContInfo {
     /// Type tag
     pub tag: u64,
     /// Nonce
-    pub nonce: SymNonce,
+    pub nonce: NonceArray,
 }
 
 /// Information about a container (name, `MDataInfo` and permissions)
@@ -148,7 +123,7 @@ impl Drop for AuthGranted {
 #[repr(C)]
 pub struct AppAccess {
     /// App's or user's public key
-    pub sign_key: SignPublicKey,
+    pub sign_key: PublicSignKeyArray,
     /// A list of permissions
     pub permissions: PermissionSet,
     /// App's user-facing name

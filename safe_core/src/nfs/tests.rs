@@ -8,7 +8,6 @@
 
 use client::core_client::CoreClient;
 use client::MDataInfo;
-use crypto::shared_secretbox;
 use errors::CoreError;
 use futures::future::{self, Loop};
 use futures::Future;
@@ -16,14 +15,15 @@ use nfs::reader::Reader;
 use nfs::writer::Writer;
 use nfs::{create_dir, file_helper, File, Mode, NfsError, NfsFuture};
 use rand::{self, Rng};
-use rust_sodium::crypto::secretbox;
+use safe_crypto::{self, Nonce, SymmetricKey};
+use self_encryption::MIN_CHUNK_SIZE;
 use std;
 use utils::test_utils::random_client;
 use utils::FutureExt;
 use DIR_TAG;
 
 const APPEND_SIZE: usize = 10;
-const ORIG_SIZE: usize = 5555;
+const ORIG_SIZE: usize = (3 * MIN_CHUNK_SIZE as usize) + 1; // Ensure we have a medium file.
 const NEW_SIZE: usize = 50;
 
 fn create_test_file(client: &CoreClient) -> Box<NfsFuture<(MDataInfo, File)>> {
@@ -71,8 +71,8 @@ fn file_fetch_public_md() {
         let c6 = client.clone();
         let c7 = client.clone();
         let mut root = unwrap!(MDataInfo::random_public(DIR_TAG));
-        root.enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
-        root.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+        root.enc_info = Some((SymmetricKey::new(), Nonce::new()));
+        root.new_enc_info = Some((SymmetricKey::new(), Nonce::new()));
         let root2 = root.clone();
 
         create_dir(client, &root, btree_map![], btree_map![])
@@ -590,8 +590,8 @@ fn encryption() {
         let content: Vec<u8> = rng.gen_iter().take(ORIG_SIZE).collect();
         let content2 = content.clone();
 
-        let key = shared_secretbox::gen_key();
-        let wrong_key = shared_secretbox::gen_key();
+        let key = SymmetricKey::new();
+        let wrong_key = SymmetricKey::new();
 
         file_helper::write(
             client.clone(),
@@ -616,7 +616,9 @@ fn encryption() {
             file_helper::read(c3, &file, Some(wrong_key))
                 .and_then(|_| Err(NfsError::from("Unexpected success")))
                 .or_else(move |error| match error {
-                    NfsError::CoreError(CoreError::SymmetricDecipherFailure) => Ok(file),
+                    NfsError::CoreError(CoreError::CryptoError(
+                        safe_crypto::Error::DecryptVerify(_),
+                    )) => Ok(file),
                     error => Err(error),
                 })
         }).then(move |res| {

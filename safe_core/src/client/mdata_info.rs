@@ -6,18 +6,15 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crypto::shared_secretbox;
 use errors::CoreError;
-use ffi::arrays::{SymNonce, SymSecretKey};
+use ffi::arrays::{NonceArray, SymmetricKeyArray};
 use ffi::MDataInfo as FfiMDataInfo;
 use ffi_utils::ReprC;
 use ipc::IpcError;
 use rand::{OsRng, Rng};
 use routing::{EntryAction, Value, XorName};
-use rust_sodium::crypto::secretbox;
+use safe_crypto::{self, Nonce, SymmetricKey, NONCE_BYTES};
 use std::collections::{BTreeMap, BTreeSet};
-use tiny_keccak::sha3_256;
-use utils::{symmetric_decrypt, symmetric_encrypt};
 
 /// Information allowing to locate and access mutable data on the network.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -27,21 +24,17 @@ pub struct MDataInfo {
     /// Type tag of the data where the directory is stored.
     pub type_tag: u64,
     /// Key to encrypt/decrypt the directory content.
-    /// and the nonce to be used for keys
-    pub enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
+    /// and the nonce to be used for keys.
+    pub enc_info: Option<(SymmetricKey, Nonce)>,
 
     /// Future encryption info, used for two-phase data reencryption.
-    pub new_enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
+    pub new_enc_info: Option<(SymmetricKey, Nonce)>,
 }
 
 impl MDataInfo {
     /// Construct `MDataInfo` for private (encrypted) data with a
     /// provided private key.
-    pub fn new_private(
-        name: XorName,
-        type_tag: u64,
-        enc_info: (shared_secretbox::Key, secretbox::Nonce),
-    ) -> Self {
+    pub fn new_private(name: XorName, type_tag: u64, enc_info: (SymmetricKey, Nonce)) -> Self {
         MDataInfo {
             name,
             type_tag,
@@ -63,7 +56,7 @@ impl MDataInfo {
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(type_tag: u64) -> Result<Self, CoreError> {
         let mut rng = os_rng()?;
-        let enc_info = (shared_secretbox::gen_key(), secretbox::gen_nonce());
+        let enc_info = (SymmetricKey::new(), Nonce::new());
         Ok(Self::new_private(rng.gen(), type_tag, enc_info))
     }
 
@@ -74,57 +67,63 @@ impl MDataInfo {
     }
 
     /// Returns the encryption key, if any.
-    pub fn enc_key(&self) -> Option<&shared_secretbox::Key> {
+    pub fn enc_key(&self) -> Option<&SymmetricKey> {
         self.enc_info.as_ref().map(|&(ref key, _)| key)
     }
 
-    /// Returns the nonce, inf any.
-    pub fn nonce(&self) -> Option<&secretbox::Nonce> {
+    /// Returns the nonce, if any.
+    pub fn nonce(&self) -> Option<&Nonce> {
         self.enc_info.as_ref().map(|&(_, ref nonce)| nonce)
     }
 
-    /// encrypt the key for the mdata entry accordingly
+    /// Encrypt the key for the mdata entry accordingly.
     pub fn enc_entry_key(&self, plain_text: &[u8]) -> Result<Vec<u8>, CoreError> {
-        if let Some((ref key, seed)) = self.new_enc_info {
-            enc_entry_key(plain_text, key, seed)
-        } else if let Some((ref key, seed)) = self.enc_info {
-            enc_entry_key(plain_text, key, seed)
+        let result = if let Some((ref key, ref seed)) = self.new_enc_info {
+            enc_entry_key(plain_text, &key, seed.clone())?
+        } else if let Some((ref key, ref seed)) = self.enc_info {
+            enc_entry_key(plain_text, &key, seed.clone())?
         } else {
-            Ok(plain_text.to_vec())
-        }
+            plain_text.to_vec()
+        };
+
+        Ok(result)
     }
 
-    /// encrypt the value for this mdata entry accordingly
+    /// Encrypt the value for this mdata entry accordingly.
     pub fn enc_entry_value(&self, plain_text: &[u8]) -> Result<Vec<u8>, CoreError> {
-        if let Some((ref key, _)) = self.new_enc_info {
-            symmetric_encrypt(plain_text, key, None)
+        let result = if let Some((ref key, _)) = self.new_enc_info {
+            key.encrypt_bytes(plain_text)?
         } else if let Some((ref key, _)) = self.enc_info {
-            symmetric_encrypt(plain_text, key, None)
+            key.encrypt_bytes(plain_text)?
         } else {
-            Ok(plain_text.to_vec())
-        }
+            plain_text.to_vec()
+        };
+
+        Ok(result)
     }
 
-    /// decrypt key or value of this mdata entry
+    /// Decrypt key or value of this mdata entry.
     pub fn decrypt(&self, cipher: &[u8]) -> Result<Vec<u8>, CoreError> {
         if let Some((ref key, _)) = self.new_enc_info {
-            if let Ok(plain) = symmetric_decrypt(cipher, key) {
+            if let Ok(plain) = key.decrypt_bytes(cipher) {
                 return Ok(plain);
             }
         }
 
-        if let Some((ref key, _)) = self.enc_info {
-            symmetric_decrypt(cipher, key)
+        let result = if let Some((ref key, _)) = self.enc_info {
+            key.decrypt_bytes(cipher).map_err(CoreError::from)?
         } else {
-            Ok(cipher.to_vec())
-        }
+            cipher.to_vec()
+        };
+
+        Ok(result)
     }
 
     /// Start the encryption info re-generation by populating the `new_enc_info`
     /// field with random keys, unless it's already populated.
     pub fn start_new_enc_info(&mut self) {
         if self.enc_info.is_some() && self.new_enc_info.is_none() {
-            self.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+            self.new_enc_info = Some((SymmetricKey::new(), Nonce::new()));
         }
     }
 
@@ -253,20 +252,16 @@ fn decrypt_value(info: &MDataInfo, value: &Value) -> Result<Value, CoreError> {
     })
 }
 
-fn enc_entry_key(
-    plain_text: &[u8],
-    key: &secretbox::Key,
-    seed: secretbox::Nonce,
-) -> Result<Vec<u8>, CoreError> {
+fn enc_entry_key(plain_text: &[u8], key: &SymmetricKey, seed: Nonce) -> Result<Vec<u8>, CoreError> {
     let nonce = {
-        let secretbox::Nonce(ref nonce) = seed;
         let mut pt = plain_text.to_vec();
-        pt.extend_from_slice(&nonce[..]);
-        unwrap!(secretbox::Nonce::from_slice(
-            &sha3_256(&pt)[..secretbox::NONCEBYTES],
-        ))
+        pt.extend_from_slice(&seed.into_bytes());
+
+        let mut nonce_bytes: [u8; NONCE_BYTES] = Default::default();
+        nonce_bytes.copy_from_slice(&safe_crypto::hash(&pt)[..NONCE_BYTES]);
+        Nonce::from_bytes(nonce_bytes)
     };
-    symmetric_encrypt(plain_text, key, Some(&nonce))
+    Ok(key.encrypt_bytes_with_nonce(plain_text, &nonce)?)
 }
 
 impl ReprC for MDataInfo {
@@ -287,10 +282,10 @@ impl ReprC for MDataInfo {
 }
 
 fn enc_info_into_repr_c(
-    info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
-) -> (bool, SymSecretKey, SymNonce) {
+    info: Option<(SymmetricKey, Nonce)>,
+) -> (bool, SymmetricKeyArray, NonceArray) {
     if let Some((key, nonce)) = info {
-        (true, key.0, nonce.0)
+        (true, key.into_bytes(), nonce.into_bytes())
     } else {
         (false, Default::default(), Default::default())
     }
@@ -298,14 +293,11 @@ fn enc_info_into_repr_c(
 
 fn enc_info_from_repr_c(
     is_set: bool,
-    key: SymSecretKey,
-    nonce: SymNonce,
-) -> Option<(shared_secretbox::Key, secretbox::Nonce)> {
+    key: SymmetricKeyArray,
+    nonce: NonceArray,
+) -> Option<(SymmetricKey, Nonce)> {
     if is_set {
-        Some((
-            shared_secretbox::Key::from_raw(&key),
-            secretbox::Nonce(nonce),
-        ))
+        Some((SymmetricKey::from_bytes(key), Nonce::from_bytes(nonce)))
     } else {
         None
     }
@@ -314,6 +306,7 @@ fn enc_info_from_repr_c(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use safe_crypto;
 
     // Ensure that a private mdata info is encrypted.
     #[test]
@@ -357,7 +350,7 @@ mod tests {
         // After commit, only the new encryption info works.
         info.commit_new_enc_info();
         match info.decrypt(&old_cipher) {
-            Err(CoreError::SymmetricDecipherFailure) => (),
+            Err(CoreError::CryptoError(safe_crypto::Error::DecryptVerify(_))) => (),
             x => panic!("Unexpected {:?}", x),
         }
         assert_eq!(unwrap!(info.decrypt(&new_cipher)), plain);

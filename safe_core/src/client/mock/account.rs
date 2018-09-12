@@ -9,7 +9,7 @@
 use client::mock::routing::unlimited_muts;
 use config_handler::Config;
 use routing::{AccountInfo, ClientError};
-use rust_sodium::crypto::sign;
+use safe_crypto::PublicSignKey;
 use std::collections::BTreeSet;
 
 pub const DEFAULT_MAX_MUTATIONS: u64 = 1000;
@@ -17,7 +17,7 @@ pub const DEFAULT_MAX_MUTATIONS: u64 = 1000;
 #[derive(Deserialize, Serialize)]
 pub struct Account {
     account_info: AccountInfo,
-    auth_keys: BTreeSet<sign::PublicKey>,
+    auth_keys: BTreeSet<PublicSignKey>,
     version: u64,
     config: Config,
 }
@@ -45,7 +45,7 @@ impl Account {
 
     // Insert new auth key and bump the version. Returns false if the given version
     // is not one more than the current version.
-    pub fn ins_auth_key(&mut self, key: sign::PublicKey, version: u64) -> Result<(), ClientError> {
+    pub fn ins_auth_key(&mut self, key: PublicSignKey, version: u64) -> Result<(), ClientError> {
         self.validate_version(version)?;
 
         let _ = self.auth_keys.insert(key);
@@ -55,7 +55,7 @@ impl Account {
 
     // Remove the auth key and bump the version. Returns false if the given version
     // is not one more than the current version.
-    pub fn del_auth_key(&mut self, key: &sign::PublicKey, version: u64) -> Result<(), ClientError> {
+    pub fn del_auth_key(&mut self, key: &PublicSignKey, version: u64) -> Result<(), ClientError> {
         self.validate_version(version)?;
 
         if self.auth_keys.remove(key) {
@@ -66,7 +66,7 @@ impl Account {
         }
     }
 
-    pub fn auth_keys(&self) -> &BTreeSet<sign::PublicKey> {
+    pub fn auth_keys(&self) -> &BTreeSet<PublicSignKey> {
         &self.auth_keys
     }
 

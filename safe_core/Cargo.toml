@@ -21,12 +21,11 @@ log = "~0.4.1"
 lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.16.0"
 rand = "~0.3.18"
-routing = "~0.37.0"
-rust_sodium = "~0.10.0"
-self_encryption = "~0.13.0"
+routing = { path = "../../routing", version = "0.37.0" } # FIXME
+safe_crypto = { path = "../../safe_crypto", version = "0.4.0" } # FIXME
+self_encryption = { path = "../../self_encryption", version = "0.13.0" } # FIXME
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
-tiny-keccak = "~1.3.1"
 tokio-core = "~0.1.12"
 unwrap = "~1.2.0"
 
