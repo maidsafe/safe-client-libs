@@ -21,7 +21,8 @@ pub use self::resp::{
     access_container_enc_key, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, IpcResp,
 };
 
-use ffi_utils::{base64_decode, base64_encode};
+use data_encoding::BASE32_NOPAD;
+use ffi_utils::base64_decode;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::{self, Rng};
 pub use routing::BootstrapConfig;
@@ -54,14 +55,23 @@ pub enum IpcMsg {
     Err(IpcError),
 }
 
-/// Encode `IpcMsg` into string, using base64 encoding.
+/// Encode `IpcMsg` into string, using base32 encoding.
 pub fn encode_msg(msg: &IpcMsg) -> Result<String, IpcError> {
-    Ok(base64_encode(&serialise(msg)?))
+    // We also add a multicodec compatible prefix.
+    // For more details please follow https://github.com/multiformats/multicodec/blob/master/table.csv
+    Ok(format!("b{}", BASE32_NOPAD.encode(&serialise(msg)?)))
 }
 
-/// Decode `IpcMsg` encoded with base64 encoding.
+/// Decode `IpcMsg` encoded with base32 encoding.
 pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
-    Ok(deserialise(&base64_decode(encoded)?)?)
+    let mut chars = encoded.chars();
+    let decoded = match chars.next().ok_or(IpcError::InvalidMsg)? {
+        // Encoded as base32
+        'b' | 'B' => BASE32_NOPAD.decode(chars.as_str().as_bytes())?,
+        // Default fallback is URL-safe base64 nopad
+        _ => base64_decode(encoded).map_err(|_| IpcError::EncodeDecodeError)?,
+    };
+    Ok(deserialise(&decoded)?)
 }
 
 /// Generate unique request ID.
