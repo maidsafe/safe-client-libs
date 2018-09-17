@@ -1,22 +1,18 @@
 vars:
   - &stable "1.28.0"
-  - &nightly "nightly-2018-07-07"
 env:
   global:
     - RUST_BACKTRACE=1
     - RUSTFLAGS="-C opt-level=2 -C codegen-units=8"
     - PATH=$PATH:$HOME/.cargo/bin
     - RUST_STABLE=1.28.0
-    - RUST_NIGHTLY=nightly-2018-07-07
-    - RUST_RUSTFMT=0.99.2
-    - RUST_CLIPPY=0.0.212
 language: rust
 stages:
   - warmup-ffi
   - warmup-real
   - warmup-mock
   - tests-stable
-  - tests-nightly
+  - tests-binary-compat
   - deploy
 jobs:
   include:
@@ -25,35 +21,20 @@ jobs:
       script: set -x; scripts/build-real-core
       os: linux
       rust: *stable
-    - stage: warmup-ffi
-      script: set -x; scripts/build-real-core
-      if: type = pull_request
-      os: linux
-      rust: *nightly
 
     # Warm up the cache for a real build
     - stage: warmup-real
       script: set -x; scripts/build-real
       os: linux
       rust: *stable
-    - stage: warmup-real
-      script: set -x; scripts/build-real
-      if: type = pull_request
-      os: linux
-      rust: *nightly
 
     # Warm up the cache for a mock build
     - stage: warmup-mock
       script: set -x; scripts/build-mock
       os: linux
       rust: *stable
-    - stage: warmup-mock
-      script: set -x; scripts/build-mock
-      if: type = pull_request
-      os: linux
-      rust: *nightly
 
-    # Stable + nightly clippy
+    # Stable + clippy
     - stage: tests-stable
       script: set -x; scripts/stable && scripts/test-binary
       os: linux
@@ -62,26 +43,21 @@ jobs:
       script: set -x; scripts/stable
       os: osx
       rust: *stable
-    - stage: tests-stable
-      script: set -x; scripts/rustfmt && scripts/clippy-all
-      if: type = pull_request
-      os: linux
-      rust: *nightly
-      env: RUN_RUSTFMT=1
+    # Temporarily disable clippy until SCL compiles on 1.29 stable
+    # - stage: tests-stable
+    #   script: set -x; scripts/clippy-all
+    #   if: type = pull_request
+    #   os: linux
+    #   rust: *stable
 
-    # Nightly tests
-    - stage: tests-nightly
-      script: set -x; scripts/test-all
-      if: type = pull_request
-      os: linux
-      rust: *nightly
-    - stage: tests-nightly
+    # Build tests for binary compatibility
+    - stage: tests-binary-compat
       script: set -x; scripts/build-binary
       if: type = push
       os: linux
       rust: *stable
 
-      # Deploy
+    # Deploy
     - stage: deploy
       script: set -x; true
       if: type = push
@@ -124,10 +100,6 @@ before_script:
     fi
   - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
   - bash cargo_install.sh cargo-prune;
-  - if [ "$TRAVIS_RUST_VERSION" = "$RUST_NIGHTLY" ] && [ "$RUN_RUSTFMT" ]; then
-      bash cargo_install.sh rustfmt-nightly "$RUST_RUSTFMT";
-      bash cargo_install.sh clippy "$RUST_CLIPPY";
-    fi
 after_script:
   - if [[ $TRAVIS_EVENT_TYPE = pull_request && -n $(git diff --shortstat 2> /dev/null | tail -n1) ]]; then
       echo "Working tree is dirty after building.  Probably Cargo.lock should be updated.";
