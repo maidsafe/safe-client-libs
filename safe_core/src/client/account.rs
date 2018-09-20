@@ -65,7 +65,7 @@ impl Account {
     /// a deterministic way.  This is similar to the username in various places.
     pub fn generate_network_id(keyword: &[u8], pin: &[u8]) -> Result<XorName, CoreError> {
         let mut id = XorName([0; XOR_NAME_LEN]);
-        safe_crypto::derive_bytes(keyword, pin, &mut id.0)?;
+        safe_crypto::derive_key_from_password(keyword, pin, &mut id.0)?;
 
         Ok(id)
     }
@@ -75,7 +75,7 @@ impl Account {
         pin: &[u8],
     ) -> Result<(SymmetricKey, Nonce), CoreError> {
         let mut output = [0; SYMMETRIC_KEY_BYTES + NONCE_BYTES];
-        safe_crypto::derive_bytes(password, pin, &mut output)?;
+        safe_crypto::derive_key_from_password(password, pin, &mut output)?;
 
         let mut key_bytes = [0; SYMMETRIC_KEY_BYTES];
         key_bytes.copy_from_slice(&output[..SYMMETRIC_KEY_BYTES]);
