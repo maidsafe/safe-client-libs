@@ -13,8 +13,8 @@ use self_encryption::{Storage, StorageError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
-/// Network storage is the concrete type which self-encryption crate will use
-/// to put or get data from the network.
+/// Network storage is the concrete type which self-encryption will use to put or get data from the
+/// network.
 pub struct SelfEncryptionStorage<C: Client> {
     client: C,
 }

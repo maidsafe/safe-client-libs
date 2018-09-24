@@ -7,13 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use client::MDataInfo;
-use crypto::{shared_box, shared_secretbox, shared_sign};
 use errors::CoreError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{FullId, XorName, XOR_NAME_LEN};
-use rust_sodium::crypto::sign::Seed;
-use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
-use tiny_keccak::sha3_256;
+use safe_crypto::{
+    self, Nonce, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, Seed,
+    SymmetricKey, NONCE_BYTES, SYMMETRIC_KEY_BYTES,
+};
 use DIR_TAG;
 
 /// Representing the User Account information on the network.
@@ -25,9 +25,8 @@ pub struct Account {
     pub access_container: MDataInfo,
     /// The user's configuration directory.
     pub config_root: MDataInfo,
-    /// Set to `true` when all root and standard containers
-    /// have been created successfully. `false` signifies that
-    /// previous attempt might have failed - check on login.
+    /// Set to `true` when all root and standard containers have been created successfully. `false`
+    /// signifies that previous attempt might have failed - check on login.
     pub root_dirs_created: bool,
 }
 
@@ -42,21 +41,22 @@ impl Account {
         })
     }
 
-    /// Symmetric encryption of Account using User's credentials.
-    /// Credentials are passed through key-derivation-function first
+    /// Symmetric encryption of Account using User's credentials. Credentials are passed through
+    /// key-derivation-function first.
     pub fn encrypt(&self, password: &[u8], pin: &[u8]) -> Result<Vec<u8>, CoreError> {
         let serialised_self = serialise(self)?;
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
 
-        Ok(secretbox::seal(&serialised_self, &nonce, &key))
+        Ok(key.encrypt_bytes_with_nonce(&serialised_self, &nonce)?)
     }
 
-    /// Symmetric decryption of Account using User's credentials.
-    /// Credentials are passed through key-derivation-function first
+    /// Symmetric decryption of Account using User's credentials. Credentials are passed through
+    /// key-derivation-function first.
     pub fn decrypt(encrypted_self: &[u8], password: &[u8], pin: &[u8]) -> Result<Self, CoreError> {
-        let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
-        let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
-            .map_err(|_| CoreError::SymmetricDecipherFailure)?;
+        // `encrypt_bytes_with_nonce` already inserted the nonce in the cipher text, so all we need
+        // here is to reproduce the key and decrypt.
+        let (key, _) = Self::generate_crypto_keys(password, pin)?;
+        let decrypted_self = key.decrypt_bytes(encrypted_self)?;
 
         Ok(deserialise(&decrypted_self)?)
     }
@@ -65,7 +65,7 @@ impl Account {
     /// a deterministic way.  This is similar to the username in various places.
     pub fn generate_network_id(keyword: &[u8], pin: &[u8]) -> Result<XorName, CoreError> {
         let mut id = XorName([0; XOR_NAME_LEN]);
-        Self::derive_key(&mut id.0[..], keyword, pin)?;
+        safe_crypto::derive_key_from_password(keyword, pin, &mut id.0)?;
 
         Ok(id)
     }
@@ -73,72 +73,51 @@ impl Account {
     fn generate_crypto_keys(
         password: &[u8],
         pin: &[u8],
-    ) -> Result<(secretbox::Key, secretbox::Nonce), CoreError> {
-        let mut output = [0; secretbox::KEYBYTES + secretbox::NONCEBYTES];
-        Self::derive_key(&mut output[..], password, pin)?;
+    ) -> Result<(SymmetricKey, Nonce), CoreError> {
+        let mut output = [0; SYMMETRIC_KEY_BYTES + NONCE_BYTES];
+        safe_crypto::derive_key_from_password(password, pin, &mut output)?;
 
-        // OK to unwrap here, as we guaranteed the slices have the correct length.
-        let key = unwrap!(secretbox::Key::from_slice(&output[..secretbox::KEYBYTES]));
-        let nonce = unwrap!(secretbox::Nonce::from_slice(&output[secretbox::KEYBYTES..]));
+        let mut key_bytes = [0; SYMMETRIC_KEY_BYTES];
+        key_bytes.copy_from_slice(&output[..SYMMETRIC_KEY_BYTES]);
+        let key = SymmetricKey::from_bytes(key_bytes);
+        let mut nonce_bytes = [0; NONCE_BYTES];
+        nonce_bytes.copy_from_slice(&output[SYMMETRIC_KEY_BYTES..]);
+        let nonce = Nonce::from_bytes(nonce_bytes);
 
         Ok((key, nonce))
     }
-
-    fn derive_key(output: &mut [u8], input: &[u8], user_salt: &[u8]) -> Result<(), CoreError> {
-        let mut salt = pwhash::Salt([0; pwhash::SALTBYTES]);
-        {
-            let pwhash::Salt(ref mut salt_bytes) = salt;
-            if salt_bytes.len() == 32 {
-                let hashed_pin = sha3_256(user_salt);
-                for it in salt_bytes.iter_mut().enumerate() {
-                    *it.1 = hashed_pin[it.0];
-                }
-            } else {
-                return Err(CoreError::UnsupportedSaltSizeForPwHash);
-            }
-        }
-
-        pwhash::derive_key(
-            output,
-            input,
-            &salt,
-            pwhash::OPSLIMIT_INTERACTIVE,
-            pwhash::MEMLIMIT_INTERACTIVE,
-        ).map(|_| ())
-        .map_err(|_| CoreError::UnsuccessfulPwHash)
-    }
 }
 
-/// Client signing and encryption keypairs
+/// Client signing and encryption keypairs.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ClientKeys {
-    /// Signing public key
-    pub sign_pk: sign::PublicKey,
-    /// Signing secret key
-    pub sign_sk: shared_sign::SecretKey,
-    /// Encryption public key
-    pub enc_pk: box_::PublicKey,
-    /// Encryption private key
-    pub enc_sk: shared_box::SecretKey,
-    /// Symmetric encryption key
-    pub enc_key: shared_secretbox::Key,
+    /// Signing public key.
+    pub sign_pk: PublicSignKey,
+    /// Signing secret key.
+    pub sign_sk: SecretSignKey,
+    /// Encryption public key.
+    pub enc_pk: PublicEncryptKey,
+    /// Encryption private key.
+    pub enc_sk: SecretEncryptKey,
+    /// Symmetric encryption key.
+    pub enc_key: SymmetricKey,
 }
 
 impl ClientKeys {
-    /// Construct new `ClientKeys`
+    /// Construct new `ClientKeys`.
     pub fn new(seed: Option<&Seed>) -> Self {
-        let sign = match seed {
-            Some(s) => shared_sign::keypair_from_seed(s),
-            None => shared_sign::gen_keypair(),
+        let (sign_pk, sign_sk) = match seed {
+            Some(s) => safe_crypto::gen_sign_keypair_from_seed(s),
+            None => safe_crypto::gen_sign_keypair(),
         };
-        let enc = shared_box::gen_keypair();
-        let enc_key = shared_secretbox::gen_key();
+        let (enc_pk, enc_sk) = safe_crypto::gen_encrypt_keypair();
+        let enc_key = SymmetricKey::new();
 
         ClientKeys {
-            sign_pk: sign.0,
-            sign_sk: sign.1,
-            enc_pk: enc.0,
-            enc_sk: enc.1,
+            sign_pk,
+            sign_sk,
+            enc_pk,
+            enc_sk,
             enc_key,
         }
     }
@@ -152,8 +131,8 @@ impl Default for ClientKeys {
 
 impl Into<FullId> for ClientKeys {
     fn into(self) -> FullId {
-        let enc_sk = (*self.enc_sk).clone();
-        let sign_sk = (*self.sign_sk).clone();
+        let enc_sk = self.enc_sk.clone();
+        let sign_sk = self.sign_sk.clone();
 
         FullId::with_keys((self.enc_pk, enc_sk), (self.sign_pk, sign_sk))
     }

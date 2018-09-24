@@ -148,14 +148,12 @@ extern crate lru_cache;
 extern crate maidsafe_utilities;
 extern crate rand;
 extern crate routing;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate rust_sodium;
+extern crate safe_crypto;
 extern crate self_encryption;
 #[cfg(test)]
 extern crate serde_json;
-extern crate tiny_keccak;
 extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
@@ -176,8 +174,6 @@ pub mod utils;
 pub mod client;
 /// Config file handling.
 pub mod config_handler;
-/// Cryptographic utilities.
-pub mod crypto;
 /// Event loop handling.
 pub mod event_loop;
 /// Utilities for handling `ImmutableData`.

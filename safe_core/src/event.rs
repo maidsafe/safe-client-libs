@@ -9,7 +9,7 @@
 use errors::CoreError;
 use futures::sync::mpsc;
 use routing::{AccountInfo, ImmutableData, MutableData, PermissionSet, User, Value};
-use rust_sodium::crypto::sign;
+use safe_crypto::PublicSignKey;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Network Events will be translated into values starting from this number for
@@ -41,7 +41,7 @@ pub enum CoreEvent {
     /// Result of getting a list of permissions in `MutableData` for a single user
     ListMDataUserPermissions(Result<PermissionSet, CoreError>),
     /// Result of getting a list of authorised keys
-    ListAuthKeysAndVersion(Result<(BTreeSet<sign::PublicKey>, u64), CoreError>),
+    ListAuthKeysAndVersion(Result<(BTreeSet<PublicSignKey>, u64), CoreError>),
     /// Result of getting a mutable data shell
     GetMDataShell(Result<MutableData, CoreError>),
     /// Result of getting entire mutable data

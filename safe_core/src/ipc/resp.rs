@@ -9,7 +9,6 @@
 #![allow(unsafe_code)]
 
 use client::MDataInfo;
-use crypto::{shared_box, shared_secretbox, shared_sign};
 use ffi::ipc::resp as ffi;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
 use ipc::req::{
@@ -18,16 +17,14 @@ use ipc::req::{
 };
 use ipc::IpcError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::PermissionSet;
-use routing::Value;
-use routing::{BootstrapConfig, XorName};
-use rust_sodium::crypto::sign::PublicKey;
-use rust_sodium::crypto::{box_, secretbox};
+use routing::{BootstrapConfig, PermissionSet, Value, XorName};
+use safe_crypto::{
+    self, Nonce, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, SymmetricKey,
+    NONCE_BYTES,
+};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};
-use std::ptr;
-use std::slice;
-use tiny_keccak::sha3_256;
+use std::{ptr, slice};
 
 /// Entry key under which the metadata are stored.
 #[no_mangle]
@@ -124,30 +121,31 @@ impl ReprC for AuthGranted {
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct AppKeys {
     /// Owner signing public key.
-    pub owner_key: PublicKey,
+    pub owner_key: PublicSignKey,
     /// Data symmetric encryption key.
-    pub enc_key: shared_secretbox::Key,
+    pub enc_key: SymmetricKey,
     /// Asymmetric sign public key.
     ///
     /// This is the identity of the App in the Network.
-    pub sign_pk: PublicKey,
+    pub sign_pk: PublicSignKey,
     /// Asymmetric sign private key.
-    pub sign_sk: shared_sign::SecretKey,
+    pub sign_sk: SecretSignKey,
     /// Asymmetric enc public key.
-    pub enc_pk: box_::PublicKey,
+    pub enc_pk: PublicEncryptKey,
     /// Asymmetric enc private key.
-    pub enc_sk: shared_box::SecretKey,
+    pub enc_sk: SecretEncryptKey,
 }
 
 impl AppKeys {
     /// Generate random keys
-    pub fn random(owner_key: PublicKey) -> AppKeys {
-        let (enc_pk, enc_sk) = shared_box::gen_keypair();
-        let (sign_pk, sign_sk) = shared_sign::gen_keypair();
+    pub fn random(owner_key: PublicSignKey) -> AppKeys {
+        let (enc_pk, enc_sk) = safe_crypto::gen_encrypt_keypair();
+        let (sign_pk, sign_sk) = safe_crypto::gen_sign_keypair();
+        let enc_key = SymmetricKey::new();
 
         AppKeys {
             owner_key,
-            enc_key: shared_secretbox::gen_key(),
+            enc_key,
             sign_pk,
             sign_sk,
             enc_pk,
@@ -168,12 +166,12 @@ impl AppKeys {
             enc_sk,
         } = self;
         ffi::AppKeys {
-            owner_key: owner_key.0,
-            enc_key: enc_key.0,
-            sign_pk: sign_pk.0,
-            sign_sk: sign_sk.0,
-            enc_pk: enc_pk.0,
-            enc_sk: enc_sk.0,
+            owner_key: owner_key.into_bytes(),
+            enc_key: enc_key.into_bytes(),
+            sign_pk: sign_pk.into_bytes(),
+            sign_sk: sign_sk.into_bytes(),
+            enc_pk: enc_pk.into_bytes(),
+            enc_sk: enc_sk.into_bytes(),
         }
     }
 }
@@ -184,12 +182,12 @@ impl ReprC for AppKeys {
 
     unsafe fn clone_from_repr_c(raw: Self::C) -> Result<Self, Self::Error> {
         Ok(AppKeys {
-            owner_key: PublicKey(raw.owner_key),
-            enc_key: shared_secretbox::Key::from_raw(&raw.enc_key),
-            sign_pk: PublicKey(raw.sign_pk),
-            sign_sk: shared_sign::SecretKey::from_raw(&raw.sign_sk),
-            enc_pk: box_::PublicKey(raw.enc_pk),
-            enc_sk: shared_box::SecretKey::from_raw(&raw.enc_sk),
+            owner_key: PublicSignKey::from_bytes(raw.owner_key),
+            enc_key: SymmetricKey::from_bytes(raw.enc_key),
+            sign_pk: PublicSignKey::from_bytes(raw.sign_pk),
+            sign_sk: SecretSignKey::from_bytes(raw.sign_sk),
+            enc_pk: PublicEncryptKey::from_bytes(raw.enc_pk),
+            enc_sk: SecretEncryptKey::from_bytes(raw.enc_sk),
         })
     }
 }
@@ -245,7 +243,7 @@ pub struct AccessContInfo {
     /// Type tag
     pub tag: u64,
     /// Nonce
-    pub nonce: secretbox::Nonce,
+    pub nonce: Nonce,
 }
 
 impl AccessContInfo {
@@ -254,25 +252,28 @@ impl AccessContInfo {
     /// You're now responsible for freeing this memory once you're done.
     pub fn into_repr_c(self) -> ffi::AccessContInfo {
         let AccessContInfo { id, tag, nonce } = self;
+        let mut nonce_bytes: [u8; NONCE_BYTES] = Default::default();
+        nonce_bytes.copy_from_slice(&nonce.into_bytes());
+
         ffi::AccessContInfo {
             id: id.0,
             tag,
-            nonce: nonce.0,
+            nonce: nonce_bytes,
         }
     }
 
     /// Creates `MDataInfo` from this `AccessContInfo`
-    pub fn into_mdata_info(self, enc_key: shared_secretbox::Key) -> MDataInfo {
+    pub fn into_mdata_info(self, enc_key: SymmetricKey) -> MDataInfo {
         MDataInfo::new_private(self.id, self.tag, (enc_key, self.nonce))
     }
 
     /// Creates an `AccessContInfo` from a given `MDataInfo`
     pub fn from_mdata_info(md: &MDataInfo) -> Result<AccessContInfo, IpcError> {
-        if let Some((_, nonce)) = md.enc_info {
+        if let Some((_, ref nonce)) = md.enc_info {
             Ok(AccessContInfo {
                 id: md.name,
                 tag: md.type_tag,
-                nonce,
+                nonce: nonce.clone(),
             })
         } else {
             Err(IpcError::Unexpected(
@@ -290,7 +291,7 @@ impl ReprC for AccessContInfo {
         Ok(AccessContInfo {
             id: XorName(repr_c.id),
             tag: repr_c.tag,
-            nonce: secretbox::Nonce(repr_c.nonce),
+            nonce: Nonce::from_bytes(repr_c.nonce),
         })
     }
 }
@@ -298,24 +299,26 @@ impl ReprC for AccessContInfo {
 /// Encrypts and serialises an access container key using given app ID and app key
 pub fn access_container_enc_key(
     app_id: &str,
-    app_enc_key: &secretbox::Key,
-    access_container_nonce: &secretbox::Nonce,
+    app_enc_key: &SymmetricKey,
+    access_container_nonce: &Nonce,
 ) -> Result<Vec<u8>, IpcError> {
     let key = app_id.as_bytes();
     let mut key_pt = key.to_vec();
-    key_pt.extend_from_slice(&access_container_nonce[..]);
+    let ac_nonce_bytes = access_container_nonce.clone().into_bytes();
+    key_pt.extend_from_slice(&ac_nonce_bytes);
 
-    let key_nonce = secretbox::Nonce::from_slice(&sha3_256(&key_pt)[..secretbox::NONCEBYTES])
-        .ok_or(IpcError::EncodeDecodeError)?;
+    let mut nonce_bytes: [u8; NONCE_BYTES] = Default::default();
+    nonce_bytes.copy_from_slice(&safe_crypto::hash(&key_pt)[..NONCE_BYTES]);
+    let key_nonce = Nonce::from_bytes(nonce_bytes);
 
-    Ok(secretbox::seal(key, &key_nonce, app_enc_key))
+    Ok(app_enc_key.encrypt_bytes_with_nonce(key, &key_nonce)?)
 }
 
 /// Information about an app that has access to an MD through `sign_key`
 #[derive(Debug)]
 pub struct AppAccess {
     /// App's or user's public key
-    pub sign_key: PublicKey,
+    pub sign_key: PublicSignKey,
     /// A list of permissions
     pub permissions: PermissionSet,
     /// App's user-facing name
@@ -347,7 +350,7 @@ impl AppAccess {
         };
 
         Ok(ffi::AppAccess {
-            sign_key: sign_key.0,
+            sign_key: sign_key.into_bytes(),
             permissions: permission_set_into_repr_c(permissions),
             name,
             app_id,
@@ -361,7 +364,7 @@ impl ReprC for AppAccess {
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         Ok(AppAccess {
-            sign_key: PublicKey((*repr_c).sign_key),
+            sign_key: PublicSignKey::from_bytes((*repr_c).sign_key),
             permissions: permission_set_clone_from_repr_c((*repr_c).permissions)?,
             name: Some(String::clone_from_repr_c((*repr_c).name)?),
             app_id: Some(String::clone_from_repr_c((*repr_c).app_id)?),
@@ -541,15 +544,17 @@ mod tests {
     use ffi_utils::ReprC;
     use ipc::BootstrapConfig;
     use routing::{XorName, XOR_NAME_LEN};
-    use rust_sodium::crypto::secretbox;
+    use safe_crypto::{
+        self, Nonce, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, SymmetricKey,
+    };
 
     // Test converting an `AuthGranted` object to its FFI representation and then back again.
     #[test]
     fn auth_granted() {
-        let (ok, _) = shared_sign::gen_keypair();
-        let (pk, sk) = shared_sign::gen_keypair();
-        let key = shared_secretbox::gen_key();
-        let (ourpk, oursk) = shared_box::gen_keypair();
+        let (ok, _) = safe_crypto::gen_sign_keypair();
+        let (pk, sk) = safe_crypto::gen_sign_keypair();
+        let key = SymmetricKey::new();
+        let (ourpk, oursk) = safe_crypto::gen_encrypt_keypair();
         let ak = AppKeys {
             owner_key: ok,
             enc_key: key,
@@ -561,7 +566,7 @@ mod tests {
         let ac = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),
             tag: 681,
-            nonce: secretbox::gen_nonce(),
+            nonce: Nonce::new(),
         };
         let ag = AuthGranted {
             app_keys: ak,
@@ -582,10 +587,10 @@ mod tests {
     // Testing converting an `AppKeys` object to its FFI representation and back again.
     #[test]
     fn app_keys() {
-        let (ok, _) = shared_sign::gen_keypair();
-        let (pk, sk) = shared_sign::gen_keypair();
-        let key = shared_secretbox::gen_key();
-        let (ourpk, oursk) = shared_box::gen_keypair();
+        let (ok, _) = safe_crypto::gen_sign_keypair();
+        let (pk, sk) = safe_crypto::gen_sign_keypair();
+        let key = SymmetricKey::new();
+        let (ourpk, oursk) = safe_crypto::gen_encrypt_keypair();
         let ak = AppKeys {
             owner_key: ok,
             enc_key: key.clone(),
@@ -597,30 +602,12 @@ mod tests {
 
         let ffi_ak = ak.into_repr_c();
 
-        assert_eq!(
-            ffi_ak.owner_key.iter().collect::<Vec<_>>(),
-            ok.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            ffi_ak.enc_key.iter().collect::<Vec<_>>(),
-            key.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            ffi_ak.sign_pk.iter().collect::<Vec<_>>(),
-            pk.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            ffi_ak.sign_sk.iter().collect::<Vec<_>>(),
-            sk.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            ffi_ak.enc_pk.iter().collect::<Vec<_>>(),
-            ourpk.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            ffi_ak.enc_sk.iter().collect::<Vec<_>>(),
-            oursk.0.iter().collect::<Vec<_>>()
-        );
+        assert_eq!(PublicSignKey::from_bytes(ffi_ak.owner_key), ok,);
+        assert_eq!(SymmetricKey::from_bytes(ffi_ak.enc_key), key,);
+        assert_eq!(PublicSignKey::from_bytes(ffi_ak.sign_pk), pk,);
+        assert_eq!(SecretSignKey::from_bytes(ffi_ak.sign_sk), sk,);
+        assert_eq!(PublicEncryptKey::from_bytes(ffi_ak.enc_pk), ourpk,);
+        assert_eq!(SecretEncryptKey::from_bytes(ffi_ak.enc_sk), oursk,);
 
         let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(ffi_ak)) };
 
@@ -635,21 +622,18 @@ mod tests {
     // Test converting an `AccessContInfo` struct to its FFI representation and back again.
     #[test]
     fn access_container() {
-        let nonce = secretbox::gen_nonce();
+        let nonce = Nonce::new();
         let a = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),
             tag: 681,
-            nonce,
+            nonce: nonce.clone(),
         };
 
         let ffi = a.into_repr_c();
 
         assert_eq!(ffi.id.iter().sum::<u8>() as usize, 2 * XOR_NAME_LEN);
         assert_eq!(ffi.tag, 681);
-        assert_eq!(
-            ffi.nonce.iter().collect::<Vec<_>>(),
-            nonce.0.iter().collect::<Vec<_>>()
-        );
+        assert_eq!(Nonce::from_bytes(ffi.nonce), nonce);
 
         let a = unsafe { unwrap!(AccessContInfo::clone_from_repr_c(ffi)) };
 

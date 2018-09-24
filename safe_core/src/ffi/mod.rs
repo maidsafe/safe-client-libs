@@ -53,21 +53,21 @@ pub struct MDataInfo {
     /// is set.
     pub has_enc_info: bool,
     /// Encryption key. Meaningful only if `has_enc_info` is `true`.
-    pub enc_key: SymSecretKey,
+    pub enc_key: SymmetricKeyArray,
     /// Encryption nonce. Meaningful only if `has_enc_info` is `true`.
-    pub enc_nonce: SymNonce,
+    pub enc_nonce: NonceArray,
 
     /// Flag indicating whether the new encryption info is set.
     pub has_new_enc_info: bool,
     /// New encryption key (used for two-phase reencryption). Meaningful only if
     /// `has_new_enc_info` is `true`.
-    pub new_enc_key: SymSecretKey,
+    pub new_enc_key: SymmetricKeyArray,
     /// New encryption nonce (used for two-phase reencryption). Meaningful only if
     /// `has_new_enc_info` is `true`.
-    pub new_enc_nonce: SymNonce,
+    pub new_enc_nonce: NonceArray,
 }
 
-/// Returns true if this crate was compiled against mock-routing.
+/// Returns true if this crate was compiled with the `use-mock-routing` feature.
 #[no_mangle]
 pub extern "C" fn is_mock_build() -> bool {
     cfg!(feature = "use-mock-routing")

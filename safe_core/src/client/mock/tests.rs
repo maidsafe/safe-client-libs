@@ -16,11 +16,10 @@ use routing::{
     ImmutableData, MessageId, MutableData, PermissionSet, Request, Response, User, Value, XorName,
     TYPE_TAG_SESSION_PACKET,
 };
-use rust_sodium::crypto::sign;
+use safe_crypto::{self, PublicSignKey};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tiny_keccak::sha3_256;
 use utils;
 
 // Helper macro to receive a routing event and assert it's a response
@@ -1016,8 +1015,8 @@ fn auth_keys() {
     let owner_key = *full_id.public_id().signing_public_key();
     let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
-    let (auth_key1, _) = sign::gen_keypair();
-    let (auth_key2, _) = sign::gen_keypair();
+    let (auth_key1, _) = safe_crypto::gen_sign_keypair();
+    let (auth_key2, _) = safe_crypto::gen_sign_keypair();
 
     // Initially, the list of auth keys should be empty and the version should be zero.
     let msg_id = MessageId::new();
@@ -1397,9 +1396,9 @@ fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
 fn create_account(
     routing: &mut Routing,
     routing_rx: &Receiver<Event>,
-    owner_key: sign::PublicKey,
+    owner_key: PublicSignKey,
 ) -> Authority<XorName> {
-    let account_name = XorName(sha3_256(&owner_key[..]));
+    let account_name = XorName(safe_crypto::hash(&owner_key.into_bytes()));
     let account_data = unwrap!(MutableData::new(
         account_name,
         TYPE_TAG_SESSION_PACKET,

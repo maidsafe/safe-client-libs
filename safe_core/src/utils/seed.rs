@@ -8,17 +8,20 @@
 
 use client::ClientKeys;
 use errors::CoreError;
-use rust_sodium::crypto::sign::{self, Seed};
-use tiny_keccak::sha3_256;
+use safe_crypto::{self, PublicSignKey, Seed, SEED_BYTES};
 
 /// Amount of seed subparts used when calculating values from a seed.
 pub const SEED_SUBPARTS: usize = 4;
 
 /// Calculate sign key from seed.
-pub fn sign_pk_from_seed(seed: &str) -> Result<sign::PublicKey, CoreError> {
+pub fn sign_pk_from_seed(seed: &str) -> Result<PublicSignKey, CoreError> {
     let arr = divide_seed(seed)?;
-    let id_seed = Seed(sha3_256(arr[SEED_SUBPARTS - 2]));
+    let mut seed_bytes: [u8; SEED_BYTES] = Default::default();
+    seed_bytes.copy_from_slice(&safe_crypto::hash(arr[SEED_SUBPARTS - 2]));
+
+    let id_seed = Seed::from_bytes(seed_bytes);
     let maid_keys = ClientKeys::new(Some(&id_seed));
+
     Ok(maid_keys.sign_pk)
 }
 

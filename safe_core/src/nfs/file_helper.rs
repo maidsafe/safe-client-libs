@@ -7,12 +7,12 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use client::{Client, MDataInfo};
-use crypto::shared_secretbox;
 use errors::CoreError;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
 use routing::{ClientError, EntryActions};
+use safe_crypto::SymmetricKey;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
 
@@ -66,7 +66,7 @@ where
 pub fn read<C: Client>(
     client: C,
     file: &File,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 ) -> Box<NfsFuture<Reader<C>>> {
     trace!("Reading file {:?}", file);
     Reader::new(
@@ -157,7 +157,7 @@ pub fn write<C: Client>(
     client: C,
     file: File,
     mode: Mode,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 ) -> Box<NfsFuture<Writer<C>>> {
     trace!("Creating a writer for a file");
 

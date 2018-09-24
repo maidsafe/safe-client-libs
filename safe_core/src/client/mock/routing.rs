@@ -18,7 +18,7 @@ use routing::{
     InterfaceError, MessageId, MutableData, PermissionSet, Request, Response, RoutingError, User,
     XorName, TYPE_TAG_SESSION_PACKET,
 };
-use rust_sodium::crypto::sign;
+use safe_crypto::{self, PublicSignKey};
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,7 +26,6 @@ use std::env;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tiny_keccak::sha3_256;
 
 /// Function that is used to tap into routing requests
 /// and return preconditioned responses.
@@ -100,7 +99,7 @@ impl Routing {
         _bootstrap_config: Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
-        let _ = ::rust_sodium::init();
+        ::safe_crypto::init()?;
 
         let cloned_sender = sender.clone();
         let _ = thread::named(CONNECT_THREAD_NAME, move || {
@@ -265,7 +264,7 @@ impl Routing {
         dst: Authority<XorName>,
         data: MutableData,
         msg_id: MessageId,
-        requester: sign::PublicKey,
+        requester: PublicSignKey,
     ) -> Result<(), InterfaceError> {
         let data_name = DataId::mutable(*data.name(), data.tag());
         let client_auth = self.client_auth;
@@ -486,7 +485,7 @@ impl Routing {
         tag: u64,
         actions: BTreeMap<Vec<u8>, EntryAction>,
         msg_id: MessageId,
-        requester: sign::PublicKey,
+        requester: PublicSignKey,
     ) -> Result<(), InterfaceError> {
         let actions2 = actions.clone();
 
@@ -566,7 +565,7 @@ impl Routing {
         permissions: PermissionSet,
         version: u64,
         msg_id: MessageId,
-        requester: sign::PublicKey,
+        requester: PublicSignKey,
     ) -> Result<(), InterfaceError> {
         self.mutate_mdata(
             dst,
@@ -598,7 +597,7 @@ impl Routing {
         user: User,
         version: u64,
         msg_id: MessageId,
-        requester: sign::PublicKey,
+        requester: PublicSignKey,
     ) -> Result<(), InterfaceError> {
         self.mutate_mdata(
             dst,
@@ -626,7 +625,7 @@ impl Routing {
         dst: Authority<XorName>,
         name: XorName,
         tag: u64,
-        new_owners: BTreeSet<sign::PublicKey>,
+        new_owners: BTreeSet<PublicSignKey>,
         version: u64,
         msg_id: MessageId,
     ) -> Result<(), InterfaceError> {
@@ -650,7 +649,7 @@ impl Routing {
         };
 
         let requester = *self.client_key();
-        let requester_name = XorName(sha3_256(&requester[..]));
+        let requester_name = XorName(safe_crypto::hash(&requester.into_bytes()));
 
         self.mutate_mdata(
             dst,
@@ -737,7 +736,7 @@ impl Routing {
     pub fn ins_auth_key(
         &mut self,
         dst: Authority<XorName>,
-        key: sign::PublicKey,
+        key: PublicSignKey,
         version: u64,
         msg_id: MessageId,
     ) -> Result<(), InterfaceError> {
@@ -783,7 +782,7 @@ impl Routing {
     pub fn del_auth_key(
         &mut self,
         dst: Authority<XorName>,
-        key: sign::PublicKey,
+        key: PublicSignKey,
         version: u64,
         msg_id: MessageId,
     ) -> Result<(), InterfaceError> {
@@ -899,7 +898,7 @@ impl Routing {
         name: XorName,
         tag: u64,
         request: Request,
-        requester: sign::PublicKey,
+        requester: PublicSignKey,
         log_label: &str,
         delay_ms: u64,
         f: F,
@@ -938,7 +937,7 @@ impl Routing {
         name: XorName,
         tag: u64,
         request: Request,
-        requester: Option<sign::PublicKey>,
+        requester: Option<PublicSignKey>,
         log_label: &str,
         delay_ms: u64,
         write: bool,
@@ -981,7 +980,7 @@ impl Routing {
 
     fn verify_owner(
         dst: &Authority<XorName>,
-        owner_keys: &BTreeSet<sign::PublicKey>,
+        owner_keys: &BTreeSet<PublicSignKey>,
     ) -> Result<(), ClientError> {
         let dst_name = match *dst {
             Authority::ClientManager(name) => name,
@@ -989,7 +988,7 @@ impl Routing {
         };
 
         let ok = owner_keys.iter().any(|owner_key| {
-            let owner_name = XorName(sha3_256(&owner_key.0));
+            let owner_name = XorName(safe_crypto::hash(&owner_key.into_bytes()));
             owner_name == dst_name
         });
 
@@ -1000,7 +999,7 @@ impl Routing {
         }
     }
 
-    fn verify_requester(&self, requester: Option<sign::PublicKey>) -> Result<(), ClientError> {
+    fn verify_requester(&self, requester: Option<PublicSignKey>) -> Result<(), ClientError> {
         let requester = match requester {
             Some(key) => key,
             None => return Ok(()),
@@ -1087,7 +1086,7 @@ impl Routing {
         false
     }
 
-    fn client_key(&self) -> &sign::PublicKey {
+    fn client_key(&self) -> &PublicSignKey {
         self.full_id.public_id().signing_public_key()
     }
 }

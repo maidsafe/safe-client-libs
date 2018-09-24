@@ -9,12 +9,12 @@
 //! `DataMap` utilities
 
 use client::Client;
-use crypto::shared_secretbox;
 use futures::{future, Future};
 use immutable_data;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use nfs::NfsFuture;
 use routing::XorName;
+use safe_crypto::SymmetricKey;
 use self_encryption::DataMap;
 use utils::FutureExt;
 
@@ -23,7 +23,7 @@ use utils::FutureExt;
 pub fn get(
     client: &impl Client,
     name: &XorName,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 ) -> Box<NfsFuture<DataMap>> {
     immutable_data::get_value(client, name, encryption_key)
         .map_err(From::from)
@@ -36,7 +36,7 @@ pub fn get(
 pub fn put(
     client: &impl Client,
     data_map: &DataMap,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 ) -> Box<NfsFuture<XorName>> {
     let client = client.clone();
     let client2 = client.clone();

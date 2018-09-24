@@ -32,7 +32,6 @@ use self::mock::Routing;
 #[cfg(not(feature = "use-mock-routing"))]
 use routing::Client as Routing;
 
-use crypto::{shared_box, shared_secretbox, shared_sign};
 use errors::CoreError;
 use event::{CoreEvent, NetworkEvent, NetworkTx};
 use event_loop::{CoreFuture, CoreMsgTx};
@@ -46,7 +45,7 @@ use routing::{
     AccountInfo, Authority, EntryAction, Event, FullId, ImmutableData, InterfaceError, MessageId,
     MutableData, PermissionSet, User, Value, XorName,
 };
-use rust_sodium::crypto::{box_, sign};
+use safe_crypto::{PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, SymmetricKey};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
@@ -112,32 +111,32 @@ pub trait Client: Clone + 'static {
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>>;
 
     /// Return the public encryption key.
-    fn public_encryption_key(&self) -> Option<box_::PublicKey>;
+    fn public_encryption_key(&self) -> Option<PublicEncryptKey>;
 
     /// Return the Secret encryption key.
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey>;
+    fn secret_encryption_key(&self) -> Option<SecretEncryptKey>;
 
     /// Return the public and secret encryption keys.
-    fn encryption_keypair(&self) -> Option<(box_::PublicKey, shared_box::SecretKey)> {
+    fn encryption_keypair(&self) -> Option<(PublicEncryptKey, SecretEncryptKey)> {
         Some((self.public_encryption_key()?, self.secret_encryption_key()?))
     }
 
     /// Return the Symmetric Encryption key.
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key>;
+    fn secret_symmetric_key(&self) -> Option<SymmetricKey>;
 
     /// Return the Public Signing key.
-    fn public_signing_key(&self) -> Option<sign::PublicKey>;
+    fn public_signing_key(&self) -> Option<PublicSignKey>;
 
     /// Return the Secret Signing key.
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey>;
+    fn secret_signing_key(&self) -> Option<SecretSignKey>;
 
     /// Return the public and secret signing keys.
-    fn signing_keypair(&self) -> Option<(sign::PublicKey, shared_sign::SecretKey)> {
+    fn signing_keypair(&self) -> Option<(PublicSignKey, SecretSignKey)> {
         Some((self.public_signing_key()?, self.secret_signing_key()?))
     }
 
     /// Return the owner signing key.
-    fn owner_key(&self) -> Option<sign::PublicKey>;
+    fn owner_key(&self) -> Option<PublicSignKey>;
 
     /// Set request timeout.
     fn set_timeout(&self, duration: Duration) {
@@ -397,7 +396,7 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-        new_owner: sign::PublicKey,
+        new_owner: PublicSignKey,
         version: u64,
     ) -> Box<CoreFuture<()>> {
         trace!("ChangeMDataOwner for {:?}", name);
@@ -408,7 +407,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetches a list of authorised keys and version in MaidManager.
-    fn list_auth_keys_and_version(&self) -> Box<CoreFuture<(BTreeSet<sign::PublicKey>, u64)>> {
+    fn list_auth_keys_and_version(&self) -> Box<CoreFuture<(BTreeSet<PublicSignKey>, u64)>> {
         trace!("ListAuthKeysAndVersion");
 
         let dst = some_or_err!(self.cm_addr());
@@ -419,7 +418,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Adds a new authorised key to MaidManager.
-    fn ins_auth_key(&self, key: sign::PublicKey, version: u64) -> Box<CoreFuture<()>> {
+    fn ins_auth_key(&self, key: PublicSignKey, version: u64) -> Box<CoreFuture<()>> {
         trace!("InsAuthKey ({:?})", key);
 
         send_mutation(self, move |routing, dst, msg_id| {
@@ -428,7 +427,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Removes an authorised key from MaidManager.
-    fn del_auth_key(&self, key: sign::PublicKey, version: u64) -> Box<CoreFuture<()>> {
+    fn del_auth_key(&self, key: PublicSignKey, version: u64) -> Box<CoreFuture<()>> {
         trace!("DelAuthKey ({:?})", key);
 
         send_mutation(self, move |routing, dst, msg_id| {
@@ -436,30 +435,36 @@ pub trait Client: Clone + 'static {
         })
     }
 
-    #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
-    ))]
+    #[cfg(
+        any(
+            all(test, feature = "use-mock-routing"),
+            all(feature = "testing", feature = "use-mock-routing")
+        )
+    )]
     #[doc(hidden)]
     fn set_network_limits(&self, max_ops_count: Option<u64>) {
         let inner = self.inner();
         inner.borrow_mut().routing.set_network_limits(max_ops_count);
     }
 
-    #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
-    ))]
+    #[cfg(
+        any(
+            all(test, feature = "use-mock-routing"),
+            all(feature = "testing", feature = "use-mock-routing")
+        )
+    )]
     #[doc(hidden)]
     fn simulate_network_disconnect(&self) {
         let inner = self.inner();
         inner.borrow_mut().routing.simulate_disconnect();
     }
 
-    #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
-    ))]
+    #[cfg(
+        any(
+            all(test, feature = "use-mock-routing"),
+            all(feature = "testing", feature = "use-mock-routing")
+        )
+    )]
     #[doc(hidden)]
     fn set_simulate_timeout(&self, enabled: bool) {
         let inner = self.inner();

@@ -11,6 +11,7 @@ use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::messaging;
 use routing::{ClientError, InterfaceError, RoutingError};
+use safe_crypto;
 use self_encryption::SelfEncryptionError;
 use self_encryption_storage::SelfEncryptionStorageError;
 use std::error::Error;
@@ -23,10 +24,6 @@ use std::sync::mpsc;
 pub enum CoreError {
     /// Could not Serialise or Deserialise.
     EncodeDecodeError(SerialisationError),
-    /// Asymmetric Key Decryption Failed.
-    AsymmetricDecipherFailure,
-    /// Symmetric Key Decryption Failed.
-    SymmetricDecipherFailure,
     /// Received unexpected data.
     ReceivedUnexpectedData,
     /// Received unexpected event.
@@ -47,11 +44,6 @@ pub enum CoreError {
     RoutingInterfaceError(InterfaceError),
     /// Routing Client Error.
     RoutingClientError(ClientError),
-    /// Unable to pack into or operate with size of Salt.
-    UnsupportedSaltSizeForPwHash,
-    /// Unable to complete computation for password hashing - usually because OS
-    /// refused to allocate amount of requested memory.
-    UnsuccessfulPwHash,
     /// Blocking operation was cancelled.
     OperationAborted,
     /// MpidMessaging Error.
@@ -64,6 +56,8 @@ pub enum CoreError {
     ConfigError(config_file_handler::Error),
     /// Io error.
     IoError(io::Error),
+    /// Crypto error.
+    CryptoError(safe_crypto::Error),
 }
 
 impl<'a> From<&'a str> for CoreError {
@@ -138,18 +132,18 @@ impl From<io::Error> for CoreError {
     }
 }
 
+impl From<safe_crypto::Error> for CoreError {
+    fn from(error: safe_crypto::Error) -> CoreError {
+        CoreError::CryptoError(error)
+    }
+}
+
 impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         write!(formatter, "{} - ", self.description())?;
         match *self {
             CoreError::EncodeDecodeError(ref error) => {
                 write!(formatter, "CoreError::EncodeDecodeError -> {:?}", error)
-            }
-            CoreError::AsymmetricDecipherFailure => {
-                write!(formatter, "CoreError::AsymmetricDecipherFailure")
-            }
-            CoreError::SymmetricDecipherFailure => {
-                write!(formatter, "CoreError::SymmetricDecipherFailure")
             }
             CoreError::ReceivedUnexpectedData => {
                 write!(formatter, "CoreError::ReceivedUnexpectedData")
@@ -175,10 +169,6 @@ impl Debug for CoreError {
             CoreError::RoutingClientError(ref error) => {
                 write!(formatter, "CoreError::RoutingClientError -> {:?}", error)
             }
-            CoreError::UnsupportedSaltSizeForPwHash => {
-                write!(formatter, "CoreError::UnsupportedSaltSizeForPwHash")
-            }
-            CoreError::UnsuccessfulPwHash => write!(formatter, "CoreError::UnsuccessfulPwHash"),
             CoreError::OperationAborted => write!(formatter, "CoreError::OperationAborted"),
             CoreError::MpidMessagingError(ref error) => {
                 write!(formatter, "CoreError::MpidMessagingError -> {:?}", error)
@@ -191,6 +181,9 @@ impl Debug for CoreError {
                 write!(formatter, "CoreError::ConfigError -> {:?}", error)
             }
             CoreError::IoError(ref error) => write!(formatter, "CoreError::IoError -> {:?}", error),
+            CoreError::CryptoError(ref error) => {
+                write!(formatter, "CoreError::CryptoError -> {:?}", error)
+            }
         }
     }
 }
@@ -203,10 +196,6 @@ impl Display for CoreError {
                 "Error while serialising/deserialising: {}",
                 error
             ),
-            CoreError::AsymmetricDecipherFailure => {
-                write!(formatter, "Asymmetric decryption failed")
-            }
-            CoreError::SymmetricDecipherFailure => write!(formatter, "Symmetric decryption failed"),
             CoreError::ReceivedUnexpectedData => write!(formatter, "Received unexpected data"),
             CoreError::ReceivedUnexpectedEvent => write!(formatter, "Received unexpected event"),
             CoreError::VersionCacheMiss => {
@@ -232,14 +221,6 @@ impl Display for CoreError {
             CoreError::RoutingClientError(ref error) => {
                 write!(formatter, "Routing client error -> {}", error)
             }
-            CoreError::UnsupportedSaltSizeForPwHash => write!(
-                formatter,
-                "Unable to pack into or operate with size of Salt"
-            ),
-            CoreError::UnsuccessfulPwHash => write!(
-                formatter,
-                "Unable to complete computation for password hashing"
-            ),
             CoreError::OperationAborted => write!(formatter, "Blocking operation was cancelled"),
             CoreError::MpidMessagingError(ref error) => {
                 write!(formatter, "Mpid messaging error: {}", error)
@@ -250,6 +231,7 @@ impl Display for CoreError {
             CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
             CoreError::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
             CoreError::IoError(ref error) => write!(formatter, "Io error: {}", error),
+            CoreError::CryptoError(ref error) => write!(formatter, "Crypto error: {}", error),
         }
     }
 }
@@ -258,8 +240,6 @@ impl Error for CoreError {
     fn description(&self) -> &str {
         match *self {
             CoreError::EncodeDecodeError(_) => "Serialisation error",
-            CoreError::AsymmetricDecipherFailure => "Asymmetric decryption failure",
-            CoreError::SymmetricDecipherFailure => "Symmetric decryption failure",
             CoreError::ReceivedUnexpectedData => "Received unexpected data",
             CoreError::ReceivedUnexpectedEvent => "Received unexpected event",
             CoreError::VersionCacheMiss => "Version cache miss",
@@ -272,14 +252,13 @@ impl Error for CoreError {
             // TODO - use `error.description()` once `InterfaceError` implements `std::error::Error`
             CoreError::RoutingClientError(ref error) => error.description(),
             CoreError::RoutingInterfaceError(_) => "Routing interface error",
-            CoreError::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
-            CoreError::UnsuccessfulPwHash => "Failed while password hashing",
             CoreError::OperationAborted => "Operation aborted",
             CoreError::MpidMessagingError(_) => "Mpid messaging error",
             CoreError::SelfEncryption(ref error) => error.description(),
             CoreError::RequestTimeout => "Request has timed out",
             CoreError::ConfigError(ref error) => error.description(),
             CoreError::IoError(ref error) => error.description(),
+            CoreError::CryptoError(ref error) => error.description(),
         }
     }
 

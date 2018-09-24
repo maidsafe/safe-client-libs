@@ -17,10 +17,8 @@ pub mod test_utils;
 
 pub use self::futures::FutureExt;
 use errors::CoreError;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::Rng;
-use rust_sodium::crypto::hash::sha512::{self, Digest, DIGESTBYTES};
-use rust_sodium::crypto::secretbox;
+use safe_crypto::{self, HASH_BYTES};
 
 #[macro_export]
 macro_rules! btree_set {
@@ -54,42 +52,6 @@ macro_rules! btree_map {
     ($($key:expr => $value:expr),*,) => {
         btree_map![$($key => $value),*]
     };
-}
-
-#[derive(Serialize, Deserialize)]
-struct SymmetricEnc {
-    nonce: [u8; secretbox::NONCEBYTES],
-    cipher_text: Vec<u8>,
-}
-
-/// Symmetric encryption.
-/// If `nonce` is `None`, then it will be generated randomly.
-pub fn symmetric_encrypt(
-    plain_text: &[u8],
-    secret_key: &secretbox::Key,
-    nonce: Option<&secretbox::Nonce>,
-) -> Result<Vec<u8>, CoreError> {
-    let nonce = match nonce {
-        Some(nonce) => *nonce,
-        None => secretbox::gen_nonce(),
-    };
-
-    let cipher_text = secretbox::seal(plain_text, &nonce, secret_key);
-
-    Ok(serialise(&SymmetricEnc {
-        nonce: nonce.0,
-        cipher_text,
-    })?)
-}
-
-/// Symmetric decryption.
-pub fn symmetric_decrypt(
-    cipher_text: &[u8],
-    secret_key: &secretbox::Key,
-) -> Result<Vec<u8>, CoreError> {
-    let SymmetricEnc { nonce, cipher_text } = deserialise::<SymmetricEnc>(cipher_text)?;
-    secretbox::open(&cipher_text, &secretbox::Nonce(nonce), secret_key)
-        .map_err(|_| CoreError::SymmetricDecipherFailure)
 }
 
 /// Generates a `String` from `length` random UTF-8 `char`s.  Note that the NULL character will be
@@ -131,11 +93,11 @@ where
 
 /// Derive Password, Keyword and PIN (in order).
 pub fn derive_secrets(acc_locator: &[u8], acc_password: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-    let Digest(locator_hash) = sha512::hash(acc_locator);
+    let locator_hash = safe_crypto::hash(acc_locator);
 
-    let pin = sha512::hash(&locator_hash[DIGESTBYTES / 2..]).0.to_vec();
+    let pin = safe_crypto::hash(&locator_hash[HASH_BYTES / 2..]).to_vec();
     let keyword = locator_hash.to_vec();
-    let password = sha512::hash(acc_password).0.to_vec();
+    let password = safe_crypto::hash(acc_password).to_vec();
 
     (password, keyword, pin)
 }

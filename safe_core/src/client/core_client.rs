@@ -16,7 +16,6 @@ use client::{
     setup_routing, spawn_routing_thread, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
     REQUEST_TIMEOUT_SECS,
 };
-use crypto::{shared_box, shared_secretbox, shared_sign};
 use errors::CoreError;
 use event::NetworkTx;
 use event_loop::CoreMsgTx;
@@ -27,13 +26,13 @@ use routing::{
     AccountPacket, Authority, BootstrapConfig, Event, FullId, MessageId, MutableData, Response,
     Value, ACC_LOGIN_ENTRY_KEY, TYPE_TAG_SESSION_PACKET,
 };
-use rust_sodium::crypto::sign::Seed;
-use rust_sodium::crypto::{box_, sign};
+use safe_crypto::{
+    self, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, Seed, SymmetricKey,
+};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use std::time::Duration;
-use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
 use utils;
 
@@ -148,7 +147,7 @@ impl CoreClient {
             btree_set![pub_key],
         )?;
 
-        let digest = sha3_256(&pub_key.0);
+        let digest = safe_crypto::hash(&pub_key.into_bytes());
         let cm_addr = Authority::ClientManager(XorName(digest));
 
         let msg_id = MessageId::new();
@@ -200,27 +199,27 @@ impl Client for CoreClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> Option<box_::PublicKey> {
+    fn public_encryption_key(&self) -> Option<PublicEncryptKey> {
         Some(self.keys.enc_pk)
     }
 
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey> {
+    fn secret_encryption_key(&self) -> Option<SecretEncryptKey> {
         Some(self.keys.enc_sk.clone())
     }
 
-    fn public_signing_key(&self) -> Option<sign::PublicKey> {
+    fn public_signing_key(&self) -> Option<PublicSignKey> {
         Some(self.keys.sign_pk)
     }
 
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey> {
+    fn secret_signing_key(&self) -> Option<SecretSignKey> {
         Some(self.keys.sign_sk.clone())
     }
 
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
+    fn secret_symmetric_key(&self) -> Option<SymmetricKey> {
         Some(self.keys.enc_key.clone())
     }
 
-    fn owner_key(&self) -> Option<sign::PublicKey> {
+    fn owner_key(&self) -> Option<PublicSignKey> {
         Some(self.keys.sign_pk)
     }
 }

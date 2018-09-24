@@ -14,7 +14,7 @@ use futures::Future;
 use routing::{
     Action, ClientError, EntryAction, EntryError, MutableData, PermissionSet, User, Value, XorName,
 };
-use rust_sodium::crypto::sign;
+use safe_crypto::PublicSignKey;
 use std::collections::BTreeMap;
 use utils::FutureExt;
 
@@ -290,11 +290,7 @@ fn union_permission_sets(a: PermissionSet, b: PermissionSet) -> PermissionSet {
 
 /// Insert key to maid managers.
 /// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
-pub fn ins_auth_key(
-    client: &impl Client,
-    key: sign::PublicKey,
-    version: u64,
-) -> Box<CoreFuture<()>> {
+pub fn ins_auth_key(client: &impl Client, key: PublicSignKey, version: u64) -> Box<CoreFuture<()>> {
     let state = (0, version);
     let client = client.clone();
 
@@ -457,7 +453,7 @@ mod tests_with_mock_routing {
     use super::*;
     use rand;
     use routing::{Action, EntryActions, MutableData};
-    use rust_sodium::crypto::sign;
+    use safe_crypto;
     use utils::test_utils::random_client;
 
     // Test putting mdata and recovering from errors
@@ -512,7 +508,7 @@ mod tests_with_mock_routing {
                 }
             ];
 
-            let user = User::Key(sign::gen_keypair().0);
+            let user = User::Key(safe_crypto::gen_sign_keypair().0);
             let permissions = btree_map![
                 User::Anyone => PermissionSet::new().allow(Action::Insert).allow(Action::Update),
                 user => PermissionSet::new().allow(Action::Delete)
@@ -707,8 +703,8 @@ mod tests_with_mock_routing {
                 owners,
             ));
 
-            let user0 = User::Key(sign::gen_keypair().0);
-            let user1 = User::Key(sign::gen_keypair().0);
+            let user0 = User::Key(safe_crypto::gen_sign_keypair().0);
+            let user1 = User::Key(safe_crypto::gen_sign_keypair().0);
             let permissions = PermissionSet::new().allow(Action::Insert);
 
             client

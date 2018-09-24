@@ -13,7 +13,7 @@ use config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};
-use rust_sodium::crypto::sign;
+use safe_crypto::{self, PublicSignKey};
 use std::collections::HashMap;
 use std::env;
 use std::fs::{File, OpenOptions};
@@ -23,7 +23,6 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 use std::time::SystemTime;
-use tiny_keccak::sha3_256;
 
 const FILE_NAME: &str = "MockVault";
 
@@ -131,7 +130,7 @@ impl Vault {
     pub fn authorise_mutation(
         &self,
         dst: &Authority<XorName>,
-        sign_pk: &sign::PublicKey,
+        sign_pk: &PublicSignKey,
     ) -> Result<(), ClientError> {
         let dst_name = match *dst {
             Authority::ClientManager(name) => name,
@@ -150,7 +149,7 @@ impl Vault {
         };
 
         // Check if we are the owner or app.
-        let owner_name = XorName(sha3_256(&sign_pk[..]));
+        let owner_name = XorName(safe_crypto::hash(&sign_pk.clone().into_bytes()));
         if owner_name != dst_name && !account.auth_keys().contains(sign_pk) {
             debug!("Mutation not authorised");
             return Err(ClientError::AccessDenied);
@@ -166,10 +165,8 @@ impl Vault {
 
     // Commit a mutation.
     pub fn commit_mutation(&mut self, dst: &Authority<XorName>) {
-        {
-            let account = unwrap!(self.get_account_mut(&dst.name()));
-            account.increment_mutations_counter();
-        }
+        let account = unwrap!(self.get_account_mut(&dst.name()));
+        account.increment_mutations_counter();
     }
 
     // Check if data with the given name is in the storage.

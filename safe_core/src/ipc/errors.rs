@@ -11,6 +11,7 @@ use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::XorName;
+use safe_crypto;
 use std::error::Error;
 use std::ffi::NulError;
 use std::str::Utf8Error;
@@ -36,6 +37,7 @@ pub enum IpcError {
     ShareMDataDenied,
     /// Requested shared access to non-owned MD
     InvalidOwner(Vec<(XorName, u64)>),
+
     /// Unexpected error
     Unexpected(String),
 }
@@ -47,26 +49,26 @@ impl<T: 'static> From<SendError<T>> for IpcError {
 }
 
 impl From<Utf8Error> for IpcError {
-    fn from(_err: Utf8Error) -> Self {
+    fn from(_error: Utf8Error) -> Self {
         IpcError::EncodeDecodeError
     }
 }
 
 impl From<DecodeError> for IpcError {
-    fn from(_err: DecodeError) -> Self {
+    fn from(_error: DecodeError) -> Self {
         IpcError::EncodeDecodeError
     }
 }
 
 impl From<SerialisationError> for IpcError {
-    fn from(_err: SerialisationError) -> Self {
+    fn from(_error: SerialisationError) -> Self {
         IpcError::EncodeDecodeError
     }
 }
 
 impl From<StringError> for IpcError {
-    fn from(err: StringError) -> Self {
-        IpcError::StringError(err)
+    fn from(error: StringError) -> Self {
+        IpcError::StringError(error)
     }
 }
 
@@ -85,5 +87,11 @@ impl<'a> From<&'a str> for IpcError {
 impl From<String> for IpcError {
     fn from(s: String) -> Self {
         IpcError::Unexpected(s)
+    }
+}
+
+impl From<safe_crypto::Error> for IpcError {
+    fn from(error: safe_crypto::Error) -> Self {
+        IpcError::from(error.description())
     }
 }

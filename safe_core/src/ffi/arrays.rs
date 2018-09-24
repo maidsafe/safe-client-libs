@@ -7,31 +7,26 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use routing::XOR_NAME_LEN;
-use rust_sodium::crypto::box_::{
-    NONCEBYTES as ASYM_NONCE_LEN, PUBLICKEYBYTES as ASYM_PUBLIC_KEY_LEN,
-    SECRETKEYBYTES as ASYM_SECRET_KEY_LEN,
-};
-use rust_sodium::crypto::secretbox::{KEYBYTES as SYM_KEY_LEN, NONCEBYTES as SYM_NONCE_LEN};
-use rust_sodium::crypto::sign::{
-    PUBLICKEYBYTES as SIGN_PUBLIC_KEY_LEN, SECRETKEYBYTES as SIGN_SECRET_KEY_LEN,
+use safe_crypto::{
+    NONCE_BYTES, PUBLIC_ENCRYPT_KEY_BYTES, PUBLIC_SIGN_KEY_BYTES, SECRET_ENCRYPT_KEY_BYTES,
+    SECRET_SIGN_KEY_BYTES, SYMMETRIC_KEY_BYTES,
 };
 
 /// Array containing public key bytes.
-pub type AsymPublicKey = [u8; ASYM_PUBLIC_KEY_LEN];
-/// Array containing private key bytes.
-pub type AsymSecretKey = [u8; ASYM_SECRET_KEY_LEN];
-/// Array containing nonce bytes.
-pub type AsymNonce = [u8; ASYM_NONCE_LEN];
+pub type PublicEncryptKeyArray = [u8; PUBLIC_ENCRYPT_KEY_BYTES];
+/// Array containing secret key bytes.
+pub type SecretEncryptKeyArray = [u8; SECRET_ENCRYPT_KEY_BYTES];
 
-/// Array containing private key bytes.
-pub type SymSecretKey = [u8; SYM_KEY_LEN];
+/// Array containing symmetric secret key bytes.
+pub type SymmetricKeyArray = [u8; SYMMETRIC_KEY_BYTES];
+
 /// Array containing nonce bytes.
-pub type SymNonce = [u8; SYM_NONCE_LEN];
+pub type NonceArray = [u8; NONCE_BYTES];
 
 /// Array containing sign public key bytes.
-pub type SignPublicKey = [u8; SIGN_PUBLIC_KEY_LEN];
-/// Array containing sign private key bytes.
-pub type SignSecretKey = [u8; SIGN_SECRET_KEY_LEN];
+pub type PublicSignKeyArray = [u8; PUBLIC_SIGN_KEY_BYTES];
+/// Array containing sign secret key bytes.
+pub type SecretSignKeyArray = [u8; SECRET_SIGN_KEY_BYTES];
 
 /// Array containing `XorName` bytes.
 pub type XorNameArray = [u8; XOR_NAME_LEN];
