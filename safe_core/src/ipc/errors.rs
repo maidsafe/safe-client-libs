@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use base64::DecodeError;
+use data_encoding::DecodeError;
 use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
@@ -15,28 +15,31 @@ use std::error::Error;
 use std::ffi::NulError;
 use std::str::Utf8Error;
 
-/// Ipc error
+/// Ipc error.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum IpcError {
-    /// Authentication denied
+    /// Authentication denied.
     AuthDenied,
-    /// Containers denied
+    /// Containers denied.
     ContainersDenied,
-    /// Invalid IPC message
+    /// Invalid IPC message.
     InvalidMsg,
     /// Generic encoding / decoding failure.
     EncodeDecodeError,
-    /// String conversion error
+    /// String conversion error.
     StringError(StringError),
-    /// App is already authorised
+    /// App is already authorised.
     AlreadyAuthorised,
-    /// App is not registered
+    /// App is not registered.
     UnknownApp,
-    /// User denied request for shared access to MD
+    /// User denied request for shared access to MD.
     ShareMDataDenied,
-    /// Requested shared access to non-owned MD
+    /// Requested shared access to non-owned MD.
     InvalidOwner(Vec<(XorName, u64)>),
-    /// Unexpected error
+    /// Message sent between mock and non-mock versions.
+    IncompatibleMockStatus,
+
+    /// Unexpected error.
     Unexpected(String),
 }
 

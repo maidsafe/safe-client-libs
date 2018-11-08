@@ -12,9 +12,10 @@ use crypto::shared_secretbox;
 use errors::CoreError;
 use futures::future::{self, Loop};
 use futures::Future;
+use nfs::file_helper::{self, Version};
 use nfs::reader::Reader;
 use nfs::writer::Writer;
-use nfs::{create_dir, file_helper, File, Mode, NfsError, NfsFuture};
+use nfs::{create_dir, File, Mode, NfsError, NfsFuture};
 use rand::{self, Rng};
 use rust_sodium::crypto::secretbox;
 use self_encryption::MIN_CHUNK_SIZE;
@@ -384,7 +385,7 @@ fn file_update_overwrite() {
                     .map(move |file| (file, dir, creation_time))
             }).then(move |res| {
                 let (file, dir, creation_time) = unwrap!(res);
-                file_helper::update(c3, dir.clone(), "hello.txt", &file, 1)
+                file_helper::update(c3, dir.clone(), "hello.txt", &file, Version::Custom(1))
                     .map(move |_| (dir, creation_time))
             }).then(move |res| {
                 let (dir, creation_time) = unwrap!(res);
@@ -466,7 +467,12 @@ fn file_update_metadata() {
                 let (dir, mut file) = unwrap!(res);
 
                 file.set_user_metadata(vec![12u8; 10]);
-                file_helper::update(c2, dir.clone(), "hello.txt", &file, 1).map(move |()| dir)
+                file_helper::update(c2, dir.clone(), "hello.txt", &file, Version::GetNext).map(
+                    move |version| {
+                        assert_eq!(version, 1);
+                        dir
+                    },
+                )
             }).then(move |res| {
                 let dir = unwrap!(res);
 
@@ -485,7 +491,12 @@ fn file_delete() {
         create_test_file(client)
             .then(move |res| {
                 let (dir, _file) = unwrap!(res);
-                file_helper::delete(c2, dir.clone(), "hello.txt", 1).map(move |()| dir)
+                file_helper::delete(c2, dir.clone(), "hello.txt", Version::Custom(1)).map(
+                    move |version| {
+                        assert_eq!(version, 1);
+                        dir
+                    },
+                )
             }).then(move |res| {
                 let dir = unwrap!(res);
                 file_helper::fetch(c3.clone(), dir, "hello.txt")
@@ -515,7 +526,8 @@ fn file_delete_then_add() {
         create_test_file(client)
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
-                file_helper::delete(c2, dir.clone(), "hello.txt", 1).map(move |_| (dir, file))
+                file_helper::delete(c2, dir.clone(), "hello.txt", Version::Custom(1))
+                    .map(move |_| (dir, file))
             }).then(move |res| {
                 let (dir, file) = unwrap!(res);
 
@@ -530,7 +542,8 @@ fn file_delete_then_add() {
                     .map(move |file| (file, dir))
             }).then(move |res| {
                 let (file, dir) = unwrap!(res);
-                file_helper::update(c4, dir.clone(), "hello.txt", &file, 2).map(move |_| dir)
+                file_helper::update(c4, dir.clone(), "hello.txt", &file, Version::GetNext)
+                    .map(move |_| dir)
             }).then(move |res| {
                 let dir = unwrap!(res);
                 file_helper::fetch(c5, dir.clone(), "hello.txt")

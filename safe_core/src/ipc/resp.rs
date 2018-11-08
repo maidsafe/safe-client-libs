@@ -62,9 +62,9 @@ pub struct AuthGranted {
     /// Useful to reuse bootstrap nodes and speed up access.
     pub bootstrap_config: BootstrapConfig,
 
-    /// Access container info
+    /// Access container info.
     pub access_container_info: AccessContInfo,
-    /// Access container entry
+    /// Access container entry.
     pub access_container_entry: AccessContainerEntry,
 }
 

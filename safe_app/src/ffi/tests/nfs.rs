@@ -16,8 +16,7 @@ use futures::Future;
 use safe_core::ffi::nfs::File;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::Permission;
-use safe_core::nfs::File as NativeFile;
-use safe_core::nfs::NfsError;
+use safe_core::nfs::{File as NativeFile, NfsError};
 use std;
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -105,8 +104,8 @@ fn basics() {
     assert_eq!(retrieved_version, 0);
 
     // Delete file.
-    unsafe {
-        unwrap!(call_0(|ud, cb| dir_delete_file(
+    let version: u64 = unsafe {
+        unwrap!(call_1(|ud, cb| dir_delete_file(
             &app,
             &container_info,
             ffi_file_name0.as_ptr(),
@@ -114,7 +113,8 @@ fn basics() {
             ud,
             cb
         )))
-    }
+    };
+    assert_eq!(version, 1);
 }
 
 // Test NFS functions for writing and updating file contents.
@@ -263,17 +263,18 @@ fn open_file() {
     };
 
     // Update it in the dir
-    unsafe {
-        unwrap!(call_0(|ud, cb| dir_update_file(
+    let version: u64 = unsafe {
+        unwrap!(call_1(|ud, cb| dir_update_file(
             &app,
             &container_info,
             ffi_file_name1.as_ptr(),
             &written_file.into_repr_c(),
-            1,
+            GET_NEXT_VERSION,
             ud,
             cb,
         )))
-    }
+    };
+    assert_eq!(version, 1);
 
     // Read the updated content
     let (file, version): (NativeFile, u64) = {
@@ -526,16 +527,17 @@ fn delete_then_open_file() {
     }
 
     // Delete file.
-    unsafe {
-        unwrap!(call_0(|ud, cb| dir_delete_file(
+    let version: u64 = unsafe {
+        unwrap!(call_1(|ud, cb| dir_delete_file(
             &app,
             &container_info,
             ffi_file_name2.as_ptr(),
-            1,
+            GET_NEXT_VERSION,
             ud,
             cb
         )))
-    }
+    };
+    assert_eq!(version, 1);
 
     // Create new non-empty file.
     let file = NativeFile::new(Vec::new());
@@ -567,8 +569,8 @@ fn delete_then_open_file() {
     };
 
     // Update file in container.
-    unsafe {
-        unwrap!(call_0(|ud, cb| dir_update_file(
+    let version: u64 = unsafe {
+        unwrap!(call_1(|ud, cb| dir_update_file(
             &app,
             &container_info,
             ffi_file_name2.as_ptr(),
@@ -577,7 +579,8 @@ fn delete_then_open_file() {
             ud,
             cb,
         )))
-    }
+    };
+    assert_eq!(version, 2);
 
     // Fetch the file.
     let (file, version): (NativeFile, u64) = {

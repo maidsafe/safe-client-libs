@@ -83,7 +83,7 @@ pub fn fetch_authenticator_entry(
         }).into_box()
 }
 
-/// Updates the authenticator entry
+/// Updates the authenticator entry.
 pub fn put_authenticator_entry(
     client: &AuthClient,
     new_value: &HashMap<String, MDataInfo>,

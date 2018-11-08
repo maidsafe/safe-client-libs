@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -x;
-
-echo "--- Check compilation against actual routing ---" &&
-  scripts/check-real &&
-
-  echo "--- Test against mock ---" &&
-  scripts/test-mock

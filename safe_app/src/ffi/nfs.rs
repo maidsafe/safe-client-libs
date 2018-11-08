@@ -19,8 +19,9 @@ use futures::future::{self, Either};
 use futures::Future;
 use safe_core::ffi::nfs::File;
 use safe_core::ffi::MDataInfo;
+use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::File as NativeFile;
-use safe_core::nfs::{file_helper, Mode, Reader, Writer};
+use safe_core::nfs::{Mode, Reader, Writer};
 use safe_core::{FutureExt, MDataInfo as NativeMDataInfo};
 use std::os::raw::{c_char, c_void};
 use App;
@@ -31,6 +32,10 @@ pub struct FileContext {
     writer: Option<Writer<AppClient>>,
     original_file: NativeFile,
 }
+
+/// Constant to pass to `dir_update_file()` or `dir_delete_file()` when the next version should be
+/// retrieved and used automatically.
+pub const GET_NEXT_VERSION: u64 = 0;
 
 /// Replaces the entire content of the file when writing data.
 pub static OPEN_MODE_OVERWRITE: u64 = 1;
@@ -96,7 +101,8 @@ pub unsafe extern "C" fn dir_insert_file(
 }
 
 /// Replace the file in the parent directory.
-/// If `version` is 0, the correct version is obtained automatically.
+///
+/// If `version` is `GET_NEXT_VERSION`, the correct version is obtained automatically.
 #[no_mangle]
 pub unsafe extern "C" fn dir_update_file(
     app: *const App,
@@ -105,7 +111,7 @@ pub unsafe extern "C" fn dir_update_file(
     file: *const File,
     version: u64,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, new_version: u64),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
@@ -113,12 +119,19 @@ pub unsafe extern "C" fn dir_update_file(
         let file_name = from_c_str(file_name)?;
 
         send(app, user_data, o_cb, move |client, _| {
+            let version = if version == GET_NEXT_VERSION {
+                Version::GetNext
+            } else {
+                Version::Custom(version)
+            };
             file_helper::update(client.clone(), parent_info, file_name, &file, version)
         })
     })
 }
 
 /// Delete the file in the parent directory.
+///
+/// If `version` is `GET_NEXT_VERSION`, the correct version is obtained automatically.
 #[no_mangle]
 pub unsafe extern "C" fn dir_delete_file(
     app: *const App,
@@ -126,13 +139,18 @@ pub unsafe extern "C" fn dir_delete_file(
     file_name: *const c_char,
     version: u64,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, new_version: u64),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
         let file_name = from_c_str(file_name)?;
 
         send(app, user_data, o_cb, move |client, _| {
+            let version = if version == GET_NEXT_VERSION {
+                Version::GetNext
+            } else {
+                Version::Custom(version)
+            };
             file_helper::delete(client.clone(), parent_info, file_name, version)
         })
     })

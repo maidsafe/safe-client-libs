@@ -132,9 +132,9 @@
     allow(implicit_hasher, too_many_arguments, use_debug)
 )]
 
-extern crate base64;
 extern crate chrono;
 extern crate config_file_handler;
+extern crate data_encoding;
 extern crate ffi_utils;
 #[cfg(feature = "use-mock-routing")]
 extern crate fs2;

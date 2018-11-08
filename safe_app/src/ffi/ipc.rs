@@ -45,6 +45,29 @@ pub unsafe extern "C" fn encode_auth_req(
     })
 }
 
+/// Encode `AuthReq` using base64 encoding.
+#[allow(dead_code)]
+#[cfg(any(test, feature = "testing"))]
+unsafe extern "C" fn encode_auth_req_64(
+    req: *const AuthReq,
+    user_data: *mut c_void,
+    o_cb: extern "C" fn(
+        user_data: *mut c_void,
+        result: *const FfiResult,
+        req_id: u32,
+        encoded: *const c_char,
+    ),
+) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+        let req_id = ipc::gen_req_id();
+        let req = NativeAuthReq::clone_from_repr_c(req)?;
+
+        let encoded = encode_ipc_64(req_id, IpcReq::Auth(req))?;
+        o_cb(user_data, FFI_RESULT_OK, req_id, encoded.as_ptr());
+        Ok(())
+    })
+}
+
 /// Encode `ContainersReq`.
 #[no_mangle]
 pub unsafe extern "C" fn encode_containers_req(
@@ -117,6 +140,12 @@ fn encode_ipc(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
     Ok(CString::new(encoded)?)
 }
 
+#[cfg(any(test, feature = "testing"))]
+fn encode_ipc_64(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
+    let encoded = ipc::encode_msg_64(&IpcMsg::Req { req_id, req })?;
+    Ok(CString::new(encoded)?)
+}
+
 /// Decode IPC message.
 #[no_mangle]
 pub unsafe extern "C" fn decode_ipc_msg(
@@ -138,126 +167,325 @@ pub unsafe extern "C" fn decode_ipc_msg(
         let msg = from_c_str(msg)?;
         let msg = ipc::decode_msg(&msg)?;
 
-        match msg {
-            IpcMsg::Resp {
-                resp: IpcResp::Auth(res),
-                req_id,
-            } => match res {
-                Ok(auth_granted) => match auth_granted.into_repr_c() {
-                    Ok(auth_granted) => {
-                        o_auth(user_data, req_id, &auth_granted);
-                    }
-                    Err(err) => {
-                        let e = AppError::from(err);
-                        let (error_code, description) = ffi_error!(e);
-                        let res = FfiResult {
-                            error_code,
-                            description: description.as_ptr(),
-                        };
-                        o_err(user_data, &res, req_id);
-                    }
-                },
-                Err(err) => {
-                    let e = AppError::from(err);
-                    let (error_code, description) = ffi_error!(e);
-                    let res = FfiResult {
-                        error_code,
-                        description: description.as_ptr(),
-                    };
-                    o_err(user_data, &res, req_id);
-                }
-            },
-            IpcMsg::Resp {
-                resp: IpcResp::Containers(res),
-                req_id,
-            } => match res {
-                Ok(()) => o_containers(user_data, req_id),
-                Err(err) => {
-                    let e = AppError::from(err);
-                    let (error_code, description) = ffi_error!(e);
-                    let res = FfiResult {
-                        error_code,
-                        description: description.as_ptr(),
-                    };
-                    o_err(user_data, &res, req_id);
-                }
-            },
-            IpcMsg::Resp {
-                resp: IpcResp::Unregistered(res),
-                req_id,
-            } => match res {
-                Ok(bootstrap_cfg) => {
-                    let serialised_cfg = serialise(&bootstrap_cfg)?;
-                    o_unregistered(
-                        user_data,
-                        req_id,
-                        serialised_cfg.as_ptr(),
-                        serialised_cfg.len(),
-                    );
-                }
-                Err(err) => {
-                    let e = AppError::from(err);
-                    let (error_code, description) = ffi_error!(e);
-                    let res = FfiResult {
-                        error_code,
-                        description: description.as_ptr(),
-                    };
-                    o_err(user_data, &res, req_id);
-                }
-            },
-            IpcMsg::Resp {
-                resp: IpcResp::ShareMData(res),
-                req_id,
-            } => match res {
-                Ok(()) => o_share_mdata(user_data, req_id),
-                Err(err) => {
-                    let e = AppError::from(err);
-                    let (error_code, description) = ffi_error!(e);
-                    let res = FfiResult {
-                        error_code,
-                        description: description.as_ptr(),
-                    };
-                    o_err(user_data, &res, req_id);
-                }
-            },
-            IpcMsg::Revoked { .. } => o_revoked(user_data),
-            _ => {
-                return Err(IpcError::InvalidMsg.into());
-            }
-        }
+        decode_ipc_msg_impl(
+            msg,
+            user_data,
+            o_auth,
+            o_unregistered,
+            o_containers,
+            o_share_mdata,
+            o_revoked,
+            o_err,
+        )?;
 
         Ok(())
     })
 }
 
+/// Decode IPC message.
+#[allow(dead_code)]
+#[cfg(any(test, feature = "testing"))]
+unsafe extern "C" fn decode_ipc_msg_64(
+    msg: *const c_char,
+    user_data: *mut c_void,
+    o_auth: extern "C" fn(user_data: *mut c_void, req_id: u32, auth_granted: *const AuthGranted),
+    o_unregistered: extern "C" fn(
+        user_data: *mut c_void,
+        req_id: u32,
+        serialised_cfg: *const u8,
+        serialised_cfg_len: usize,
+    ),
+    o_containers: extern "C" fn(user_data: *mut c_void, req_id: u32),
+    o_share_mdata: extern "C" fn(user_data: *mut c_void, req_id: u32),
+    o_revoked: extern "C" fn(user_data: *mut c_void),
+    o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
+) {
+    catch_unwind_cb(user_data, o_err, || -> Result<_, AppError> {
+        let msg = from_c_str(msg)?;
+        let msg = ipc::decode_msg_64(&msg)?;
+
+        decode_ipc_msg_impl(
+            msg,
+            user_data,
+            o_auth,
+            o_unregistered,
+            o_containers,
+            o_share_mdata,
+            o_revoked,
+            o_err,
+        )?;
+
+        Ok(())
+    })
+}
+
+fn decode_ipc_msg_impl(
+    msg: IpcMsg,
+    user_data: *mut c_void,
+    o_auth: extern "C" fn(user_data: *mut c_void, req_id: u32, auth_granted: *const AuthGranted),
+    o_unregistered: extern "C" fn(
+        user_data: *mut c_void,
+        req_id: u32,
+        serialised_cfg: *const u8,
+        serialised_cfg_len: usize,
+    ),
+    o_containers: extern "C" fn(user_data: *mut c_void, req_id: u32),
+    o_share_mdata: extern "C" fn(user_data: *mut c_void, req_id: u32),
+    o_revoked: extern "C" fn(user_data: *mut c_void),
+    o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
+) -> Result<(), AppError> {
+    match msg {
+        IpcMsg::Resp {
+            resp: IpcResp::Auth(res),
+            req_id,
+        } => match res {
+            Ok(auth_granted) => match auth_granted.into_repr_c() {
+                Ok(auth_granted) => {
+                    o_auth(user_data, req_id, &auth_granted);
+                }
+                Err(err) => {
+                    let e = AppError::from(err);
+                    let (error_code, description) = ffi_error!(e);
+                    let res = FfiResult {
+                        error_code,
+                        description: description.as_ptr(),
+                    };
+                    o_err(user_data, &res, req_id);
+                }
+            },
+            Err(err) => {
+                let e = AppError::from(err);
+                let (error_code, description) = ffi_error!(e);
+                let res = FfiResult {
+                    error_code,
+                    description: description.as_ptr(),
+                };
+                o_err(user_data, &res, req_id);
+            }
+        },
+        IpcMsg::Resp {
+            resp: IpcResp::Containers(res),
+            req_id,
+        } => match res {
+            Ok(()) => o_containers(user_data, req_id),
+            Err(err) => {
+                let e = AppError::from(err);
+                let (error_code, description) = ffi_error!(e);
+                let res = FfiResult {
+                    error_code,
+                    description: description.as_ptr(),
+                };
+                o_err(user_data, &res, req_id);
+            }
+        },
+        IpcMsg::Resp {
+            resp: IpcResp::Unregistered(res),
+            req_id,
+        } => match res {
+            Ok(bootstrap_cfg) => {
+                let serialised_cfg = serialise(&bootstrap_cfg)?;
+                o_unregistered(
+                    user_data,
+                    req_id,
+                    serialised_cfg.as_ptr(),
+                    serialised_cfg.len(),
+                );
+            }
+            Err(err) => {
+                let e = AppError::from(err);
+                let (error_code, description) = ffi_error!(e);
+                let res = FfiResult {
+                    error_code,
+                    description: description.as_ptr(),
+                };
+                o_err(user_data, &res, req_id);
+            }
+        },
+        IpcMsg::Resp {
+            resp: IpcResp::ShareMData(res),
+            req_id,
+        } => match res {
+            Ok(()) => o_share_mdata(user_data, req_id),
+            Err(err) => {
+                let e = AppError::from(err);
+                let (error_code, description) = ffi_error!(e);
+                let res = FfiResult {
+                    error_code,
+                    description: description.as_ptr(),
+                };
+                o_err(user_data, &res, req_id);
+            }
+        },
+        IpcMsg::Revoked { .. } => o_revoked(user_data),
+        _ => {
+            return Err(IpcError::InvalidMsg.into());
+        }
+    };
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi_utils::test_utils::call_2;
+    use ffi_utils::test_utils::{call_1, call_2};
     use ffi_utils::ReprC;
     use rand;
     use routing::{Action, PermissionSet};
     use rust_sodium::crypto::secretbox;
+    use safe_authenticator::ffi::ipc::encode_auth_resp;
+    use safe_authenticator::test_utils as auth_utils;
     use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
     use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
     use safe_core::ipc::{
-        self, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, AuthReq, BootstrapConfig,
+        self, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, BootstrapConfig,
         ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData, ShareMDataReq,
     };
     use safe_core::utils;
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
-    use test_utils::gen_app_exchange_info;
+    use test_utils;
+
+    // Test that encoding and decoding base64 is no longer backwards compatible, as expected.
+    #[test]
+    fn base_64_encoding() {
+        println!("Logging in...");
+        let auth = auth_utils::create_account_and_login();
+
+        println!("Authorising app...");
+        let auth_req = test_utils::create_random_auth_req();
+        let ffi_auth_req = unwrap!(auth_req.clone().into_repr_c());
+
+        // Encode auth req using base64.
+        let (_req_id, encoded): (u32, String) =
+            unsafe { unwrap!(call_2(|ud, cb| encode_auth_req_64(&ffi_auth_req, ud, cb))) };
+
+        // Try to decode ipc message, should fail.
+        match auth_utils::auth_decode_ipc_msg_helper(&auth, &encoded) {
+            Err((-1, None)) => (),
+            _ => panic!("Unexpected result"),
+        }
+
+        // Encode auth req using base32.
+        let (req_id, encoded): (u32, String) =
+            unsafe { unwrap!(call_2(|ud, cb| encode_auth_req(&ffi_auth_req, ud, cb))) };
+
+        // Decode ipc message in the authenticator.
+        let decoded = unwrap!(auth_utils::auth_decode_ipc_msg_helper(&auth, &encoded));
+        let auth_req = match decoded {
+            (
+                IpcMsg::Req {
+                    req: IpcReq::Auth(auth_req),
+                    ..
+                },
+                None,
+            ) => auth_req,
+            _ => panic!("Unexpected: {:?}", decoded),
+        };
+
+        let encoded_auth_resp: String = unsafe {
+            unwrap!(call_1(|ud, cb| {
+                let auth_req = unwrap!(auth_req.into_repr_c());
+                encode_auth_resp(
+                    &auth, &auth_req, req_id, true, // is_granted
+                    ud, cb,
+                )
+            }))
+        };
+        let encoded_auth_resp = unwrap!(CString::new(encoded_auth_resp));
+
+        let mut context = Context {
+            unexpected_cb: false,
+            req_id: 0,
+            error_code: 0,
+        };
+
+        let context_ptr: *mut Context = &mut context;
+        unsafe {
+            decode_ipc_msg_64(
+                encoded_auth_resp.as_ptr(),
+                context_ptr as *mut c_void,
+                auth_cb,
+                unregistered_cb,
+                containers_cb,
+                share_mdata_cb,
+                revoked_cb,
+                err_cb,
+            );
+        }
+
+        // err_cb should be called.
+        assert!(!context.unexpected_cb);
+        assert_eq!(context.req_id, 0);
+        assert_eq!(context.error_code, -1);
+
+        // Test succeeded!
+
+        struct Context {
+            unexpected_cb: bool,
+            req_id: u32,
+            error_code: i32,
+        }
+
+        extern "C" fn auth_cb(
+            ctx: *mut c_void,
+            _req_id: u32,
+            _auth_granted: *const FfiAuthGranted,
+        ) {
+            unsafe {
+                let ctx = ctx as *mut Context;
+                (*ctx).unexpected_cb = true;
+            }
+        }
+
+        extern "C" fn containers_cb(ctx: *mut c_void, _req_id: u32) {
+            unsafe {
+                let ctx = ctx as *mut Context;
+                (*ctx).unexpected_cb = true;
+            }
+        }
+
+        extern "C" fn share_mdata_cb(ctx: *mut c_void, _req_id: u32) {
+            unsafe {
+                let ctx = ctx as *mut Context;
+                (*ctx).unexpected_cb = true;
+            }
+        }
+
+        extern "C" fn revoked_cb(ctx: *mut c_void) {
+            unsafe {
+                let ctx = ctx as *mut Context;
+                (*ctx).unexpected_cb = true;
+            }
+        }
+
+        extern "C" fn unregistered_cb(
+            ctx: *mut c_void,
+            _req_id: u32,
+            _bootstrap_cfg: *const u8,
+            _bootstrap_cfg_len: usize,
+        ) {
+            unsafe {
+                let ctx = ctx as *mut Context;
+                (*ctx).unexpected_cb = true;
+            }
+        }
+
+        extern "C" fn err_cb(ctx: *mut c_void, res: *const FfiResult, req_id: u32) {
+            unsafe {
+                let ctx = ctx as *mut Context;
+                (*ctx).unexpected_cb = false;
+                (*ctx).req_id = req_id;
+                (*ctx).error_code = (*res).error_code;
+            }
+        }
+    }
 
     // Test encoding and decoding authorisation requests.
     #[test]
     fn encode_auth_req_basics() {
-        let req = AuthReq {
-            app: gen_app_exchange_info(),
-            app_container: false,
-            containers: HashMap::new(),
-        };
+        let req = test_utils::create_random_auth_req();
 
         let req_c = unwrap!(req.clone().into_repr_c());
 
@@ -289,7 +517,7 @@ mod tests {
         );
 
         let req = ContainersReq {
-            app: gen_app_exchange_info(),
+            app: test_utils::gen_app_exchange_info(),
             containers: container_permissions,
         };
 
@@ -345,7 +573,7 @@ mod tests {
     #[test]
     fn encode_share_mdata_basics() {
         let req = ShareMDataReq {
-            app: gen_app_exchange_info(),
+            app: test_utils::gen_app_exchange_info(),
             mdata: vec![ShareMData {
                 type_tag: rand::random(),
                 name: rand::random(),

@@ -22,9 +22,8 @@ enum DataTypeEncoding {
     DataMap(DataMap),
 }
 
-/// Create and obtain immutable data out of the given raw bytes. The API will
-/// encrypt the right content if the keys are provided and will ensure the
-/// maximum immutable data chunk size is respected.
+/// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
+/// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 pub fn create(
     client: &impl Client,
     value: &[u8],
@@ -56,8 +55,7 @@ pub fn create(
         }).into_box()
 }
 
-/// Get the raw bytes from `ImmutableData` created via `create()` function in
-/// this module.
+/// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
 pub fn extract_value(
     client: &impl Client,
     data: &ImmutableData,
@@ -82,9 +80,9 @@ pub fn extract_value(
         }).into_box()
 }
 
-/// Get immutable data from the network and extract its value, decrypting it in
-/// the process (if keys provided).  This is a convenience function combining
-/// `get` and `extract_value` into one function.
+/// Get immutable data from the network and extract its value, decrypting it in the process (if keys
+/// provided). This combines `get_idata` in `Client` and `extract_value` in this module into one
+/// function.
 pub fn get_value(
     client: &impl Client,
     name: &XorName,

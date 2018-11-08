@@ -11,7 +11,6 @@ mod serialisation;
 mod share_mdata;
 mod utils;
 
-use self::utils::{create_containers_req, decode_ipc_msg, err_cb, unregistered_cb, ChannelType};
 use access_container as access_container_tools;
 use app_container;
 use config::{self, KEY_APPS};
@@ -33,15 +32,12 @@ use std::ffi::CString;
 use std::sync::mpsc;
 use std::time::Duration;
 use std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
-use test_utils::{
-    access_container, compare_access_container_entries, create_account_and_login, rand_app,
-    register_app, run,
-};
+use test_utils::{self, ChannelType};
 use tiny_keccak::sha3_256;
 
 #[cfg(feature = "use-mock-routing")]
 mod mock_routing {
-    use super::utils::create_containers_req;
+    use super::utils;
     use access_container as access_container_tools;
     use errors::AuthError;
     use futures::Future;
@@ -51,9 +47,7 @@ mod mock_routing {
     use safe_core::utils::generate_random_string;
     use safe_core::{app_container_name, Client, CoreError, MockRouting};
     use std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
-    use test_utils::{
-        access_container, create_account_and_login_with_hook, rand_app, register_app, run,
-    };
+    use test_utils;
     use Authenticator;
 
     // Test operation recovery for std dirs creation.
@@ -135,7 +129,7 @@ mod mock_routing {
 
         // Verify that the access container has been created and
         // fetch the entries of the root authenticator entry.
-        let (_entry_version, entries) = run(&authenticator, |client| {
+        let (_entry_version, entries) = test_utils::run(&authenticator, |client| {
             access_container_tools::fetch_authenticator_entry(client).map_err(AuthError::from)
         });
 
@@ -198,7 +192,7 @@ mod mock_routing {
         };
 
         // Make sure we can log in
-        let _authenticator = create_account_and_login_with_hook(routing_hook);
+        let _authenticator = test_utils::create_account_and_login_with_hook(routing_hook);
     }
 
     // Test operation recovery for app authentication.
@@ -260,16 +254,16 @@ mod mock_routing {
 
         // Create a test app and try to authenticate it (with `app_container` set to true).
         let auth_req = AuthReq {
-            app: rand_app(),
+            app: test_utils::rand_app(),
             app_container: true,
-            containers: create_containers_req(),
+            containers: utils::create_containers_req(),
         };
         let app_id = auth_req.app.id.clone();
 
         // App authentication request should fail and leave the app in the
         // `Revoked` state (as it is listed in the config root, but not in the access
         // container)
-        match register_app(&auth, &auth_req) {
+        match test_utils::register_app(&auth, &auth_req) {
             Err(AuthError::CoreError(CoreError::RoutingClientError(ClientError::LowBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
@@ -305,7 +299,7 @@ mod mock_routing {
             || (),
             routing_hook,
         ));
-        match register_app(&auth, &auth_req) {
+        match test_utils::register_app(&auth, &auth_req) {
             Err(AuthError::CoreError(CoreError::RoutingClientError(ClientError::LowBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
@@ -332,7 +326,7 @@ mod mock_routing {
             || (),
             routing_hook,
         ));
-        match register_app(&auth, &auth_req) {
+        match test_utils::register_app(&auth, &auth_req) {
             Err(AuthError::NfsError(NfsError::CoreError(CoreError::RoutingClientError(
                 ClientError::LowBalance,
             )))) => (),
@@ -363,7 +357,7 @@ mod mock_routing {
             || (),
             routing_hook,
         ));
-        match register_app(&auth, &auth_req) {
+        match test_utils::register_app(&auth, &auth_req) {
             Err(AuthError::CoreError(CoreError::RoutingClientError(ClientError::LowBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
@@ -375,21 +369,22 @@ mod mock_routing {
             password.clone(),
             || (),
         ));
-        let auth_granted = match register_app(&auth, &auth_req) {
+        let auth_granted = match test_utils::register_app(&auth, &auth_req) {
             Ok(auth_granted) => auth_granted,
             x => panic!("Unexpected {:?}", x),
         };
 
         // Check that the app's container has been created and that the access container
         // contains info about all of the requested containers.
-        let mut ac_entries = access_container(&auth, app_id.clone(), auth_granted.clone());
+        let mut ac_entries =
+            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone());
         let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
         let (app_container_md, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
         let app_pk = auth_granted.app_keys.sign_pk;
 
-        run(&auth, move |client| {
+        test_utils::run(&auth, move |client| {
             let c2 = client.clone();
 
             client
@@ -414,14 +409,14 @@ mod mock_routing {
 // Test creation and content of std dirs after account creation.
 #[test]
 fn test_access_container() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
     let std_dir_names: Vec<_> = DEFAULT_PRIVATE_DIRS
         .iter()
         .chain(DEFAULT_PUBLIC_DIRS.iter())
         .collect();
 
     // Fetch the entries of the access container.
-    let entries = run(&authenticator, |client| {
+    let entries = test_utils::run(&authenticator, |client| {
         access_container_tools::fetch_authenticator_entry(client).map(|(_version, entries)| entries)
     });
 
@@ -431,7 +426,7 @@ fn test_access_container() {
     }
 
     // Fetch all the dirs under user root dir and verify they are empty.
-    let dirs = run(&authenticator, move |client| {
+    let dirs = test_utils::run(&authenticator, move |client| {
         let fs: Vec<_> = entries
             .into_iter()
             .map(|(_, dir)| {
@@ -455,10 +450,10 @@ fn test_access_container() {
 // Test creation and content of config dir after account creation.
 #[test]
 fn config_root_dir() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     // Fetch the entries of the config root dir.
-    let (dir, entries) = run(&authenticator, |client| {
+    let (dir, entries) = test_utils::run(&authenticator, |client| {
         let dir = client.config_root_dir();
         client
             .list_mdata_entries(dir.name, dir.type_tag)
@@ -476,24 +471,24 @@ fn config_root_dir() {
 // Test app authentication.
 #[test]
 fn app_authentication() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     // Try to send IpcResp::Auth - it should fail
     let msg = IpcMsg::Revoked {
         app_id: "hello".to_string(),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
-    match decode_ipc_msg(&authenticator, &encoded_msg) {
+    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Err((ERR_INVALID_MSG, None)) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
     // Try to send IpcReq::Auth - it should pass
     let req_id = ipc::gen_req_id();
-    let app_exchange_info = rand_app();
+    let app_exchange_info = test_utils::rand_app();
     let app_id = app_exchange_info.id.clone();
 
-    let containers = create_containers_req();
+    let containers = utils::create_containers_req();
     let auth_req = AuthReq {
         app: app_exchange_info.clone(),
         app_container: true,
@@ -507,17 +502,18 @@ fn app_authentication() {
 
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let (received_req_id, received_auth_req) =
-        match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
-            (
-                IpcMsg::Req {
-                    req_id,
-                    req: IpcReq::Auth(req),
-                },
-                _,
-            ) => (req_id, req),
-            x => panic!("Unexpected {:?}", x),
-        };
+    let (received_req_id, received_auth_req) = match unwrap!(
+        test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)
+    ) {
+        (
+            IpcMsg::Req {
+                req_id,
+                req: IpcReq::Auth(req),
+            },
+            _,
+        ) => (req_id, req),
+        x => panic!("Unexpected {:?}", x),
+    };
 
     assert_eq!(received_req_id, req_id);
     assert_eq!(received_auth_req, auth_req);
@@ -547,7 +543,7 @@ fn app_authentication() {
         x => panic!("Unexpected {:?}", x),
     };
 
-    let mut expected = create_containers_req();
+    let mut expected = utils::create_containers_req();
     let _ = expected.insert(
         app_container_name(&app_id),
         btree_set![
@@ -564,13 +560,13 @@ fn app_authentication() {
     }
 
     let mut access_container =
-        access_container(&authenticator, app_id.clone(), auth_granted.clone());
+        test_utils::access_container(&authenticator, app_id.clone(), auth_granted.clone());
     assert_eq!(access_container.len(), 3);
 
     let app_keys = auth_granted.app_keys;
     let app_sign_pk = app_keys.sign_pk;
 
-    compare_access_container_entries(
+    test_utils::compare_access_container_entries(
         &authenticator,
         app_sign_pk,
         access_container.clone(),
@@ -580,7 +576,7 @@ fn app_authentication() {
     let (app_dir_info, _) = unwrap!(access_container.remove(&app_container_name(&app_id)));
 
     // Check the app info is present in the config file.
-    let apps = run(&authenticator, |client| {
+    let apps = test_utils::run(&authenticator, |client| {
         config::list_apps(client).map(|(_, apps)| apps)
     });
 
@@ -591,7 +587,7 @@ fn app_authentication() {
     assert_eq!(app_info.keys, app_keys);
 
     // Check the app dir is present in the access container's authenticator entry.
-    let received_app_dir_info = run(&authenticator, move |client| {
+    let received_app_dir_info = test_utils::run(&authenticator, move |client| {
         app_container::fetch(client, &app_id).and_then(move |app_dir| match app_dir {
             Some(app_dir) => Ok(app_dir),
             None => panic!("App directory not present"),
@@ -601,7 +597,7 @@ fn app_authentication() {
     assert_eq!(received_app_dir_info, app_dir_info);
 
     // Check the app is authorised.
-    let auth_keys = run(&authenticator, |client| {
+    let auth_keys = test_utils::run(&authenticator, |client| {
         client
             .list_auth_keys_and_version()
             .map(|(keys, _)| keys)
@@ -614,9 +610,9 @@ fn app_authentication() {
 // Try to authenticate with invalid container names.
 #[test]
 fn invalid_container_authentication() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
     let req_id = ipc::gen_req_id();
-    let app_exchange_info = rand_app();
+    let app_exchange_info = test_utils::rand_app();
 
     // Permissions for invalid container name
     let mut containers = HashMap::new();
@@ -669,9 +665,9 @@ fn unregistered_authentication() {
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
         req: IpcReq::Auth(AuthReq {
-            app: rand_app(),
+            app: test_utils::rand_app(),
             app_container: true,
-            containers: create_containers_req(),
+            containers: utils::create_containers_req(),
         }),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
@@ -728,19 +724,21 @@ fn unregistered_authentication() {
     assert_eq!(bootstrap_cfg, BootstrapConfig::default());
 
     // Try to send IpcReq::Unregistered to logged in authenticator
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
-    let (received_req_id, received_data) =
-        match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
-            (
-                IpcMsg::Req {
-                    req_id,
-                    req: IpcReq::Unregistered(extra_data),
-                },
-                _,
-            ) => (req_id, extra_data),
-            x => panic!("Unexpected {:?}", x),
-        };
+    let (received_req_id, received_data) = match unwrap!(test_utils::auth_decode_ipc_msg_helper(
+        &authenticator,
+        &encoded_msg
+    )) {
+        (
+            IpcMsg::Req {
+                req_id,
+                req: IpcReq::Unregistered(extra_data),
+            },
+            _,
+        ) => (req_id, extra_data),
+        x => panic!("Unexpected {:?}", x),
+    };
 
     assert_eq!(received_req_id, req_id);
     assert_eq!(received_data, test_data);
@@ -751,10 +749,10 @@ fn unregistered_authentication() {
 // with the same app details.
 #[test]
 fn authenticated_app_can_be_authenticated_again() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     let auth_req = AuthReq {
-        app: rand_app(),
+        app: test_utils::rand_app(),
         app_container: false,
         containers: Default::default(),
     };
@@ -766,7 +764,10 @@ fn authenticated_app_can_be_authenticated_again() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
+    match unwrap!(test_utils::auth_decode_ipc_msg_helper(
+        &authenticator,
+        &encoded_msg
+    )) {
         (
             IpcMsg::Req {
                 req: IpcReq::Auth(_),
@@ -799,7 +800,10 @@ fn authenticated_app_can_be_authenticated_again() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match unwrap!(decode_ipc_msg(&authenticator, &encoded_msg)) {
+    match unwrap!(test_utils::auth_decode_ipc_msg_helper(
+        &authenticator,
+        &encoded_msg
+    )) {
         (
             IpcMsg::Req {
                 req: IpcReq::Auth(_),
@@ -814,15 +818,15 @@ fn authenticated_app_can_be_authenticated_again() {
 // Create and serialize a containers request for a random app, make sure we get an error.
 #[test]
 fn containers_unknown_app() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     // Create IpcMsg::Req { req: IpcReq::Containers } for a random App (random id, name, vendor etc)
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
         req: IpcReq::Containers(ContainersReq {
-            app: rand_app(),
-            containers: create_containers_req(),
+            app: test_utils::rand_app(),
+            containers: utils::create_containers_req(),
         }),
     };
 
@@ -833,7 +837,7 @@ fn containers_unknown_app() {
     // callback with error code for IpcError::UnknownApp
     // Check that the returned string is "safe_<app-id-base64>:payload" where payload is
     // IpcMsg::Resp(IpcResp::Auth(Err(UnknownApp)))"
-    match decode_ipc_msg(&authenticator, &encoded_msg) {
+    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Err((
             code,
             Some(IpcMsg::Resp {
@@ -852,19 +856,19 @@ fn containers_unknown_app() {
 // Test making a containers access request.
 #[test]
 fn containers_access_request() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for app_container
     // and containers "documents with permission to insert", "videos with all the permissions
     // possible",
     let auth_req = AuthReq {
-        app: rand_app(),
+        app: test_utils::rand_app(),
         app_container: true,
-        containers: create_containers_req(),
+        containers: utils::create_containers_req(),
     };
     let app_id = auth_req.app.id.clone();
 
-    let auth_granted = unwrap!(register_app(&authenticator, &auth_req));
+    let auth_granted = unwrap!(test_utils::register_app(&authenticator, &auth_req));
 
     // Give one Containers request to authenticator for the same app asking for "downloads with
     // permission to update only"
@@ -905,12 +909,17 @@ fn containers_access_request() {
     // Using the access container from AuthGranted check if "app-id", "documents", "videos",
     // "downloads" are all mentioned and using MDataInfo for each check the permissions are
     // what had been asked for.
-    let mut expected = create_containers_req();
+    let mut expected = utils::create_containers_req();
     let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
 
     let app_sign_pk = auth_granted.app_keys.sign_pk;
-    let access_container = access_container(&authenticator, app_id, auth_granted);
-    compare_access_container_entries(&authenticator, app_sign_pk, access_container, expected);
+    let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);
+    test_utils::compare_access_container_entries(
+        &authenticator,
+        app_sign_pk,
+        access_container,
+        expected,
+    );
 }
 
 struct RegisteredAppId(String);
@@ -942,7 +951,7 @@ impl ReprC for RevokedAppId {
 // 4. Re-register the first app. There should be two registered apps again.
 #[test]
 fn lists_of_registered_and_revoked_apps() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     // Initially, there are no registered or revoked apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -961,19 +970,19 @@ fn lists_of_registered_and_revoked_apps() {
 
     // Register two apps.
     let auth_req1 = AuthReq {
-        app: rand_app(),
+        app: test_utils::rand_app(),
         app_container: false,
         containers: Default::default(),
     };
 
     let auth_req2 = AuthReq {
-        app: rand_app(),
+        app: test_utils::rand_app(),
         app_container: false,
         containers: Default::default(),
     };
 
-    let _ = unwrap!(register_app(&authenticator, &auth_req1));
-    let _ = unwrap!(register_app(&authenticator, &auth_req2));
+    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req1));
+    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req2));
 
     // There are now two registered apps, but no revoked apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -1017,7 +1026,7 @@ fn lists_of_registered_and_revoked_apps() {
     assert_eq!(revoked.len(), 1);
 
     // Re-register the first app - now there must be 2 registered apps again
-    let _ = unwrap!(register_app(&authenticator, &auth_req1));
+    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req1));
 
     let registered: Vec<RegisteredAppId> = unsafe {
         unwrap!(call_vec(|ud, cb| auth_registered_apps(
@@ -1044,8 +1053,8 @@ fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {
         auth_unregistered_decode_ipc_msg(
             ffi_msg.as_ptr(),
             sender_as_user_data(&tx, &mut ud),
-            unregistered_cb,
-            err_cb,
+            test_utils::unregistered_cb,
+            test_utils::err_cb,
         );
     };
 

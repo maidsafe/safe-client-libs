@@ -11,6 +11,7 @@ stages:
   - warmup-real
   - warmup-mock
   - tests
+  - tests-binary-compat
   - deploy
 jobs:
   include:
@@ -28,29 +29,33 @@ jobs:
     - stage: warmup-mock
       script: set -x; scripts/build-mock
       os: linux
+    - stage: warmup-mock
+      script: set -x; scripts/build-mock
+      os: osx
 
     # Tests + clippy
     - stage: tests
       script: set -x; scripts/test-binary
       os: linux
-    # - stage: tests
-    #   script: set -x; scripts/rustfmt && scripts/clippy-all
-    #   if: type = pull_request
-    #   os: linux
     - stage: tests
-      script: set -x; scripts/test-all
-      if: type = pull_request
-      os: osx
-    - stage: tests
-      script: set -x; scripts/test-all
-      if: type = pull_request
+      script: set -x; scripts/test-mock && scripts/test-integration
       os: linux
     - stage: tests
+      script: set -x; scripts/test-mock && scripts/test-integration
+      os: osx
+    # Temporarily disable clippy
+    # - stage: tests
+    #   script: set -x; scripts/clippy-all
+    #   if: type = pull_request
+    #   os: linux
+
+    # Build tests for binary compatibility
+    - stage: tests-binary-compat
       script: set -x; scripts/build-binary
       if: type = push
       os: linux
 
-      # Deploy
+    # Deploy
     - stage: deploy
       script: set -x; true
       if: type = push
@@ -90,9 +95,7 @@ before_script:
       SAFE_APP_VERSION=${TRAVIS_COMMIT:0:7};
     fi
   - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
-  - bash cargo_install.sh cargo-prune
-  # - rustup component add rustfmt-preview
-  # - rustup component add clippy-preview
+  - bash cargo_install.sh cargo-prune;
 after_script:
   - if [[ $TRAVIS_EVENT_TYPE = pull_request && -n $(git diff --shortstat 2> /dev/null | tail -n1) ]]; then
       echo "Working tree is dirty after building.  Probably Cargo.lock should be updated.";

@@ -20,9 +20,9 @@ use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
 use App;
 
-/// Handle of a Self Encryptor Writer object
+/// Handle of a Self Encryptor Writer object.
 pub type SEWriterHandle = SelfEncryptorWriterHandle;
-/// Handle of a Self Encryptor Reader object
+/// Handle of a Self Encryptor Reader object.
 pub type SEReaderHandle = SelfEncryptorReaderHandle;
 
 /// Get a Self Encryptor.

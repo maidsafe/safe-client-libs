@@ -93,7 +93,7 @@ extern crate unwrap;
 #[cfg(any(test, feature = "testing"))]
 extern crate rand;
 
-/// FFI routines
+/// FFI routines.
 pub mod ffi;
 
 pub use ffi::apps::*;
@@ -111,7 +111,7 @@ mod ipc;
 mod revocation;
 mod std_dirs;
 
-/// Provides utilities to test the authenticator functionality
+/// Provides utilities to test the authenticator functionality.
 #[cfg(any(test, feature = "testing"))]
 #[macro_use]
 pub mod test_utils;

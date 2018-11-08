@@ -76,6 +76,7 @@ mod codes {
     pub const ERR_STRING_ERROR: i32 = -205;
     pub const ERR_SHARE_MDATA_DENIED: i32 = -206;
     pub const ERR_INVALID_OWNER: i32 = -207;
+    pub const ERR_INCOMPATIBLE_MOCK_STATUS: i32 = -208;
 
     // NFS errors.
     pub const ERR_FILE_EXISTS: i32 = -300;
@@ -337,6 +338,7 @@ impl ErrorCode for AppError {
                 IpcError::StringError(_) => ERR_STRING_ERROR,
                 IpcError::ShareMDataDenied => ERR_SHARE_MDATA_DENIED,
                 IpcError::InvalidOwner(..) => ERR_INVALID_OWNER,
+                IpcError::IncompatibleMockStatus => ERR_INCOMPATIBLE_MOCK_STATUS,
             },
             AppError::NfsError(ref err) => match *err {
                 NfsError::CoreError(ref err) => core_error_code(err),

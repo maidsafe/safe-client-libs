@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -x;
-
-scripts/test-mock &&
-  scripts/test-integration

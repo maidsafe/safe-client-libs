@@ -6,7 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::utils::{decode_ipc_msg, Payload};
 use errors::{AuthError, ERR_INVALID_OWNER, ERR_SHARE_MDATA_DENIED};
 use ffi::apps::*;
 use ffi::ipc::encode_share_mdata_resp;
@@ -26,23 +25,26 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::sync::mpsc;
 use std::time::Duration;
-use test_utils::{create_account_and_login, rand_app, register_app, run};
+use test_utils::{self, Payload};
 
 // Test making an empty request to share mutable data.
 #[test]
 fn share_zero_mdatas() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
         req: IpcReq::ShareMData(ShareMDataReq {
-            app: rand_app(),
+            app: test_utils::rand_app(),
             mdata: vec![],
         }),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let decoded = unwrap!(decode_ipc_msg(&authenticator, &encoded_msg));
+    let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
+        &authenticator,
+        &encoded_msg
+    ));
     match decoded {
         (
             IpcMsg::Req {
@@ -61,9 +63,9 @@ fn share_zero_mdatas() {
 // Test making a request to share mutable data with barebones mdata.
 #[test]
 fn share_some_mdatas() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
-    let user = run(&authenticator, move |client| {
+    let user = test_utils::run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
     });
 
@@ -86,7 +88,7 @@ fn share_some_mdatas() {
             ))
         };
 
-        run(&authenticator, move |client| {
+        test_utils::run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
         });
 
@@ -101,13 +103,16 @@ fn share_some_mdatas() {
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
         req: IpcReq::ShareMData(ShareMDataReq {
-            app: rand_app(),
+            app: test_utils::rand_app(),
             mdata: mdatas.clone(),
         }),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let decoded = unwrap!(decode_ipc_msg(&authenticator, &encoded_msg));
+    let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
+        &authenticator,
+        &encoded_msg
+    ));
     match decoded {
         (
             IpcMsg::Req {
@@ -126,19 +131,19 @@ fn share_some_mdatas() {
 // Test making a request to share mdata with valid metadata.
 #[test]
 fn share_some_mdatas_with_valid_metadata() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
-    let app_id = rand_app();
+    let app_id = test_utils::rand_app();
     let auth_req = AuthReq {
         app: app_id.clone(),
         app_container: false,
         containers: Default::default(),
     };
 
-    let app_auth = unwrap!(register_app(&authenticator, &auth_req));
+    let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
     let app_key = app_auth.app_keys.sign_pk;
 
-    let user = run(&authenticator, move |client| {
+    let user = test_utils::run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
     });
 
@@ -171,7 +176,7 @@ fn share_some_mdatas_with_valid_metadata() {
             ))
         };
 
-        run(&authenticator, move |client| {
+        test_utils::run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
         });
 
@@ -194,7 +199,10 @@ fn share_some_mdatas_with_valid_metadata() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let decoded = unwrap!(decode_ipc_msg(&authenticator, &encoded_msg));
+    let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
+        &authenticator,
+        &encoded_msg
+    ));
     match decoded {
         (
             IpcMsg::Req {
@@ -229,7 +237,7 @@ fn share_some_mdatas_with_valid_metadata() {
     for share_mdata in &mdatas {
         let name = share_mdata.name;
         let type_tag = share_mdata.type_tag;
-        let mdata = run(&authenticator, move |client| {
+        let mdata = test_utils::run(&authenticator, move |client| {
             client
                 .get_mdata(name, type_tag)
                 .map_err(AuthError::CoreError)
@@ -242,9 +250,9 @@ fn share_some_mdatas_with_valid_metadata() {
 // Test making a request to share mdata with invalid owners.
 #[test]
 fn share_some_mdatas_with_ownership_error() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
-    let user = run(&authenticator, move |client| {
+    let user = test_utils::run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
     });
 
@@ -270,7 +278,7 @@ fn share_some_mdatas_with_ownership_error() {
             ))
         };
 
-        run(&authenticator, move |client| {
+        test_utils::run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
         });
 
@@ -283,7 +291,7 @@ fn share_some_mdatas_with_ownership_error() {
 
     let req_id = ipc::gen_req_id();
     let req = ShareMDataReq {
-        app: rand_app(),
+        app: test_utils::rand_app(),
         mdata: mdatas.clone(),
     };
     let msg = IpcMsg::Req {
@@ -292,7 +300,7 @@ fn share_some_mdatas_with_ownership_error() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match decode_ipc_msg(&authenticator, &encoded_msg) {
+    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Ok(..) => (),
         Err(err) => {
             assert_eq!(err, (ERR_INVALID_OWNER, None));
@@ -338,9 +346,9 @@ fn share_some_mdatas_with_ownership_error() {
 // and the list of permissions are correct.
 #[test]
 fn auth_apps_accessing_mdatas() {
-    let authenticator = create_account_and_login();
+    let authenticator = test_utils::create_account_and_login();
 
-    let user = run(&authenticator, move |client| {
+    let user = test_utils::run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
     });
 
@@ -390,7 +398,7 @@ fn auth_apps_accessing_mdatas() {
             ))
         };
 
-        run(&authenticator, move |client| {
+        test_utils::run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
         });
 
@@ -407,14 +415,14 @@ fn auth_apps_accessing_mdatas() {
     let mut apps: Vec<(sign::PublicKey, AppExchangeInfo)> = Vec::with_capacity(NUM_APPS);
     for _ in 0..NUM_APPS {
         // Create an app and register it.
-        let app_id = rand_app();
+        let app_id = test_utils::rand_app();
         let auth_req = AuthReq {
             app: app_id.clone(),
             app_container: false,
             containers: Default::default(),
         };
 
-        let app_auth = unwrap!(register_app(&authenticator, &auth_req));
+        let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
         let app_key = app_auth.app_keys.sign_pk;
 
         // Share the Mdatas with the app.
@@ -429,7 +437,10 @@ fn auth_apps_accessing_mdatas() {
         };
         let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-        let decoded = unwrap!(decode_ipc_msg(&authenticator, &encoded_msg));
+        let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
+            &authenticator,
+            &encoded_msg
+        ));
 
         match decoded {
             (

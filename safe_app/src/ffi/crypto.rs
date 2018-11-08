@@ -464,7 +464,11 @@ pub unsafe extern "C" fn encrypt(
                 user_data,
                 o_cb
             );
-            let sk = try_cb!(context.object_cache().get_secret_key(secret_key_h), user_data, o_cb);
+            let sk = try_cb!(
+                context.object_cache().get_secret_key(secret_key_h),
+                user_data,
+                o_cb
+            );
 
             let nonce = box_::gen_nonce();
 
@@ -509,7 +513,11 @@ pub unsafe extern "C" fn decrypt(
                 user_data,
                 o_cb
             );
-            let sk = try_cb!(context.object_cache().get_secret_key(secret_key_h), user_data, o_cb);
+            let sk = try_cb!(
+                context.object_cache().get_secret_key(secret_key_h),
+                user_data,
+                o_cb
+            );
 
             match deserialise::<(box_::Nonce, Vec<u8>)>(&encrypted_text) {
                 Ok((nonce, ciphertext)) => {
@@ -603,7 +611,11 @@ pub unsafe extern "C" fn decrypt_sealed_box(
                 user_data,
                 o_cb
             );
-            let sk = try_cb!(context.object_cache().get_secret_key(secret_key_h), user_data, o_cb);
+            let sk = try_cb!(
+                context.object_cache().get_secret_key(secret_key_h),
+                user_data,
+                o_cb
+            );
 
             let plaintext = try_cb!(
                 sealedbox::open(&plaintext, &pk, &sk).map_err(|()| AppError::EncodeDecodeError),

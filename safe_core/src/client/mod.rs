@@ -436,30 +436,36 @@ pub trait Client: Clone + 'static {
         })
     }
 
-    #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
-    ))]
+    #[cfg(
+        any(
+            all(test, feature = "use-mock-routing"),
+            all(feature = "testing", feature = "use-mock-routing")
+        )
+    )]
     #[doc(hidden)]
     fn set_network_limits(&self, max_ops_count: Option<u64>) {
         let inner = self.inner();
         inner.borrow_mut().routing.set_network_limits(max_ops_count);
     }
 
-    #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
-    ))]
+    #[cfg(
+        any(
+            all(test, feature = "use-mock-routing"),
+            all(feature = "testing", feature = "use-mock-routing")
+        )
+    )]
     #[doc(hidden)]
     fn simulate_network_disconnect(&self) {
         let inner = self.inner();
         inner.borrow_mut().routing.simulate_disconnect();
     }
 
-    #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
-    ))]
+    #[cfg(
+        any(
+            all(test, feature = "use-mock-routing"),
+            all(feature = "testing", feature = "use-mock-routing")
+        )
+    )]
     #[doc(hidden)]
     fn set_simulate_timeout(&self, enabled: bool) {
         let inner = self.inner();
