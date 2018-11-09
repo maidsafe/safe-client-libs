@@ -1,5 +1,11 @@
 # Safe Core - Change Log
 
+## [0.32.0]
+- Switch to base32 encodings for case-insensitive URIs for IPC
+- Send a mock bit with ipc messages so that mock and non-mock components trying to communicate results in an error
+- Fix the mock-routing bug which was resulting in corrupted MockVault files
+- Remove `is_mock_build` function, replace with `auth_is_mock` and `app_is_mock`
+
 ## [0.31.0]
 - Refactor `Client` struct to a trait for a better separation of concerns
 - Implement `CoreClient` as a bare-bones network client for tests

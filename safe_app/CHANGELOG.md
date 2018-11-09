@@ -1,5 +1,15 @@
 # SAFE App
 
+## [0.9.0]
+- There's a known bug in this release related to Java/JNI on debug builds. It results in a "no Task is currently running" error message and panic when calling the `file_close` function
+- `dir_update_file` and `dir_delete_file` now return the new version of the file entry
+- Add a `GET_NEXT_VERSION` constant as an input to `dir_update_file` and `dir_delete_file`
+- Fix bindgen builds not including the FfiResult struct
+- Remove redundant callback parameter documentation for FFI functions, and make minor documentation fixes
+- Fix classes lookup on Android by caching the class loader
+- Use a more robust way of obtaining JniEnv references and handle errors gracefully
+- Remove `is_mock_build` function, replace with `auth_is_mock` and `app_is_mock`
+
 ## [0.8.0]
 - Implement `AppClient` with app-specific functions on top of the base abstract `Client`
 - Provide SAFE App API to be used as the only required dependency for apps built in Rust

@@ -11,7 +11,7 @@ version = "0.1.0"
 ffi_utils = { version = "~0.11.0", features = ["java"] }
 jni = "~0.10.2"
 log = "~0.4.5"
-safe_core = { path = "../safe_core", version = "~0.31.0" }
+safe_core = { path = "../safe_core", version = "~0.32.0" }
 unwrap = "~1.2.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
@@ -19,7 +19,7 @@ android_logger = "~0.6.0"
 
 [dependencies.safe_authenticator]
 path = "../safe_authenticator"
-version = "~0.8.0"
+version = "~0.9.0"
 features = ["bindings"]
 
 [lib]

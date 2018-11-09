@@ -1,5 +1,15 @@
 # SAFE Authenticator - Change Log
 
+## [0.9.0]
+- `dir_update_file` and `dir_delete_file` now return the new version of the file entry
+- Fix bindgen builds not including the FfiResult struct
+- Remove redundant callback parameter documentation for FFI functions
+- Fix classes lookup on Android by caching the class loader
+- Use a more robust way of obtaining JniEnv references and handle errors gracefully
+- Remove `is_mock_build` function, replace with `auth_is_mock` and `app_is_mock`
+- Add len parameter to metadata in `auth_decode_ipc_msg`
+- Add missing _pictures standard directory
+
 ## [0.8.0]
 - Implement `AuthClient` with authenticator-specific features, decoupling it from the base `safe_core::Client`
 
