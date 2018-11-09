@@ -123,7 +123,7 @@ pub(crate) unsafe fn find_class<'a>(
     env: &'a JNIEnv,
     class_name: &str,
 ) -> Result<AutoLocal<'a>, JniError> {
-    let cls = env.new_string(class_name)?;
+    let cls = env.auto_local(*env.new_string(class_name)?);
 
     Ok(env.auto_local(From::from(
         env.call_method_unsafe(
@@ -134,7 +134,7 @@ pub(crate) unsafe fn find_class<'a>(
             FIND_CLASS_METHOD
                 .ok_or_else(|| JniError::from("Unexpected - no cached findClass method ID"))?,
             JavaType::from_str("Ljava/lang/Object;")?,
-            &[JValue::from(*cls)],
+            &[JValue::from(cls.as_obj())],
         )?.l()?,
     )))
 }
