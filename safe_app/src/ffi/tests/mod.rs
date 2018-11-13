@@ -10,6 +10,7 @@
 mod nfs;
 
 use super::*;
+use ffi::app_is_mock;
 use ffi::ipc::decode_ipc_msg;
 use ffi_utils::test_utils::call_1;
 use routing::ImmutableData;
@@ -41,6 +42,19 @@ fn create_containers_req() -> HashMap<String, ContainerPermissions> {
         ],
     );
     containers
+}
+// Test mock detection when compiled against mock-routing.
+#[test]
+#[cfg(feature = "use-mock-routing")]
+fn test_mock_build() {
+    assert_eq!(app_is_mock(), true);
+}
+
+// Test mock detection when not compiled against mock-routing.
+#[test]
+#[cfg(not(feature = "use-mock-routing"))]
+fn test_not_mock_build() {
+    assert_eq!(app_is_mock(), false);
 }
 
 // Test account usage statistics before and after a mutation.

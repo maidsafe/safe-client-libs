@@ -200,9 +200,16 @@ pub unsafe extern "C" fn auth_free(auth: *mut Authenticator) {
     let _ = Box::from_raw(auth);
 }
 
+/// Returns true if this crate was compiled against mock-routing.
+#[no_mangle]
+pub extern "C" fn auth_is_mock() -> bool {
+    cfg!(feature = "use-mock-routing")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ffi::auth_is_mock;
     use ffi_utils::test_utils::call_1;
     use routing::ImmutableData;
     use safe_core::ffi::AccountInfo;
@@ -210,6 +217,20 @@ mod tests {
     use std::ffi::CString;
     use std::os::raw::c_void;
     use Authenticator;
+
+    // Test mock detection when compiled against mock-routing.
+    #[test]
+    #[cfg(feature = "use-mock-routing")]
+    fn test_mock_build() {
+        assert_eq!(auth_is_mock(), true);
+    }
+
+    // Test mock detection when not compiled against mock-routing.
+    #[test]
+    #[cfg(not(feature = "use-mock-routing"))]
+    fn test_not_mock_build() {
+        assert_eq!(auth_is_mock(), false);
+    }
 
     // Test creating an account and logging in.
     #[test]

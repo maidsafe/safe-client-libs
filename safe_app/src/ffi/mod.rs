@@ -243,3 +243,9 @@ pub unsafe extern "C" fn app_container_name(
         Ok(())
     })
 }
+
+/// Returns true if this crate was compiled against mock-routing.
+#[no_mangle]
+pub extern "C" fn app_is_mock() -> bool {
+    cfg!(feature = "use-mock-routing")
+}

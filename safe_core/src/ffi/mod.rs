@@ -66,28 +66,3 @@ pub struct MDataInfo {
     /// `has_new_enc_info` is `true`.
     pub new_enc_nonce: SymNonce,
 }
-
-/// Returns true if this crate was compiled against mock-routing.
-#[no_mangle]
-pub extern "C" fn is_mock_build() -> bool {
-    cfg!(feature = "use-mock-routing")
-}
-
-#[cfg(test)]
-mod tests {
-    use ffi::is_mock_build;
-
-    // Test `is_mock_build` when compiled against mock-routing.
-    #[test]
-    #[cfg(feature = "use-mock-routing")]
-    fn test_mock_build() {
-        assert_eq!(is_mock_build(), true);
-    }
-
-    // Test `is_mock_build` when not compiled against mock-routing.
-    #[test]
-    #[cfg(not(feature = "use-mock-routing"))]
-    fn test_not_mock_build() {
-        assert_eq!(is_mock_build(), false);
-    }
-}
