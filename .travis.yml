@@ -7,29 +7,25 @@ language: rust
 rust:
   - 1.29.1
 stages:
-  - warmup-ffi
-  - warmup-real
-  - warmup-mock
+  - warmup
   - tests
   - tests-binary-compat
   - deploy
 jobs:
   include:
     # Warm up the cache dependencies
-    - stage: warmup-ffi
+    - stage: warmup
       script: set -x; scripts/build-real-core
       os: linux
-
     # Warm up the cache for a real build
-    - stage: warmup-real
+    - stage: warmup
       script: set -x; scripts/build-real
       os: linux
-
     # Warm up the cache for a mock build
-    - stage: warmup-mock
+    - stage: warmup
       script: set -x; scripts/build-mock
       os: linux
-    - stage: warmup-mock
+    - stage: warmup
       script: set -x; scripts/build-mock
       os: osx
 
