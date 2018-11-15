@@ -7,7 +7,8 @@ echo "--- Building the binary compatibility test ---" &&
     cargo test --verbose --release --no-run --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml &&
 
     # Find the file to run.
-    TEST_FILE=$(find target/release -maxdepth 1 -type f -perm -111 -name "safe_authenticator-*" | head -1) &&
+    TEST_FILE=$(find target/release -maxdepth 1 -type f -executable -name "safe_authenticator-*" -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" ") &&
+    chmod +x "$TEST_FILE" &&
     COMPAT_DIR="${HOME}/.cache/master" &&
     COMPAT_TESTS="$COMPAT_DIR"/tests &&
     mkdir -p "$COMPAT_DIR" &&

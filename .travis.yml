@@ -48,7 +48,7 @@ jobs:
     # Build tests for binary compatibility
     - stage: tests-binary-compat
       script: set -x; scripts/build-binary
-      if: type = push
+      # if: type = push
       os: linux
 
     # Deploy
