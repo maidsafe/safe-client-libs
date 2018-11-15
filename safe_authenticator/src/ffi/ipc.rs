@@ -90,6 +90,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
         req_id: u32,
         req: *const ShareMDataReq,
         metadata: *const MetadataResponse,
+        metadata_len: usize,
     ),
     o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, response: *const c_char),
 ) {
@@ -152,6 +153,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                                 req_id,
                                 &share_mdata_req_repr_c,
                                 ffi_metadata_cont.as_ptr(),
+                                ffi_metadata_cont.len(),
                             );
 
                             Ok(())

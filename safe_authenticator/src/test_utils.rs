@@ -478,7 +478,8 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
         user_data: *mut c_void,
         req_id: u32,
         req: *const FfiShareMDataReq,
-        ffi_metadatas: *const FfiUserMetadata,
+        ffi_metadata: *const FfiUserMetadata,
+        ffi_metadata_len: usize,
     ) {
         unsafe {
             let req = match ShareMDataReq::clone_from_repr_c(req) {
@@ -486,7 +487,7 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
                 Err(_) => return send_via_user_data::<ChannelType>(user_data, Err((-2, None))),
             };
 
-            let metadatas: Vec<_> = slice::from_raw_parts(ffi_metadatas, req.mdata.len())
+            let metadatas: Vec<_> = slice::from_raw_parts(ffi_metadata, ffi_metadata_len)
                 .iter()
                 .map(|ffi_metadata| {
                     (
