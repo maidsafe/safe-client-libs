@@ -70,26 +70,7 @@ test_script:
     cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_app/Cargo.toml
 
 before_deploy:
-  - rmdir /s /q target\deploy
-  - ps: |
-        $url = "https://s3.eu-west-2.amazonaws.com/download-native-libs/cargo-script.exe"
-        Invoke-WebRequest $url -OutFile "cargo-script.exe"
-        New-Item -Path ".\target\deploy" -ItemType directory
-        $COMMIT_MESSAGE = "$env:APPVEYOR_REPO_COMMIT_MESSAGE $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED"
-        if ($COMMIT_MESSAGE -match "[Vv]ersion change.*safe_authenticator to ([^;]+)") {
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_app -d target/deploy --mock
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_app -d target/deploy
-        } else {
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_app -d target/deploy --mock --commit
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_app -d target/deploy --commit
-        }
-        if ($COMMIT_MESSAGE -match "[Vv]ersion change.*safe_app to ([^;]+)") {
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_authenticator -d target/deploy --mock
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_authenticator -d target/deploy
-        } else {
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_authenticator -d target/deploy --mock --commit
-          cargo-script.exe script -- ./scripts/package.rs --lib --name safe_authenticator -d target/deploy --commit
-        }
+  - PowerShell .\scripts\package.ps1
   - ps: $root = Resolve-Path .\target\deploy; [IO.Directory]::GetFiles($root.Path, '*.zip') | % { Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) }
 
 deploy:
