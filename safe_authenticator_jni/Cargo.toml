@@ -8,7 +8,7 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.1.0"
 
 [dependencies]
-ffi_utils = { version = "~0.10.0", features = ["java"] }
+ffi_utils = { version = "~0.11.0", features = ["java"] }
 jni = "~0.10.2"
 log = "~0.4.5"
 safe_core = { path = "../safe_core", version = "~0.31.0" }

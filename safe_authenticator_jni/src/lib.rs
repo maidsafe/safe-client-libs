@@ -63,16 +63,27 @@ static mut FIND_CLASS_METHOD: Option<JMethodID> = None;
 // This is called when `loadLibrary` is called on the Java side.
 #[no_mangle]
 pub unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jint {
-    if let Err(e) = cache_class_loader(vm) {
+    JVM = match JavaVM::from_raw(vm) {
+        Ok(vm) => Some(vm),
+        Err(e) => {
+            error!("{}", e);
+            return -1;
+        }
+    };
+    if let Err(e) = cache_class_loader() {
         error!("{}", e);
         return -1;
     }
     jni::sys::JNI_VERSION_1_4
 }
 
-unsafe fn cache_class_loader(vm: *mut jni::sys::JavaVM) -> Result<(), JniError> {
-    JVM = Some(JavaVM::from_raw(vm)?);
+#[cfg(not(target_os = "android"))]
+unsafe fn cache_class_loader() -> Result<(), JniError> {
+    Ok(())
+}
 
+#[cfg(target_os = "android")]
+unsafe fn cache_class_loader() -> Result<(), JniError> {
     let env = JVM
         .as_ref()
         .ok_or_else(|| From::from("no JVM reference found"))
@@ -118,7 +129,17 @@ pub(crate) fn init_jni_logging() -> Result<(), JniError> {
     Ok(())
 }
 
-/// Uses the cached class loader to find a Java class.
+/// Find a class on desktop JNI.
+#[cfg(not(target_os = "android"))]
+pub(crate) unsafe fn find_class<'a>(
+    env: &'a JNIEnv,
+    class_name: &str,
+) -> Result<AutoLocal<'a>, JniError> {
+    Ok(env.auto_local(*env.find_class(class_name)?))
+}
+
+/// Use the cached class loader to find a Java class on Android.
+#[cfg(target_os = "android")]
 pub(crate) unsafe fn find_class<'a>(
     env: &'a JNIEnv,
     class_name: &str,
@@ -267,5 +288,156 @@ gen_object_array_converter!(
     ContainerPermissions,
     "net/maidsafe/safe_authenticator/ContainerPermissions"
 );
+gen_object_array_converter!(
+    find_class,
+    MetadataResponse,
+    "net/maidsafe/safe_authenticator/MetadataResponse"
+);
 
+extern "C" fn call_auth_disconnect_cb(ctx: *mut c_void) {
+    unsafe {
+        let guard = jni_unwrap!(EnvGuard::new(JVM.as_ref()));
+        let env = guard.env();
+        let mut cbs = Box::from_raw(ctx as *mut [Option<GlobalRef>; 2usize]);
+        if let Some(ref cb) = cbs[0usize] {
+            jni_unwrap!(env.call_method(cb.as_obj(), "call", "()V", &[]));
+        }
+        mem::forget(cbs);
+    }
+}
+
+extern "C" fn call_create_acc_cb(
+    ctx: *mut c_void,
+    result: *const FfiResult,
+    authenticator: *mut Authenticator,
+) {
+    unsafe {
+        let guard = jni_unwrap!(EnvGuard::new(JVM.as_ref()));
+        let env = guard.env();
+        let mut cbs = Box::from_raw(ctx as *mut [Option<GlobalRef>; 2usize]);
+        if let Some(cb) = cbs[1usize].take() {
+            let result = if result.is_null() {
+                JObject::null()
+            } else {
+                jni_unwrap!((*result).to_java(&env))
+            };
+            let authenticator = authenticator as jlong;
+            jni_unwrap!(env.call_method(
+                cb.as_obj(),
+                "call",
+                "(Lnet/maidsafe/safe_authenticator/FfiResult;J)V",
+                &[result.into(), authenticator.into()],
+            ));
+        }
+        // do not drop the disconnect_notifier_cb
+        mem::forget(cbs);
+    }
+}
+
+#[link(name = "safe_authenticator")]
+extern "C" {
+    fn create_acc(
+        account_locator: *const c_char,
+        account_password: *const c_char,
+        invitation: *const c_char,
+        user_data: *mut c_void,
+        o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
+        o_cb: extern "C" fn(
+            user_data: *mut c_void,
+            result: *const FfiResult,
+            authenticator: *mut Authenticator,
+        ),
+    );
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_maidsafe_safe_1authenticator_NativeBindings_createAcc(
+    env: JNIEnv,
+    _class: JClass,
+    account_locator: JString,
+    account_password: JString,
+    invitation: JString,
+    o_disconnect_notifier_cb: JObject,
+    o_cb: JObject,
+) {
+    let account_locator = jni_unwrap!(CString::from_java(&env, account_locator));
+    let account_password = jni_unwrap!(CString::from_java(&env, account_password));
+    let invitation = jni_unwrap!(CString::from_java(&env, invitation));
+    let ctx = gen_ctx!(env, o_disconnect_notifier_cb, o_cb);
+
+    create_acc(
+        account_locator.as_ptr(),
+        account_password.as_ptr(),
+        invitation.as_ptr(),
+        ctx,
+        call_auth_disconnect_cb,
+        call_create_acc_cb,
+    );
+}
+
+extern "C" fn call_login_cb(
+    ctx: *mut c_void,
+    result: *const FfiResult,
+    authenticaor: *mut Authenticator,
+) {
+    unsafe {
+        let guard = jni_unwrap!(EnvGuard::new(JVM.as_ref()));
+        let env = guard.env();
+        let mut cbs = Box::from_raw(ctx as *mut [Option<GlobalRef>; 2usize]);
+        if let Some(cb) = cbs[1usize].take() {
+            let result = if result.is_null() {
+                JObject::null()
+            } else {
+                jni_unwrap!((*result).to_java(&env))
+            };
+            let authenticaor = authenticaor as jlong;
+            jni_unwrap!(env.call_method(
+                cb.as_obj(),
+                "call",
+                "(Lnet/maidsafe/safe_authenticator/FfiResult;J)V",
+                &[result.into(), authenticaor.into()],
+            ));
+        }
+        // do not drop the disconnect_notifier_cb
+        mem::forget(cbs);
+    }
+}
+
+#[link(name = "safe_authenticator")]
+extern "C" {
+    fn login(
+        account_locator: *const c_char,
+        account_password: *const c_char,
+        user_data: *mut c_void,
+        o_disconnect_notifier_cb: unsafe extern "C" fn(user_data: *mut c_void),
+        o_cb: extern "C" fn(
+            user_data: *mut c_void,
+            result: *const FfiResult,
+            authenticaor: *mut Authenticator,
+        ),
+    );
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_maidsafe_safe_1authenticator_NativeBindings_login(
+    env: JNIEnv,
+    _class: JClass,
+    account_locator: JString,
+    account_password: JString,
+    o_disconnect_notifier_cb: JObject,
+    o_cb: JObject,
+) {
+    let account_locator = jni_unwrap!(CString::from_java(&env, account_locator));
+    let account_password = jni_unwrap!(CString::from_java(&env, account_password));
+    let ctx = gen_ctx!(env, o_disconnect_notifier_cb, o_cb);
+    login(
+        account_locator.as_ptr(),
+        account_password.as_ptr(),
+        ctx,
+        call_auth_disconnect_cb,
+        call_login_cb,
+    );
+}
+
+// Include automatically generated bindings
 include!("../../bindings/java/safe_authenticator/jni.rs");

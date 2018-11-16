@@ -142,6 +142,10 @@ fn gen_bindings_java() {
     let mut bindgen = unwrap!(Bindgen::new());
     let mut lang = LangJava::new(type_map);
 
+    lang.reset_filter(FilterMode::Blacklist);
+    lang.filter("login");
+    lang.filter("create_acc");
+
     lang.set_namespace("net.maidsafe.safe_authenticator");
     lang.set_model_namespace("net.maidsafe.safe_authenticator");
 

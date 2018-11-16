@@ -81,16 +81,27 @@ pub trait FromJava<T> {
 // This is called when `loadLibrary` is called on the Java side.
 #[no_mangle]
 pub unsafe extern "C" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _reserved: *mut c_void) -> jint {
-    if let Err(e) = cache_class_loader(vm) {
+    JVM = match JavaVM::from_raw(vm) {
+        Ok(vm) => Some(vm),
+        Err(e) => {
+            error!("{}", e);
+            return -1;
+        }
+    };
+    if let Err(e) = cache_class_loader() {
         error!("{}", e);
         return -1;
     }
     jni::sys::JNI_VERSION_1_4
 }
 
-unsafe fn cache_class_loader(vm: *mut jni::sys::JavaVM) -> Result<(), JniError> {
-    JVM = Some(JavaVM::from_raw(vm)?);
+#[cfg(not(target_os = "android"))]
+unsafe fn cache_class_loader() -> Result<(), JniError> {
+    Ok(())
+}
 
+#[cfg(target_os = "android")]
+unsafe fn cache_class_loader() -> Result<(), JniError> {
     let env = JVM
         .as_ref()
         .ok_or_else(|| From::from("no JVM reference found"))
@@ -136,7 +147,17 @@ pub(crate) fn init_jni_logging() -> Result<(), JniError> {
     Ok(())
 }
 
-/// Uses the cached class loader to find a Java class.
+/// Find a class on desktop JNI.
+#[cfg(not(target_os = "android"))]
+pub(crate) unsafe fn find_class<'a>(
+    env: &'a JNIEnv,
+    class_name: &str,
+) -> Result<AutoLocal<'a>, JniError> {
+    Ok(env.auto_local(*env.find_class(class_name)?))
+}
+
+/// Use the cached class loader to find a Java class on Android.
+#[cfg(target_os = "android")]
 pub(crate) unsafe fn find_class<'a>(
     env: &'a JNIEnv,
     class_name: &str,
@@ -252,4 +273,124 @@ gen_object_array_converter!(
     "net/maidsafe/safe_app/ContainerPermissions"
 );
 
+extern "C" fn call_app_disconnect_cb(ctx: *mut c_void) {
+    unsafe {
+        let guard = jni_unwrap!(EnvGuard::new(JVM.as_ref()));
+        let env = guard.env();
+        let mut cbs = Box::from_raw(ctx as *mut [Option<GlobalRef>; 2usize]);
+        if let Some(ref cb) = cbs[0usize] {
+            jni_unwrap!(env.call_method(cb.as_obj(), "call", "()V", &[]));
+        }
+        // do not drop the disconnect_notifier_cb
+        mem::forget(cbs);
+    }
+}
+extern "C" fn call_app_unregistered_cb(ctx: *mut c_void, result: *const FfiResult, app: *mut App) {
+    unsafe {
+        let guard = jni_unwrap!(EnvGuard::new(JVM.as_ref()));
+        let env = guard.env();
+        let mut cbs = Box::from_raw(ctx as *mut [Option<GlobalRef>; 2usize]);
+        if let Some(cb) = cbs[1usize].take() {
+            let result = if result.is_null() {
+                JObject::null()
+            } else {
+                jni_unwrap!((*result).to_java(&env))
+            };
+            let app = app as jlong;
+            jni_unwrap!(env.call_method(
+                cb.as_obj(),
+                "call",
+                "(Lnet/maidsafe/safe_app/FfiResult;J)V",
+                &[result.into(), app.into()],
+            ));
+        }
+        // do not drop the disconnect_notifier_cb
+        mem::forget(cbs);
+    }
+}
+
+#[link(name = "safe_app")]
+extern "C" {
+    fn app_unregistered(
+        bootstrap_config: *const u8,
+        bootstrap_config_len: usize,
+        user_data: *mut c_void,
+        o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
+        o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, app: *mut App),
+    );
+}
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_maidsafe_safe_1app_NativeBindings_appUnregistered(
+    env: JNIEnv,
+    _class: JClass,
+    bootstrap_config: JObject,
+    o_disconnect_notifier_cb: JObject,
+    o_cb: JObject,
+) {
+    let bootstrap_config = jni_unwrap!(Vec::from_java(&env, bootstrap_config));
+    let ctx = gen_ctx!(env, o_disconnect_notifier_cb, o_cb);
+    app_unregistered(
+        bootstrap_config.as_ptr(),
+        bootstrap_config.len(),
+        ctx,
+        call_app_disconnect_cb,
+        call_app_unregistered_cb,
+    );
+}
+extern "C" fn call_app_registered_cb(ctx: *mut c_void, result: *const FfiResult, app: *mut App) {
+    unsafe {
+        let guard = jni_unwrap!(EnvGuard::new(JVM.as_ref()));
+        let env = guard.env();
+        let mut cbs = Box::from_raw(ctx as *mut [Option<GlobalRef>; 2usize]);
+        if let Some(cb) = cbs[1usize].take() {
+            let result = if result.is_null() {
+                JObject::null()
+            } else {
+                jni_unwrap!((*result).to_java(&env))
+            };
+            let app = app as jlong;
+            jni_unwrap!(env.call_method(
+                cb.as_obj(),
+                "call",
+                "(Lnet/maidsafe/safe_app/FfiResult;J)V",
+                &[result.into(), app.into()],
+            ));
+        }
+        // do not drop the disconnect_notifier_cb
+        mem::forget(cbs);
+    }
+}
+
+#[link(name = "safe_app")]
+extern "C" {
+    fn app_registered(
+        app_id: *const c_char,
+        auth_granted: *const AuthGranted,
+        user_data: *mut c_void,
+        o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
+        o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, app: *mut App),
+    );
+}
+#[no_mangle]
+pub unsafe extern "system" fn Java_net_maidsafe_safe_1app_NativeBindings_appRegistered(
+    env: JNIEnv,
+    _class: JClass,
+    app_id: JString,
+    auth_granted: JObject,
+    o_disconnect_notifier_cb: JObject,
+    o_cb: JObject,
+) {
+    let app_id = jni_unwrap!(CString::from_java(&env, app_id));
+    let auth_granted = jni_unwrap!(AuthGranted::from_java(&env, auth_granted));
+    let ctx = gen_ctx!(env, o_disconnect_notifier_cb, o_cb);
+    app_registered(
+        app_id.as_ptr(),
+        &auth_granted,
+        ctx,
+        call_app_disconnect_cb,
+        call_app_registered_cb,
+    );
+}
+
+// Include automatically generated bindings
 include!("../../bindings/java/safe_app/jni.rs");
