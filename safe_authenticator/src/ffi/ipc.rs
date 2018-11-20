@@ -184,75 +184,6 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
     })
 }
 
-/// Encode share mutable data response.
-#[no_mangle]
-pub unsafe extern "C" fn encode_share_mdata_resp(
-    auth: *const Authenticator,
-    req: *const ShareMDataReq,
-    req_id: u32,
-    is_granted: bool,
-    user_data: *mut c_void,
-    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, response: *const c_char),
-) {
-    let user_data = OpaqueCtx(user_data);
-
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
-        let share_mdata_req = NativeShareMDataReq::clone_from_repr_c(req)?;
-        if is_granted {
-            (*auth).send(move |client| {
-                let client_cloned0 = client.clone();
-                let client_cloned1 = client.clone();
-                let user_data = user_data.0;
-                config::get_app(client, &share_mdata_req.app.id)
-                    .and_then(move |app_info| {
-                        let user = User::Key(app_info.keys.sign_pk);
-                        let num_mdata = share_mdata_req.mdata.len();
-                        stream::iter_ok(share_mdata_req.mdata.into_iter())
-                            .map(move |mdata| {
-                                client_cloned0
-                                    .get_mdata_shell(mdata.name, mdata.type_tag)
-                                    .map(|md| (md.version(), mdata))
-                            }).buffer_unordered(num_mdata)
-                            .map(move |(version, mdata)| {
-                                client_cloned1.set_mdata_user_permissions(
-                                    mdata.name,
-                                    mdata.type_tag,
-                                    user,
-                                    mdata.perms,
-                                    version + 1,
-                                )
-                            }).buffer_unordered(num_mdata)
-                            .map_err(AuthError::CoreError)
-                            .for_each(|()| Ok(()))
-                            .and_then(move |()| {
-                                let resp = encode_response(&IpcMsg::Resp {
-                                    req_id,
-                                    resp: IpcResp::ShareMData(Ok(())),
-                                }).map_err(AuthError::IpcError)?;
-                                o_cb(user_data, FFI_RESULT_OK, resp.as_ptr());
-                                Ok(())
-                            }).into_box()
-                    }).map_err(move |e| {
-                        call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                    }).into_box()
-                    .into()
-            })?;
-        } else {
-            let resp = encode_response(&IpcMsg::Resp {
-                req_id,
-                resp: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
-            })?;
-            let (error_code, description) = ffi_error!(AuthError::from(IpcError::ShareMDataDenied));
-            let res = FfiResult {
-                error_code,
-                description: description.as_ptr(),
-            };
-            o_cb(user_data.0, &res, resp.as_ptr());
-        }
-        Ok(())
-    })
-}
-
 /// Revoke app access.
 #[no_mangle]
 pub unsafe extern "C" fn auth_revoke_app(
@@ -485,4 +416,72 @@ pub unsafe extern "C" fn encode_containers_resp(
 
         Ok(())
     });
+}
+
+/// Encode share mutable data response.
+#[no_mangle]
+pub unsafe extern "C" fn encode_share_mdata_resp(
+    auth: *const Authenticator,
+    req: *const ShareMDataReq,
+    req_id: u32,
+    is_granted: bool,
+    user_data: *mut c_void,
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, response: *const c_char),
+) {
+    let user_data = OpaqueCtx(user_data);
+
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
+        let share_mdata_req = NativeShareMDataReq::clone_from_repr_c(req)?;
+
+        if !is_granted {
+            let resp = encode_response(&IpcMsg::Resp {
+                req_id,
+                resp: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
+            })?;
+
+            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
+        } else {
+            (*auth).send(move |client| {
+                let client_cloned0 = client.clone();
+                let client_cloned1 = client.clone();
+                let user_data = user_data.0;
+
+                config::get_app(client, &share_mdata_req.app.id)
+                    .and_then(move |app_info| {
+                        let user = User::Key(app_info.keys.sign_pk);
+                        let num_mdata = share_mdata_req.mdata.len();
+                        stream::iter_ok(share_mdata_req.mdata.into_iter())
+                            .map(move |mdata| {
+                                client_cloned0
+                                    .get_mdata_shell(mdata.name, mdata.type_tag)
+                                    .map(|md| (md.version(), mdata))
+                            }).buffer_unordered(num_mdata)
+                            .map(move |(version, mdata)| {
+                                client_cloned1.set_mdata_user_permissions(
+                                    mdata.name,
+                                    mdata.type_tag,
+                                    user,
+                                    mdata.perms,
+                                    version + 1,
+                                )
+                            }).buffer_unordered(num_mdata)
+                            .map_err(AuthError::CoreError)
+                            .for_each(|()| Ok(()))
+                            .and_then(move |()| {
+                                let resp = encode_response(&IpcMsg::Resp {
+                                    req_id,
+                                    resp: IpcResp::ShareMData(Ok(())),
+                                }).map_err(AuthError::IpcError)?;
+                                o_cb(user_data, FFI_RESULT_OK, resp.as_ptr());
+                                Ok(())
+                            }).into_box()
+                    }).map_err(move |e| {
+                        call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                    }).into_box()
+                    .into()
+            })?;
+        }
+
+        Ok(())
+    })
 }
