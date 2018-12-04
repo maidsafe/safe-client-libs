@@ -1,14 +1,30 @@
 FROM rust:1.29.2
 
+RUN addgroup --gid 1000 maidsafe && \
+    adduser --uid 1000 --ingroup maidsafe --home /home/maidsafe --shell /bin/sh --disabled-password --gecos "" maidsafe
+
+# Install fixuid for dealing with the nightmare permissions issues with mounted volumes.
+RUN USER=maidsafe && \
+    GROUP=maidsafe && \
+    curl -SsL https://github.com/boxboat/fixuid/releases/download/v0.4/fixuid-0.4-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf - && \
+    chown root:root /usr/local/bin/fixuid && \
+    chmod 4755 /usr/local/bin/fixuid && \
+    mkdir -p /etc/fixuid && \
+    printf "user: $USER\ngroup: $GROUP\n" > /etc/fixuid/config.yml
+
+RUN apt-get update -y && \
+    mkdir /target && \
+    chown maidsafe:maidsafe /target && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/*
+
+USER maidsafe:maidsafe
 WORKDIR /usr/src/crust
 COPY . .
 
 # Running the package script with --help caches the dependencies for the script.
-RUN apt-get update -y && \
-    mkdir /target && \
-    apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/* && \
-    cargo install cargo-script && \
+RUN cargo install cargo-script && \
     ./scripts/build-real /target && \
     ./scripts/package.rs --help && \
     find /target/release/ -maxdepth 1 -type f -exec rm '{}' \;
+ENTRYPOINT ["fixuid"]
