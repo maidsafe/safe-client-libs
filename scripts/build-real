@@ -1,8 +1,11 @@
 #!/bin/bash
 
-set -x;
+set -e -x
 
-scripts/build-real-core &&
-cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
-cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
-cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml
+target_dir=$1
+[[ -z "$target_dir" ]] && target_dir="target"
+
+scripts/build-real-core $target_dir
+cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml --target-dir $target_dir
+cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml --target-dir $target_dir
+cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml --target-dir $target_dir

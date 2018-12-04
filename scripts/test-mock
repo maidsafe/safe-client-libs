@@ -1,9 +1,12 @@
 #!/bin/bash
 
-set -x;
+set -e -x
 
-cargo test config_mock_vault_path --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml &&
+target_dir=$1
+[[ -z "$target_dir" ]] && target_dir="target"
+
+cargo test config_mock_vault_path --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
 export SAFE_MOCK_IN_MEMORY_STORAGE=1 &&
-cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml &&
-cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml &&
-cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_app/Cargo.toml
+cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
+cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml --target-dir $target_dir
+cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_app/Cargo.toml --target-dir $target_dir

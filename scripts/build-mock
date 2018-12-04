@@ -1,8 +1,11 @@
 #!/bin/bash
 
-set -x;
+set -e -x
 
-cargo build --verbose --features=use-mock-routing --release --manifest-path=safe_core/Cargo.toml &&
-cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
-cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
-cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_app/Cargo.toml
+target_dir=$1
+[[ -z "$target_dir" ]] && target_dir="target"
+
+cargo build --verbose --features=use-mock-routing --release --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
+cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
+cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml --target-dir $target_dir
+cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_app/Cargo.toml --target-dir $target_dir
