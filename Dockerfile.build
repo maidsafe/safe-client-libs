@@ -20,13 +20,13 @@ RUN apt-get update -y && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/* 
 
-USER maidsafe:maidsafe
 WORKDIR /usr/src/crust
 COPY . .
 
 # Running the package script with --help caches the dependencies for the script.
+USER maidsafe:maidsafe
 RUN cargo install cargo-script && \
-    ./scripts/build-real /target && \
-    ./scripts/package.rs --help && \
-    find /target/release/ -maxdepth 1 -type f -exec rm '{}' \;
+   ./scripts/build-real /target && \
+   ./scripts/package.rs --help && \
+   find /target/release/ -maxdepth 1 -type f -exec rm '{}' \;
 ENTRYPOINT ["fixuid", "-q"]
