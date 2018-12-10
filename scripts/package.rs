@@ -135,6 +135,14 @@ fn main() {
             "Uses commit hash instead of version string in the package name",
         ))
         .arg(
+            Arg::with_name("REBUILD")
+                .short("r")
+                .long("rebuild")
+                .takes_value(false)
+                .required(false)
+                .help("If true a cargo build will run and output the artifacts to target/<arch>")
+        )
+        .arg(
             Arg::with_name("ARCH")
                 .short("a")
                 .long("arch")
@@ -171,6 +179,7 @@ fn main() {
         .get_matches();
 
     let krate = matches.value_of("NAME").unwrap();
+    let rebuild = matches.is_present("REBUILD");
     let version_string = get_version_string(krate, matches.is_present("COMMIT"));
 
     let arch_name = matches.value_of("ARCH").unwrap_or(HOST_ARCH_NAME);
@@ -208,15 +217,21 @@ fn main() {
                 let arch = find_arch(arch_name).unwrap();
                 let target = &arch.target;
 
-                if !build(krate, &features, Some(target)) {
-                    return Vec::new();
+                if rebuild {
+                    if !build(krate, &features, Some(target)) {
+                        return Vec::new();
+                    }
                 }
 
                 if !lib {
                     return Vec::new();
                 }
 
-                let libs = find_libs(krate, Some(target), &target_dir);
+                let libs = if rebuild {
+                    find_libs(krate, Some(target), &target_dir)
+                } else {
+                    find_libs(krate, None, &target_dir)
+                };
                 strip_libs(toolchain_path, Some(arch), &libs);
                 libs
             })
@@ -230,12 +245,18 @@ fn main() {
     } else {
         // Normal library
         let target = arch.map(|arch| arch.target);
-        if !build(krate, &features, target) {
-            return;
+        if rebuild {
+            if !build(krate, &features, target) {
+                return;
+            }
         }
 
         if lib {
-            let arch_libs = find_libs(krate, target, &target_dir);
+            let arch_libs = if rebuild {
+                find_libs(krate, target, &target_dir)
+            } else {
+                find_libs(krate, None, &target_dir)
+            };
             strip_libs(toolchain_path, arch, &arch_libs);
             libs.extend_from_slice(&arch_libs)
         }
