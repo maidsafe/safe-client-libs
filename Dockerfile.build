@@ -1,7 +1,10 @@
 FROM rust:1.29.2
 
 RUN addgroup --gid 1000 maidsafe && \
-    adduser --uid 1000 --ingroup maidsafe --home /home/maidsafe --shell /bin/sh --disabled-password --gecos "" maidsafe
+    adduser --uid 1000 --ingroup maidsafe --home /home/maidsafe --shell /bin/sh --disabled-password --gecos "" maidsafe && \
+    # The parent container sets this to the 'staff' group, which causes problems
+    # with reading code stored in Cargo's registry.
+    chgrp -R maidsafe /usr/local
 
 # Install fixuid for dealing with the nightmare permissions issues with mounted volumes.
 RUN USER=maidsafe && \
