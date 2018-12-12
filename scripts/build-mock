@@ -9,3 +9,4 @@ cargo build --verbose --features=use-mock-routing --release --manifest-path=safe
 cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
 cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml --target-dir $target_dir
 cargo build --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_app/Cargo.toml --target-dir $target_dir
+cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml --target-dir $target_dir
