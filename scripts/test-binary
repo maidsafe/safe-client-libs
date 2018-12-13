@@ -1,21 +1,21 @@
 #!/bin/bash
 
-set -x;
+set -e -x
 
-COMPAT_TESTS="${HOME}/.cache/master/tests" &&
+COMPAT_TESTS="${HOME}/.cache/master/tests"
 
-    if [[ -f "$COMPAT_TESTS" ]]; then
-        echo "--- Test binary compatibility ---" &&
+if [[ -f "$COMPAT_TESTS" ]]; then
+    echo "--- Test binary compatibility ---"
 
-            # Use mock vault file.
-            unset SAFE_MOCK_IN_MEMORY_STORAGE &&
-            export SAFE_MOCK_VAULT_PATH=$HOME/tmp &&
-            mkdir -p "$SAFE_MOCK_VAULT_PATH" &&
+    # Use mock vault file.
+    unset SAFE_MOCK_IN_MEMORY_STORAGE
+    export SAFE_MOCK_VAULT_PATH=$HOME/tmp
+    mkdir -p "$SAFE_MOCK_VAULT_PATH"
 
-            cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml serialisation_write_data -- --ignored &&
+    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml serialisation_write_data -- --ignored
 
-            "$COMPAT_TESTS" serialisation_read_data --ignored &&
-            "$COMPAT_TESTS" serialisation_write_data --ignored &&
+    "$COMPAT_TESTS" serialisation_read_data --ignored
+    "$COMPAT_TESTS" serialisation_write_data --ignored
 
-            cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml serialisation_read_data -- --ignored;
-    fi
+    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml serialisation_read_data -- --ignored
+fi
