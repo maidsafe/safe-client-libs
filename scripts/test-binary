@@ -2,7 +2,7 @@
 
 set -e -x
 
-COMPAT_TESTS="${HOME}/.cache/master/tests"
+COMPAT_TESTS=${COMPAT_TESTS:-${HOME}/.cache/master/tests}
 
 if [[ -f "$COMPAT_TESTS" ]]; then
     echo "--- Test binary compatibility ---"
