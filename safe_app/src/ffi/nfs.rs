@@ -178,7 +178,7 @@ pub unsafe extern "C" fn file_open(
             let context = context.clone();
             let original_file = file.clone();
 
-            // Initialise the reader if OPEN_MODE_READ is requested
+            // Initialise the reader if OPEN_MODE_READ is requested.
             let reader = if open_mode & OPEN_MODE_READ != 0 {
                 let fut = file_helper::read(client.clone(), &file, parent_info.enc_key().cloned())
                     .map(Some);
@@ -187,7 +187,7 @@ pub unsafe extern "C" fn file_open(
                 Either::B(future::ok(None))
             };
 
-            // Initialise the writer if one of write modes is requested
+            // Initialise the writer if one of write modes is requested.
             let writer = if open_mode & (OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND) != 0 {
                 let writer_mode = if open_mode & OPEN_MODE_APPEND != 0 {
                     Mode::Append

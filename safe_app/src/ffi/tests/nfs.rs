@@ -203,7 +203,7 @@ fn open_file() {
 
     let size0 = file.size();
 
-    // Read the content
+    // Read the content.
     let read_write_h = unsafe {
         unwrap!(call_1(|ud, cb| file_open(
             &app,
@@ -442,7 +442,7 @@ fn fetch_file() {
 
     let size0 = file.size();
 
-    // Read the content
+    // Read the content.
     let read_write_h = unsafe {
         unwrap!(call_1(|ud, cb| file_open(
             &app,
@@ -755,6 +755,120 @@ fn open_close_file() {
     };
 
     let _: NativeFile = unsafe { unwrap!(call_1(|ud, cb| file_close(&app, append_h, ud, cb))) };
+}
+
+// Open a file in all modes simultaneously.
+#[test]
+fn file_open_read_write() {
+    let (app, container_info) = setup();
+
+    // Create empty file.
+    let file = NativeFile::new(Vec::new());
+    let ffi_file = file.into_repr_c();
+
+    let initial_content = b"";
+    let content = b"hello world";
+
+    // Write to the file first because we can't open a non-existent file for reading.
+    let write_h = unsafe {
+        unwrap!(call_1(|ud, cb| file_open(
+            &app,
+            &container_info,
+            &ffi_file,
+            OPEN_MODE_OVERWRITE,
+            ud,
+            cb,
+        )))
+    };
+
+    let written_file: NativeFile = unsafe {
+        unwrap!(call_0(|ud, cb| file_write(
+            &app,
+            write_h,
+            initial_content.as_ptr(),
+            initial_content.len(),
+            ud,
+            cb
+        )));
+        unwrap!(call_1(|ud, cb| file_close(&app, write_h, ud, cb)))
+    };
+
+    // Open with ALL the modes.
+    let read_write_h = unsafe {
+        unwrap!(call_1(|ud, cb| file_open(
+            &app,
+            &container_info,
+            &written_file.into_repr_c(),
+            OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
+            ud,
+            cb,
+        )))
+    };
+
+    // Can query the size since the file is opened in read mode.
+    let size: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_write_h, ud, cb))) };
+    assert_eq!(size, initial_content.len() as u64);
+
+    // Do a write followed by read. The read should not see the new changes.
+    let retrieved_content = unsafe {
+        // Write.
+        unwrap!(call_0(|ud, cb| file_write(
+            &app,
+            read_write_h,
+            content.as_ptr(),
+            content.len(),
+            ud,
+            cb
+        )));
+
+        // Read.
+        unwrap!(call_vec_u8(|ud, cb| file_read(
+            &app,
+            read_write_h,
+            0,
+            FILE_READ_TO_END,
+            ud,
+            cb
+        )))
+    };
+    assert_eq!(retrieved_content, vec![0u8; 0]);
+
+    // Size did not change.
+    let size: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_write_h, ud, cb))) };
+    assert_eq!(size, 0);
+
+    // Close the file.
+    let written_file: NativeFile =
+        unsafe { unwrap!(call_1(|ud, cb| file_close(&app, read_write_h, ud, cb))) };
+
+    // Open it again to read changes.
+    let read_h = unsafe {
+        unwrap!(call_1(|ud, cb| file_open(
+            &app,
+            &container_info,
+            &written_file.into_repr_c(),
+            OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
+            ud,
+            cb,
+        )))
+    };
+
+    // Size should have been updated.
+    let size: u64 = unsafe { unwrap!(call_1(|ud, cb| file_size(&app, read_h, ud, cb))) };
+    assert_eq!(size, content.len() as u64);
+
+    // We should be able to read the changes now.
+    let retrieved_content = unsafe {
+        unwrap!(call_vec_u8(|ud, cb| file_read(
+            &app,
+            read_h,
+            0,
+            FILE_READ_TO_END,
+            ud,
+            cb
+        )))
+    };
+    assert_eq!(retrieved_content, content);
 }
 
 // Test reading files in chunks.
