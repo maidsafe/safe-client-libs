@@ -203,6 +203,7 @@ def run_packaging(app) {
         def container_name = get_container_name(mode, 'package', app)
         def command = "docker run --rm --name ${container_name} " +
             "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
+            "-e CARGO_TARGET_DIR=/target " +
             "-u ${user_id}:${group_id} " +
             "${image_name} scripts/package.rs --lib --name ${app} --commit"
         if (mode == 'mock') {
