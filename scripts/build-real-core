@@ -2,8 +2,7 @@
 
 set -e -x
 
-target_dir=$1
-[[ -z "$target_dir" ]] && target_dir="target"
+target_dir=${1:-"target"}
 
 cargo build --verbose --release --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
 cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_core/Cargo.toml --target-dir $target_dir
