@@ -5,4 +5,4 @@ PWD := $(shell echo $$PWD)
 build-container:
 	rm -rf target/
 	docker rmi -f maidsafe/safe-client-libs-build:${SAFE_APP_VERSION}
-	docker build -f Dockerfile.build -t maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} .
+	docker build -f scripts/Dockerfile.build -t maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} .
