@@ -1,6 +1,7 @@
 #!/usr/bin/env run-cargo-script
 //! ```cargo
 //! [dependencies]
+//! cc = "=1.0.22"
 //! clap = "=2.27.1"
 //! colored = "1.6.0"
 //! heck = "0.3.0"

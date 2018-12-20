@@ -6,7 +6,8 @@ RUN addgroup --gid 1000 maidsafe && \
     # with reading code stored in Cargo's registry.
     chgrp -R maidsafe /usr/local
 
-# Install fixuid for dealing with the nightmare permissions issues with mounted volumes.
+# Install fixuid for dealing with permissions issues with mounted volumes.
+# We could perhaps put this into a base container at a later stage.
 RUN USER=maidsafe && \
     GROUP=maidsafe && \
     curl -SsL https://github.com/boxboat/fixuid/releases/download/v0.4/fixuid-0.4-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf - && \
@@ -18,12 +19,12 @@ RUN USER=maidsafe && \
 RUN apt-get update -y && \
     mkdir /target && \
     chown maidsafe:maidsafe /target && \
-    mkdir /usr/src/crust && \
-    chown maidsafe:maidsafe /usr/src/crust && \
+    mkdir /usr/src/safe_client_libs && \
+    chown maidsafe:maidsafe /usr/src/safe_client_libs && \
     apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/* 
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /usr/src/crust
+WORKDIR /usr/src/safe_client_libs
 COPY . .
 
 # Running the package script with --help caches the dependencies for the script.
