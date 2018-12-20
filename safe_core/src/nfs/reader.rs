@@ -14,8 +14,8 @@ use self_encryption::SelfEncryptor;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
 
-/// Reader is used to read contents of a File. It can read in chunks if the
-/// file happens to be very large.
+/// `Reader` is used to read contents of a `File`. It can read in chunks if the `File` happens to be
+/// very large.
 #[allow(dead_code)]
 pub struct Reader<C: Client> {
     client: C,
@@ -23,7 +23,7 @@ pub struct Reader<C: Client> {
 }
 
 impl<C: Client> Reader<C> {
-    /// Create a new instance of Reader.
+    /// Create a new instance of `Reader`.
     pub fn new(
         client: C,
         storage: SelfEncryptionStorage<C>,
