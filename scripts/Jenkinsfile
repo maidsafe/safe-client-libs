@@ -113,7 +113,7 @@ def build_safe_client_libs(mode) {
     sh("docker run --name ${container_name} " +
        "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
        "-u ${user_id}:${group_id} " +
-       "${image_name} build/build-${mode} /target")
+       "${image_name} scripts/build-${mode} /target")
 }
 
 def upload_binary_compatibility_test() {
@@ -190,7 +190,7 @@ def run_tests(mode, bct_test_path='') {
         command += "-v ${bct_test_path}:/bct/tests:Z "
         command += "-e COMPAT_TESTS=/bct/tests "
     }
-    command += "${image_name} build/test-${mode} /target"
+    command += "${image_name} scripts/test-${mode} /target"
     sh(command)
 }
 
@@ -204,7 +204,7 @@ def run_packaging(app) {
         def command = "docker run --rm --name ${container_name} " +
             "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
             "-u ${user_id}:${group_id} " +
-            "${image_name} build/package.rs --lib --name ${app} --commit"
+            "${image_name} scripts/package.rs --lib --name ${app} --commit"
         if (mode == 'mock') {
             command += " --mock"
         }
