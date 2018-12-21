@@ -113,7 +113,7 @@ def build_safe_client_libs(mode) {
     sh("docker run --name ${container_name} " +
        "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
        "-u ${user_id}:${group_id} " +
-       "${image_name} scripts/build-${mode} /target")
+       "${image_name} scripts/build-${mode}")
 }
 
 def upload_binary_compatibility_test() {
