@@ -185,12 +185,13 @@ def run_tests(mode, bct_test_path='') {
     def container_name = get_container_name(mode, 'test_run')
     def command = "docker run --rm --name ${container_name} " +
         "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
+        "-e CARGO_TARGET_DIR=/target " +
         "-u ${user_id}:${group_id} "
     if (mode == 'binary') {
         command += "-v ${bct_test_path}:/bct/tests:Z "
         command += "-e COMPAT_TESTS=/bct/tests "
     }
-    command += "${image_name} scripts/test-${mode} /target"
+    command += "${image_name} scripts/test-${mode}"
     sh(command)
 }
 

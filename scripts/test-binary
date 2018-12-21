@@ -2,6 +2,7 @@
 
 set -e -x
 
+target_dir=${1:-"target"}
 COMPAT_TESTS=${COMPAT_TESTS:-${HOME}/.cache/master/tests}
 
 if [[ -f "$COMPAT_TESTS" ]]; then

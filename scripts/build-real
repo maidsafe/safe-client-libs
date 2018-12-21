@@ -2,9 +2,7 @@
 
 set -e -x
 
-target_dir=${1:-"target"}
-
-scripts/build-real-core $target_dir
-cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml --target-dir $target_dir
-cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml --target-dir $target_dir
-cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml --target-dir $target_dir
+scripts/build-real-core
+cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml
+cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml
+cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml

@@ -2,6 +2,4 @@
 
 set -e -x
 
-target_dir=${1:-"target"}
-
-cargo test --verbose --features="use-mock-routing" --release --manifest-path=tests/Cargo.toml --target-dir $target_dir
+cargo test --verbose --features="use-mock-routing" --release --manifest-path=tests/Cargo.toml
