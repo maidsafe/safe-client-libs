@@ -29,8 +29,9 @@ COPY . .
 
 # Running the package script with --help caches the dependencies for the script.
 USER maidsafe:maidsafe
+ENV CARGO_TARGET_DIR=/target
 RUN cargo install cargo-script && \
-   ./scripts/build-real /target && \
+   ./scripts/build-real && \
    ./scripts/package.rs --help && \
    find /target/release/ -maxdepth 1 -type f -exec rm '{}' \;
 ENTRYPOINT ["fixuid", "-q"]
