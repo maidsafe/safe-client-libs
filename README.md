@@ -61,6 +61,16 @@ export RUST_LOG=safe_authenticator=trace
 
 You could also set `RUST_LOG=trace` which will output *all* trace logs, but this may produce far more data than desired. For more information please see the documentation for the `log` module in our crate [maidsafe_utilities](https://docs.rs/maidsafe_utilities).
 
+## Building from Source
+
+### Docker
+
+If you're on a Linux host, this repository provides a Dockerfile that defines a container with the prerequisites necessary for building SCL. To run this, install Docker on the host, then build the container by running the `build-container` target in the Makefile. The container build process runs a build of the safe_authenticator and safe_app libraries. This is so it can resolve and compile all the dependencies; subsequent runs of the container will then have these dependencies cached. Since the dependencies for the non-mocked versions of safe_authenticator and safe_app are a superset of the mocked versions, the container also has all the dependencies necessary for performing a mocked build.
+
+After building the container, you can run a build of safe_app inside the container using `make safe_app`, or you can also run a build with tests by running `make tests`. These targets wrap the details of using the container, making it much easier to work with. The current source directory is mounted into the container with the correct permissions, and the artifacts produced by the build are copied out of the container and placed at the root of this repository. See the Makefile for more details.
+
+Though it would be possible to use Docker in a day-to-day development workflow, it has certain practicalities that probably don't make it as suitable for that. It's more useful if you want to reproduce our remote build environment locally, usually for debugging purposes. If you want to get a shell inside the container, run the `make debug` target.
+
 ## License
 
 This SAFE Network Software is licensed under the General Public License (GPL), version 3 ([LICENSE](LICENSE) http://www.gnu.org/licenses/gpl-3.0.en.html).
