@@ -17,7 +17,7 @@ This is the project workspace. Please refer to individual members for details:
 
 ### Docker
 
-On Linux, one option for building the libraries is to use Docker. If you're not familiar with it, the official [getting started guide](https://docs.docker.com/get-started/) is a good general introduction to the concepts and terminology. Docker provides a mechansim to build SCL without having to install anything else in the build environment.
+On Linux, one option for building the libraries is to use Docker. If you're not familiar with it, the official [getting started guide](https://docs.docker.com/get-started/) is a good general introduction to the concepts and terminology. Docker provides a mechanism to build SCL without having to install anything else in the build environment.
 
 Though it would be possible to use Docker in a day-to-day development workflow, it has certain practicalities that probably don't make it as suitable for that. It's more useful if you want to reproduce our remote build environment locally, usually for debugging purposes. If you want to get a shell inside the container, run the `make debug` target.
 
