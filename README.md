@@ -41,19 +41,19 @@ This will run all unit tests for the crate. We run tests in release mode (indica
 
 When in doubt, perform an integration test against the real network, in addition to mock routing tests above. This will test various network operations, so please make sure you have some available account mutations. The steps:
 
-* You will need a SAFE network account. You can register one from within the [SAFE Browser](https://github.com/maidsafe/safe_browser/releases).
-* Make sure you are able to login to your account via the SAFE Browser.
-* Navigate to the `tests` directory.
-* Open `tests.config` and set your account locator and password. **Do not commit this.** Alternatively, you can set the environment variables `TEST_ACC_LOCATOR` and `TEST_ACC_PASSWORD`.
-* Run `cargo test authorisation_and_revocation --release -- --ignored --nocapture` and make sure that no errors are reported.
+- You will need a SAFE network account. You can register one from within the [SAFE Browser](https://github.com/maidsafe/safe_browser/releases).
+- Make sure you are able to login to your account via the SAFE Browser.
+- Navigate to the `tests` directory.
+- Open `tests.config` and set your account locator and password. **Do not commit this.** Alternatively, you can set the environment variables `TEST_ACC_LOCATOR` and `TEST_ACC_PASSWORD`.
+- Run `cargo test authorisation_and_revocation --release -- --ignored --nocapture` and make sure that no errors are reported.
 
 #### Binary compatibility of data
 
 You may need to test whether your changes affected the binary compatibility of data on the network. This is necessary when updating compression or serialization dependencies to make sure that existing data can still be read using the new versions of the libraries.
 
-* Set your account locator and password as per the instructions above.
-* Run the following command on the **master** branch: `cargo test write_data -- --ignored --nocapture`
-* On the branch with your changes, ensure the following command completes successfully: `cargo test read_data -- --ignored --nocapture`
+- Set your account locator and password as per the instructions above.
+- Run the following command on the **master** branch: `cargo test write_data -- --ignored --nocapture`
+- On the branch with your changes, ensure the following command completes successfully: `cargo test read_data -- --ignored --nocapture`
 
 ### Viewing debug logs
 
