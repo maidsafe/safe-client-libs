@@ -12,7 +12,7 @@ chmod +x "$TEST_FILE"
 
 # If we're running a build with Docker, COMPAT_TESTS will be set as an environment variable.
 # Otherwise use the default value, which is the location Travis uses for its cache.
-if [[ -z "${COMPAT_TESTS// }" ]]; then
+if [[ -z "$COMPAT_TESTS" ]]; then
     COMPAT_DIR="${HOME}/.cache/master"
     COMPAT_TESTS="$COMPAT_DIR/tests"
     mkdir -p "$COMPAT_DIR"
