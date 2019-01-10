@@ -7,26 +7,97 @@ language: rust
 rust:
   - 1.29.1
 stages:
-  - warmup
+  - build
   - tests
   - tests-binary-compat
   - deploy
 jobs:
   include:
-    # Warm up the cache dependencies
-    - stage: warmup
-      script: set -x; scripts/build-real-core
+    - stage: build
+      name: "build real linux"
+      before_script: docker pull maidsafe/safe-client-libs-build:0.9.0
+      script:
+        - mkdir artifacts
+        - make build
+        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts/linux/real/$TRAVIS_BUILD_NUMBER
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          branch: docker_on_travis
+          tags: false
       os: linux
-    # Warm up the cache for a real build
-    - stage: warmup
-      script: set -x; scripts/build-real
+    - stage: build
+      name: "build mock linux"
+      before_script: docker pull maidsafe/safe-client-libs-build:0.9.0
+      script:
+        - mkdir artifacts
+        - make build-mock
+        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          branch: docker_on_travis
+          tags: false
       os: linux
-    # Warm up the cache for a mock build
-    - stage: warmup
-      script: set -x; scripts/build-mock
-      os: linux
-    - stage: warmup
-      script: set -x; scripts/build-mock
+    - stage: build
+      name: "build real osx"
+      script:
+        - mkdir artifacts
+        - set -x; scripts/build-real
+        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts/osx/real/$TRAVIS_BUILD_NUMBER
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          branch: docker_on_travis
+          tags: false
+      os: osx
+    - stage: build
+      name: "build mock osx"
+      script:
+        - mkdir artifacts
+        - set -x; scripts/build-mock
+        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts/osx/mock/$TRAVIS_BUILD_NUMBER
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          branch: docker_on_travis
+          tags: false
       os: osx
 
     # Tests + clippy
