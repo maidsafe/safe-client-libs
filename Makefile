@@ -53,5 +53,12 @@ tests: clean
 	docker cp safe_app_build:/target .
 	docker rm -f safe_app_build
 
+test-mock-artifacts:
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/test-mock-container
+
 debug:
 	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} /bin/bash

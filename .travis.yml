@@ -45,12 +45,15 @@ jobs:
       after_script: find target/release/ -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER \;
       os: osx
 
-    # Tests + clippy
     - stage: tests
-      script: set -x; scripts/test-binary
+      before_script:
+        - docker pull maidsafe/safe-client-libs-build:0.9.0
+        - rm -rf artifacts && mkdir artifacts
+        - find ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts \;
+      script: make test-mock-artifacts
       os: linux
     - stage: tests
-      script: set -x; scripts/test-mock && scripts/test-integration
+      script: set -x; scripts/test-binary
       os: linux
     - stage: tests
       script: set -x; scripts/test-mock && scripts/test-integration
