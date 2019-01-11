@@ -15,89 +15,34 @@ jobs:
   include:
     - stage: build
       name: "build real linux"
-      before_script: docker pull maidsafe/safe-client-libs-build:0.9.0
-      script:
-        - mkdir artifacts
-        - make build
-        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      deploy:
-        provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
-        secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
-        local_dir: artifacts
-        upload_dir: travis-artifacts/linux/real/$TRAVIS_BUILD_NUMBER
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          branch: docker_on_travis
-          tags: false
+      before_script:
+        - docker pull maidsafe/safe-client-libs-build:0.9.0
+        - mkdir -p ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER
+      script: make build
+      after_script: find target/release/ -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER \;
       os: linux
     - stage: build
       name: "build mock linux"
-      before_script: docker pull maidsafe/safe-client-libs-build:0.9.0
-      script:
-        - mkdir artifacts
-        - make build-mock
-        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      deploy:
-        provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
-        secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
-        local_dir: artifacts
-        upload_dir: travis-artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          branch: docker_on_travis
-          tags: false
-      os: linux
+      before_script:
+        - docker pull maidsafe/safe-client-libs-build:0.9.0
+        - mkdir -p  ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
+      script: make build-mock
+      after_script: find target/release/ -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER \;
     - stage: build
       name: "build real osx"
-      script:
+      before_script:
         - mkdir artifacts
-        - set -x; scripts/build-real
-        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      deploy:
-        provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
-        secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
-        local_dir: artifacts
-        upload_dir: travis-artifacts/osx/real/$TRAVIS_BUILD_NUMBER
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          branch: docker_on_travis
-          tags: false
+        - mkdir -p ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER
+      script: set -x; scripts/build-real
+      after_script: find target/release/ -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER \;
       os: osx
     - stage: build
       name: "build mock osx"
-      script:
+      before_script:
         - mkdir artifacts
-        - set -x; scripts/build-mock
-        - find target/release/ -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      deploy:
-        provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
-        secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
-        local_dir: artifacts
-        upload_dir: travis-artifacts/osx/mock/$TRAVIS_BUILD_NUMBER
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          branch: docker_on_travis
-          tags: false
+        - mkdir -p ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER
+      script: set -x; scripts/build-real
+      after_script: find target/release/ -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER \;
       os: osx
 
     # Tests + clippy
@@ -140,6 +85,7 @@ cache:
   cargo: true
   directories:
     - "${HOME}/.cache/master"
+    - "${HOME}/.cache/artifacts"
 before_script:
   # Expected version change PR title format:
   # Version change: safe_app to 0.2.2; safe_authenticator to 0.2.3; safe_core to 0.26.0;
