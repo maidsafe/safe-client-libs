@@ -17,31 +17,41 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build
-      after_success:
+      before_cache:
         - mkdir -p ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER
         - cp artifacts/** ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER
+        # Travis will automatically cache the target directory, which we don't need when using a container.
+        - rm -rf target
       os: linux
     - stage: build
       name: "build mock linux"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build-mock
-      after_success:
+      before_cache:
         - mkdir -p  ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
         - cp artifacts/** ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
+        # Travis will automatically cache the target directory, which we don't need when using a container.
+        - rm -rf target
     - stage: build
       name: "build real osx"
       script: set -x; scripts/build-real
-      after_success:
+      before_cache:
         - mkdir -p ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER
         - find target/release -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER \;
+        - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
+        - bash cargo_install.sh cargo-prune;
+        - cargo prune
       os: osx
     - stage: build
       name: "build mock osx"
       script: set -x; scripts/build-real
-      after_success:
+      before_cache:
         - mkdir -p ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER
         - find target/release -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER \;
+        - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
+        - bash cargo_install.sh cargo-prune;
+        - cargo prune
       os: osx
 
     - stage: tests
