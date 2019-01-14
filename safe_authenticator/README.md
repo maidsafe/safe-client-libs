@@ -3,7 +3,6 @@
 | [![](http://meritbadge.herokuapp.com/safe_authenticator)](https://crates.io/crates/safe_authenticator) | [![Documentation](https://docs.rs/safe_authenticator/badge.svg)](https://docs.rs/safe_authenticator) |
 |:----------:|:----------:|
 
-
 This is the crate for interfacing with `Authenticator` frontend. It contains the business logic for the `Authenticator` UI and code for building the URI for communicating with [safe_app](../safe_app).
 
 ## Build Instructions
@@ -11,12 +10,14 @@ This is the crate for interfacing with `Authenticator` frontend. It contains the
 `safe_authenticator` can interface conditionally against either the routing crate or a mock used for local testing.
 
 To use it with the Mock:
+
 ```
 cargo build --features "use-mock-routing"
 cargo test --features "use-mock-routing"
 ```
 
 To interface it with actual routing (default):
+
 ```
 cargo build
 cargo test

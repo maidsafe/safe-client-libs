@@ -10,12 +10,14 @@ This is the crate for interfacing with application frontends. It contains code f
 `safe_app` can interface conditionally against either the routing crate or a mock (routing and vault) used for local testing.
 
 To use it with the Mock:
+
 ```
 cargo build --features "use-mock-routing"
 cargo test --features "use-mock-routing testing"
 ```
 
 To interface it with actual routing (default):
+
 ```
 cargo build
 cargo test

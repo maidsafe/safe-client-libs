@@ -53,6 +53,8 @@ To run tests:
 cargo test --release
 ```
 
+**Note:** Make sure to always build in release mode (indicated by the `--release` flag). When testing, this will catch rare FFI bugs that may not manifest themselves in debug mode. Debug mode is also unoptimized and can take an inordinate amount of time to run tests or examples.
+
 ### Features
 
 Rust supports conditional compilation through a mechanism called features. Features allow us to provide builds with different capabilities. The Client Libs features are:
@@ -66,7 +68,7 @@ Rust supports conditional compilation through a mechanism called features. Featu
 To build a library with a feature, pass the `--features` flag:
 
 ```
-cargo test --features "use-mock-routing"
+cargo test --release --features "use-mock-routing"
 ```
 
 You can pass multiple features:
@@ -89,13 +91,15 @@ After building the container, you can build the SCL libraries just by running `m
 
 When making changes, please run the appropriate tests, described below, before submitting a PR.
 
+**Note:** We run all tests in release mode (indicated by the `--release` flag). See [Building The Libraries](#building-the-libraries) for more information.
+
 ### Mock routing
 
 If a change is minor or does not involve potential breakage in data or API compatibility, it is not necessary to test against the actual network. In this case, it is enough to run unit tests using mock routing and make sure that they all pass. To do this, you will have to go to the crate you wish to test (e.g. the `safe_core` directory) and execute the following:
 
 `cargo test --release --features=use-mock-routing`
 
-This will run all unit tests for the crate. We run tests in release mode (indicated by the `--release` flag) in order to catch rare FFI bugs that may not manifest themselves in debug mode. Debug mode is also unoptimized and can take an inordinate amount of time to run tests.
+This will run all unit tests for the crate.
 
 ### Real network
 
@@ -105,15 +109,15 @@ When in doubt, perform an integration test against the real network, in addition
 - Make sure you are able to login to your account via the SAFE Browser.
 - Navigate to the `tests` directory.
 - Open `tests.config` and set your account locator and password. **Do not commit this.** Alternatively, you can set the environment variables `TEST_ACC_LOCATOR` and `TEST_ACC_PASSWORD`.
-- Run `cargo test authorisation_and_revocation --release -- --ignored --nocapture` and make sure that no errors are reported.
+- Run `cargo test --release authorisation_and_revocation -- --ignored --nocapture` and make sure that no errors are reported.
 
 #### Binary compatibility of data
 
 You may need to test whether your changes affected the binary compatibility of data on the network. This is necessary when updating compression or serialization dependencies to make sure that existing data can still be read using the new versions of the libraries.
 
 - Set your account locator and password as per the instructions above.
-- Run the following command on the **master** branch: `cargo test write_data -- --ignored --nocapture`
-- On the branch with your changes, ensure the following command completes successfully: `cargo test read_data -- --ignored --nocapture`
+- Run the following command on the **master** branch: `cargo test --release write_data -- --ignored --nocapture`
+- On the branch with your changes, ensure the following command completes successfully: `cargo test --release read_data -- --ignored --nocapture`
 
 ### Viewing debug logs
 
