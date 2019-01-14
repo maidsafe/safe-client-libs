@@ -168,8 +168,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                     }
                     Ok(IpcMsg::Resp { .. }) | Ok(IpcMsg::Revoked { .. }) | Ok(IpcMsg::Err(..)) => {
                         let err = AuthError::Unexpected(
-                            "Unexpected msg \
-                             type"
+                            "Unexpected msg type"
                                 .to_owned(),
                         );
                         call_result_cb!(Err::<(), _>(err), user_data, o_err);

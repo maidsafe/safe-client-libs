@@ -437,7 +437,7 @@ where
     setup_client_with_net_obs(&(), c, n, r)
 }
 
-// TODO: there should be a public function with a signature like this, and the
+// TODO: There should be a public function with a signature like this, and the
 //       FFI function `ipc::decode_ipc_msg` should be only wrapper over it.
 /// Helper to decode IpcMsg.
 pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> ChannelType {
