@@ -53,7 +53,7 @@ tests: clean
 	docker cp safe_app_build:/target .
 	docker rm -f safe_app_build
 
-test-mock-artifacts:
+test-artifacts-mock:
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
@@ -61,7 +61,7 @@ test-mock-artifacts:
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-runner-container
 
-test-integration-artifacts:
+test-artifacts-integration:
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
@@ -69,11 +69,11 @@ test-integration-artifacts:
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-runner-container
 
-test-binary-artifacts:
+test-artifacts-binary:
 ifndef SCL_BCT_PATH
 	@echo "A value must be supplied for the previous binary compatibility test suite."
 	@echo "Please set SCL_BCT_PATH to the location of the previous binary compatibility test suite."
-	@echo "Re-run this target as 'make SCL_BCT_PATH=/home/user/.cache/binary-compat-tests test-binary-artifacts'."
+	@echo "Re-run this target as 'make SCL_BCT_PATH=/home/user/.cache/binary-compat-tests test-artifacts-binary'."
 	@echo "Note that SCL_BCT_PATH must be an absolute path, with any references like '~' expanded to their full value."
 	@exit 1
 endif
