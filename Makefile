@@ -57,8 +57,17 @@ test-mock-artifacts:
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
+		-e SCL_TEST_SUITE=mock \
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/test-mock-container
+		scripts/test-runner-container
+
+test-integration-artifacts:
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		-e SCL_TEST_SUITE=integration \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/test-runner-container
 
 debug:
 	docker run -it --rm -v "${PWD}":/usr/src/safe_client_libs \
