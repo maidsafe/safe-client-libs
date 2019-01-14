@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# This script is a wrapper for running the packaging in the context of a container.
+#
+# It is assuming that all the SCL artifacts are being shared, as it attempts to package
+# both safe_authenticator and safe_app.
+#
+# It'll be passed as an argument to a docker run command. The intended usage is
+# with artifacts that have already been built at an earlier stage. Before the
+# container is started, the artifacts to be tested will be placed in an 'artifacts'
+# directory at the root of this repository, which will then be mounted into the
+# container at /usr/src/safe_client_libs. We then copy those artifacts into
+# /target/release.
+#
+# I initially tried to do the copy as part of the docker run command, like so:
+# docker run <snip> find artifacts <snip> && scripts/test-mock
+#
+# The problem is, anything after the && actually runs on the host and not inside the
+# container, hence the reason for the script.
+
+set -e -x
+
+is_versioned=$1
+if [[ -z "$is_versioned" ]]; then
+    echo "Using the first argument to this script, please indicate if this is a versioned build to be packaged."
+    echo "Valid values are true or false."
+    echo "If true, the version number will be used in the archive name, otherwise the commit hash will be used."
+    exit 1
+fi
+
+if [[ ! -d "artifacts" ]]; then
+    echo -e \
+        "This script is intended to be used with a docker container and a set of pre-built artifacts.\n" \
+        "Please place these artifacts in an 'artifacts' folder at the root of the repository\n " \
+        "and perform the 'docker run' command again."
+    exit 1
+fi
+
+find artifacts -maxdepth 1 -type f -exec cp '{}' /target/release \;
+
+export RUST_BACKTRACE=1
+[[ ! -d "deploy" ]] && mkdir deploy
+if [[ $is_versioned == "true" ]]; then
+    echo "Packaging safe_app mock with version number"
+    ./scripts/package.rs --lib --name safe_app --dest deploy --mock
+    echo "Packaging safe_app real with version number"
+    ./scripts/package.rs --lib --name safe_app --dest deploy
+    echo "Packaging safe_authenticator mock with version number"
+    ./scripts/package.rs --lib --name safe_authenticator --dest deploy --mock
+    echo "Packaging safe_authenticator real with version number"
+    ./scripts/package.rs --lib --name safe_authenticator --dest deploy
+else
+    echo "Packaging safe_app mock with commit hash"
+    ./scripts/package.rs --lib --name safe_app --dest deploy --mock --commit
+    echo "Packaging safe_app real"
+    ./scripts/package.rs --lib --name safe_app --dest deploy --commit
+    echo "Packaging safe_authenticator mock with commit hash"
+    ./scripts/package.rs --lib --name safe_authenticator --dest deploy --mock --commit
+    echo "Packaging safe_authenticator real with commit hash"
+    ./scripts/package.rs --lib --name safe_authenticator --dest deploy --commit
+fi

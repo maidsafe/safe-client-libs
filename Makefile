@@ -90,6 +90,20 @@ endif
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-runner-container
 
+package-artifacts-versioned:
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/package-runner-container true
+
+package-artifacts-commit-hash:
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/package-runner-container false
+
 debug:
 	docker run -it --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \

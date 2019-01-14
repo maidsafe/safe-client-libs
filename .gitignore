@@ -31,6 +31,7 @@ build-tests/
 
 # Misc
 artifacts/
+deploy/
 packages/
 .DS_Store
 *.bootstrap.cache
