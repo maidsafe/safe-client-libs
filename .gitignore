@@ -30,6 +30,7 @@ build-tests/
 .cargo/
 
 # Misc
+artifacts/
 packages/
 .DS_Store
 *.bootstrap.cache

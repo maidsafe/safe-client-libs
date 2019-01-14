@@ -19,9 +19,10 @@ clean:
 	@if docker ps -a | grep safe_app_build &> /dev/null; then \
 		docker rm -f safe_app_build; \
 	fi
+	@rm -rf artifacts
+	@rm -rf target
 
 build: clean
-	rm -rf target/
 	docker run --name safe_app_build \
 		-v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
@@ -32,7 +33,6 @@ build: clean
 	docker rm -f safe_app_build
 
 build-mock: clean
-	rm -rf target/
 	docker run --name safe_app_build \
 		-v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
@@ -66,6 +66,23 @@ test-integration-artifacts:
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
 		-e SCL_TEST_SUITE=integration \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/test-runner-container
+
+test-binary-artifacts:
+ifndef SCL_BCT_PATH
+	@echo "A value must be supplied for the previous binary compatibility test suite."
+	@echo "Please set SCL_BCT_PATH to the location of the previous binary compatibility test suite."
+	@echo "Re-run this target as 'make SCL_BCT_PATH=/home/user/.cache/binary-compat-tests test-binary-artifacts'."
+	@echo "Note that SCL_BCT_PATH must be an absolute path, with any references like '~' expanded to their full value."
+	@exit 1
+endif
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-v "${SCL_BCT_PATH}":/bct/tests:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		-e COMPAT_TESTS=/bct/tests \
+		-e SCL_TEST_SUITE=binary \
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-runner-container
 
