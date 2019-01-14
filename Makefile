@@ -31,6 +31,8 @@ build: clean
 		scripts/build-real
 	docker cp safe_app_build:/target .
 	docker rm -f safe_app_build
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
 build-mock: clean
 	docker run --name safe_app_build \
@@ -41,6 +43,8 @@ build-mock: clean
 		scripts/build-mock
 	docker cp safe_app_build:/target .
 	docker rm -f safe_app_build
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
 tests: clean
 	rm -rf target/
