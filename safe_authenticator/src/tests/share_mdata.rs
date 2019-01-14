@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use errors::{AuthError, ERR_INVALID_OWNER};
+use errors::{AuthError, ERR_INVALID_OWNER, ERR_NO_SUCH_DATA};
 use ffi::apps::*;
 use ffi::ipc::encode_share_mdata_resp;
 use ffi_utils::test_utils::{call_1, call_vec};
@@ -121,6 +121,40 @@ fn share_some_mdatas() {
         }
         _ => panic!("Unexpected: {:?}", decoded),
     };
+}
+
+// Test making a request to share invalid mutable data.
+#[test]
+fn share_invalid_mdatas() {
+    let authenticator = test_utils::create_account_and_login();
+
+    const NUM_MDATAS: usize = 3;
+    let mut share_mdatas = Vec::new();
+
+    for _ in 0..NUM_MDATAS {
+        let name = rand::random();
+        let tag = 15_000;
+
+        share_mdatas.push(ShareMData {
+            type_tag: tag,
+            name,
+            perms: PermissionSet::new().allow(Action::Insert),
+        });
+    }
+
+    let msg = IpcMsg::Req {
+        req_id: ipc::gen_req_id(),
+        req: IpcReq::ShareMData(ShareMDataReq {
+            app: test_utils::rand_app(),
+            mdata: share_mdatas.clone(),
+        }),
+    };
+    let encoded_msg = unwrap!(ipc::encode_msg(&msg));
+
+    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
+        Err((ERR_NO_SUCH_DATA, None)) => (),
+        x => panic!("Unexpected result: {:?}", x),
+    }
 }
 
 // Test making a request to share mdata with valid metadata.
