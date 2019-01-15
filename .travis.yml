@@ -95,17 +95,35 @@ jobs:
     #   if: type = pull_request
     #   os: linux
 
-    # Deploy
     - stage: deploy
-      script: set -x; true
+      install:
+        - bash cargo_install.sh cargo-script 0.2.8
+      before_script:
+        - mkdir -p artifacts/linux/real/release
+        - mkdir -p artifacts/linux/mock/release
+        - mkdir -p artifacts/osx/real/release
+        - mkdir -p artifacts/osx/mock/release
+        - find ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/linux/mock/release \;
+        - find ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/linux/real/release \;
+        - find ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/osx/mock/release \;
+        - find ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/osx/real/release \;
+      script: make package-artifacts
+      deploy:
+        provider: s3
+        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        secret_access_key:
+          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+        bucket: safe-client-libs
+        local-dir: deploy
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          branch: docker_on_travis_experimental
+          tags: false
+      after_deploy: rm -rf deploy
       if: type = push
       os: linux
-      env: RUN_DEPLOY=1
-    - stage: deploy
-      script: set -x; true
-      if: type = push
-      os: osx
-      env: RUN_DEPLOY=1
 sudo: false
 cache:
   # Double the default timeout.
@@ -143,21 +161,3 @@ after_script:
       git status;
       travis_terminate 1;
     fi
-before_deploy:
-  - bash cargo_install.sh cargo-script 0.2.8
-  - ./scripts/packaging "$TRAVIS_COMMIT_MESSAGE"
-deploy:
-  provider: s3
-  access_key_id: AKIAIA2TXTG7EV5VIG2Q
-  secret_access_key:
-    secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
-  bucket: safe-client-libs
-  local-dir: deploy
-  acl: public_read
-  region: eu-west-2
-  skip_cleanup: true
-  on:
-    branch: docker_on_travis_experimental
-    tags: false
-    condition: $RUN_DEPLOY = 1
-after_deploy: rm -rf target/deploy

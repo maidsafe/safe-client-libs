@@ -1,11 +1,12 @@
 .PHONY: build
 .DEFAULT_GOAL: build
 
-SHELL:=/bin/bash
+SHELL := /bin/bash
 SAFE_APP_VERSION := $(shell cat safe_app/Cargo.toml | grep "^version" | head -n 1 | awk '{ print $$3 }' | sed 's/\"//g')
 PWD := $(shell echo $$PWD)
 USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
+COMMIT_MESSAGE := $(shell git log -1 --pretty=%B | head -n 1)
 
 build-container:
 	rm -rf target/
@@ -90,19 +91,12 @@ endif
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-runner-container
 
-package-artifacts-versioned:
+package-artifacts:
+	@rm -rf deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/package-runner-container true
-
-package-artifacts-commit-hash:
-	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/package-runner-container false
+		scripts/package-runner-container "${COMMIT_MESSAGE}"
 
 debug:
 	docker run -it --rm -v "${PWD}":/usr/src/safe_client_libs \
