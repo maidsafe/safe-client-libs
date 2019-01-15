@@ -145,7 +145,7 @@ after_script:
     fi
 before_deploy:
   - bash cargo_install.sh cargo-script 0.2.8
-  - ./scripts/packaging $TRAVIS_COMMIT_MESSAGE
+  - ./scripts/packaging "$TRAVIS_COMMIT_MESSAGE"
 deploy:
   provider: s3
   access_key_id: AKIAIA2TXTG7EV5VIG2Q
