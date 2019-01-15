@@ -45,7 +45,7 @@ jobs:
       os: osx
     - stage: build
       name: "build mock osx"
-      script: set -x; scripts/build-real
+      script: set -x; scripts/build-mock
       before_cache:
         - mkdir -p ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER
         - find target/release -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER \;
