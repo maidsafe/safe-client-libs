@@ -97,6 +97,7 @@ jobs:
 
     - stage: deploy
       install:
+        - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-script 0.2.8
       before_script:
         - mkdir -p artifacts/linux/real/release
@@ -133,28 +134,7 @@ cache:
     - "${HOME}/.cache/master"
     - "${HOME}/.cache/artifacts"
 before_script:
-  # Expected version change PR title format:
-  # Version change: safe_app to 0.2.2; safe_authenticator to 0.2.3; safe_core to 0.26.0;
-  - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) ]]; then
-      SAFE_AUTHENTICATOR_VERSION=v$(cargo pkgid --manifest-path=safe_authenticator/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
-      if [[ "v${BASH_REMATCH[1]}" != $SAFE_AUTHENTICATOR_VERSION ]]; then
-        echo "Version mismatch between commit message and Cargo.toml for safe_authenticator.";
-        false;
-      fi;
-    else
-      SAFE_AUTHENTICATOR_VERSION=${TRAVIS_COMMIT:0:7};
-    fi
-  - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
-      SAFE_APP_VERSION=v$(cargo pkgid --manifest-path=safe_app/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
-      if [[ "v${BASH_REMATCH[1]}" != $SAFE_APP_VERSION ]]; then
-        echo "Version mismatch between commit message and Cargo.toml for safe_app.";
-        false;
-      fi;
-    else
-      SAFE_APP_VERSION=${TRAVIS_COMMIT:0:7};
-    fi
-  - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
-  - bash cargo_install.sh cargo-prune;
+  - scripts/version-check
 after_script:
   - if [[ $TRAVIS_EVENT_TYPE = pull_request && -n $(git diff --shortstat 2> /dev/null | tail -n1) ]]; then
       echo "Working tree is dirty after building.  Probably Cargo.lock should be updated.";

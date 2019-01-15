@@ -1,0 +1,20 @@
+#!/bin/bash
+
+latest_commit_message=$(git log -1 --pretty=%B | head -n 1)
+
+# Expected version change PR title format:
+# Version change: safe_app to 0.2.2; safe_authenticator to 0.2.3; safe_core to 0.26.0;
+if [[ "$latest_commit_message" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) ]]; then
+    SAFE_AUTHENTICATOR_VERSION=v$(cargo pkgid --manifest-path=safe_authenticator/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
+    if [[ "v${BASH_REMATCH[1]}" != $SAFE_AUTHENTICATOR_VERSION ]]; then
+        echo "Version mismatch between commit message and Cargo.toml for safe_authenticator."
+        exit 1
+    fi
+fi
+if [[ "$latest_commit_message" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
+    SAFE_APP_VERSION=v$(cargo pkgid --manifest-path=safe_app/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/")
+    if [[ "v${BASH_REMATCH[1]}" != $SAFE_APP_VERSION ]]; then
+        echo "Version mismatch between commit message and Cargo.toml for safe_app."
+        exit 1
+    fi
+fi
