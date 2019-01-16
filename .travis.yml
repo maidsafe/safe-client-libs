@@ -109,7 +109,7 @@ jobs:
         - find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
         - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
         - rm artifacts/**
-        - mv $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz artifacts
+        - mv $TRAVIS_BUILD_NUMBER-scl-osx-mock-x86_64.tar.gz artifacts
       deploy:
         provider: s3
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
