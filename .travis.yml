@@ -188,6 +188,7 @@ jobs:
     #   os: linux
 
     - stage: deploy
+      install: pip install --user awscli
       before_script: make retrieve-all-build-artifacts
       script: make package-deploy-artifacts
       deploy:
