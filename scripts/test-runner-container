@@ -18,25 +18,20 @@
 set -e -x
 
 if [[ -z "$SCL_TEST_SUITE" ]]; then
-    echo -e \
-        "For running tests in a container, a value must be supplied for SCL_TEST_SUITE.\n" \
-        "Valid values are 'mock', 'binary' or 'integration'."
+    echo "For running tests in a container, a value must be supplied for SCL_TEST_SUITE."
+    echo "Valid values are 'mock', 'binary' or 'integration'."
     exit 1
 fi
 
 if [[ "$SCL_TEST_SUITE" == "binary" && ! -f /bct/tests ]]; then
-    echo -e \
-        "The container must have the previous binary compatibility test suite mounted in as a shared volume at /bct/tests.\n" \
-        "Please run the container with -v $SCL_BCT_PATH=/bct/tests, where SCL_BCT_PATH is a valid, absolute path\n" \
-        "to the previous set of binary compatibility tests."
+    echo "The container must have the previous binary compatibility test suite mounted in as a shared volume at /bct/tests."
+    echo "Please run the container with -v $SCL_BCT_PATH=/bct/tests, where SCL_BCT_PATH is a valid, absolute path to the previous set of binary compatibility tests."
     exit 1
 fi
 
 if [[ ! -d "artifacts" ]]; then
-    echo -e \
-        "This script is intended to be used with a docker container and a set of pre-built artifacts.\n" \
-        "Please place these artifacts in an 'artifacts' folder at the root of the repository\n " \
-        "and perform the 'docker run' command again."
+    echo "This script is intended to be used with a docker container and a set of pre-built artifacts."
+    echo "Please place these artifacts in an 'artifacts' folder at the root of the repository and perform the 'docker run' command again."
     exit 1
 fi
 

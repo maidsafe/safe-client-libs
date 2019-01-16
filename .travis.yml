@@ -22,11 +22,7 @@ jobs:
       before_cache:
         # We don't need target cached when we use a container.
         - rm -rf target
-      before_deploy:
-        # The build target in the Makefile creates the artifacts directory.
-        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
-        - rm artifacts/**
-        - mv $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz artifacts
+      before_deploy: make package-build-artifacts
       deploy:
         provider: s3
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
@@ -41,6 +37,10 @@ jobs:
         on:
           all_branches: true
       after_deploy: rm -rf artifacts
+      env:
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = false
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
       os: linux
     - stage: build
       name: "build mock linux"
@@ -50,11 +50,7 @@ jobs:
       before_cache:
         # We don't need target cached when we use a container.
         - rm -rf target
-      before_deploy:
-        # The build target in the Makefile creates the artifacts directory.
-        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - rm artifacts/**
-        - mv $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz artifacts
+      before_deploy: make package-build-artifacts
       deploy:
         provider: s3
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
@@ -69,6 +65,11 @@ jobs:
         on:
           all_branches: true
       after_deploy: rm -rf artifacts
+      env:
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = true
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+      os: linux
     - stage: build
       name: "build real osx"
       script: set -x; scripts/build-real
@@ -76,12 +77,7 @@ jobs:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
         - cargo prune
-      before_deploy:
-        - mkdir artifacts
-        - find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
-        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
-        - rm artifacts/**
-        - mv $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz artifacts
+      before_deploy: make package-build-artifacts
       deploy:
         provider: s3
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
@@ -96,6 +92,10 @@ jobs:
         on:
           all_branches: true
       after_deploy: rm -rf artifacts
+      env:
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = false
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
       os: osx
     - stage: build
       name: "build mock osx"
@@ -104,12 +104,7 @@ jobs:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
         - cargo prune
-      before_deploy:
-        - mkdir artifacts
-        - find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
-        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
-        - rm artifacts/**
-        - mv $TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz artifacts
+      before_deploy: make package-build-artifacts
       deploy:
         provider: s3
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
@@ -124,37 +119,40 @@ jobs:
         on:
           all_branches: true
       after_deploy: rm -rf artifacts
+      env:
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = true
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
       os: osx
 
     - stage: tests
       name: "mock tests linux"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
-        - rm -rf artifacts && mkdir artifacts
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - tar -C artifacts -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz 
-        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
+        - make retrieve-build-artifacts
       script: make test-artifacts-mock
+      env:
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = true
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "integration tests linux"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
-        - rm -rf artifacts && mkdir artifacts
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - tar -C artifacts -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz 
-        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
+        - make retrieve-build-artifacts
       script: make test-artifacts-integration
+      env:
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = true
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "binary compatibility tests linux"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
-        - rm -rf artifacts && mkdir artifacts
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - tar -C artifacts -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz 
-        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/binary-compatibility-tests .
+        - make retrieve-build-artifacts
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/binary-compatibility-tests ~/binary-compatibility-tests
       script: make test-artifacts-binary
       before_deploy:
         - find artifacts ! -name 'safe_authenticator-*' -exec rm '{}' \;
@@ -173,7 +171,11 @@ jobs:
         skip_cleanup: true
         on:
           all_branches: true
-      env: SCL_BCT_PATH=/home/travis/binary-compatibility-tests
+      env:
+        - SCL_BCT_PATH=/home/travis/binary-compatibility-tests
+        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK = true
+        - SCL_BUILD_OS = $TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "mock/integration tests osx"
@@ -189,24 +191,8 @@ jobs:
       install:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-script 0.2.8
-      before_script:
-        - mkdir -p artifacts/linux/real/release
-        - mkdir -p artifacts/linux/mock/release
-        - mkdir -p artifacts/osx/real/release
-        - mkdir -p artifacts/osx/mock/release
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
-        - tar -C artifacts/linux/real/release -xvf $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
-        - tar -C artifacts/linux/mock/release -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - tar -C artifacts/osx/real/release -xvf $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
-        - tar -C artifacts/osx/mock/release -xvf $TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
-        - rm $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
-        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
-        - rm $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
-        - rm $TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
-      script: make package-artifacts
+      before_script: make retrieve-all-build-artifacts
+      script: make package-deploy-artifacts
       deploy:
         provider: s3
         access_key_id: AKIAIA2TXTG7EV5VIG2Q
@@ -224,6 +210,7 @@ jobs:
         - rm -rf deploy
         - rm -rf artifacts
       if: type = push
+      env: SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
       os: linux
 sudo: false
 cache:
