@@ -8,6 +8,8 @@ USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
 COMMIT_MESSAGE := $(shell git log -1 --pretty=%B | head -n 1)
 UNAME_S := $(shell uname -s)
+S3_BUCKET := safe-client-libs-jenkins
+S3_ARTIFACTS_PATH := travis-artifacts
 
 build-container:
 	rm -rf target/
@@ -146,7 +148,7 @@ endif
 	aws s3 cp \
 		--no-sign-request \
 		--region eu-west-2 \
-		s3://safe-client-libs-jenkins/travis-artifacts/${ARCHIVE_NAME} .
+		s3://${S3_BUCKET}/${S3_ARTIFACTS_PATH}/${ARCHIVE_NAME} .
 	tar -C artifacts -xvf ${ARCHIVE_NAME}
 	rm ${ARCHIVE_NAME}
 
@@ -161,10 +163,10 @@ endif
 	mkdir -p artifacts/linux/mock/release
 	mkdir -p artifacts/osx/real/release
 	mkdir -p artifacts/osx/mock/release
-	aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${S3_ARTIFACTS_PATH}/${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${S3_ARTIFACTS_PATH}/${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${S3_ARTIFACTS_PATH}/${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${S3_ARTIFACTS_PATH}/${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz .
 	tar -C artifacts/linux/real/release -xvf ${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
 	tar -C artifacts/linux/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
 	tar -C artifacts/osx/real/release -xvf ${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz

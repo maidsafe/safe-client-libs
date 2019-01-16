@@ -3,6 +3,8 @@ env:
     - RUST_BACKTRACE=1
     - RUSTFLAGS="-C opt-level=2 -C codegen-units=8"
     - PATH=$PATH:$HOME/.cargo/bin
+    - S3_BUCKET=safe-client-libs-jenkins
+    - S3_ARTIFACTS_PATH=travis-artifacts
 language: rust
 rust:
   - 1.29.1
@@ -15,7 +17,7 @@ stages:
 jobs:
   include:
     - stage: build
-      name: "build real linux"
+      name: "build real"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build
@@ -28,9 +30,9 @@ jobs:
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
         secret_access_key:
           secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
+        bucket: $S3_BUCKET
         local_dir: artifacts
-        upload_dir: travis-artifacts
+        upload_dir: $S3_ARTIFACTS_PATH
         acl: public_read
         region: eu-west-2
         skip_cleanup: true
@@ -43,7 +45,7 @@ jobs:
         - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: build
-      name: "build mock linux"
+      name: "build mock"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build-mock
@@ -56,9 +58,9 @@ jobs:
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
         secret_access_key:
           secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
+        bucket: $S3_BUCKET
         local_dir: artifacts
-        upload_dir: travis-artifacts
+        upload_dir: $S3_ARTIFACTS_PATH
         acl: public_read
         region: eu-west-2
         skip_cleanup: true
@@ -71,7 +73,7 @@ jobs:
         - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: build
-      name: "build real osx"
+      name: "build real"
       script: set -x; scripts/build-real
       before_cache:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
@@ -83,9 +85,9 @@ jobs:
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
         secret_access_key:
           secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
+        bucket: $S3_BUCKET
         local_dir: artifacts
-        upload_dir: travis-artifacts
+        upload_dir: $S3_ARTIFACTS_PATH
         acl: public_read
         region: eu-west-2
         skip_cleanup: true
@@ -98,7 +100,7 @@ jobs:
         - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: osx
     - stage: build
-      name: "build mock osx"
+      name: "build mock"
       script: set -x; scripts/build-mock
       before_cache:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
@@ -110,9 +112,9 @@ jobs:
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
         secret_access_key:
           secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
+        bucket: $S3_BUCKET
         local_dir: artifacts
-        upload_dir: travis-artifacts
+        upload_dir: $S3_ARTIFACTS_PATH
         acl: public_read
         region: eu-west-2
         skip_cleanup: true
@@ -126,7 +128,7 @@ jobs:
       os: osx
 
     - stage: tests
-      name: "mock tests linux"
+      name: "mock tests"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - make retrieve-build-artifacts
@@ -137,7 +139,7 @@ jobs:
         - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
-      name: "integration tests linux"
+      name: "integration tests"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - make retrieve-build-artifacts
@@ -148,11 +150,11 @@ jobs:
         - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
-      name: "binary compatibility tests linux"
+      name: "binary compatibility tests"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - make retrieve-build-artifacts
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/binary-compatibility-tests ~/binary-compatibility-tests
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://$S3_BUCKET/$S3_ARTIFACTS_PATH/binary-compatibility-tests ~/binary-compatibility-tests
       script: make test-artifacts-binary
       before_deploy:
         - find artifacts ! -name 'safe_authenticator-*' -exec rm '{}' \;
@@ -163,9 +165,9 @@ jobs:
         access_key_id: AKIAIYOCYHBTBC6XUFYQ
         secret_access_key:
           secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
-        bucket: safe-client-libs-jenkins
+        bucket: $S3_BUCKET
         local_dir: artifacts
-        upload_dir: travis-artifacts
+        upload_dir: $S3_ARTIFACTS_PATH
         acl: public_read
         region: eu-west-2
         skip_cleanup: true
@@ -178,7 +180,7 @@ jobs:
         - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
-      name: "mock/integration tests osx"
+      name: "mock/integration tests"
       script: set -x; scripts/test-mock && scripts/test-integration
       os: osx
     # Temporarily disable clippy
@@ -188,8 +190,11 @@ jobs:
     #   os: linux
 
     - stage: deploy
+      name: "package artifacts and deploy"
       install: pip install --user awscli
-      before_script: make retrieve-all-build-artifacts
+      before_script:
+        - docker pull maidsafe/safe-client-libs-build:0.9.0
+        - make retrieve-all-build-artifacts
       script: make package-deploy-artifacts
       deploy:
         provider: s3
@@ -217,7 +222,6 @@ cache:
   cargo: true
   directories:
     - "${HOME}/.cache/master"
-    - "${HOME}/.cache/artifacts"
 before_script:
   - scripts/version-check
 after_script:
