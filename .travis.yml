@@ -6,6 +6,8 @@ env:
 language: rust
 rust:
   - 1.29.1
+install:
+  - pip install --user awscli
 stages:
   - build
   - tests
@@ -18,10 +20,27 @@ jobs:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build
       before_cache:
-        - mkdir -p ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER
-        - cp artifacts/** ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER
-        # Travis will automatically cache the target directory, which we don't need when using a container.
+        # We don't need target cached when we use a container.
         - rm -rf target
+      before_deploy:
+        # The build target in the Makefile creates the artifacts directory.
+        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
+        - rm artifacts/**
+        - mv $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz artifacts
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          all_branches: true
+      after_deploy: rm -rf artifacts
       os: linux
     - stage: build
       name: "build mock linux"
@@ -29,29 +48,82 @@ jobs:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build-mock
       before_cache:
-        - mkdir -p  ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
-        - cp artifacts/** ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER
-        # Travis will automatically cache the target directory, which we don't need when using a container.
+        # We don't need target cached when we use a container.
         - rm -rf target
+      before_deploy:
+        # The build target in the Makefile creates the artifacts directory.
+        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - rm artifacts/**
+        - mv $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz artifacts
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          all_branches: true
+      after_deploy: rm -rf artifacts
     - stage: build
       name: "build real osx"
       script: set -x; scripts/build-real
       before_cache:
-        - mkdir -p ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER
-        - find target/release -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER \;
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
         - cargo prune
+      before_deploy:
+        - mkdir artifacts
+        - find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
+        - rm artifacts/**
+        - mv $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz artifacts
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          all_branches: true
+      after_deploy: rm -rf artifacts
       os: osx
     - stage: build
       name: "build mock osx"
       script: set -x; scripts/build-mock
       before_cache:
-        - mkdir -p ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER
-        - find target/release -maxdepth 1 -type f -exec cp '{}' ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER \;
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
         - cargo prune
+      before_deploy:
+        - mkdir artifacts
+        - find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+        - tar -C artifacts -zcvf $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
+        - rm artifacts/**
+        - mv $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz artifacts
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          all_branches: true
+      after_deploy: rm -rf artifacts
       os: osx
 
     - stage: tests
@@ -59,7 +131,9 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - rm -rf artifacts && mkdir artifacts
-        - find ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts \;
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - tar -C artifacts -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz 
+        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
       script: make test-artifacts-mock
       os: linux
     - stage: tests
@@ -67,7 +141,9 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - rm -rf artifacts && mkdir artifacts
-        - find ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts \;
+        - aws s3 cp --no-sign-request --region eu-west-2 --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - tar -C artifacts -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz 
+        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
       script: make test-artifacts-integration
       os: linux
     - stage: tests
@@ -75,15 +151,29 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - rm -rf artifacts && mkdir artifacts
-        - find ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts \;
-        # If there is no previous binary compatibility test suite available, use the current one.
-        # This situation should only ever occur on the first time the build runs since expecting the file to exist.
-        - set -e;
-          if [[ ! -f "~/.cache/master/binary-compatibility-tests" ]]; then
-            find artifacts -maxdepth 1 -name 'safe_authenticator-*' ! -name '*.d' -exec cp '{}' ~/.cache/master/binary-compatibility-tests \; ;
-          fi;
-      script: make SCL_BCT_PATH="/home/travis/.cache/master/binary-compatibility-tests" test-artifacts-binary
-      after_success: find artifacts -maxdepth 1 -name 'safe_authenticator-*' ! -name '*.d' -exec cp '{}' ~/.cache/master/binary-compatibility-tests \;
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - tar -C artifacts -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz 
+        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/binary-compatibility-tests .
+      script: make test-artifacts-binary
+      before_deploy:
+        - find artifacts ! -name 'safe_authenticator-*' -exec rm '{}' \;
+        - rm artifacts/*.d
+        - mv artifacts/safe_authenticator-* artifacts/binary-compatibility-tests
+      deploy:
+        provider: s3
+        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        secret_access_key:
+          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+        bucket: safe-client-libs-jenkins
+        local_dir: artifacts
+        upload_dir: travis-artifacts
+        acl: public_read
+        region: eu-west-2
+        skip_cleanup: true
+        on:
+          all_branches: true
+      env: SCL_BCT_PATH=/home/travis/binary-compatibility-tests
       os: linux
     - stage: tests
       name: "mock/integration tests osx"
@@ -104,10 +194,18 @@ jobs:
         - mkdir -p artifacts/linux/mock/release
         - mkdir -p artifacts/osx/real/release
         - mkdir -p artifacts/osx/mock/release
-        - find ~/.cache/artifacts/linux/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/linux/mock/release \;
-        - find ~/.cache/artifacts/linux/real/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/linux/real/release \;
-        - find ~/.cache/artifacts/osx/mock/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/osx/mock/release \;
-        - find ~/.cache/artifacts/osx/real/$TRAVIS_BUILD_NUMBER -exec cp '{}' artifacts/osx/real/release \;
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
+        - aws s3 cp --no-sign-request --region eu-west-2 s3://safe-client-libs-jenkins/travis-artifacts/$TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
+        - tar -C artifacts/linux/real/release -xvf $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
+        - tar -C artifacts/linux/mock/release -xvf $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - tar -C artifacts/osx/real/release -xvf $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
+        - tar -C artifacts/osx/mock/release -xvf $TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
+        - rm $TRAVIS_BUILD_NUMBER-scl-linux-x86_64.tar.gz .
+        - rm $TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz .
+        - rm $TRAVIS_BUILD_NUMBER-scl-osx-x86_64.tar.gz .
+        - rm $TRAVIS_BUILD_NUMBER-scl-mock-osx-x86_64.tar.gz .
       script: make package-artifacts
       deploy:
         provider: s3
@@ -120,9 +218,11 @@ jobs:
         region: eu-west-2
         skip_cleanup: true
         on:
-          branch: docker_on_travis_experimental
+          branch: refactor_artifacts_to_s3
           tags: false
-      after_deploy: rm -rf deploy
+      after_deploy:
+        - rm -rf deploy
+        - rm -rf artifacts
       if: type = push
       os: linux
 sudo: false
