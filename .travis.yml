@@ -38,9 +38,9 @@ jobs:
           all_branches: true
       after_deploy: rm -rf artifacts
       env:
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = false
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=false
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: build
       name: "build mock linux"
@@ -66,9 +66,9 @@ jobs:
           all_branches: true
       after_deploy: rm -rf artifacts
       env:
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = true
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=true
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: build
       name: "build real osx"
@@ -93,9 +93,9 @@ jobs:
           all_branches: true
       after_deploy: rm -rf artifacts
       env:
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = false
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=false
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: osx
     - stage: build
       name: "build mock osx"
@@ -120,9 +120,9 @@ jobs:
           all_branches: true
       after_deploy: rm -rf artifacts
       env:
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = true
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=true
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: osx
 
     - stage: tests
@@ -132,9 +132,9 @@ jobs:
         - make retrieve-build-artifacts
       script: make test-artifacts-mock
       env:
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = true
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=true
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "integration tests linux"
@@ -143,9 +143,9 @@ jobs:
         - make retrieve-build-artifacts
       script: make test-artifacts-integration
       env:
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = true
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=true
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "binary compatibility tests linux"
@@ -173,9 +173,9 @@ jobs:
           all_branches: true
       env:
         - SCL_BCT_PATH=/home/travis/binary-compatibility-tests
-        - SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK = true
-        - SCL_BUILD_OS = $TRAVIS_OS_NAME
+        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
+        - SCL_BUILD_MOCK=true
+        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "mock/integration tests osx"
@@ -210,7 +210,7 @@ jobs:
         - rm -rf deploy
         - rm -rf artifacts
       if: type = push
-      env: SCL_BUILD_NUMBER = $TRAVIS_BUILD_NUMBER
+      env: SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
       os: linux
 sudo: false
 cache:
