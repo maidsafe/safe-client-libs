@@ -188,9 +188,6 @@ jobs:
     #   os: linux
 
     - stage: deploy
-      install:
-        - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
-        - bash cargo_install.sh cargo-script 0.2.8
       before_script: make retrieve-all-build-artifacts
       script: make package-deploy-artifacts
       deploy:
