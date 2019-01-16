@@ -15,17 +15,17 @@ use self_encryption::SequentialEncryptor;
 use self_encryption_storage::SelfEncryptionStorage;
 use utils::FutureExt;
 
-/// Mode of the writer
+/// Mode of the writer.
 #[derive(Clone, Copy, Debug)]
 pub enum Mode {
-    /// Will create new data
+    /// Will create new data.
     Overwrite,
-    /// Will append content to the existing data
+    /// Will append content to the existing data.
     Append,
 }
 
 /// Writer is used to write contents to a File and especially in chunks if the
-/// file happens to be too large
+/// file happens to be too large.
 pub struct Writer<C: Client> {
     client: C,
     file: File,
@@ -34,7 +34,7 @@ pub struct Writer<C: Client> {
 }
 
 impl<C: Client> Writer<C> {
-    /// Create new instance of Writer
+    /// Create new instance of Writer.
     pub fn new(
         client: &C,
         storage: SelfEncryptionStorage<C>,
@@ -60,7 +60,7 @@ impl<C: Client> Writer<C> {
         .into_box()
     }
 
-    /// Data of a file/blob can be written in smaller chunks
+    /// Data of a file/blob can be written in smaller chunks.
     pub fn write(&self, data: &[u8]) -> Box<NfsFuture<()>> {
         trace!(
             "Writer writing file data of size {} into self-encryptor.",
@@ -72,9 +72,9 @@ impl<C: Client> Writer<C> {
             .into_box()
     }
 
-    /// close is invoked only after all the data is completely written. The
-    /// file/blob is saved only when the close is invoked. Returns the final
-    /// `File` with the data_map stored on the network.
+    /// close() should be invoked only after all the data is completely written. The file/blob is
+    /// saved only when close() is invoked. Returns the final `File` with the data_map stored on the
+    /// network.
     pub fn close(self) -> Box<NfsFuture<File>> {
         trace!("Writer induced self-encryptor close.");
 

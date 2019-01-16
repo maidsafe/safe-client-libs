@@ -321,7 +321,7 @@ pub unsafe extern "C" fn file_write(
 /// Close is invoked only after all the data is completely written. The
 /// file is saved only when `close` is invoked.
 ///
-/// If the file was opened in any of the read modes, returns the modified
+/// If the file was opened in any of the write modes, returns the modified
 /// file structure as a result. If the file was opened in the read mode,
 /// returns the original file structure that was passed as an argument to
 /// `file_open`.
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn file_close(
                     }).into_box()
                     .into()
             } else {
-                // The reader will be dropped automatically
+                // The reader will be dropped automatically.
                 o_cb(
                     user_data.0,
                     FFI_RESULT_OK,
