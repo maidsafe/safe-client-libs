@@ -21,16 +21,15 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build
-      after_script: make strip-artifacts
       before_cache:
         # We don't need target cached when we use a container.
         - rm -rf target
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        access_key_id: AKIAIA2TXTG7EV5VIG2Q
         secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -50,16 +49,15 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build-mock
-      after_script: make strip-artifacts
       before_cache:
         # We don't need target cached when we use a container.
         - rm -rf target
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        access_key_id: AKIAIA2TXTG7EV5VIG2Q
         secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -77,7 +75,6 @@ jobs:
     - stage: build
       name: "build real"
       script: set -x; scripts/build-real
-      after_script: make strip-artifacts
       before_cache:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
@@ -85,9 +82,9 @@ jobs:
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        access_key_id: AKIAIA2TXTG7EV5VIG2Q
         secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -105,7 +102,6 @@ jobs:
     - stage: build
       name: "build mock"
       script: set -x; scripts/build-mock
-      after_script: make strip-artifacts
       before_cache:
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
@@ -113,9 +109,9 @@ jobs:
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        access_key_id: AKIAIA2TXTG7EV5VIG2Q
         secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -166,9 +162,9 @@ jobs:
         - mv artifacts/safe_authenticator-* artifacts/binary-compatibility-tests
       deploy:
         provider: s3
-        access_key_id: AKIAIYOCYHBTBC6XUFYQ
+        access_key_id: AKIAIA2TXTG7EV5VIG2Q
         secret_access_key:
-          secure: NQnKN7Tk4EG3psaOJLdrZexHtaEeFdECH5u5buvILKkZgyphLafu6P5zqX5XyIZqoL30WjR1aF71HQhZvQwgoCxT6cr/8rk9dXFu6ZLXJ8dCqEN5I/cc9dWplJpgSOj1bELOJBEDZBWMnwOC6PapE0+SRjnaLbp8IswqQTz78m3Evrcrze2p90TQzvui23D2yo9mxncQc8+dXh1o9J+3u3ODA+6y32CR/gX5hkiO3fKBXjOh0bLBy0nGW1xU7zNTlc//7lv+rbDQHXTp4W+lImZdA7TyGbBHNOA95zGW1BrxIZO2d7A72AxqUBYfkYKN/Ml6TsTMeW+IHpbeT4T39JFngq2fDzBPd+zcUWZLJLTDcUoiDlAZ0DSiTet4OIqRgJS2Mm3iktsbLov76CHgd4zDL3gJG4KeIbWrvNw2nrPANk6EY1PEpBgU+oe1u1zlesYlj10koaTg+AooikHWZc/JgAIAdjY4tfEonAUJ/dirbzCmCkXWuCnX/7ZVVsE7RpSLCQ9HE/uVVC2r71O7dTGaFsm14q3tsmceqkw/ha5ZyLsZhan9GitLST2bNerZn3QFMJI3sviLdECm1GSbGY3shVSIeeKy1GhTUINXXQfyldmHhgfrgJpo7T1U0Q9iUdtE9mX4MaLhJkHlnPsKqH+StKnB3AHmxDXXWqCPcHw=
+          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
