@@ -27,9 +27,9 @@ jobs:
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        access_key_id: AKIAJI7QGOMYIJIFOYNA
         secret_access_key:
-          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -55,9 +55,9 @@ jobs:
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        access_key_id: AKIAJI7QGOMYIJIFOYNA
         secret_access_key:
-          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -82,9 +82,9 @@ jobs:
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        access_key_id: AKIAJI7QGOMYIJIFOYNA
         secret_access_key:
-          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -109,9 +109,9 @@ jobs:
       before_deploy: make package-build-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        access_key_id: AKIAJI7QGOMYIJIFOYNA
         secret_access_key:
-          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -162,9 +162,9 @@ jobs:
         - mv artifacts/safe_authenticator-* artifacts/binary-compatibility-tests
       deploy:
         provider: s3
-        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        access_key_id: AKIAJI7QGOMYIJIFOYNA
         secret_access_key:
-          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
         bucket: $S3_BUCKET
         local_dir: artifacts
         upload_dir: $S3_ARTIFACTS_PATH
@@ -198,9 +198,9 @@ jobs:
       script: make package-deploy-artifacts
       deploy:
         provider: s3
-        access_key_id: AKIAIA2TXTG7EV5VIG2Q
+        access_key_id: AKIAJI7QGOMYIJIFOYNA
         secret_access_key:
-          secure: qEDay6TCAy3tBLqLYFOx9OjAdoRl010paK2//teFETfwUfJA/RtNSfkp1yrgx+kZ3FO8cthdDnwR3zjM3pkCL+5mGkQMAgvRY7rcEB5H1VyO4jkZRoB4n/yUu5jB4dHdeeRWTOJxNOOPA0G1Q65LLkJql2JGoJatqE3pBmJm0X8=
+          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
         bucket: safe-client-libs
         local-dir: deploy
         acl: public_read
