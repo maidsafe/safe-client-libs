@@ -206,7 +206,7 @@ fn main() {
     let bindings = matches.is_present("BINDINGS");
     let lib = matches.is_present("LIB");
     let mock = matches.is_present("MOCK");
-    let strip = if matches.is_present("STRIP");
+    let strip = matches.is_present("STRIP");
 
     let toolchain_path = matches.value_of("TOOLCHAIN");
     let target_dir = if matches.is_present("ARTIFACTS") {
@@ -214,7 +214,6 @@ fn main() {
     } else {
         env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string())
     };
-
 
     let file_options = FileOptions::default();
 

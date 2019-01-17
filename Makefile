@@ -52,7 +52,7 @@ build-mock: clean
 
 strip-artifacts:
 ifeq ($(UNAME_S),Darwin)
-	find artifacts -name "*.so" -exec strip -x '{}' \;
+	find artifacts -name "*.dylib" -exec strip -x '{}' \;
 else
 	find artifacts -name "*.so" -exec strip '{}' \;
 endif
