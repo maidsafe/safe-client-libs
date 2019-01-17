@@ -50,6 +50,13 @@ build-mock: clean
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
+strip-artifacts:
+ifeq ($(UNAME_S),Darwin)
+	find artifacts -name "*.so" -exec strip -x '{}' \;
+else
+	find artifacts -name "*.so" -exec strip '{}' \;
+endif
+
 tests: clean
 	rm -rf target/
 	docker run --name safe_app_build \
@@ -119,7 +126,7 @@ ifeq ($(SCL_BUILD_MOCK),true)
 else
 	$(eval ARCHIVE_NAME := ${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_OS}-x86_64.tar.gz)
 endif
-	tar -C artifacts -zcvf ${ARCHIVE_NAME} .; \
+	tar -C artifacts -zcvf ${ARCHIVE_NAME} .
 	rm artifacts/**
 	mv ${ARCHIVE_NAME} artifacts
 

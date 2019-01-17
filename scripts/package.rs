@@ -186,6 +186,13 @@ fn main() {
                       variable will be queried for its value, and if that's not set, we will assume the 'target'
                       directory in the current directory."),
         )
+        .arg(
+            Arg::with_name("STRIP")
+                .short("s")
+                .long("strip")
+                .takes_value(false)
+                .help("Specify this flag for running GNU strip on the binaries before they are packaged.")
+        )
         .get_matches();
 
     let krate = matches.value_of("NAME").unwrap();
@@ -199,6 +206,7 @@ fn main() {
     let bindings = matches.is_present("BINDINGS");
     let lib = matches.is_present("LIB");
     let mock = matches.is_present("MOCK");
+    let strip = if matches.is_present("STRIP");
 
     let toolchain_path = matches.value_of("TOOLCHAIN");
     let target_dir = if matches.is_present("ARTIFACTS") {
@@ -206,6 +214,7 @@ fn main() {
     } else {
         env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string())
     };
+
 
     let file_options = FileOptions::default();
 
@@ -246,7 +255,9 @@ fn main() {
                 } else {
                     find_libs(krate, None, &target_dir)
                 };
-                strip_libs(toolchain_path, Some(arch), &libs);
+                if strip {
+                    strip_libs(toolchain_path, Some(arch), &libs);
+                }
                 libs
             })
             .peekable();
@@ -271,7 +282,9 @@ fn main() {
             } else {
                 find_libs(krate, None, &target_dir)
             };
-            strip_libs(toolchain_path, arch, &arch_libs);
+            if strip {
+                strip_libs(toolchain_path, arch, &arch_libs);
+            }
             libs.extend_from_slice(&arch_libs)
         }
     }
