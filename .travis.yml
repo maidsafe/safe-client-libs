@@ -207,7 +207,7 @@ jobs:
         region: eu-west-2
         skip_cleanup: true
         on:
-          branch: refactor_artifacts_to_s3
+          branch: docker_on_travis
           tags: false
       after_deploy:
         - rm -rf deploy
