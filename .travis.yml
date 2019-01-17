@@ -207,7 +207,7 @@ jobs:
         region: eu-west-2
         skip_cleanup: true
         on:
-          branch: docker_on_travis
+          branch: master
           tags: false
       after_deploy:
         - rm -rf deploy
