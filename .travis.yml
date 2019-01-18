@@ -25,6 +25,7 @@ jobs:
         - make package-build-artifacts
         - mkdir -p ~/.artifacts-linux-real
         - cp artifacts/** ~/.artifacts-linux-real
+        - ls -al ~/.artifacts-linux-real
         - rm -rf target
       env:
         - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
@@ -40,6 +41,7 @@ jobs:
         - make package-build-artifacts
         - mkdir -p ~/.artifacts-linux-mock
         - cp artifacts/** ~/.artifacts-linux-mock
+        - ls -al ~/.artifacts-linux-mock
         - rm -rf target
       env:
         - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
@@ -53,6 +55,7 @@ jobs:
         - make package-build-artifacts
         - mkdir -p ~/.artifacts-osx-real
         - cp artifacts/** ~/.artifacts-osx-real
+        - ls -al ~/.artifacts-linux-real
         - rm -rf target
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
@@ -69,6 +72,7 @@ jobs:
         - make package-build-artifacts
         - mkdir -p ~/.artifacts-osx-mock
         - cp artifacts/** ~/.artifacts-osx-mock
+        - ls -al ~/.artifacts-linux-mock
         - rm -rf target
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
@@ -84,6 +88,7 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - rm -rf artifacts && mkdir artifacts
+        - ls -al ~/.artifacts-linux-mock
         - tar -C artifacts -xvf ~/.artifacts-linux-mock/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
       script: make test-artifacts-mock
       os: linux
@@ -92,6 +97,7 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - rm -rf artifacts && mkdir artifacts
+        - ls -al ~/.artifacts-linux-mock
         - tar -C artifacts -xvf ~/.artifacts-linux-mock/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
       script: make test-artifacts-integration
       os: linux
@@ -100,6 +106,7 @@ jobs:
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
         - rm -rf artifacts && mkdir artifacts
+        - ls -al ~/.artifacts-linux-mock
         - tar -C artifacts -xvf ~/.artifacts-linux-mock/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
         # If there is no previous binary compatibility test suite available, use the current one.
         # This situation should only ever occur on the first time the build runs since expecting the file to exist.
