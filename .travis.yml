@@ -22,23 +22,10 @@ jobs:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build
       before_cache:
-        # We don't need target cached when we use a container.
+        - make package-build-artifacts
+        - mkdir -p ~/.artifacts-linux-real
+        - cp artifacts/** ~/.artifacts-linux-real
         - rm -rf target
-      before_deploy: make package-build-artifacts
-      deploy:
-        provider: s3
-        access_key_id: AKIAJI7QGOMYIJIFOYNA
-        secret_access_key:
-          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
-        bucket: $S3_BUCKET
-        local_dir: artifacts
-        upload_dir: $S3_ARTIFACTS_PATH
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          all_branches: true
-      after_deploy: rm -rf artifacts
       env:
         - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
         - SCL_BUILD_MOCK=false
@@ -50,23 +37,10 @@ jobs:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
       script: make build-mock
       before_cache:
-        # We don't need target cached when we use a container.
+        - make package-build-artifacts
+        - mkdir -p ~/.artifacts-linux-mock
+        - cp artifacts/** ~/.artifacts-linux-mock
         - rm -rf target
-      before_deploy: make package-build-artifacts
-      deploy:
-        provider: s3
-        access_key_id: AKIAJI7QGOMYIJIFOYNA
-        secret_access_key:
-          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
-        bucket: $S3_BUCKET
-        local_dir: artifacts
-        upload_dir: $S3_ARTIFACTS_PATH
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          all_branches: true
-      after_deploy: rm -rf artifacts
       env:
         - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
         - SCL_BUILD_MOCK=true
@@ -76,24 +50,13 @@ jobs:
       name: "build real"
       script: set -x; scripts/build-real
       before_cache:
+        - make package-build-artifacts
+        - mkdir -p ~/.artifacts-osx-real
+        - cp artifacts/** ~/.artifacts-osx-real
+        - rm -rf target
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
         - cargo prune
-      before_deploy: make package-build-artifacts
-      deploy:
-        provider: s3
-        access_key_id: AKIAJI7QGOMYIJIFOYNA
-        secret_access_key:
-          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
-        bucket: $S3_BUCKET
-        local_dir: artifacts
-        upload_dir: $S3_ARTIFACTS_PATH
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          all_branches: true
-      after_deploy: rm -rf artifacts
       env:
         - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
         - SCL_BUILD_MOCK=false
@@ -103,24 +66,13 @@ jobs:
       name: "build mock"
       script: set -x; scripts/build-mock
       before_cache:
+        - make package-build-artifacts
+        - mkdir -p ~/.artifacts-osx-mock
+        - cp artifacts/** ~/.artifacts-osx-mock
+        - rm -rf target
         - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
         - bash cargo_install.sh cargo-prune;
         - cargo prune
-      before_deploy: make package-build-artifacts
-      deploy:
-        provider: s3
-        access_key_id: AKIAJI7QGOMYIJIFOYNA
-        secret_access_key:
-          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
-        bucket: $S3_BUCKET
-        local_dir: artifacts
-        upload_dir: $S3_ARTIFACTS_PATH
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          all_branches: true
-      after_deploy: rm -rf artifacts
       env:
         - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
         - SCL_BUILD_MOCK=true
@@ -131,53 +83,32 @@ jobs:
       name: "mock tests"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
-        - make retrieve-build-artifacts
+        - rm -rf artifacts && mkdir artifacts
+        - tar -C artifacts -xvf ~/.artifacts-linux-mock/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
       script: make test-artifacts-mock
-      env:
-        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK=true
-        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "integration tests"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
-        - make retrieve-build-artifacts
+        - rm -rf artifacts && mkdir artifacts
+        - tar -C artifacts -xvf ~/.artifacts-linux-mock/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
       script: make test-artifacts-integration
-      env:
-        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK=true
-        - SCL_BUILD_OS=$TRAVIS_OS_NAME
       os: linux
     - stage: tests
       name: "binary compatibility tests"
       before_script:
         - docker pull maidsafe/safe-client-libs-build:0.9.0
-        - make retrieve-build-artifacts
-        - aws s3 cp --no-sign-request --region eu-west-2 s3://$S3_BUCKET/$S3_ARTIFACTS_PATH/binary-compatibility-tests ~/binary-compatibility-tests
+        - rm -rf artifacts && mkdir artifacts
+        - tar -C artifacts -xvf ~/.artifacts-linux-mock/$TRAVIS_BUILD_NUMBER-scl-mock-linux-x86_64.tar.gz
+        # If there is no previous binary compatibility test suite available, use the current one.
+        # This situation should only ever occur on the first time the build runs since expecting the file to exist.
+        - set -e;
+          if [[ ! -f "~/.artifacts-bct/binary-compatibility-tests" ]]; then
+            find artifacts -maxdepth 1 -name 'safe_authenticator-*' ! -name '*.d' -exec cp '{}' ~/.artifacts-bct/binary-compatibility-tests \; ;
+          fi;
       script: make test-artifacts-binary
-      before_deploy:
-        - find artifacts ! -name 'safe_authenticator-*' -exec rm '{}' \;
-        - rm artifacts/*.d
-        - mv artifacts/safe_authenticator-* artifacts/binary-compatibility-tests
-      deploy:
-        provider: s3
-        access_key_id: AKIAJI7QGOMYIJIFOYNA
-        secret_access_key:
-          secure: VuScHhXnvdlR2tSw/9PM8jKMraSRpblCx3NqN+SkVDWwhF585KPdtoE4dHevaBh9Qwh76YgG8l7FJ1Q5ac+zOzfSgdhjUjGtvnBhjrwH6Yi/tDqi4KdK6unz0ZFbHuLRRbcrgC1aSU0QK2HJHcM66SOvKMd6Lol0jZKqSETtb2CKco3mSQgTPRhlulhfGYTLlefxf5FFUiyEy//JCKORJV4/s1cb6LcjA6QrmUb8TkDl3kxywRRFDH/0MWwd/X1v1Y4sDH8Ucfy8hT0S1AgcPZCrd/CHwl2G7l4n5Nl1BrDc/dlFuw9IdE56O+JOQb1DgOg5ZG/9zpOgX6vpE2jwgkueGe9A1z+4DsWhopNPTyi4y9uPb9R2DBp1q99/ePlW0lCx/bAsKzDn2lO2MiZY2mIQ04z+FjzK9Tia8jikSiZoPZeJbS7il/SV0wRlMaX2jcWIuzY/knNtf2ZjTTeIwIv5TktZvTdJcyrUuOa8pRvWbCOx/XnZsaD/PtrGYgrYJBdbHpfsToUB6T5A7QL7wV+7F+8VuGgFJlGH6ybXRZV1DJIUFqMUheX1cfHmh5kuGMgTbVj8HKfvprVlSa9HNJi42pzF2qKYkJEqLgZj2cMfqN+EYrXLbaxY6yZseNvb5OKOA+iN2JHxQEDtHCXlOBb2UN4nu2obycKAGOTMNdE=
-        bucket: $S3_BUCKET
-        local_dir: artifacts
-        upload_dir: $S3_ARTIFACTS_PATH
-        acl: public_read
-        region: eu-west-2
-        skip_cleanup: true
-        on:
-          all_branches: true
-      env:
-        - SCL_BCT_PATH=/home/travis/binary-compatibility-tests
-        - SCL_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER
-        - SCL_BUILD_MOCK=true
-        - SCL_BUILD_OS=$TRAVIS_OS_NAME
+      after_success: find artifacts -maxdepth 1 -name 'safe_authenticator-*' ! -name '*.d' -exec cp '{}' ~/.artifacts-bct/binary-compatibility-tests \; ;
       os: linux
     - stage: tests
       name: "mock/integration tests"
@@ -222,6 +153,11 @@ cache:
   cargo: true
   directories:
     - "${HOME}/.cache/master"
+    - "${HOME}/.artifacts-linux-real"
+    - "${HOME}/.artifacts-linux-mock"
+    - "${HOME}/.artifacts-osx-real"
+    - "${HOME}/.artifacts-osx-mock"
+    - "${HOME}/.artifacts-bct"
 before_script:
   - scripts/version-check
 after_script:
