@@ -1,7 +1,7 @@
 .PHONY: build
 .DEFAULT_GOAL: build
 
-SHELL:=/bin/bash
+SHELL := /bin/bash
 SAFE_APP_VERSION := $(shell cat safe_app/Cargo.toml | grep "^version" | head -n 1 | awk '{ print $$3 }' | sed 's/\"//g')
 PWD := $(shell echo $$PWD)
 USER_ID := $(shell id -u)
@@ -20,7 +20,10 @@ clean:
 		docker rm -f safe_app_build; \
 	fi
 
-build: clean
+build:
+ifeq ($(OS),Windows_NT)
+	./scripts/build-real
+else
 	rm -rf target/
 	docker run --name safe_app_build \
 		-v "${PWD}":/usr/src/safe_client_libs \
@@ -30,8 +33,12 @@ build: clean
 		scripts/build-real
 	docker cp safe_app_build:/target .
 	docker rm -f safe_app_build
+endif
 
-build-mock: clean
+build-mock:
+ifeq ($(OS),Windows_NT)
+	./scripts/build-mock
+else
 	rm -rf target/
 	docker run --name safe_app_build \
 		-v "${PWD}":/usr/src/safe_client_libs \
@@ -41,6 +48,7 @@ build-mock: clean
 		scripts/build-mock
 	docker cp safe_app_build:/target .
 	docker rm -f safe_app_build
+endif
 
 tests: clean
 	rm -rf target/
