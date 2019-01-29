@@ -1,19 +1,31 @@
 stage('build') {
-    parallel real: {
+    parallel real_linux: {
         node('docker_slave-centos-7.5-x86_64') {
-            git([url: env.REPO_URL, branch: 'docker_build'])
+            git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('real')
             commit_container_artifacts('real')
         }
     },
-    mock: {
+    mock_linux: {
         node('docker_slave-centos-7.5-x86_64') {
-            git([url: env.REPO_URL, branch: 'docker_build'])
+            git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('mock')
             commit_container_artifacts('mock')
             upload_binary_compatibility_test()
+        }
+    },
+    real_windows: {
+        node('windows') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            sh('make build')
+        }
+    },
+    mock_windows: {
+        node('windows') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            sh('make build-mock')
         }
     }
 }
