@@ -24,30 +24,14 @@ build:
 ifeq ($(OS),Windows_NT)
 	./scripts/build-real
 else
-	rm -rf target/
-	docker run --name safe_app_build \
-		-v "${PWD}":/usr/src/safe_client_libs \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/build-real
-	docker cp safe_app_build:/target .
-	docker rm -f safe_app_build
+	./scripts/build-with-container "real"
 endif
 
 build-mock:
 ifeq ($(OS),Windows_NT)
 	./scripts/build-mock
 else
-	rm -rf target/
-	docker run --name safe_app_build \
-		-v "${PWD}":/usr/src/safe_client_libs \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/build-mock
-	docker cp safe_app_build:/target .
-	docker rm -f safe_app_build
+	./scripts/build-with-container "mock"
 endif
 
 tests: clean

@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Wrapper for running the build in the context of a container.
+#
+# The reason why this exists is really just to ensure that the container
+# runs with a unique name. This is to support running more than one build
+# on a single machine, which could happen when we're using Jenkins. The
+# container needs to have a known name so we can extract the artifacts
+# from it after the build has finished.
+#
+# It's in a script rather than the Makefile because there are several things
+# here that are quite awkward to do in a Makefile, like declaring new
+# variables at run time.
+
+set -e -x
+
+build_mode=$1
+if [[ -z "$build_mode" ]]; then
+    echo "This script must be invoked with a build mode argument."
+    echo "Valid values are 'mock' and 'real'."
+    exit 1
+fi
+
+safe_app_version=$(cat safe_app/Cargo.toml | grep "^version" | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+user_id=$(id -u)
+group_id=$(id -g)
+
+if [[ -z "$BUILD_NUMBER" ]]; then
+    uid=$(uuidgen | sed 's/-//g')
+    container_name="safe_app_build_$build_mode_$uid"
+else
+    # BUILD_NUMBER will be defined in the context of a Jenkins build.
+    container_name="safe_app_build_$build_mode_$BUILD_NUMBER"
+fi
+
+rm -rf target
+docker run --name $container_name \
+    -v "${PWD}":/usr/src/safe_client_libs \
+    -u $user_id:$group_id \
+    -e CARGO_TARGET_DIR=/target \
+    maidsafe/safe-client-libs-build:$safe_app_version \
+    scripts/build-$build_mode
+docker cp $container_name:/target .
+docker rm -f $container_name
+mkdir artifacts
+find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
