@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# This script is a wrapper for running the tests in the context of a container.
+#
+# It'll be passed as an argument to a docker run command. The intended usage is
+# with artifacts that have already been built at an earlier stage. Before the
+# container is started, the artifacts to be tested will be placed in an 'artifacts'
+# directory at the root of this repository, which will then be mounted into the
+# container at /usr/src/safe_client_libs. We then copy those artifacts into
+# /target/release.
+#
+# I initially tried to do the copy as part of the docker run command, like so:
+# docker run <snip> find artifacts <snip> && scripts/test-mock
+#
+# The problem is, anything after the && actually runs on the host and not inside the
+# container, hence the reason for the script.
+
+set -e -x
+
+if [[ -z "$SCL_TEST_SUITE" ]]; then
+    echo "For running tests in a container, a value must be supplied for SCL_TEST_SUITE."
+    echo "Valid values are 'mock', 'binary' or 'integration'."
+    exit 1
+fi
+
+if [[ "$SCL_TEST_SUITE" == "binary" && ! -f /bct/tests ]]; then
+    echo "The container must have the previous binary compatibility test suite mounted in as a shared volume at /bct/tests."
+    echo "Please run the container with -v $SCL_BCT_PATH=/bct/tests, where SCL_BCT_PATH is a valid, absolute path to the previous set of binary compatibility tests."
+    exit 1
+fi
+
+if [[ ! -d "artifacts" ]]; then
+    echo "This script is intended to be used with a docker container and a set of pre-built artifacts."
+    echo "Please place these artifacts in an 'artifacts' folder at the root of the repository and perform the 'docker run' command again."
+    exit 1
+fi
+
+find artifacts -maxdepth 1 -type f -exec cp '{}' /target/release \;
+
+source ./scripts/test-$SCL_TEST_SUITE

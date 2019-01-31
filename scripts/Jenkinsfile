@@ -4,7 +4,8 @@ stage('build') {
             git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('real')
-            commit_container_artifacts('real')
+            package_build_artifacts('real', 'linux')
+            upload_build_artifacts()
         }
     },
     mock_linux: {
@@ -12,7 +13,8 @@ stage('build') {
             git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('mock')
-            commit_container_artifacts('mock')
+            package_build_artifacts('mock', 'linux')
+            upload_build_artifacts()
             upload_binary_compatibility_test()
         }
     },
@@ -35,17 +37,25 @@ stage('build') {
 }
 
 stage('test') {
-    parallel mocked: {
+    parallel mocked_linux: {
         node('docker_slave-centos-7.5-x86_64') {
+            retrieve_build_artifacts('mock', 'linux')
             run_mocked_tests()
         }
     },
-    integration: {
+    mocked_windows: {
+        node('windows') {
+            retrieve_build_artifacts('mock', 'windows')
+            run_mocked_tests()
+        }
+    },
+    integration_linux: {
         node('docker_slave-centos-7.5-x86_64') {
+            retrieve_build_artifacts('mock', 'linux')
             run_integration_tests()
         }
     },
-    binary: {
+    binary_linux: {
         node('docker_slave-centos-7.5-x86_64') {
             run_binary_compatibility_tests()
         }
@@ -154,14 +164,12 @@ def upload_build_artifacts() {
 }
 
 def upload_binary_compatibility_test() {
-    def container_name = get_container_name('mock', 'build')
     sh("mkdir -p ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}")
-    sh("docker cp ${container_name}:/target/release .")
     def test_executable = sh(
         returnStdout: true,
-        script: $/eval "find release -maxdepth 1 -mindepth 1 -name 'tests-*' ! -name '*.d'" /$).trim()
+        script: $/eval "find target/release -maxdepth 1 -mindepth 1 -name 'tests-*' ! -name '*.d'" /$).trim()
     sh("cp ${test_executable} ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}/tests")
-    sh("rm -rf release")
+    sh("rm -rf target/release")
     withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
         s3Upload(
             bucket: 'safe-client-libs-jenkins',
@@ -170,6 +178,18 @@ def upload_binary_compatibility_test() {
             workingDir: "${env.WORKSPACE}",
             acl: 'PublicRead')
     }
+}
+
+def retrieve_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make retrieve-build-artifacts"
+    sh(command)
 }
 
 def get_container_name(mode, type, app='') {
@@ -215,21 +235,15 @@ def run_binary_compatibility_tests() {
 }
 
 def run_tests(mode, bct_test_path='') {
-    def user_details = get_user_details()
-    def user_id = user_details[0]
-    def group_id = user_details[1]
-    def image_name = get_committed_build_image_name(mode)
-    def container_name = get_container_name(mode, 'test_run')
-    def command = "docker run --rm --name ${container_name} " +
-        "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
-        "-e CARGO_TARGET_DIR=/target " +
-        "-u ${user_id}:${group_id} "
-    if (mode == 'binary') {
-        command += "-v ${bct_test_path}:/bct/tests:Z "
-        command += "-e COMPAT_TESTS=/bct/tests "
+    if (mode == 'mock') {
+        sh("make test-artifacts-mock")
+    } else if (mode == 'binary') {
+        command = "SCL_BCT_PATH=${bct_test_path} "
+        command += "make test-artifacts-binary"
+        sh(command)
+    } else {
+        sh("make test-artifacts-integration")
     }
-    command += "${image_name} scripts/test-${mode}"
-    sh(command)
 }
 
 def run_packaging(app) {
