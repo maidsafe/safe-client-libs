@@ -23,16 +23,49 @@ clean:
 build:
 ifeq ($(OS),Windows_NT)
 	./scripts/build-real
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 else
 	./scripts/build-with-container "real"
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 endif
 
 build-mock:
 ifeq ($(OS),Windows_NT)
 	./scripts/build-mock
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 else
 	./scripts/build-with-container "mock"
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 endif
+
+package-build-artifacts:
+ifndef SCL_BUILD_NUMBER
+	@echo "A build number must be supplied for build artifact packaging."
+	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
+	@exit 1
+endif
+ifndef SCL_BUILD_MOCK
+	@echo "A true or false value must be supplied indicating whether the build uses mocking."
+	@echo "Please set SCL_BUILD_MOCK to true or false."
+	@exit 1
+endif
+ifndef SCL_BUILD_OS
+	@echo "A value must be supplied for SCL_BUILD_OS."
+	@echo "Valid values are 'linux' or 'osx'."
+	@exit 1
+endif
+ifeq ($(SCL_BUILD_MOCK),true)
+	$(eval ARCHIVE_NAME := ${SCL_BUILD_NUMBER}-scl-mock-${SCL_BUILD_OS}-x86_64.tar.gz)
+else
+	$(eval ARCHIVE_NAME := ${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_OS}-x86_64.tar.gz)
+endif
+	tar -C artifacts -zcvf ${ARCHIVE_NAME} .
+	rm artifacts/**
+	mv ${ARCHIVE_NAME} artifacts
 
 tests: clean
 	rm -rf target/

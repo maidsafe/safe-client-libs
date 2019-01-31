@@ -27,20 +27,18 @@ group_id=$(id -g)
 
 if [[ -z "$BUILD_NUMBER" ]]; then
     uid=$(uuidgen | sed 's/-//g')
-    container_name="safe_app_build_$build_mode_$uid"
+    container_name="safe_app_build_$build_mode$uid"
 else
     # BUILD_NUMBER will be defined in the context of a Jenkins build.
-    container_name="safe_app_build_$build_mode_$BUILD_NUMBER"
+    container_name="safe_app_build_$build_mode$BUILD_NUMBER"
 fi
 
 rm -rf target
 docker run --name $container_name \
-    -v "${PWD}":/usr/src/safe_client_libs \
+    -v "${PWD}":/usr/src/safe_client_libs:Z \
     -u $user_id:$group_id \
     -e CARGO_TARGET_DIR=/target \
     maidsafe/safe-client-libs-build:$safe_app_version \
     scripts/build-$build_mode
 docker cp $container_name:/target .
 docker rm -f $container_name
-mkdir artifacts
-find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;

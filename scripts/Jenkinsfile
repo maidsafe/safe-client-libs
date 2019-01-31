@@ -19,13 +19,17 @@ stage('build') {
     real_windows: {
         node('windows') {
             git([url: env.REPO_URL, branch: env.BRANCH])
-            sh('make build')
+            build_safe_client_libs('real')
+            package_build_artifacts('real', 'windows')
+            upload_build_artifacts()
         }
     },
     mock_windows: {
         node('windows') {
             git([url: env.REPO_URL, branch: env.BRANCH])
-            sh('make build-mock')
+            build_safe_client_libs('mock')
+            package_build_artifacts('mock', 'windows')
+            upload_build_artifacts()
         }
     }
 }
@@ -95,6 +99,18 @@ def clean_build_containers() {
     }
 }
 
+def package_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make package-build-artifacts"
+    sh(command)
+}
+
 def get_user_details() {
     def user_id = sh(returnStdout: true, script: 'echo $UID').trim()
     def group_id = sh(
@@ -117,15 +133,24 @@ def get_committed_build_image_name(mode) {
 }
 
 def build_safe_client_libs(mode) {
-    def user_details = get_user_details()
-    def user_id = user_details[0]
-    def group_id = user_details[1]
-    def image_name = "${env.IMAGE_NAME}:${env.IMAGE_TAG}"
-    def container_name = get_container_name(mode, 'build')
-    sh("docker run --name ${container_name} " +
-       "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
-       "-u ${user_id}:${group_id} " +
-       "${image_name} scripts/build-${mode}")
+    if (mode == "real") {
+        sh("make build")
+    } else {
+        sh("make build-mock")
+    }
+}
+
+def upload_build_artifacts() {
+    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+        def artifacts = sh(returnStdout: true, script: 'ls -1 artifacts').trim().split("\\r?\\n")
+        for (artifact in artifacts) {
+            s3Upload(
+                bucket: 'safe-client-libs-jenkins',
+                file: artifact,
+                workingDir: "${env.WORKSPACE}/artifacts",
+                acl: 'PublicRead')
+        }
+    }
 }
 
 def upload_binary_compatibility_test() {
