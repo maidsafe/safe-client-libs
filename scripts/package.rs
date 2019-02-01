@@ -177,6 +177,22 @@ fn main() {
                 .takes_value(true)
                 .help("Destination directory (uses current dir by default)"),
         )
+        .arg(
+            Arg::with_name("STRIP")
+                .short("s")
+                .long("strip")
+                .takes_value(false)
+                .help("Specify this flag for running GNU strip on the binaries before they are packaged.")
+        )
+        .arg(
+            Arg::with_name("ARTIFACTS")
+                .short("a")
+                .long("artifacts")
+                .takes_value(true)
+                .help("Directory containing the artifacts to package. If not specified, the CARGO_TARGET_DIR
+                      variable will be queried for its value, and if that's not set, we will assume the 'target'
+                      directory in the current directory."),
+        )
         .get_matches();
 
     let krate = matches.value_of("NAME").unwrap();
@@ -190,9 +206,14 @@ fn main() {
     let bindings = matches.is_present("BINDINGS");
     let lib = matches.is_present("LIB");
     let mock = matches.is_present("MOCK");
+    let strip = matches.is_present("STRIP");
 
     let toolchain_path = matches.value_of("TOOLCHAIN");
-    let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+    let target_dir = if matches.is_present("ARTIFACTS") {
+        matches.value_of("ARTIFACTS").unwrap().to_string()
+    } else {
+        env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string())
+    };
 
     let file_options = FileOptions::default();
 
@@ -233,7 +254,9 @@ fn main() {
                 } else {
                     find_libs(krate, None, &target_dir)
                 };
-                strip_libs(toolchain_path, Some(arch), &libs);
+                if strip {
+                    strip_libs(toolchain_path, Some(arch), &libs);
+                }
                 libs
             })
             .peekable();
@@ -275,6 +298,7 @@ fn main() {
         let mut archive = ZipWriter::new(file);
 
         for path in libs {
+            println!("Adding {:?} to {:?}", path, archive_name);
             archive
                 .start_file(path.file_name().unwrap().to_string_lossy(), file_options)
                 .unwrap();

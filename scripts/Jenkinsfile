@@ -1,18 +1,20 @@
 stage('build') {
     parallel real_linux: {
-        node('docker_slave-centos-7.5-x86_64') {
+        node('docker') {
             git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('real')
+            strip_build_artifacts()
             package_build_artifacts('real', 'linux')
             upload_build_artifacts()
         }
     },
     mock_linux: {
-        node('docker_slave-centos-7.5-x86_64') {
+        node('docker') {
             git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('mock')
+            strip_build_artifacts()
             package_build_artifacts('mock', 'linux')
             upload_build_artifacts()
             upload_binary_compatibility_test()
@@ -22,6 +24,7 @@ stage('build') {
         node('windows') {
             git([url: env.REPO_URL, branch: env.BRANCH])
             build_safe_client_libs('real')
+            strip_build_artifacts()
             package_build_artifacts('real', 'windows')
             upload_build_artifacts()
         }
@@ -30,6 +33,7 @@ stage('build') {
         node('windows') {
             git([url: env.REPO_URL, branch: env.BRANCH])
             build_safe_client_libs('mock')
+            strip_build_artifacts()
             package_build_artifacts('mock', 'windows')
             upload_build_artifacts()
         }
@@ -38,7 +42,7 @@ stage('build') {
 
 stage('test') {
     parallel mocked_linux: {
-        node('docker_slave-centos-7.5-x86_64') {
+        node('docker') {
             retrieve_build_artifacts('mock', 'linux')
             run_mocked_tests()
         }
@@ -50,29 +54,21 @@ stage('test') {
         }
     },
     integration_linux: {
-        node('docker_slave-centos-7.5-x86_64') {
+        node('docker') {
             retrieve_build_artifacts('mock', 'linux')
             run_integration_tests()
         }
     },
     binary_linux: {
-        node('docker_slave-centos-7.5-x86_64') {
+        node('docker') {
             run_binary_compatibility_tests()
         }
     }
 }
 
-stage('packaging') {
-    node('docker_slave-centos-7.5-x86_64') {
-        for (app in ['safe_app', 'safe_authenticator']) {
-            run_packaging(app)
-        }
-        move_packages_to_deploy()
-    }
-}
-
 stage('deployment') {
-    node('docker_slave-centos-7.5-x86_64') {
+    node('docker') {
+        package_deploy_artifacts()
         withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
             def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
             for (artifact in artifacts) {
@@ -87,7 +83,7 @@ stage('deployment') {
 }
 
 stage('clean') {
-    node('docker_slave-centos-7.5-x86_64') {
+    node('docker') {
         clean()
     }
 }
@@ -121,6 +117,13 @@ def package_build_artifacts(mode, os) {
     sh(command)
 }
 
+def package_deploy_artifacts() {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "make retrieve-all-build-artifacts"
+    sh(command)
+    sh("make package-deploy-artifacts")
+}
+
 def get_user_details() {
     def user_id = sh(returnStdout: true, script: 'echo $UID').trim()
     def group_id = sh(
@@ -148,6 +151,10 @@ def build_safe_client_libs(mode) {
     } else {
         sh("make build-mock")
     }
+}
+
+def strip_build_artifacts() {
+    sh("make strip-artifacts")
 }
 
 def upload_build_artifacts() {
