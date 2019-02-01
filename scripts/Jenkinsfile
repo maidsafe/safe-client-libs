@@ -44,19 +44,19 @@ stage('test') {
     parallel mocked_linux: {
         node('docker') {
             retrieve_build_artifacts('mock', 'linux')
-            run_mocked_tests()
+            run_tests('mock')
         }
     },
     mocked_windows: {
         node('windows') {
             retrieve_build_artifacts('mock', 'windows')
-            run_mocked_tests()
+            run_tests('mock')
         }
     },
     integration_linux: {
         node('docker') {
             retrieve_build_artifacts('mock', 'linux')
-            run_integration_tests()
+            run_tests('integration')
         }
     },
     binary_linux: {
@@ -73,7 +73,7 @@ stage('deployment') {
             def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
             for (artifact in artifacts) {
                 s3Upload(
-                    bucket: 'safe-client-libs-jenkins',
+                    bucket: "${env.DEPLOY_BUCKET}",
                     file: artifact,
                     workingDir: "${env.WORKSPACE}/deploy",
                     acl: 'PublicRead')
@@ -89,20 +89,17 @@ stage('clean') {
 }
 
 def clean() {
-    clean_build_containers()
-    def mock_tag = get_tag_from_full_image_name(get_committed_build_image_name('mock'))
-    def real_tag = get_tag_from_full_image_name(get_committed_build_image_name('real'))
-    // Unfortunately you can't seem to split this long string over multiple lines.
-    sh($/eval "docker images | grep -E '${mock_tag}|${real_tag}' | awk '{ print \$3 }' | xargs docker rmi || true" /$)
-    sh("rm -f *.zip")
-    sh("rm -rf deploy")
-}
-
-def clean_build_containers() {
     for (mode in ['mock', 'real']) {
         def container_name = get_container_name(mode, 'build')
         sh("docker rm ${container_name} || true")
     }
+}
+
+def get_container_name(mode, type, app='') {
+    if (app?.trim()) {
+        return "safe_client_libs_${app}_${mode}_${type}_${env.BUILD_NUMBER}"
+    }
+    return "safe_client_libs_${mode}_${type}_${env.BUILD_NUMBER}"
 }
 
 def package_build_artifacts(mode, os) {
@@ -124,27 +121,6 @@ def package_deploy_artifacts() {
     sh("make package-deploy-artifacts")
 }
 
-def get_user_details() {
-    def user_id = sh(returnStdout: true, script: 'echo $UID').trim()
-    def group_id = sh(
-        returnStdout: true,
-        script: $/eval 'getent group $USER | awk -F : "{ print \$3 }"'/$).trim()
-    return [user_id, group_id]
-}
-
-def get_tag_from_full_image_name(image_name) {
-    return image_name.drop(image_name.indexOf(':') + 1)
-}
-
-def get_committed_build_image_name(mode) {
-    // There will only be 2 images created, 'real' and 'mock'.
-    // The binary and integration tests will both use the mock image, since all the builds
-    // they need will be committed in the mock image.
-    def m = mode == 'integration' || mode == 'binary' ? 'mock' : mode
-    def tag = "build-${m}-${env.BUILD_NUMBER}"
-    return "${env.IMAGE_NAME}:${tag}"
-}
-
 def build_safe_client_libs(mode) {
     if (mode == "real") {
         sh("make build")
@@ -162,7 +138,7 @@ def upload_build_artifacts() {
         def artifacts = sh(returnStdout: true, script: 'ls -1 artifacts').trim().split("\\r?\\n")
         for (artifact in artifacts) {
             s3Upload(
-                bucket: 'safe-client-libs-jenkins',
+                bucket: "${env.ARTIFACTS_BUCKET}",
                 file: artifact,
                 workingDir: "${env.WORKSPACE}/artifacts",
                 acl: 'PublicRead')
@@ -179,7 +155,7 @@ def upload_binary_compatibility_test() {
     sh("rm -rf target/release")
     withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
         s3Upload(
-            bucket: 'safe-client-libs-jenkins',
+            bucket: "${env.ARTIFACTS_BUCKET}",
             file: "bct/${env.BUILD_NUMBER}/tests",
             path: "bct/${env.BUILD_NUMBER}/tests",
             workingDir: "${env.WORKSPACE}",
@@ -199,29 +175,6 @@ def retrieve_build_artifacts(mode, os) {
     sh(command)
 }
 
-def get_container_name(mode, type, app='') {
-    if (app?.trim()) {
-        return "safe_client_libs_${app}_${mode}_${type}_${env.BUILD_NUMBER}"
-    }
-    return "safe_client_libs_${mode}_${type}_${env.BUILD_NUMBER}"
-}
-
-def commit_container_artifacts(mode) {
-    def container_name = get_container_name(mode, 'build')
-    def container_id = sh(
-        returnStdout: true,
-        script: $/eval "docker ps -a | grep -w '${container_name}' | awk '{ print \$1 }'" /$).trim()
-    def image_name = get_committed_build_image_name(mode)
-    sh("docker commit ${container_id} ${image_name}")
-}
-
-def run_mocked_tests() {
-    run_tests('mock')
-}
-
-def run_integration_tests() {
-    run_tests('integration')
-}
 
 def run_binary_compatibility_tests() {
     build_number = get_last_successful_build_number(currentBuild)
@@ -231,7 +184,7 @@ def run_binary_compatibility_tests() {
         withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
             s3Download(
                 file: "${bct_test_path}",
-                bucket: 'safe-client-libs-jenkins',
+                bucket: "${env.ARTIFACTS_BUCKET}",
                 path: "bct/${build_number}/tests",
                 force: true)
         }
@@ -251,30 +204,6 @@ def run_tests(mode, bct_test_path='') {
     } else {
         sh("make test-artifacts-integration")
     }
-}
-
-def run_packaging(app) {
-    def user_details = get_user_details()
-    def user_id = user_details[0]
-    def group_id = user_details[1]
-    for (mode in ['real', 'mock']) {
-        def image_name = get_committed_build_image_name(mode)
-        def container_name = get_container_name(mode, 'package', app)
-        def command = "docker run --rm --name ${container_name} " +
-            "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
-            "-e CARGO_TARGET_DIR=/target " +
-            "-u ${user_id}:${group_id} " +
-            "${image_name} scripts/package.rs --lib --name ${app} --commit"
-        if (mode == 'mock') {
-            command += " --mock"
-        }
-        sh(command)
-    }
-}
-
-def move_packages_to_deploy() {
-    sh('mkdir deploy')
-    sh('mv *.zip deploy')
 }
 
 def get_last_successful_build_number(build) {
