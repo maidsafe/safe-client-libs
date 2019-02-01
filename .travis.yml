@@ -104,18 +104,18 @@ before_deploy:
   - bash cargo_install.sh cargo-script 0.2.8
   - mkdir -p target/deploy
   - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) ]]; then
-      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --mock;
-      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy;
+      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --mock --strip;
+      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --strip;
     else
-      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --mock --commit;
-      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --commit;
+      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --mock --commit --strip;
+      ./scripts/package.rs --rebuild --lib --name safe_app -d target/deploy --commit --strip;
     fi
   - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
-      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --mock;
-      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy;
+      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --mock --strip;
+      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --strip;
     else
-      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --mock --commit;
-      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --commit;
+      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --mock --commit --strip;
+      ./scripts/package.rs --rebuild --lib --name safe_authenticator -d target/deploy --commit --strip;
     fi
 deploy:
   provider: s3

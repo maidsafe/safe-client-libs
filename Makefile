@@ -6,6 +6,7 @@ SAFE_APP_VERSION := $(shell cat safe_app/Cargo.toml | grep "^version" | head -n 
 PWD := $(shell echo $$PWD)
 USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
+UNAME_S := $(shell uname -s)
 S3_BUCKET := safe-client-libs-jenkins
 
 build-container:
@@ -41,6 +42,15 @@ endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
+strip-artifacts:
+ifeq ($(OS),Windows_NT)
+	find artifacts -name "*.dll" -exec strip -x '{}' \;
+else ifeq ($(UNAME_S),Darwin)
+	find artifacts -name "*.dylib" -exec strip -x '{}' \;
+else
+	find artifacts -name "*.so" -exec strip '{}' \;
+endif
+
 package-build-artifacts:
 ifndef SCL_BUILD_NUMBER
 	@echo "A build number must be supplied for build artifact packaging."
@@ -54,7 +64,7 @@ ifndef SCL_BUILD_MOCK
 endif
 ifndef SCL_BUILD_OS
 	@echo "A value must be supplied for SCL_BUILD_OS."
-	@echo "Valid values are 'linux' or 'osx'."
+	@echo "Valid values are 'linux' or 'windows'."
 	@exit 1
 endif
 ifeq ($(SCL_BUILD_MOCK),true)
@@ -65,6 +75,13 @@ endif
 	tar -C artifacts -zcvf ${ARCHIVE_NAME} .
 	rm artifacts/**
 	mv ${ARCHIVE_NAME} artifacts
+
+package-deploy-artifacts:
+	@rm -rf deploy
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/package-runner-container
 
 retrieve-build-artifacts:
 ifndef SCL_BUILD_NUMBER
@@ -79,7 +96,7 @@ ifndef SCL_BUILD_MOCK
 endif
 ifndef SCL_BUILD_OS
 	@echo "A value must be supplied for SCL_BUILD_OS."
-	@echo "Valid values are 'linux' or 'osx'."
+	@echo "Valid values are 'linux' or 'windows'."
 	@exit 1
 endif
 ifeq ($(SCL_BUILD_MOCK),true)
@@ -106,6 +123,30 @@ else
 	tar -C artifacts -xvf ${ARCHIVE_NAME}
 endif
 	rm ${ARCHIVE_NAME}
+
+retrieve-all-build-artifacts:
+ifndef SCL_BUILD_NUMBER
+	@echo "A valid build number must be supplied for the artifacts to be retrieved."
+	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
+	@exit 1
+endif
+	rm -rf artifacts
+	mkdir -p artifacts/linux/real/release
+	mkdir -p artifacts/linux/mock/release
+	mkdir -p artifacts/win/real/release
+	mkdir -p artifacts/win/mock/release
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz .
+	tar -C artifacts/linux/real/release -xvf ${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
+	tar -C artifacts/linux/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
+	tar -C artifacts/win/real/release -xvf ${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
+	tar -C artifacts/win/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
+	rm ${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
+	rm ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
+	rm ${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
+	rm ${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
 
 test-artifacts-mock:
 ifeq ($(OS),Windows_NT)
