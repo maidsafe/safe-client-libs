@@ -22,9 +22,8 @@ use std::ffi::CString;
 use std::sync::mpsc;
 use test_utils::{create_app, run};
 
-// MD created by App. App lists its own sign_pk in owners field: Put should
-// fail - Rejected by MaidManagers. Should pass when it lists the owner's
-// sign_pk instead
+// MD created by App. App lists its own sign_pk in owners field: Put should fail - Rejected by
+// MaidManagers. Should pass when it lists the owner's sign_pk instead.
 #[test]
 #[allow(unsafe_code)]
 fn md_created_by_app_1() {
@@ -70,12 +69,11 @@ fn md_created_by_app_1() {
     });
 }
 
-// MD created by App properly: Should pass. App tries to change ownership -
-// Should Fail by MaidManagers. App creates its own account with the
-// maid-managers. Now it tries changing ownership by routing it through it's MM
-// instead of owners. It should still fail as DataManagers should enforce that
-// the request is coming from MM of the owner (listed in the owners field of the
-// stored MD).
+// MD created by App properly: Should pass. App tries to change ownership - Should Fail by
+// MaidManagers. App creates its own account with the maid-managers. Now it tries changing ownership
+// by routing it through it's MM instead of owners. It should still fail as DataManagers should
+// enforce that the request is coming from MM of the owner (listed in the owners field of the stored
+// MD).
 #[test]
 fn md_created_by_app_2() {
     let app = create_app();
@@ -146,10 +144,9 @@ fn md_created_by_app_2() {
     unwrap!(rx.recv());
 }
 
-// MD created by owner and given to a permitted App. Owner has listed that app
-// is allowed to insert only. App tries to insert - should pass. App tries to
-// update - should fail. App tries to change permission to allow itself to
-// update - should fail to change permissions.
+// MD created by owner and given to a permitted App. Owner has listed that app is allowed to insert
+// only. App tries to insert - should pass. App tries to update - should fail. App tries to change
+// permission to allow itself to update - should fail to change permissions.
 #[test]
 fn md_created_by_app_3() {
     let app = create_app();
@@ -245,12 +242,11 @@ fn md_created_by_app_3() {
     unwrap!(rx.recv());
 }
 
-// MD created by owner and given to a permitted App. Owner has listed that app
-// is allowed to manage-permissions only. App tries to insert - should fail. App
-// tries to update - should fail. App tries to change permission to allow itself
-// to insert and delete - should pass to change permissions. Now App tires to
-// insert again - should pass. App tries to update. Should fail. App tries to
-// delete - should pass.
+// MD created by owner and given to a permitted App. Owner has listed that app is allowed to
+// manage-permissions only. App tries to insert - should fail. App tries to update - should fail.
+// App tries to change permission to allow itself to insert and delete - should pass to change
+// permissions. Now App tires to insert again - should pass. App tries to update. Should fail. App
+// tries to delete - should pass.
 #[test]
 fn md_created_by_app_4() {
     let app = create_app();
@@ -386,13 +382,12 @@ fn md_created_by_app_4() {
     unwrap!(rx.recv());
 }
 
-// MD created by App1, with permission to insert by anyone and permission to
-// manage-permissions only for itself - should pass. App2 created via another
-// random client2 tries to insert (going via client2's MM) into MD of App1 -
-// should Pass. App1 should be able to read the data - should pass. App1 changes
-// permission to remove the anyone access - should pass. App2 tries to insert
-// another data in MD - should fail. App1 tries to get all data from MD - should
-// pass and should have no change (since App2 failed to insert)
+// MD created by App1, with permission to insert by anyone and permission to manage-permissions only
+// for itself - should pass. App2 created via another random client2 tries to insert (going via
+// client2's MM) into MD of App1 - should Pass. App1 should be able to read the data - should pass.
+// App1 changes permission to remove the anyone access - should pass. App2 tries to insert another
+// data in MD - should fail. App1 tries to get all data from MD - should pass and should have no
+// change (since App2 failed to insert).
 #[test]
 fn multiple_apps() {
     let app1 = create_app();
@@ -508,15 +503,13 @@ fn multiple_apps() {
     unwrap!(rx.recv());
 }
 
-// MD created by App with itself allowed to manage-permissions. Insert
-// permission to allow a random-key to perform update operation - should
-// pass. Delete this permission without incrementing version of MD - should fail
-// version check. Querry the permissions list - should continue to have the
-// listed permission for the random-key. Querry the version of the MD in network
-// - should pass. Send request to delete that permission again with propely
-// incremented version from info from the fetched version - should pass. Querry
-// the permissions list - should no longer have the listed permission for the
-// random-key.
+// MD created by App with itself allowed to manage-permissions. Insert permission to allow a
+// random-key to perform update operation - should pass. Delete this permission without incrementing
+// version of MD - should fail version check. Query the permissions list - should continue to have
+// the listed permission for the random-key. Query the version of the MD in network - should pass.
+// Send request to delete that permission again with properly incremented version from info from the
+// fetched version - should pass. Query the permissions list - should no longer have the listed
+// permission for the random-key.
 #[test]
 fn permissions_and_version() {
     let app = create_app();
@@ -632,11 +625,10 @@ fn permissions_and_version() {
     });
 }
 
-// The usual test to insert, update, delete and list all permissions. Put in
-// some permissions, fetch (list) all of them, add some more, list again, delete
-// one or two, list again - all should pass and do the expected (i.e. after list
-// do assert that it contains all the expected stuff, don't just pass test if
-// the list was successful)
+// The usual test to insert, update, delete and list all permissions. Put in some permissions, fetch
+// (list) all of them, add some more, list again, delete one or two, list again - all should pass
+// and do the expected (i.e. after list do assert that it contains all the expected stuff, don't
+// just pass test if the list was successful).
 #[test]
 fn permissions_crud() {
     let app = create_app();
@@ -925,11 +917,10 @@ fn permissions_crud() {
     });
 }
 
-// The usual test to insert, update, delete and list all entry-keys/values. Same
-// thing from `permissions_crud` with entry-key/value - the difference is that
-// after delete you should still get all the keys - delete does not actually
-// delete the entry, only blanks out the entry-value (null vector), the version
-// however should have been bumped - so check for those.
+// The usual test to insert, update, delete and list all entry-keys/values. Same thing from
+// `permissions_crud` with entry-key/value - the difference is that after delete you should still
+// get all the keys - delete does not actually delete the entry, only blanks out the entry-value
+// (null vector), the version however should have been bumped - so check for those.
 #[test]
 fn entries_crud() {
     let app = create_app();

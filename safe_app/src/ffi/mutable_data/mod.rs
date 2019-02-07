@@ -39,11 +39,11 @@ use App;
 
 /// Special value that represents an empty permission set.
 #[no_mangle]
-pub static PERMISSIONS_EMPTY: u64 = NULL_OBJECT_HANDLE;
+pub static PERMISSIONS_EMPTY: MDataPermissionsHandle = NULL_OBJECT_HANDLE;
 
 /// Special value that represents an empty entry set.
 #[no_mangle]
-pub static ENTRIES_EMPTY: u64 = NULL_OBJECT_HANDLE;
+pub static ENTRIES_EMPTY: MDataEntriesHandle = NULL_OBJECT_HANDLE;
 
 /// Create new mutable data and put it on the network.
 ///
@@ -356,7 +356,7 @@ pub unsafe extern "C" fn mdata_mutate_entries(
     })
 }
 
-/// Get list of all permissions set on the mutable data
+/// Get list of all permissions set on the mutable data.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_list_permissions(
     app: *const App,

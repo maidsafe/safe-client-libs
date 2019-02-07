@@ -28,8 +28,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 
-/// Function that is used to tap into routing requests
-/// and return preconditioned responses.
+/// Function that is used to tap into routing requests and return preconditioned responses.
 pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
 
 /// Function that is used to modify responses before they are sent.
@@ -1094,8 +1093,7 @@ impl Routing {
 
 #[cfg(any(feature = "testing", test))]
 impl Routing {
-    /// Set hook function to override response before request is processed,
-    /// for test purposes.
+    /// Set hook function to override response before request is processed, for test purposes.
     pub fn set_request_hook<F>(&mut self, hook: F)
     where
         F: FnMut(&Request) -> Option<Response> + 'static,
@@ -1104,8 +1102,7 @@ impl Routing {
         self.request_hook = Some(hook);
     }
 
-    /// Set hook function to override response after request is processed,
-    /// for test purposes.
+    /// Set hook function to override response after request is processed, for test purposes.
     pub fn set_response_hook<F>(&mut self, hook: F)
     where
         F: FnMut(Response) -> Response + 'static,
