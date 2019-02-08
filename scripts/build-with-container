@@ -21,7 +21,13 @@ if [[ -z "$build_mode" ]]; then
     exit 1
 fi
 
-safe_app_version=$(grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+safe_app_version=$2
+if [[ -z "$safe_app_version" ]]; then
+    echo "The safe app version number must be supplied as a 2nd argument to this script."
+    echo "Pass it in by reading it from Cargo.toml."
+    exit 1
+fi
+
 user_id=$(id -u)
 group_id=$(id -g)
 
