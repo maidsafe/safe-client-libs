@@ -2,7 +2,7 @@
 .DEFAULT_GOAL: build
 
 SHELL := /bin/bash
-SAFE_APP_VERSION := $(shell cat safe_app/Cargo.toml | grep "^version" | head -n 1 | awk '{ print $$3 }' | sed 's/\"//g')
+SAFE_APP_VERSION := $(shell grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $$3 }' | sed 's/\"//g')
 PWD := $(shell echo $$PWD)
 USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
@@ -27,7 +27,7 @@ build:
 ifeq ($(OS),Windows_NT)
 	./scripts/build-real
 else
-	./scripts/build-with-container "real"
+	./scripts/build-with-container "real" "${SAFE_APP_VERSION}"
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
@@ -37,7 +37,7 @@ build-mock:
 ifeq ($(OS),Windows_NT)
 	./scripts/build-mock
 else
-	./scripts/build-with-container "mock"
+	./scripts/build-with-container "mock" "${SAFE_APP_VERSION}"
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
