@@ -21,7 +21,7 @@ if [[ -z "$build_mode" ]]; then
     exit 1
 fi
 
-safe_app_version=$(cat safe_app/Cargo.toml | grep "^version" | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+safe_app_version=$(grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
 user_id=$(id -u)
 group_id=$(id -g)
 
@@ -34,11 +34,11 @@ else
 fi
 
 rm -rf target
-docker run --name $container_name \
+docker run --name "$container_name" \
     -v "${PWD}":/usr/src/safe_client_libs:Z \
-    -u $user_id:$group_id \
+    -u "$user_id":"$group_id" \
     -e CARGO_TARGET_DIR=/target \
-    maidsafe/safe-client-libs-build:$safe_app_version \
-    scripts/build-$build_mode
-docker cp $container_name:/target .
-docker rm -f $container_name
+    maidsafe/safe-client-libs-build:"$safe_app_version" \
+    scripts/build-"$build_mode"
+docker cp "$container_name":/target .
+docker rm -f "$container_name"

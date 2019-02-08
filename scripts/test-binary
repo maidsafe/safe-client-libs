@@ -2,7 +2,6 @@
 
 set -e -x
 
-target_dir=${1:-"target"}
 # If we're running a build with Docker, COMPAT_TESTS will be set as an environment variable.
 # Otherwise use the default value, which is the location Travis uses for its cache.
 COMPAT_TESTS=${COMPAT_TESTS:-${HOME}/.cache/master/tests}
