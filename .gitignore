@@ -31,6 +31,8 @@ build-tests/
 
 # Misc
 packages/
+artifacts/
+deploy/
 .DS_Store
 *.bootstrap.cache
 cargo-all.sh

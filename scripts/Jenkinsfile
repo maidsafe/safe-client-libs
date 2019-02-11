@@ -1,57 +1,79 @@
 stage('build') {
-    parallel real: {
-        node('docker_slave-centos-7.5-x86_64') {
-            git([url: env.REPO_URL, branch: 'docker_build'])
+    parallel real_linux: {
+        node('docker') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('real')
-            commit_container_artifacts('real')
+            strip_build_artifacts()
+            package_build_artifacts('real', 'linux')
+            upload_build_artifacts()
         }
     },
-    mock: {
-        node('docker_slave-centos-7.5-x86_64') {
-            git([url: env.REPO_URL, branch: 'docker_build'])
+    mock_linux: {
+        node('docker') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
             clean()
             build_safe_client_libs('mock')
-            commit_container_artifacts('mock')
+            strip_build_artifacts()
+            package_build_artifacts('mock', 'linux')
+            upload_build_artifacts()
             upload_binary_compatibility_test()
+        }
+    },
+    real_windows: {
+        node('windows') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('real')
+            strip_build_artifacts()
+            package_build_artifacts('real', 'windows')
+            upload_build_artifacts()
+        }
+    },
+    mock_windows: {
+        node('windows') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('mock')
+            strip_build_artifacts()
+            package_build_artifacts('mock', 'windows')
+            upload_build_artifacts()
         }
     }
 }
 
 stage('test') {
-    parallel mocked: {
-        node('docker_slave-centos-7.5-x86_64') {
-            run_mocked_tests()
+    parallel mocked_linux: {
+        node('docker') {
+            retrieve_build_artifacts('mock', 'linux')
+            run_tests('mock')
         }
     },
-    integration: {
-        node('docker_slave-centos-7.5-x86_64') {
-            run_integration_tests()
+    mocked_windows: {
+        node('windows') {
+            retrieve_build_artifacts('mock', 'windows')
+            run_tests('mock')
         }
     },
-    binary: {
-        node('docker_slave-centos-7.5-x86_64') {
+    integration_linux: {
+        node('docker') {
+            retrieve_build_artifacts('mock', 'linux')
+            run_tests('integration')
+        }
+    },
+    binary_linux: {
+        node('docker') {
             run_binary_compatibility_tests()
         }
     }
 }
 
-stage('packaging') {
-    node('docker_slave-centos-7.5-x86_64') {
-        for (app in ['safe_app', 'safe_authenticator']) {
-            run_packaging(app)
-        }
-        move_packages_to_deploy()
-    }
-}
-
 stage('deployment') {
-    node('docker_slave-centos-7.5-x86_64') {
+    node('docker') {
+        package_deploy_artifacts()
         withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
             def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
             for (artifact in artifacts) {
                 s3Upload(
-                    bucket: 'safe-client-libs-jenkins',
+                    bucket: "${env.DEPLOY_BUCKET}",
                     file: artifact,
                     workingDir: "${env.WORKSPACE}/deploy",
                     acl: 'PublicRead')
@@ -61,77 +83,15 @@ stage('deployment') {
 }
 
 stage('clean') {
-    node('docker_slave-centos-7.5-x86_64') {
+    node('docker') {
         clean()
     }
 }
 
 def clean() {
-    clean_build_containers()
-    def mock_tag = get_tag_from_full_image_name(get_committed_build_image_name('mock'))
-    def real_tag = get_tag_from_full_image_name(get_committed_build_image_name('real'))
-    // Unfortunately you can't seem to split this long string over multiple lines.
-    sh($/eval "docker images | grep -E '${mock_tag}|${real_tag}' | awk '{ print \$3 }' | xargs docker rmi || true" /$)
-    sh("rm -f *.zip")
-    sh("rm -rf deploy")
-}
-
-def clean_build_containers() {
     for (mode in ['mock', 'real']) {
         def container_name = get_container_name(mode, 'build')
         sh("docker rm ${container_name} || true")
-    }
-}
-
-def get_user_details() {
-    def user_id = sh(returnStdout: true, script: 'echo $UID').trim()
-    def group_id = sh(
-        returnStdout: true,
-        script: $/eval 'getent group $USER | awk -F : "{ print \$3 }"'/$).trim()
-    return [user_id, group_id]
-}
-
-def get_tag_from_full_image_name(image_name) {
-    return image_name.drop(image_name.indexOf(':') + 1)
-}
-
-def get_committed_build_image_name(mode) {
-    // There will only be 2 images created, 'real' and 'mock'.
-    // The binary and integration tests will both use the mock image, since all the builds
-    // they need will be committed in the mock image.
-    def m = mode == 'integration' || mode == 'binary' ? 'mock' : mode
-    def tag = "build-${m}-${env.BUILD_NUMBER}"
-    return "${env.IMAGE_NAME}:${tag}"
-}
-
-def build_safe_client_libs(mode) {
-    def user_details = get_user_details()
-    def user_id = user_details[0]
-    def group_id = user_details[1]
-    def image_name = "${env.IMAGE_NAME}:${env.IMAGE_TAG}"
-    def container_name = get_container_name(mode, 'build')
-    sh("docker run --name ${container_name} " +
-       "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
-       "-u ${user_id}:${group_id} " +
-       "${image_name} scripts/build-${mode}")
-}
-
-def upload_binary_compatibility_test() {
-    def container_name = get_container_name('mock', 'build')
-    sh("mkdir -p ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}")
-    sh("docker cp ${container_name}:/target/release .")
-    def test_executable = sh(
-        returnStdout: true,
-        script: $/eval "find release -maxdepth 1 -mindepth 1 -name 'tests-*' ! -name '*.d'" /$).trim()
-    sh("cp ${test_executable} ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}/tests")
-    sh("rm -rf release")
-    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
-        s3Upload(
-            bucket: 'safe-client-libs-jenkins',
-            file: "bct/${env.BUILD_NUMBER}/tests",
-            path: "bct/${env.BUILD_NUMBER}/tests",
-            workingDir: "${env.WORKSPACE}",
-            acl: 'PublicRead')
     }
 }
 
@@ -142,22 +102,79 @@ def get_container_name(mode, type, app='') {
     return "safe_client_libs_${mode}_${type}_${env.BUILD_NUMBER}"
 }
 
-def commit_container_artifacts(mode) {
-    def container_name = get_container_name(mode, 'build')
-    def container_id = sh(
+def package_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make package-build-artifacts"
+    sh(command)
+}
+
+def package_deploy_artifacts() {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "make retrieve-all-build-artifacts"
+    sh(command)
+    sh("make package-deploy-artifacts")
+}
+
+def build_safe_client_libs(mode) {
+    if (mode == "real") {
+        sh("make build")
+    } else {
+        sh("make build-mock")
+    }
+}
+
+def strip_build_artifacts() {
+    sh("make strip-artifacts")
+}
+
+def upload_build_artifacts() {
+    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+        def artifacts = sh(returnStdout: true, script: 'ls -1 artifacts').trim().split("\\r?\\n")
+        for (artifact in artifacts) {
+            s3Upload(
+                bucket: "${env.ARTIFACTS_BUCKET}",
+                file: artifact,
+                workingDir: "${env.WORKSPACE}/artifacts",
+                acl: 'PublicRead')
+        }
+    }
+}
+
+def upload_binary_compatibility_test() {
+    sh("mkdir -p ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}")
+    def test_executable = sh(
         returnStdout: true,
-        script: $/eval "docker ps -a | grep -w '${container_name}' | awk '{ print \$1 }'" /$).trim()
-    def image_name = get_committed_build_image_name(mode)
-    sh("docker commit ${container_id} ${image_name}")
+        script: $/eval "find target/release -maxdepth 1 -mindepth 1 -name 'tests-*' ! -name '*.d'" /$).trim()
+    sh("cp ${test_executable} ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}/tests")
+    sh("rm -rf target/release")
+    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+        s3Upload(
+            bucket: "${env.ARTIFACTS_BUCKET}",
+            file: "bct/${env.BUILD_NUMBER}/tests",
+            path: "bct/${env.BUILD_NUMBER}/tests",
+            workingDir: "${env.WORKSPACE}",
+            acl: 'PublicRead')
+    }
 }
 
-def run_mocked_tests() {
-    run_tests('mock')
+def retrieve_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make retrieve-build-artifacts"
+    sh(command)
 }
 
-def run_integration_tests() {
-    run_tests('integration')
-}
 
 def run_binary_compatibility_tests() {
     build_number = get_last_successful_build_number(currentBuild)
@@ -167,7 +184,7 @@ def run_binary_compatibility_tests() {
         withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
             s3Download(
                 file: "${bct_test_path}",
-                bucket: 'safe-client-libs-jenkins',
+                bucket: "${env.ARTIFACTS_BUCKET}",
                 path: "bct/${build_number}/tests",
                 force: true)
         }
@@ -178,45 +195,15 @@ def run_binary_compatibility_tests() {
 }
 
 def run_tests(mode, bct_test_path='') {
-    def user_details = get_user_details()
-    def user_id = user_details[0]
-    def group_id = user_details[1]
-    def image_name = get_committed_build_image_name(mode)
-    def container_name = get_container_name(mode, 'test_run')
-    def command = "docker run --rm --name ${container_name} " +
-        "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
-        "-e CARGO_TARGET_DIR=/target " +
-        "-u ${user_id}:${group_id} "
-    if (mode == 'binary') {
-        command += "-v ${bct_test_path}:/bct/tests:Z "
-        command += "-e COMPAT_TESTS=/bct/tests "
-    }
-    command += "${image_name} scripts/test-${mode}"
-    sh(command)
-}
-
-def run_packaging(app) {
-    def user_details = get_user_details()
-    def user_id = user_details[0]
-    def group_id = user_details[1]
-    for (mode in ['real', 'mock']) {
-        def image_name = get_committed_build_image_name(mode)
-        def container_name = get_container_name(mode, 'package', app)
-        def command = "docker run --rm --name ${container_name} " +
-            "-v ${env.WORKSPACE}:${env.MOUNT_POINT}:Z " +
-            "-e CARGO_TARGET_DIR=/target " +
-            "-u ${user_id}:${group_id} " +
-            "${image_name} scripts/package.rs --lib --name ${app} --commit"
-        if (mode == 'mock') {
-            command += " --mock"
-        }
+    if (mode == 'mock') {
+        sh("make test-artifacts-mock")
+    } else if (mode == 'binary') {
+        command = "SCL_BCT_PATH=${bct_test_path} "
+        command += "make test-artifacts-binary"
         sh(command)
+    } else {
+        sh("make test-artifacts-integration")
     }
-}
-
-def move_packages_to_deploy() {
-    sh('mkdir deploy')
-    sh('mv *.zip deploy')
 }
 
 def get_last_successful_build_number(build) {
