@@ -91,9 +91,9 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
-/// interface all requests from high level API's to the actual routing layer and manage all
-/// interactions with it. Essentially provides an interface for non-blocking Clients with an
-/// asynchronous API using the futures abstraction from the futures-rs crate.
+/// interface all requests from high-level APIs to the actual routing layer and manage all
+/// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
+/// abstraction from the futures-rs crate.
 pub trait Client: Clone + 'static {
     /// Associated message type.
     type MsgType;
@@ -114,7 +114,7 @@ pub trait Client: Clone + 'static {
     /// Return the public encryption key.
     fn public_encryption_key(&self) -> Option<box_::PublicKey>;
 
-    /// Return the Secret encryption key.
+    /// Return the secret encryption key.
     fn secret_encryption_key(&self) -> Option<shared_box::SecretKey>;
 
     /// Return the public and secret encryption keys.
@@ -122,13 +122,13 @@ pub trait Client: Clone + 'static {
         Some((self.public_encryption_key()?, self.secret_encryption_key()?))
     }
 
-    /// Return the Symmetric Encryption key.
+    /// Return the symmetric encryption key.
     fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key>;
 
-    /// Return the Public Signing key.
+    /// Return the public signing key.
     fn public_signing_key(&self) -> Option<sign::PublicKey>;
 
-    /// Return the Secret Signing key.
+    /// Return the secret signing key.
     fn secret_signing_key(&self) -> Option<shared_sign::SecretKey>;
 
     /// Return the public and secret signing keys.
@@ -473,9 +473,10 @@ pub trait Client: Clone + 'static {
     }
 }
 
+// TODO: Consider deprecating this struct once trait fields are stable. See
+// https://github.com/nikomatsakis/fields-in-traits-rfc.
 /// Struct containing fields expected by the `Client` trait. Implementers of `Client` should be
-/// composed around this struct. Once trait fields are in stable Rust, we can consider deprecating
-/// this struct.
+/// composed around this struct.
 pub struct ClientInner<C: Client, T> {
     el_handle: Handle,
     routing: Routing,

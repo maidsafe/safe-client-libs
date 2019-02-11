@@ -269,7 +269,7 @@ impl App {
         })
     }
 
-    /// Allows customising the mock Routing client before registering a new account
+    /// Allows customising the mock Routing client before registering a new account.
     #[cfg(feature = "use-mock-routing")]
     pub fn registered_with_hook<N, F>(
         app_id: String,
