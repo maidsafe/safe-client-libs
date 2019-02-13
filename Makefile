@@ -24,20 +24,20 @@ clean:
 
 build:
 	rm -rf artifacts
-ifeq ($(OS),Windows_NT)
-	./scripts/build-real
-else
+ifeq ($(UNAME_S),Linux)
 	./scripts/build-with-container "real" "${SAFE_APP_VERSION}"
+else
+	./scripts/build-real
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
 build-mock:
 	rm -rf artifacts
-ifeq ($(OS),Windows_NT)
-	./scripts/build-mock
-else
+ifeq ($(UNAME_S),Linux)
 	./scripts/build-with-container "mock" "${SAFE_APP_VERSION}"
+else
+	./scripts/build-mock
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;

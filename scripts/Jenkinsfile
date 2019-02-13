@@ -37,6 +37,24 @@ stage('build') {
             package_build_artifacts('mock', 'windows')
             upload_build_artifacts()
         }
+    },
+    real_osx: {
+        node('osx') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('real')
+            strip_build_artifacts()
+            package_build_artifacts('real', 'osx')
+            upload_build_artifacts()
+        }
+    },
+    mock_osx: {
+        node('osx') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('mock')
+            strip_build_artifacts()
+            package_build_artifacts('mock', 'osx')
+            upload_build_artifacts()
+        }
     }
 }
 
