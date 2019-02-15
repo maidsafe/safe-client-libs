@@ -71,6 +71,12 @@ stage('test') {
             run_tests('mock')
         }
     },
+    mocked_macos: {
+        node('osx') {
+            retrieve_build_artifacts('mock', 'osx')
+            run_tests('mock')
+        }
+    },
     integration_linux: {
         node('docker') {
             retrieve_build_artifacts('mock', 'linux')

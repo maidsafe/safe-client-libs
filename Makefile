@@ -108,7 +108,10 @@ endif
 		--no-sign-request \
 		--region eu-west-2 \
 		s3://${S3_BUCKET}/${ARCHIVE_NAME} .
-ifeq ($(OS),Windows_NT)
+ifeq ($(UNAME_S),Linux)
+	rm -rf artifacts && mkdir artifacts
+	tar -C artifacts -xvf ${ARCHIVE_NAME}
+else
 	# The first case would apply for running on a 'fresh' slave in a distributed setup.
 	# All the dependencies would of course need to be rebuilt here.
 	# This scenario should be very rare.
@@ -118,9 +121,6 @@ ifeq ($(OS),Windows_NT)
 		find target/release -maxdepth 1 -type f -exec rm '{}' \; ;\
 	fi
 	tar -C target/release -xvf ${ARCHIVE_NAME}
-else
-	rm -rf artifacts && mkdir artifacts
-	tar -C artifacts -xvf ${ARCHIVE_NAME}
 endif
 	rm ${ARCHIVE_NAME}
 
@@ -149,15 +149,15 @@ endif
 	rm ${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
 
 test-artifacts-mock:
-ifeq ($(OS),Windows_NT)
-	./scripts/test-mock
-else
+ifeq ($(UNAME_S),Linux)
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
 		-e SCL_TEST_SUITE=mock \
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-runner-container
+else
+	./scripts/test-mock
 endif
 
 test-artifacts-integration:
