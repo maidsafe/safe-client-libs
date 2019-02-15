@@ -281,7 +281,9 @@ fn main() {
             } else {
                 find_libs(krate, None, &target_dir)
             };
-            strip_libs(toolchain_path, arch, &arch_libs);
+            if strip {
+                strip_libs(toolchain_path, arch, &arch_libs);
+            }
             libs.extend_from_slice(&arch_libs)
         }
     }

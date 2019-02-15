@@ -147,8 +147,8 @@ endif
 	tar -C artifacts/linux/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
 	tar -C artifacts/win/real/release -xvf ${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
 	tar -C artifacts/win/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
-	tar -C artifacts/win/real/release -xvf ${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
-	tar -C artifacts/win/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
+	tar -C artifacts/osx/real/release -xvf ${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
+	tar -C artifacts/osx/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
