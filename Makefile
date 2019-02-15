@@ -135,18 +135,26 @@ endif
 	mkdir -p artifacts/linux/mock/release
 	mkdir -p artifacts/win/real/release
 	mkdir -p artifacts/win/mock/release
+	mkdir -p artifacts/osx/real/release
+	mkdir -p artifacts/osx/mock/release
 	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz .
 	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz .
 	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz .
 	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz .
+	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz .
 	tar -C artifacts/linux/real/release -xvf ${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
 	tar -C artifacts/linux/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
 	tar -C artifacts/win/real/release -xvf ${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
 	tar -C artifacts/win/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
+	tar -C artifacts/win/real/release -xvf ${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
+	tar -C artifacts/win/mock/release -xvf ${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
 	rm ${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
+	rm ${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
+	rm ${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
 
 test-artifacts-mock:
 ifeq ($(UNAME_S),Linux)
