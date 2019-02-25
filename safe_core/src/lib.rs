@@ -6,66 +6,13 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-//! SAFE core.
+//! SAFE Core.
 //!
-//! # Environment Variables
+//! ## Configuring SAFE Core
 //!
-//! The following environment variables can be set to enable custom options. Each one has higher
-//! precedence than its respective config file option (see the "Config" section below).
-//!
-//! ```ignore
-//! SAFE_MOCK_UNLIMITED_MUTATIONS
-//! ```
-//!
-//! If set, switch off mutations limit in mock-vault. If `safe_core` is built with
-//! `--features=use-mock-routing`, then setting this option will allow an unlimited number of
-//! mutations. `safe_core` does not need to be rebuilt for this to take effect.
-//!
-//! ```ignore
-//! SAFE_MOCK_IN_MEMORY_STORAGE
-//! ```
-//!
-//! If set, use memory store instead of file store in mock-vault. If `safe_core` is built with
-//! `--features=use-mock-routing`, then setting this option will use mock-vault's memory store,
-//! which is faster than reading/writing to disk. `safe_core` does not need to be rebuilt for this
-//! to take effect.
-//!
-//! ```ignore
-//! SAFE_MOCK_VAULT_PATH
-//! ```
-//!
-//! If this is set and file storage is being used (`mock_in_memory_storage` is `false`), use this as
-//! the path for mock-vault.
-//!
-//! # Config
-//!
-//! You can create a config file with custom options following the example in `sample_config/`. The
-//! file should be named `<exe>.safe_core.config`. The available options are as follows:
-//!
-//! ```ignore
-//! mock_unlimited_mutations
-//! ```
-//!
-//! If true, switch off mutations limit in mock-vault. If `safe_core` is built with
-//! `--features=use-mock-routing`, then setting this option will allow an unlimited number of
-//! mutations. `safe_core` does not need to be rebuilt for this to take effect. The default value is
-//! false.
-//!
-//! ```ignore
-//! mock_in_memory_storage
-//! ```
-//!
-//! If true, use memory store instead of file store in mock-vault. If `safe_core` is built with
-//! `--features=use-mock-routing`, then setting this option will use mock-vault's memory store,
-//! which is faster than reading/writing to disk. `safe_core` does not need to be rebuilt for this
-//! to take effect. The default value is false.
-//!
-//! ```ignore
-//! mock_vault_path
-//! ```
-//!
-//! If this variable is set and file storage is being used (`mock_in_memory_storage` is `false`),
-//! use this as the path for mock-vault.
+//! Please see the [Configuring Client
+//! Libs](https://github.com/maidsafe/safe_client_libs/wiki/Configuring-Client-Libs) section of the
+//! wiki.
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
