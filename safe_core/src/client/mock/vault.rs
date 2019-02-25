@@ -340,6 +340,6 @@ impl Store for FileStore {
 }
 
 /// Path to the mock vault store file.
-pub fn file_store_path(config: &Config) -> PathBuf {
+pub fn mock_vault_path(config: &Config) -> PathBuf {
     init_vault_path(config.dev.as_ref()).join(FILE_NAME)
 }

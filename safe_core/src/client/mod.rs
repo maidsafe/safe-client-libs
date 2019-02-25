@@ -23,7 +23,7 @@ mod routing_event_loop;
 pub use self::account::ClientKeys;
 pub use self::mdata_info::MDataInfo;
 #[cfg(feature = "use-mock-routing")]
-pub use self::mock::vault::file_store_path as mock_vault_path;
+pub use self::mock::vault::mock_store_path;
 #[cfg(feature = "use-mock-routing")]
 pub use self::mock::Routing as MockRouting;
 
