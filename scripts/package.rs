@@ -4,20 +4,26 @@
 //! cc = "=1.0.22"
 //! clap = "=2.27.1"
 //! colored = "1.6.0"
+//! flate2 = "1.0.7"
 //! heck = "0.3.0"
+//! tar = "0.4.22"
 //! toml = "0.4.5"
 //! walkdir = "2.0.1"
 //! zip = "=0.2.6"
 //! ```
 extern crate clap;
 extern crate colored;
+extern crate flate2;
 extern crate heck;
 extern crate toml;
 extern crate walkdir;
+extern crate tar;
 extern crate zip;
 
 use clap::{App, Arg};
 use colored::*;
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use heck::ShoutySnakeCase;
 use std::env;
 use std::fs::File;
@@ -288,26 +294,9 @@ fn main() {
         }
     }
 
-    // Create library archive.
     if !libs.is_empty() {
-        let archive_name = {
-            let mock = if mock { "-mock" } else { "" };
-            format!("{}{}-{}-{}.zip", krate, mock, version_string, arch_name)
-        };
-        let path: PathBuf = [dest_dir, &archive_name].iter().collect();
-
-        let file = File::create(path).unwrap();
-        let mut archive = ZipWriter::new(file);
-
-        for path in libs {
-            println!("Adding {:?} to {:?}", path, archive_name);
-            archive
-                .start_file(path.file_name().unwrap().to_string_lossy(), file_options)
-                .unwrap();
-
-            let mut file = File::open(path).unwrap();
-            io::copy(&mut file, &mut archive).unwrap();
-        }
+        package_artifacts_as_zip(&arch_name, &krate, &dest_dir, &libs, &version_string, mock, file_options);
+        package_artifacts_as_tar_gz(&arch_name, &krate, &dest_dir, &libs, &version_string, mock);
     }
 
     // Create bindings archive.
@@ -345,6 +334,38 @@ struct Arch {
     name: &'static str,
     target: &'static str,
     toolchain: &'static str,
+}
+
+fn package_artifacts_as_zip(arch_name: &str, krate: &str, dest_dir: &str, libs: &[PathBuf], version_string: &str, mock: bool, file_options: FileOptions) {
+    let archive_name = get_archive_name(&arch_name, &krate, "zip", &version_string, mock);
+    let path: PathBuf = [dest_dir, &archive_name].iter().collect();
+    let file = File::create(path).unwrap();
+    let mut archive = ZipWriter::new(file);
+    for path in libs {
+        println!("Adding {:?} to {:?}", path, archive_name);
+        archive
+            .start_file(path.file_name().unwrap().to_string_lossy(), file_options)
+            .unwrap();
+        let mut file = File::open(path).unwrap();
+        io::copy(&mut file, &mut archive).unwrap();
+    }
+}
+
+fn package_artifacts_as_tar_gz(arch_name: &str, krate: &str, dest_dir: &str, libs: &[PathBuf], version_string: &str, mock: bool) {
+    let archive_name = get_archive_name(&arch_name, &krate, "tar.gz", &version_string, mock);
+    let path: PathBuf = [dest_dir, &archive_name].iter().collect();
+    let file = File::create(path).unwrap();
+    let enc = GzEncoder::new(file, Compression::default());
+    let mut archive = tar::Builder::new(enc);
+    for path in libs {
+        println!("Adding {:?} to {:?}", path, archive_name);
+        archive.append_path_with_name(path, Path::new(path).file_name().unwrap().to_str().unwrap()).unwrap();
+    }
+}
+
+fn get_archive_name(arch_name: &str, krate: &str, archive_type: &str, version_string: &str, mock: bool) -> String {
+    let mock = if mock { "-mock" } else { "" };
+    format!("{}{}-{}-{}.{}", krate, mock, version_string, arch_name, archive_type)
 }
 
 fn get_version_string(krate: &str, commit: bool) -> String {
