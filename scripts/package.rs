@@ -381,7 +381,7 @@ fn package_artifacts_as_tar_gz(
     for path in libs {
         println!("Adding {:?} to {:?}", path, archive_name);
         archive
-            .append_path_with_name(path, Path::new(path).file_name().unwrap().to_str().unwrap())
+            .append_path_with_name(path, path.file_name().unwrap().to_str().unwrap())
             .unwrap();
     }
 }
