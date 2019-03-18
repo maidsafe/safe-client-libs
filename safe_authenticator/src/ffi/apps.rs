@@ -55,7 +55,7 @@ impl Drop for RegisteredApp {
     }
 }
 
-/// Removes a revoked app from the authenticator config.
+/// Remove a revoked app from the authenticator config.
 #[no_mangle]
 pub unsafe extern "C" fn auth_rm_revoked_app(
     auth: *const Authenticator,

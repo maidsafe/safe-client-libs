@@ -11,14 +11,13 @@
 use ffi::arrays::*;
 use ffi::ipc::req::PermissionSet;
 use ffi::MDataInfo;
-use rust_sodium::crypto::sign;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
 
 /// Represents the needed keys to work with the data.
 #[repr(C)]
-#[derive(Copy)]
+#[derive(Clone, Copy)]
 pub struct AppKeys {
     /// Owner signing public key
     pub owner_key: SignPublicKey,
@@ -34,30 +33,6 @@ pub struct AppKeys {
     pub enc_pk: AsymPublicKey,
     /// Asymmetric enc private key.
     pub enc_sk: AsymSecretKey,
-}
-
-#[cfg_attr(feature = "cargo-clippy", allow(expl_impl_clone_on_copy))]
-impl Clone for AppKeys {
-    // Implemented manually because:
-    // error[E0277]: the trait bound `[u8; 64]: std::clone::Clone` is not satisfied
-    //
-    // There is a default implementation only until size 32
-    fn clone(&self) -> Self {
-        let mut sign_pk = [0; sign::PUBLICKEYBYTES];
-        let mut sign_sk = [0; sign::SECRETKEYBYTES];
-
-        sign_pk.copy_from_slice(&self.sign_pk);
-        sign_sk.copy_from_slice(&self.sign_sk);
-
-        AppKeys {
-            owner_key: self.owner_key,
-            enc_key: self.enc_key,
-            sign_pk,
-            sign_sk,
-            enc_pk: self.enc_pk,
-            enc_sk: self.enc_sk,
-        }
-    }
 }
 
 /// Access container info.
@@ -144,20 +119,34 @@ impl Drop for AuthGranted {
     }
 }
 
-/// Information about an application that has access to an MD through `sign_key`
+/// Information about an application that has access to an MD through `sign_key`.
 #[repr(C)]
 pub struct AppAccess {
-    /// App's or user's public key
+    /// App's or user's public key.
     pub sign_key: SignPublicKey,
-    /// A list of permissions
+    /// A list of permissions.
     pub permissions: PermissionSet,
-    /// App's user-facing name
+    /// App's user-facing name.
     pub name: *const c_char,
     /// App id.
     pub app_id: *const c_char,
 }
 
-/// User metadata for mutable data
+impl Drop for AppAccess {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.name.is_null() {
+                let _ = CString::from_raw(self.name as *mut _);
+            }
+
+            if !self.app_id.is_null() {
+                let _ = CString::from_raw(self.app_id as *mut _);
+            }
+        }
+    }
+}
+
+/// User metadata for mutable data.
 #[repr(C)]
 pub struct MetadataResponse {
     /// Name or purpose of this mutable data.

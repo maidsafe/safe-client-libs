@@ -34,6 +34,7 @@ use tiny_keccak::sha3_256;
 pub static METADATA_KEY: &'static [u8] = b"_metadata";
 /// Length of the metadata key.
 // IMPORTANT: make sure this value stays in sync with the actual length of `METADATA_KEY`!
+// TODO: Replace with `METADATA_KEY.len()` once `len` is stable as a const fn.
 #[no_mangle]
 pub static METADATA_KEY_LEN: usize = 9;
 
@@ -69,9 +70,7 @@ pub struct AuthGranted {
 }
 
 impl AuthGranted {
-    /// Consumes the object and returns the wrapped raw pointer
-    ///
-    /// You're now responsible for freeing this memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::AuthGranted, IpcError> {
         let AuthGranted {
             app_keys,
@@ -155,9 +154,7 @@ impl AppKeys {
         }
     }
 
-    /// Consumes the object and returns the wrapped raw pointer
-    ///
-    /// You're now responsible for freeing this memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> ffi::AppKeys {
         let AppKeys {
             owner_key,
@@ -249,9 +246,7 @@ pub struct AccessContInfo {
 }
 
 impl AccessContInfo {
-    /// Consumes the object and returns the wrapped raw pointer
-    ///
-    /// You're now responsible for freeing this memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> ffi::AccessContInfo {
         let AccessContInfo { id, tag, nonce } = self;
         ffi::AccessContInfo {
@@ -325,9 +320,7 @@ pub struct AppAccess {
 }
 
 impl AppAccess {
-    /// Consumes the object and returns the wrapped raw pointer.
-    ///
-    /// You're now responsible for freeing this memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::AppAccess, IpcError> {
         let AppAccess {
             sign_key,

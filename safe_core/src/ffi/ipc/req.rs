@@ -36,8 +36,7 @@ impl ReprC for PermissionSet {
 
     /// Constructs the object from a raw pointer.
     ///
-    /// After calling this function, the raw pointer is owned by the resulting
-    /// object.
+    /// After calling this function, the raw pointer is owned by the resulting object.
     unsafe fn clone_from_repr_c(raw: Self::C) -> Result<Self, Self::Error> {
         Ok(*raw)
     }
@@ -132,7 +131,7 @@ impl Drop for AuthReq {
     }
 }
 
-/// Containers request
+/// Containers request.
 #[repr(C)]
 pub struct ContainersReq {
     /// Exchange info

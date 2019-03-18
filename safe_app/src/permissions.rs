@@ -26,9 +26,7 @@ pub struct UserPermissionSet {
 }
 
 impl UserPermissionSet {
-    /// Consumes the object and returns the FFI counterpart.
-    ///
-    /// You're now responsible for freeing the object's memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> FfiUserPermissionSet {
         FfiUserPermissionSet {
             user_h: self.user_h,

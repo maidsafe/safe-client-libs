@@ -134,7 +134,7 @@ impl MDataInfo {
         }
     }
 
-    /// Convert into C-representation.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> FfiMDataInfo {
         let (has_enc_info, enc_key, enc_nonce) = enc_info_into_repr_c(self.enc_info);
         let (has_new_enc_info, new_enc_key, new_enc_nonce) =

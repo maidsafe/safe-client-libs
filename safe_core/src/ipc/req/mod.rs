@@ -234,9 +234,7 @@ pub struct AppExchangeInfo {
 }
 
 impl AppExchangeInfo {
-    /// Consumes the object and returns the wrapped raw pointer.
-    ///
-    /// You're now responsible for freeing this memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<FfiAppExchangeInfo, IpcError> {
         let AppExchangeInfo {
             id,
@@ -264,8 +262,7 @@ impl ReprC for AppExchangeInfo {
 
     /// Constructs the object from a raw pointer.
     ///
-    /// After calling this function, the raw pointer is owned by the resulting
-    /// object.
+    /// After calling this function, the raw pointer is owned by the resulting object.
     unsafe fn clone_from_repr_c(raw: *const FfiAppExchangeInfo) -> Result<Self, IpcError> {
         Ok(AppExchangeInfo {
             id: from_c_str((*raw).id).map_err(StringError::from)?,

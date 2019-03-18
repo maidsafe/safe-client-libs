@@ -36,7 +36,7 @@ impl File {
         }
     }
 
-    /// Construct FFI wrapper for the native rust `File`, consuming the file.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> FfiFile {
         // TODO: move the metadata, not clone.
         let user_metadata = self.user_metadata().to_vec();
@@ -111,7 +111,6 @@ impl ReprC for File {
     type C = *const FfiFile;
     type Error = NfsError;
 
-    /// Convert to the native rust equivalent by cloning the internal data, preserving self.
     #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let user_metadata =

@@ -13,12 +13,12 @@ use ipc::errors::IpcError;
 use routing::{PermissionSet, XorName};
 use std::slice;
 
-/// Represents a request to share mutable data
+/// Represents a request to share mutable data.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ShareMDataReq {
-    /// Info about the app requesting shared access
+    /// Info about the app requesting shared access.
     pub app: AppExchangeInfo,
-    /// List of MD names & type tags and permissions that need to be shared
+    /// List of MD names & type tags and permissions that need to be shared.
     pub mdata: Vec<ShareMData>,
 }
 
@@ -34,8 +34,7 @@ pub struct ShareMData {
 }
 
 impl ShareMDataReq {
-    /// Convert to it's C representation
-    /// The returned `ffi::ShareMDataReq` contains pointers into the returned `Vec`. As such, the
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::ShareMDataReq, IpcError> {
         let mdata_repr_c: Vec<_> = self
             .mdata
@@ -58,7 +57,6 @@ impl ReprC for ShareMDataReq {
     type C = *const ffi::ShareMDataReq;
     type Error = IpcError;
 
-    /// Constructs the object from a raw pointer.
     unsafe fn clone_from_repr_c(raw: *const ffi::ShareMDataReq) -> Result<Self, IpcError> {
         Ok(ShareMDataReq {
             app: AppExchangeInfo::clone_from_repr_c(&(*raw).app)?,
@@ -74,7 +72,7 @@ impl ReprC for ShareMDataReq {
 }
 
 impl ShareMData {
-    /// Convert to it's C representation
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::ShareMData, IpcError> {
         Ok(ffi::ShareMData {
             type_tag: self.type_tag,
@@ -88,7 +86,6 @@ impl ReprC for ShareMData {
     type C = *const ffi::ShareMData;
     type Error = IpcError;
 
-    /// Constructs the object from a raw pointer.
     unsafe fn clone_from_repr_c(raw: *const ffi::ShareMData) -> Result<Self, IpcError> {
         Ok(ShareMData {
             type_tag: (*raw).type_tag,

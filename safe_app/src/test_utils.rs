@@ -70,12 +70,12 @@ where
     unwrap!(unwrap!(rx.recv()))
 }
 
-/// Create a random app
+/// Create a random app.
 pub fn create_app() -> App {
     unwrap!(create_app_by_req(&create_random_auth_req()))
 }
 
-/// Create a random app given an app authorisation request
+/// Create a random app given an app authorisation request.
 pub fn create_app_by_req(auth_req: &NativeAuthReq) -> Result<App, AppError> {
     let auth = authenticator::create_account_and_login();
     let auth_granted =
@@ -108,12 +108,13 @@ pub fn create_auth_req(
     }
 }
 
-/// Create registered app with a random id.
+/// Create an app authorisation request with a random id.
 pub fn create_random_auth_req() -> NativeAuthReq {
     create_auth_req(None, None)
 }
 
-/// Create registered app with a random id and grant it access to the specified containers.
+/// Create an app authorisation request with a random id and grant it access to the specified
+/// containers.
 pub fn create_auth_req_with_access(
     access_info: HashMap<String, ContainerPermissions>,
 ) -> NativeAuthReq {
