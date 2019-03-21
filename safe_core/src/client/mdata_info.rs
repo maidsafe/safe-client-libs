@@ -272,14 +272,23 @@ impl ReprC for MDataInfo {
     type Error = IpcError;
 
     #[allow(unsafe_code)]
-    unsafe fn clone_from_repr_c(c: Self::C) -> Result<Self, Self::Error> {
-        let c = &*c;
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let FfiMDataInfo {
+            name,
+            type_tag,
+            has_enc_info,
+            enc_key,
+            enc_nonce,
+            has_new_enc_info,
+            new_enc_key,
+            new_enc_nonce
+        } = *repr_c;
 
-        Ok(MDataInfo {
-            name: XorName(c.name),
-            type_tag: c.type_tag,
-            enc_info: enc_info_from_repr_c(c.has_enc_info, c.enc_key, c.enc_nonce),
-            new_enc_info: enc_info_from_repr_c(c.has_new_enc_info, c.new_enc_key, c.new_enc_nonce),
+        Ok(Self {
+            name: XorName(name),
+            type_tag,
+            enc_info: enc_info_from_repr_c(has_enc_info, enc_key, enc_nonce),
+            new_enc_info: enc_info_from_repr_c(has_new_enc_info, new_enc_key, new_enc_nonce),
         })
     }
 }

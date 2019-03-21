@@ -52,8 +52,8 @@ impl ReprC for AuthReq {
     /// Constructs the object from the FFI counterpart.
     ///
     /// After calling this function, the subobjects memory is owned by the resulting object.
-    unsafe fn clone_from_repr_c(repr_c: *const ffi::AuthReq) -> Result<Self, IpcError> {
-        Ok(AuthReq {
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        Ok(Self {
             app: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app)?,
             app_container: (*repr_c).app_container,
             containers: containers_from_repr_c((*repr_c).containers, (*repr_c).containers_len)?,

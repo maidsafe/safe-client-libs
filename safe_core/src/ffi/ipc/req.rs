@@ -37,8 +37,8 @@ impl ReprC for PermissionSet {
     /// Constructs the object from a raw pointer.
     ///
     /// After calling this function, the raw pointer is owned by the resulting object.
-    unsafe fn clone_from_repr_c(raw: Self::C) -> Result<Self, Self::Error> {
-        Ok(*raw)
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        Ok(*repr_c)
     }
 }
 
@@ -48,21 +48,21 @@ impl CallbackArgs for PermissionSet {
     }
 }
 
-/// Represents an application ID in the process of asking permissions
+/// Represents an application ID in the process of asking permissions.
 #[repr(C)]
 pub struct AppExchangeInfo {
-    /// UTF-8 encoded id
+    /// UTF-8 encoded id.
     pub id: *const c_char,
 
-    /// Reserved by the frontend
+    /// Reserved by the frontend.
     ///
-    /// null if not present
+    /// null if not present.
     pub scope: *const c_char,
 
     /// UTF-8 encoded application friendly-name.
     pub name: *const c_char,
 
-    /// UTF-8 encoded application provider/vendor (e.g. MaidSafe)
+    /// UTF-8 encoded application provider/vendor (e.g. MaidSafe).
     pub vendor: *const c_char,
 }
 

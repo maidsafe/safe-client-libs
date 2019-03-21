@@ -127,8 +127,12 @@ pub struct AppAccess {
     /// A list of permissions.
     pub permissions: PermissionSet,
     /// App's user-facing name.
+    ///
+    /// null if not present.
     pub name: *const c_char,
     /// App id.
+    ///
+    /// null if not present.
     pub app_id: *const c_char,
 }
 
@@ -150,8 +154,12 @@ impl Drop for AppAccess {
 #[repr(C)]
 pub struct MetadataResponse {
     /// Name or purpose of this mutable data.
+    ///
+    /// null if not present.
     pub name: *const c_char,
     /// Description of how this mutable data should or should not be shared.
+    ///
+    /// null if not present.
     pub description: *const c_char,
     /// Xor name of this struct's corresponding MData object.
     pub xor_name: XorNameArray,
@@ -187,7 +195,7 @@ impl Drop for MetadataResponse {
 
 /// Represents an FFI-safe mutable data key.
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct MDataKey {
     /// Key value pointer.
     pub key: *const u8,
@@ -197,7 +205,7 @@ pub struct MDataKey {
 
 /// Represents the FFI-safe mutable data value.
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct MDataValue {
     /// Content pointer.
     pub content: *const u8,
@@ -209,7 +217,7 @@ pub struct MDataValue {
 
 /// Represents an FFI-safe mutable data (key, value) entry.
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct MDataEntry {
     /// Mutable data key.
     pub key: MDataKey,

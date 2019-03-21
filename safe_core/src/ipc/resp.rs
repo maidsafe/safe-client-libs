@@ -108,7 +108,7 @@ impl ReprC for AuthGranted {
         let bootstrap_config = slice::from_raw_parts(bootstrap_config, bootstrap_config_len);
         let bootstrap_config = deserialise(bootstrap_config)?;
 
-        Ok(AuthGranted {
+        Ok(Self {
             app_keys: AppKeys::clone_from_repr_c(app_keys)?,
             bootstrap_config,
             access_container_info: AccessContInfo::clone_from_repr_c(access_container_info)?,
@@ -179,14 +179,14 @@ impl ReprC for AppKeys {
     type C = ffi::AppKeys;
     type Error = IpcError;
 
-    unsafe fn clone_from_repr_c(raw: Self::C) -> Result<Self, Self::Error> {
-        Ok(AppKeys {
-            owner_key: PublicKey(raw.owner_key),
-            enc_key: shared_secretbox::Key::from_raw(&raw.enc_key),
-            sign_pk: PublicKey(raw.sign_pk),
-            sign_sk: shared_sign::SecretKey::from_raw(&raw.sign_sk),
-            enc_pk: box_::PublicKey(raw.enc_pk),
-            enc_sk: shared_box::SecretKey::from_raw(&raw.enc_sk),
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        Ok(Self {
+            owner_key: PublicKey(repr_c.owner_key),
+            enc_key: shared_secretbox::Key::from_raw(&repr_c.enc_key),
+            sign_pk: PublicKey(repr_c.sign_pk),
+            sign_sk: shared_sign::SecretKey::from_raw(&repr_c.sign_sk),
+            enc_pk: box_::PublicKey(repr_c.enc_pk),
+            enc_sk: shared_box::SecretKey::from_raw(&repr_c.enc_sk),
         })
     }
 }
@@ -282,7 +282,7 @@ impl ReprC for AccessContInfo {
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(AccessContInfo {
+        Ok(Self {
             id: XorName(repr_c.id),
             tag: repr_c.tag,
             nonce: secretbox::Nonce(repr_c.nonce),
@@ -353,11 +353,26 @@ impl ReprC for AppAccess {
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(AppAccess {
-            sign_key: PublicKey((*repr_c).sign_key),
-            permissions: permission_set_clone_from_repr_c((*repr_c).permissions)?,
-            name: Some(String::clone_from_repr_c((*repr_c).name)?),
-            app_id: Some(String::clone_from_repr_c((*repr_c).app_id)?),
+        let ffi::AppAccess {
+            sign_key,
+            permissions,
+            name,
+            app_id,
+        } = *repr_c;
+
+        Ok(Self {
+            sign_key: PublicKey(sign_key),
+            permissions: permission_set_clone_from_repr_c(permissions)?,
+            name: if name.is_null() {
+                None
+            } else {
+                Some(String::clone_from_repr_c(name)?)
+            },
+            app_id: if name.is_null() {
+                None
+            } else {
+                Some(String::clone_from_repr_c(app_id)?)
+            },
         })
     }
 }
@@ -398,16 +413,24 @@ impl ReprC for UserMetadata {
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(UserMetadata {
-            name: if (*repr_c).name.is_null() {
+        let ffi::MetadataResponse {
+            name,
+            description,
+
+            xor_name: _,
+            type_tag: _,
+        } = *repr_c;
+
+        Ok(Self {
+            name: if name.is_null() {
                 None
             } else {
-                Some(String::clone_from_repr_c((*repr_c).name)?)
+                Some(String::clone_from_repr_c(name)?)
             },
-            description: if (*repr_c).description.is_null() {
+            description: if description.is_null() {
                 None
             } else {
-                Some(String::clone_from_repr_c((*repr_c).description)?)
+                Some(String::clone_from_repr_c(description)?)
             },
         })
     }
@@ -445,14 +468,14 @@ impl ReprC for MDataValue {
     type C = *const ffi::MDataValue;
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let ffi::MDataValue {
             content,
             content_len,
             entry_version,
-        } = *c_repr;
+        } = *repr_c;
 
-        Ok(MDataValue {
+        Ok(Self {
             content: slice::from_raw_parts(content, content_len).to_vec(),
             entry_version,
         })
@@ -485,8 +508,8 @@ impl ReprC for MDataKey {
     type C = *const ffi::MDataKey;
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
-        let ffi::MDataKey { key, key_len } = *c_repr;
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let ffi::MDataKey { key, key_len } = *repr_c;
 
         Ok(MDataKey(slice::from_raw_parts(key, key_len).to_vec()))
     }
@@ -515,12 +538,12 @@ impl ReprC for MDataEntry {
     type C = *const ffi::MDataEntry;
     type Error = ();
 
-    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
-        let ffi::MDataEntry { key, value } = *c_repr;
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let ffi::MDataEntry { ref key, ref value } = *repr_c;
 
-        Ok(MDataEntry {
-            key: MDataKey::clone_from_repr_c(&key)?,
-            value: MDataValue::clone_from_repr_c(&value)?,
+        Ok(Self {
+            key: MDataKey::clone_from_repr_c(key)?,
+            value: MDataValue::clone_from_repr_c(value)?,
         })
     }
 }

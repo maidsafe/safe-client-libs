@@ -263,16 +263,23 @@ impl ReprC for AppExchangeInfo {
     /// Constructs the object from a raw pointer.
     ///
     /// After calling this function, the raw pointer is owned by the resulting object.
-    unsafe fn clone_from_repr_c(raw: *const FfiAppExchangeInfo) -> Result<Self, IpcError> {
-        Ok(AppExchangeInfo {
-            id: from_c_str((*raw).id).map_err(StringError::from)?,
-            scope: if (*raw).scope.is_null() {
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let FfiAppExchangeInfo {
+            id,
+            scope,
+            name,
+            vendor
+        } = *repr_c;
+
+        Ok(Self {
+            id: from_c_str(id).map_err(StringError::from)?,
+            scope: if scope.is_null() {
                 None
             } else {
-                Some(from_c_str((*raw).scope).map_err(StringError::from)?)
+                Some(from_c_str(scope).map_err(StringError::from)?)
             },
-            name: from_c_str((*raw).name).map_err(StringError::from)?,
-            vendor: from_c_str((*raw).vendor).map_err(StringError::from)?,
+            name: from_c_str(name).map_err(StringError::from)?,
+            vendor: from_c_str(vendor).map_err(StringError::from)?,
         })
     }
 }

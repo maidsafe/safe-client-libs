@@ -57,11 +57,11 @@ impl ReprC for ShareMDataReq {
     type C = *const ffi::ShareMDataReq;
     type Error = IpcError;
 
-    unsafe fn clone_from_repr_c(raw: *const ffi::ShareMDataReq) -> Result<Self, IpcError> {
-        Ok(ShareMDataReq {
-            app: AppExchangeInfo::clone_from_repr_c(&(*raw).app)?,
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        Ok(Self {
+            app: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app)?,
             mdata: {
-                let mdata = slice::from_raw_parts((*raw).mdata, (*raw).mdata_len);
+                let mdata = slice::from_raw_parts((*repr_c).mdata, (*repr_c).mdata_len);
                 mdata
                     .into_iter()
                     .map(|c| ShareMData::clone_from_repr_c(c))
@@ -86,11 +86,11 @@ impl ReprC for ShareMData {
     type C = *const ffi::ShareMData;
     type Error = IpcError;
 
-    unsafe fn clone_from_repr_c(raw: *const ffi::ShareMData) -> Result<Self, IpcError> {
-        Ok(ShareMData {
-            type_tag: (*raw).type_tag,
-            name: XorName((*raw).name),
-            perms: permission_set_clone_from_repr_c((*raw).perms)?,
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        Ok(Self {
+            type_tag: (*repr_c).type_tag,
+            name: XorName((*repr_c).name),
+            perms: permission_set_clone_from_repr_c((*repr_c).perms)?,
         })
     }
 }

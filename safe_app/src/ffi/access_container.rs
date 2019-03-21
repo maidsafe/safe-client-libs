@@ -207,10 +207,10 @@ mod tests {
         type C = *const FfiContainerPermissions;
         type Error = AppError;
 
-        unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
-            Ok(PermSet(
-                from_c_str((*c_repr).cont_name)?,
-                container_perms_from_repr_c((*c_repr).access)?,
+        unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+            Ok(Self(
+                from_c_str((*repr_c).cont_name)?,
+                container_perms_from_repr_c((*repr_c).access)?,
             ))
         }
     }
