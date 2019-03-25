@@ -46,6 +46,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 use Authenticator;
 
+/// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]
 macro_rules! assert_match {
     ($e:expr, $p:pat) => {
