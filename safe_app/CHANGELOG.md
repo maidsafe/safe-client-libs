@@ -1,5 +1,10 @@
 # SAFE App
 
+## [0.9.1]
+- Improve docstrings for public functions.
+- Make general documentation fixes and improvements.
+- Fix some compiler errors.
+
 ## [0.9.0]
 - There's a known bug in this release related to Java/JNI on debug builds. It results in a "no Task is currently running" error message and panic when calling the `file_close` function
 - `dir_update_file` and `dir_delete_file` now return the new version of the file entry

@@ -1,5 +1,10 @@
 # Safe Core - Change Log
 
+## [0.32.1]
+- Move module-level documentation to wiki, replace with link.
+- Make general documentation fixes and improvements.
+- Fix some compiler errors.
+
 ## [0.32.0]
 - Switch to base32 encodings for case-insensitive URIs for IPC
 - Send a mock bit with ipc messages so that mock and non-mock components trying to communicate results in an error

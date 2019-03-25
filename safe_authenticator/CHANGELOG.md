@@ -1,5 +1,9 @@
 # SAFE Authenticator - Change Log
 
+## [0.9.1]
+- Make general documentation fixes and improvements.
+- Fix some compiler errors.
+
 ## [0.9.0]
 - `dir_update_file` and `dir_delete_file` now return the new version of the file entry
 - Fix bindgen builds not including the FfiResult struct
