@@ -208,7 +208,7 @@ mod tests {
         type Error = AppError;
 
         unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-            Ok(Self(
+            Ok(PermSet(
                 from_c_str((*repr_c).cont_name)?,
                 container_perms_from_repr_c((*repr_c).access)?,
             ))
