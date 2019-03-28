@@ -136,6 +136,20 @@ fn main() {
                 .requires("seed")
                 .help("Only Get the data, don't Put it. Logs in to an existing account."),
         ).arg(
+            Arg::with_name("locator")
+                .short("l")
+                .long("locator")
+                .takes_value(true)
+                .requires("password")
+                .help("Use the given Locator for login."),
+        ).arg(
+            Arg::with_name("password")
+                .short("p")
+                .long("password")
+                .takes_value(true)
+                .requires("locator")
+                .help("Use the given Password for login."),
+        ).arg(
             Arg::with_name("invite")
                 .long("invite")
                 .takes_value(true)
@@ -161,31 +175,40 @@ fn main() {
     let get_only = matches.is_present("get-only");
 
     // Create account
-    let secret_0: String = rng.gen_ascii_chars().take(20).collect();
-    let secret_1: String = rng.gen_ascii_chars().take(20).collect();
+    let (locator, password) = if let (Some(locator), Some(password)) =
+        (matches.value_of("locator"), matches.value_of("password"))
+    {
+        (locator.to_string(), password.to_string())
+    } else {
+        let new_locator = rng.gen_ascii_chars().take(20).collect();
+        let new_password = rng.gen_ascii_chars().take(20).collect();
+        println!(
+            "A new account will be created.\nLocator: {}\nPassword: {}",
+            new_locator, new_password
+        );
+        (new_locator, new_password)
+    };
 
-    let auth = if get_only {
+    let try_login = matches.is_present("locator") && matches.is_present("password");
+    let auth = if get_only || try_login {
         println!("\n\tAccount Login");
         println!("\t================");
         println!("\nTrying to login to an account ...");
 
-        unwrap!(Authenticator::login(secret_0, secret_1, || ()))
+        unwrap!(Authenticator::login(locator, password, || ()))
     } else {
         println!("\n\tAccount Creation");
         println!("\t================");
         println!("\nTrying to create an account ...");
 
         let auth = unwrap!(Authenticator::create_acc(
-            secret_0.as_str(),
-            secret_1.as_str(),
+            locator.as_str(),
+            password.as_str(),
             invitation.as_str(),
             || ()
         ));
 
-        println!(
-            "Created an account!\nLocator: {}\nPassword: {}",
-            secret_0, secret_1
-        );
+        println!("Account created!");
 
         auth
     };
