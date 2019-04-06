@@ -6,18 +6,18 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crypto::shared_secretbox;
-use errors::CoreError;
-use ffi::arrays::{SymNonce, SymSecretKey};
-use ffi::MDataInfo as FfiMDataInfo;
+use crate::crypto::shared_secretbox;
+use crate::errors::CoreError;
+use crate::ffi::arrays::{SymNonce, SymSecretKey};
+use crate::ffi::MDataInfo as FfiMDataInfo;
 use ffi_utils::ReprC;
-use ipc::IpcError;
+use crate::ipc::IpcError;
 use rand::{OsRng, Rng};
 use routing::{EntryAction, Value, XorName};
 use rust_sodium::crypto::secretbox;
 use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::sha3_256;
-use utils::{symmetric_decrypt, symmetric_encrypt};
+use crate::utils::{symmetric_decrypt, symmetric_encrypt};
 
 /// Information allowing to locate and access mutable data on the network.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]

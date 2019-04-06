@@ -7,9 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use chrono::{DateTime, NaiveDateTime, Utc};
-use ffi::nfs::File as FfiFile;
+use crate::ffi::nfs::File as FfiFile;
 use ffi_utils::{vec_into_raw_parts, ReprC};
-use nfs::errors::NfsError;
+use crate::nfs::errors::NfsError;
 use routing::XorName;
 use std::slice;
 

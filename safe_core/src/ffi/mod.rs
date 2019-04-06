@@ -18,7 +18,7 @@ pub mod ipc;
 pub mod nfs;
 
 use self::arrays::*;
-use errors::CoreError;
+use crate::errors::CoreError;
 use ffi_utils::ReprC;
 
 /// Represents the FFI-safe account info.

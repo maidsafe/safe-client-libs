@@ -7,8 +7,8 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::Client;
-use errors::CoreError;
-use event_loop::CoreFuture;
+use crate::errors::CoreError;
+use crate::event_loop::CoreFuture;
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use routing::{
@@ -16,7 +16,7 @@ use routing::{
 };
 use rust_sodium::crypto::sign;
 use std::collections::BTreeMap;
-use utils::FutureExt;
+use crate::utils::FutureExt;
 
 const MAX_ATTEMPTS: usize = 10;
 

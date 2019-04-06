@@ -32,14 +32,14 @@ use self::mock::Routing;
 #[cfg(not(feature = "use-mock-routing"))]
 use routing::Client as Routing;
 
-use crypto::{shared_box, shared_secretbox, shared_sign};
-use errors::CoreError;
-use event::{CoreEvent, NetworkEvent, NetworkTx};
-use event_loop::{CoreFuture, CoreMsgTx};
+use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::errors::CoreError;
+use crate::event::{CoreEvent, NetworkEvent, NetworkTx};
+use crate::event_loop::{CoreFuture, CoreMsgTx};
 use futures::future::{self, Either, FutureResult, Loop, Then};
 use futures::sync::oneshot;
 use futures::{Complete, Future};
-use ipc::BootstrapConfig;
+use crate::ipc::BootstrapConfig;
 use lru_cache::LruCache;
 use maidsafe_utilities::thread::{self, Joiner};
 use routing::{
@@ -54,7 +54,7 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::Duration;
 use tokio_core::reactor::{Handle, Timeout};
-use utils::FutureExt;
+use crate::utils::FutureExt;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;

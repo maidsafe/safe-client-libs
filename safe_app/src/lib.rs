@@ -72,27 +72,16 @@ maidsafe_logo.png",
     allow(implicit_hasher, too_many_arguments, use_debug)
 )]
 
-extern crate config_file_handler;
 #[macro_use]
 extern crate ffi_utils;
-extern crate futures;
 #[macro_use]
 extern crate log;
-extern crate lru_cache;
-extern crate maidsafe_utilities;
 #[cfg(test)]
 extern crate rand;
-extern crate routing;
-extern crate rust_sodium;
-#[cfg(any(test, feature = "testing"))]
-extern crate safe_authenticator;
 #[macro_use]
 extern crate safe_core;
-extern crate self_encryption;
 #[macro_use]
 extern crate serde_derive;
-extern crate tiny_keccak;
-extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 

@@ -15,9 +15,9 @@ pub mod permissions;
 #[cfg(test)]
 mod tests;
 
-use errors::AppError;
-use ffi::helper::send;
-use ffi::object_cache::{
+use crate::errors::AppError;
+use crate::ffi::helper::send;
+use crate::ffi::object_cache::{
     MDataEntriesHandle, MDataEntryActionsHandle, MDataPermissionsHandle, SignPubKeyHandle,
     NULL_OBJECT_HANDLE,
 };
@@ -35,7 +35,7 @@ use safe_core::ipc::resp::{MDataKey as NativeMDataKey, MDataValue as NativeMData
 use safe_core::Client;
 use safe_core::{CoreError, FutureExt, MDataInfo as NativeMDataInfo};
 use std::os::raw::c_void;
-use App;
+use crate::App;
 
 /// Special value that represents an empty permission set.
 #[no_mangle]

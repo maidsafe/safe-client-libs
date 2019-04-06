@@ -8,9 +8,9 @@
 
 #![allow(unsafe_code)]
 
-use ffi::arrays::*;
-use ffi::ipc::req::PermissionSet;
-use ffi::MDataInfo;
+use crate::ffi::arrays::*;
+use crate::ffi::ipc::req::PermissionSet;
+use crate::ffi::MDataInfo;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;

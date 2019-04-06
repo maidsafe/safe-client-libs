@@ -14,7 +14,7 @@ use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::containers_into_vec;
 use safe_core::FutureExt;
 use std::os::raw::{c_char, c_void};
-use {App, AppError};
+use crate::{App, AppError};
 
 /// Fetch access info from the network.
 #[no_mangle]
@@ -115,8 +115,8 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
 
 #[cfg(test)]
 mod tests {
-    use errors::AppError;
-    use ffi::access_container::*;
+    use crate::errors::AppError;
+    use crate::ffi::access_container::*;
     use ffi_utils::test_utils::{call_0, call_1, call_vec};
     use ffi_utils::{from_c_str, ReprC};
     use safe_core::ffi::ipc::req::ContainerPermissions as FfiContainerPermissions;
@@ -126,7 +126,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::rc::Rc;
-    use test_utils::{create_app_by_req, create_auth_req_with_access, run};
+    use crate::test_utils::{create_app_by_req, create_auth_req_with_access, run};
 
     // Test refreshing access info by fetching it from the network.
     #[test]

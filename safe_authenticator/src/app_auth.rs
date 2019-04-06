@@ -9,13 +9,13 @@
 //! App authentication routines
 
 use super::{AuthError, AuthFuture};
-use access_container;
-use app_container;
-use client::AuthClient;
-use config::{self, AppInfo, Apps};
+use crate::access_container;
+use crate::app_container;
+use crate::client::AuthClient;
+use crate::config::{self, AppInfo, Apps};
 use futures::future::{self, Either};
 use futures::Future;
-use ipc::update_container_perms;
+use crate::ipc::update_container_perms;
 use routing::ClientError;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};

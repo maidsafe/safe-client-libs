@@ -6,13 +6,13 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::{Client, MDataInfo};
-use errors::CoreError;
+use crate::client::{Client, MDataInfo};
+use crate::errors::CoreError;
 use futures::Future;
-use nfs::{NfsError, NfsFuture};
+use crate::nfs::{NfsError, NfsFuture};
 use routing::{ClientError, MutableData, PermissionSet, User, Value};
 use std::collections::BTreeMap;
-use utils::FutureExt;
+use crate::utils::FutureExt;
 
 /// Create a new directory based on the provided `MDataInfo`.
 pub fn create_dir(

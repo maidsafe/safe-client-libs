@@ -11,7 +11,7 @@
 //! Access container is stored in the user's session packet.
 
 use super::{AuthError, AuthFuture};
-use client::AuthClient;
+use crate::client::AuthClient;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::EntryActions;

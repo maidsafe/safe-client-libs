@@ -6,8 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::Client;
-use errors::CoreError;
+use crate::client::Client;
+use crate::errors::CoreError;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::Future;

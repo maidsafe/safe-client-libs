@@ -14,7 +14,7 @@ use maidsafe_utilities::serialisation::serialise;
 use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::ipc::resp::UserMetadata;
 use std::os::raw::c_void;
-use AppError;
+use crate::AppError;
 
 /// Serialize metadata.
 #[no_mangle]
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn mdata_encode_metadata(
 
 #[cfg(test)]
 mod tests {
-    use ffi::mutable_data::metadata::mdata_encode_metadata;
+    use crate::ffi::mutable_data::metadata::mdata_encode_metadata;
     use ffi_utils::test_utils::call_vec_u8;
     use maidsafe_utilities::serialisation::deserialise;
     use safe_core::ipc::resp::UserMetadata;

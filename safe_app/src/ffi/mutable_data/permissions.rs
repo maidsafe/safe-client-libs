@@ -9,17 +9,19 @@
 
 //! FFI for mutable data permissions and permission sets.
 
-use errors::AppError;
-use ffi::helper::send_sync;
-use ffi::mutable_data::helper;
-use ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle, NULL_OBJECT_HANDLE};
-use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
-use permissions;
+use crate::errors::AppError;
+use crate::ffi::helper::send_sync;
+use crate::ffi::mutable_data::helper;
+use crate::ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle, NULL_OBJECT_HANDLE};
+use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK};
+use crate::permissions;
+use crate::ffi::mutable_data::permissions::UserPermissionSet as FfiUserPermissionSet;
+use safe_core::ipc::IpcError;
 use routing::User;
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use std::os::raw::c_void;
-use App;
+use crate::App;
 
 /// Special value that represents `User::Anyone` in permission sets.
 #[no_mangle]
@@ -32,6 +34,21 @@ pub struct UserPermissionSet {
     pub user_h: SignPubKeyHandle,
     /// User's permission set.
     pub perm_set: PermissionSet,
+}
+
+impl ReprC for UserPermissionSet {
+    type C = *const FfiUserPermissionSet;
+    type Error = IpcError;
+
+    #[allow(unsafe_code)]
+    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
+        let FfiUserPermissionSet { user_h, perm_set } = *c_repr;
+
+        Ok(UserPermissionSet {
+            user_h,
+            perm_set: permission_set_into_repr_c(permission_set_clone_from_repr_c(perm_set)?),
+        })
+    }
 }
 
 /// Create new permissions.

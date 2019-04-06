@@ -6,9 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use errors::{AuthError, ERR_INVALID_OWNER, ERR_SHARE_MDATA_DENIED};
-use ffi::apps::*;
-use ffi::ipc::encode_share_mdata_resp;
+use crate::errors::{AuthError, ERR_INVALID_OWNER, ERR_SHARE_MDATA_DENIED};
+use crate::ffi::apps::*;
+use crate::ffi::ipc::encode_share_mdata_resp;
 use ffi_utils::test_utils::{call_vec, send_via_user_data, sender_as_user_data};
 use ffi_utils::FfiResult;
 use futures::Future;
@@ -25,7 +25,7 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::sync::mpsc;
 use std::time::Duration;
-use test_utils::{self, Payload};
+use crate::test_utils::{self, Payload};
 
 // Test making an empty request to share mutable data.
 #[test]

@@ -7,9 +7,9 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use errors::AppError;
-use ffi::helper::send_sync;
-use ffi::object_cache::{
+use crate::errors::AppError;
+use crate::ffi::helper::send_sync;
+use crate::ffi::object_cache::{
     EncryptPubKeyHandle, EncryptSecKeyHandle, SignPubKeyHandle, SignSecKeyHandle,
     NULL_OBJECT_HANDLE,
 };
@@ -26,7 +26,7 @@ use safe_core::Client;
 use std::os::raw::c_void;
 use std::slice;
 use tiny_keccak::sha3_256;
-use App;
+use crate::App;
 
 /// Special value that represents that a message should be signed by the app.
 #[no_mangle]
@@ -675,12 +675,12 @@ pub unsafe extern "C" fn generate_nonce(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use errors::ERR_INVALID_SIGN_PUB_KEY_HANDLE;
-    use ffi::mutable_data::permissions::USER_ANYONE;
+    use crate::errors::ERR_INVALID_SIGN_PUB_KEY_HANDLE;
+    use crate::ffi::mutable_data::permissions::USER_ANYONE;
     use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
     use rust_sodium::crypto::box_;
-    use safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
-    use test_utils::{create_app, run_now};
+    use crate::safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
+    use crate::test_utils::{create_app, run_now};
 
     // Test signing and verifying messages between apps.
     #[test]

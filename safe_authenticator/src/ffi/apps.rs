@@ -6,9 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use app_auth::{app_state, AppState};
-use app_container;
-use config;
+use crate::app_auth::{app_state, AppState};
+use crate::app_container;
+use crate::config;
 use ffi_utils::{
     catch_unwind_cb, from_c_str, vec_into_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
 };
@@ -26,8 +26,8 @@ use safe_core::utils::symmetric_decrypt;
 use safe_core::{Client, FutureExt};
 use std::collections::HashMap;
 use std::os::raw::{c_char, c_void};
-use AuthError;
-use Authenticator;
+use crate::AuthError;
+use crate::Authenticator;
 
 /// Application registered in the authenticator
 #[repr(C)]
@@ -315,11 +315,11 @@ mod tests {
     use super::*;
     use app_container::fetch;
     use config;
-    use errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
+    use crate::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
     use ffi_utils::test_utils::call_0;
-    use revocation::revoke_app;
+    use crate::revocation::revoke_app;
     use safe_core::ipc::AuthReq;
-    use test_utils::{
+    use crate::test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
         run,
     };

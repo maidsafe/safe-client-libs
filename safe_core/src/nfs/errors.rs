@@ -6,10 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use errors::CoreError;
+use crate::errors::CoreError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use self_encryption::SelfEncryptionError;
-use self_encryption_storage::SelfEncryptionStorageError;
+use crate::self_encryption_storage::SelfEncryptionStorageError;
 use std::fmt;
 
 /// NFS Errors

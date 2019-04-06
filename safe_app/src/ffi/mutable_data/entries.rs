@@ -9,9 +9,9 @@
 
 //! FFI for mutable data entries, keys and values.
 
-use errors::AppError;
-use ffi::helper::send_sync;
-use ffi::object_cache::MDataEntriesHandle;
+use crate::errors::AppError;
+use crate::ffi::helper::send_sync;
+use crate::ffi::object_cache::MDataEntriesHandle;
 use ffi_utils::callback::Callback;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
@@ -21,7 +21,7 @@ use safe_core::ffi::ipc::resp::{MDataEntry, MDataKey, MDataValue};
 use safe_core::CoreError;
 use std::collections::BTreeMap;
 use std::os::raw::c_void;
-use App;
+use crate::App;
 
 /// Create new empty entries.
 #[no_mangle]
@@ -222,11 +222,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi::mdata_info::*;
-    use ffi::mutable_data::entry_actions::*;
-    use ffi::mutable_data::permissions::*;
-    use ffi::mutable_data::*;
-    use ffi::object_cache::MDataEntryActionsHandle;
+    use crate::ffi::mdata_info::*;
+    use crate::ffi::mutable_data::entry_actions::*;
+    use crate::ffi::mutable_data::permissions::*;
+    use crate::ffi::mutable_data::*;
+    use crate::ffi::object_cache::MDataEntryActionsHandle;
     use ffi_utils::test_utils::{
         call_0, call_1, call_vec, send_via_user_data, sender_as_user_data,
     };
@@ -236,7 +236,7 @@ mod tests {
     use safe_core::utils;
     use std::os::raw::c_void;
     use std::sync::mpsc;
-    use test_utils::{create_app, run_now};
+    use crate::test_utils::{create_app, run_now};
 
     // Test mdata entries operations.
     #[test]

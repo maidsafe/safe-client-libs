@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{AuthError, AuthFuture};
-use client::AuthClient;
+use crate::client::AuthClient;
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};

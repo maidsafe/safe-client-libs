@@ -10,7 +10,7 @@ use config_file_handler;
 use std::ffi::OsString;
 #[cfg(test)]
 use std::path::PathBuf;
-use CoreError;
+use crate::CoreError;
 
 /// Configuration for safe-core.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

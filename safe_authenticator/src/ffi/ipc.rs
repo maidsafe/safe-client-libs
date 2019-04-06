@@ -6,13 +6,13 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use access_container;
-use app_auth;
-use config;
+use crate::access_container;
+use crate::app_auth;
+use crate::config;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK};
 use futures::{stream, Future, Stream};
-use ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
-use revocation::{flush_app_revocation_queue, revoke_app};
+use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
+use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use routing::{ClientError, User};
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
 use safe_core::ffi::ipc::resp::MetadataResponse;
@@ -25,7 +25,7 @@ use safe_core::ipc::{decode_msg, IpcError, IpcMsg};
 use safe_core::{client, Client, CoreError, FutureExt};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
-use {AuthError, Authenticator};
+use crate::{AuthError, Authenticator};
 
 /// Decodes a given encoded IPC message without requiring an authorised account.
 #[no_mangle]

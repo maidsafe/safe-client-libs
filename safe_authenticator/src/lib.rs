@@ -69,23 +69,14 @@
     allow(implicit_hasher, too_many_arguments, use_debug)
 )]
 
-extern crate config_file_handler;
 #[macro_use]
 extern crate ffi_utils;
-extern crate futures;
 #[macro_use]
 extern crate log;
-extern crate lru_cache;
-extern crate maidsafe_utilities;
-extern crate routing;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate rust_sodium;
 #[macro_use]
 extern crate safe_core;
-extern crate tiny_keccak;
-extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 #[cfg(any(test, feature = "testing"))]

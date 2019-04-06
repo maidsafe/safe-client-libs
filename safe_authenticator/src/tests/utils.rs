@@ -6,15 +6,15 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use access_container::{fetch_authenticator_entry, put_authenticator_entry};
-use client::AuthClient;
+use crate::access_container::{fetch_authenticator_entry, put_authenticator_entry};
+use crate::client::AuthClient;
 use futures::Future;
 use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::req::{ContainerPermissions, Permission};
 use safe_core::FutureExt;
 use std::collections::HashMap;
-use AuthFuture;
+use crate::AuthFuture;
 
 // Creates a containers request asking for "documents with permission to
 // insert", and "videos with all the permissions possible".

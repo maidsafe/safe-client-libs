@@ -9,12 +9,12 @@
 
 //! FFI for mutable data entry actions.
 
-use ffi::helper::send_sync;
-use ffi::object_cache::MDataEntryActionsHandle;
+use crate::ffi::helper::send_sync;
+use crate::ffi::object_cache::MDataEntryActionsHandle;
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult};
 use routing::{EntryAction, Value};
 use std::os::raw::c_void;
-use App;
+use crate::App;
 
 /// Create new entry actions.
 #[no_mangle]
@@ -141,7 +141,7 @@ mod tests {
     use ffi_utils::test_utils::{call_0, call_1};
     use routing::{EntryAction, Value};
     use safe_core::utils;
-    use test_utils::{create_app, run_now};
+    use crate::test_utils::{create_app, run_now};
 
     // Test entry action basics such as insert, update, and delete.
     #[test]

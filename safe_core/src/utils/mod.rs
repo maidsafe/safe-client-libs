@@ -16,7 +16,7 @@ pub mod seed;
 pub mod test_utils;
 
 pub use self::futures::FutureExt;
-use errors::CoreError;
+use crate::errors::CoreError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::Rng;
 use rust_sodium::crypto::hash::sha512::{self, Digest, DIGESTBYTES};

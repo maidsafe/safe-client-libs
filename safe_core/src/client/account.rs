@@ -6,15 +6,15 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::MDataInfo;
-use crypto::{shared_box, shared_secretbox, shared_sign};
-use errors::CoreError;
+use crate::client::MDataInfo;
+use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::errors::CoreError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{FullId, XorName, XOR_NAME_LEN};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
 use tiny_keccak::sha3_256;
-use DIR_TAG;
+use crate::DIR_TAG;
 
 /// Representing the User Account information on the network.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]

@@ -7,13 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use chrono::Utc;
-use client::Client;
-use crypto::shared_secretbox;
+use crate::client::Client;
+use crate::crypto::shared_secretbox;
 use futures::Future;
-use nfs::{data_map, File, NfsFuture};
+use crate::nfs::{data_map, File, NfsFuture};
 use self_encryption::SequentialEncryptor;
-use self_encryption_storage::SelfEncryptionStorage;
-use utils::FutureExt;
+use crate::self_encryption_storage::SelfEncryptionStorage;
+use crate::utils::FutureExt;
 
 /// Mode of the writer.
 #[derive(Clone, Copy, Debug)]

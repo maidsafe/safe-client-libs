@@ -6,10 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use ffi::arrays::XorNameArray;
+use crate::ffi::arrays::XorNameArray;
 use ffi_utils::callback::CallbackArgs;
 use ffi_utils::ReprC;
-use ipc::req::permission_set_into_repr_c;
+use crate::ipc::req::permission_set_into_repr_c;
 use routing;
 use std::ffi::CString;
 use std::os::raw::c_char;

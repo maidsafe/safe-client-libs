@@ -9,7 +9,7 @@
 
 mod mutable_data;
 
-use ffi::test_utils::test_create_app_with_access;
+use crate::ffi::test_utils::test_create_app_with_access;
 use ffi_utils::test_utils::call_1;
 use futures::Future;
 #[cfg(feature = "use-mock-routing")]
@@ -24,9 +24,9 @@ use safe_core::ipc::Permission;
 use safe_core::MockRouting;
 use std::collections::HashMap;
 use std::rc::Rc;
-use test_utils::gen_app_exchange_info;
-use test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access, run};
-use App;
+use crate::test_utils::gen_app_exchange_info;
+use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access, run};
+use crate::App;
 
 // Test refreshing access info by fetching it from the network.
 #[test]
@@ -212,7 +212,7 @@ fn num_containers(app: &App) -> usize {
 #[test]
 #[allow(unsafe_code)]
 fn app_container_creation() {
-    use ffi::app_account_info;
+    use crate::ffi::app_account_info;
     use ffi_utils::test_utils::call_1;
 
     // Authorise an app for the first time with `app_container` set to `true`.

@@ -9,13 +9,13 @@
 
 #![allow(unsafe_code)]
 
-use errors::AppError;
+use crate::errors::AppError;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::AuthReq;
 use safe_core::ipc::req::AuthReq as NativeAuthReq;
 use std::os::raw::{c_char, c_void};
-use test_utils::{create_app_by_req, create_auth_req};
-use App;
+use crate::test_utils::{create_app_by_req, create_auth_req};
+use crate::App;
 
 /// Creates a random app instance for testing.
 #[no_mangle]
@@ -88,7 +88,7 @@ mod tests {
     use safe_core::ipc::req::AuthReq;
     use safe_core::ipc::Permission;
     use std::collections::HashMap;
-    use {App, AppError};
+    use crate::{App, AppError};
 
     #[test]
     fn create_app_with_invalid_access() {

@@ -6,15 +6,15 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::{Client, MDataInfo};
-use crypto::shared_secretbox;
-use errors::CoreError;
+use crate::client::{Client, MDataInfo};
+use crate::crypto::shared_secretbox;
+use crate::errors::CoreError;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
+use crate::nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
 use routing::{ClientError, EntryActions};
-use self_encryption_storage::SelfEncryptionStorage;
-use utils::FutureExt;
+use crate::self_encryption_storage::SelfEncryptionStorage;
+use crate::utils::FutureExt;
 
 /// Enum specifying which version should be used in places where a version is required.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

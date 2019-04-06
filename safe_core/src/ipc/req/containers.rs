@@ -7,9 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{containers_from_repr_c, containers_into_vec, AppExchangeInfo, ContainerPermissions};
-use ffi::ipc::req as ffi;
+use crate::ffi::ipc::req as ffi;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
-use ipc::errors::IpcError;
+use crate::ipc::errors::IpcError;
 use std::collections::HashMap;
 
 /// Containers request

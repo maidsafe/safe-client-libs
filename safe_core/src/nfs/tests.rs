@@ -6,23 +6,23 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::core_client::CoreClient;
-use client::MDataInfo;
-use crypto::shared_secretbox;
-use errors::CoreError;
+use crate::client::core_client::CoreClient;
+use crate::client::MDataInfo;
+use crate::crypto::shared_secretbox;
+use crate::errors::CoreError;
 use futures::future::{self, Loop};
 use futures::Future;
-use nfs::file_helper::{self, Version};
-use nfs::reader::Reader;
-use nfs::writer::Writer;
-use nfs::{create_dir, File, Mode, NfsError, NfsFuture};
+use crate::nfs::file_helper::{self, Version};
+use crate::nfs::reader::Reader;
+use crate::nfs::writer::Writer;
+use crate::nfs::{create_dir, File, Mode, NfsError, NfsFuture};
 use rand::{self, Rng};
 use rust_sodium::crypto::secretbox;
 use self_encryption::MIN_CHUNK_SIZE;
 use std;
-use utils::test_utils::random_client;
-use utils::FutureExt;
-use DIR_TAG;
+use crate::utils::test_utils::random_client;
+use crate::utils::FutureExt;
+use crate::DIR_TAG;
 
 const APPEND_SIZE: usize = 10;
 const ORIG_SIZE: usize = 5555;

@@ -7,10 +7,10 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{AuthError, AuthFuture};
-use access_container;
-use app_auth::{app_state, AppState};
-use client::AuthClient;
-use config;
+use crate::access_container;
+use crate::app_auth::{app_state, AppState};
+use crate::client::AuthClient;
+use crate::config;
 use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;

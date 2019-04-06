@@ -6,17 +6,17 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use access_container;
-use app_auth;
-use client::AuthClient;
-use config;
-use errors::AuthError;
+use crate::access_container;
+use crate::app_auth;
+use crate::client::AuthClient;
+use crate::config;
+use crate::errors::AuthError;
 use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
-use ipc::decode_ipc_msg;
+use crate::ipc::decode_ipc_msg;
 use rand::{self, Rng};
-use revocation;
+use crate::revocation;
 use routing::User;
 use routing::XorName;
 use rust_sodium::crypto::sign;
@@ -44,7 +44,7 @@ use std::os::raw::{c_char, c_void};
 use std::slice;
 use std::sync::mpsc;
 use std::time::Duration;
-use Authenticator;
+use crate::Authenticator;
 
 /// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]
@@ -518,7 +518,7 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
     let mut ud = Default::default();
 
     unsafe {
-        ::ffi::ipc::auth_decode_ipc_msg(
+        crate::ffi::ipc::auth_decode_ipc_msg(
             authenticator,
             ffi_msg.as_ptr(),
             sender_as_user_data(&tx, &mut ud),

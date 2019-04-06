@@ -7,21 +7,21 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::utils::{corrupt_container, create_containers_req};
-use config::{self, get_app_revocation_queue, push_to_app_revocation_queue};
-use errors::AuthError;
+use crate::config::{self, get_app_revocation_queue, push_to_app_revocation_queue};
+use crate::errors::AuthError;
 use futures::Future;
-use revocation;
+use crate::revocation;
 use routing::{AccountInfo, EntryActions, User};
 use safe_core::ipc::{AuthReq, Permission};
 use safe_core::nfs::NfsError;
 use safe_core::{app_container_name, Client, CoreError, MDataInfo};
 use std::collections::HashMap;
-use test_utils::{
+use crate::test_utils::{
     access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
     get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke, run,
     try_access_container, try_revoke,
 };
-use Authenticator;
+use crate::Authenticator;
 
 #[cfg(feature = "use-mock-routing")]
 mod mock_routing {

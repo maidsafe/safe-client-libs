@@ -7,9 +7,9 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use errors::AppError;
-use ffi::nfs::*;
-use ffi::object_cache::FileContextHandle;
+use crate::errors::AppError;
+use crate::ffi::nfs::*;
+use crate::ffi::object_cache::FileContextHandle;
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
 use ffi_utils::ErrorCode;
 use futures::Future;
@@ -20,8 +20,8 @@ use safe_core::nfs::{File as NativeFile, NfsError};
 use std;
 use std::collections::HashMap;
 use std::ffi::CString;
-use test_utils::{create_app_by_req, create_auth_req_with_access, run};
-use App;
+use crate::test_utils::{create_app_by_req, create_auth_req_with_access, run};
+use crate::App;
 
 fn setup() -> (App, MDataInfo) {
     let mut container_permissions = HashMap::new();

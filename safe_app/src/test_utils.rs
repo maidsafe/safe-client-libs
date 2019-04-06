@@ -8,7 +8,7 @@
 // Software.
 
 use super::{App, AppContext, AppError};
-use client::AppClient;
+use crate::client::AppClient;
 use futures::{Future, IntoFuture};
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::AuthError;

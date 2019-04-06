@@ -8,15 +8,15 @@
 
 #![allow(unsafe_code)]
 
-use client::MDataInfo;
-use crypto::{shared_box, shared_secretbox, shared_sign};
-use ffi::ipc::resp as ffi;
+use crate::client::MDataInfo;
+use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::ffi::ipc::resp as ffi;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
-use ipc::req::{
+use crate::ipc::req::{
     container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c,
     permission_set_into_repr_c, ContainerPermissions,
 };
-use ipc::IpcError;
+use crate::ipc::IpcError;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::PermissionSet;
 use routing::Value;
@@ -553,7 +553,7 @@ impl ReprC for MDataEntry {
 mod tests {
     use super::*;
     use ffi_utils::ReprC;
-    use ipc::BootstrapConfig;
+    use crate::ipc::BootstrapConfig;
     use routing::{XorName, XOR_NAME_LEN};
     use rust_sodium::crypto::secretbox;
 

@@ -11,7 +11,7 @@ use routing::Client as Routing;
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting as Routing;
 
-use errors::AuthError;
+use crate::errors::AuthError;
 use futures::Future;
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -36,8 +36,8 @@ use std::rc::Rc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
-use AuthFuture;
-use AuthMsgTx;
+use crate::AuthFuture;
+use crate::AuthMsgTx;
 
 /// Client object used by safe_authenticator.
 pub struct AuthClient {

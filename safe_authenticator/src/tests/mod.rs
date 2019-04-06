@@ -11,19 +11,19 @@ mod serialisation;
 mod share_mdata;
 mod utils;
 
-use access_container as access_container_tools;
-use app_container;
-use config::{self, KEY_APPS};
-use errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
-use ffi::apps::*;
-use ffi::ipc::{
+use crate::access_container as access_container_tools;
+use crate::app_container;
+use crate::config::{self, KEY_APPS};
+use crate::errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
+use crate::ffi::apps::*;
+use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
-use safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
-use safe_core::ipc::{
+use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
+use crate::safe_core::ipc::{
     self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use safe_core::{app_container_name, mdata_info, Client};
@@ -31,8 +31,8 @@ use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
 use std::time::Duration;
-use std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
-use test_utils::{self, ChannelType};
+use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
+use crate::test_utils::{self, ChannelType};
 use tiny_keccak::sha3_256;
 
 #[cfg(feature = "use-mock-routing")]
@@ -1049,7 +1049,7 @@ fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {
     let mut ud = Default::default();
 
     unsafe {
-        use ffi::ipc::auth_unregistered_decode_ipc_msg;
+        use crate::ffi::ipc::auth_unregistered_decode_ipc_msg;
         auth_unregistered_decode_ipc_msg(
             ffi_msg.as_ptr(),
             sender_as_user_data(&tx, &mut ud),

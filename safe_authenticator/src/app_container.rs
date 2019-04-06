@@ -8,13 +8,13 @@
 
 //! Routines to handle an app's dedicated containers.
 
-use access_container;
-use client::AuthClient;
+use crate::access_container;
+use crate::client::AuthClient;
 use futures::Future;
 use routing::{Action, EntryActions, PermissionSet, User};
 use rust_sodium::crypto::sign;
 use safe_core::{app_container_name, nfs, Client, FutureExt, MDataInfo, DIR_TAG};
-use {AuthError, AuthFuture};
+use crate::{AuthError, AuthFuture};
 
 /// Returns an app's dedicated container if available and stored in the access container,
 /// `None` otherwise.

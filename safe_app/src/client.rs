@@ -11,7 +11,7 @@ use routing::Client as Routing;
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting as Routing;
 
-use errors::AppError;
+use crate::errors::AppError;
 use lru_cache::LruCache;
 use routing::{Authority, FullId, XorName};
 use rust_sodium::crypto::{box_, sign};
@@ -28,7 +28,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
-use {AppContext, AppMsgTx};
+use crate::{AppContext, AppMsgTx};
 
 /// Client object used by safe_app.
 pub struct AppClient {

@@ -7,9 +7,9 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use cipher_opt::CipherOpt;
-use errors::AppError;
-use ffi::object_cache::{CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle};
+use crate::cipher_opt::CipherOpt;
+use crate::errors::AppError;
+use crate::ffi::object_cache::{CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle};
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -18,7 +18,7 @@ use safe_core::ffi::arrays::XorNameArray;
 use safe_core::{immutable_data, Client, FutureExt, SelfEncryptionStorage};
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
-use App;
+use crate::App;
 
 /// Handle of a Self Encryptor Writer object.
 pub type SEWriterHandle = SelfEncryptorWriterHandle;
@@ -330,12 +330,12 @@ pub unsafe extern "C" fn idata_self_encryptor_reader_free(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use errors::AppError;
-    use ffi::cipher_opt::*;
+    use crate::errors::AppError;
+    use crate::ffi::cipher_opt::*;
     use ffi_utils::test_utils::{call_0, call_1, call_vec_u8};
     use ffi_utils::ErrorCode;
     use safe_core::utils;
-    use test_utils::create_app;
+    use crate::test_utils::create_app;
 
     // Test immutable data operations.
     #[test]

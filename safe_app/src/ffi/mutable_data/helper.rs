@@ -7,10 +7,10 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use errors::AppError;
-use ffi::mutable_data::permissions::USER_ANYONE;
-use ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle};
-use object_cache::ObjectCache;
+use crate::errors::AppError;
+use crate::ffi::mutable_data::permissions::USER_ANYONE;
+use crate::ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle};
+use crate::object_cache::ObjectCache;
 use routing::{PermissionSet, User};
 use std::collections::BTreeMap;
 

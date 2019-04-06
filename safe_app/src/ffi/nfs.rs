@@ -7,10 +7,10 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use client::AppClient;
-use errors::AppError;
-use ffi::helper::send;
-use ffi::object_cache::FileContextHandle;
+use crate::client::AppClient;
+use crate::errors::AppError;
+use crate::ffi::helper::send;
+use crate::ffi::object_cache::FileContextHandle;
 use ffi_utils::{
     catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr,
     FFI_RESULT_OK,
@@ -24,7 +24,7 @@ use safe_core::nfs::File as NativeFile;
 use safe_core::nfs::{Mode, Reader, Writer};
 use safe_core::{FutureExt, MDataInfo as NativeMDataInfo};
 use std::os::raw::{c_char, c_void};
-use App;
+use crate::App;
 
 /// Holds context for file operations, depending on the mode.
 pub struct FileContext {
