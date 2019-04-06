@@ -9,12 +9,12 @@
 
 //! Cipher options.
 
-use client::AppClient;
-use errors::AppError;
+use crate::client::AppClient;
+use crate::errors::AppError;
+use crate::AppContext;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::{box_, sealedbox, secretbox};
 use safe_core::{Client, CoreError};
-use AppContext;
 
 /// Cipher Options
 #[derive(Debug)]

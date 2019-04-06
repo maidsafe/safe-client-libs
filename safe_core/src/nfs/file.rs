@@ -6,10 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::ffi::nfs::File as FfiFile;
+use crate::nfs::errors::NfsError;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use ffi::nfs::File as FfiFile;
 use ffi_utils::{vec_into_raw_parts, ReprC};
-use nfs::errors::NfsError;
 use routing::XorName;
 use std::slice;
 

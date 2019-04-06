@@ -7,11 +7,11 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use cipher_opt::CipherOpt;
-use ffi::object_cache::{CipherOptHandle, EncryptPubKeyHandle};
+use crate::cipher_opt::CipherOpt;
+use crate::ffi::object_cache::{CipherOptHandle, EncryptPubKeyHandle};
+use crate::App;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use std::os::raw::c_void;
-use App;
 
 /// Construct `CipherOpt::PlainText` handle.
 #[no_mangle]
@@ -102,16 +102,15 @@ pub unsafe extern "C" fn cipher_opt_free(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use client::AppClient;
-    use errors::AppError;
-    use ffi::object_cache::CipherOptHandle;
+    use crate::client::AppClient;
+    use crate::errors::AppError;
+    use crate::ffi::object_cache::CipherOptHandle;
+    use crate::test_utils::create_app;
+    use crate::{run, App, AppContext};
     use ffi_utils::test_utils::{call_0, call_1};
     use ffi_utils::ErrorCode;
-    use run;
     use rust_sodium::crypto::box_;
     use safe_core::{utils, Client};
-    use test_utils::create_app;
-    use {App, AppContext};
 
     // Test plaintext "encryption" and decryption.
     #[test]

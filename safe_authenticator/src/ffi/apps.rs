@@ -6,24 +6,21 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use std::os::raw::{c_char, c_void};
-
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
-use futures::Future;
-use routing::XorName;
-
-use apps::{
+use crate::apps::{
     apps_accessing_mutable_data, list_registered, list_revoked, remove_revoked_app,
     RegisteredApp as NativeRegisteredApp,
 };
+use crate::{AuthError, Authenticator};
+use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
+use futures::Future;
+use routing::XorName;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
 use safe_core::ffi::ipc::resp::AppAccess;
 use safe_core::ipc::req::AppExchangeInfo as NativeAppExchangeInfo;
 use safe_core::ipc::resp::AppAccess as NativeAppAccess;
 use safe_core::FutureExt;
-use AuthError;
-use Authenticator;
+use std::os::raw::{c_char, c_void};
 
 /// Application registered in the authenticator
 #[repr(C)]
@@ -203,20 +200,17 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use ffi_utils::test_utils::call_0;
-
-    use app_auth::{app_state, AppState};
-    use app_container::fetch;
-    use config;
-    use errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
-    use revocation::revoke_app;
-    use run;
-    use safe_core::ipc::{AuthReq, IpcError};
-    use test_utils::{
+    use crate::app_auth::{app_state, AppState};
+    use crate::app_container::fetch;
+    use crate::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
+    use crate::revocation::revoke_app;
+    use crate::test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
     };
+    use crate::{config, run};
+    use ffi_utils::test_utils::call_0;
+    use safe_core::ipc::{AuthReq, IpcError};
+    use std::collections::HashMap;
 
     use super::*;
 

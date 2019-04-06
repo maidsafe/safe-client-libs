@@ -6,8 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::ClientKeys;
-use errors::CoreError;
+use crate::client::ClientKeys;
+use crate::errors::CoreError;
 use rust_sodium::crypto::sign::{self, Seed};
 use tiny_keccak::sha3_256;
 

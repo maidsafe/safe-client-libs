@@ -6,22 +6,22 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use errors::{AuthError, ERR_INVALID_OWNER, ERR_NO_SUCH_DATA};
-use ffi::apps::*;
-use ffi::ipc::encode_share_mdata_resp;
+use crate::errors::{AuthError, ERR_INVALID_OWNER, ERR_NO_SUCH_DATA};
+use crate::ffi::apps::*;
+use crate::ffi::ipc::encode_share_mdata_resp;
+use crate::run;
+use crate::test_utils::{self, Payload};
 use ffi_utils::test_utils::{call_1, call_vec};
 use futures::Future;
 use maidsafe_utilities::serialisation::serialise;
 use rand;
 use routing::{Action, MutableData, PermissionSet, User, Value};
-use run;
 use rust_sodium::crypto::sign;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::{AppAccess, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, AuthReq, IpcError, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
 use safe_core::Client;
 use std::collections::BTreeMap;
-use test_utils::{self, Payload};
 
 // Test making an empty request to share mutable data.
 #[test]

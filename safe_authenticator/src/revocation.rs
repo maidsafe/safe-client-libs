@@ -9,9 +9,9 @@
 //! App revocation functions
 
 use super::{AuthError, AuthFuture};
-use access_container::{self, AUTHENTICATOR_ENTRY};
-use client::AuthClient;
-use config::{self, AppInfo, RevocationQueue};
+use crate::access_container::{self, AUTHENTICATOR_ENTRY};
+use crate::client::AuthClient;
+use crate::config::{self, AppInfo, RevocationQueue};
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use routing::{ClientError, EntryActions, User, Value};

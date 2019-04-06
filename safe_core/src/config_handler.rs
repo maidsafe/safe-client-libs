@@ -6,11 +6,11 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::CoreError;
 use config_file_handler;
 use std::ffi::OsString;
 #[cfg(test)]
 use std::path::PathBuf;
-use CoreError;
 
 /// Configuration for safe-core.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

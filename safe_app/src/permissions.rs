@@ -9,8 +9,8 @@
 
 //! Permissions utilities
 
-use ffi::mutable_data::permissions::UserPermissionSet as FfiUserPermissionSet;
-use ffi::object_cache::SignPubKeyHandle;
+use crate::ffi::mutable_data::permissions::UserPermissionSet as FfiUserPermissionSet;
+use crate::ffi::object_cache::SignPubKeyHandle;
 use ffi_utils::ReprC;
 use routing::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};

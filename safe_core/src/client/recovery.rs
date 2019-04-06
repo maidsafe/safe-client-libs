@@ -7,8 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::Client;
-use errors::CoreError;
-use event_loop::CoreFuture;
+use crate::errors::CoreError;
+use crate::event_loop::CoreFuture;
+use crate::utils::FutureExt;
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use routing::{
@@ -16,7 +17,6 @@ use routing::{
 };
 use rust_sodium::crypto::sign;
 use std::collections::BTreeMap;
-use utils::FutureExt;
 
 const MAX_ATTEMPTS: usize = 10;
 
@@ -465,10 +465,10 @@ mod tests {
 #[cfg(all(test, feature = "use-mock-routing"))]
 mod tests_with_mock_routing {
     use super::*;
+    use crate::utils::test_utils::random_client;
     use rand;
     use routing::{Action, EntryActions, MutableData};
     use rust_sodium::crypto::sign;
-    use utils::test_utils::random_client;
 
     // Test putting mdata and recovering from errors
     #[test]
@@ -625,14 +625,14 @@ mod tests_with_mock_routing {
                     unwrap!(res);
 
                     let actions = EntryActions::new()
-                        .ins(vec![0], vec![0], 0)       // normal insert
-                        .ins(vec![1], vec![1, 0], 0)    // insert to existing entry
+                        .ins(vec![0], vec![0], 0) // normal insert
+                        .ins(vec![1], vec![1, 0], 0) // insert to existing entry
                         .update(vec![2], vec![2, 0], 1) // normal update
-                        .update(vec![3], vec![3], 1)    // update of non-existing entry
+                        .update(vec![3], vec![3], 1) // update of non-existing entry
                         .update(vec![4], vec![4, 0], 0) // update with invalid version
-                        .del(vec![5], 1)                // normal delete
-                        .del(vec![6], 1)                // delete of non-existing entry
-                        .del(vec![7], 0)                // delete with invalid version
+                        .del(vec![5], 1) // normal delete
+                        .del(vec![6], 1) // delete of non-existing entry
+                        .del(vec![7], 0) // delete with invalid version
                         .into();
 
                     mutate_mdata_entries(&client2, name, tag, actions)

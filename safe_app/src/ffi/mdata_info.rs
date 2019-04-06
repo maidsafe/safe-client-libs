@@ -7,7 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use errors::AppError;
+use crate::errors::AppError;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, SafePtr, FFI_RESULT_OK};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::XorName;

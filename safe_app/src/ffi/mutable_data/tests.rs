@@ -7,25 +7,25 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY, ERR_NO_SUCH_KEY};
-use ffi::mdata_info::*;
-use ffi::mutable_data::entries::*;
-use ffi::mutable_data::entry_actions::*;
-use ffi::mutable_data::permissions::*;
-use ffi::mutable_data::*;
-use ffi::object_cache::MDataPermissionsHandle;
+use crate::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY, ERR_NO_SUCH_KEY};
+use crate::ffi::mdata_info::*;
+use crate::ffi::mutable_data::entries::*;
+use crate::ffi::mutable_data::entry_actions::*;
+use crate::ffi::mutable_data::permissions::*;
+use crate::ffi::mutable_data::*;
+use crate::ffi::object_cache::MDataPermissionsHandle;
+use crate::permissions::UserPermissionSet;
+use crate::test_utils::create_app;
 use ffi_utils::test_utils::{
     call_0, call_1, call_vec, call_vec_u8, send_via_user_data, sender_as_user_data,
 };
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult};
-use permissions::UserPermissionSet;
 use routing::{Action, PermissionSet as NativePermissionSet};
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
 use std::sync::mpsc;
-use test_utils::create_app;
 
 // The usual test to insert, update, delete and list all permissions from the FFI point of view.
 #[test]

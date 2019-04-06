@@ -14,8 +14,7 @@ pub mod vault;
 
 pub use self::account::{Account, DEFAULT_MAX_MUTATIONS};
 pub use self::routing::{RequestHookFn, Routing};
-
-use routing::XorName;
+use ::routing::XorName;
 
 /// Identifier of immutable data
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]

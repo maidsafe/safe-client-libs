@@ -11,7 +11,9 @@ use routing::Client as Routing;
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting as Routing;
 
-use errors::AuthError;
+use crate::errors::AuthError;
+use crate::AuthFuture;
+use crate::AuthMsgTx;
 use futures::Future;
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -36,8 +38,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
-use AuthFuture;
-use AuthMsgTx;
 
 /// Client object used by safe_authenticator.
 pub struct AuthClient {
@@ -756,11 +756,11 @@ mod tests {
     #[cfg(feature = "use-mock-routing")]
     #[test]
     fn restart_routing() {
+        use crate::test_utils::random_client_with_net_obs;
         use futures;
         use maidsafe_utilities::thread;
         use safe_core::NetworkEvent;
         use std::sync::mpsc;
-        use test_utils::random_client_with_net_obs;
 
         let (tx, rx) = mpsc::channel();
         let (hook, keep_alive) = futures::oneshot();
@@ -791,10 +791,10 @@ mod tests {
     #[cfg(feature = "use-mock-routing")]
     #[test]
     fn timeout() {
+        use crate::test_utils::random_client;
         use rand;
         use routing::ImmutableData;
         use std::time::Duration;
-        use test_utils::random_client;
 
         // Get
         random_client(|client| {

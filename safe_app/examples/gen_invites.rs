@@ -62,14 +62,8 @@
 
 #[macro_use]
 extern crate clap;
-extern crate futures;
-extern crate maidsafe_utilities;
-extern crate rand;
-extern crate safe_app;
-extern crate safe_authenticator;
 #[macro_use]
 extern crate safe_core;
-extern crate tiny_keccak;
 #[macro_use]
 extern crate unwrap;
 

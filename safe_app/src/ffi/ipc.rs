@@ -9,7 +9,7 @@
 
 //! App-related IPC utilities.
 
-use errors::AppError;
+use crate::errors::AppError;
 use ffi_utils::{
     catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, ReprC, FFI_RESULT_OK,
 };
@@ -328,6 +328,7 @@ fn decode_ipc_msg_impl(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils;
     use ffi_utils::test_utils::{call_1, call_2};
     use ffi_utils::ReprC;
     use rand;
@@ -345,7 +346,6 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
-    use test_utils;
 
     // Test that encoding and decoding base64 is no longer backwards compatible, as expected.
     #[test]

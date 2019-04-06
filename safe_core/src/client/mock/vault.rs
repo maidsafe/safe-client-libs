@@ -8,8 +8,8 @@
 
 use super::Account;
 use super::DataId;
-use client::mock::routing::unlimited_muts;
-use config_handler::{Config, DevConfig};
+use crate::client::mock::routing::unlimited_muts;
+use crate::config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};

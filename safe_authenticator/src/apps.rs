@@ -9,11 +9,11 @@
 //! App management functions
 
 use super::{config, AuthFuture};
-use app_auth::{app_state, AppState};
-use app_container;
-use client::AuthClient;
-use ffi::apps as ffi;
-use ffi::apps::RegisteredApp as FfiRegisteredApp;
+use crate::app_auth::{app_state, AppState};
+use crate::client::AuthClient;
+use crate::ffi::apps as ffi;
+use crate::ffi::apps::RegisteredApp as FfiRegisteredApp;
+use crate::{app_container, AuthError};
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use futures::future::Future;
 use maidsafe_utilities::serialisation::deserialise;
@@ -26,7 +26,6 @@ use safe_core::ipc::{access_container_enc_key, AppExchangeInfo, IpcError};
 use safe_core::utils::symmetric_decrypt;
 use safe_core::FutureExt;
 use std::collections::HashMap;
-use AuthError;
 
 /// Represents an application that is registered with the Authenticator.
 #[derive(Debug)]

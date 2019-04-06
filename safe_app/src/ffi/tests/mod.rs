@@ -10,8 +10,10 @@
 mod nfs;
 
 use super::*;
-use ffi::app_is_mock;
-use ffi::ipc::decode_ipc_msg;
+use crate::ffi::app_is_mock;
+use crate::ffi::ipc::decode_ipc_msg;
+use crate::test_utils::create_app;
+use crate::test_utils::gen_app_exchange_info;
 use ffi_utils::test_utils::call_1;
 use routing::ImmutableData;
 use safe_authenticator::ffi::ipc::encode_auth_resp;
@@ -22,8 +24,6 @@ use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::{gen_req_id, AuthGranted, Permission};
 use safe_core::Client;
 use std::collections::HashMap;
-use test_utils::create_app;
-use test_utils::gen_app_exchange_info;
 use App;
 
 // Creates a containers request asking for "documents with permission to

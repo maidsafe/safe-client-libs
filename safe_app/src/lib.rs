@@ -72,27 +72,16 @@ maidsafe_logo.png",
     allow(clippy::implicit_hasher, clippy::too_many_arguments, clippy::use_debug)
 )]
 
-extern crate config_file_handler;
 #[macro_use]
 extern crate ffi_utils;
-extern crate futures;
 #[macro_use]
 extern crate log;
-extern crate lru_cache;
-extern crate maidsafe_utilities;
 #[cfg(test)]
 extern crate rand;
-extern crate routing;
-extern crate rust_sodium;
-#[cfg(any(test, feature = "testing"))]
-extern crate safe_authenticator;
 #[macro_use]
 extern crate safe_core;
-extern crate self_encryption;
 #[macro_use]
 extern crate serde_derive;
-extern crate tiny_keccak;
-extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 
@@ -111,23 +100,23 @@ pub use safe_core::{
 
 pub mod ffi;
 
-pub use ffi::access_container::*;
-pub use ffi::cipher_opt::*;
-pub use ffi::crypto::*;
-pub use ffi::immutable_data::*;
-pub use ffi::ipc::*;
-pub use ffi::logging::*;
-pub use ffi::mdata_info::*;
-pub use ffi::mutable_data::entries::*;
-pub use ffi::mutable_data::entry_actions::*;
-pub use ffi::mutable_data::metadata::*;
-pub use ffi::mutable_data::permissions::*;
-pub use ffi::mutable_data::*;
-pub use ffi::nfs::*;
-pub use ffi::object_cache::*;
+pub use crate::ffi::access_container::*;
+pub use crate::ffi::cipher_opt::*;
+pub use crate::ffi::crypto::*;
+pub use crate::ffi::immutable_data::*;
+pub use crate::ffi::ipc::*;
+pub use crate::ffi::logging::*;
+pub use crate::ffi::mdata_info::*;
+pub use crate::ffi::mutable_data::entries::*;
+pub use crate::ffi::mutable_data::entry_actions::*;
+pub use crate::ffi::mutable_data::metadata::*;
+pub use crate::ffi::mutable_data::permissions::*;
+pub use crate::ffi::mutable_data::*;
+pub use crate::ffi::nfs::*;
+pub use crate::ffi::object_cache::*;
 #[cfg(any(test, feature = "testing"))]
-pub use ffi::test_utils::*;
-pub use ffi::*;
+pub use crate::ffi::test_utils::*;
+pub use crate::ffi::*;
 
 pub mod cipher_opt;
 mod client;

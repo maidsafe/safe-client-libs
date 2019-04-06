@@ -8,15 +8,15 @@
 
 //! `DataMap` utilities
 
-use client::Client;
-use crypto::shared_secretbox;
+use crate::client::Client;
+use crate::crypto::shared_secretbox;
+use crate::immutable_data;
+use crate::nfs::NfsFuture;
+use crate::utils::FutureExt;
 use futures::{future, Future};
-use immutable_data;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use nfs::NfsFuture;
 use routing::XorName;
 use self_encryption::DataMap;
-use utils::FutureExt;
 
 // Get `DataMap` from the network.
 // If the `DataMap` is encrypted, an `encryption_key` must be passed in to decrypt it.

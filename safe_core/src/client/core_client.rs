@@ -7,19 +7,20 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 #[cfg(feature = "use-mock-routing")]
-use client::mock::Routing;
+use crate::client::mock::Routing;
 #[cfg(not(feature = "use-mock-routing"))]
 use routing::Client as Routing;
 
-use client::account::{Account as ClientAccount, ClientKeys};
-use client::{
+use crate::client::account::{Account as ClientAccount, ClientKeys};
+use crate::client::{
     setup_routing, spawn_routing_thread, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
     REQUEST_TIMEOUT_SECS,
 };
-use crypto::{shared_box, shared_secretbox, shared_sign};
-use errors::CoreError;
-use event::NetworkTx;
-use event_loop::CoreMsgTx;
+use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::errors::CoreError;
+use crate::event::NetworkTx;
+use crate::event_loop::CoreMsgTx;
+use crate::utils;
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::serialise;
 use routing::XorName;
@@ -35,7 +36,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
-use utils;
 
 /// Wait for a response from the `$rx` receiver with path `$res` and message ID `$msg_id`.
 #[macro_export]

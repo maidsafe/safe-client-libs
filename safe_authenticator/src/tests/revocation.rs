@@ -7,31 +7,34 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::utils::{corrupt_container, create_containers_req};
-use config::{self, get_app_revocation_queue, push_to_app_revocation_queue};
-use errors::AuthError;
-use futures::Future;
-use revocation;
-use routing::{AccountInfo, EntryActions, User};
-use run;
-use safe_core::ipc::{AuthReq, Permission};
-use safe_core::nfs::NfsError;
-use safe_core::{app_container_name, Client, CoreError, MDataInfo};
-use std::collections::HashMap;
-use test_utils::{
+use crate::config::{self, get_app_revocation_queue, push_to_app_revocation_queue};
+use crate::errors::AuthError;
+use crate::revocation;
+use crate::test_utils::{
     access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
     get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
     try_access_container, try_revoke,
 };
-use Authenticator;
+use crate::{run, Authenticator};
+use futures::Future;
+use routing::{AccountInfo, EntryActions, User};
+use safe_core::ipc::{AuthReq, Permission};
+use safe_core::nfs::NfsError;
+use safe_core::{app_container_name, Client, CoreError, MDataInfo};
+use std::collections::HashMap;
 
 #[cfg(feature = "use-mock-routing")]
 mod mock_routing {
     use super::*;
-    use access_container;
-    use app_auth::{app_state, AppState};
-    use client::AuthClient;
+    use crate::access_container;
+    use crate::app_auth::{app_state, AppState};
+    use crate::client::AuthClient;
+    use crate::ffi::ipc::auth_flush_app_revocation_queue;
+    use crate::test_utils::{
+        get_container_from_authenticator_entry, register_rand_app, try_revoke,
+    };
+    use crate::AuthFuture;
     use config;
-    use ffi::ipc::auth_flush_app_revocation_queue;
     use ffi_utils::test_utils::call_0;
     use futures::future;
     use maidsafe_utilities::SeededRng;
@@ -46,9 +49,7 @@ mod mock_routing {
     use std::iter;
     use std::sync::{Arc, Barrier};
     use std::thread;
-    use test_utils::{get_container_from_authenticator_entry, register_rand_app, try_revoke};
     use tiny_keccak::sha3_256;
-    use AuthFuture;
 
     // Test operation recovery for app revocation
     //

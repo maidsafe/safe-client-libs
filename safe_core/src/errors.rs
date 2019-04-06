@@ -6,13 +6,13 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::self_encryption_storage::SelfEncryptionStorageError;
 use config_file_handler;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::messaging;
 use routing::{ClientError, InterfaceError, RoutingError};
 use self_encryption::SelfEncryptionError;
-use self_encryption_storage::SelfEncryptionStorageError;
 use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::io;

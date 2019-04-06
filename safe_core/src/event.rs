@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use errors::CoreError;
+use crate::errors::CoreError;
 use futures::sync::mpsc;
 use routing::{AccountInfo, ImmutableData, MutableData, PermissionSet, User, Value};
 use rust_sodium::crypto::sign;

@@ -11,10 +11,11 @@ mod sync;
 
 #[cfg(feature = "use-mock-routing")]
 pub use self::sync::Synchronizer;
-use client::core_client::CoreClient;
-use client::Client;
-use event::{NetworkEvent, NetworkTx};
-use event_loop::{self, CoreMsg, CoreMsgTx};
+use crate::client::core_client::CoreClient;
+use crate::client::Client;
+use crate::event::{NetworkEvent, NetworkTx};
+use crate::event_loop::{self, CoreMsg, CoreMsgTx};
+use crate::utils::{self, FutureExt};
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
@@ -23,7 +24,6 @@ use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use std::{iter, u8};
 use tokio_core::reactor::{Core, Handle};
-use utils::{self, FutureExt};
 
 /// Generates random public keys
 pub fn generate_public_keys(len: usize) -> Vec<sign::PublicKey> {

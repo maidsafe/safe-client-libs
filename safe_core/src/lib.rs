@@ -77,31 +77,15 @@
     allow(clippy::implicit_hasher, clippy::too_many_arguments, clippy::use_debug)
 )]
 
-extern crate chrono;
-extern crate config_file_handler;
-extern crate data_encoding;
-extern crate ffi_utils;
-#[cfg(feature = "use-mock-routing")]
-extern crate fs2;
-extern crate futures;
 #[cfg(feature = "use-mock-routing")]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate lru_cache;
-extern crate maidsafe_utilities;
-extern crate rand;
-extern crate routing;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate rust_sodium;
-extern crate self_encryption;
 #[cfg(test)]
 extern crate serde_json;
-extern crate tiny_keccak;
-extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
 

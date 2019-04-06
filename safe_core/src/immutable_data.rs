@@ -6,15 +6,15 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::Client;
-use crypto::shared_secretbox;
-use event_loop::CoreFuture;
+use crate::client::Client;
+use crate::crypto::shared_secretbox;
+use crate::event_loop::CoreFuture;
+use crate::self_encryption_storage::SelfEncryptionStorage;
+use crate::utils::{self, FutureExt};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{ImmutableData, XorName};
 use self_encryption::{DataMap, SelfEncryptor};
-use self_encryption_storage::SelfEncryptionStorage;
-use utils::{self, FutureExt};
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {

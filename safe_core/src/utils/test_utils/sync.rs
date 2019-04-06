@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::MockRouting;
+use crate::client::MockRouting;
 use maidsafe_utilities::SeededRng;
 use rand::Rng;
 use routing::{Request, Response};

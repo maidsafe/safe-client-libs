@@ -10,7 +10,7 @@
 
 use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;
-use config_handler::{get_config, Config};
+use crate::config_handler::{get_config, Config};
 use maidsafe_utilities::thread;
 use rand;
 use routing::{

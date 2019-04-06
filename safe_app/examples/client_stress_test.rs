@@ -62,14 +62,8 @@
 
 #[macro_use]
 extern crate clap;
-extern crate futures;
-extern crate maidsafe_utilities;
-extern crate rand;
-extern crate rust_sodium;
 #[macro_use]
 extern crate safe_core;
-extern crate safe_app;
-extern crate safe_authenticator;
 #[macro_use]
 extern crate unwrap;
 

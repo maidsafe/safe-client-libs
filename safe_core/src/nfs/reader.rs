@@ -6,13 +6,13 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::Client;
-use crypto::shared_secretbox;
+use crate::client::Client;
+use crate::crypto::shared_secretbox;
+use crate::nfs::{data_map, File, NfsError, NfsFuture};
+use crate::self_encryption_storage::SelfEncryptionStorage;
+use crate::utils::FutureExt;
 use futures::Future;
-use nfs::{data_map, File, NfsError, NfsFuture};
 use self_encryption::SelfEncryptor;
-use self_encryption_storage::SelfEncryptionStorage;
-use utils::FutureExt;
 
 /// `Reader` is used to read contents of a `File`. It can read in chunks if the `File` happens to be
 /// very large.

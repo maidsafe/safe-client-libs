@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use arrays::XorNameArray;
+use crate::arrays::XorNameArray;
 
 /// FFI-wrapper for `File`.
 #[repr(C)]

@@ -9,13 +9,13 @@
 
 #![allow(unsafe_code)]
 
-use errors::AppError;
+use crate::errors::AppError;
+use crate::test_utils::{create_app_by_req, create_auth_req};
+use crate::App;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::AuthReq;
 use safe_core::ipc::req::AuthReq as NativeAuthReq;
 use std::os::raw::{c_char, c_void};
-use test_utils::{create_app_by_req, create_auth_req};
-use App;
 
 /// Creates a random app instance for testing.
 #[no_mangle]
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn test_simulate_network_disconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    use ffi::helper::send_sync;
+    use crate::ffi::helper::send_sync;
     use safe_core::Client;
 
     catch_unwind_cb(user_data, o_cb, || {
@@ -82,13 +82,13 @@ pub unsafe extern "C" fn test_simulate_network_disconnect(
 #[cfg(test)]
 mod tests {
     use super::test_create_app_with_access;
+    use crate::{App, AppError};
     use ffi_utils::test_utils::call_1;
     use ffi_utils::ErrorCode;
     use safe_authenticator::test_utils::rand_app;
     use safe_core::ipc::req::AuthReq;
     use safe_core::ipc::Permission;
     use std::collections::HashMap;
-    use {App, AppError};
 
     #[test]
     fn create_app_with_invalid_access() {
@@ -115,12 +115,12 @@ mod tests {
     #[test]
     fn simulate_network_disconnect() {
         use super::test_simulate_network_disconnect;
+        use crate::test_utils::create_auth_req;
         use ffi_utils::test_utils::call_0;
         use safe_authenticator::test_utils as authenticator;
         use safe_core::utils;
         use std::sync::mpsc;
         use std::time::Duration;
-        use test_utils::create_auth_req;
 
         let app_id = unwrap!(utils::generate_random_string(10));
         let auth_req = create_auth_req(Some(app_id), None);

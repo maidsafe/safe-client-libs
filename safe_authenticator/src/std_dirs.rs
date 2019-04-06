@@ -6,9 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use access_container::{self, AUTHENTICATOR_ENTRY};
-use client::AuthClient;
-use config::KEY_APPS;
+use crate::access_container::{self, AUTHENTICATOR_ENTRY};
+use crate::client::AuthClient;
+use crate::config::KEY_APPS;
+use crate::{AuthError, AuthFuture};
 use futures::{future, Future};
 use maidsafe_utilities::serialisation::serialise;
 use routing::{ClientError, Value};
@@ -18,7 +19,6 @@ use safe_core::nfs::create_dir;
 use safe_core::utils::symmetric_encrypt;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
 use std::collections::HashMap;
-use {AuthError, AuthFuture};
 
 /// Default directories to be created at registration.
 pub static DEFAULT_PRIVATE_DIRS: [&'static str; 6] = [
@@ -161,9 +161,9 @@ pub fn create_std_dirs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::run;
+    use crate::test_utils::create_account_and_login;
     use futures::Future;
-    use run;
-    use test_utils::create_account_and_login;
 
     // Test creation of default dirs.
     #[test]

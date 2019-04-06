@@ -7,6 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
+use crate::{App, AppError};
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
 use futures::Future;
 use safe_core::ffi::ipc::req::ContainerPermissions;
@@ -14,7 +15,6 @@ use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::containers_into_vec;
 use safe_core::FutureExt;
 use std::os::raw::{c_char, c_void};
-use {App, AppError};
 
 /// Fetch access info from the network.
 #[no_mangle]
@@ -120,11 +120,12 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
 
 #[cfg(test)]
 mod tests {
-    use errors::AppError;
-    use ffi::access_container::*;
+    use crate::errors::AppError;
+    use crate::ffi::access_container::*;
+    use crate::run;
+    use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
     use ffi_utils::test_utils::{call_0, call_1, call_vec};
     use ffi_utils::{from_c_str, ReprC};
-    use run;
     use safe_core::ffi::ipc::req::ContainerPermissions as FfiContainerPermissions;
     use safe_core::ipc::req::ContainerPermissions;
     use safe_core::ipc::req::{container_perms_from_repr_c, Permission};
@@ -132,7 +133,6 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::rc::Rc;
-    use test_utils::{create_app_by_req, create_auth_req_with_access};
 
     // Test refreshing access info by fetching it from the network.
     #[test]

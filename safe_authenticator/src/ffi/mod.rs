@@ -13,15 +13,15 @@ pub mod ipc;
 /// Logging utilities
 pub mod logging;
 
+use crate::errors::AuthError;
+use crate::Authenticator;
 use config_file_handler;
-use errors::AuthError;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use futures::Future;
 use safe_core::ffi::AccountInfo;
 use safe_core::{Client, FutureExt};
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
-use Authenticator;
 
 /// Create a registered client. This or any one of the other companion
 /// functions to get an authenticator instance must be called before initiating any
@@ -211,7 +211,7 @@ pub extern "C" fn auth_is_mock() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ffi::auth_is_mock;
+    use crate::ffi::auth_is_mock;
     use ffi_utils::test_utils::call_1;
     use routing::ImmutableData;
     use safe_core::ffi::AccountInfo;

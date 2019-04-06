@@ -6,8 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::mock::routing::unlimited_muts;
-use config_handler::Config;
+use crate::client::mock::routing::unlimited_muts;
+use crate::config_handler::Config;
 use routing::{AccountInfo, ClientError};
 use rust_sodium::crypto::sign;
 use std::collections::BTreeSet;

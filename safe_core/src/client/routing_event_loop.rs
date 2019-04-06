@@ -6,10 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use client::Client;
-use errors::CoreError;
-use event::{CoreEvent, NetworkEvent, NetworkTx};
-use event_loop::{CoreMsg, CoreMsgTx};
+use crate::client::Client;
+use crate::errors::CoreError;
+use crate::event::{CoreEvent, NetworkEvent, NetworkTx};
+use crate::event_loop::{CoreMsg, CoreMsgTx};
 use routing::{Event, MessageId, Response};
 use std::sync::mpsc::Receiver;
 

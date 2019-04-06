@@ -16,12 +16,12 @@ pub use self::auth::AuthReq;
 pub use self::containers::ContainersReq;
 pub use self::share_mdata::{ShareMData, ShareMDataReq};
 
-use ffi::ipc::req::{
+use crate::ffi::ipc::req::{
     AppExchangeInfo as FfiAppExchangeInfo, ContainerPermissions as FfiContainerPermissions,
     PermissionSet as FfiPermissionSet,
 };
+use crate::ipc::errors::IpcError;
 use ffi_utils::{from_c_str, ReprC, StringError};
-use ipc::errors::IpcError;
 use routing::{Action, PermissionSet};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CString, NulError};
@@ -290,7 +290,7 @@ impl ReprC for AppExchangeInfo {
 #[allow(unsafe_code)]
 mod tests {
     use super::*;
-    use ffi::ipc::req::PermissionSet as FfiPermissionSet;
+    use crate::ffi::ipc::req::PermissionSet as FfiPermissionSet;
     use ffi_utils::ReprC;
     use std::collections::HashMap;
     use std::ffi::CStr;

@@ -60,10 +60,6 @@
     allow(implicit_hasher, too_many_arguments, use_debug)
 )]
 
-extern crate clap;
-extern crate maidsafe_utilities;
-extern crate safe_app;
-extern crate safe_authenticator;
 #[macro_use]
 extern crate unwrap;
 

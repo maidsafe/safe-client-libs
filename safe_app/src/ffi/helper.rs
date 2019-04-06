@@ -7,15 +7,15 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use client::AppClient;
-use errors::AppError;
-use ffi_utils::callback::Callback;
-use ffi_utils::{FfiResult, OpaqueCtx, FFI_RESULT_OK};
+use crate::client::AppClient;
+use crate::errors::AppError;
+use crate::ffi_utils::callback::Callback;
+use crate::ffi_utils::{FfiResult, OpaqueCtx, FFI_RESULT_OK};
+use crate::{App, AppContext};
 use futures::Future;
 use safe_core::FutureExt;
 use std::fmt::Debug;
 use std::os::raw::c_void;
-use {App, AppContext};
 
 // Convenience wrapper around `App::send` which automatically handles the callback
 // boilerplate.

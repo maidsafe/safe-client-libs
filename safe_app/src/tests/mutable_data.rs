@@ -7,28 +7,28 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use client::AppClient;
-use ffi::test_utils::test_create_app;
+use crate::client::AppClient;
+use crate::ffi::test_utils::test_create_app;
+use crate::run;
+use crate::test_utils::create_app;
 use ffi_utils::test_utils::call_1;
 use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
 use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
-use run;
 use rust_sodium::crypto::sign;
 use safe_core::utils::test_utils::random_client;
 use safe_core::{utils, Client, CoreError, FutureExt, DIR_TAG};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CString;
 use std::sync::mpsc;
-use test_utils::create_app;
 
 // MD created by App. App lists its own sign_pk in owners field: Put should fail - Rejected by
 // MaidManagers. Should pass when it lists the owner's sign_pk instead.
 #[test]
 #[allow(unsafe_code)]
 fn md_created_by_app_1() {
-    use App;
+    use crate::App;
 
     let app_id = unwrap!(utils::generate_random_string(10));
     let app_id = unwrap!(CString::new(app_id));
