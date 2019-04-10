@@ -27,6 +27,7 @@ safe_authenticator = { path = "../safe_authenticator", version = "~0.9.1", optio
 safe_core = { path = "../safe_core", version = "~0.32.1" }
 self_encryption = "~0.13.0"
 tiny-keccak = "~1.3.1"
+tokio = "=0.1.8"
 tokio-core = "~0.1.17"
 unwrap = "~1.2.0"
 jni = { version = "~0.10.2", optional = true }
