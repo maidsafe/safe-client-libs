@@ -515,8 +515,8 @@ fn auth_apps_accessing_mdatas() {
         };
 
         assert_eq!(access.permissions, perms);
-        assert_eq!(access.name, Some(String::from("")));
-        assert_eq!(access.app_id, Some(String::from("")));
+        assert_eq!(access.name, None);
+        assert_eq!(access.app_id, None);
     }
 }
 

@@ -22,10 +22,7 @@ pub struct ContainersReq {
 }
 
 impl ContainersReq {
-    /// Consumes the object and returns the FFI counterpart.
-    ///
-    /// You're now responsible for freeing the subobjects memory once you're
-    /// done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::ContainersReq, IpcError> {
         let ContainersReq { app, containers } = self;
 
@@ -47,10 +44,9 @@ impl ReprC for ContainersReq {
 
     /// Constructs the object from the FFI counterpart.
     ///
-    /// After calling this functions, the subobjects memory is owned by the
-    /// resulting object.
-    unsafe fn clone_from_repr_c(repr_c: *const ffi::ContainersReq) -> Result<Self, IpcError> {
-        Ok(ContainersReq {
+    /// After calling this functions, the subobjects memory is owned by the resulting object.
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        Ok(Self {
             app: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app)?,
             containers: containers_from_repr_c((*repr_c).containers, (*repr_c).containers_len)?,
         })
