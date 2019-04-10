@@ -30,7 +30,7 @@ use App;
 
 /// Special value that represents that a message should be signed by the app.
 #[no_mangle]
-pub static SIGN_WITH_APP: u64 = NULL_OBJECT_HANDLE;
+pub static SIGN_WITH_APP: SignSecKeyHandle = NULL_OBJECT_HANDLE;
 
 /// Get the public signing key of the app.
 #[no_mangle]
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn sign_pub_key_new(
     })
 }
 
-/// Retrieve the public signing key as raw array.
+/// Retrieve the public signing key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn sign_pub_key_get(
     app: *const App,
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn sign_sec_key_new(
     })
 }
 
-/// Retrieve the secret signing key as raw array.
+/// Retrieve the secret signing key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn sign_sec_key_get(
     app: *const App,
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn enc_pub_key_new(
     })
 }
 
-/// Retrieve the public encryption key as raw array.
+/// Retrieve the public encryption key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn enc_pub_key_get(
     app: *const App,
@@ -268,7 +268,7 @@ pub unsafe extern "C" fn enc_pub_key_get(
     })
 }
 
-/// Free encryption key from memory
+/// Free encryption key from memory.
 #[no_mangle]
 pub unsafe extern "C" fn enc_pub_key_free(
     app: *const App,
@@ -304,7 +304,7 @@ pub unsafe extern "C" fn enc_secret_key_new(
     })
 }
 
-/// Retrieve the private encryption key as raw array.
+/// Retrieve the private encryption key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn enc_secret_key_get(
     app: *const App,
@@ -341,6 +341,7 @@ pub unsafe extern "C" fn enc_secret_key_free(
 }
 
 /// Signs arbitrary data using a given secret sign key.
+///
 /// If `sign_sk_h` is `SIGN_WITH_APP`, then uses the app's own secret key to sign.
 #[no_mangle]
 pub unsafe extern "C" fn sign(
@@ -674,6 +675,8 @@ pub unsafe extern "C" fn generate_nonce(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use errors::ERR_INVALID_SIGN_PUB_KEY_HANDLE;
+    use ffi::mutable_data::permissions::USER_ANYONE;
     use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
     use rust_sodium::crypto::box_;
     use safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
@@ -900,6 +903,15 @@ mod tests {
                 ud,
                 cb
             ),))
+        }
+
+        // Test that calling `sign_pub_key_get` on `USER_ANYONE` returns an error.
+        let user: Result<SignPublicKey, i32> =
+            unsafe { call_1(|ud, cb| sign_pub_key_get(&app, USER_ANYONE, ud, cb)) };
+        match user {
+            Err(ERR_INVALID_SIGN_PUB_KEY_HANDLE) => (),
+            Err(_) => panic!("Unexpected error"),
+            Ok(_) => panic!("Unexpected success"),
         }
     }
 

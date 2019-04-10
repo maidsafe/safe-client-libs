@@ -37,6 +37,7 @@ use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
 use utils;
 
+/// Wait for a response from the `$rx` receiver with path `$res` and message ID `$msg_id`.
 #[macro_export]
 macro_rules! wait_for_response {
     ($rx:expr, $res:path, $msg_id:expr) => {

@@ -1,5 +1,5 @@
 #!/bin/bash
 
-set -x;
+set -e -x
 
 cargo test --verbose --features="use-mock-routing" --release --manifest-path=tests/Cargo.toml

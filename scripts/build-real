@@ -1,8 +1,8 @@
 #!/bin/bash
 
-set -x;
+set -e -x
 
-scripts/build-real-core &&
-cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
-cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
+scripts/build-real-core
+cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml
+cargo build --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml
 cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# This script is a wrapper for running the packaging in the context of a container.
+#
+# It is assuming there will be an 'artifacts' directory that contains all of the
+# pre-built versions of safe_authenticator and safe_app for Linux and OSX, and
+# hopefully Windows in the future.
+#
+# With all the artifacts available it will package everything into zip files.
+
+set -e -x
+
+if [[ ! -d "artifacts" ]]; then
+    echo "This script is intended to be used with a docker container and a set of pre-built artifacts."
+    echo "Place these artifacts in an 'artifacts' folder at the root of the repository and perform the 'docker run' command again."
+    exit 1
+fi
+
+commit_message=$(git log -1 --pretty=%B | head -n 1)
+is_versioned="false"
+if [[ "$commit_message" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) || \
+      "$commit_message" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
+    is_versioned="true"
+fi
+
+export RUST_BACKTRACE=1
+[[ ! -d "deploy" ]] && mkdir deploy
+
+cd artifacts
+for os in *; do
+    if [[ $is_versioned == "true" ]]; then
+        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock
+        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/real"
+        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock
+        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/real"
+    else
+        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock --commit
+        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/real" --commit
+        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock --commit
+        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/real" --commit
+    fi
+done

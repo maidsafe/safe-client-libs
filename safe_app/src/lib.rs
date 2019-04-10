@@ -32,8 +32,6 @@ maidsafe_logo.png",
     non_shorthand_field_patterns,
     overflowing_literals,
     plugin_as_library,
-    private_no_mangle_fns,
-    private_no_mangle_statics,
     stable_features,
     unconditional_recursion,
     unknown_lints,
@@ -271,7 +269,7 @@ impl App {
         })
     }
 
-    /// Allows customising the mock Routing client before registering a new account
+    /// Allows customising the mock Routing client before registering a new account.
     #[cfg(feature = "use-mock-routing")]
     pub fn registered_with_hook<N, F>(
         app_id: String,

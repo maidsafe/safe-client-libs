@@ -1,11 +1,17 @@
 # safe_client_libs
 
-|Linux/OS X|Windows|Issues|
-|:--------:|:-----:|:----:|
-|[![Build Status](https://travis-ci.org/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.org/maidsafe/safe_client_libs)|[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|[![Stories in Ready](https://badge.waffle.io/maidsafe/safe_client_libs.png?label=ready&title=Ready)](https://waffle.io/maidsafe/safe_client_libs)|
+|Linux/macOS|Windows|Issues|Lines of Code|
+|:--------:|:-----:|:----:|:-----:|
+|[![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)|[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|[![Stories in Ready](https://badge.waffle.io/maidsafe/safe_client_libs.png?label=ready&title=Ready)](https://waffle.io/maidsafe/safe_client_libs)|[![](https://tokei.rs/b1/github/maidsafe/safe_client_libs)](https://github.com/maidsafe/safe_client_libs)
 
 | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
 |:-------:|:-------:|:-------:|
+
+## About
+
+**SAFE Client Libs** is a set of libraries providing a way for developers to consume and use the SAFE Network facilities. The libraries communicate with [Vaults](https://github.com/maidsafe/safe_vault) and build upon the foundation of fundamental network components, such as [Crust](https://github.com/maidsafe/crust) and [Routing](https://github.com/maidsafe/routing), to provide higher-level network abstractions like files and directories.
+
+Please see [Introduction to Client Libs](https://github.com/maidsafe/safe_client_libs/wiki/Introduction-to-Client-Libs) for more about the project.
 
 This is the project workspace. Please refer to individual members for details:
 
@@ -13,53 +19,71 @@ This is the project workspace. Please refer to individual members for details:
 - [safe_authenticator](safe_authenticator/README.md)
 - [safe_app](safe_app/README.md)
 
-## Testing
+Crate graph ([explanation](https://github.com/maidsafe/safe_client_libs/wiki#crate-graph)):
 
-When making changes, please run the appropriate tests, described below, before submitting a PR.
+![safe_app dependencies](safe-client-libs.png)
 
-### Mock routing
+## Building from source
 
-If a change is minor or does not involve potential breakage in data or API compatibility, it is not necessary to test against the actual network. In this case, it is enough to run unit tests using mock routing and make sure that they all pass. To do this, you will have to go to the crate you wish to test (e.g. the `safe_core` directory) and execute the following:
+### Installing Rust
 
-`cargo test --release --features=use-mock-routing`
+The Rust compiler is required in order to build Client Libs. Please follow the official [Rust installation instructions](https://www.rust-lang.org/en-US/install.html).
 
-This will run all unit tests for the crate. We run tests in release mode (indicated by the `--release` flag) in order to catch rare FFI bugs that may not manifest themselves in debug mode. Debug mode is also unoptimized and can take an inordinate amount of time to run tests.
+The latest **Stable** version of Rust is required.
 
-### Real network
+If you already have Rust installed, you may need to upgrade to the latest stable:
 
-When in doubt, perform an integration test against the real network, in addition to mock routing tests above. This will test various network operations, so please make sure you have some available account mutations. The steps:
-
-* You will need a SAFE network account. You can register one from within the [SAFE Browser](https://github.com/maidsafe/safe_browser/releases).
-* Make sure you are able to login to your account via the SAFE Browser.
-* Navigate to the `tests` directory.
-* Open `tests.config` and set your account locator and password. **Do not commit this.** Alternatively, you can set the environment variables `TEST_ACC_LOCATOR` and `TEST_ACC_PASSWORD`.
-* Run `cargo test authorisation_and_revocation --release -- --ignored --nocapture` and make sure that no errors are reported.
-
-#### Binary compatibility of data
-
-You may need to test whether your changes affected the binary compatibility of data on the network. This is necessary when updating compression or serialization dependencies to make sure that existing data can still be read using the new versions of the libraries.
-
-* Set your account locator and password as per the instructions above.
-* Run the following command on the **master** branch: `cargo test write_data -- --ignored --nocapture`
-* On the branch with your changes, ensure the following command completes successfully: `cargo test read_data -- --ignored --nocapture`
-
-### Viewing debug logs
-
-The codebase contains instrumentation statements that log potentially useful debugging information, at different priorities. Such statements include the macros `debug!` and `trace!`, and more can be found at the documentation for the [log crate](https://docs.rs/log). Feel free to add trace calls to the code when debugging.
-
-In order to view the output of trace calls you will need to initialize logging at the beginning of your test:
-
-```rust
-unwrap!(maidsafe_utilities::log::init(true));
+```
+rustup update stable
 ```
 
-Then you will need to set the `RUST_LOG` environment variable to the desired logging level for the desired modules or crates. To view trace calls for `safe_authenticator`, for example, you may do this:
+### Downloading Client Libs
 
-```shell
-export RUST_LOG=safe_authenticator=trace
+The Client Libs repository can be downloaded either as a zip archive from the [official repository](https://github.com/maidsafe/safe_client_libs) or by using Git:
+
+```
+git clone https://github.com/maidsafe/safe_client_libs.git
 ```
 
-You could also set `RUST_LOG=trace` which will output *all* trace logs, but this may produce far more data than desired. For more information please see the documentation for the `log` module in our crate [maidsafe_utilities](https://docs.rs/maidsafe_utilities).
+### Building the libraries
+
+To build one of the libraries, first navigate to its directory: this will be either `safe_core`, `safe_authenticator`, or `safe_app`.
+
+To build the library in debug mode, simply use the command
+
+```
+cargo build --release
+```
+
+This builds the library in release mode, which is how we build our official binaries.
+
+To run tests:
+
+```
+cargo test --release
+```
+
+**Note:** Make sure to always build in release mode (indicated by the `--release` flag). When testing, this will catch rare FFI bugs that may not manifest themselves in debug mode. Debug mode is also unoptimized and can take an inordinate amount of time to run tests or examples.
+
+### More about building
+
+For information about available features, see [Features](https://github.com/maidsafe/safe_client_libs/wiki/Building-Client-Libs#features).
+
+For building using Docker, see [Docker](https://github.com/maidsafe/safe_client_libs/wiki/Building-Client-Libs#docker).
+
+For configuration options, see [Configuring Client Libs](https://github.com/maidsafe/safe_client_libs/wiki/Configuring-Client-Libs).
+
+## Contributing
+
+Want to contribute? Great! There are many ways to give back to the project, whether it be writing new code, fixing bugs, or just reporting errors. All forms of contributions are encouraged!
+
+For instructions on how to contribute, see [Guide to contributing](https://github.com/maidsafe/safe_client_libs/wiki/Guide-to-contributing).
+
+For our testing practices, see [Testing Client Libs](https://github.com/maidsafe/safe_client_libs/wiki/Testing-Client-Libs).
+
+## More about the project
+
+Please see [the Client Libs wiki](https://github.com/maidsafe/safe_client_libs/wiki) for our comprehensive documentation.
 
 ## License
 

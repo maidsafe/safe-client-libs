@@ -7,7 +7,7 @@ license = "GPL-3.0"
 name = "safe_authenticator"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.9.0"
+version = "0.9.1"
 build = "build.rs"
 
 [dependencies]
@@ -20,7 +20,7 @@ maidsafe_utilities = "~0.16.0"
 rand = "~0.3.18"
 routing = "~0.37.0"
 rust_sodium = "~0.10.0"
-safe_core = { path = "../safe_core", version = "~0.32.0" }
+safe_core = { path = "../safe_core", version = "~0.32.1" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
 tiny-keccak = "~1.3.1"
@@ -30,7 +30,7 @@ jni = { version = "~0.10.2", optional = true }
 
 [dev-dependencies.safe_core]
 path = "../safe_core"
-version = "~0.32.0"
+version = "~0.32.1"
 features = ["testing"]
 
 [build-dependencies]

@@ -46,6 +46,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 use Authenticator;
 
+/// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]
 macro_rules! assert_match {
     ($e:expr, $p:pat) => {
@@ -163,7 +164,7 @@ pub fn register_app(
     })
 }
 
-/// Register random app. Returns the id of the app and the `AuthGranted` struct.
+/// Register a random app. Returns the ID of the app and the `AuthGranted` struct.
 pub fn register_rand_app(
     authenticator: &Authenticator,
     app_container: bool,

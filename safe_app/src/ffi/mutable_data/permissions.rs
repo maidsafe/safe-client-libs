@@ -23,7 +23,7 @@ use App;
 
 /// Special value that represents `User::Anyone` in permission sets.
 #[no_mangle]
-pub static USER_ANYONE: u64 = NULL_OBJECT_HANDLE;
+pub static USER_ANYONE: SignPubKeyHandle = NULL_OBJECT_HANDLE;
 
 /// FFI object representing a (User, Permission Set) pair.
 #[repr(C)]
@@ -73,7 +73,8 @@ pub unsafe extern "C" fn mdata_permissions_len(
 }
 
 /// Get the permission set corresponding to the given user.
-/// Use a constant `USER_ANYONE` for anyone.
+///
+/// User is either handle to a signing key or `USER_ANYONE`.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_permissions_get(
     app: *const App,
@@ -165,7 +166,7 @@ pub unsafe extern "C" fn mdata_list_permission_sets(
 
 /// Insert permission set for the given user to the permissions.
 ///
-/// To insert permissions for "Anyone", pass `USER_ANYONE` as the user handle.
+/// User is either handle to a signing key or `USER_ANYONE`.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_permissions_insert(
     app: *const App,

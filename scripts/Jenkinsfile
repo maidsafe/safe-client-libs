@@ -1,0 +1,241 @@
+stage('build') {
+    parallel real_linux: {
+        node('docker') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            clean()
+            build_safe_client_libs('real')
+            strip_build_artifacts()
+            package_build_artifacts('real', 'linux')
+            upload_build_artifacts()
+        }
+    },
+    mock_linux: {
+        node('docker') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            clean()
+            build_safe_client_libs('mock')
+            strip_build_artifacts()
+            package_build_artifacts('mock', 'linux')
+            upload_build_artifacts()
+            upload_binary_compatibility_test()
+        }
+    },
+    real_windows: {
+        node('windows') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('real')
+            strip_build_artifacts()
+            package_build_artifacts('real', 'windows')
+            upload_build_artifacts()
+        }
+    },
+    mock_windows: {
+        node('windows') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('mock')
+            strip_build_artifacts()
+            package_build_artifacts('mock', 'windows')
+            upload_build_artifacts()
+        }
+    },
+    real_osx: {
+        node('osx') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('real')
+            strip_build_artifacts()
+            package_build_artifacts('real', 'osx')
+            upload_build_artifacts()
+        }
+    },
+    mock_osx: {
+        node('osx') {
+            git([url: env.REPO_URL, branch: env.BRANCH])
+            build_safe_client_libs('mock')
+            strip_build_artifacts()
+            package_build_artifacts('mock', 'osx')
+            upload_build_artifacts()
+        }
+    }
+}
+
+stage('test') {
+    parallel mocked_linux: {
+        node('docker') {
+            retrieve_build_artifacts('mock', 'linux')
+            run_tests('mock')
+        }
+    },
+    mocked_windows: {
+        node('windows') {
+            retrieve_build_artifacts('mock', 'windows')
+            run_tests('mock')
+        }
+    },
+    mocked_macos: {
+        node('osx') {
+            retrieve_build_artifacts('mock', 'osx')
+            run_tests('mock')
+        }
+    },
+    integration_linux: {
+        node('docker') {
+            retrieve_build_artifacts('mock', 'linux')
+            run_tests('integration')
+        }
+    },
+    binary_linux: {
+        node('docker') {
+            run_binary_compatibility_tests()
+        }
+    }
+}
+
+stage('deployment') {
+    node('docker') {
+        package_deploy_artifacts()
+        withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+            def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
+            for (artifact in artifacts) {
+                s3Upload(
+                    bucket: "${env.DEPLOY_BUCKET}",
+                    file: artifact,
+                    workingDir: "${env.WORKSPACE}/deploy",
+                    acl: 'PublicRead')
+            }
+        }
+    }
+}
+
+stage('clean') {
+    node('docker') {
+        clean()
+    }
+}
+
+def clean() {
+    for (mode in ['mock', 'real']) {
+        def container_name = get_container_name(mode, 'build')
+        sh("docker rm ${container_name} || true")
+    }
+}
+
+def get_container_name(mode, type, app='') {
+    if (app?.trim()) {
+        return "safe_client_libs_${app}_${mode}_${type}_${env.BUILD_NUMBER}"
+    }
+    return "safe_client_libs_${mode}_${type}_${env.BUILD_NUMBER}"
+}
+
+def package_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make package-build-artifacts"
+    sh(command)
+}
+
+def package_deploy_artifacts() {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "make retrieve-all-build-artifacts"
+    sh(command)
+    sh("make package-deploy-artifacts")
+}
+
+def build_safe_client_libs(mode) {
+    if (mode == "real") {
+        sh("make build")
+    } else {
+        sh("make build-mock")
+    }
+}
+
+def strip_build_artifacts() {
+    sh("make strip-artifacts")
+}
+
+def upload_build_artifacts() {
+    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+        def artifacts = sh(returnStdout: true, script: 'ls -1 artifacts').trim().split("\\r?\\n")
+        for (artifact in artifacts) {
+            s3Upload(
+                bucket: "${env.ARTIFACTS_BUCKET}",
+                file: artifact,
+                workingDir: "${env.WORKSPACE}/artifacts",
+                acl: 'PublicRead')
+        }
+    }
+}
+
+def upload_binary_compatibility_test() {
+    sh("mkdir -p ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}")
+    def test_executable = sh(
+        returnStdout: true,
+        script: $/eval "find target/release -maxdepth 1 -mindepth 1 -name 'tests-*' ! -name '*.d'" /$).trim()
+    sh("cp ${test_executable} ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}/tests")
+    sh("rm -rf target/release")
+    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+        s3Upload(
+            bucket: "${env.ARTIFACTS_BUCKET}",
+            file: "bct/${env.BUILD_NUMBER}/tests",
+            path: "bct/${env.BUILD_NUMBER}/tests",
+            workingDir: "${env.WORKSPACE}",
+            acl: 'PublicRead')
+    }
+}
+
+def retrieve_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make retrieve-build-artifacts"
+    sh(command)
+}
+
+
+def run_binary_compatibility_tests() {
+    build_number = get_last_successful_build_number(currentBuild)
+    if (build_number != -1) {
+        echo("Running binary compatibility tests: build ${build_number} being used as previous set")
+        bct_test_path = "${env.WORKSPACE}/bct-${build_number}"
+        withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+            s3Download(
+                file: "${bct_test_path}",
+                bucket: "${env.ARTIFACTS_BUCKET}",
+                path: "bct/${build_number}/tests",
+                force: true)
+        }
+        run_tests('binary', bct_test_path)
+    } else {
+        echo("Not running binary compatibility tests:  no previously successful builds found")
+    }
+}
+
+def run_tests(mode, bct_test_path='') {
+    if (mode == 'mock') {
+        sh("make test-artifacts-mock")
+    } else if (mode == 'binary') {
+        command = "SCL_BCT_PATH=${bct_test_path} "
+        command += "make test-artifacts-binary"
+        sh(command)
+    } else {
+        sh("make test-artifacts-integration")
+    }
+}
+
+def get_last_successful_build_number(build) {
+    if (build == null) {
+        return -1
+    }
+    if (build.result == 'SUCCESS') {
+        return build.number as Integer
+    }
+    return get_last_successful_build_number(build.getPreviousBuild())
+}

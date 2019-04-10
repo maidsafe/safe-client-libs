@@ -250,6 +250,7 @@ fn read_data() {
     println!("Data read successfully.");
 }
 
+// Test that basic mdata operations work on the real network.
 #[ignore]
 #[test]
 fn mdata_operations() {

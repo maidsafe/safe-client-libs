@@ -26,9 +26,7 @@ pub struct UserPermissionSet {
 }
 
 impl UserPermissionSet {
-    /// Consumes the object and returns the FFI counterpart.
-    ///
-    /// You're now responsible for freeing the object's memory once you're done.
+    /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> FfiUserPermissionSet {
         FfiUserPermissionSet {
             user_h: self.user_h,
@@ -42,10 +40,10 @@ impl ReprC for UserPermissionSet {
     type Error = IpcError;
 
     #[allow(unsafe_code)]
-    unsafe fn clone_from_repr_c(c_repr: Self::C) -> Result<Self, Self::Error> {
-        let FfiUserPermissionSet { user_h, perm_set } = *c_repr;
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let FfiUserPermissionSet { user_h, perm_set } = *repr_c;
 
-        Ok(UserPermissionSet {
+        Ok(Self {
             user_h,
             perm_set: permission_set_clone_from_repr_c(perm_set)?,
         })

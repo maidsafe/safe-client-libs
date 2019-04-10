@@ -1,22 +1,29 @@
 #!/usr/bin/env run-cargo-script
 //! ```cargo
 //! [dependencies]
+//! cc = "=1.0.22"
 //! clap = "=2.27.1"
 //! colored = "1.6.0"
+//! flate2 = "1.0.7"
 //! heck = "0.3.0"
+//! tar = "0.4.22"
 //! toml = "0.4.5"
 //! walkdir = "2.0.1"
 //! zip = "=0.2.6"
 //! ```
 extern crate clap;
 extern crate colored;
+extern crate flate2;
 extern crate heck;
+extern crate tar;
 extern crate toml;
 extern crate walkdir;
 extern crate zip;
 
 use clap::{App, Arg};
 use colored::*;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use heck::ShoutySnakeCase;
 use std::env;
 use std::fs::File;
@@ -26,8 +33,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
 use walkdir::WalkDir;
-use zip::ZipWriter;
 use zip::write::FileOptions;
+use zip::ZipWriter;
 
 const TARGET_LINUX_X86: &str = "i686-unknown-linux-gnu";
 const TARGET_LINUX_X64: &str = "x86_64-unknown-linux-gnu";
@@ -95,7 +102,6 @@ const ARCHS: &[Arch] = &[
     },
 ];
 
-
 #[cfg(all(target_os = "linux", target_arch = "x86"))]
 const HOST_ARCH_NAME: &str = "linux-x86";
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -135,6 +141,14 @@ fn main() {
             "Uses commit hash instead of version string in the package name",
         ))
         .arg(
+            Arg::with_name("REBUILD")
+                .short("r")
+                .long("rebuild")
+                .takes_value(false)
+                .required(false)
+                .help("If true a cargo build will run and output the artifacts to target/<arch>")
+        )
+        .arg(
             Arg::with_name("ARCH")
                 .short("a")
                 .long("arch")
@@ -168,9 +182,26 @@ fn main() {
                 .takes_value(true)
                 .help("Destination directory (uses current dir by default)"),
         )
+        .arg(
+            Arg::with_name("STRIP")
+                .short("s")
+                .long("strip")
+                .takes_value(false)
+                .help("Specify this flag for running GNU strip on the binaries before they are packaged.")
+        )
+        .arg(
+            Arg::with_name("ARTIFACTS")
+                .short("a")
+                .long("artifacts")
+                .takes_value(true)
+                .help("Directory containing the artifacts to package. If not specified, the CARGO_TARGET_DIR
+                      variable will be queried for its value, and if that's not set, we will assume the 'target'
+                      directory in the current directory."),
+        )
         .get_matches();
 
     let krate = matches.value_of("NAME").unwrap();
+    let rebuild = matches.is_present("REBUILD");
     let version_string = get_version_string(krate, matches.is_present("COMMIT"));
 
     let arch_name = matches.value_of("ARCH").unwrap_or(HOST_ARCH_NAME);
@@ -180,9 +211,14 @@ fn main() {
     let bindings = matches.is_present("BINDINGS");
     let lib = matches.is_present("LIB");
     let mock = matches.is_present("MOCK");
+    let strip = matches.is_present("STRIP");
 
     let toolchain_path = matches.value_of("TOOLCHAIN");
-    let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
+    let target_dir = if matches.is_present("ARTIFACTS") {
+        matches.value_of("ARTIFACTS").unwrap().to_string()
+    } else {
+        env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string())
+    };
 
     let file_options = FileOptions::default();
 
@@ -208,19 +244,26 @@ fn main() {
                 let arch = find_arch(arch_name).unwrap();
                 let target = &arch.target;
 
-                if !build(krate, &features, Some(target)) {
-                    return Vec::new();
+                if rebuild {
+                    if !build(krate, &features, Some(target)) {
+                        return Vec::new();
+                    }
                 }
 
                 if !lib {
                     return Vec::new();
                 }
 
-                let libs = find_libs(krate, Some(target), &target_dir);
-                strip_libs(toolchain_path, Some(arch), &libs);
+                let libs = if rebuild {
+                    find_libs(krate, Some(target), &target_dir)
+                } else {
+                    find_libs(krate, None, &target_dir)
+                };
+                if strip {
+                    strip_libs(toolchain_path, Some(arch), &libs);
+                }
                 libs
-            })
-            .peekable();
+            }).peekable();
 
         if arch_libs.peek().is_some() {
             let lib_name = format!("lib{}.a", krate);
@@ -230,36 +273,36 @@ fn main() {
     } else {
         // Normal library
         let target = arch.map(|arch| arch.target);
-        if !build(krate, &features, target) {
-            return;
+        if rebuild {
+            if !build(krate, &features, target) {
+                return;
+            }
         }
 
         if lib {
-            let arch_libs = find_libs(krate, target, &target_dir);
-            strip_libs(toolchain_path, arch, &arch_libs);
+            let arch_libs = if rebuild {
+                find_libs(krate, target, &target_dir)
+            } else {
+                find_libs(krate, None, &target_dir)
+            };
+            if strip {
+                strip_libs(toolchain_path, arch, &arch_libs);
+            }
             libs.extend_from_slice(&arch_libs)
         }
     }
 
-    // Create library archive.
     if !libs.is_empty() {
-        let archive_name = {
-            let mock = if mock { "-mock" } else { "" };
-            format!("{}{}-{}-{}.zip", krate, mock, version_string, arch_name)
-        };
-        let path: PathBuf = [dest_dir, &archive_name].iter().collect();
-
-        let file = File::create(path).unwrap();
-        let mut archive = ZipWriter::new(file);
-
-        for path in libs {
-            archive
-                .start_file(path.file_name().unwrap().to_string_lossy(), file_options)
-                .unwrap();
-
-            let mut file = File::open(path).unwrap();
-            io::copy(&mut file, &mut archive).unwrap();
-        }
+        package_artifacts_as_zip(
+            &arch_name,
+            &krate,
+            &dest_dir,
+            &libs,
+            &version_string,
+            mock,
+            file_options,
+        );
+        package_artifacts_as_tar_gz(&arch_name, &krate, &dest_dir, &libs, &version_string, mock);
     }
 
     // Create bindings archive.
@@ -299,6 +342,64 @@ struct Arch {
     toolchain: &'static str,
 }
 
+fn package_artifacts_as_zip(
+    arch_name: &str,
+    krate: &str,
+    dest_dir: &str,
+    libs: &[PathBuf],
+    version_string: &str,
+    mock: bool,
+    file_options: FileOptions,
+) {
+    let archive_name = get_archive_name(&arch_name, &krate, "zip", &version_string, mock);
+    let path: PathBuf = [dest_dir, &archive_name].iter().collect();
+    let file = File::create(path).unwrap();
+    let mut archive = ZipWriter::new(file);
+    for path in libs {
+        println!("Adding {:?} to {:?}", path, archive_name);
+        archive
+            .start_file(path.file_name().unwrap().to_string_lossy(), file_options)
+            .unwrap();
+        let mut file = File::open(path).unwrap();
+        io::copy(&mut file, &mut archive).unwrap();
+    }
+}
+
+fn package_artifacts_as_tar_gz(
+    arch_name: &str,
+    krate: &str,
+    dest_dir: &str,
+    libs: &[PathBuf],
+    version_string: &str,
+    mock: bool,
+) {
+    let archive_name = get_archive_name(&arch_name, &krate, "tar.gz", &version_string, mock);
+    let path: PathBuf = [dest_dir, &archive_name].iter().collect();
+    let file = File::create(path).unwrap();
+    let enc = GzEncoder::new(file, Compression::default());
+    let mut archive = tar::Builder::new(enc);
+    for path in libs {
+        println!("Adding {:?} to {:?}", path, archive_name);
+        archive
+            .append_path_with_name(path, path.file_name().unwrap().to_str().unwrap())
+            .unwrap();
+    }
+}
+
+fn get_archive_name(
+    arch_name: &str,
+    krate: &str,
+    archive_type: &str,
+    version_string: &str,
+    mock: bool,
+) -> String {
+    let mock = if mock { "-mock" } else { "" };
+    format!(
+        "{}{}-{}-{}.{}",
+        krate, mock, version_string, arch_name, archive_type
+    )
+}
+
 fn get_version_string(krate: &str, commit: bool) -> String {
     if commit {
         // Get the current commit hash.
@@ -316,13 +417,12 @@ fn get_version_string(krate: &str, commit: bool) -> String {
         let mut file =
             File::open(Path::new(krate).join("Cargo.toml")).expect("failed to open Cargo.toml");
         let mut content = String::new();
-        file.read_to_string(&mut content).expect(
-            "failed to read Cargo.toml",
-        );
+        file.read_to_string(&mut content)
+            .expect("failed to read Cargo.toml");
 
-        let toml = content.parse::<Value>().expect(
-            "failed to parse Cargo.toml",
-        );
+        let toml = content
+            .parse::<Value>()
+            .expect("failed to parse Cargo.toml");
         toml["package"]["version"]
             .as_str()
             .expect("failed to read package version from Cargo.toml")
@@ -374,7 +474,7 @@ fn setup_env(toolchain_path: Option<&str>, arch: Option<&Arch>) {
             println!(
                 "{}: the environment variable {} is set, but points to \
                  non-existing file {}. This might cause linker failures.",
-                 "warning".yellow().bold(),
+                "warning".yellow().bold(),
                 name.bold(),
                 value.bold(),
             );
@@ -492,16 +592,15 @@ fn lipo<I: IntoIterator<Item = PathBuf>>(libs: I, output: &str) {
 }
 
 fn path_into_string(path: PathBuf) -> String {
-    path.into_os_string().into_string().unwrap().replace(
-        '\\',
-        "/",
-    )
+    path.into_os_string()
+        .into_string()
+        .unwrap()
+        .replace('\\', "/")
 }
 
 fn is_static_lib_required(target: Option<&str>) -> bool {
     match target {
-        Some(TARGET_IOS_ARM64) |
-        Some(TARGET_IOS_X64) => true,
+        Some(TARGET_IOS_ARM64) | Some(TARGET_IOS_X64) => true,
         Some(_) | None => false,
     }
 }
