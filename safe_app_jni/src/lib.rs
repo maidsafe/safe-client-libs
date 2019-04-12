@@ -163,10 +163,12 @@ pub(crate) unsafe fn find_class<'a>(
     env: &'a JNIEnv,
     class_name: &str,
 ) -> Result<AutoLocal<'a>, JniError> {
+    use std::str::FromStr;
+
     let cls = env.auto_local(*env.new_string(class_name)?);
 
     Ok(env.auto_local(From::from(
-        env.call_method_unsafe(
+        env.call_method_unchecked(
             CLASS_LOADER
                 .as_ref()
                 .ok_or_else(|| JniError::from("Unexpected - no cached class loader"))?
