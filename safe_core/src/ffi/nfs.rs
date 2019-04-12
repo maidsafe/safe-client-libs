@@ -22,10 +22,10 @@ pub struct File {
     /// Modification time (nanoseconds part).
     pub modified_nsec: u32,
     /// Pointer to the user metadata.
-    pub user_metadata_ptr: *mut u8,
+    pub user_metadata: *const u8,
     /// Size of the user metadata.
     pub user_metadata_len: usize,
-    /// Capacity of the user metadata (internal field).
+    /// Capacity of user metadata. Internal field required for the Rust allocator.
     pub user_metadata_cap: usize,
     /// Name of the `ImmutableData` containing the content of this file.
     pub data_map_name: XorNameArray,
@@ -36,7 +36,7 @@ impl Drop for File {
     fn drop(&mut self) {
         let _ = unsafe {
             Vec::from_raw_parts(
-                self.user_metadata_ptr,
+                self.user_metadata as *mut u8,
                 self.user_metadata_len,
                 self.user_metadata_cap,
             )

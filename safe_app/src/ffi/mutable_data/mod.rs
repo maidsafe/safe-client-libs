@@ -256,10 +256,11 @@ pub unsafe extern "C" fn mdata_list_keys(
                 .then(move |result| {
                     match result {
                         Ok(keys) => {
-                            let keys: Vec<_> =
-                                keys.into_iter().map(NativeMDataKey::from_routing).collect();
-                            let repr_c: Vec<_> =
-                                keys.iter().map(NativeMDataKey::as_repr_c).collect();
+                            let repr_c: Vec<_> = keys
+                                .into_iter()
+                                .map(|vec| NativeMDataKey::from_bytes(&vec))
+                                .map(NativeMDataKey::into_repr_c)
+                                .collect();
 
                             o_cb(
                                 user_data.0,
@@ -305,12 +306,11 @@ pub unsafe extern "C" fn mdata_list_values(
                 .then(move |result| {
                     match result {
                         Ok(values) => {
-                            let values: Vec<_> = values
+                            let repr_c: Vec<_> = values
                                 .into_iter()
                                 .map(NativeMDataValue::from_routing)
+                                .map(NativeMDataValue::into_repr_c)
                                 .collect();
-                            let repr_c: Vec<_> =
-                                values.iter().map(NativeMDataValue::as_repr_c).collect();
 
                             o_cb(
                                 user_data.0,

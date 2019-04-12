@@ -100,7 +100,7 @@ pub struct AuthGranted {
     pub access_container_entry: AccessContainerEntry,
 
     /// Crust's bootstrap config
-    pub bootstrap_config: *mut u8,
+    pub bootstrap_config: *const u8,
     /// `bootstrap_config`'s length
     pub bootstrap_config_len: usize,
     /// Used by Rust memory allocator
@@ -111,7 +111,7 @@ impl Drop for AuthGranted {
     fn drop(&mut self) {
         unsafe {
             let _ = Vec::from_raw_parts(
-                self.bootstrap_config,
+                self.bootstrap_config as *mut u8,
                 self.bootstrap_config_len,
                 self.bootstrap_config_cap,
             );
@@ -197,22 +197,43 @@ impl Drop for MetadataResponse {
 #[repr(C)]
 #[derive(Debug)]
 pub struct MDataKey {
-    /// Key value pointer.
+    /// Pointer to the key.
     pub key: *const u8,
-    /// Key length.
+    /// Size of the key.
     pub key_len: usize,
+    /// Capacity of the key. Internal field required for the Rust allocator.
+    pub key_cap: usize,
+}
+
+impl Drop for MDataKey {
+    #[allow(unsafe_code)]
+    fn drop(&mut self) {
+        let _ = unsafe { Vec::from_raw_parts(self.key as *mut u8, self.key_len, self.key_cap) };
+    }
 }
 
 /// Represents the FFI-safe mutable data value.
 #[repr(C)]
 #[derive(Debug)]
 pub struct MDataValue {
-    /// Content pointer.
+    /// Pointer to the content.
     pub content: *const u8,
-    /// Content length.
+    /// Size of the content.
     pub content_len: usize,
+    /// Capacity of the content. Internal field required for the Rust allocator.
+    pub content_cap: usize,
+
     /// Entry version.
     pub entry_version: u64,
+}
+
+impl Drop for MDataValue {
+    #[allow(unsafe_code)]
+    fn drop(&mut self) {
+        let _ = unsafe {
+            Vec::from_raw_parts(self.content as *mut u8, self.content_len, self.content_cap)
+        };
+    }
 }
 
 /// Represents an FFI-safe mutable data (key, value) entry.
