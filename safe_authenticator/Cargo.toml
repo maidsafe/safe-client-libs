@@ -13,14 +13,14 @@ edition = "2018"
 
 [dependencies]
 config_file_handler = "~0.11.0"
-ffi_utils = "~0.11.0"
+ffi_utils = "~0.12.0"
 futures = "~0.1.17"
 log = "~0.4.1"
 lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.16.0"
 rand = "~0.3.18"
 routing = "~0.37.0"
-rust_sodium = "~0.10.0"
+rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.32.1" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
@@ -28,7 +28,7 @@ tiny-keccak = "~1.3.1"
 tokio = "=0.1.8"
 tokio-core = "~0.1.17"
 unwrap = "~1.2.0"
-jni = { version = "~0.10.2", optional = true }
+jni = { version = "~0.12.0", optional = true }
 
 [dev-dependencies.safe_core]
 path = "../safe_core"
@@ -36,11 +36,11 @@ version = "~0.32.1"
 features = ["testing"]
 
 [build-dependencies]
-ffi_utils = "~0.11.0"
-jni = "~0.10.1"
+ffi_utils = "~0.12.0"
+jni = "~0.12.0"
 routing = "~0.37.0"
-rust_sodium = "~0.10.0"
-safe_bindgen = "~0.11.0"
+rust_sodium = "~0.10.2"
+safe_bindgen = "~0.12.0"
 unwrap = "~1.2.0"
 
 [features]

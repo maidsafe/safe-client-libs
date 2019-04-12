@@ -10,7 +10,7 @@
 use crate::client::AppClient;
 use crate::errors::AppError;
 use crate::ffi_utils::callback::Callback;
-use crate::ffi_utils::{FfiResult, OpaqueCtx, FFI_RESULT_OK};
+use crate::ffi_utils::{OpaqueCtx, FFI_RESULT_OK};
 use crate::{App, AppContext};
 use futures::Future;
 use safe_core::FutureExt;
