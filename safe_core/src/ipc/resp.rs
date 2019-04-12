@@ -498,6 +498,43 @@ impl ReprC for UserMetadata {
     }
 }
 
+/// Mutable data key.
+#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+pub struct MDataKey(
+    /// Key value.
+    pub Vec<u8>,
+);
+
+impl MDataKey {
+    /// Create the key from bytes.
+    pub fn from_bytes(key: &[u8]) -> Self {
+        MDataKey(key.into())
+    }
+
+    /// Construct FFI wrapper for the native Rust object, consuming self.
+    pub fn into_repr_c(self) -> ffi::MDataKey {
+        let (key, key_len, key_cap) = vec_into_raw_parts(self.0);
+
+        ffi::MDataKey {
+            key,
+            key_len,
+            key_cap,
+        }
+    }
+}
+
+impl ReprC for MDataKey {
+    type C = *const ffi::MDataKey;
+    type Error = ();
+
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let ffi::MDataKey { key, key_len, .. } = *repr_c;
+        let key = slice::from_raw_parts(key, key_len).to_vec();
+
+        Ok(MDataKey(key))
+    }
+}
+
 /// Redefine the Value from routing so that we can `impl ReprC`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
 pub struct MDataValue {
@@ -510,17 +547,20 @@ pub struct MDataValue {
 impl MDataValue {
     /// Convert routing representation to `MDataValue`.
     pub fn from_routing(value: MDataSeqValue) -> Self {
-        MDataValue {
+        Self {
             content: value.data,
             entry_version: value.version,
         }
     }
 
     /// Returns FFI counterpart without consuming the object.
-    pub fn as_repr_c(&self) -> ffi::MDataValue {
+    pub fn into_repr_c(self) -> ffi::MDataValue {
+        let (content, content_len, content_cap) = vec_into_raw_parts(self.content);
+
         ffi::MDataValue {
-            content: self.content.as_ptr(),
-            content_len: self.content.len(),
+            content,
+            content_len,
+            content_cap,
             entry_version: self.entry_version,
         }
     }
@@ -535,45 +575,14 @@ impl ReprC for MDataValue {
             content,
             content_len,
             entry_version,
+            ..
         } = *repr_c;
+        let content = slice::from_raw_parts(content, content_len).to_vec();
 
         Ok(Self {
-            content: slice::from_raw_parts(content, content_len).to_vec(),
+            content,
             entry_version,
         })
-    }
-}
-
-/// Mutable data key.
-#[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
-pub struct MDataKey(
-    /// Key value.
-    pub Vec<u8>,
-);
-
-impl MDataKey {
-    /// Convert routing representation to `MDataKey`.
-    pub fn from_routing(key: Vec<u8>) -> Self {
-        MDataKey(key)
-    }
-
-    /// Returns FFI counterpart without consuming the object.
-    pub fn as_repr_c(&self) -> ffi::MDataKey {
-        ffi::MDataKey {
-            key: self.0.as_ptr(),
-            key_len: self.0.len(),
-        }
-    }
-}
-
-impl ReprC for MDataKey {
-    type C = *const ffi::MDataKey;
-    type Error = ();
-
-    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        let ffi::MDataKey { key, key_len } = *repr_c;
-
-        Ok(MDataKey(slice::from_raw_parts(key, key_len).to_vec()))
     }
 }
 
@@ -587,11 +596,11 @@ pub struct MDataEntry {
 }
 
 impl MDataEntry {
-    /// Returns FFI counterpart without consuming the object.
-    pub fn as_repr_c(&self) -> ffi::MDataEntry {
+    /// Construct FFI wrapper for the native Rust object, consuming self.
+    pub fn into_repr_c(self) -> ffi::MDataEntry {
         ffi::MDataEntry {
-            key: self.key.as_repr_c(),
-            value: self.value.as_repr_c(),
+            key: self.key.into_repr_c(),
+            value: self.value.into_repr_c(),
         }
     }
 }

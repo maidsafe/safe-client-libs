@@ -43,7 +43,7 @@ impl File {
     pub fn into_repr_c(self) -> FfiFile {
         // TODO: move the metadata, not clone.
         let user_metadata = self.user_metadata().to_vec();
-        let (user_metadata_ptr, user_metadata_len, user_metadata_cap) =
+        let (user_metadata, user_metadata_len, user_metadata_cap) =
             vec_into_raw_parts(user_metadata);
 
         FfiFile {
@@ -52,7 +52,7 @@ impl File {
             created_nsec: self.created_time().timestamp_subsec_nanos(),
             modified_sec: self.modified_time().timestamp(),
             modified_nsec: self.modified_time().timestamp_subsec_nanos(),
-            user_metadata_ptr,
+            user_metadata,
             user_metadata_len,
             user_metadata_cap,
             data_map_name: self.data_map_name().0,
@@ -129,8 +129,7 @@ impl ReprC for File {
     #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let user_metadata =
-            slice::from_raw_parts((*repr_c).user_metadata_ptr, (*repr_c).user_metadata_len)
-                .to_vec();
+            slice::from_raw_parts((*repr_c).user_metadata, (*repr_c).user_metadata_len).to_vec();
 
         let created = convert_date_time((*repr_c).created_sec, (*repr_c).created_nsec)?;
         let modified = convert_date_time((*repr_c).modified_sec, (*repr_c).modified_nsec)?;

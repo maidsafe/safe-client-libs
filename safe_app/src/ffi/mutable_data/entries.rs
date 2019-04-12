@@ -159,16 +159,12 @@ pub unsafe extern "C" fn seq_mdata_list_entries(
 
             let entries_vec: Vec<MDataEntry> = entries
                 .iter()
-                .map(|(key, value)| MDataEntry {
-                    key: MDataKey {
-                        key: key.as_safe_ptr(),
-                        key_len: key.len(),
-                    },
-                    value: MDataValue {
-                        content: value.data.as_safe_ptr(),
-                        content_len: value.data.len(),
-                        entry_version: value.version,
-                    },
+                .map(|(key, value)| {
+                    MDataEntry {
+                        key: MDataKey(key.clone()),
+                        value: MDataValue::from_routing(value.clone()),
+                    }
+                    .into_repr_c()
                 })
                 .collect();
 
