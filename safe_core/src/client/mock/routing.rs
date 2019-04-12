@@ -6,8 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-/// Helper macro to receive a routing event and assert it's a response
-/// success.
+/// Helper macro to receive a routing event and assert it's a response success.
 #[macro_export]
 macro_rules! expect_success {
     ($rx:expr, $msg_id:expr, $res:path) => {
@@ -27,9 +26,3 @@ macro_rules! expect_success {
         }
     };
 }
-
-// impl Drop for Routing {
-//     fn drop(&mut self) {
-//         let _ = self.sender.send(Event::Terminate);
-//     }
-// }

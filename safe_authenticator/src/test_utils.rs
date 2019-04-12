@@ -70,7 +70,7 @@ pub enum Payload {
 /// Channel type.
 pub type ChannelType = Result<(IpcMsg, Option<Payload>), (i32, Option<IpcMsg>)>;
 
-/// Initialise `env_logger` with custom settings.
+/// Initialises `env_logger` with custom settings.
 pub fn init_log() {
     let do_format = move |formatter: &mut Formatter, record: &Record<'_>| {
         let now = formatter.timestamp();
@@ -113,7 +113,7 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
     (auth, locator, password)
 }
 
-/// Create a random authenticator and login using the same credentials.
+/// Creates a random authenticator and login using the same credentials.
 pub fn create_account_and_login() -> Authenticator {
     let (_, locator, password) = create_authenticator();
 
@@ -121,7 +121,7 @@ pub fn create_account_and_login() -> Authenticator {
     unwrap!(Authenticator::login(locator, password, || ()))
 }
 
-/// Revoke an app, returning an error on failure
+/// Revokes an app, returning an error on failure.
 pub fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
     let app_id = app_id.to_string();
 
@@ -130,7 +130,7 @@ pub fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), Aut
     })
 }
 
-/// Revoke an app, panicking on failure
+/// Revokes an app, panicking on failure.
 pub fn revoke(authenticator: &Authenticator, app_id: &str) {
     match try_revoke(authenticator, app_id) {
         Ok(_) => (),
@@ -138,7 +138,7 @@ pub fn revoke(authenticator: &Authenticator, app_id: &str) {
     }
 }
 
-/// Create a random authenticator and login using the same credentials.
+/// Creates a random authenticator and login using the same credentials.
 /// Attaches a hook to the Routing to override responses.
 #[cfg(all(any(test, feature = "testing"), feature = "mock-network"))]
 pub fn create_account_and_login_with_hook<F>(hook: F) -> Authenticator
@@ -196,7 +196,7 @@ pub fn register_app(
     })
 }
 
-/// Register a random app. Returns the ID of the app and the `AuthGranted` struct.
+/// Registers a random app. Returns the ID of the app and the `AuthGranted` struct.
 #[allow(clippy::implicit_hasher)]
 pub fn register_rand_app(
     authenticator: &Authenticator,
@@ -232,7 +232,7 @@ pub fn rand_app() -> AppExchangeInfo {
     }
 }
 
-/// Create file in the given container, with the given name and content.
+/// Creates file in the given container, with the given name and content.
 pub fn create_file<S: Into<String>>(
     authenticator: &Authenticator,
     container_info: MDataInfo,

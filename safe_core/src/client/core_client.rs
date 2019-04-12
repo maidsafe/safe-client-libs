@@ -171,7 +171,7 @@ impl CoreClient {
 }
 
 impl Client for CoreClient {
-    type MsgType = ();
+    type Context = ();
 
     fn full_id(&self) -> SafeKey {
         self.keys.client_safe_key()
@@ -186,7 +186,7 @@ impl Client for CoreClient {
         None
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
+    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
         self.inner.clone()
     }
 
