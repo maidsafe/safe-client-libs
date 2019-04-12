@@ -96,7 +96,7 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
 /// abstraction from the futures-rs crate.
 pub trait Client: Clone + 'static {
     /// Associated message type.
-    type MsgType;
+    type Context;
 
     /// Return the client's ID.
     fn full_id(&self) -> Option<FullId>;
@@ -109,7 +109,7 @@ pub trait Client: Clone + 'static {
 
     /// Return an associated `ClientInner` type which is expected to contain fields associated with
     /// the implementing type.
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>>;
+    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>>;
 
     /// Return the public encryption key.
     fn public_encryption_key(&self) -> Option<box_::PublicKey>;

@@ -183,7 +183,7 @@ impl CoreClient {
 }
 
 impl Client for CoreClient {
-    type MsgType = ();
+    type Context = ();
 
     fn full_id(&self) -> Option<FullId> {
         None
@@ -197,7 +197,7 @@ impl Client for CoreClient {
         Some(self.cm_addr)
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
+    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
         self.inner.clone()
     }
 

@@ -77,8 +77,8 @@ pub fn unlimited_muts(config: &Config) -> bool {
     }
 }
 
-/// Mock routing implementation that mirrors the behaviour
-/// of the real network but is not connected to it
+/// Mock routing implementation that mirrors the behaviour of the real network but is not connected
+/// to it.
 pub struct Routing {
     vault: Arc<Mutex<Vault>>,
     sender: Sender<Event>,
@@ -91,8 +91,7 @@ pub struct Routing {
 }
 
 impl Routing {
-    /// Initialises mock routing.
-    /// The function signature mirrors `routing::Client`.
+    /// Initialise mock routing. The function signature mirrors `routing::Client`.
     pub fn new(
         sender: Sender<Event>,
         id: Option<FullId>,
@@ -430,7 +429,7 @@ impl Routing {
         )
     }
 
-    /// Fetches a list of values in MutableData.
+    /// Fetch a list of values in MutableData.
     pub fn list_mdata_values(
         &mut self,
         dst: Authority<XorName>,
@@ -453,7 +452,7 @@ impl Routing {
         )
     }
 
-    /// Fetches a single value from MutableData
+    /// Fetch a single value from MutableData.
     pub fn get_mdata_value(
         &mut self,
         dst: Authority<XorName>,
@@ -556,8 +555,7 @@ impl Routing {
         )
     }
 
-    /// Updates or inserts a list of permissions for a particular User in the given
-    /// MutableData.
+    /// Update or insert a list of permissions for a particular User in the given MutableData.
     pub fn set_mdata_user_permissions(
         &mut self,
         dst: Authority<XorName>,
@@ -690,7 +688,7 @@ impl Routing {
         )
     }
 
-    /// Fetches a list of authorised keys and version in MaidManager
+    /// Fetch a list of authorised keys and version in MaidManager.
     pub fn list_auth_keys_and_version(
         &mut self,
         dst: Authority<XorName>,
@@ -734,7 +732,7 @@ impl Routing {
         Ok(())
     }
 
-    /// Adds a new authorised key to MaidManager
+    /// Add a new authorised key to MaidManager.
     pub fn ins_auth_key(
         &mut self,
         dst: Authority<XorName>,
@@ -780,7 +778,7 @@ impl Routing {
         Ok(())
     }
 
-    /// Removes an authorised key from MaidManager
+    /// Remove an authorised key from MaidManager.
     pub fn del_auth_key(
         &mut self,
         dst: Authority<XorName>,
@@ -1023,7 +1021,7 @@ impl Routing {
         Ok(BootstrapConfig::default())
     }
 
-    /// Returns the config settings.
+    /// Return the config settings.
     pub fn config(&self) -> Config {
         let vault = self.lock_vault(false);
         vault.config()

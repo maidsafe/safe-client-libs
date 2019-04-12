@@ -91,7 +91,7 @@ pub fn create_account_and_login() -> Authenticator {
     unwrap!(Authenticator::login(locator, password, || ()))
 }
 
-/// Revoke an app, returning an error on failure
+/// Revoke an app, returning an error on failure.
 pub fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
     let app_id = app_id.to_string();
 
@@ -100,7 +100,7 @@ pub fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), Aut
     })
 }
 
-/// Revoke an app, panicking on failure
+/// Revoke an app, panicking on failure.
 pub fn revoke(authenticator: &Authenticator, app_id: &str) {
     match try_revoke(authenticator, app_id) {
         Ok(_) => (),
@@ -124,7 +124,7 @@ where
     ))
 }
 
-/// Returns `AppInfo` iff the app is listed in the authenticator config.
+/// Return `AppInfo` iff the app is listed in the authenticator config.
 pub fn get_app_or_err(
     authenticator: &Authenticator,
     app_id: &str,
@@ -136,7 +136,7 @@ pub fn get_app_or_err(
     })
 }
 
-/// Registers a mock application using a given `AuthReq`.
+/// Register a mock application using a given `AuthReq`.
 pub fn register_app(
     authenticator: &Authenticator,
     auth_req: &AuthReq,

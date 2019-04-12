@@ -152,7 +152,7 @@ impl AppClient {
 }
 
 impl Client for AppClient {
-    type MsgType = AppContext;
+    type Context = AppContext;
 
     fn full_id(&self) -> Option<FullId> {
         let app_inner = self.app_inner.borrow();
@@ -169,7 +169,7 @@ impl Client for AppClient {
         app_inner.cm_addr
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
+    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
         self.inner.clone()
     }
 

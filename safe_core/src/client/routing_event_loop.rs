@@ -49,6 +49,7 @@ pub fn run<C: Client, T>(
     }
 }
 
+// Translate a Routing response to a (MessageId, CoreEvent).
 fn get_core_event(res: Response) -> Result<(MessageId, CoreEvent), CoreError> {
     Ok(match res {
         Response::ChangeMDataOwner { res, msg_id }
