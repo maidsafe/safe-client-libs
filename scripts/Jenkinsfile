@@ -1,7 +1,7 @@
 stage('build') {
     parallel real_linux: {
         node('docker') {
-            git([url: env.REPO_URL, branch: env.BRANCH])
+            checkout(scm)
             clean()
             build_safe_client_libs('real')
             strip_build_artifacts()
@@ -11,7 +11,7 @@ stage('build') {
     },
     mock_linux: {
         node('docker') {
-            git([url: env.REPO_URL, branch: env.BRANCH])
+            checkout(scm)
             clean()
             build_safe_client_libs('mock')
             strip_build_artifacts()
@@ -22,7 +22,7 @@ stage('build') {
     },
     real_windows: {
         node('windows') {
-            git([url: env.REPO_URL, branch: env.BRANCH])
+            checkout(scm)
             build_safe_client_libs('real')
             strip_build_artifacts()
             package_build_artifacts('real', 'windows')
@@ -31,7 +31,7 @@ stage('build') {
     },
     mock_windows: {
         node('windows') {
-            git([url: env.REPO_URL, branch: env.BRANCH])
+            checkout(scm)
             build_safe_client_libs('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'windows')
@@ -40,7 +40,7 @@ stage('build') {
     },
     real_osx: {
         node('osx') {
-            git([url: env.REPO_URL, branch: env.BRANCH])
+            checkout(scm)
             build_safe_client_libs('real')
             strip_build_artifacts()
             package_build_artifacts('real', 'osx')
@@ -49,7 +49,7 @@ stage('build') {
     },
     mock_osx: {
         node('osx') {
-            git([url: env.REPO_URL, branch: env.BRANCH])
+            checkout(scm)
             build_safe_client_libs('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'osx')
