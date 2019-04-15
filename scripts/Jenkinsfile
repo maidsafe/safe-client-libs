@@ -1,3 +1,10 @@
+properties([
+    parameters([
+        string(name: 'ARTIFACTS_BUCKET', defaultValue: 'safe-client-libs-jenkins'),
+        string(name: 'DEPLOY_BUCKET', defaultValue: 'safe-client-libs')
+    ])
+])
+
 stage('build') {
     parallel real_linux: {
         node('docker') {
