@@ -35,6 +35,9 @@ impl ReprC for AccountInfo {
     type C = *const AccountInfo;
     type Error = CoreError;
 
+    /// Constructs the object from a raw pointer.
+    ///
+    /// After calling this function, the raw pointer is owned by the resulting object.
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         Ok(*repr_c)
     }

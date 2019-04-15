@@ -72,6 +72,7 @@ test_script:
 before_deploy:
   - PowerShell .\scripts\package.ps1
   - ps: $root = Resolve-Path .\target\deploy; [IO.Directory]::GetFiles($root.Path, '*.zip') | % { Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) }
+  - ps: $root = Resolve-Path .\target\deploy; [IO.Directory]::GetFiles($root.Path, '*.tar.gz') | % { Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) }
 
 deploy:
   provider: S3
@@ -81,6 +82,6 @@ deploy:
   bucket: safe-client-libs
   region: eu-west-2
   set_public: true
-  artifact: /.*\.zip/
+  artifact: /.*\.zip/,/.*\.tar.gz/
   on:
     branch: master

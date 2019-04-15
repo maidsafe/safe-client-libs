@@ -6,11 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use errors::{AuthError, ERR_INVALID_OWNER, ERR_SHARE_MDATA_DENIED};
+use errors::{AuthError, ERR_INVALID_OWNER};
 use ffi::apps::*;
 use ffi::ipc::encode_share_mdata_resp;
-use ffi_utils::test_utils::{call_vec, send_via_user_data, sender_as_user_data};
-use ffi_utils::FfiResult;
+use ffi_utils::test_utils::{call_1, call_vec};
 use futures::Future;
 use maidsafe_utilities::serialisation::serialise;
 use rand;
@@ -18,13 +17,9 @@ use routing::{Action, MutableData, PermissionSet, User, Value};
 use rust_sodium::crypto::sign;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::{AppAccess, UserMetadata, METADATA_KEY};
-use safe_core::ipc::{self, AuthReq, IpcMsg, IpcReq, ShareMData, ShareMDataReq};
+use safe_core::ipc::{self, AuthReq, IpcError, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
 use safe_core::Client;
 use std::collections::BTreeMap;
-use std::ffi::CStr;
-use std::os::raw::{c_char, c_void};
-use std::sync::mpsc;
-use std::time::Duration;
 use test_utils::{self, Payload};
 
 // Test making an empty request to share mutable data.
@@ -217,22 +212,18 @@ fn share_some_mdatas_with_valid_metadata() {
         _ => panic!("Unexpected: {:?}", decoded),
     };
 
-    let (tx, rx) = mpsc::channel::<Result<(), (i32, String)>>();
     let req_c = unwrap!(req.into_repr_c());
-    let mut ud = Default::default();
 
-    unsafe {
-        encode_share_mdata_resp(
+    let _share_mdata_resp: String = unsafe {
+        unwrap!(call_1(|ud, cb| encode_share_mdata_resp(
             &authenticator,
             &req_c,
             req_id,
             true,
-            sender_as_user_data::<Result<(), (i32, String)>>(&tx, &mut ud),
-            encode_share_mdata_cb,
-        );
-    }
-
-    unwrap!(unwrap!(rx.recv_timeout(Duration::from_secs(30))));
+            ud,
+            cb,
+        )))
+    };
 
     for share_mdata in &mdatas {
         let name = share_mdata.name;
@@ -307,25 +298,25 @@ fn share_some_mdatas_with_ownership_error() {
         }
     };
 
-    let (tx, rx) = mpsc::channel::<Result<(), (i32, String)>>();
     let req_c = unwrap!(req.into_repr_c());
-    let mut ud = Default::default();
 
-    unsafe {
-        encode_share_mdata_resp(
+    let share_mdata_resp: String = unsafe {
+        unwrap!(call_1(|ud, cb| encode_share_mdata_resp(
             &authenticator,
             &req_c,
             req_id,
             false,
-            sender_as_user_data::<Result<(), (i32, String)>>(&tx, &mut ud),
-            encode_share_mdata_cb,
-        );
-    }
+            ud,
+            cb,
+        )))
+    };
 
-    match unwrap!(rx.recv_timeout(Duration::from_secs(30))) {
-        Ok(()) => panic!("unexpected success"),
-        Err((ERR_SHARE_MDATA_DENIED, _)) => (),
-        Err((code, description)) => panic!("Unexpected error ({}): {}", code, description),
+    match ipc::decode_msg(&share_mdata_resp) {
+        Ok(IpcMsg::Resp {
+            resp: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
+            ..
+        }) => (),
+        x => panic!("Unexpected {:?}", x),
     };
 }
 
@@ -458,22 +449,20 @@ fn auth_apps_accessing_mdatas() {
             _ => panic!("Unexpected: {:?}", decoded),
         };
 
-        let (tx, rx) = mpsc::channel::<Result<(), (i32, String)>>();
         let req_c = unwrap!(req.into_repr_c());
-        let mut ud = Default::default();
 
-        unsafe {
-            encode_share_mdata_resp(
-                &authenticator,
-                &req_c,
-                req_id,
-                true,
-                sender_as_user_data::<Result<(), (i32, String)>>(&tx, &mut ud),
-                encode_share_mdata_cb,
-            );
-        }
-
-        unwrap!(unwrap!(rx.recv_timeout(Duration::from_secs(30))));
+        let _share_mdata_resp: String = unsafe {
+            unwrap!(call_1(|ud, cb| {
+                encode_share_mdata_resp(
+                    &authenticator,
+                    &req_c,
+                    req_id,
+                    true, // is_granted
+                    ud,
+                    cb,
+                )
+            }))
+        };
 
         apps.push((app_key, app_id));
     }
@@ -515,32 +504,7 @@ fn auth_apps_accessing_mdatas() {
         };
 
         assert_eq!(access.permissions, perms);
-        assert_eq!(access.name, Some(String::from("")));
-        assert_eq!(access.app_id, Some(String::from("")));
-    }
-}
-
-extern "C" fn encode_share_mdata_cb(
-    user_data: *mut c_void,
-    result: *const FfiResult,
-    _msg: *const c_char,
-) {
-    let error_code = unsafe { (*result).error_code };
-    let ret = if error_code == 0 {
-        Ok(())
-    } else {
-        let c_str = unsafe { CStr::from_ptr((*result).description) };
-        let msg = match c_str.to_str() {
-            Ok(s) => s.to_owned(),
-            Err(e) => format!(
-                "utf8-error in error string: {} {:?}",
-                e,
-                c_str.to_string_lossy()
-            ),
-        };
-        Err((error_code, msg))
-    };
-    unsafe {
-        send_via_user_data::<Result<(), (i32, String)>>(user_data, ret);
+        assert_eq!(access.name, None);
+        assert_eq!(access.app_id, None);
     }
 }

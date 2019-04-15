@@ -7,6 +7,12 @@
 | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
 |:-------:|:-------:|:-------:|
 
+## About
+
+**SAFE Client Libs** is a set of libraries providing a way for developers to consume and use the SAFE Network facilities. The libraries communicate with [Vaults](https://github.com/maidsafe/safe_vault) and build upon the foundation of fundamental network components, such as [Crust](https://github.com/maidsafe/crust) and [Routing](https://github.com/maidsafe/routing), to provide higher-level network abstractions like files and directories.
+
+Please see [Introduction to Client Libs](https://github.com/maidsafe/safe_client_libs/wiki/Introduction-to-Client-Libs) for more about the project.
+
 This is the project workspace. Please refer to individual members for details:
 
 - [safe_core](safe_core/README.md)
