@@ -32,7 +32,8 @@ pub unsafe extern "C" fn access_container_refresh_access_info(
                 .then(move |res| {
                     call_result_cb!(res, user_data, o_cb);
                     Ok(())
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     })
@@ -67,9 +68,11 @@ pub unsafe extern "C" fn access_container_fetch(
                         ffi_containers.len(),
                     );
                     Ok(())
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     })
@@ -105,9 +108,11 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
                             o_cb
                         );
                     }
-                }).map_err(move |err| {
+                })
+                .map_err(move |err| {
                     call_result_cb!(Err::<(), _>(err), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     })

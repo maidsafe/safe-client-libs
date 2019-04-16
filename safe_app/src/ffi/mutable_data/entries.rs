@@ -170,7 +170,8 @@ pub unsafe extern "C" fn mdata_list_entries(
                         content_len: value.content.len(),
                         entry_version: value.entry_version,
                     },
-                }).collect();
+                })
+                .collect();
 
             o_cb(
                 user_data.0,

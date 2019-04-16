@@ -70,10 +70,12 @@ pub unsafe extern "C" fn dir_fetch_file(
                 .map(move |(version, file)| {
                     let ffi_file = file.into_repr_c();
                     o_cb(user_data.0, FFI_RESULT_OK, &ffi_file, version)
-                }).map_err(AppError::from)
+                })
+                .map_err(AppError::from)
                 .map_err(move |err| {
                     call_result_cb!(Err::<(), _>(err), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     })
@@ -199,7 +201,8 @@ pub unsafe extern "C" fn file_open(
                     file,
                     writer_mode,
                     parent_info.enc_key().cloned(),
-                ).map(Some);
+                )
+                .map(Some);
                 Either::A(fut)
             } else {
                 Either::B(future::ok(None))
@@ -271,11 +274,14 @@ pub unsafe extern "C" fn file_read(
                         } else {
                             len
                         },
-                    ).map(move |data| {
+                    )
+                    .map(move |data| {
                         o_cb(user_data.0, FFI_RESULT_OK, data.as_safe_ptr(), data.len());
-                    }).map_err(move |err| {
+                    })
+                    .map_err(move |err| {
                         call_result_cb!(Err::<(), _>(AppError::from(err)), user_data, o_cb);
-                    }).into_box()
+                    })
+                    .into_box()
                     .into()
             } else {
                 call_result_cb!(Err::<(), _>(AppError::InvalidFileMode), user_data, o_cb);
@@ -308,7 +314,8 @@ pub unsafe extern "C" fn file_write(
                     .then(move |res| {
                         call_result_cb!(res.map_err(AppError::from), user_data, o_cb);
                         Ok(())
-                    }).into_box()
+                    })
+                    .into_box()
                     .into()
             } else {
                 call_result_cb!(Err::<(), _>(AppError::InvalidFileMode), user_data, o_cb);
@@ -345,9 +352,11 @@ pub unsafe extern "C" fn file_close(
                     .close()
                     .map(move |file| {
                         o_cb(user_data.0, FFI_RESULT_OK, &file.into_repr_c());
-                    }).map_err(move |err| {
+                    })
+                    .map_err(move |err| {
                         call_result_cb!(Err::<(), _>(AppError::from(err)), user_data, o_cb);
-                    }).into_box()
+                    })
+                    .into_box()
                     .into()
             } else {
                 // The reader will be dropped automatically.

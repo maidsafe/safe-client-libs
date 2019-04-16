@@ -11,7 +11,7 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
     html_favicon_url = "http://maidsafe.net/img/favicon.ico",
-    test(attr(forbid(warnings))),
+    test(attr(forbid(warnings)))
 )]
 // For explanation of lint checks, run `rustc -W help` or see
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
@@ -57,12 +57,7 @@
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(
-        clippy,
-        unicode_not_nfc,
-        wrong_pub_self_convention,
-        option_unwrap_used
-    )
+    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
@@ -212,7 +207,8 @@ impl Authenticator {
                         disconnect_notifier();
                     }
                     ok!(())
-                }).for_each(|_| Ok(()));
+                })
+                .for_each(|_| Ok(()));
             el_h.spawn(net_obs_fut);
 
             let client = try_tx!(create_client_fn(el_h, core_tx.clone(), net_tx), tx);
@@ -227,7 +223,8 @@ impl Authenticator {
                         }
 
                         Ok(())
-                    }).into_box()
+                    })
+                    .into_box()
                     .into()
             })));
 
@@ -292,7 +289,8 @@ impl Authenticator {
                         disconnect_notifier();
                     }
                     ok!(())
-                }).for_each(|_| Ok(()));
+                })
+                .for_each(|_| Ok(()));
             el_h.spawn(net_obs_fut);
 
             let client = try_tx!(create_client_fn(el_h, core_tx_clone, net_tx), tx);
@@ -308,9 +306,11 @@ impl Authenticator {
                     std_dirs::create(client)
                         .map(move |()| {
                             unwrap!(tx.send(Ok(core_tx2)));
-                        }).map_err(move |e| {
+                        })
+                        .map_err(move |e| {
                             unwrap!(tx2.send(Err((Some(core_tx3), e))));
-                        }).into_box()
+                        })
+                        .into_box()
                         .into()
                 })));
             } else {

@@ -65,7 +65,8 @@ fn md_created_by_app_1() {
                     owners,
                 ));
                 cl2.put_mdata(mdata)
-            }).map_err(|e| panic!("{:?}", e))
+            })
+            .map_err(|e| panic!("{:?}", e))
     });
 }
 
@@ -106,7 +107,8 @@ fn md_created_by_app_2() {
             .then(move |res| {
                 unwrap!(res);
                 cl2.change_mdata_owner(name, DIR_TAG, sign_pk, 1)
-            }).then(move |res| -> Result<_, ()> {
+            })
+            .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -114,7 +116,8 @@ fn md_created_by_app_2() {
                 }
                 unwrap!(alt_client_tx.send((name2, sign_pk)));
                 Ok(())
-            }).into_box()
+            })
+            .into_box()
             .into()
     }));
     let _joiner = thread::named("Alt client", || {
@@ -127,10 +130,12 @@ fn md_created_by_app_2() {
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
                     cl2.ins_auth_key(sign_pk, version + 1)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     cl3.change_mdata_owner(name, DIR_TAG, sign_pk, 1)
-                }).then(move |res| -> Result<(), ()> {
+                })
+                .then(move |res| -> Result<(), ()> {
                     match res {
                         Ok(()) => panic!("It should fail"),
                         Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -181,7 +186,8 @@ fn md_created_by_app_3() {
                     }),
                 );
                 cl2.mutate_mdata_entries(name, DIR_TAG, actions)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -190,7 +196,8 @@ fn md_created_by_app_3() {
                 let user = User::Key(sign_pk);
                 let permissions = PermissionSet::new().allow(Action::Update);
                 cl3.set_mdata_user_permissions(name2, DIR_TAG, user, permissions, 2)
-            }).then(move |res| -> Result<_, ()> {
+            })
+            .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -198,7 +205,8 @@ fn md_created_by_app_3() {
                 }
                 unwrap!(tx.send(()));
                 Ok(())
-            }).into_box()
+            })
+            .into_box()
             .into()
     }));
     let _joiner = thread::named("Alt client", || {
@@ -232,10 +240,12 @@ fn md_created_by_app_3() {
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
                     cl2.ins_auth_key(app_sign_pk, version + 1)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     cl3.put_mdata(mdata)
-                }).map(move |()| unwrap!(name_tx.send(name)))
+                })
+                .map(move |()| unwrap!(name_tx.send(name)))
                 .map_err(|e| panic!("{:?}", e))
         });
     });
@@ -291,7 +301,8 @@ fn md_created_by_app_4() {
                     }),
                 );
                 cl2.mutate_mdata_entries(name, DIR_TAG, actions)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -302,7 +313,8 @@ fn md_created_by_app_4() {
                     .allow(Action::Insert)
                     .allow(Action::Delete);
                 cl3.set_mdata_user_permissions(name2, DIR_TAG, user, permissions, 1)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 let mut actions = BTreeMap::new();
                 let _ = actions.insert(
@@ -313,7 +325,8 @@ fn md_created_by_app_4() {
                     }),
                 );
                 cl4.mutate_mdata_entries(name3, DIR_TAG, actions)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 let mut actions = BTreeMap::new();
                 let _ = actions.insert(
@@ -324,7 +337,8 @@ fn md_created_by_app_4() {
                     }),
                 );
                 cl5.mutate_mdata_entries(name4, DIR_TAG, actions)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -333,7 +347,8 @@ fn md_created_by_app_4() {
                 let mut actions = BTreeMap::new();
                 let _ = actions.insert(vec![1, 2, 3, 4], EntryAction::Del(2));
                 cl6.mutate_mdata_entries(name5, DIR_TAG, actions)
-            }).map(move |()| unwrap!(tx.send(())))
+            })
+            .map(move |()| unwrap!(tx.send(())))
             .map_err(|e| panic!("{:?}", e))
             .into_box()
             .into()
@@ -372,10 +387,12 @@ fn md_created_by_app_4() {
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
                     cl2.ins_auth_key(app_sign_pk, version + 1)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     cl3.put_mdata(mdata)
-                }).map(move |()| unwrap!(name_tx.send(name)))
+                })
+                .map(move |()| unwrap!(name_tx.send(name)))
                 .map_err(|e| panic!("{:?}", e))
         });
     });
@@ -432,7 +449,8 @@ fn multiple_apps() {
                 let entry_key: Vec<u8> = unwrap!(entry_rx.recv());
                 cl2.get_mdata_value(name, DIR_TAG, entry_key.clone())
                     .map(move |v| (v, entry_key))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (value, entry_key) = unwrap!(res);
                 assert_eq!(
                     value,
@@ -443,19 +461,22 @@ fn multiple_apps() {
                 );
                 cl3.del_mdata_user_permissions(name2, DIR_TAG, User::Anyone, 1)
                     .map(move |()| entry_key)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let entry_key = unwrap!(res);
                 unwrap!(mutate_again_tx.send(()));
                 unwrap!(final_check_rx.recv());
                 cl4.list_mdata_keys(name3, DIR_TAG)
                     .map(move |x| (x, entry_key))
-            }).then(move |res| -> Result<_, ()> {
+            })
+            .then(move |res| -> Result<_, ()> {
                 let (keys, entry_key) = unwrap!(res);
                 assert_eq!(keys.len(), 1);
                 assert!(keys.contains(&entry_key));
                 unwrap!(tx.send(()));
                 Ok(())
-            }).into_box()
+            })
+            .into_box()
             .into()
     }));
     unwrap!(app2.send(move |client, _app_context| {
@@ -489,7 +510,8 @@ fn multiple_apps() {
                 );
 
                 cl2.mutate_mdata_entries(name, DIR_TAG, actions)
-            }).then(move |res| -> Result<_, ()> {
+            })
+            .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
@@ -497,7 +519,8 @@ fn multiple_apps() {
                 }
                 unwrap!(final_check_tx.send(()));
                 Ok(())
-            }).into_box()
+            })
+            .into_box()
             .into()
     }));
     unwrap!(rx.recv());
@@ -547,17 +570,20 @@ fn permissions_and_version() {
                 unwrap!(res);
                 let permissions = PermissionSet::new().allow(Action::Update);
                 cl2.set_mdata_user_permissions(name, DIR_TAG, User::Key(random_key), permissions, 1)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl3.del_mdata_user_permissions(name, DIR_TAG, User::Key(random_key), 1)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail with invalid successor"),
                     Err(CoreError::RoutingClientError(ClientError::InvalidSuccessor(..))) => (),
                     Err(x) => panic!("Expected ClientError::InvalidSuccessor. Got {:?}", x),
                 }
                 cl4.list_mdata_permissions(name, DIR_TAG)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let permissions = unwrap!(res);
                 assert_eq!(permissions.len(), 2);
                 assert_eq!(
@@ -595,14 +621,17 @@ fn permissions_and_version() {
                     None
                 );
                 cl5.get_mdata_version(name, DIR_TAG)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let v = unwrap!(res);
                 assert_eq!(v, 1);
                 cl6.del_mdata_user_permissions(name, DIR_TAG, User::Key(random_key), v + 1)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl7.list_mdata_permissions(name, DIR_TAG)
-            }).map(move |permissions| {
+            })
+            .map(move |permissions| {
                 assert_eq!(permissions.len(), 1);
                 assert_eq!(
                     unwrap!(permissions.get(&User::Key(sign_pk))).is_allowed(Action::Insert),
@@ -621,7 +650,8 @@ fn permissions_and_version() {
                         .is_allowed(Action::ManagePermissions),
                     Some(true)
                 );
-            }).map_err(|e| panic!("{:?}", e))
+            })
+            .map_err(|e| panic!("{:?}", e))
     });
 }
 
@@ -679,10 +709,12 @@ fn permissions_crud() {
                     permissions,
                     1,
                 )
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl3.list_mdata_permissions(name, DIR_TAG)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
@@ -733,10 +765,12 @@ fn permissions_crud() {
                     permissions,
                     2,
                 )
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl5.list_mdata_permissions(name, DIR_TAG)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 3);
@@ -807,13 +841,16 @@ fn permissions_crud() {
                     permissions,
                     3,
                 )
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl7.del_mdata_user_permissions(name, DIR_TAG, User::Key(random_key_a), 4)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl8.list_mdata_permissions(name, DIR_TAG)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
@@ -866,10 +903,12 @@ fn permissions_crud() {
                     permissions,
                     5,
                 )
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl10.list_mdata_permissions(name, DIR_TAG)
-            }).then(move |res| -> Result<_, ()> {
+            })
+            .then(move |res| -> Result<_, ()> {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
@@ -913,7 +952,8 @@ fn permissions_crud() {
                 }
 
                 Ok(())
-            }).map_err(|e| panic!("{:?}", e))
+            })
+            .map_err(|e| panic!("{:?}", e))
     });
 }
 
@@ -984,10 +1024,12 @@ fn entries_crud() {
                 );
                 let _ = actions.insert(vec![0, 0, 1], EntryAction::Del(2));
                 cl2.mutate_mdata_entries(name, DIR_TAG, actions)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl3.list_mdata_entries(name, DIR_TAG)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let entries = unwrap!(res);
                 assert_eq!(entries.len(), 3);
                 assert_eq!(
@@ -1028,10 +1070,12 @@ fn entries_crud() {
                 );
                 let _ = actions.insert(vec![0, 1, 1], EntryAction::Del(2));
                 cl4.mutate_mdata_entries(name, DIR_TAG, actions)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 unwrap!(res);
                 cl5.list_mdata_entries(name, DIR_TAG)
-            }).then(|res| -> Result<_, ()> {
+            })
+            .then(|res| -> Result<_, ()> {
                 let entries = unwrap!(res);
                 assert_eq!(entries.len(), 4);
                 assert_eq!(
@@ -1063,6 +1107,7 @@ fn entries_crud() {
                     }
                 );
                 Ok(())
-            }).map_err(|e| panic!("{:?}", e))
+            })
+            .map_err(|e| panic!("{:?}", e))
     });
 }

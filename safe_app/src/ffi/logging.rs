@@ -99,9 +99,10 @@ mod tests {
         let mut current_exe_path = unwrap!(current_bin_dir());
         current_exe_path.push("secret-log-output.log");
 
-        let log_file_path = unwrap!(CString::new(unwrap!(
-            current_exe_path.clone().into_os_string().into_string()
-        )));
+        let log_file_path = unwrap!(CString::new(unwrap!(current_exe_path
+            .clone()
+            .into_os_string()
+            .into_string())));
         unsafe {
             unwrap!(call_0(|ud, cb| app_init_logging(
                 log_file_path.as_ptr(),

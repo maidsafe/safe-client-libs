@@ -62,7 +62,8 @@ where
             .then(move |result| {
                 unwrap!(tx.send(result));
                 Ok(())
-            }).into_box();
+            })
+            .into_box();
 
         Some(future)
     }));

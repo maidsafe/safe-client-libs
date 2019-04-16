@@ -130,12 +130,10 @@ mod tests {
         assert_free(&app_0, cipher_opt_handle, 0);
 
         run_now(&app_0, move |client, context| {
-            assert!(
-                context
-                    .object_cache()
-                    .get_cipher_opt(cipher_opt_handle)
-                    .is_err()
-            );
+            assert!(context
+                .object_cache()
+                .get_cipher_opt(cipher_opt_handle)
+                .is_err());
             assert!(decrypt_and_check(
                 client,
                 context,
@@ -163,12 +161,10 @@ mod tests {
         assert_free(&app_0, cipher_opt_handle, 0);
 
         run_now(&app_0, move |client, context| {
-            assert!(
-                context
-                    .object_cache()
-                    .get_cipher_opt(cipher_opt_handle)
-                    .is_err()
-            );
+            assert!(context
+                .object_cache()
+                .get_cipher_opt(cipher_opt_handle)
+                .is_err());
             assert!(decrypt_and_check(
                 client,
                 context,

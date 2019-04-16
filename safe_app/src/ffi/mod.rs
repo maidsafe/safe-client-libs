@@ -151,9 +151,11 @@ pub unsafe extern "C" fn app_account_info(
                         mutations_available: acc_info.mutations_available,
                     };
                     o_cb(user_data.0, FFI_RESULT_OK, &ffi_acc);
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(AppError::from(e)), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     })

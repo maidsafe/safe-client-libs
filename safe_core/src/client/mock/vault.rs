@@ -267,14 +267,12 @@ impl FileStore {
 impl Store for FileStore {
     fn load(&mut self, writing: bool) -> Option<Cache> {
         // Create the file if it doesn't exist yet.
-        let mut file = unwrap!(
-            OpenOptions::new()
-                .read(true)
-                .write(true)
-                .create(true)
-                .truncate(false)
-                .open(&self.path)
-        );
+        let mut file = unwrap!(OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&self.path));
 
         if writing {
             unwrap!(file.lock_exclusive());

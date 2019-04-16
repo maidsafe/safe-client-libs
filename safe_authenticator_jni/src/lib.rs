@@ -98,7 +98,8 @@ unsafe fn cache_class_loader() -> Result<(), JniError> {
                 "getClassLoader",
                 "()Ljava/lang/ClassLoader;",
                 &[],
-            )?.l()?,
+            )?
+            .l()?,
         )?,
     );
 
@@ -156,7 +157,8 @@ pub(crate) unsafe fn find_class<'a>(
                 .ok_or_else(|| JniError::from("Unexpected - no cached findClass method ID"))?,
             JavaType::from_str("Ljava/lang/Object;")?,
             &[JValue::from(cls.as_obj())],
-        )?.l()?,
+        )?
+        .l()?,
     )))
 }
 

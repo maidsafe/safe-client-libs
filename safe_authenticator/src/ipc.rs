@@ -90,7 +90,8 @@ pub fn decode_ipc_msg(
                             Ok(Err((error_code, description, resp)))
                         }
                     }
-                }).into_box()
+                })
+                .into_box()
         }
         IpcMsg::Resp { .. } | IpcMsg::Revoked { .. } | IpcMsg::Err(..) => {
             return err!(AuthError::IpcError(IpcError::InvalidMsg));
@@ -113,11 +114,9 @@ pub fn update_container_perms(
 
             for (container_key, access) in permissions {
                 let c2 = client.clone();
-                let mdata_info = fry!(
-                    root_containers
-                        .remove(&container_key)
-                        .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone()))
-                );
+                let mdata_info = fry!(root_containers
+                    .remove(&container_key)
+                    .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone())));
                 let perm_set = container_perms_into_permission_set(&access);
 
                 let fut = client
@@ -130,19 +129,23 @@ pub fn update_container_perms(
                             User::Key(sign_pk),
                             perm_set,
                             version + 1,
-                        ).map(move |_| (container_key, mdata_info, access))
-                    }).map_err(AuthError::from);
+                        )
+                        .map(move |_| (container_key, mdata_info, access))
+                    })
+                    .map_err(AuthError::from);
 
                 reqs.push(fut);
             }
 
             future::join_all(reqs).into_box()
-        }).map(|perms| {
+        })
+        .map(|perms| {
             perms
                 .into_iter()
                 .map(|(container_key, dir, access)| (container_key, (dir, access)))
                 .collect()
-        }).map_err(AuthError::from)
+        })
+        .map_err(AuthError::from)
         .into_box()
 }
 
@@ -160,11 +163,9 @@ pub fn decode_share_mdata_req(
     client: &AuthClient,
     req: &ShareMDataReq,
 ) -> Box<AuthFuture<Vec<Option<FfiUserMetadata>>>> {
-    let user = fry!(
-        client
-            .public_signing_key()
-            .ok_or_else(|| AuthError::Unexpected("Public signing key not found".to_string()))
-    );
+    let user = fry!(client
+        .public_signing_key()
+        .ok_or_else(|| AuthError::Unexpected("Public signing key not found".to_string())));
     let num_mdata = req.mdata.len();
     let mut futures = Vec::with_capacity(num_mdata);
 
@@ -208,7 +209,8 @@ pub fn decode_share_mdata_req(
                         name, type_tag,
                     ))))
                 }
-            }).map_err(AuthError::from);
+            })
+            .map_err(AuthError::from);
 
         futures.push(future);
     }
@@ -233,5 +235,6 @@ pub fn decode_share_mdata_req(
             } else {
                 Err(AuthError::IpcError(IpcError::InvalidOwner(invalids)))
             }
-        }).into_box()
+        })
+        .into_box()
 }

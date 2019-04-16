@@ -80,9 +80,7 @@ mod mock_routing {
                     match *req {
                         Request::PutMData {
                             ref data, msg_id, ..
-                        }
-                            if data.tag() == DIR_TAG =>
-                        {
+                        } if data.tag() == DIR_TAG => {
                             put_mdata_counter += 1;
 
                             if put_mdata_counter > 4 {
@@ -395,7 +393,8 @@ mod mock_routing {
 
                     // Check that the app's container has required permissions.
                     c2.list_mdata_permissions(app_container_md.name, app_container_md.type_tag)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     let perms = unwrap!(res);
                     assert!(perms.contains_key(&User::Key(app_pk)));
                     assert_eq!(perms.len(), 1);
@@ -434,7 +433,8 @@ fn test_access_container() {
                 let f2 = client.list_mdata_permissions(dir.name, dir.type_tag);
 
                 f1.join(f2).map_err(AuthError::from)
-            }).collect();
+            })
+            .collect();
 
         future::join_all(fs)
     });
@@ -844,11 +844,7 @@ fn containers_unknown_app() {
                 resp: IpcResp::Auth(Err(IpcError::UnknownApp)),
                 ..
             }),
-        ))
-            if code == ERR_UNKNOWN_APP =>
-        {
-            ()
-        }
+        )) if code == ERR_UNKNOWN_APP => (),
         x => panic!("Unexpected {:?}", x),
     };
 }
@@ -937,9 +933,7 @@ impl ReprC for RevokedAppId {
     type C = *const FfiAppExchangeInfo;
     type Error = StringError;
 
-    unsafe fn clone_from_repr_c(
-        repr_c: Self::C,
-    ) -> Result<Self, Self::Error> {
+    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         Ok(RevokedAppId(from_c_str((*repr_c).id)?))
     }
 }

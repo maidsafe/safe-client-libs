@@ -53,12 +53,7 @@
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(
-        clippy,
-        unicode_not_nfc,
-        wrong_pub_self_convention,
-        option_unwrap_used
-    )
+    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
@@ -111,50 +106,58 @@ fn main() {
         .about(
             "A stress test involving putting and getting immutable and mutable data chunks to the \
              network",
-        ).arg(
+        )
+        .arg(
             Arg::with_name("immutable")
                 .short("i")
                 .long("immutable")
                 .takes_value(true)
                 .default_value("100")
                 .help("Number of ImmutableData chunks to Put and Get."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("mutable")
                 .short("m")
                 .long("mutable")
                 .takes_value(true)
                 .default_value("100")
                 .help("Number of MutableData chunks to Put and Get."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("seed")
                 .long("seed")
                 .takes_value(true)
                 .help("Seed for a pseudo-random number generator."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("get-only")
                 .long("get-only")
                 .requires("seed")
                 .help("Only Get the data, don't Put it. Logs in to an existing account."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("locator")
                 .short("l")
                 .long("locator")
                 .takes_value(true)
                 .requires("password")
                 .help("Use the given Locator for login."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("password")
                 .short("p")
                 .long("password")
                 .takes_value(true)
                 .requires("locator")
                 .help("Use the given Password for login."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("invite")
                 .long("invite")
                 .takes_value(true)
                 .help("Use the given invite."),
-        ).get_matches();
+        )
+        .get_matches();
 
     let immutable_data_count = unwrap!(value_t!(matches, "immutable", usize));
     let mutable_data_count = unwrap!(value_t!(matches, "mutable", usize));
@@ -276,7 +279,8 @@ fn main() {
                             println!("Retrieved chunk #{}: {:?}", i, data.name());
                             Ok(())
                         })
-                    }).into_box()
+                    })
+                    .into_box()
                 }
                 Data::Mutable(data) => {
                     let fut = if get_only {
@@ -295,9 +299,11 @@ fn main() {
                                 println!("Retrieved chunk #{}: {:?}", i, data.name());
                                 Ok(())
                             })
-                    }).into_box()
+                    })
+                    .into_box()
                 }
-            }.map(move |_: Result<(), CoreError>| unwrap!(tx.send(())))
+            }
+            .map(move |_: Result<(), CoreError>| unwrap!(tx.send(())))
             .map_err(|e| println!("Error: {:?}", e))
             .into_box()
             .into()
@@ -322,14 +328,16 @@ fn put_idata(client: &AuthClient, data: ImmutableData, i: usize) -> Box<CoreFutu
                 assert_eq!(data, retrieved_data);
                 retrieved_data
             })
-        }).and_then(move |retrieved_data| {
+        })
+        .and_then(move |retrieved_data| {
             println!(
                 "Retrieved ImmutableData chunk #{}: {:?}",
                 i,
                 retrieved_data.name()
             );
             Ok(retrieved_data)
-        }).into_box()
+        })
+        .into_box()
 }
 
 fn put_mdata(client: &AuthClient, data: MutableData, i: usize) -> Box<CoreFuture<MutableData>> {
@@ -346,12 +354,14 @@ fn put_mdata(client: &AuthClient, data: MutableData, i: usize) -> Box<CoreFuture
                     assert_eq!(data, retrieved_data);
                     retrieved_data
                 })
-        }).and_then(move |retrieved_data| {
+        })
+        .and_then(move |retrieved_data| {
             println!(
                 "Retrieved MutableData chunk #{}: {:?}",
                 i,
                 retrieved_data.name()
             );
             Ok(retrieved_data)
-        }).into_box()
+        })
+        .into_box()
 }

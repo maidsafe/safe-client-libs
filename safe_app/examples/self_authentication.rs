@@ -53,12 +53,7 @@
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(
-        clippy,
-        unicode_not_nfc,
-        wrong_pub_self_convention,
-        option_unwrap_used
-    )
+    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
@@ -85,7 +80,8 @@ fn main() {
                 .long("invite")
                 .takes_value(true)
                 .help("Use the given invite."),
-        ).get_matches();
+        )
+        .get_matches();
 
     let mut secret_0 = String::new();
     let mut secret_1 = String::new();

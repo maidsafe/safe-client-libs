@@ -82,12 +82,10 @@ impl AppClient {
     }
 
     /// Allows customising the mock Routing client before logging in using client keys.
-    #[cfg(
-        any(
-            all(test, feature = "use-mock-routing"),
-            all(feature = "testing", feature = "use-mock-routing")
-        )
-    )]
+    #[cfg(any(
+        all(test, feature = "use-mock-routing"),
+        all(feature = "testing", feature = "use-mock-routing")
+    ))]
     pub(crate) fn from_keys_with_hook<F>(
         keys: ClientKeys,
         owner: sign::PublicKey,

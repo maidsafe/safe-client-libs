@@ -280,7 +280,8 @@ mod mock_routing {
                         let f_1 = app_state(&client, &apps, &app_id_1);
 
                         f_0.join(f_1)
-                    }).then(|res| {
+                    })
+                    .then(|res| {
                         let (state_0, state_1) = unwrap!(res);
                         assert_eq!(state_0, AppState::Authenticated);
                         assert_eq!(state_1, AppState::Authenticated);
@@ -310,7 +311,8 @@ mod mock_routing {
                     let f_1 = app_state(&c2, &apps, &app_id_1);
 
                     f_0.join(f_1)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     let (state_0, state_1) = unwrap!(res);
                     assert_eq!(state_0, AppState::Revoked);
                     assert_eq!(state_1, AppState::Revoked);
@@ -489,7 +491,8 @@ mod mock_routing {
                     let _ = barrier.wait();
                     try_revoke(&auth, &app_id)
                 })
-            }).collect();
+            })
+            .collect();
 
         let results: Vec<_> = join_handles
             .into_iter()
@@ -586,7 +589,8 @@ mod mock_routing {
                 auth_keys
                     .join(state)
                     .map(move |((auth_keys, _), state)| (auth_keys, app_key, state))
-            }).then(move |res| -> Result<_, AuthError> {
+            })
+            .then(move |res| -> Result<_, AuthError> {
                 let (auth_keys, app_key, state) = unwrap!(res);
 
                 // Verify the app is no longer authenticated.
@@ -597,7 +601,8 @@ mod mock_routing {
                 assert_match!(state, AppState::Revoked);
 
                 Ok(app_key)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let app_key = unwrap!(res);
                 let futures = prev_ac_entry.into_iter().map(move |(_, (mdata_info, _))| {
                     // Verify the app has no permissions in the containers.
@@ -606,7 +611,8 @@ mod mock_routing {
                             mdata_info.name,
                             mdata_info.type_tag,
                             User::Key(app_key),
-                        ).then(|res| {
+                        )
+                        .then(|res| {
                             assert_match!(
                                 res,
                                 Err(CoreError::RoutingClientError(ClientError::NoSuchKey))
@@ -635,7 +641,8 @@ mod mock_routing {
                 });
 
                 future::join_all(futures).map(|_| ())
-            }).into_box()
+            })
+            .into_box()
     }
 
     fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthFuture<()>> {
@@ -653,7 +660,8 @@ mod mock_routing {
                 c0.list_auth_keys_and_version()
                     .map_err(AuthError::from)
                     .map(move |(auth_keys, _)| (auth_keys, app_id, app_keys))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (auth_keys, app_id, app_keys) = unwrap!(res);
                 let app_key = app_keys.sign_pk;
 
@@ -663,7 +671,8 @@ mod mock_routing {
                 // Fetch the access container entry
                 access_container::fetch_entry(&c1, &app_id, app_keys)
                     .map(move |(_, entry)| (app_key, entry))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (app_key, ac_entry) = unwrap!(res);
                 let user = User::Key(app_key);
                 let ac_entry = unwrap!(ac_entry);
@@ -702,7 +711,8 @@ mod mock_routing {
                     });
 
                 future::join_all(futures).map(|_| ())
-            }).into_box()
+            })
+            .into_box()
     }
 }
 
@@ -938,7 +948,8 @@ fn revocation_symmetric_decipher_failure() {
                         config::next_version(version),
                         &app_id1,
                     );
-                }).and_then(move |_| {
+                })
+                .and_then(move |_| {
                     get_app_revocation_queue(&c3).map(move |(version, queue)| {
                         let _ = push_to_app_revocation_queue(
                             &c4,
@@ -947,7 +958,8 @@ fn revocation_symmetric_decipher_failure() {
                             &app_id2_clone,
                         );
                     })
-                }).and_then(move |_| corrupt_container(&c5, "_downloads"))
+                })
+                .and_then(move |_| corrupt_container(&c5, "_downloads"))
         });
     }
 

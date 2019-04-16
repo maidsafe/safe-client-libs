@@ -44,9 +44,11 @@ pub unsafe extern "C" fn idata_new_self_encryptor(
                 .map(move |se| {
                     let handle = context.object_cache().insert_se_writer(se);
                     o_cb(user_data.0, FFI_RESULT_OK, handle);
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box();
+                })
+                .into_box();
 
             Some(fut)
         })
@@ -83,7 +85,8 @@ pub unsafe extern "C" fn idata_write_to_self_encryptor(
                 .then(move |res| {
                     call_result_cb!(res, user_data, o_cb);
                     Ok(())
-                }).into_box();
+                })
+                .into_box();
             Some(fut)
         })
     });
@@ -127,16 +130,19 @@ pub unsafe extern "C" fn idata_close_self_encryptor(
                     };
 
                     Ok(enc_data_map)
-                }).and_then(move |enc_data_map| {
+                })
+                .and_then(move |enc_data_map| {
                     immutable_data::create(&client2, &enc_data_map, None).map_err(AppError::from)
-                }).and_then(move |data| {
+                })
+                .and_then(move |data| {
                     let name = *data.name();
 
                     client3
                         .put_idata(data)
                         .map_err(AppError::from)
                         .map(move |_| name)
-                }).then(move |result| {
+                })
+                .then(move |result| {
                     match result {
                         Ok(name) => o_cb(user_data.0, FFI_RESULT_OK, &name.0),
                         res @ Err(..) => {
@@ -144,7 +150,8 @@ pub unsafe extern "C" fn idata_close_self_encryptor(
                         }
                     }
                     Ok(())
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     });
@@ -175,15 +182,19 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(
                     let data_map = deserialise(&ser_data_map)?;
 
                     Ok(data_map)
-                }).and_then(move |data_map| {
+                })
+                .and_then(move |data_map| {
                     let se_storage = SelfEncryptionStorage::new(client3);
                     SelfEncryptor::new(se_storage, data_map).map_err(AppError::from)
-                }).map(move |se_reader| {
+                })
+                .map(move |se_reader| {
                     let handle = context3.object_cache().insert_se_reader(se_reader);
                     o_cb(user_data.0, FFI_RESULT_OK, handle);
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     });
@@ -208,7 +219,8 @@ pub unsafe extern "C" fn idata_serialised_size(
                 .map(move |idata| o_cb(user_data.0, FFI_RESULT_OK, idata.serialised_size()))
                 .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(AppError::from(e)), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     });
@@ -279,10 +291,12 @@ pub unsafe extern "C" fn idata_read_from_self_encryptor(
                 .read(from_pos, len)
                 .map(move |data| {
                     o_cb(user_data.0, FFI_RESULT_OK, data.as_ptr(), data.len());
-                }).map_err(AppError::from)
+                })
+                .map_err(AppError::from)
                 .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box();
+                })
+                .into_box();
 
             Some(fut)
         })

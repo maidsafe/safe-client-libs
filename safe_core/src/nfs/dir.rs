@@ -21,11 +21,9 @@ pub fn create_dir(
     contents: BTreeMap<Vec<u8>, Value>,
     perms: BTreeMap<User, PermissionSet>,
 ) -> Box<NfsFuture<()>> {
-    let pub_key = fry!(
-        client
-            .owner_key()
-            .ok_or_else(|| NfsError::Unexpected("Owner key not found".to_string()))
-    );
+    let pub_key = fry!(client
+        .owner_key()
+        .ok_or_else(|| NfsError::Unexpected("Owner key not found".to_string())));
     let owners = btree_set![pub_key];
     let dir_md = fry!(
         MutableData::new(dir.name, dir.type_tag, perms, contents, owners).map_err(CoreError::from)
@@ -38,6 +36,7 @@ pub fn create_dir(
                 CoreError::RoutingClientError(ClientError::DataExists) => Ok(()),
                 e => Err(e),
             }
-        }).map_err(NfsError::from)
+        })
+        .map_err(NfsError::from)
         .into_box()
 }

@@ -35,7 +35,8 @@ pub fn put_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>>
                 Either::A(update_mdata(&client2, data))
             }
             error => Either::B(future::err(error)),
-        }).into_box()
+        })
+        .into_box()
 }
 
 /// Mutates mutable data entries and tries to recover from errors.
@@ -72,7 +73,8 @@ pub fn mutate_mdata_entries(
                 }
                 error => Err(error),
             })
-    }).into_box()
+    })
+    .into_box()
 }
 
 /// Sets user permission on the mutable data and tries to recover from errors.
@@ -108,7 +110,8 @@ pub fn set_mdata_user_permissions(
                 }
                 error => Err(error),
             })
-    }).into_box()
+    })
+    .into_box()
 }
 
 /// Deletes user permission on the mutable data and tries to recover from errors.
@@ -144,7 +147,8 @@ pub fn del_mdata_user_permissions(
                 }
                 error => Err(error),
             })
-    }).into_box()
+    })
+    .into_box()
 }
 
 fn update_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>> {
@@ -164,8 +168,10 @@ fn update_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>> 
                 &permissions,
                 data.permissions().clone(),
                 version + 1,
-            ).map(move |_| (data, entries))
-        }).and_then(move |(data, entries)| {
+            )
+            .map(move |_| (data, entries))
+        })
+        .and_then(move |(data, entries)| {
             update_mdata_entries(
                 &client3,
                 *data.name(),
@@ -173,7 +179,8 @@ fn update_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>> 
                 &entries,
                 data.entries().clone(),
             )
-        }).into_box()
+        })
+        .into_box()
 }
 
 // Update the mutable data on the network so it has all the `desired_entries`.
@@ -196,7 +203,8 @@ fn update_mdata_entries(
             } else {
                 Some((key, EntryAction::Ins(value)))
             }
-        }).collect();
+        })
+        .collect();
 
     mutate_mdata_entries(client, name, tag, actions)
 }
@@ -217,7 +225,8 @@ fn update_mdata_permissions(
             } else {
                 (user, desired_set)
             }
-        }).collect();
+        })
+        .collect();
 
     let state = (client.clone(), permissions, version);
     future::loop_fn(state, move |(client, mut permissions, version)| {
@@ -228,7 +237,8 @@ fn update_mdata_permissions(
         } else {
             Either::B(future::ok(Loop::Break(())))
         }
-    }).into_box()
+    })
+    .into_box()
 }
 
 // Modify the given entry actions to fix the entry errors.
@@ -248,7 +258,8 @@ fn fix_entry_actions(
             } else {
                 Some((key, action))
             }
-        }).collect()
+        })
+        .collect()
 }
 
 fn fix_entry_action(action: EntryAction, error: &EntryError) -> Option<EntryAction> {
@@ -319,7 +330,8 @@ pub fn ins_auth_key(
                 }
                 error => Err(error),
             })
-    }).into_box()
+    })
+    .into_box()
 }
 
 #[cfg(test)]
@@ -525,10 +537,12 @@ mod tests_with_mock_routing {
                 .then(move |res| {
                     unwrap!(res);
                     put_mdata(&client2, data1)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     client3.list_mdata_entries(name, tag)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     let entries = unwrap!(res);
                     assert_eq!(entries.len(), 4);
                     assert_eq!(
@@ -547,7 +561,8 @@ mod tests_with_mock_routing {
                     );
 
                     client4.list_mdata_permissions(name, tag)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
                     assert_eq!(
@@ -623,10 +638,12 @@ mod tests_with_mock_routing {
                         .into();
 
                     mutate_mdata_entries(&client2, name, tag, actions)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     client3.list_mdata_entries(name, tag)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     let entries = unwrap!(res);
                     assert_eq!(entries.len(), 7);
 
@@ -717,19 +734,23 @@ mod tests_with_mock_routing {
                     unwrap!(res);
                     // set with invalid version
                     set_mdata_user_permissions(&client2, name, tag, user0, permissions, 0)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     client3.list_mdata_user_permissions(name, tag, user0)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     let retrieved_permissions = unwrap!(res);
                     assert_eq!(retrieved_permissions, permissions);
 
                     // delete with invalid version
                     del_mdata_user_permissions(&client4, name, tag, user0, 0)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     client5.list_mdata_user_permissions(name, tag, user0)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     match res {
                         Err(CoreError::RoutingClientError(ClientError::NoSuchKey)) => (),
                         x => panic!("Unexpected {:?}", x),
@@ -737,7 +758,8 @@ mod tests_with_mock_routing {
 
                     // delete of non-existing user
                     del_mdata_user_permissions(&client6, name, tag, user1, 3)
-                }).then(move |res| {
+                })
+                .then(move |res| {
                     unwrap!(res);
                     Ok::<_, CoreError>(())
                 })

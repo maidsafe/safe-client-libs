@@ -53,12 +53,7 @@
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(
-        clippy,
-        unicode_not_nfc,
-        wrong_pub_self_convention,
-        option_unwrap_used
-    )
+    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
@@ -103,27 +98,32 @@ fn main() {
                 .long("gen-seed")
                 .takes_value(true)
                 .help("Only generate a random seed of given size, writing into input file."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("get-pk")
                 .long("get-pk")
                 .help("Only get the public sign key given the seed, don't do anything extra."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("check-invite")
                 .long("check-invite")
                 .takes_value(true)
                 .help("Only check the status of the given invite (exists, consumed etc.)."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("create")
                 .short("c")
                 .long("create")
                 .help("Create account using seed from input file. By default it will login."),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("num-invites")
                 .short("n")
                 .long("num-invites")
                 .takes_value(true)
                 .help("Number of invites to generate (will populate the Network too)."),
-        ).get_matches();
+        )
+        .get_matches();
 
     if let Ok(size) = value_t!(matches, "gen-seed", usize) {
         let mut input = unwrap!(File::create("./input"), "Unable to create input file");
@@ -162,7 +162,8 @@ fn main() {
                     }
                     unwrap!(tx.send(()));
                     Ok(())
-                }).map_err(|e| panic!("{:?}", e))
+                })
+                .map_err(|e| panic!("{:?}", e))
                 .into_box()
                 .into()
         }));
@@ -231,7 +232,8 @@ fn main() {
                 .then(move |_| {
                     unwrap!(tx.send(()));
                     Ok(())
-                }).into_box()
+                })
+                .into_box()
                 .into()
         }));
 

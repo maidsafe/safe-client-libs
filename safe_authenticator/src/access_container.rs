@@ -63,11 +63,9 @@ pub fn fetch_authenticator_entry(
     let access_container = client.access_container();
 
     let key = {
-        let sk = fry!(
-            client
-                .secret_symmetric_key()
-                .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string()))
-        );
+        let sk = fry!(client
+            .secret_symmetric_key()
+            .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string())));
         fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk))
     };
 
@@ -80,7 +78,8 @@ pub fn fetch_authenticator_entry(
             })?;
             decode_authenticator_entry(&value.content, &enc_key)
                 .map(|decoded| (value.entry_version, decoded))
-        }).into_box()
+        })
+        .into_box()
 }
 
 /// Updates the authenticator entry.
@@ -91,11 +90,9 @@ pub fn put_authenticator_entry(
 ) -> Box<AuthFuture<()>> {
     let access_container = client.access_container();
     let (key, ciphertext) = {
-        let sk = fry!(
-            client
-                .secret_symmetric_key()
-                .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string()))
-        );
+        let sk = fry!(client
+            .secret_symmetric_key()
+            .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string())));
         let key = fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
         let ciphertext = fry!(encode_authenticator_entry(new_value, &sk));
 
@@ -113,7 +110,8 @@ pub fn put_authenticator_entry(
         access_container.name,
         access_container.type_tag,
         actions.into(),
-    ).map_err(From::from)
+    )
+    .map_err(From::from)
     .into_box()
 }
 
@@ -160,7 +158,8 @@ pub fn fetch_entry(
             };
 
             Ok((value.entry_version, decoded))
-        }).into_box()
+        })
+        .into_box()
 }
 
 /// Adds a new entry to the authenticator access container
@@ -188,7 +187,8 @@ pub fn put_entry(
         access_container.name,
         access_container.type_tag,
         actions.into(),
-    ).map_err(From::from)
+    )
+    .map_err(From::from)
     .into_box()
 }
 
@@ -210,6 +210,7 @@ pub fn delete_entry(
         access_container.name,
         access_container.type_tag,
         actions.into(),
-    ).map_err(From::from)
+    )
+    .map_err(From::from)
     .into_box()
 }

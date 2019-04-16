@@ -131,7 +131,8 @@ where
         .for_each(move |net_event| {
             n(net_event);
             Ok(())
-        }).map_err(|e| panic!("Network event stream error: {:?}", e));
+        })
+        .map_err(|e| panic!("Network event stream error: {:?}", e));
     el_h.spawn(net_fut);
 
     let core_tx_clone = core_tx.clone();
@@ -145,7 +146,8 @@ where
                 .map(move |value| {
                     unwrap!(result_tx.send(value));
                     unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()));
-                }).into_box();
+                })
+                .into_box();
 
             Some(fut)
         }))

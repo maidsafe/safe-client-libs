@@ -13,7 +13,7 @@
     html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/
 maidsafe_logo.png",
     html_favicon_url = "http://maidsafe.net/img/favicon.ico",
-    test(attr(forbid(warnings))),
+    test(attr(forbid(warnings)))
 )]
 // For explanation of lint checks, run `rustc -W help` or see
 // https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
@@ -60,12 +60,7 @@ maidsafe_logo.png",
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(
-        clippy,
-        unicode_not_nfc,
-        wrong_pub_self_convention,
-        option_unwrap_used
-    )
+    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
@@ -341,7 +336,8 @@ impl App {
                         if let NetworkEvent::Disconnected = event {
                             disconnect_notifier()
                         }
-                    }).for_each(|_| Ok(())),
+                    })
+                    .for_each(|_| Ok(())),
             );
 
             let core_tx_clone = core_tx.clone();
@@ -449,7 +445,8 @@ impl AppContext {
             .map(move |_| {
                 let access_info = reg.access_info.borrow();
                 access_info.clone()
-            }).into_box()
+            })
+            .into_box()
     }
 
     fn as_registered(&self) -> Result<&Rc<Registered>, AppError> {
@@ -472,7 +469,8 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
             context.access_container_info.id,
             context.access_container_info.tag,
             entry_key,
-        ).map_err(AppError::from)
+        )
+        .map_err(AppError::from)
         .and_then(move |value| {
             let encoded = utils::symmetric_decrypt(&value.content, &context.sym_enc_key)?;
             let decoded = deserialise(&encoded)?;
@@ -480,7 +478,8 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
             *context.access_info.borrow_mut() = decoded;
 
             Ok(())
-        }).into_box()
+        })
+        .into_box()
 }
 
 fn fetch_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFuture<()>> {

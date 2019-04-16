@@ -83,7 +83,8 @@ where
                 cont_name: CString::new(cont_name)?.into_raw(),
                 access: container_perms_into_repr_c(&access),
             })
-        }).collect()
+        })
+        .collect()
 }
 
 /// Transform a set of container permissions into its FFI representation
@@ -176,7 +177,8 @@ pub unsafe fn containers_from_repr_c(
                 from_c_str(raw.cont_name)?,
                 container_perms_from_repr_c(raw.access)?,
             ))
-        }).collect()
+        })
+        .collect()
 }
 
 /// Convert a `PermissionSet` into its C representation.
@@ -268,7 +270,7 @@ impl ReprC for AppExchangeInfo {
             id,
             scope,
             name,
-            vendor
+            vendor,
         } = *repr_c;
 
         Ok(Self {

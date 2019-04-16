@@ -73,11 +73,12 @@ impl CipherOpt {
 
         match deserialise::<WireFormat>(cipher_text)? {
             WireFormat::Plain(plain_text) => Ok(plain_text),
-            WireFormat::Symmetric { nonce, cipher_text } => Ok(secretbox::open(
-                &cipher_text,
-                &nonce,
-                app_ctx.sym_enc_key()?,
-            ).map_err(|()| CoreError::SymmetricDecipherFailure)?),
+            WireFormat::Symmetric { nonce, cipher_text } => {
+                Ok(
+                    secretbox::open(&cipher_text, &nonce, app_ctx.sym_enc_key()?)
+                        .map_err(|()| CoreError::SymmetricDecipherFailure)?,
+                )
+            }
             WireFormat::Asymmetric(cipher_text) => {
                 let (asym_pk, asym_sk) = client
                     .encryption_keypair()

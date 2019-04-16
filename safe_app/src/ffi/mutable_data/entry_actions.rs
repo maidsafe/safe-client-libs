@@ -208,11 +208,7 @@ mod tests {
                 EntryAction::Ins(Value {
                     ref content,
                     entry_version: 0,
-                })
-                    if *content == value0 =>
-                {
-                    ()
-                }
+                }) if *content == value0 => (),
                 _ => panic!("Unexpected action"),
             }
 
@@ -220,11 +216,7 @@ mod tests {
                 EntryAction::Update(Value {
                     ref content,
                     entry_version,
-                })
-                    if *content == value1 && entry_version == version1 =>
-                {
-                    ()
-                }
+                }) if *content == value1 && entry_version == version1 => (),
                 _ => panic!("Unexpected action"),
             }
 
@@ -241,12 +233,10 @@ mod tests {
         };
 
         run_now(&app, move |_, context| {
-            assert!(
-                context
-                    .object_cache()
-                    .get_mdata_entry_actions(handle)
-                    .is_err()
-            )
+            assert!(context
+                .object_cache()
+                .get_mdata_entry_actions(handle)
+                .is_err())
         });
     }
 }

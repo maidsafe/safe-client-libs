@@ -69,7 +69,8 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
                 }
                 Err(e) => err!(e),
             }
-        }).into_box();
+        })
+        .into_box();
 
     future::join_all(vec![access_cont_fut, create_config_dir(&c2, &config_dir)])
         .map_err(From::from)
@@ -78,7 +79,8 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
             // (so we don't have to recover them after login).
             c4.set_std_dirs_created(true);
             c4.update_account_packet().map_err(From::from).into_box()
-        }).into_box()
+        })
+        .into_box()
 }
 
 fn create_config_dir(client: &AuthClient, config_dir: &MDataInfo) -> Box<AuthFuture<()>> {
@@ -97,22 +99,19 @@ fn create_access_container(
     access_container: &MDataInfo,
     default_entries: &HashMap<String, MDataInfo>,
 ) -> Box<AuthFuture<()>> {
-    let enc_key = fry!(
-        client
-            .secret_symmetric_key()
-            .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string()))
-    );
+    let enc_key = fry!(client
+        .secret_symmetric_key()
+        .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string())));
 
     // Create access container
-    let authenticator_key = fry!(
-        access_container_enc_key(
-            AUTHENTICATOR_ENTRY,
-            &enc_key,
-            fry!(access_container.nonce().ok_or_else(|| AuthError::from(
-                "Expected to have nonce on access container MDataInfo"
-            ))),
-        ).map_err(AuthError::from)
-    );
+    let authenticator_key = fry!(access_container_enc_key(
+        AUTHENTICATOR_ENTRY,
+        &enc_key,
+        fry!(access_container.nonce().ok_or_else(|| AuthError::from(
+            "Expected to have nonce on access container MDataInfo"
+        ))),
+    )
+    .map_err(AuthError::from));
     let access_cont_value = fry!(symmetric_encrypt(
         &fry!(serialise(default_entries)),
         &enc_key,
@@ -126,7 +125,8 @@ fn create_access_container(
             authenticator_key => Value { entry_version: 0, content: access_cont_value }
         ],
         btree_map![],
-    ).map_err(From::from)
+    )
+    .map_err(From::from)
     .into_box()
 }
 
@@ -153,7 +153,8 @@ pub fn create_std_dirs(
         .iter()
         .map(|(_, md_info)| {
             create_dir(&client, md_info, btree_map![], btree_map![]).map_err(AuthError::from)
-        }).collect();
+        })
+        .collect();
     future::join_all(creations).map(|_| ()).into_box()
 }
 
@@ -177,11 +178,13 @@ mod tests {
                     .into_iter()
                     .map(|(k, v)| (k.to_owned(), v))
                     .collect(),
-            ).then(move |res| {
+            )
+            .then(move |res| {
                 assert!(res.is_ok());
 
                 access_container::fetch_authenticator_entry(&client)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (_, mdata_entries) = unwrap!(res);
                 assert_eq!(
                     mdata_entries.len(),

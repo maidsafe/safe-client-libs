@@ -281,7 +281,7 @@ impl ReprC for MDataInfo {
             enc_nonce,
             has_new_enc_info,
             new_enc_key,
-            new_enc_nonce
+            new_enc_nonce,
         } = *repr_c;
 
         Ok(Self {

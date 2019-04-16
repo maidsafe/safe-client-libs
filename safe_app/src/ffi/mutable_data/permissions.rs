@@ -149,8 +149,10 @@ pub unsafe extern "C" fn mdata_list_permission_sets(
                     permissions::UserPermissionSet {
                         user_h,
                         perm_set: *permission_set,
-                    }.into_repr_c()
-                }).collect();
+                    }
+                    .into_repr_c()
+                })
+                .collect();
 
             o_cb(
                 user_data.0,

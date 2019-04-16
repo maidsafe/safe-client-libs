@@ -66,7 +66,8 @@ where
             .map_err(AppError::from)
             .map_err(move |err| {
                 call_result_cb!(Err::<(), _>(err), user_data, o_cb);
-            }).into_box()
+            })
+            .into_box()
             .into()
     })
 }

@@ -79,17 +79,21 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
                 .and_then(move |(apps_version, apps)| {
                     app_state(&c2, &apps, &app_id)
                         .map(move |app_state| (app_state, apps, apps_version))
-                }).and_then(move |(app_state, apps, apps_version)| match app_state {
+                })
+                .and_then(move |(app_state, apps, apps_version)| match app_state {
                     AppState::Revoked => Ok((apps, apps_version)),
                     AppState::Authenticated => Err(AuthError::from("App is not revoked")),
                     AppState::NotAuthenticated => Err(AuthError::IpcError(IpcError::UnknownApp)),
-                }).and_then(move |(apps, apps_version)| {
+                })
+                .and_then(move |(apps, apps_version)| {
                     config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2)
-                }).and_then(move |_| app_container::remove(c4, &app_id3))
+                })
+                .and_then(move |_| app_container::remove(c4, &app_id3))
                 .then(move |res| {
                     call_result_cb!(res, user_data, o_cb);
                     Ok(())
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })
     });
@@ -120,7 +124,8 @@ pub unsafe extern "C" fn auth_revoked_apps(
                     c3.list_mdata_entries(access_container.name, access_container.type_tag)
                         .map_err(From::from)
                         .map(move |entries| (access_container, entries, auth_cfg))
-                }).and_then(move |(access_container, entries, auth_cfg)| {
+                })
+                .and_then(move |(access_container, entries, auth_cfg)| {
                     let mut apps = Vec::new();
                     let nonce = access_container.nonce().ok_or_else(|| {
                         AuthError::from("No nonce on access container's MDataInfo")
@@ -144,9 +149,11 @@ pub unsafe extern "C" fn auth_revoked_apps(
                     o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
 
                     Ok(())
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })?;
 
@@ -179,7 +186,8 @@ pub unsafe extern "C" fn auth_registered_apps(
                     c3.list_mdata_entries(access_container.name, access_container.type_tag)
                         .map_err(From::from)
                         .map(move |entries| (access_container, entries, auth_cfg))
-                }).and_then(move |(access_container, entries, auth_cfg)| {
+                })
+                .and_then(move |(access_container, entries, auth_cfg)| {
                     let mut apps = Vec::new();
 
                     let nonce = access_container.nonce().ok_or_else(|| {
@@ -218,9 +226,11 @@ pub unsafe extern "C" fn auth_registered_apps(
                     o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
 
                     Ok(())
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })?;
 
@@ -261,7 +271,8 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
                             .map(|(_, app_info)| (app_info.keys.sign_pk, app_info.info))
                             .collect::<HashMap<_, _>>()
                     }),
-                ).and_then(move |(permissions, apps)| {
+                )
+                .and_then(move |(permissions, apps)| {
                     // Map the list of keys retrieved from MD to a list of registered apps (even if
                     // they're in the Revoked state) and create a new `AppAccess` struct object
                     let mut app_access_vec: Vec<AppAccess> = Vec::new();
@@ -300,9 +311,11 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
                     );
 
                     Ok(())
-                }).map_err(move |e| {
+                })
+                .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-                }).into_box()
+                })
+                .into_box()
                 .into()
         })?;
 

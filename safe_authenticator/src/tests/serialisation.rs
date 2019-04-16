@@ -56,19 +56,23 @@ fn serialisation_write_data() {
                 let _ = unwrap!(res);
                 app_auth::authenticate(&client, stash.auth_req0.clone())
                     .map(move |_| (client, stash))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 // authenticate app 1
                 let (client, stash) = unwrap!(res);
                 app_auth::authenticate(&client, stash.auth_req1.clone())
                     .map(move |_| (client, stash))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 // revoke app 1
                 let (client, stash) = unwrap!(res);
                 revocation::revoke_app(&client, &stash.auth_req1.app.id)
-            }).then(|res| {
+            })
+            .then(|res| {
                 unwrap!(res);
                 Ok(())
-            }).into_box()
+            })
+            .into_box()
             .into()
     }));
 }
@@ -92,33 +96,40 @@ fn serialisation_read_data() {
             .then(move |res| {
                 let (_, containers) = unwrap!(res);
                 verify_std_dirs(&client, &containers).map(move |_| client)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let client = unwrap!(res);
                 config::get_app(&client, &stash.auth_req0.app.id)
                     .map(move |app_info| (client, stash, app_info))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (client, stash, app_info) = unwrap!(res);
                 assert_eq!(app_info.info, stash.auth_req0.app);
 
                 access_container::fetch_entry(&client, &app_info.info.id, app_info.keys)
                     .map(move |(_, ac_entry)| (client, stash, ac_entry))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (client, stash, ac_entry) = unwrap!(res);
                 let ac_entry = unwrap!(ac_entry);
                 verify_access_container_entry(&ac_entry, &stash.auth_req0.containers);
 
                 Ok::<_, AuthError>((client, stash))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (client, stash) = unwrap!(res);
                 config::list_apps(&client).map(move |(_, apps)| (client, stash, apps))
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let (client, stash, apps) = unwrap!(res);
                 app_auth::app_state(&client, &apps, &stash.auth_req1.app.id)
-            }).then(move |res| {
+            })
+            .then(move |res| {
                 let state = unwrap!(res);
                 assert_eq!(state, AppState::Revoked);
                 Ok(())
-            }).into_box()
+            })
+            .into_box()
             .into()
     }));
 }
@@ -133,14 +144,16 @@ fn verify_std_dirs(
         .map(|expected_container| {
             let mi = unwrap!(actual_containers.get(*expected_container));
             client.get_mdata_version(mi.name, mi.type_tag)
-        }).collect();
+        })
+        .collect();
 
     future::join_all(futures)
         .map_err(AuthError::from)
         .then(|res| {
             let _ = unwrap!(res);
             Ok(())
-        }).into_box()
+        })
+        .into_box()
 }
 
 fn verify_access_container_entry(

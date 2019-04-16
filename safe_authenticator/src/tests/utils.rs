@@ -49,5 +49,6 @@ pub fn corrupt_container(client: &AuthClient, container_id: &str) -> Box<AuthFut
             }
             // Update the old entry.
             put_authenticator_entry(&c2, &ac_entry, version + 1)
-        }).into_box()
+        })
+        .into_box()
 }

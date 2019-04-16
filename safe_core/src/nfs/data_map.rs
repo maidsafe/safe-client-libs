@@ -47,6 +47,7 @@ pub fn put(
         .and_then(move |data| {
             let name = *data.name();
             client2.put_idata(data).map(move |_| name)
-        }).map_err(From::from)
+        })
+        .map_err(From::from)
         .into_box()
 }
