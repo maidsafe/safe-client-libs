@@ -29,7 +29,7 @@ use std::ffi::CString;
 
 /// Decodes a given encoded IPC message and returns either an `IpcMsg` struct or
 /// an error code + description & an encoded `IpcMsg::Resp` in case of an error
-#[cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::type_complexity))]
 pub fn decode_ipc_msg(
     client: &AuthClient,
     msg: IpcMsg,

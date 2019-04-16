@@ -39,7 +39,7 @@ impl ShareMDataReq {
         let mdata_repr_c: Vec<_> = self
             .mdata
             .into_iter()
-            .map(|md| md.into_repr_c())
+            .map(ShareMData::into_repr_c)
             .collect::<Result<_, _>>()?;
 
         let (mdata, mdata_len, mdata_cap) = vec_into_raw_parts(mdata_repr_c);
@@ -63,7 +63,7 @@ impl ReprC for ShareMDataReq {
             mdata: {
                 let mdata = slice::from_raw_parts((*repr_c).mdata, (*repr_c).mdata_len);
                 mdata
-                    .into_iter()
+                    .iter()
                     .map(|c| ShareMData::clone_from_repr_c(c))
                     .collect::<Result<_, _>>()?
             },

@@ -910,7 +910,7 @@ mod tests {
             unsafe { call_1(|ud, cb| sign_pub_key_get(&app, USER_ANYONE, ud, cb)) };
         match user {
             Err(ERR_INVALID_SIGN_PUB_KEY_HANDLE) => (),
-            Err(_) => panic!("Unexpected error"),
+            Err(e) => panic!("Unexpected error: {:?}", e),
             Ok(_) => panic!("Unexpected success"),
         }
     }

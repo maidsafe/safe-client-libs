@@ -156,7 +156,7 @@ impl Client for AppClient {
 
     fn full_id(&self) -> Option<FullId> {
         let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().map(|keys| keys.into())
+        app_inner.keys.clone().map(Into::into)
     }
 
     fn config(&self) -> Option<BootstrapConfig> {

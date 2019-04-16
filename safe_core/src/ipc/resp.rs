@@ -40,7 +40,7 @@ pub static METADATA_KEY_LEN: usize = 9;
 
 /// IPC response.
 // TODO: `TransOwnership` variant
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum IpcResp {
     /// Authentication.
@@ -414,11 +414,7 @@ impl ReprC for UserMetadata {
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let ffi::MetadataResponse {
-            name,
-            description,
-
-            xor_name: _,
-            type_tag: _,
+            name, description, ..
         } = *repr_c;
 
         Ok(Self {

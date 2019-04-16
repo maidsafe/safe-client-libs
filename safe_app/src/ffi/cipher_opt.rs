@@ -176,7 +176,7 @@ mod tests {
 
     // Test asymmetric encryption and decryption.
     // NOTE: rustfmt is behaving erratically on this function. Disabling it for now.
-    #[cfg_attr(rustfmt, rustfmt_skip)]
+    #[rustfmt::skip]
     #[test]
     fn app_0_to_app_1_asym() {
         // Setup

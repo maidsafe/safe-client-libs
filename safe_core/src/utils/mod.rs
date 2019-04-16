@@ -159,9 +159,9 @@ mod tests {
         assert_ne!(str0, str2);
         assert_ne!(str1, str2);
 
-        assert_eq!(str0.chars().collect::<Vec<char>>().len(), SIZE);
-        assert_eq!(str1.chars().collect::<Vec<char>>().len(), SIZE);
-        assert_eq!(str2.chars().collect::<Vec<char>>().len(), SIZE);
+        assert_eq!(str0.chars().count(), SIZE);
+        assert_eq!(str1.chars().count(), SIZE);
+        assert_eq!(str2.chars().count(), SIZE);
     }
 
     // Test `generate_random_vector` and that the results are not repeated.

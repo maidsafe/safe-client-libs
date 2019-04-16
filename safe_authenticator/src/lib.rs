@@ -57,11 +57,16 @@
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used)
+    deny(
+        clippy::all,
+        clippy::unicode_not_nfc,
+        clippy::wrong_pub_self_convention,
+        clippy::option_unwrap_used
+    )
 )]
 #![cfg_attr(
     feature = "cargo-clippy",
-    allow(implicit_hasher, too_many_arguments, use_debug)
+    allow(clippy::implicit_hasher, clippy::too_many_arguments, clippy::use_debug)
 )]
 
 extern crate config_file_handler;

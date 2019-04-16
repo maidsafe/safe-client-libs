@@ -288,15 +288,13 @@ fn union_permission_sets(a: PermissionSet, b: PermissionSet) -> PermissionSet {
         Action::Delete,
         Action::ManagePermissions,
     ];
-    actions
-        .into_iter()
-        .fold(PermissionSet::new(), |set, &action| {
-            match (a.is_allowed(action), b.is_allowed(action)) {
-                (Some(true), _) | (_, Some(true)) => set.allow(action),
-                (Some(false), _) | (_, Some(false)) => set.deny(action),
-                _ => set,
-            }
-        })
+    actions.iter().fold(PermissionSet::new(), |set, &action| {
+        match (a.is_allowed(action), b.is_allowed(action)) {
+            (Some(true), _) | (_, Some(true)) => set.allow(action),
+            (Some(false), _) | (_, Some(false)) => set.deny(action),
+            _ => set,
+        }
+    })
 }
 
 /// Insert key to maid managers.

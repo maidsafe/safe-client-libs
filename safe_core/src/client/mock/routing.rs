@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#![cfg_attr(feature="cargo-clippy", allow(needless_pass_by_value))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_pass_by_value))]
 
 use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;

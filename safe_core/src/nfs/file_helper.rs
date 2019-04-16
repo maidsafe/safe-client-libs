@@ -96,7 +96,7 @@ pub fn read<C: Client>(
 /// that version incremented by one is then used as the actual version.
 // Allow pass by value for consistency with other functions.
 #[allow(unknown_lints)]
-#[allow(needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value)]
 pub fn delete<S>(
     client: impl Client,
     parent: MDataInfo,

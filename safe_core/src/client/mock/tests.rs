@@ -6,6 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+// FIXME: consider splitting test functions into multiple smaller ones
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+
 use super::routing::Routing;
 use super::DEFAULT_MAX_MUTATIONS;
 use client::mock::vault::Vault;

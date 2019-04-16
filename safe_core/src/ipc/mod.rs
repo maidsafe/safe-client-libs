@@ -30,7 +30,7 @@ pub use routing::BootstrapConfig;
 use std::u32;
 
 /// IPC message.
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum IpcMsg {
     /// Request.
@@ -73,6 +73,8 @@ pub fn encode_msg_64(msg: &IpcMsg) -> Result<String, IpcError> {
 }
 
 /// Decode `IpcMsg` encoded with base32 encoding.
+// FIXME: bug in clippy - comparison on cfg!(..) deemed a needless bool comparison
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::bool_comparison))]
 pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
     let mut chars = encoded.chars();
     let decoded = match chars.next().ok_or(IpcError::InvalidMsg)? {
