@@ -76,8 +76,7 @@ extern crate unwrap;
 mod real_network;
 
 use futures::future::Future;
-use safe_app::test_utils::run_now;
-use safe_app::{App, Client, ImmutableData};
+use safe_app::{run, App, Client, ImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
 
@@ -96,9 +95,10 @@ fn unregistered_client() {
 
     // Unregistered Client should be able to retrieve the data.
     let app = unwrap!(App::unregistered(|| (), None));
-    run_now(&app, move |client, _context| {
+    unwrap!(run(&app, move |client, _context| {
         let _ = client.get_idata(*orig_data.name()).map(move |data| {
             assert_eq!(data, orig_data);
         });
-    });
+        Ok(())
+    }));
 }

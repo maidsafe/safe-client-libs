@@ -14,6 +14,7 @@ use futures::Future;
 use maidsafe_utilities::serialisation::serialise;
 use rand;
 use routing::{Action, MutableData, PermissionSet, User, Value};
+use run;
 use rust_sodium::crypto::sign;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::{AppAccess, UserMetadata, METADATA_KEY};
@@ -60,9 +61,9 @@ fn share_zero_mdatas() {
 fn share_some_mdatas() {
     let authenticator = test_utils::create_account_and_login();
 
-    let user = test_utils::run(&authenticator, move |client| {
+    let user = unwrap!(run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
-    });
+    }));
 
     const NUM_MDATAS: usize = 3;
 
@@ -83,9 +84,9 @@ fn share_some_mdatas() {
             ))
         };
 
-        test_utils::run(&authenticator, move |client| {
+        unwrap!(run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
-        });
+        }));
 
         mdatas.push(ShareMData {
             type_tag: tag,
@@ -172,9 +173,9 @@ fn share_some_mdatas_with_valid_metadata() {
     let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
     let app_key = app_auth.app_keys.sign_pk;
 
-    let user = test_utils::run(&authenticator, move |client| {
+    let user = unwrap!(run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
-    });
+    }));
 
     const NUM_MDATAS: usize = 3;
 
@@ -205,9 +206,9 @@ fn share_some_mdatas_with_valid_metadata() {
             ))
         };
 
-        test_utils::run(&authenticator, move |client| {
+        unwrap!(run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
-        });
+        }));
 
         mdatas.push(ShareMData {
             type_tag: tag,
@@ -262,11 +263,11 @@ fn share_some_mdatas_with_valid_metadata() {
     for share_mdata in &mdatas {
         let name = share_mdata.name;
         let type_tag = share_mdata.type_tag;
-        let mdata = test_utils::run(&authenticator, move |client| {
+        let mdata = unwrap!(run(&authenticator, move |client| {
             client
                 .get_mdata(name, type_tag)
                 .map_err(AuthError::CoreError)
-        });
+        }));
         let permissions = unwrap!(mdata.user_permissions(&User::Key(app_key)));
         assert_eq!(permissions, &perms);
     }
@@ -277,9 +278,9 @@ fn share_some_mdatas_with_valid_metadata() {
 fn share_some_mdatas_with_ownership_error() {
     let authenticator = test_utils::create_account_and_login();
 
-    let user = test_utils::run(&authenticator, move |client| {
+    let user = unwrap!(run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
-    });
+    }));
 
     let (someone_else, _) = sign::gen_keypair();
 
@@ -303,9 +304,9 @@ fn share_some_mdatas_with_ownership_error() {
             ))
         };
 
-        test_utils::run(&authenticator, move |client| {
+        unwrap!(run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
-        });
+        }));
 
         mdatas.push(ShareMData {
             type_tag: 0,
@@ -373,9 +374,9 @@ fn share_some_mdatas_with_ownership_error() {
 fn auth_apps_accessing_mdatas() {
     let authenticator = test_utils::create_account_and_login();
 
-    let user = test_utils::run(&authenticator, move |client| {
+    let user = unwrap!(run(&authenticator, move |client| {
         ok!(unwrap!(client.public_signing_key()))
-    });
+    }));
 
     const NUM_MDATAS: usize = 3;
     const NUM_MDATAS_NO_META: usize = 3;
@@ -423,9 +424,9 @@ fn auth_apps_accessing_mdatas() {
             ))
         };
 
-        test_utils::run(&authenticator, move |client| {
+        unwrap!(run(&authenticator, move |client| {
             client.put_mdata(mdata).map_err(AuthError::CoreError)
-        });
+        }));
 
         mdatas.push(ShareMData {
             type_tag: tag,

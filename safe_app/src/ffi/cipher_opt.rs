@@ -107,9 +107,10 @@ mod tests {
     use ffi::object_cache::CipherOptHandle;
     use ffi_utils::test_utils::{call_0, call_1};
     use ffi_utils::ErrorCode;
+    use run;
     use rust_sodium::crypto::box_;
     use safe_core::{utils, Client};
-    use test_utils::{create_app, run_now};
+    use test_utils::create_app;
     use {App, AppContext};
 
     // Test plaintext "encryption" and decryption.
@@ -121,15 +122,15 @@ mod tests {
         let cipher_opt_handle: CipherOptHandle =
             unsafe { unwrap!(call_1(|ud, cb| cipher_opt_new_plaintext(&app_0, ud, cb))) };
 
-        let (plain_text, cipher_text) = run_now(&app_0, move |_, context| {
+        let (plain_text, cipher_text) = unwrap!(run(&app_0, move |_, context| {
             let cipher_opt = unwrap!(context.object_cache().get_cipher_opt(cipher_opt_handle));
             let cipher_text = unwrap!(cipher_opt.encrypt(&plain_text, context));
-            (plain_text, cipher_text)
-        });
+            Ok((plain_text, cipher_text))
+        }));
         assert_ne!(cipher_text, plain_text);
         assert_free(&app_0, cipher_opt_handle, 0);
 
-        run_now(&app_0, move |client, context| {
+        unwrap!(run(&app_0, move |client, context| {
             assert!(context
                 .object_cache()
                 .get_cipher_opt(cipher_opt_handle)
@@ -140,7 +141,8 @@ mod tests {
                 &cipher_text,
                 &plain_text,
             ));
-        });
+            Ok(())
+        }));
     }
 
     // Test symmetric encryption and decryption.
@@ -152,15 +154,15 @@ mod tests {
         let cipher_opt_handle: CipherOptHandle =
             unsafe { unwrap!(call_1(|ud, cb| cipher_opt_new_symmetric(&app_0, ud, cb))) };
 
-        let (plain_text, cipher_text) = run_now(&app_0, move |_, context| {
+        let (plain_text, cipher_text) = unwrap!(run(&app_0, move |_, context| {
             let cipher_opt = unwrap!(context.object_cache().get_cipher_opt(cipher_opt_handle));
             let cipher_text = unwrap!(cipher_opt.encrypt(&plain_text, context));
-            (plain_text, cipher_text)
-        });
+            Ok((plain_text, cipher_text))
+        }));
         assert_ne!(cipher_text, plain_text);
         assert_free(&app_0, cipher_opt_handle, 0);
 
-        run_now(&app_0, move |client, context| {
+        unwrap!(run(&app_0, move |client, context| {
             assert!(context
                 .object_cache()
                 .get_cipher_opt(cipher_opt_handle)
@@ -171,7 +173,8 @@ mod tests {
                 &cipher_text,
                 &plain_text,
             ));
-        });
+            Ok(())
+        }));
     }
 
     // Test asymmetric encryption and decryption.
@@ -184,13 +187,13 @@ mod tests {
         let app_1 = create_app();
 
         // Get encryption public key of App 1.
-        let enc_pk = run_now(&app_1,
-                             move |client, _| unwrap!(client.public_encryption_key()));
+        let enc_pk = unwrap!(run(&app_1,
+                             move |client, _| Ok(unwrap!(client.public_encryption_key()))));
 
         // Insert it into App 0's object cache.
-        let enc_pk_h = run_now(&app_0, move |_, context| {
-            context.object_cache().insert_encrypt_key(enc_pk)
-        });
+        let enc_pk_h = unwrap!(run(&app_0, move |_, context| {
+            Ok(context.object_cache().insert_encrypt_key(enc_pk))
+        }));
 
         // Create asymmetric cypher opt on App 0's end.
         let cipher_opt_h = unsafe {
@@ -199,30 +202,32 @@ mod tests {
 
         // Encrypt the plaintext on App 0's end.
         let plain_text = unwrap!(utils::generate_random_vector::<u8>(10));
-        let (plain_text, cipher_text) = run_now(&app_0, move |_, context| {
+        let (plain_text, cipher_text) = unwrap!(run(&app_0, move |_, context| {
             let cipher_opt = unwrap!(context.object_cache().get_cipher_opt(cipher_opt_h));
             let cipher_text = unwrap!(cipher_opt.encrypt(&plain_text, context));
-            (plain_text, cipher_text)
-        });
+            Ok((plain_text, cipher_text))
+        }));
 
         assert_ne!(cipher_text, plain_text);
         assert_free(&app_0, cipher_opt_h, 0);
 
-        run_now(&app_0, move |_, context| {
+        unwrap!(run(&app_0, move |_, context| {
             assert!(context.object_cache().get_cipher_opt(cipher_opt_h).is_err());
-        });
+            Ok(())
+        }));
 
         // App 0 cannot decrypt the ciphertext, because it was encrypted with
         // App 1's public key.
-        let (plain_text, cipher_text) = run_now(&app_0, move |client, context| {
+        let (plain_text, cipher_text) = unwrap!(run(&app_0, move |client, context| {
             assert!(!decrypt_and_check(client, context, &cipher_text, &plain_text));
-            (plain_text, cipher_text)
-        });
+            Ok((plain_text, cipher_text))
+        }));
 
         // App 1 can decrypt it.
-        run_now(&app_1, move |client, context| {
+        unwrap!(run(&app_1, move |client, context| {
             assert!(decrypt_and_check(client, context, &cipher_text, &plain_text));
-        });
+            Ok(())
+        }));
     }
 
     // Test creating and freeing the different possible cipher option handles.
@@ -230,10 +235,10 @@ mod tests {
     fn create_and_free() {
         let app = create_app();
 
-        let peer_encrypt_key_handle = run_now(&app, |_, context| {
+        let peer_encrypt_key_handle = unwrap!(run(&app, |_, context| {
             let (pk, _) = box_::gen_keypair();
-            context.object_cache().insert_encrypt_key(pk)
-        });
+            Ok(context.object_cache().insert_encrypt_key(pk))
+        }));
 
         let cipher_opt_handle_pt =
             unsafe { unwrap!(call_1(|ud, cb| cipher_opt_new_plaintext(&app, ud, cb))) };
@@ -253,12 +258,13 @@ mod tests {
             )))
         };
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             let obj_cache = context.object_cache();
             let _ = unwrap!(obj_cache.get_cipher_opt(cipher_opt_handle_pt));
             let _ = unwrap!(obj_cache.get_cipher_opt(cipher_opt_handle_sym));
             let _ = unwrap!(obj_cache.get_cipher_opt(cipher_opt_handle_asym));
-        });
+            Ok(())
+        }));
 
         assert_free(&app, cipher_opt_handle_pt, 0);
         assert_free(&app, cipher_opt_handle_sym, 0);
@@ -269,12 +275,13 @@ mod tests {
         assert_free(&app, cipher_opt_handle_sym, err_code);
         assert_free(&app, cipher_opt_handle_asym, err_code);
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             let obj_cache = context.object_cache();
             assert!(obj_cache.get_cipher_opt(cipher_opt_handle_pt).is_err());
             assert!(obj_cache.get_cipher_opt(cipher_opt_handle_sym).is_err());
             assert!(obj_cache.get_cipher_opt(cipher_opt_handle_asym).is_err());
-        })
+            Ok(())
+        }))
     }
 
     fn decrypt_and_check(

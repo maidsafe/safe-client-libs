@@ -121,11 +121,12 @@ pub use client::AuthClient;
 
 use futures::stream::Stream;
 use futures::sync::mpsc;
-use futures::Future;
+use futures::{Future, IntoFuture};
 use maidsafe_utilities::thread::{self, Joiner};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
+use std::sync::mpsc as std_mpsc;
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
 use tokio_core::reactor::{Core, Handle};
@@ -340,6 +341,32 @@ impl Authenticator {
             _core_joiner: joiner,
         })
     }
+}
+
+/// Run the given closure inside the event loop of the authenticator. The closure
+/// should return a future which will then be driven to completion and its result
+/// returned.
+pub fn run<F, I, T>(authenticator: &Authenticator, f: F) -> Result<T, AuthError>
+where
+    F: FnOnce(&AuthClient) -> I + Send + 'static,
+    I: IntoFuture<Item = T, Error = AuthError> + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = std_mpsc::channel();
+
+    unwrap!(authenticator.send(move |client| {
+        let future = f(client)
+            .into_future()
+            .then(move |result| {
+                unwrap!(tx.send(result));
+                Ok(())
+            })
+            .into_box();
+
+        Some(future)
+    }));
+
+    unwrap!(rx.recv())
 }
 
 #[cfg(any(test, feature = "testing"))]

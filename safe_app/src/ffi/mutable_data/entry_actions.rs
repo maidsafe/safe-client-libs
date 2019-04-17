@@ -140,8 +140,9 @@ mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_0, call_1};
     use routing::{EntryAction, Value};
+    use run;
     use safe_core::utils;
-    use test_utils::{create_app, run_now};
+    use test_utils::create_app;
 
     // Test entry action basics such as insert, update, and delete.
     #[test]
@@ -150,10 +151,11 @@ mod tests {
 
         let handle = unsafe { unwrap!(call_1(|ud, cb| mdata_entry_actions_new(&app, ud, cb))) };
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             let actions = unwrap!(context.object_cache().get_mdata_entry_actions(handle));
             assert!(actions.is_empty());
-        });
+            Ok(())
+        }));
 
         let key0 = b"key0".to_vec();
         let key1 = b"key1".to_vec();
@@ -200,7 +202,7 @@ mod tests {
             )));
         }
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             let actions = unwrap!(context.object_cache().get_mdata_entry_actions(handle));
             assert_eq!(actions.len(), 3);
 
@@ -221,10 +223,10 @@ mod tests {
             }
 
             match *unwrap!(actions.get(&key2)) {
-                EntryAction::Del(version) if version == version2 => (),
+                EntryAction::Del(version) if version == version2 => Ok(()),
                 _ => panic!("Unexpected action"),
             }
-        });
+        }));
 
         unsafe {
             unwrap!(call_0(|ud, cb| mdata_entry_actions_free(
@@ -232,11 +234,12 @@ mod tests {
             ),))
         };
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             assert!(context
                 .object_cache()
                 .get_mdata_entry_actions(handle)
-                .is_err())
-        });
+                .is_err());
+            Ok(())
+        }));
     }
 }

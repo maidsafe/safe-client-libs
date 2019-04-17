@@ -25,8 +25,8 @@ use safe_core::MockRouting;
 use std::collections::HashMap;
 use std::rc::Rc;
 use test_utils::gen_app_exchange_info;
-use test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access, run};
-use App;
+use test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access};
+use {run, App};
 
 // Test refreshing access info by fetching it from the network.
 #[test]
@@ -42,7 +42,7 @@ fn refresh_access_info() {
         container_permissions.clone()
     ),));
 
-    run(&app, move |client, context| {
+    unwrap!(run(&app, move |client, context| {
         let reg = Rc::clone(unwrap!(context.as_registered()));
         assert!(reg.access_info.borrow().is_empty());
 
@@ -56,7 +56,7 @@ fn refresh_access_info() {
 
             Ok(())
         })
-    });
+    }));
 }
 
 // Test fetching containers that an app has access to.
@@ -78,7 +78,7 @@ fn get_access_info() {
         ),))
     };
 
-    run(unsafe { &*app }, move |client, context| {
+    unwrap!(run(unsafe { &*app }, move |client, context| {
         context.get_access_info(client).then(move |res| {
             let info = unwrap!(res);
             assert!(info.contains_key(&"_videos".to_string()));
@@ -93,7 +93,7 @@ fn get_access_info() {
 
             Ok(())
         })
-    });
+    }));
 }
 
 // Make sure we can login to a registered app with low balance.
@@ -192,12 +192,12 @@ fn authorise_app(
 
 // Get the number of containers for `app`
 fn num_containers(app: &App) -> usize {
-    run(app, move |client, context| {
+    unwrap!(run(app, move |client, context| {
         context.get_access_info(client).then(move |res| {
             let info = unwrap!(res);
             Ok(info.len())
         })
-    })
+    }))
 }
 
 // Test app container creation under the following circumstances:

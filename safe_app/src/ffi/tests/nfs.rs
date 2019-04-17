@@ -17,11 +17,11 @@ use safe_core::ffi::nfs::File;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::Permission;
 use safe_core::nfs::{File as NativeFile, NfsError};
-use std;
 use std::collections::HashMap;
 use std::ffi::CString;
-use test_utils::{create_app_by_req, create_auth_req_with_access, run};
+use test_utils::{create_app_by_req, create_auth_req_with_access};
 use App;
+use {run, std};
 
 fn setup() -> (App, MDataInfo) {
     let mut container_permissions = HashMap::new();
@@ -39,12 +39,12 @@ fn setup() -> (App, MDataInfo) {
         container_permissions
     ),));
 
-    let container_info = run(&app, move |client, context| {
+    let container_info = unwrap!(run(&app, move |client, context| {
         context.get_access_info(client).then(move |res| {
             let mut access_info = unwrap!(res);
             Ok(unwrap!(access_info.remove("_videos")).0)
         })
-    });
+    }));
     let container_info = container_info.into_repr_c();
 
     (app, container_info)

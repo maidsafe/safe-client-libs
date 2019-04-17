@@ -162,14 +162,15 @@ pub fn create_std_dirs(
 mod tests {
     use super::*;
     use futures::Future;
-    use test_utils::{create_account_and_login, run};
+    use run;
+    use test_utils::create_account_and_login;
 
     // Test creation of default dirs.
     #[test]
     fn creates_default_dirs() {
         let auth = create_account_and_login();
 
-        run(&auth, |client| {
+        unwrap!(run(&auth, |client| {
             let client = client.clone();
 
             create_std_dirs(
@@ -201,6 +202,6 @@ mod tests {
 
                 Ok(())
             })
-        });
+        }));
     }
 }

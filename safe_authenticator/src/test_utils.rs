@@ -21,7 +21,9 @@ use rand::{self, Rng};
 use revocation;
 use routing::User;
 use routing::XorName;
+use run;
 use rust_sodium::crypto::sign;
+use safe_core::client::Client;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
     AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataReq as FfiShareMDataReq,
@@ -38,7 +40,7 @@ use safe_core::nfs::{File, Mode};
 use safe_core::utils::test_utils::setup_client_with_net_obs;
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting;
-use safe_core::{utils, Client, FutureExt, MDataInfo, NetworkEvent};
+use safe_core::{utils, MDataInfo, NetworkEvent};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
@@ -98,7 +100,7 @@ pub fn create_account_and_login() -> Authenticator {
 pub fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
     let app_id = app_id.to_string();
 
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         revocation::revoke_app(client, &app_id)
     })
 }
@@ -134,7 +136,7 @@ pub fn get_app_or_err(
 ) -> Result<config::AppInfo, AuthError> {
     let app_id = app_id.to_string();
 
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         config::get_app(client, &app_id)
     })
 }
@@ -151,7 +153,9 @@ pub fn register_app(
     };
 
     // Invoke `decode_ipc_msg` and expect to get AuthReq back.
-    let ipc_req = run(authenticator, move |client| decode_ipc_msg(client, msg));
+    let ipc_req = unwrap!(run(authenticator, move |client| decode_ipc_msg(
+        client, msg
+    )));
     match ipc_req {
         Ok(IpcMsg::Req {
             req: IpcReq::Auth(_),
@@ -161,7 +165,7 @@ pub fn register_app(
     }
 
     let auth_req = auth_req.clone();
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         app_auth::authenticate(client, auth_req)
     })
 }
@@ -184,42 +188,6 @@ pub fn register_rand_app(
     Ok((app_id, auth_granted))
 }
 
-/// Run the given closure inside the event loop of the authenticator. The closure
-/// should return a future which will then be driven to completion and its result
-/// returned.
-pub fn try_run<F, I, T>(authenticator: &Authenticator, f: F) -> Result<T, AuthError>
-where
-    F: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: IntoFuture<Item = T, Error = AuthError> + 'static,
-    T: Send + 'static,
-{
-    let (tx, rx) = mpsc::channel();
-
-    unwrap!(authenticator.send(move |client| {
-        let future = f(client)
-            .into_future()
-            .then(move |result| {
-                unwrap!(tx.send(result));
-                Ok(())
-            })
-            .into_box();
-
-        Some(future)
-    }));
-
-    unwrap!(rx.recv())
-}
-
-/// Like `try_run`, but expects success.
-pub fn run<F, I, T>(authenticator: &Authenticator, f: F) -> T
-where
-    F: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: IntoFuture<Item = T, Error = AuthError> + 'static,
-    T: Send + 'static,
-{
-    unwrap!(try_run(authenticator, f))
-}
-
 /// Creates a random `AppExchangeInfo`
 pub fn rand_app() -> AppExchangeInfo {
     let mut rng = rand::thread_rng();
@@ -240,7 +208,7 @@ pub fn create_file<S: Into<String>>(
     content: Vec<u8>,
 ) -> Result<(), AuthError> {
     let name = name.into();
-    try_run(authenticator, |client| {
+    run(authenticator, |client| {
         let c2 = client.clone();
 
         file_helper::write(
@@ -265,7 +233,7 @@ pub fn fetch_file<S: Into<String>>(
     name: S,
 ) -> Result<File, AuthError> {
     let name = name.into();
-    try_run(authenticator, |client| {
+    run(authenticator, |client| {
         file_helper::fetch(client.clone(), container_info, name)
             .map(|(_, file)| file)
             .map_err(From::from)
@@ -278,7 +246,7 @@ pub fn read_file(
     file: File,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<Vec<u8>, AuthError> {
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         file_helper::read(client.clone(), &file, encryption_key)
             .then(|res| {
                 let reader = unwrap!(res);
@@ -296,7 +264,7 @@ pub fn delete_file<S: Into<String>>(
     version: u64,
 ) -> Result<u64, AuthError> {
     let name = name.into();
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         file_helper::delete(
             client.clone(),
             container_info,
@@ -315,7 +283,7 @@ pub fn write_file(
     encryption_key: Option<shared_secretbox::Key>,
     content: Vec<u8>,
 ) -> Result<(), AuthError> {
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         file_helper::write(client.clone(), file, mode, encryption_key)
             .then(move |res| {
                 let writer = unwrap!(res);
@@ -347,9 +315,9 @@ pub fn try_access_container<S: Into<String>>(
 ) -> Option<AccessContainerEntry> {
     let app_keys = auth_granted.app_keys;
     let app_id = app_id.into();
-    run(authenticator, move |client| {
+    unwrap!(run(authenticator, move |client| {
         access_container::fetch_entry(client, &app_id, app_keys).map(move |(_, entry)| entry)
-    })
+    }))
 }
 
 /// Get the container `MDataInfo` from the authenticator entry in the access container.
@@ -359,7 +327,7 @@ pub fn get_container_from_authenticator_entry(
 ) -> Result<MDataInfo, AuthError> {
     let container = String::from(container);
 
-    try_run(authenticator, move |client| {
+    run(authenticator, move |client| {
         access_container::fetch_authenticator_entry(client).and_then(move |(_, mut ac_entries)| {
             ac_entries.remove(&container).ok_or_else(|| {
                 AuthError::from(format!("'{}' not found in the access container", container))
@@ -375,7 +343,7 @@ pub fn compare_access_container_entries(
     mut access_container: AccessContainerEntry,
     expected: HashMap<String, ContainerPermissions>,
 ) {
-    let results = run(authenticator, move |client| {
+    let results = unwrap!(run(authenticator, move |client| {
         let mut reqs = Vec::new();
         let user = User::Key(app_sign_pk);
 
@@ -398,7 +366,7 @@ pub fn compare_access_container_entries(
         }
 
         future::join_all(reqs).map_err(AuthError::from)
-    });
+    }));
 
     // Check the permission on the mutable data for each of the above directories.
     for (perms, expected) in results {

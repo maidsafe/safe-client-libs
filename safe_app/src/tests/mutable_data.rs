@@ -14,13 +14,14 @@ use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
 use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
+use run;
 use rust_sodium::crypto::sign;
 use safe_core::utils::test_utils::random_client;
 use safe_core::{utils, Client, CoreError, FutureExt, DIR_TAG};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CString;
 use std::sync::mpsc;
-use test_utils::{create_app, run};
+use test_utils::create_app;
 
 // MD created by App. App lists its own sign_pk in owners field: Put should fail - Rejected by
 // MaidManagers. Should pass when it lists the owner's sign_pk instead.
@@ -34,7 +35,7 @@ fn md_created_by_app_1() {
     let app: *mut App =
         unsafe { unwrap!(call_1(|ud, cb| test_create_app(app_id.as_ptr(), ud, cb))) };
 
-    run(unsafe { &*app }, |client: &AppClient, _app_context| {
+    unwrap!(run(unsafe { &*app }, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
 
         let owners = btree_set![unwrap!(client.public_signing_key())];
@@ -67,7 +68,7 @@ fn md_created_by_app_1() {
                 cl2.put_mdata(mdata)
             })
             .map_err(|e| panic!("{:?}", e))
-    });
+    }));
 }
 
 // MD created by App properly: Should pass. App tries to change ownership - Should Fail by
@@ -536,7 +537,7 @@ fn multiple_apps() {
 #[test]
 fn permissions_and_version() {
     let app = create_app();
-    run(&app, |client: &AppClient, _app_context| {
+    unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
         let sign_pk = unwrap!(client.public_signing_key());
         let (random_key, _) = sign::gen_keypair();
@@ -652,7 +653,7 @@ fn permissions_and_version() {
                 );
             })
             .map_err(|e| panic!("{:?}", e))
-    });
+    }));
 }
 
 // The usual test to insert, update, delete and list all permissions. Put in some permissions, fetch
@@ -662,7 +663,7 @@ fn permissions_and_version() {
 #[test]
 fn permissions_crud() {
     let app = create_app();
-    run(&app, |client: &AppClient, _app_context| {
+    unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
         let sign_pk = unwrap!(client.public_signing_key());
         let (random_key_a, _) = sign::gen_keypair();
@@ -954,7 +955,7 @@ fn permissions_crud() {
                 Ok(())
             })
             .map_err(|e| panic!("{:?}", e))
-    });
+    }));
 }
 
 // The usual test to insert, update, delete and list all entry-keys/values. Same thing from
@@ -964,7 +965,7 @@ fn permissions_crud() {
 #[test]
 fn entries_crud() {
     let app = create_app();
-    run(&app, |client: &AppClient, _app_context| {
+    unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
         let sign_pk = unwrap!(client.public_signing_key());
 
@@ -1109,5 +1110,5 @@ fn entries_crud() {
                 Ok(())
             })
             .map_err(|e| panic!("{:?}", e))
-    });
+    }));
 }

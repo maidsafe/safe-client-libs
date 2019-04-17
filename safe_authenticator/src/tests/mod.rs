@@ -22,6 +22,7 @@ use ffi::ipc::{
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
+use run;
 use safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use safe_core::ipc::{
     self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
@@ -42,6 +43,7 @@ mod mock_routing {
     use errors::AuthError;
     use futures::Future;
     use routing::{ClientError, Request, Response, User};
+    use run;
     use safe_core::ipc::AuthReq;
     use safe_core::nfs::NfsError;
     use safe_core::utils::generate_random_string;
@@ -127,9 +129,9 @@ mod mock_routing {
 
         // Verify that the access container has been created and
         // fetch the entries of the root authenticator entry.
-        let (_entry_version, entries) = test_utils::run(&authenticator, |client| {
+        let (_entry_version, entries) = unwrap!(run(&authenticator, |client| {
             access_container_tools::fetch_authenticator_entry(client).map_err(AuthError::from)
-        });
+        }));
 
         // Verify that all the std dirs are there.
         for name in std_dir_names {
@@ -382,7 +384,7 @@ mod mock_routing {
 
         let app_pk = auth_granted.app_keys.sign_pk;
 
-        test_utils::run(&auth, move |client| {
+        unwrap!(run(&auth, move |client| {
             let c2 = client.clone();
 
             client
@@ -401,7 +403,7 @@ mod mock_routing {
 
                     Ok(())
                 })
-        });
+        }));
     }
 }
 
@@ -415,9 +417,9 @@ fn test_access_container() {
         .collect();
 
     // Fetch the entries of the access container.
-    let entries = test_utils::run(&authenticator, |client| {
+    let entries = unwrap!(run(&authenticator, |client| {
         access_container_tools::fetch_authenticator_entry(client).map(|(_version, entries)| entries)
-    });
+    }));
 
     // Verify that all the std dirs are there.
     for name in &std_dir_names {
@@ -425,7 +427,7 @@ fn test_access_container() {
     }
 
     // Fetch all the dirs under user root dir and verify they are empty.
-    let dirs = test_utils::run(&authenticator, move |client| {
+    let dirs = unwrap!(run(&authenticator, move |client| {
         let fs: Vec<_> = entries
             .into_iter()
             .map(|(_, dir)| {
@@ -437,7 +439,7 @@ fn test_access_container() {
             .collect();
 
         future::join_all(fs)
-    });
+    }));
 
     assert_eq!(dirs.len(), std_dir_names.len());
 
@@ -453,13 +455,13 @@ fn config_root_dir() {
     let authenticator = test_utils::create_account_and_login();
 
     // Fetch the entries of the config root dir.
-    let (dir, entries) = test_utils::run(&authenticator, |client| {
+    let (dir, entries) = unwrap!(run(&authenticator, |client| {
         let dir = client.config_root_dir();
         client
             .list_mdata_entries(dir.name, dir.type_tag)
             .map(move |entries| (dir, entries))
             .map_err(AuthError::from)
-    });
+    }));
 
     let entries = unwrap!(mdata_info::decrypt_entries(&dir, &entries));
 
@@ -576,9 +578,9 @@ fn app_authentication() {
     let (app_dir_info, _) = unwrap!(access_container.remove(&app_container_name(&app_id)));
 
     // Check the app info is present in the config file.
-    let apps = test_utils::run(&authenticator, |client| {
+    let apps = unwrap!(run(&authenticator, |client| {
         config::list_apps(client).map(|(_, apps)| apps)
-    });
+    }));
 
     let app_config_key = sha3_256(app_id.as_bytes());
     let app_info = unwrap!(apps.get(&app_config_key));
@@ -587,22 +589,22 @@ fn app_authentication() {
     assert_eq!(app_info.keys, app_keys);
 
     // Check the app dir is present in the access container's authenticator entry.
-    let received_app_dir_info = test_utils::run(&authenticator, move |client| {
+    let received_app_dir_info = unwrap!(run(&authenticator, move |client| {
         app_container::fetch(client, &app_id).and_then(move |app_dir| match app_dir {
             Some(app_dir) => Ok(app_dir),
             None => panic!("App directory not present"),
         })
-    });
+    }));
 
     assert_eq!(received_app_dir_info, app_dir_info);
 
     // Check the app is authorised.
-    let auth_keys = test_utils::run(&authenticator, |client| {
+    let auth_keys = unwrap!(run(&authenticator, |client| {
         client
             .list_auth_keys_and_version()
             .map(|(keys, _)| keys)
             .map_err(AuthError::from)
-    });
+    }));
 
     assert!(auth_keys.contains(&app_sign_pk));
 }

@@ -678,9 +678,10 @@ mod tests {
     use errors::ERR_INVALID_SIGN_PUB_KEY_HANDLE;
     use ffi::mutable_data::permissions::USER_ANYONE;
     use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
+    use run;
     use rust_sodium::crypto::box_;
     use safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
-    use test_utils::{create_app, run_now};
+    use test_utils::create_app;
 
     // Test signing and verifying messages between apps.
     #[test]
@@ -864,13 +865,13 @@ mod tests {
         let app = create_app();
         let app_sign_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_sign_key(&app, ud, cb))) };
 
-        let app_sign_key1 = run_now(&app, move |client, context| {
+        let app_sign_key1 = unwrap!(run(&app, move |client, context| {
             let app_sign_key1 = unwrap!(client.public_signing_key());
             let app_sign_key2 = unwrap!(context.object_cache().get_pub_sign_key(app_sign_key1_h));
             assert_eq!(app_sign_key1, *app_sign_key2);
 
-            app_sign_key1
-        });
+            Ok(app_sign_key1)
+        }));
 
         let app_sign_key1_raw: SignPublicKey = unsafe {
             unwrap!(call_1(|ud, cb| sign_pub_key_get(
@@ -890,9 +891,11 @@ mod tests {
             ),))
         };
 
-        let app_sign_key2 = run_now(&app, move |_, context| {
-            *unwrap!(context.object_cache().get_pub_sign_key(app_sign_key2_h))
-        });
+        let app_sign_key2 = unwrap!(run(&app, move |_, context| {
+            Ok(*unwrap!(context
+                .object_cache()
+                .get_pub_sign_key(app_sign_key2_h)))
+        }));
 
         assert_eq!(app_sign_key1, app_sign_key2);
 
@@ -920,11 +923,11 @@ mod tests {
     fn sign_secret_key_basics() {
         let app = create_app();
 
-        let app_sign_key1 = run_now(&app, move |client, _| {
+        let app_sign_key1 = unwrap!(run(&app, move |client, _| {
             let app_sign_key1 = unwrap!(client.secret_signing_key());
 
-            app_sign_key1
-        });
+            Ok(app_sign_key1)
+        }));
 
         let app_sign_key1_h = unsafe {
             unwrap!(call_1(|ud, cb| sign_sec_key_new(
@@ -953,10 +956,11 @@ mod tests {
             ),))
         };
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             let sign_key = unwrap!(context.object_cache().get_sec_sign_key(app_sign_key2_h));
             assert_eq!(*app_sign_key1, *sign_key.clone());
-        });
+            Ok(())
+        }));
 
         unsafe {
             unwrap!(call_0(|ud, cb| sign_sec_key_free(
@@ -974,13 +978,13 @@ mod tests {
         let app = create_app();
         let app_enc_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_enc_key(&app, ud, cb))) };
 
-        let app_enc_key1 = run_now(&app, move |client, context| {
+        let app_enc_key1 = unwrap!(run(&app, move |client, context| {
             let app_enc_key1 = unwrap!(client.public_encryption_key());
             let app_enc_key2 = unwrap!(context.object_cache().get_encrypt_key(app_enc_key1_h));
             assert_eq!(app_enc_key1, *app_enc_key2);
 
-            app_enc_key1
-        });
+            Ok(app_enc_key1)
+        }));
 
         let app_enc_key1_raw: AsymPublicKey = unsafe {
             unwrap!(call_1(|ud, cb| enc_pub_key_get(
@@ -1000,9 +1004,11 @@ mod tests {
             ),))
         };
 
-        let app_enc_key2 = run_now(&app, move |_, context| {
-            *unwrap!(context.object_cache().get_encrypt_key(app_enc_key2_h))
-        });
+        let app_enc_key2 = unwrap!(run(&app, move |_, context| {
+            Ok(*unwrap!(context
+                .object_cache()
+                .get_encrypt_key(app_enc_key2_h)))
+        }));
 
         assert_eq!(app_enc_key1, app_enc_key2);
 
@@ -1040,15 +1046,15 @@ mod tests {
             ),))
         };
 
-        let app_secret_key1 = run_now(&app, move |_client, context| {
+        let app_secret_key1 = unwrap!(run(&app, move |_client, context| {
             let app_public_key2 = unwrap!(context.object_cache().get_encrypt_key(app_public_key_h));
             assert_eq!(box_::PublicKey(app_public_key1), *app_public_key2);
 
             let app_secret_key2 = unwrap!(context.object_cache().get_secret_key(app_secret_key1_h));
             assert_eq!(app_secret_key1, app_secret_key2.0);
 
-            app_secret_key1
-        });
+            Ok(app_secret_key1)
+        }));
 
         let app_secret_key1_raw: AsymSecretKey = unsafe {
             unwrap!(call_1(|ud, cb| enc_secret_key_get(
@@ -1068,10 +1074,11 @@ mod tests {
             )))
         };
 
-        run_now(&app, move |_, context| {
+        unwrap!(run(&app, move |_, context| {
             let app_secret_key2 = unwrap!(context.object_cache().get_secret_key(app_secret_key2_h));
             assert_eq!(app_secret_key1, app_secret_key2.0);
-        });
+            Ok(())
+        }));
 
         unsafe {
             unwrap!(call_0(|ud, cb| enc_secret_key_free(

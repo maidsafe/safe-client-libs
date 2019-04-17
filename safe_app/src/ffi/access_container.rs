@@ -124,6 +124,7 @@ mod tests {
     use ffi::access_container::*;
     use ffi_utils::test_utils::{call_0, call_1, call_vec};
     use ffi_utils::{from_c_str, ReprC};
+    use run;
     use safe_core::ffi::ipc::req::ContainerPermissions as FfiContainerPermissions;
     use safe_core::ipc::req::ContainerPermissions;
     use safe_core::ipc::req::{container_perms_from_repr_c, Permission};
@@ -131,7 +132,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::rc::Rc;
-    use test_utils::{create_app_by_req, create_auth_req_with_access, run};
+    use test_utils::{create_app_by_req, create_auth_req_with_access};
 
     // Test refreshing access info by fetching it from the network.
     #[test]
@@ -147,11 +148,11 @@ mod tests {
             container_permissions.clone()
         ),));
 
-        run(&app, move |_client, context| {
+        unwrap!(run(&app, move |_client, context| {
             let reg = Rc::clone(unwrap!(context.as_registered()));
             assert!(reg.access_info.borrow().is_empty());
             Ok(())
-        });
+        }));
 
         unsafe {
             unwrap!(call_0(|ud, cb| access_container_refresh_access_info(
@@ -159,7 +160,7 @@ mod tests {
             ),))
         }
 
-        run(&app, move |_client, context| {
+        unwrap!(run(&app, move |_client, context| {
             let reg = Rc::clone(unwrap!(context.as_registered()));
             assert!(!reg.access_info.borrow().is_empty());
 
@@ -170,7 +171,7 @@ mod tests {
             );
 
             Ok(())
-        });
+        }));
     }
 
     // Test getting info about access containers and their mutable data.

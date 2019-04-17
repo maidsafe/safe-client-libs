@@ -150,7 +150,7 @@ pub use ffi::test_utils::{test_create_app, test_create_app_with_access};
 use self::object_cache::ObjectCache;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
-use futures::{future, Future};
+use futures::{future, Future, IntoFuture};
 use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread::{self, Joiner};
 use safe_core::crypto::shared_secretbox;
@@ -162,7 +162,7 @@ use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::mpsc as std_mpsc;
+use std::sync::mpsc;
 use std::sync::Mutex;
 use tokio_core::reactor::{Core, Handle};
 
@@ -326,7 +326,7 @@ impl App {
             + Send
             + 'static,
     {
-        let (tx, rx) = std_mpsc::sync_channel(0);
+        let (tx, rx) = mpsc::sync_channel(0);
 
         let joiner = thread::named("App Event Loop", move || {
             let el = try_tx!(Core::new(), tx);
@@ -460,6 +460,28 @@ impl AppContext {
             AppContext::Unregistered(_) => Err(AppError::OperationForbidden),
         }
     }
+}
+
+/// Helper to execute a future by blocking the thread until the result arrives.
+pub fn run<F, I, T>(app: &App, f: F) -> Result<T, AppError>
+where
+    F: FnOnce(&AppClient, &AppContext) -> I + Send + 'static,
+    I: IntoFuture<Item = T, Error = AppError> + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = mpsc::channel();
+    app.send(move |client, context| {
+        let future = f(client, context)
+            .into_future()
+            .then(move |result| {
+                unwrap!(tx.send(result));
+                Ok(())
+            })
+            .into_box()
+            .into();
+        Some(future)
+    })?;
+    rx.recv()?
 }
 
 fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFuture<()>> {

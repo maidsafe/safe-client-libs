@@ -212,10 +212,10 @@ mod tests {
     use config;
     use errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
     use revocation::revoke_app;
+    use run;
     use safe_core::ipc::{AuthReq, IpcError};
     use test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
-        run,
     };
 
     use super::*;
@@ -270,7 +270,7 @@ mod tests {
         };
 
         // Verify that the app is still authenticated
-        run(&auth, |client| {
+        unwrap!(run(&auth, |client| {
             let c2 = client.clone();
 
             config::list_apps(client)
@@ -279,7 +279,7 @@ mod tests {
                     AppState::Authenticated => Ok(()),
                     _ => panic!("App state changed after failed revocation"),
                 })
-        });
+        }));
     }
 
     // Test complete app removal
@@ -319,12 +319,12 @@ mod tests {
         ));
 
         // Put a file with predefined content into app A's own container.
-        let mdata_info = unwrap!({ run(&auth, move |client| fetch(client, &app_id3)) });
+        let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id3))) });
         unwrap!(create_file(&auth, mdata_info.clone(), "test", vec![1; 10]));
 
         // Revoke app A
         {
-            run(&auth, move |client| revoke_app(client, &app_id2))
+            unwrap!(run(&auth, move |client| revoke_app(client, &app_id2)))
         }
 
         // Verify that app A is still listed in the authenticator config.
@@ -332,12 +332,12 @@ mod tests {
 
         // Verify that the app A container is still accessible.
         {
-            run(&auth, move |client| {
+            unwrap!(run(&auth, move |client| {
                 fetch(client, &app_id4).and_then(move |res| match res {
                     Some(_) => Ok(()),
                     None => panic!("App container not accessible"),
                 })
-            })
+            }))
         }
 
         // Call `auth_rm_revoked_app` with an app id corresponding to app A.
@@ -384,7 +384,7 @@ mod tests {
         assert_ne!(auth_granted1.app_keys, auth_granted2.app_keys);
 
         // Verify that the app A2 container does not contain the file created at step 2.
-        let mdata_info = unwrap!({ run(&auth, move |client| fetch(client, &app_id5)) });
+        let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id5))) });
         let res = fetch_file(&auth, mdata_info, "test");
         match res {
             Err(_) => (),

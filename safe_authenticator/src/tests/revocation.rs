@@ -12,13 +12,14 @@ use errors::AuthError;
 use futures::Future;
 use revocation;
 use routing::{AccountInfo, EntryActions, User};
+use run;
 use safe_core::ipc::{AuthReq, Permission};
 use safe_core::nfs::NfsError;
 use safe_core::{app_container_name, Client, CoreError, MDataInfo};
 use std::collections::HashMap;
 use test_utils::{
     access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
-    get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke, run,
+    get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
     try_access_container, try_revoke,
 };
 use Authenticator;
@@ -149,12 +150,12 @@ mod mock_routing {
         }
 
         // Ensure that the app key has been removed from MaidManagers
-        let auth_keys = run(&auth, move |client| {
+        let auth_keys = unwrap!(run(&auth, move |client| {
             client
                 .list_auth_keys_and_version()
                 .map(move |(auth_keys, _version)| auth_keys)
                 .map_err(AuthError::from)
-        });
+        }));
         assert!(!auth_keys.contains(&auth_granted.app_keys.sign_pk));
 
         // Login and try to revoke the app again, now without interfering with responses
@@ -270,7 +271,7 @@ mod mock_routing {
             let app_id_0 = app_id_0.clone();
             let app_id_1 = app_id_1.clone();
 
-            run(&auth, |client| {
+            unwrap!(run(&auth, |client| {
                 let client = client.clone();
 
                 config::list_apps(&client)
@@ -288,7 +289,7 @@ mod mock_routing {
 
                         Ok(())
                     })
-            })
+            }))
         }
 
         // Login again without simulated failures.
@@ -301,7 +302,7 @@ mod mock_routing {
             ),))
         }
 
-        run(&auth, |client| {
+        unwrap!(run(&auth, |client| {
             let c2 = client.clone();
 
             config::list_apps(client)
@@ -319,7 +320,7 @@ mod mock_routing {
 
                     Ok(())
                 })
-        })
+        }))
     }
 
     // Test one app being revoked by multiple authenticator concurrently.
@@ -413,12 +414,12 @@ mod mock_routing {
         }
 
         // Check that the first app is now revoked, but the second app is not.
-        run(&auth, move |client| {
+        unwrap!(run(&auth, move |client| {
             let app_0 = verify_app_is_revoked(client, app_id_0, ac_entries_0);
             let app_1 = verify_app_is_authenticated(client, app_id_1);
 
             app_0.join(app_1).map(|_| ())
-        });
+        }));
     }
 
     // Test multiple apps being revoked concurrently.
@@ -510,13 +511,13 @@ mod mock_routing {
         }
 
         // Check that the first two apps are now revoked, but the other one is not.
-        run(&auth, move |client| {
+        unwrap!(run(&auth, move |client| {
             let app_0 = verify_app_is_revoked(client, app_id_0, ac_entries_0);
             let app_1 = verify_app_is_revoked(client, app_id_1, ac_entries_1);
             let app_2 = verify_app_is_authenticated(client, app_id_2);
 
             app_0.join3(app_1, app_2).map(|_| ())
-        });
+        }));
     }
 
     // Try to revoke apps with the given ids, but simulate network failure so they
@@ -528,7 +529,7 @@ mod mock_routing {
     {
         // First, log in normally to obtain the access contained info.
         let auth = unwrap!(Authenticator::login(locator, password, || ()));
-        let ac_info = run(&auth, |client| Ok(client.access_container()));
+        let ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
 
         // Then, log in with a request hook that makes mutation of the access container
         // fail.
@@ -789,9 +790,9 @@ fn app_revocation() {
 
     // Container permissions include only the second app.
     let (name, tag) = (videos_md2.name, videos_md2.type_tag);
-    let perms = run(&authenticator, move |client| {
+    let perms = unwrap!(run(&authenticator, move |client| {
         client.list_mdata_permissions(name, tag).map_err(From::from)
-    });
+    }));
     assert!(!perms.contains_key(&User::Key(auth_granted1.app_keys.sign_pk),));
     assert!(perms.contains_key(&User::Key(auth_granted2.app_keys.sign_pk),));
 
@@ -934,7 +935,7 @@ fn revocation_symmetric_decipher_failure() {
         let app_id2 = app_id2.clone();
         let app_id2_clone = app_id2.clone();
 
-        run(&authenticator, move |client| {
+        unwrap!(run(&authenticator, move |client| {
             let c2 = client.clone();
             let c3 = client.clone();
             let c4 = client.clone();
@@ -960,7 +961,7 @@ fn revocation_symmetric_decipher_failure() {
                     })
                 })
                 .and_then(move |_| corrupt_container(&c5, "_downloads"))
-        });
+        }));
     }
 
     // Try to revoke app3.
@@ -970,9 +971,9 @@ fn revocation_symmetric_decipher_failure() {
         Err(x) => panic!("An unexpected error occurred: {:?}", x),
     }
 
-    let queue = run(&authenticator, move |client| {
+    let queue = unwrap!(run(&authenticator, move |client| {
         get_app_revocation_queue(client).map(|(_, queue)| queue)
-    });
+    }));
 
     // Verify app1 was revoked, app2 is not in the revocation queue,
     // app3 is still in the revocation queue.
@@ -988,9 +989,9 @@ fn revocation_symmetric_decipher_failure() {
         Err(x) => panic!("An unexpected error occurred: {:?}", x),
     }
 
-    let queue = run(&authenticator, move |client| {
+    let queue = unwrap!(run(&authenticator, move |client| {
         get_app_revocation_queue(client).map(|(_, queue)| queue)
-    });
+    }));
 
     // Verify app3 was revoked this time.
     let ac = try_access_container(&authenticator, app_id3.clone(), auth_granted3.clone());
@@ -1008,9 +1009,9 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     let account_info_0 = get_account_info(&auth);
 
     // There are no apps, so the queue is empty.
-    run(&auth, |client| {
+    unwrap!(run(&auth, |client| {
         revocation::flush_app_revocation_queue(client)
-    });
+    }));
 
     let account_info_1 = get_account_info(&auth);
     assert_eq!(account_info_0, account_info_1);
@@ -1030,9 +1031,9 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     let account_info_2 = get_account_info(&auth);
 
     // The queue is empty again.
-    run(&auth, |client| {
+    unwrap!(run(&auth, |client| {
         revocation::flush_app_revocation_queue(client)
-    });
+    }));
 
     let account_info_3 = get_account_info(&auth);
     assert_eq!(account_info_2, account_info_3);
@@ -1070,7 +1071,7 @@ fn revocation_with_unencrypted_container_entries() {
         .into();
 
     // Insert unencrypted stuff into the shared container and the dedicated container.
-    run(&auth, move |client| {
+    unwrap!(run(&auth, move |client| {
         let f0 =
             client.mutate_mdata_entries(shared_info.name, shared_info.type_tag, shared_actions);
         let f1 = client.mutate_mdata_entries(
@@ -1080,13 +1081,13 @@ fn revocation_with_unencrypted_container_entries() {
         );
 
         f0.join(f1).map(|_| ()).map_err(AuthError::from)
-    });
+    }));
 
     // Revoke the app.
     revoke(&auth, &app_id);
 
     // Verify that the unencrypted entries remain unencrypted after the revocation.
-    run(&auth, move |client| {
+    unwrap!(run(&auth, move |client| {
         let f0 = client.get_mdata_value(shared_info2.name, shared_info2.type_tag, shared_key);
         let f1 = client.get_mdata_value(
             dedicated_info2.name,
@@ -1101,20 +1102,20 @@ fn revocation_with_unencrypted_container_entries() {
 
             Ok(())
         })
-    })
+    }))
 }
 
 fn count_mdata_entries(authenticator: &Authenticator, info: MDataInfo) -> usize {
-    run(authenticator, move |client| {
+    unwrap!(run(authenticator, move |client| {
         client
             .list_mdata_entries(info.name, info.type_tag)
             .map(|entries| entries.len())
             .map_err(From::from)
-    })
+    }))
 }
 
 fn get_account_info(authenticator: &Authenticator) -> AccountInfo {
-    run(authenticator, |client| {
+    unwrap!(run(authenticator, |client| {
         client.get_account_info().map_err(AuthError::from)
-    })
+    }))
 }

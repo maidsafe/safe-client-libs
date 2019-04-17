@@ -233,11 +233,12 @@ mod tests {
     };
     use ffi_utils::vec_clone_from_raw_parts;
     use routing::{Action, PermissionSet, Value};
+    use run;
     use safe_core::ipc::resp::{MDataEntry, MDataKey, MDataValue};
     use safe_core::utils;
     use std::os::raw::c_void;
     use std::sync::mpsc;
-    use test_utils::{create_app, run_now};
+    use test_utils::create_app;
 
     // Test mdata entries operations.
     #[test]
@@ -261,9 +262,9 @@ mod tests {
         let entries = btree_map![key0.clone() => value0.clone(),
                                  key1.clone() => value1.clone()];
 
-        let handle0 = run_now(&app, move |_, context| {
-            context.object_cache().insert_mdata_entries(entries)
-        });
+        let handle0 = unwrap!(run(&app, move |_, context| {
+            Ok(context.object_cache().insert_mdata_entries(entries))
+        }));
 
         let len1: usize =
             unsafe { unwrap!(call_1(|ud, cb| mdata_entries_len(&app, handle0, ud, cb))) };
