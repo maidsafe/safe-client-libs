@@ -94,6 +94,7 @@ extern crate rand;
 pub mod apps;
 /// FFI routines.
 pub mod ffi;
+pub mod revocation;
 /// Provides utilities to test the authenticator functionality.
 #[cfg(any(test, feature = "testing"))]
 #[macro_use]
@@ -111,7 +112,6 @@ mod client;
 mod config;
 mod errors;
 mod ipc;
-mod revocation;
 mod std_dirs;
 #[cfg(test)]
 mod tests;

@@ -6,6 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+//! App revocation functions
+
 use super::{AuthError, AuthFuture};
 use access_container::{self, AUTHENTICATOR_ENTRY};
 use client::AuthClient;
