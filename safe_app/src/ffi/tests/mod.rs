@@ -68,13 +68,11 @@ fn account_info() {
     assert!(orig_stats.mutations_available > 0);
 
     unsafe {
-        unwrap!((*app).send(move |client, _| {
-            client
-                .put_idata(ImmutableData::new(vec![1, 2, 3]))
-                .map_err(move |_| ())
-                .into_box()
-                .into()
-        }));
+        unwrap!((*app).send(move |client, _| client
+            .put_idata(ImmutableData::new(vec![1, 2, 3]))
+            .map_err(move |_| ())
+            .into_box()
+            .into()));
     }
 
     let stats: AccountInfo = unsafe { unwrap!(call_1(|ud, cb| app_account_info(app, ud, cb))) };

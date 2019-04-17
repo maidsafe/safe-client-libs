@@ -373,13 +373,11 @@ mod tests {
         assert!(orig_stats.mutations_available > 0);
 
         unsafe {
-            unwrap!((*auth).send(move |client| {
-                client
-                    .put_idata(ImmutableData::new(vec![1, 2, 3]))
-                    .map_err(move |_| ())
-                    .into_box()
-                    .into()
-            }));
+            unwrap!((*auth).send(move |client| client
+                .put_idata(ImmutableData::new(vec![1, 2, 3]))
+                .map_err(move |_| ())
+                .into_box()
+                .into()));
         }
 
         let stats: AccountInfo =

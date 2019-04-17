@@ -218,8 +218,8 @@ impl Authenticator {
 
             let client = try_tx!(create_client_fn(el_h, core_tx.clone(), net_tx), tx);
 
-            unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
-                std_dirs::create(client)
+            unwrap!(
+                core_tx.unbounded_send(CoreMsg::new(move |client, &()| std_dirs::create(client)
                     .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))
                     .then(move |res| {
                         match res {
@@ -230,8 +230,8 @@ impl Authenticator {
                         Ok(())
                     })
                     .into_box()
-                    .into()
-            })));
+                    .into()))
+            );
 
             event_loop::run(el, &client, &(), core_rx);
         });

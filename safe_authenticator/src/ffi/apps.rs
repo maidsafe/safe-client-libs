@@ -8,22 +8,22 @@
 
 use std::os::raw::{c_char, c_void};
 
-use ffi_utils::{catch_unwind_cb, FFI_RESULT_OK, FfiResult, from_c_str, OpaqueCtx, SafePtr};
+use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
 use futures::Future;
 use routing::XorName;
 
 use apps::{
-    apps_accessing_mutable_data, list_registered, list_revoked, RegisteredApp as NativeRegisteredApp,
-    remove_revoked_app,
+    apps_accessing_mutable_data, list_registered, list_revoked, remove_revoked_app,
+    RegisteredApp as NativeRegisteredApp,
 };
-use Authenticator;
-use AuthError;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
 use safe_core::ffi::ipc::resp::AppAccess;
-use safe_core::FutureExt;
 use safe_core::ipc::req::AppExchangeInfo as NativeAppExchangeInfo;
 use safe_core::ipc::resp::AppAccess as NativeAppAccess;
+use safe_core::FutureExt;
+use AuthError;
+use Authenticator;
 
 /// Application registered in the authenticator
 #[repr(C)]
