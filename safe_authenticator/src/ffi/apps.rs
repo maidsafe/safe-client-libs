@@ -6,28 +6,24 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use app_auth::{app_state, AppState};
-use app_container;
-use config;
-use ffi_utils::{
-    catch_unwind_cb, from_c_str, vec_into_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
-};
+use std::os::raw::{c_char, c_void};
+
+use ffi_utils::{catch_unwind_cb, FFI_RESULT_OK, FfiResult, from_c_str, OpaqueCtx, SafePtr};
 use futures::Future;
-use maidsafe_utilities::serialisation::deserialise;
-use routing::User::Key;
 use routing::XorName;
+
+use apps::{
+    apps_accessing_mutable_data, list_registered, list_revoked, RegisteredApp as NativeRegisteredApp,
+    remove_revoked_app,
+};
+use Authenticator;
+use AuthError;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
 use safe_core::ffi::ipc::resp::AppAccess;
-use safe_core::ipc::req::containers_into_vec;
-use safe_core::ipc::resp::{AccessContainerEntry, AppAccess as NativeAppAccess};
-use safe_core::ipc::{access_container_enc_key, IpcError};
-use safe_core::utils::symmetric_decrypt;
-use safe_core::{Client, FutureExt};
-use std::collections::HashMap;
-use std::os::raw::{c_char, c_void};
-use AuthError;
-use Authenticator;
+use safe_core::FutureExt;
+use safe_core::ipc::req::AppExchangeInfo as NativeAppExchangeInfo;
+use safe_core::ipc::resp::AppAccess as NativeAppAccess;
 
 /// Application registered in the authenticator
 #[repr(C)]
@@ -67,28 +63,9 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         let app_id = from_c_str(app_id)?;
-        let app_id2 = app_id.clone();
-        let app_id3 = app_id.clone();
 
         (*auth).send(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-            let c4 = client.clone();
-
-            config::list_apps(client)
-                .and_then(move |(apps_version, apps)| {
-                    app_state(&c2, &apps, &app_id)
-                        .map(move |app_state| (app_state, apps, apps_version))
-                })
-                .and_then(move |(app_state, apps, apps_version)| match app_state {
-                    AppState::Revoked => Ok((apps, apps_version)),
-                    AppState::Authenticated => Err(AuthError::from("App is not revoked")),
-                    AppState::NotAuthenticated => Err(AuthError::IpcError(IpcError::UnknownApp)),
-                })
-                .and_then(move |(apps, apps_version)| {
-                    config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2)
-                })
-                .and_then(move |_| app_container::remove(c4, &app_id3))
+            remove_revoked_app(client, app_id)
                 .then(move |res| {
                     call_result_cb!(res, user_data, o_cb);
                     Ok(())
@@ -115,38 +92,18 @@ pub unsafe extern "C" fn auth_revoked_apps(
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         (*auth).send(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-
-            config::list_apps(client)
-                .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
-                .and_then(move |(access_container, auth_cfg)| {
-                    c3.list_mdata_entries(access_container.name, access_container.type_tag)
-                        .map_err(From::from)
-                        .map(move |entries| (access_container, entries, auth_cfg))
-                })
-                .and_then(move |(access_container, entries, auth_cfg)| {
-                    let mut apps = Vec::new();
-                    let nonce = access_container.nonce().ok_or_else(|| {
-                        AuthError::from("No nonce on access container's MDataInfo")
-                    })?;
-
-                    for app in auth_cfg.values() {
-                        let key = access_container_enc_key(&app.info.id, &app.keys.enc_key, nonce)?;
-
-                        // If the app is not in the access container, or if the app entry has
-                        // been deleted (is empty), then it's revoked.
-                        let revoked = entries
-                            .get(&key)
-                            .map(|entry| entry.content.is_empty())
-                            .unwrap_or(true);
-
-                        if revoked {
-                            apps.push(app.info.clone().into_repr_c()?);
-                        }
-                    }
-
-                    o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
+            list_revoked(client)
+                .and_then(move |apps| {
+                    let app_list: Vec<_> = apps
+                        .into_iter()
+                        .map(NativeAppExchangeInfo::into_repr_c)
+                        .collect::<Result<_, _>>()?;
+                    o_cb(
+                        user_data.0,
+                        FFI_RESULT_OK,
+                        app_list.as_safe_ptr(),
+                        app_list.len(),
+                    );
 
                     Ok(())
                 })
@@ -177,52 +134,12 @@ pub unsafe extern "C" fn auth_registered_apps(
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         (*auth).send(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-
-            config::list_apps(client)
-                .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
-                .and_then(move |(access_container, auth_cfg)| {
-                    c3.list_mdata_entries(access_container.name, access_container.type_tag)
-                        .map_err(From::from)
-                        .map(move |entries| (access_container, entries, auth_cfg))
-                })
-                .and_then(move |(access_container, entries, auth_cfg)| {
-                    let mut apps = Vec::new();
-
-                    let nonce = access_container.nonce().ok_or_else(|| {
-                        AuthError::from("No nonce on access container's MDataInfo")
-                    })?;
-
-                    for app in auth_cfg.values() {
-                        let key = access_container_enc_key(&app.info.id, &app.keys.enc_key, nonce)?;
-
-                        // Empty entry means it has been deleted.
-                        let entry = match entries.get(&key) {
-                            Some(entry) if !entry.content.is_empty() => Some(entry),
-                            _ => None,
-                        };
-
-                        if let Some(entry) = entry {
-                            let plaintext = symmetric_decrypt(&entry.content, &app.keys.enc_key)?;
-                            let app_access = deserialise::<AccessContainerEntry>(&plaintext)?;
-
-                            let containers = containers_into_vec(
-                                app_access.into_iter().map(|(key, (_, perms))| (key, perms)),
-                            )?;
-
-                            let (containers_ptr, len, cap) = vec_into_raw_parts(containers);
-                            let reg_app = RegisteredApp {
-                                app_info: app.info.clone().into_repr_c()?,
-                                containers: containers_ptr,
-                                containers_len: len,
-                                containers_cap: cap,
-                            };
-
-                            apps.push(reg_app);
-                        }
-                    }
-
+            list_registered(client)
+                .and_then(move |registered_apps| {
+                    let apps: Vec<_> = registered_apps
+                        .into_iter()
+                        .map(NativeRegisteredApp::into_repr_c)
+                        .collect::<Result<_, _>>()?;
                     o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
 
                     Ok(())
@@ -258,51 +175,12 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         (*auth).send(move |client| {
-            let c2 = client.clone();
-
-            client
-                .list_mdata_permissions(name, md_type_tag)
-                .map_err(AuthError::from)
-                .join(
-                    // Fetch a list of registered apps in parallel
-                    config::list_apps(&c2).map(|(_, apps)| {
-                        // Convert the HashMap keyed by id to one keyed by public key
-                        apps.into_iter()
-                            .map(|(_, app_info)| (app_info.keys.sign_pk, app_info.info))
-                            .collect::<HashMap<_, _>>()
-                    }),
-                )
-                .and_then(move |(permissions, apps)| {
-                    // Map the list of keys retrieved from MD to a list of registered apps (even if
-                    // they're in the Revoked state) and create a new `AppAccess` struct object
-                    let mut app_access_vec: Vec<AppAccess> = Vec::new();
-
-                    for (user, perm_set) in permissions {
-                        if let Key(public_key) = user {
-                            let app_access = match apps.get(&public_key) {
-                                Some(app_info) => NativeAppAccess {
-                                    sign_key: public_key,
-                                    permissions: perm_set,
-                                    name: Some(app_info.name.clone()),
-                                    app_id: Some(app_info.id.clone()),
-                                },
-                                None => {
-                                    // If an app is listed in the MD permissions list, but is not
-                                    // listed in the registered apps list in Authenticator, then set
-                                    // the app_id and app_name fields to ptr::null(), but provide
-                                    // the public sign key and the list of permissions.
-                                    NativeAppAccess {
-                                        sign_key: public_key,
-                                        permissions: perm_set,
-                                        name: None,
-                                        app_id: None,
-                                    }
-                                }
-                            };
-                            app_access_vec.push(app_access.into_repr_c()?);
-                        }
-                    }
-
+            apps_accessing_mutable_data(client, name, md_type_tag)
+                .and_then(move |apps_with_access| {
+                    let app_access_vec: Vec<_> = apps_with_access
+                        .into_iter()
+                        .map(NativeAppAccess::into_repr_c)
+                        .collect::<Result<_, _>>()?;
                     o_cb(
                         user_data.0,
                         FFI_RESULT_OK,
@@ -325,17 +203,22 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::HashMap;
+
+    use ffi_utils::test_utils::call_0;
+
+    use app_auth::{app_state, AppState};
     use app_container::fetch;
     use config;
     use errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
-    use ffi_utils::test_utils::call_0;
     use revocation::revoke_app;
-    use safe_core::ipc::AuthReq;
+    use safe_core::ipc::{AuthReq, IpcError};
     use test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
         run,
     };
+
+    use super::*;
 
     // Negative test - non-existing app:
     // 1. Try to call `auth_rm_revoked_app` with a random, non-existing app_id
