@@ -177,8 +177,6 @@ mod tests {
     }
 
     // Test asymmetric encryption and decryption.
-    // NOTE: rustfmt is behaving erratically on this function. Disabling it for now.
-    #[rustfmt::skip]
     #[test]
     fn app_0_to_app_1_asym() {
         // Setup
@@ -186,8 +184,9 @@ mod tests {
         let app_1 = create_app();
 
         // Get encryption public key of App 1.
-        let enc_pk = unwrap!(run(&app_1,
-                             move |client, _| Ok(unwrap!(client.public_encryption_key()))));
+        let enc_pk = unwrap!(run(&app_1, move |client, _| Ok(unwrap!(
+            client.public_encryption_key()
+        ))));
 
         // Insert it into App 0's object cache.
         let enc_pk_h = unwrap!(run(&app_0, move |_, context| {
@@ -196,7 +195,9 @@ mod tests {
 
         // Create asymmetric cypher opt on App 0's end.
         let cipher_opt_h = unsafe {
-            unwrap!(call_1(|ud, cb| cipher_opt_new_asymmetric(&app_0, enc_pk_h, ud, cb)))
+            unwrap!(call_1(|ud, cb| cipher_opt_new_asymmetric(
+                &app_0, enc_pk_h, ud, cb
+            )))
         };
 
         // Encrypt the plaintext on App 0's end.
@@ -218,13 +219,23 @@ mod tests {
         // App 0 cannot decrypt the ciphertext, because it was encrypted with
         // App 1's public key.
         let (plain_text, cipher_text) = unwrap!(run(&app_0, move |client, context| {
-            assert!(!decrypt_and_check(client, context, &cipher_text, &plain_text));
+            assert!(!decrypt_and_check(
+                client,
+                context,
+                &cipher_text,
+                &plain_text
+            ));
             Ok((plain_text, cipher_text))
         }));
 
         // App 1 can decrypt it.
         unwrap!(run(&app_1, move |client, context| {
-            assert!(decrypt_and_check(client, context, &cipher_text, &plain_text));
+            assert!(decrypt_and_check(
+                client,
+                context,
+                &cipher_text,
+                &plain_text
+            ));
             Ok(())
         }));
     }

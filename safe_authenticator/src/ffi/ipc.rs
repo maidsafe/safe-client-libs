@@ -12,7 +12,9 @@ use crate::config;
 use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
 use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use crate::{AuthError, Authenticator};
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK};
+use ffi_utils::{
+    catch_unwind_cb, from_c_str, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
+};
 use futures::{stream, Future, Stream};
 use routing::{ClientError, User};
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
@@ -160,10 +162,11 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         })
                         .into_box(),
                     Err((error_code, description, err)) => {
-                        let res = FfiResult {
+                        let res = fry!(NativeResult {
                             error_code,
-                            description: description.as_ptr(),
-                        };
+                            description: Some(description),
+                        }
+                        .into_repr_c());
                         o_err(user_data.0, &res, err.as_ptr());
                         ok!(())
                     }
@@ -308,10 +311,11 @@ pub unsafe extern "C" fn encode_auth_resp(
                             req_id,
                             resp: IpcResp::Auth(Err(e.into())),
                         })?;
-                        let res = FfiResult {
+                        let res = NativeResult {
                             error_code,
-                            description: description.as_ptr(),
-                        };
+                            description: Some(description),
+                        }
+                        .into_repr_c()?;
                         o_cb(user_data.0, &res, resp.as_ptr());
                         Ok(())
                     })
@@ -411,10 +415,11 @@ pub unsafe extern "C" fn encode_containers_resp(
                             req_id,
                             resp: IpcResp::Containers(Err(e.into())),
                         })?;
-                        let res = FfiResult {
+                        let res = NativeResult {
                             error_code,
-                            description: description.as_ptr(),
-                        };
+                            description: Some(description),
+                        }
+                        .into_repr_c()?;
                         o_cb(user_data.0, &res, resp.as_ptr());
                         Ok(())
                     })

@@ -11,7 +11,8 @@
 
 use crate::errors::AppError;
 use ffi_utils::{
-    catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, ReprC, FFI_RESULT_OK,
+    catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC,
+    FFI_RESULT_OK,
 };
 use maidsafe_utilities::serialisation::serialise;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
@@ -246,20 +247,22 @@ fn decode_ipc_msg_impl(
                 Err(err) => {
                     let e = AppError::from(err);
                     let (error_code, description) = ffi_error!(e);
-                    let res = FfiResult {
+                    let res = NativeResult {
                         error_code,
-                        description: description.as_ptr(),
-                    };
+                        description: Some(description),
+                    }
+                    .into_repr_c()?;
                     o_err(user_data, &res, req_id);
                 }
             },
             Err(err) => {
                 let e = AppError::from(err);
                 let (error_code, description) = ffi_error!(e);
-                let res = FfiResult {
+                let res = NativeResult {
                     error_code,
-                    description: description.as_ptr(),
-                };
+                    description: Some(description),
+                }
+                .into_repr_c()?;
                 o_err(user_data, &res, req_id);
             }
         },
@@ -271,10 +274,11 @@ fn decode_ipc_msg_impl(
             Err(err) => {
                 let e = AppError::from(err);
                 let (error_code, description) = ffi_error!(e);
-                let res = FfiResult {
+                let res = NativeResult {
                     error_code,
-                    description: description.as_ptr(),
-                };
+                    description: Some(description),
+                }
+                .into_repr_c()?;
                 o_err(user_data, &res, req_id);
             }
         },
@@ -294,10 +298,11 @@ fn decode_ipc_msg_impl(
             Err(err) => {
                 let e = AppError::from(err);
                 let (error_code, description) = ffi_error!(e);
-                let res = FfiResult {
+                let res = NativeResult {
                     error_code,
-                    description: description.as_ptr(),
-                };
+                    description: Some(description),
+                }
+                .into_repr_c()?;
                 o_err(user_data, &res, req_id);
             }
         },
@@ -309,10 +314,11 @@ fn decode_ipc_msg_impl(
             Err(err) => {
                 let e = AppError::from(err);
                 let (error_code, description) = ffi_error!(e);
-                let res = FfiResult {
+                let res = NativeResult {
                     error_code,
-                    description: description.as_ptr(),
-                };
+                    description: Some(description),
+                }
+                .into_repr_c()?;
                 o_err(user_data, &res, req_id);
             }
         },

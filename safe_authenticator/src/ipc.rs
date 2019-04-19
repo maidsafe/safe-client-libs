@@ -33,7 +33,7 @@ use std::ffi::CString;
 pub fn decode_ipc_msg(
     client: &AuthClient,
     msg: IpcMsg,
-) -> Box<AuthFuture<Result<IpcMsg, (i32, CString, CString)>>> {
+) -> Box<AuthFuture<Result<IpcMsg, (i32, String, CString)>>> {
     match msg {
         IpcMsg::Req {
             req: IpcReq::Auth(auth_req),
