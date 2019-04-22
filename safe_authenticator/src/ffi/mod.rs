@@ -205,7 +205,7 @@ pub unsafe extern "C" fn auth_free(auth: *mut Authenticator) {
 /// Returns true if this crate was compiled against mock-routing.
 #[no_mangle]
 pub extern "C" fn auth_is_mock() -> bool {
-    cfg!(feature = "use-mock-routing")
+    cfg!(feature = "mock-network")
 }
 
 #[cfg(test)]
@@ -222,14 +222,14 @@ mod tests {
 
     // Test mock detection when compiled against mock-routing.
     #[test]
-    #[cfg(feature = "use-mock-routing")]
+    #[cfg(feature = "mock-network")]
     fn test_mock_build() {
         assert_eq!(auth_is_mock(), true);
     }
 
     // Test mock detection when not compiled against mock-routing.
     #[test]
-    #[cfg(not(feature = "use-mock-routing"))]
+    #[cfg(not(feature = "mock-network"))]
     fn test_not_mock_build() {
         assert_eq!(auth_is_mock(), false);
     }
@@ -276,7 +276,7 @@ mod tests {
     }
 
     // Test disconnection and reconnection with the authenticator.
-    #[cfg(all(test, feature = "use-mock-routing"))]
+    #[cfg(all(test, feature = "mock-network"))]
     #[test]
     fn network_status_callback() {
         use ffi_utils::test_utils::{

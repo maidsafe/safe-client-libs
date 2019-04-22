@@ -462,7 +462,7 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature = "use-mock-routing"))]
+#[cfg(all(test, feature = "mock-network"))]
 mod tests_with_mock_routing {
     use super::*;
     use crate::utils::test_utils::random_client;

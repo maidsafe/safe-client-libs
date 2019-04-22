@@ -31,10 +31,10 @@ version = "~0.32.1"
 features = ["testing"]
 
 [features]
-use-mock-routing = [
+mock-network = [
 "testing",
-"safe_core/use-mock-routing",
-"safe_authenticator/use-mock-routing",
-"safe_app/use-mock-routing",
+"safe_core/mock-network",
+"safe_authenticator/mock-network",
+"safe_app/mock-network",
 ]
 testing = ["safe_core/testing", "safe_authenticator/testing", "safe_app/testing"]

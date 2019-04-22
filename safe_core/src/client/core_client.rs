@@ -6,9 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use crate::client::mock::Routing;
-#[cfg(not(feature = "use-mock-routing"))]
+#[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 
 use crate::client::account::{Account as ClientAccount, ClientKeys};

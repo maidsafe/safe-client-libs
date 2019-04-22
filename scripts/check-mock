@@ -2,7 +2,7 @@
 
 set -x;
 
-cargo check --verbose --features=use-mock-routing --release --manifest-path=safe_core/Cargo.toml &&
-cargo check --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
-cargo check --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
-cargo check --verbose --features="testing use-mock-routing" --release --lib --tests --manifest-path=safe_app/Cargo.toml
+cargo check --verbose --features=mock-network --release --manifest-path=safe_core/Cargo.toml &&
+cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
+cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
+cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_app/Cargo.toml

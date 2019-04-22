@@ -27,5 +27,5 @@ features = ["bindings"]
 crate_type = ["cdylib"]
 
 [features]
-use-mock-routing = ["testing", "safe_core/use-mock-routing", "safe_app/use-mock-routing"]
+mock-network = ["testing", "safe_core/mock-network", "safe_app/mock-network"]
 testing = ["safe_core/testing", "safe_app/testing"]

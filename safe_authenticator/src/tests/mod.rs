@@ -35,7 +35,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 mod mock_routing {
     use super::utils;
     use crate::access_container as access_container_tools;

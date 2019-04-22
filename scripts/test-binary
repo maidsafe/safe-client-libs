@@ -14,11 +14,11 @@ if [[ -f "$COMPAT_TESTS" ]]; then
     export SAFE_MOCK_VAULT_PATH=$HOME/tmp
     mkdir -p "$SAFE_MOCK_VAULT_PATH"
 
-    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml serialisation_write_data -- --ignored
+    cargo test --verbose --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml serialisation_write_data -- --ignored
 
     chmod +x "$COMPAT_TESTS"
     "$COMPAT_TESTS" serialisation_read_data --ignored
     "$COMPAT_TESTS" serialisation_write_data --ignored
 
-    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml serialisation_read_data -- --ignored
+    cargo test --verbose --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml serialisation_read_data -- --ignored
 fi

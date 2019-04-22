@@ -4,7 +4,7 @@ set -e -x
 
 echo "--- Building the binary compatibility test ---"
 
-cargo test --verbose --release --no-run --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml
+cargo test --verbose --release --no-run --features=mock-network --manifest-path=safe_authenticator/Cargo.toml
 
 # Find the file to run.
 TEST_FILE=$(find target/release -maxdepth 1 -type f -executable -name "safe_authenticator-*" -printf '%T@ %p\n' | sort -n | tail -1 | cut -f2- -d" ")

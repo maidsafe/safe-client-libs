@@ -65,9 +65,9 @@ after_build:
 
 test_script:
   - |-
-    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_core/Cargo.toml
-    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_authenticator/Cargo.toml
-    cargo test --verbose --release --features=use-mock-routing --manifest-path=safe_app/Cargo.toml
+    cargo test --verbose --release --features=mock-network --manifest-path=safe_core/Cargo.toml
+    cargo test --verbose --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml
+    cargo test --verbose --release --features=mock-network --manifest-path=safe_app/Cargo.toml
 
 before_deploy:
   - PowerShell .\scripts\package.ps1

@@ -2,4 +2,4 @@
 
 set -e -x
 
-cargo test --verbose --features="use-mock-routing" --release --manifest-path=tests/Cargo.toml
+cargo test --verbose --features="mock-network" --release --manifest-path=tests/Cargo.toml

@@ -15,7 +15,7 @@ use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with
 use crate::{run, App};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use routing::{ClientError, Request, Response};
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::test_utils::revoke;
@@ -23,7 +23,7 @@ use safe_authenticator::Authenticator;
 use safe_core::ffi::AccountInfo;
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
 use safe_core::ipc::Permission;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -97,7 +97,7 @@ fn get_access_info() {
 }
 
 // Make sure we can login to a registered app with low balance.
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 #[test]
 pub fn login_registered_with_low_balance() {
     // Register a hook prohibiting mutations and login

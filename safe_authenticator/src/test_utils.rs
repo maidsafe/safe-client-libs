@@ -34,7 +34,7 @@ use safe_core::ipc::{
 use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::{File, Mode};
 use safe_core::utils::test_utils::setup_client_with_net_obs;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{utils, MDataInfo, NetworkEvent};
 use std::collections::HashMap;
@@ -110,7 +110,7 @@ pub fn revoke(authenticator: &Authenticator, app_id: &str) {
 
 /// Create a random authenticator and login using the same credentials.
 /// Attaches a hook to the Routing to override responses.
-#[cfg(all(any(test, feature = "testing"), feature = "use-mock-routing"))]
+#[cfg(all(any(test, feature = "testing"), feature = "mock-network"))]
 pub fn create_account_and_login_with_hook<F>(hook: F) -> Authenticator
 where
     F: Fn(MockRouting) -> MockRouting + Send + 'static,

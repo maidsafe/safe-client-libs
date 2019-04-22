@@ -227,7 +227,7 @@ fn main() {
     // Gather features.
     let mut features = vec![];
     if mock {
-        features.push("use-mock-routing");
+        features.push("mock-network");
         features.push("testing");
     }
     if matches.is_present("BINDINGS") {

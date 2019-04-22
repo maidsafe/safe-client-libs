@@ -8,7 +8,7 @@
 
 //! These tests ensure binary compatibility between different versions of `safe_client_libs`.
 
-#![cfg(feature = "use-mock-routing")]
+#![cfg(feature = "mock-network")]
 
 use crate::app_auth::{self, AppState};
 use crate::client::AuthClient;

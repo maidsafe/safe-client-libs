@@ -16,20 +16,20 @@ pub mod mdata_info;
 /// Operations with recovery.
 pub mod recovery;
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 mod mock;
 mod routing_event_loop;
 
 pub use self::account::ClientKeys;
 pub use self::mdata_info::MDataInfo;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 pub use self::mock::vault::mock_vault_path;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 pub use self::mock::Routing as MockRouting;
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use self::mock::Routing;
-#[cfg(not(feature = "use-mock-routing"))]
+#[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
@@ -450,8 +450,8 @@ pub trait Client: Clone + 'static {
     }
 
     #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
+        all(test, feature = "mock-network"),
+        all(feature = "testing", feature = "mock-network")
     ))]
     #[doc(hidden)]
     fn set_network_limits(&self, max_ops_count: Option<u64>) {
@@ -460,8 +460,8 @@ pub trait Client: Clone + 'static {
     }
 
     #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
+        all(test, feature = "mock-network"),
+        all(feature = "testing", feature = "mock-network")
     ))]
     #[doc(hidden)]
     fn simulate_network_disconnect(&self) {
@@ -470,8 +470,8 @@ pub trait Client: Clone + 'static {
     }
 
     #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
+        all(test, feature = "mock-network"),
+        all(feature = "testing", feature = "mock-network")
     ))]
     #[doc(hidden)]
     fn set_simulate_timeout(&self, enabled: bool) {

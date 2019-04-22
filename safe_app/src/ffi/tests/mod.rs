@@ -45,14 +45,14 @@ fn create_containers_req() -> HashMap<String, ContainerPermissions> {
 }
 // Test mock detection when compiled against mock-routing.
 #[test]
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 fn test_mock_build() {
     assert_eq!(app_is_mock(), true);
 }
 
 // Test mock detection when not compiled against mock-routing.
 #[test]
-#[cfg(not(feature = "use-mock-routing"))]
+#[cfg(not(feature = "mock-network"))]
 fn test_not_mock_build() {
     assert_eq!(app_is_mock(), false);
 }
@@ -86,7 +86,7 @@ fn account_info() {
 }
 
 // Test disconnection and reconnection with apps.
-#[cfg(all(test, feature = "use-mock-routing"))]
+#[cfg(all(test, feature = "mock-network"))]
 #[test]
 fn network_status_callback() {
     use ffi_utils::test_utils::{call_0, call_1_with_custom, send_via_user_data_custom, UserData};

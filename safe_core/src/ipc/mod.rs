@@ -60,7 +60,7 @@ pub enum IpcMsg {
 pub fn encode_msg(msg: &IpcMsg) -> Result<String, IpcError> {
     // We also add a multicodec compatible prefix. For more details please follow
     // https://github.com/multiformats/multicodec/blob/master/table.csv
-    let msg = (msg, cfg!(feature = "use-mock-routing"));
+    let msg = (msg, cfg!(feature = "mock-network"));
     Ok(format!("b{}", BASE32_NOPAD.encode(&serialise(&msg)?)))
 }
 
@@ -85,7 +85,7 @@ pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
     };
 
     let (msg, mock): (IpcMsg, bool) = deserialise(&decoded)?;
-    if mock != cfg!(feature = "use-mock-routing") {
+    if mock != cfg!(feature = "mock-network") {
         return Err(IpcError::IncompatibleMockStatus);
     }
 

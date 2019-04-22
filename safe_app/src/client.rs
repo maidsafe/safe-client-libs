@@ -6,9 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#[cfg(not(feature = "use-mock-routing"))]
+#[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting as Routing;
 
 use crate::errors::AppError;
@@ -83,8 +83,8 @@ impl AppClient {
 
     /// Allows customising the mock Routing client before logging in using client keys.
     #[cfg(any(
-        all(test, feature = "use-mock-routing"),
-        all(feature = "testing", feature = "use-mock-routing")
+        all(test, feature = "mock-network"),
+        all(feature = "testing", feature = "mock-network")
     ))]
     pub(crate) fn from_keys_with_hook<F>(
         keys: ClientKeys,

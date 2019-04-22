@@ -114,7 +114,7 @@ use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::thread::{self, Joiner};
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
 use std::sync::mpsc as std_mpsc;
@@ -391,7 +391,7 @@ impl Authenticator {
     }
 }
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 impl Authenticator {
     #[allow(unused)]
     fn create_acc_with_hook<F, S, N>(

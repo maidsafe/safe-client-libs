@@ -145,7 +145,7 @@ use maidsafe_utilities::thread::{self, Joiner};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig};
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting as Routing;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
 use std::cell::RefCell;
@@ -259,7 +259,7 @@ impl App {
     }
 
     /// Allows customising the mock Routing client before registering a new account.
-    #[cfg(feature = "use-mock-routing")]
+    #[cfg(feature = "mock-network")]
     pub fn registered_with_hook<N, F>(
         app_id: String,
         auth_granted: AuthGranted,

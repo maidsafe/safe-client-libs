@@ -77,7 +77,7 @@
     allow(clippy::implicit_hasher, clippy::too_many_arguments, clippy::use_debug)
 )]
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -122,7 +122,7 @@ mod errors;
 mod event;
 
 pub use self::client::{mdata_info, recovery, Client, ClientKeys, MDataInfo};
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockRouting};
 pub use self::errors::CoreError;
 pub use self::event::{CoreEvent, NetworkEvent, NetworkRx, NetworkTx};

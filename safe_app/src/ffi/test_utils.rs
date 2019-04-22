@@ -61,7 +61,7 @@ pub unsafe extern "C" fn test_create_app_with_access(
 }
 
 /// Simulate a network disconnect when testing.
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 #[no_mangle]
 pub unsafe extern "C" fn test_simulate_network_disconnect(
     app: *mut App,
@@ -111,7 +111,7 @@ mod tests {
     }
 
     // Test simulating network disconnects.
-    #[cfg(feature = "use-mock-routing")]
+    #[cfg(feature = "mock-network")]
     #[test]
     fn simulate_network_disconnect() {
         use super::test_simulate_network_disconnect;

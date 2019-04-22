@@ -6,9 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#[cfg(not(feature = "use-mock-routing"))]
+#[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting as Routing;
 
 use crate::errors::AuthError;
@@ -98,7 +98,7 @@ where {
         )
     }
 
-    #[cfg(all(feature = "use-mock-routing", any(test, feature = "testing")))]
+    #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
     /// Allows customising the mock Routing client before registering a new account
     pub fn registered_with_hook<F>(
         acc_locator: &str,
@@ -250,7 +250,7 @@ where {
         })
     }
 
-    #[cfg(all(feature = "use-mock-routing", any(test, feature = "testing")))]
+    #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
     /// Allows customising the mock Routing client before logging into the network.
     pub fn login_with_hook<F>(
         acc_locator: &str,
@@ -753,7 +753,7 @@ mod tests {
     }
 
     // Test restarting routing after a network disconnect.
-    #[cfg(feature = "use-mock-routing")]
+    #[cfg(feature = "mock-network")]
     #[test]
     fn restart_routing() {
         use crate::test_utils::random_client_with_net_obs;
@@ -788,7 +788,7 @@ mod tests {
     }
 
     // Test that a `RequestTimeout` error is returned on network timeout.
-    #[cfg(feature = "use-mock-routing")]
+    #[cfg(feature = "mock-network")]
     #[test]
     fn timeout() {
         use crate::test_utils::random_client;

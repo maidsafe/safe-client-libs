@@ -23,7 +23,7 @@ use safe_core::nfs::NfsError;
 use safe_core::{app_container_name, Client, CoreError, MDataInfo};
 use std::collections::HashMap;
 
-#[cfg(feature = "use-mock-routing")]
+#[cfg(feature = "mock-network")]
 mod mock_routing {
     use super::*;
     use crate::access_container;
