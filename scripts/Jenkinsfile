@@ -104,7 +104,7 @@ stage('deployment') {
             def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
             for (artifact in artifacts) {
                 s3Upload(
-                    bucket: "${env.DEPLOY_BUCKET}",
+                    bucket: "${params.DEPLOY_BUCKET}",
                     file: artifact,
                     workingDir: "${env.WORKSPACE}/deploy",
                     acl: 'PublicRead')
@@ -169,7 +169,7 @@ def upload_build_artifacts() {
         def artifacts = sh(returnStdout: true, script: 'ls -1 artifacts').trim().split("\\r?\\n")
         for (artifact in artifacts) {
             s3Upload(
-                bucket: "${env.ARTIFACTS_BUCKET}",
+                bucket: "${params.ARTIFACTS_BUCKET}",
                 file: artifact,
                 workingDir: "${env.WORKSPACE}/artifacts",
                 acl: 'PublicRead')
@@ -186,7 +186,7 @@ def upload_binary_compatibility_test() {
     sh("rm -rf target/release")
     withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
         s3Upload(
-            bucket: "${env.ARTIFACTS_BUCKET}",
+            bucket: "${params.ARTIFACTS_BUCKET}",
             file: "bct/${env.BUILD_NUMBER}/tests",
             path: "bct/${env.BUILD_NUMBER}/tests",
             workingDir: "${env.WORKSPACE}",
@@ -215,7 +215,7 @@ def run_binary_compatibility_tests() {
         withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
             s3Download(
                 file: "${bct_test_path}",
-                bucket: "${env.ARTIFACTS_BUCKET}",
+                bucket: "${params.ARTIFACTS_BUCKET}",
                 path: "bct/${build_number}/tests",
                 force: true)
         }
