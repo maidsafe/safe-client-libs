@@ -68,30 +68,35 @@ stage('build') {
 stage('test') {
     parallel mocked_linux: {
         node('docker') {
+            checkout(scm)
             retrieve_build_artifacts('mock', 'linux')
             run_tests('mock')
         }
     },
     mocked_windows: {
         node('windows') {
+            checkout(scm)
             retrieve_build_artifacts('mock', 'windows')
             run_tests('mock')
         }
     },
     mocked_macos: {
         node('osx') {
+            checkout(scm)
             retrieve_build_artifacts('mock', 'osx')
             run_tests('mock')
         }
     },
     integration_linux: {
         node('docker') {
+            checkout(scm)
             retrieve_build_artifacts('mock', 'linux')
             run_tests('integration')
         }
     },
     binary_linux: {
         node('docker') {
+            checkout(scm)
             run_binary_compatibility_tests()
         }
     }
@@ -99,6 +104,7 @@ stage('test') {
 
 stage('deployment') {
     node('docker') {
+        checkout(scm)
         package_deploy_artifacts()
         withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
             def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
