@@ -97,6 +97,7 @@ stage('test') {
     binary_linux: {
         node('docker') {
             checkout(scm)
+            retrieve_build_artifacts('mock', 'linux')
             run_binary_compatibility_tests()
         }
     }
@@ -140,7 +141,13 @@ def get_container_name(mode, type, app='') {
 }
 
 def package_build_artifacts(mode, os) {
-    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command = ""
+    if (env.CHANGE_ID?.trim()) {
+        command += "SCL_BRANCH=${env.CHANGE_ID} "
+    } else {
+        command += "SCL_BRANCH=${env.BRANCH_NAME} "
+    }
+    command += "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
     command += "SCL_BUILD_OS=${os} "
     if (mode == 'mock') {
         command += "SCL_BUILD_MOCK=true "
@@ -152,7 +159,13 @@ def package_build_artifacts(mode, os) {
 }
 
 def package_deploy_artifacts() {
-    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command = ""
+    if (env.CHANGE_ID?.trim()) {
+        command += "SCL_BRANCH=${env.CHANGE_ID} "
+    } else {
+        command += "SCL_BRANCH=${env.BRANCH_NAME} "
+    }
+    command += "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
     command += "make retrieve-all-build-artifacts"
     sh(command)
     sh("make package-deploy-artifacts")
@@ -201,7 +214,13 @@ def upload_binary_compatibility_test() {
 }
 
 def retrieve_build_artifacts(mode, os) {
-    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command = ""
+    if (env.CHANGE_ID?.trim()) {
+        command += "SCL_BRANCH=${env.CHANGE_ID} "
+    } else {
+        command += "SCL_BRANCH=${env.BRANCH_NAME} "
+    }
+    command += "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
     command += "SCL_BUILD_OS=${os} "
     if (mode == 'mock') {
         command += "SCL_BUILD_MOCK=true "
