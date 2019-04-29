@@ -1016,7 +1016,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "num-integer 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1396,14 +1396,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "libc 0.2.51 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rust_sodium-sys 0.10.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rust_sodium-sys 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.90 (registry+https://github.com/rust-lang/crates.io-index)",
  "unwrap 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rust_sodium-sys"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cc 1.0.34 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2515,7 +2515,7 @@ dependencies = [
 "checksum resource_proof 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9eaa71a03a0cd0d41a32dfb3c5234c66658e6fa41d53785c5290d86465328215"
 "checksum routing 0.37.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fd979061143decb593250e9b084bd673ec091ed36f6305ab0ff749065004b1b9"
 "checksum rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)" = "0c1d4c517ad3d421a390cad0afa1108a507be2b86ea1f11afb12809e57a2f0c9"
-"checksum rust_sodium-sys 0.10.3 (registry+https://github.com/rust-lang/crates.io-index)" = "629fddcdd90346a1b8dd7af39f27c4e083e124591f79e843871715ab50ff7e2b"
+"checksum rust_sodium-sys 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ed3b72937549b078804565bef0276087cb9a5bc6e63677553188d85dd0c735d8"
 "checksum rustc-demangle 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "adacaae16d02b6ec37fdc7acfcddf365978de76d1983d3ee22afc260e1ca9619"
 "checksum rustc-serialize 0.3.24 (registry+https://github.com/rust-lang/crates.io-index)" = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 "checksum rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
