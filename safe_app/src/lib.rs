@@ -133,8 +133,6 @@ pub mod test_utils;
 
 pub use self::errors::*;
 pub use client::AppClient;
-#[cfg(any(test, feature = "testing"))]
-pub use ffi::test_utils::{test_create_app, test_create_app_with_access};
 
 use self::object_cache::ObjectCache;
 use futures::stream::Stream;
