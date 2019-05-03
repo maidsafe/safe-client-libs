@@ -26,6 +26,10 @@ maidsafe_logo.png",
 )]
 #![deny(
     bad_style,
+    clippy::all,
+    clippy::option_unwrap_used,
+    clippy::unicode_not_nfc,
+    clippy::wrong_pub_self_convention,
     deprecated,
     improper_ctypes,
     missing_docs,
@@ -54,22 +58,12 @@ maidsafe_logo.png",
 )]
 #![allow(
     box_pointers,
+    clippy::implicit_hasher,
+    clippy::too_many_arguments,
+    clippy::use_debug,
     missing_copy_implementations,
     missing_debug_implementations,
     variant_size_differences
-)]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    deny(
-        clippy::all,
-        clippy::unicode_not_nfc,
-        clippy::wrong_pub_self_convention,
-        clippy::option_unwrap_used
-    )
-)]
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::implicit_hasher, clippy::too_many_arguments, clippy::use_debug)
 )]
 
 #[macro_use]
