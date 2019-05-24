@@ -21,6 +21,7 @@ use routing::{
 };
 use rust_sodium::crypto::sign;
 use safe_nd::response::Response as RpcResponse;
+use safe_nd::MessageId as SndMessageId;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -131,7 +132,7 @@ impl Routing {
         &mut self,
         src: Authority<XorName>,
         dst: Authority<XorName>,
-        payload: &Vec<u8>,
+        payload: &[u8],
     ) -> Result<(), InterfaceError> {
         let response = match dst {
             // Mutation requests are sent to Client manager
@@ -141,20 +142,22 @@ impl Routing {
                 Some(res)
             }
             // Responses are sent to client authorities
-            Authority::Client {
-                client_id: _,
-                proxy_node_name: _,
-            } => {
+            Authority::Client { .. } => {
                 // TODO: Getting message_id without deserializing this
-                let resp: RpcResponse = unwrap!(deserialise(&payload.to_vec()));
+                let resp: RpcResponse<ClientError> = unwrap!(deserialise(&payload.to_vec()));
                 // Also make this better
                 let message_id = match resp {
-                    RpcResponse::GetUnseqMData { res: _, msg_id }
-                    | RpcResponse::PutUnseqMData { res: _, msg_id } => msg_id,
+                    RpcResponse::GetUnseqMData { msg_id, .. }
+                    | RpcResponse::PutUnseqMData { msg_id, .. } => msg_id,
+                    _ => {
+                        // Return random msg_id for now
+                        // Other responses should be handled with their data types
+                        SndMessageId::from(MessageId::new())
+                    }
                 };
                 let response = Response::RpcResponse {
                     res: Ok(payload.to_vec()),
-                    msg_id: message_id,
+                    msg_id: SndMessageId::into(message_id),
                 };
                 self.send_response(DEFAULT_DELAY_MS, src, dst, response);
                 None
@@ -167,13 +170,8 @@ impl Routing {
             }
             _ => None,
         };
-        match response {
-            Some(res) => {
-                let _ = self.send(res.0, src, &res.1);
-            }
-            None => {
-                // Do nothing
-            }
+        if let Some(res) = response {
+            let _ = self.send(res.0, src, &res.1);
         }
         Ok(())
     }

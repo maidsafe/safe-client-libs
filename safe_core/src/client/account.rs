@@ -14,6 +14,8 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{FullId, XorName, XOR_NAME_LEN};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+use threshold_crypto::serde_impl::SerdeSecret;
 use tiny_keccak::sha3_256;
 
 /// Representing the User Account information on the network.
@@ -111,7 +113,7 @@ impl Account {
 }
 
 /// Client signing and encryption keypairs
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct ClientKeys {
     /// Signing public key
     pub sign_pk: sign::PublicKey,
@@ -123,6 +125,27 @@ pub struct ClientKeys {
     pub enc_sk: shared_box::SecretKey,
     /// Symmetric encryption key
     pub enc_key: shared_secretbox::Key,
+    /// BLS public key
+    pub bls_pk: threshold_crypto::PublicKey,
+    /// BLS private key
+    pub bls_sk: threshold_crypto::SecretKey,
+}
+
+impl Serialize for ClientKeys {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("ClientKeys", 7)?;
+        state.serialize_field("sign_pk", &self.sign_pk)?;
+        state.serialize_field("sign_sk", &self.sign_sk)?;
+        state.serialize_field("enc_pk", &self.enc_pk)?;
+        state.serialize_field("enc_sk", &self.enc_sk)?;
+        state.serialize_field("enc_key", &self.enc_key)?;
+        state.serialize_field("bls_pk", &self.bls_pk)?;
+        state.serialize_field("bls_sk", &SerdeSecret(&self.bls_sk))?;
+        state.end()
+    }
 }
 
 impl ClientKeys {
@@ -134,6 +157,7 @@ impl ClientKeys {
         };
         let enc = shared_box::gen_keypair();
         let enc_key = shared_secretbox::gen_key();
+        let bls_sk = threshold_crypto::SecretKey::random();
 
         ClientKeys {
             sign_pk: sign.0,
@@ -141,6 +165,8 @@ impl ClientKeys {
             enc_pk: enc.0,
             enc_sk: enc.1,
             enc_key,
+            bls_pk: bls_sk.public_key(),
+            bls_sk,
         }
     }
 }
@@ -156,7 +182,7 @@ impl Into<FullId> for ClientKeys {
         let enc_sk = (*self.enc_sk).clone();
         let sign_sk = (*self.sign_sk).clone();
 
-        FullId::with_keys((self.enc_pk, enc_sk), (self.sign_pk, sign_sk))
+        FullId::with_keys((self.enc_pk, enc_sk), (self.sign_pk, sign_sk), self.bls_sk)
     }
 }
 

@@ -49,9 +49,10 @@ use routing::{
     MessageId, MutableData, PermissionSet, User, Value, XorName,
 };
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::mutable_data::{MutableDataRef, UnpublishedMutableData};
+use safe_nd::mutable_data::{MutableData as SndMutableData, MutableDataRef};
 use safe_nd::request::Request;
 use safe_nd::response::Response;
+use safe_nd::MessageId as SndMessageId;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
@@ -134,6 +135,12 @@ pub trait Client: Clone + 'static {
 
     /// Return the secret signing key.
     fn secret_signing_key(&self) -> Option<shared_sign::SecretKey>;
+
+    /// Return the public BLS key
+    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey>;
+
+    /// Return the secret BLS key
+    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey>;
 
     /// Return the public and secret signing keys.
     fn signing_keypair(&self) -> Option<(sign::PublicKey, shared_sign::SecretKey)> {
@@ -227,7 +234,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put unpublished mutable data to the network
-    fn put_unpub_mutable_data(&self, data: UnpublishedMutableData) -> Box<CoreFuture<()>> {
+    fn put_unpub_mutable_data(&self, data: SndMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Unpublished MData");
 
         let requester = some_or_err!(self.public_signing_key());
@@ -239,7 +246,7 @@ pub trait Client: Clone + 'static {
             let request = Request::PutUnseqMData {
                 data: data.clone(),
                 requester,
-                message_id,
+                message_id: SndMessageId::from(message_id),
             };
             routing.send(client, dst, &unwrap!(serialise(&request)))
         })
@@ -250,19 +257,19 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Box<CoreFuture<Result<UnpublishedMutableData, ClientError>>> {
+    ) -> Box<CoreFuture<SndMutableData>> {
         trace!("Fetch entries from Unpublished Mutable Data");
 
-        let requester = some_or_err!(self.public_signing_key());
+        let requester = some_or_err!(self.public_bls_key());
         let client = Authority::Client {
             client_id: *some_or_err!(self.full_id()).public_id(),
             proxy_node_name: rand::random(),
         };
         send(self, move |routing, msg_id| {
             let request = Request::GetUnseqMData {
-                address: MutableDataRef::new(name, tag),
+                address: MutableDataRef::new(name.0, tag),
                 requester,
-                message_id: msg_id,
+                message_id: SndMessageId::from(msg_id),
             };
             routing.send(
                 client,
@@ -272,14 +279,14 @@ pub trait Client: Clone + 'static {
         })
         .and_then(|event| {
             let res = match event {
-                CoreEvent::RpcResponse(res) => Ok(res),
+                CoreEvent::RpcResponse(res) => res,
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&unwrap!(result_buffer)));
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetUnseqMData { res, .. } => Ok(res),
-                _ => Err(CoreError::ReceivedUnexpectedData),
+                Response::GetUnseqMData { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
         .into_box()
@@ -676,7 +683,18 @@ where
     let dst = some_or_err!(client.cm_addr());
 
     send(client, move |routing, msg_id| req(routing, dst, msg_id))
-        .and_then(|event| match_event!(event, CoreEvent::Mutation))
+        .and_then(|event| match event {
+            CoreEvent::RpcResponse(res) => {
+                let response_buffer = unwrap!(res);
+                let response: Response<ClientError> = unwrap!(deserialise(&response_buffer));
+                match response {
+                    Response::PutUnseqMData { res, .. } => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            }
+            CoreEvent::Mutation(res) => res,
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        })
         .into_box()
 }
 
@@ -761,23 +779,31 @@ mod tests {
     use safe_nd::mutable_data::*;
 
     #[test]
-    #[ignore]
     pub fn unpub_mdata_test() {
-        random_client(move |client| {
+        let _ = random_client(move |client| {
+            let client2 = client.clone();
             let name = rand::random();
             let tag = 15001;
 
-            let data = UnpublishedMutableData::new(
+            let data = SndMutableData::new(
                 name,
                 tag,
                 MutableDataKind::Unsequenced {
                     data: Default::default(),
                 },
                 Default::default(),
-                0,
-                unwrap!(client.owner_key()),
+                unwrap!(client.public_bls_key()),
             );
-            client.put_unpub_mutable_data(data.clone()).then(|res| res)
+            client.put_unpub_mutable_data(data.clone()).and_then(move |_| {
+                println!("Put unpub. Mutable data successfully");
+
+                client2.get_unpub_mdata(XorName(data.name()), data.tag())
+                .map(move |fetched_data| {
+                    assert_eq!(fetched_data.name(), data.name());
+                    assert_eq!(fetched_data.tag(), data.tag());
+                    fetched_data
+                })
+            }).then(|res| res)
         });
     }
 }
