@@ -61,6 +61,9 @@ fn get_core_event(res: Response) -> Result<(MessageId, CoreEvent), CoreError> {
         | Response::DelAuthKey { res, msg_id } => {
             (msg_id, CoreEvent::Mutation(res.map_err(CoreError::from)))
         }
+        Response::RpcResponse { res, msg_id } => {
+            (msg_id, CoreEvent::RpcResponse(res.map_err(CoreError::from)))
+        }
         Response::GetAccountInfo { res, msg_id } => (
             msg_id,
             CoreEvent::GetAccountInfo(res.map_err(CoreError::from)),

@@ -14,6 +14,7 @@ use super::DEFAULT_MAX_MUTATIONS;
 use crate::client::mock::vault::Vault;
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand;
 use routing::{
     AccountInfo, Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
@@ -21,6 +22,9 @@ use routing::{
     TYPE_TAG_SESSION_PACKET,
 };
 use rust_sodium::crypto::sign;
+use safe_nd::mutable_data::{MutableDataKind, MutableDataRef, UnpublishedMutableData};
+use safe_nd::request::Request as RpcRequest;
+use safe_nd::response::Response as RpcResponse;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -1010,6 +1014,64 @@ fn mutable_data_ownership() {
         msg_id
     ));
     expect_success!(owner_routing_rx, msg_id, Response::ChangeMDataOwner);
+}
+
+#[test]
+fn unpub_md() {
+    let (mut routing, routing_rx, full_id) = setup();
+    let owner_key = *full_id.public_id().signing_public_key();
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+
+    let client = Authority::Client {
+        client_id: *full_id.public_id(),
+        proxy_node_name: rand::random(),
+    };
+
+    let name = rand::random();
+    let tag = 15001;
+
+    let data = UnpublishedMutableData::new(
+        name,
+        tag,
+        MutableDataKind::Unsequenced {
+            data: Default::default(),
+        },
+        Default::default(),
+        0,
+        owner_key,
+    );
+
+    let message_id = MessageId::new();
+
+    let put_request = RpcRequest::PutUnseqMData {
+        data: data.clone(),
+        requester: owner_key,
+        message_id,
+    };
+
+    let put_req_buffer = unwrap!(serialise(&put_request));
+    unwrap!(routing.send(client, client_mgr, &put_req_buffer));
+    let _response = expect_success!(routing_rx, message_id, Response::RpcResponse);
+
+    let message_id2 = MessageId::new();
+    let get_request = RpcRequest::GetUnseqMData {
+        address: MutableDataRef::new(name, tag),
+        requester: owner_key,
+        message_id: message_id2,
+    };
+    let get_req_buffer = unwrap!(serialise(&get_request));
+    unwrap!(routing.send(client, Authority::NaeManager(name), &get_req_buffer));
+    let response2 = expect_success!(routing_rx, message_id2, Response::RpcResponse);
+    let rpc_response: RpcResponse = unwrap!(deserialise(&response2));
+    match rpc_response {
+        RpcResponse::GetUnseqMData { res, .. } => {
+            let unpub_mdata: UnpublishedMutableData = unwrap!(res);
+            println!("{} :: {}", unpub_mdata.name(), unpub_mdata.tag());
+            assert_eq!(unpub_mdata.name(), name);
+            assert_eq!(unpub_mdata.tag(), tag);
+        }
+        _ => panic!("Unexpected response"),
+    }
 }
 
 // Test auth key operations with valid and invalid version bumps.
