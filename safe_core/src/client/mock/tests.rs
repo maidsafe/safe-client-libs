@@ -22,9 +22,10 @@ use routing::{
     TYPE_TAG_SESSION_PACKET,
 };
 use rust_sodium::crypto::sign;
-use safe_nd::mutable_data::{MutableDataKind, MutableDataRef, UnpublishedMutableData};
+use safe_nd::mutable_data::{MutableData as SndMutableData, MutableDataKind, MutableDataRef};
 use safe_nd::request::Request as RpcRequest;
 use safe_nd::response::Response as RpcResponse;
+use safe_nd::MessageId as SndMessageId;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -1030,15 +1031,14 @@ fn unpub_md() {
     let name = rand::random();
     let tag = 15001;
 
-    let data = UnpublishedMutableData::new(
+    let data = SndMutableData::new(
         name,
         tag,
         MutableDataKind::Unsequenced {
             data: Default::default(),
         },
         Default::default(),
-        0,
-        owner_key,
+        full_id.bls_key().public_key(),
     );
 
     let message_id = MessageId::new();
@@ -1046,7 +1046,7 @@ fn unpub_md() {
     let put_request = RpcRequest::PutUnseqMData {
         data: data.clone(),
         requester: owner_key,
-        message_id,
+        message_id: SndMessageId::from(message_id),
     };
 
     let put_req_buffer = unwrap!(serialise(&put_request));
@@ -1056,17 +1056,21 @@ fn unpub_md() {
     let message_id2 = MessageId::new();
     let get_request = RpcRequest::GetUnseqMData {
         address: MutableDataRef::new(name, tag),
-        requester: owner_key,
-        message_id: message_id2,
+        requester: full_id.bls_key().public_key(),
+        message_id: SndMessageId::from(message_id2),
     };
     let get_req_buffer = unwrap!(serialise(&get_request));
-    unwrap!(routing.send(client, Authority::NaeManager(name), &get_req_buffer));
+    unwrap!(routing.send(
+        client,
+        Authority::NaeManager(XorName(name)),
+        &get_req_buffer
+    ));
     let response2 = expect_success!(routing_rx, message_id2, Response::RpcResponse);
-    let rpc_response: RpcResponse = unwrap!(deserialise(&response2));
+    let rpc_response: RpcResponse<ClientError> = unwrap!(deserialise(&response2));
     match rpc_response {
         RpcResponse::GetUnseqMData { res, .. } => {
-            let unpub_mdata: UnpublishedMutableData = unwrap!(res);
-            println!("{} :: {}", unpub_mdata.name(), unpub_mdata.tag());
+            let unpub_mdata: SndMutableData = unwrap!(res);
+            println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
             assert_eq!(unpub_mdata.name(), name);
             assert_eq!(unpub_mdata.tag(), tag);
         }

@@ -186,7 +186,7 @@ impl Client for CoreClient {
     type MsgType = ();
 
     fn full_id(&self) -> Option<FullId> {
-        None
+        Some(ClientKeys::into(self.keys.clone()))
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
@@ -219,6 +219,14 @@ impl Client for CoreClient {
 
     fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
         Some(self.keys.enc_key.clone())
+    }
+
+    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey> {
+        Some(self.keys.bls_pk)
+    }
+
+    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey> {
+        Some(self.keys.bls_sk.clone())
     }
 
     fn owner_key(&self) -> Option<sign::PublicKey> {
