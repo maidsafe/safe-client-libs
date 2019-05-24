@@ -42,12 +42,16 @@ use futures::future::{self, Either, FutureResult, Loop, Then};
 use futures::sync::oneshot;
 use futures::{Complete, Future};
 use lru_cache::LruCache;
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, Joiner};
 use routing::{
-    AccountInfo, Authority, EntryAction, Event, FullId, ImmutableData, InterfaceError, MessageId,
-    MutableData, PermissionSet, User, Value, XorName,
+    AccountInfo, Authority, ClientError, EntryAction, Event, FullId, ImmutableData, InterfaceError,
+    MessageId, MutableData, PermissionSet, User, Value, XorName,
 };
 use rust_sodium::crypto::{box_, sign};
+use safe_nd::mutable_data::{MutableDataRef, UnpublishedMutableData};
+use safe_nd::request::Request;
+use safe_nd::response::Response;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
@@ -220,6 +224,65 @@ pub trait Client: Clone + 'static {
         send_mutation(self, move |routing, dst, msg_id| {
             routing.put_mdata(dst, data.clone(), msg_id, requester)
         })
+    }
+
+    /// Put unpublished mutable data to the network
+    fn put_unpub_mutable_data(&self, data: UnpublishedMutableData) -> Box<CoreFuture<()>> {
+        trace!("Put Unpublished MData");
+
+        let requester = some_or_err!(self.public_signing_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send_mutation(self, move |routing, dst, message_id| {
+            let request = Request::PutUnseqMData {
+                data: data.clone(),
+                requester,
+                message_id,
+            };
+            routing.send(client, dst, &unwrap!(serialise(&request)))
+        })
+    }
+
+    /// Fetch unpublished mutable data from the network
+    fn get_unpub_mdata(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Box<CoreFuture<Result<UnpublishedMutableData, ClientError>>> {
+        trace!("Fetch entries from Unpublished Mutable Data");
+
+        let requester = some_or_err!(self.public_signing_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::GetUnseqMData {
+                address: MutableDataRef::new(name, tag),
+                requester,
+                message_id: msg_id,
+            };
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => Ok(res),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&unwrap!(result_buffer)));
+            match res {
+                Response::GetUnseqMData { res, .. } => Ok(res),
+                _ => Err(CoreError::ReceivedUnexpectedData),
+            }
+        })
+        .into_box()
     }
 
     /// Mutates `MutableData` entries in bulk.
@@ -690,3 +753,31 @@ type TimeoutFuture = Either<
     FutureResult<CoreEvent, CoreError>,
     Then<Timeout, Result<CoreEvent, CoreError>, fn(io::Result<()>) -> Result<CoreEvent, CoreError>>,
 >;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils::random_client;
+    use safe_nd::mutable_data::*;
+
+    #[test]
+    #[ignore]
+    pub fn unpub_mdata_test() {
+        random_client(move |client| {
+            let name = rand::random();
+            let tag = 15001;
+
+            let data = UnpublishedMutableData::new(
+                name,
+                tag,
+                MutableDataKind::Unsequenced {
+                    data: Default::default(),
+                },
+                Default::default(),
+                0,
+                unwrap!(client.owner_key()),
+            );
+            client.put_unpub_mutable_data(data.clone()).then(|res| res)
+        });
+    }
+}

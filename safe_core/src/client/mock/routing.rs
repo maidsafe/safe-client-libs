@@ -11,6 +11,7 @@
 use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;
 use crate::config_handler::{get_config, Config};
+use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread;
 use rand;
 use routing::{
@@ -19,6 +20,7 @@ use routing::{
     XorName, TYPE_TAG_SESSION_PACKET,
 };
 use rust_sodium::crypto::sign;
+use safe_nd::response::Response as RpcResponse;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -122,6 +124,58 @@ impl Routing {
             request_hook: None,
             response_hook: None,
         })
+    }
+
+    /// Send a routing message
+    pub fn send(
+        &mut self,
+        src: Authority<XorName>,
+        dst: Authority<XorName>,
+        payload: &Vec<u8>,
+    ) -> Result<(), InterfaceError> {
+        let response = match dst {
+            // Mutation requests are sent to Client manager
+            Authority::ClientManager(_) => {
+                let mut vault = self.lock_vault(true);
+                let res = unwrap!(vault.process_request(src, dst, payload.to_vec()));
+                Some(res)
+            }
+            // Responses are sent to client authorities
+            Authority::Client {
+                client_id: _,
+                proxy_node_name: _,
+            } => {
+                // TODO: Getting message_id without deserializing this
+                let resp: RpcResponse = unwrap!(deserialise(&payload.to_vec()));
+                // Also make this better
+                let message_id = match resp {
+                    RpcResponse::GetUnseqMData { res: _, msg_id }
+                    | RpcResponse::PutUnseqMData { res: _, msg_id } => msg_id,
+                };
+                let response = Response::RpcResponse {
+                    res: Ok(payload.to_vec()),
+                    msg_id: message_id,
+                };
+                self.send_response(DEFAULT_DELAY_MS, src, dst, response);
+                None
+            }
+            // Get requests go to Nae Manager
+            Authority::NaeManager(_) => {
+                let mut vault = self.lock_vault(false);
+                let res = unwrap!(vault.process_request(src, dst, payload.to_vec()));
+                Some(res)
+            }
+            _ => None,
+        };
+        match response {
+            Some(res) => {
+                let _ = self.send(res.0, src, &res.1);
+            }
+            None => {
+                // Do nothing
+            }
+        }
+        Ok(())
     }
 
     /// Sets the vault for this routing instance.

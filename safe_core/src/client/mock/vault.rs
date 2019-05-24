@@ -12,8 +12,11 @@ use crate::client::mock::routing::unlimited_muts;
 use crate::config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};
+use routing::{Authority, ClientError, ImmutableData, MessageId, MutableData, XorName};
 use rust_sodium::crypto::sign;
+use safe_nd::mutable_data::{MutableDataRef, Permission, UnpublishedMutableData, User};
+use safe_nd::request::Request;
+use safe_nd::response::Response;
 use std::collections::HashMap;
 use std::env;
 use std::fs::{File, OpenOptions};
@@ -127,6 +130,32 @@ impl Vault {
         }
     }
 
+    pub fn authorised_read(
+        &self,
+        data_name: DataId,
+        requester: sign::PublicKey,
+    ) -> Result<UnpublishedMutableData, ClientError> {
+        match self.get_data(&data_name) {
+            Some(Data::UnpublishedMutable(data)) => {
+                if data.owners() == requester {
+                    Ok(data)
+                } else {
+                    match data.permissions().get(&User::Key(requester)) {
+                        Some(permission_set) => {
+                            if permission_set.contains(&Permission::Read) {
+                                Ok(data)
+                            } else {
+                                Err(ClientError::AccessDenied)
+                            }
+                        }
+                        None => Err(ClientError::AccessDenied),
+                    }
+                }
+            }
+            _ => Err(ClientError::NoSuchData),
+        }
+    }
+
     // Authorise mutation operation.
     pub fn authorise_mutation(
         &self,
@@ -186,6 +215,100 @@ impl Vault {
     pub fn insert_data(&mut self, name: DataId, data: Data) {
         let _ = self.cache.nae_manager.insert(name, data);
     }
+
+    pub fn process_request(
+        &mut self,
+        src: Authority<XorName>,
+        dest: Authority<XorName>,
+        payload: Vec<u8>,
+    ) -> Result<(Authority<XorName>, Vec<u8>), ClientError> {
+        let request = unwrap!(deserialise(&payload));
+        match request {
+            Request::PutUnseqMData {
+                data,
+                requester,
+                message_id,
+            } => {
+                let result =
+                    self.put_unsequenced_mdata(src, dest, data.clone(), requester, message_id);
+                let payload = unwrap!(serialise(&Response::PutUnseqMData {
+                    res: result,
+                    msg_id: message_id,
+                }));
+                Ok((Authority::NaeManager(data.name()), payload))
+            }
+            Request::GetUnseqMData {
+                address,
+                requester,
+                message_id,
+            } => {
+                let result =
+                    self.get_unseq_mdata(src, dest, address.clone(), requester, message_id);
+                let payload = unwrap!(serialise(&Response::GetUnseqMData {
+                    res: result,
+                    msg_id: message_id,
+                }));
+                Ok((dest, payload))
+            }
+        }
+    }
+
+    pub fn get_unseq_mdata(
+        &mut self,
+        _src: Authority<XorName>,
+        dst: Authority<XorName>,
+        address: MutableDataRef,
+        requester: sign::PublicKey,
+        _message_id: MessageId,
+    ) -> Result<UnpublishedMutableData, ClientError> {
+        let data_name = DataId::mutable(address.name(), address.tag());
+        self.authorise_read(&dst, &address.name())
+            .and_then(|_| self.authorised_read(data_name, requester))
+    }
+
+    pub fn put_unsequenced_mdata(
+        &mut self,
+        _src: Authority<XorName>,
+        dst: Authority<XorName>,
+        data: UnpublishedMutableData,
+        requester: sign::PublicKey,
+        _message_id: MessageId,
+    ) -> Result<(), ClientError> {
+        // let v = self.clone();
+        let data_name = DataId::mutable(data.name(), data.tag());
+        self.authorise_mutation(&dst, &requester)
+            .and_then(|_| Self::verify_owner(&dst, data.owners()))
+            .and_then(|_| {
+                if self.contains_data(&data_name) {
+                    Err(ClientError::DataExists)
+                } else {
+                    self.insert_data(data_name, Data::UnpublishedMutable(data));
+                    Ok(())
+                }
+            })
+            .map(|_| self.commit_mutation(&dst))
+    }
+
+    fn verify_owner(
+        dst: &Authority<XorName>,
+        owner_key: sign::PublicKey,
+    ) -> Result<(), ClientError> {
+        let dst_name = match *dst {
+            Authority::ClientManager(name) => name,
+            _ => return Err(ClientError::InvalidOwners),
+        };
+
+        let ok = {
+            let owner_name = XorName(sha3_256(&owner_key.0));
+            owner_name == dst_name
+        };
+
+        if ok {
+            Ok(())
+        } else {
+            Err(ClientError::InvalidOwners)
+        }
+    }
 }
 
 pub struct VaultGuard<'a>(MutexGuard<'a, Vault>);
@@ -230,6 +353,7 @@ struct Cache {
 pub enum Data {
     Immutable(ImmutableData),
     Mutable(MutableData),
+    UnpublishedMutable(UnpublishedMutableData),
 }
 
 trait Store: Send {

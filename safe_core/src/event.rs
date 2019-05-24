@@ -46,6 +46,8 @@ pub enum CoreEvent {
     GetMDataShell(Result<MutableData, CoreError>),
     /// Result of getting entire mutable data
     GetMData(Result<MutableData, CoreError>),
+    /// RpcResponse
+    RpcResponse(Result<Vec<u8>, CoreError>),
     /// Rate limit exeeded
     RateLimitExceeded,
 }
