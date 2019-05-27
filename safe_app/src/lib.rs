@@ -458,8 +458,7 @@ where
                 unwrap!(tx.send(result));
                 Ok(())
             })
-            .into_box()
-            .into();
+            .into_box();
         Some(future)
     })?;
     rx.recv()?

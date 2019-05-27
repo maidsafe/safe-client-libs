@@ -50,7 +50,6 @@ fn read_config_file() -> Result<Config, CoreError> {
 /// with the appropriate file name.
 #[cfg(test)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
-    use serde_json;
     use std::io::Write;
 
     let mut config_path = config_file_handler::current_bin_dir()?;
