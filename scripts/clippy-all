@@ -6,5 +6,5 @@ set -x;
 # This fixes a Clippy issue when compiling JNI dependency by running `cargo check` first.
 # See https://github.com/rust-lang-nursery/rust-clippy/issues/2831
 scripts/check-all &&
-  scripts/clippy-real &&
+  # scripts/clippy-real &&
   scripts/clippy-mock

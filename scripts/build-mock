@@ -6,4 +6,4 @@ cargo build --verbose --features=mock-network --release --manifest-path=safe_cor
 cargo build --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_core/Cargo.toml
 cargo build --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml
 cargo build --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_app/Cargo.toml
-cargo build --verbose --release --lib --tests --manifest-path=tests/Cargo.toml
+cargo build --verbose --features=mock-network --release --lib --tests --manifest-path=tests/Cargo.toml

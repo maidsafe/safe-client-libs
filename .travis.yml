@@ -13,14 +13,14 @@ stages:
   - deploy
 jobs:
   include:
-    # Warm up the cache dependencies
-    - stage: warmup
-      script: set -x; scripts/build-real-core
-      os: linux
-    # Warm up the cache for a real build
-    - stage: warmup
-      script: set -x; scripts/build-real
-      os: linux
+    # # Warm up the cache dependencies
+    # - stage: warmup
+    #   script: set -x; scripts/build-real-core
+    #   os: linux
+    # # Warm up the cache for a real build
+    # - stage: warmup
+    #   script: set -x; scripts/build-real
+    #   os: linux
     # Warm up the cache for a mock build
     - stage: warmup
       script: set -x; scripts/build-mock
@@ -30,9 +30,9 @@ jobs:
       os: osx
 
     # Tests + clippy
-    - stage: tests
-      script: set -x; scripts/test-binary
-      os: linux
+    # - stage: tests
+    #  script: set -x; scripts/test-binary
+    #  os: linux
     - stage: tests
       script: set -x; scripts/test-mock && scripts/test-integration
       os: linux
