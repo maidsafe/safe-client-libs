@@ -2,5 +2,5 @@
 
 set -x;
 
-scripts/check-real &&
+# scripts/check-real &&
   scripts/check-mock
