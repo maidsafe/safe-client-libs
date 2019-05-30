@@ -25,6 +25,7 @@ rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.32.1" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
+threshold_crypto = "0.3.1"
 tiny-keccak = "~1.4.0"
 tokio = "=0.1.8"
 tokio-core = "~0.1.17"
@@ -42,7 +43,7 @@ jni = "~0.12.0"
 # routing = "~0.37.0"
 routing = { git = "https://github.com/lionel1704/routing", branch = "patch" }
 rust_sodium = "~0.10.2"
-safe_bindgen = { git  = "https://github.com/lionel1704/safe_bindgen", branch="patch", optional = true }
+safe_bindgen = { version = "~0.13.0", optional = true }
 unwrap = "~1.2.0"
 
 [features]

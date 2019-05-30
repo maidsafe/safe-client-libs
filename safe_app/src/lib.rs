@@ -228,12 +228,17 @@ impl App {
             ..
         } = auth_granted;
 
+        // Create a random BLS key-pair for now
+        let bls_sk = threshold_crypto::SecretKey::random();
+
         let client_keys = ClientKeys {
             sign_pk,
             sign_sk,
             enc_pk,
             enc_sk,
             enc_key: enc_key.clone(),
+            bls_pk: bls_sk.public_key(),
+            bls_sk,
         };
 
         Self::new(disconnect_notifier, move |el_h, core_tx, net_tx| {
@@ -277,12 +282,17 @@ impl App {
             ..
         } = auth_granted;
 
+        // Create a random BLS key-pair for now
+        let bls_sk = threshold_crypto::SecretKey::random();
+
         let client_keys = ClientKeys {
             sign_pk,
             sign_sk,
             enc_pk,
             enc_sk,
             enc_key: enc_key.clone(),
+            bls_pk: bls_sk.public_key(),
+            bls_sk,
         };
 
         Self::new(disconnect_notifier, move |el_h, core_tx, net_tx| {

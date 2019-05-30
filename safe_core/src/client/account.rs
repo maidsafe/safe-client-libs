@@ -131,6 +131,8 @@ pub struct ClientKeys {
     pub bls_sk: threshold_crypto::SecretKey,
 }
 
+// threshold_crypto::SecretKey cannot be serialised directly,
+// hence this trait is implemented
 impl Serialize for ClientKeys {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
