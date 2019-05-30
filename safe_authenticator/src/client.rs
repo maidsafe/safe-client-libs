@@ -514,6 +514,16 @@ impl Client for AuthClient {
         Some(auth_inner.acc.maid_keys.enc_key.clone())
     }
 
+    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey> {
+        let auth_inner = self.auth_inner.borrow();
+        Some(auth_inner.acc.maid_keys.bls_pk)
+    }
+
+    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey> {
+        let auth_inner = self.auth_inner.borrow();
+        Some(auth_inner.acc.maid_keys.bls_sk.clone())
+    }
+
     fn owner_key(&self) -> Option<sign::PublicKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.sign_pk)

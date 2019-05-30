@@ -198,6 +198,16 @@ impl Client for AppClient {
         Some(app_inner.keys.clone()?.enc_key)
     }
 
+    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey> {
+        let app_inner = self.app_inner.borrow();
+        Some(app_inner.keys.clone()?.bls_pk)
+    }
+
+    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey> {
+        let app_inner = self.app_inner.borrow();
+        Some(app_inner.keys.clone()?.bls_sk)
+    }
+
     fn owner_key(&self) -> Option<sign::PublicKey> {
         let app_inner = self.app_inner.borrow();
         app_inner.owner_key

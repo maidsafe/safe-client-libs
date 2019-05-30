@@ -253,11 +253,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetch unpublished mutable data from the network
-    fn get_unpub_mdata(
-        &self,
-        name: XorName,
-        tag: u64,
-    ) -> Box<CoreFuture<SndMutableData>> {
+    fn get_unpub_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SndMutableData>> {
         trace!("Fetch entries from Unpublished Mutable Data");
 
         let requester = some_or_err!(self.public_bls_key());
@@ -794,16 +790,20 @@ mod tests {
                 Default::default(),
                 unwrap!(client.public_bls_key()),
             );
-            client.put_unpub_mutable_data(data.clone()).and_then(move |_| {
-                println!("Put unpub. Mutable data successfully");
+            client
+                .put_unpub_mutable_data(data.clone())
+                .and_then(move |_| {
+                    println!("Put unpub. Mutable data successfully");
 
-                client2.get_unpub_mdata(XorName(data.name()), data.tag())
-                .map(move |fetched_data| {
-                    assert_eq!(fetched_data.name(), data.name());
-                    assert_eq!(fetched_data.tag(), data.tag());
-                    fetched_data
+                    client2
+                        .get_unpub_mdata(XorName(data.name()), data.tag())
+                        .map(move |fetched_data| {
+                            assert_eq!(fetched_data.name(), data.name());
+                            assert_eq!(fetched_data.tag(), data.tag());
+                            fetched_data
+                        })
                 })
-            }).then(|res| res)
+                .then(|res| res)
         });
     }
 }
