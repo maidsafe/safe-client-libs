@@ -14,7 +14,7 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData, XorName};
 use rust_sodium::crypto::sign;
-use safe_nd::mutable_data::{MutableData as SndMutableData, MutableDataRef, Permission, User};
+use safe_nd::mutable_data::{Action, MutableDataRef, SeqMutableData, UnseqMutableData};
 use safe_nd::request::Request;
 use safe_nd::response::Response;
 use std::collections::HashMap;
@@ -134,33 +134,26 @@ impl Vault {
         &self,
         data_name: DataId,
         requester: threshold_crypto::PublicKey,
-    ) -> Result<SndMutableData, ClientError> {
+    ) -> Result<Data, ClientError> {
         match self.get_data(&data_name) {
-            Some(Data::UnpublishedMutable(data)) => {
-                if data.owners() == requester {
-                    Ok(data)
-                } else {
-                    match data.permissions().get(&User::Key(requester)) {
-                        Some(permission_set) => {
-                            if permission_set.contains(&Permission::Read) {
-                                Ok(data)
-                            } else {
-                                Err(ClientError::AccessDenied)
-                            }
-                        }
-                        None => match data.permissions().get(&User::Key(requester)) {
-                            Some(permission_set) => {
-                                if permission_set.contains(&Permission::Read) {
-                                    Ok(data)
-                                } else {
-                                    Err(ClientError::AccessDenied)
-                                }
-                            }
-                            None => Err(ClientError::AccessDenied),
-                        },
+            Some(data_type) => match data_type {
+                Data::SequencedMutable(data) => {
+                    if data.is_action_allowed(requester, Action::Read) {
+                        Ok(unwrap!(self.get_data(&data_name)))
+                    } else {
+                        Err(ClientError::AccessDenied)
                     }
                 }
-            }
+                Data::UnsequencedMutable(data) => {
+                    if data.is_action_allowed(requester, Action::Read) {
+                        Ok(unwrap!(self.get_data(&data_name)))
+                    } else {
+                        Err(ClientError::AccessDenied)
+                    }
+                }
+                // Handle other types
+                _ => Ok(unwrap!(self.get_data(&data_name))),
+            },
             _ => Err(ClientError::NoSuchData),
         }
     }
@@ -231,19 +224,32 @@ impl Vault {
         dest: Authority<XorName>,
         payload: Vec<u8>,
     ) -> Result<(Authority<XorName>, Vec<u8>), ClientError> {
-        let request = unwrap!(deserialise(&payload));
+        let request: Request = unwrap!(deserialise(&payload));
+        dbg!(request.clone());
         match request {
             Request::PutUnseqMData {
                 data,
                 requester,
                 message_id,
             } => {
-                let result = self.put_unsequenced_mdata(dest, data.clone(), requester);
+                let result = self.put_unseq_mdata(dest, data.clone(), requester);
                 let payload = unwrap!(serialise(&Response::PutUnseqMData {
                     res: result,
                     msg_id: message_id,
                 }));
-                Ok((Authority::NaeManager(XorName(data.name())), payload))
+                Ok((Authority::NaeManager(XorName(*data.name())), payload))
+            }
+            Request::GetSeqMData {
+                address,
+                requester,
+                message_id,
+            } => {
+                let result = self.get_seq_mdata(dest, address.clone(), requester);
+                let payload = unwrap!(serialise(&Response::GetSeqMData {
+                    res: result,
+                    msg_id: message_id,
+                }));
+                Ok((dest, payload))
             }
             Request::GetUnseqMData {
                 address,
@@ -256,6 +262,18 @@ impl Vault {
                     msg_id: message_id,
                 }));
                 Ok((dest, payload))
+            }
+            Request::PutSeqMData {
+                data,
+                requester,
+                message_id,
+            } => {
+                let result = self.put_seq_mdata(dest, data.clone(), requester);
+                let payload = unwrap!(serialise(&Response::PutSeqMData {
+                    res: result,
+                    msg_id: message_id
+                }));
+                Ok((Authority::NaeManager(XorName(*data.name())), payload))
             }
             _ => {
                 // Dummy return
@@ -270,27 +288,63 @@ impl Vault {
         dst: Authority<XorName>,
         address: MutableDataRef,
         requester: threshold_crypto::PublicKey,
-    ) -> Result<SndMutableData, ClientError> {
+    ) -> Result<UnseqMutableData, ClientError> {
         let data_name = DataId::mutable(XorName(address.name()), address.tag());
         self.authorise_read(&dst, &XorName(address.name()))
             .and_then(|_| self.authorised_read(data_name, requester))
+            .and_then(|data| match data {
+                Data::UnsequencedMutable(data) => Ok(data),
+                _ => Err(ClientError::from("Unexpected data returned")),
+            })
     }
 
-    pub fn put_unsequenced_mdata(
+    pub fn get_seq_mdata(
         &mut self,
         dst: Authority<XorName>,
-        data: SndMutableData,
+        address: MutableDataRef,
+        requester: threshold_crypto::PublicKey,
+    ) -> Result<SeqMutableData, ClientError> {
+        let data_name = DataId::mutable(XorName(address.name()), address.tag());
+        self.authorise_read(&dst, &XorName(address.name()))
+            .and_then(|_| self.authorised_read(data_name, requester))
+            .and_then(|data| match data {
+                Data::SequencedMutable(data) => Ok(data),
+                _ => Err(ClientError::from("Unexpected data returned")),
+            })
+    }
+
+    pub fn put_unseq_mdata(
+        &mut self,
+        dst: Authority<XorName>,
+        data: UnseqMutableData,
         requester: sign::PublicKey,
     ) -> Result<(), ClientError> {
-        // let v = self.clone();
-        let data_name = DataId::mutable(XorName(data.name()), data.tag());
+        let data_name = DataId::mutable(XorName(*data.name()), data.tag());
         self.authorise_mutation(&dst, &requester)
-            // .and_then(|_| Self::verify_owner(&dst, data.owners()))
             .and_then(|_| {
                 if self.contains_data(&data_name) {
                     Err(ClientError::DataExists)
                 } else {
-                    self.insert_data(data_name, Data::UnpublishedMutable(data));
+                    self.insert_data(data_name, Data::UnsequencedMutable(data));
+                    Ok(())
+                }
+            })
+            .map(|_| self.commit_mutation(&dst))
+    }
+
+    pub fn put_seq_mdata(
+        &mut self,
+        dst: Authority<XorName>,
+        data: SeqMutableData,
+        requester: sign::PublicKey,
+    ) -> Result<(), ClientError> {
+        let data_name = DataId::mutable(XorName(*data.name()), data.tag());
+        self.authorise_mutation(&dst, &requester)
+            .and_then(|_| {
+                if self.contains_data(&data_name) {
+                    Err(ClientError::DataExists)
+                } else {
+                    self.insert_data(data_name, Data::SequencedMutable(data));
                     Ok(())
                 }
             })
@@ -340,7 +394,8 @@ struct Cache {
 pub enum Data {
     Immutable(ImmutableData),
     Mutable(MutableData),
-    UnpublishedMutable(SndMutableData),
+    SequencedMutable(SeqMutableData),
+    UnsequencedMutable(UnseqMutableData),
 }
 
 trait Store: Send {

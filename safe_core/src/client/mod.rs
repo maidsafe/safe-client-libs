@@ -49,7 +49,7 @@ use routing::{
     MessageId, MutableData, PermissionSet, User, Value, XorName,
 };
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::mutable_data::{MutableData as SndMutableData, MutableDataRef};
+use safe_nd::mutable_data::{MutableDataRef, SeqMutableData, UnseqMutableData};
 use safe_nd::request::Request;
 use safe_nd::response::Response;
 use safe_nd::MessageId as SndMessageId;
@@ -233,9 +233,9 @@ pub trait Client: Clone + 'static {
         })
     }
 
-    /// Put unpublished mutable data to the network
-    fn put_unpub_mutable_data(&self, data: SndMutableData) -> Box<CoreFuture<()>> {
-        trace!("Put Unpublished MData");
+    /// Put unsequenced mutable data to the network
+    fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Box<CoreFuture<()>> {
+        trace!("Put Unsequenced MData at {:?}", data.name());
 
         let requester = some_or_err!(self.public_signing_key());
         let client = Authority::Client {
@@ -252,9 +252,28 @@ pub trait Client: Clone + 'static {
         })
     }
 
+    /// Put sequenced mutable data to the network
+    fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
+        trace!("Put Sequenced MData at {:?}", data.name());
+
+        let requester = some_or_err!(self.public_signing_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send_mutation(self, move |routing, dst, message_id| {
+            let request = Request::PutSeqMData {
+                data: data.clone(),
+                requester,
+                message_id: SndMessageId::from(message_id),
+            };
+            routing.send(client, dst, &unwrap!(serialise(&request)))
+        })
+    }
+
     /// Fetch unpublished mutable data from the network
-    fn get_unpub_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SndMutableData>> {
-        trace!("Fetch entries from Unpublished Mutable Data");
+    fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
+        trace!("Fetch Unpublished Mutable Data");
 
         let requester = some_or_err!(self.public_bls_key());
         let client = Authority::Client {
@@ -283,6 +302,43 @@ pub trait Client: Clone + 'static {
             match res {
                 Response::GetUnseqMData { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Fetch sequenced mutable data from the network
+    fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
+        trace!("Fetch entries from  Mutable Data");
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::GetSeqMData {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::GetSeqMData { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::from("Error here")),
             }
         })
         .into_box()
@@ -684,7 +740,9 @@ where
                 let response_buffer = unwrap!(res);
                 let response: Response<ClientError> = unwrap!(deserialise(&response_buffer));
                 match response {
-                    Response::PutUnseqMData { res, .. } => res.map_err(CoreError::from),
+                    Response::PutUnseqMData { res, .. } | Response::PutSeqMData { res, .. } => {
+                        res.map_err(CoreError::from)
+                    }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             }
@@ -772,31 +830,59 @@ type TimeoutFuture = Either<
 mod tests {
     use super::*;
     use crate::utils::test_utils::random_client;
-    use safe_nd::mutable_data::*;
 
     #[test]
-    pub fn unpub_mdata_test() {
+    pub fn unseq_mdata_test() {
         let _ = random_client(move |client| {
             let client2 = client.clone();
             let name = rand::random();
             let tag = 15001;
 
-            let data = SndMutableData::new(
+            let data = UnseqMutableData::new(
                 name,
                 tag,
-                MutableDataKind::Unsequenced {
-                    data: Default::default(),
-                },
+                Default::default(),
                 Default::default(),
                 unwrap!(client.public_bls_key()),
             );
             client
-                .put_unpub_mutable_data(data.clone())
+                .put_unseq_mutable_data(data.clone())
                 .and_then(move |_| {
-                    println!("Put unpub. Mutable data successfully");
+                    println!("Put unseq. MData successfully");
 
                     client2
-                        .get_unpub_mdata(XorName(data.name()), data.tag())
+                        .get_unseq_mdata(XorName(*data.name()), data.tag())
+                        .map(move |fetched_data| {
+                            assert_eq!(fetched_data.name(), data.name());
+                            assert_eq!(fetched_data.tag(), data.tag());
+                            fetched_data
+                        })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn seq_mdata_test() {
+        let _ = random_client(move |client| {
+            let client2 = client.clone();
+            let name = rand::random();
+            let tag = 15001;
+
+            let data = SeqMutableData::new(
+                name,
+                tag,
+                Default::default(),
+                Default::default(),
+                unwrap!(client.public_bls_key()),
+            );
+            client
+                .put_seq_mutable_data(data.clone())
+                .and_then(move |_| {
+                    println!("Put seq. MData successfully");
+
+                    client2
+                        .get_seq_mdata(XorName(*data.name()), data.tag())
                         .map(move |fetched_data| {
                             assert_eq!(fetched_data.name(), data.name());
                             assert_eq!(fetched_data.tag(), data.tag());

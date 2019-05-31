@@ -33,7 +33,7 @@ threshold_crypto = "0.3.1"
 tokio = "=0.1.8"
 tokio-core = "~0.1.17"
 unwrap = "~1.2.0"
-safe-nd = { git = "https://github.com/lionel1704/safe-nd", branch = "mdata" }
+safe-nd = { git = "https://github.com/lionel1704/safe-nd", branch = "mdata-improv" }
 
 [dev-dependencies]
 serde_json = "~1.0.9"

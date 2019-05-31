@@ -22,7 +22,7 @@ use routing::{
     TYPE_TAG_SESSION_PACKET,
 };
 use rust_sodium::crypto::sign;
-use safe_nd::mutable_data::{MutableData as SndMutableData, MutableDataKind, MutableDataRef};
+use safe_nd::mutable_data::{MutableDataRef, UnseqMutableData};
 use safe_nd::request::Request as RpcRequest;
 use safe_nd::response::Response as RpcResponse;
 use safe_nd::MessageId as SndMessageId;
@@ -1031,12 +1031,10 @@ fn unpub_md() {
     let name = rand::random();
     let tag = 15001;
 
-    let data = SndMutableData::new(
+    let data = UnseqMutableData::new(
         name,
         tag,
-        MutableDataKind::Unsequenced {
-            data: Default::default(),
-        },
+        Default::default(),
         Default::default(),
         full_id.bls_key().public_key(),
     );
@@ -1069,9 +1067,9 @@ fn unpub_md() {
     let rpc_response: RpcResponse<ClientError> = unwrap!(deserialise(&response2));
     match rpc_response {
         RpcResponse::GetUnseqMData { res, .. } => {
-            let unpub_mdata: SndMutableData = unwrap!(res);
+            let unpub_mdata: UnseqMutableData = unwrap!(res);
             println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
-            assert_eq!(unpub_mdata.name(), name);
+            assert_eq!(*unpub_mdata.name(), name);
             assert_eq!(unpub_mdata.tag(), tag);
         }
         _ => panic!("Unexpected response"),

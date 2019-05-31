@@ -148,7 +148,9 @@ impl Routing {
                 // Also make this better
                 let message_id = match resp {
                     RpcResponse::GetUnseqMData { msg_id, .. }
-                    | RpcResponse::PutUnseqMData { msg_id, .. } => msg_id,
+                    | RpcResponse::GetSeqMData { msg_id, .. }
+                    | RpcResponse::PutUnseqMData { msg_id, .. }
+                    | RpcResponse::PutSeqMData { msg_id, .. } => msg_id,
                     _ => {
                         // Return random msg_id for now
                         // Other responses should be handled with their data types
