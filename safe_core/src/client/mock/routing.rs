@@ -150,6 +150,13 @@ impl Routing {
                     RpcResponse::GetUnseqMData { msg_id, .. }
                     | RpcResponse::GetSeqMData { msg_id, .. }
                     | RpcResponse::PutUnseqMData { msg_id, .. }
+                    | RpcResponse::GetMDataShell { msg_id, .. }
+                    | RpcResponse::GetMDataVersion { msg_id, .. }
+                    | RpcResponse::ListUnseqMDataEntries { msg_id, .. }
+                    | RpcResponse::ListSeqMDataEntries { msg_id, .. }
+                    | RpcResponse::ListMDataKeys { msg_id, .. }
+                    | RpcResponse::ListSeqMDataValues { msg_id, .. }
+                    | RpcResponse::ListUnseqMDataValues { msg_id, .. }
                     | RpcResponse::PutSeqMData { msg_id, .. } => msg_id,
                     _ => {
                         // Return random msg_id for now
@@ -352,7 +359,7 @@ impl Routing {
                     Err(ClientError::AccountExists)
                 } else {
                     vault.insert_account(dst_name);
-                    vault.insert_data(data_name, Data::Mutable(data));
+                    vault.insert_data(data_name, Data::OldMutable(data));
                     Ok(())
                 }
             } else {
@@ -364,7 +371,7 @@ impl Routing {
                         if vault.contains_data(&data_name) {
                             Err(ClientError::DataExists)
                         } else {
-                            vault.insert_data(data_name, Data::Mutable(data));
+                            vault.insert_data(data_name, Data::OldMutable(data));
                             Ok(())
                         }
                     })
@@ -969,7 +976,7 @@ impl Routing {
             vault.authorise_mutation(&dst, &client_key)?;
 
             let output = f(&mut data)?;
-            vault.insert_data(DataId::mutable(name, tag), Data::Mutable(data));
+            vault.insert_data(DataId::mutable(name, tag), Data::OldMutable(data));
             vault.commit_mutation(&dst);
 
             Ok(output)
@@ -1019,7 +1026,7 @@ impl Routing {
         } else {
             let mut vault = self.lock_vault(write);
             match vault.get_data(&DataId::mutable(name, tag)) {
-                Some(Data::Mutable(data)) => f(data, &mut *vault),
+                Some(Data::OldMutable(data)) => f(data, &mut *vault),
                 _ => {
                     if tag == TYPE_TAG_SESSION_PACKET {
                         Err(ClientError::NoSuchAccount)

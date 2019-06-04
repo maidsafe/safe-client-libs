@@ -49,7 +49,9 @@ use routing::{
     MessageId, MutableData, PermissionSet, User, Value, XorName,
 };
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::mutable_data::{MutableDataRef, SeqMutableData, UnseqMutableData};
+use safe_nd::mutable_data::{
+    MutableData as NewMutableData, MutableDataRef, SeqMutableData, UnseqMutableData, Value as Val,
+};
 use safe_nd::request::Request;
 use safe_nd::response::Response;
 use safe_nd::MessageId as SndMessageId;
@@ -338,7 +340,7 @@ pub trait Client: Clone + 'static {
             dbg!(res.clone());
             match res {
                 Response::GetSeqMData { res, .. } => res.map_err(CoreError::from),
-                _ => Err(CoreError::from("Error here")),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
         .into_box()
@@ -381,6 +383,82 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
+    /// Get a shell (bare bones) version of `MutableData` from the network.
+    fn get_mdata_shell_new(&self, name: XorName, tag: u64) -> Box<CoreFuture<NewMutableData>> {
+        trace!("GetMDataShell for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::GetMDataShell {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::GetMDataShell { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Get a current version of `MutableData` from the network.
+    fn get_mdata_version_new(&self, name: XorName, tag: u64) -> Box<CoreFuture<u64>> {
+        trace!("GetMDataVersion for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::GetMDataVersion {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::GetMDataVersion { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
     /// Get a current version of `MutableData` from the network.
     fn get_mdata_version(&self, name: XorName, tag: u64) -> Box<CoreFuture<u64>> {
         trace!("GetMDataVersion for {:?}", name);
@@ -407,6 +485,90 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
+    /// Return a complete list of entries in `MutableData`.
+    fn list_unseq_mdata_entries(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Box<CoreFuture<BTreeMap<Vec<u8>, Vec<u8>>>> {
+        trace!("ListMDataEntries for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::ListUnseqMDataEntries {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::ListUnseqMDataEntries { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Return a complete list of entries in `MutableData`.
+    fn list_seq_mdata_entries(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Box<CoreFuture<BTreeMap<Vec<u8>, Val>>> {
+        trace!("ListMDataEntries for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::ListSeqMDataEntries {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::ListSeqMDataEntries { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
     /// Return a list of keys in `MutableData` stored on the network.
     fn list_mdata_keys(&self, name: XorName, tag: u64) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
         trace!("ListMDataKeys for {:?}", name);
@@ -415,6 +577,120 @@ pub trait Client: Clone + 'static {
             routing.list_mdata_keys(Authority::NaeManager(name), name, tag, msg_id)
         })
         .and_then(|event| match_event!(event, CoreEvent::ListMDataKeys))
+        .into_box()
+    }
+
+    /// Return a list of keys in `MutableData` stored on the network.
+    fn list_mdata_keys_new(&self, name: XorName, tag: u64) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
+        trace!("ListMDataKeys for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::ListMDataKeys {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::ListMDataKeys { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Return a list of values in a Sequenced Mutable Data
+    fn list_seq_mdata_values(&self, name: XorName, tag: u64) -> Box<CoreFuture<Vec<Val>>> {
+        trace!("List MDataValues for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::ListSeqMDataValues {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::ListSeqMDataValues { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Returns a list of values in an Unsequenced Mutable Data
+    fn list_unseq_mdata_values(&self, name: XorName, tag: u64) -> Box<CoreFuture<Vec<Vec<u8>>>> {
+        trace!("List MDataValues for {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::ListUnseqMDataValues {
+                address: MutableDataRef::new(name.0, tag),
+                requester,
+                message_id: SndMessageId::from(msg_id),
+            };
+
+            routing.send(
+                client,
+                Authority::NaeManager(name),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            dbg!(res.clone());
+            match res {
+                Response::ListUnseqMDataValues { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
         .into_box()
     }
 
@@ -835,18 +1111,49 @@ mod tests {
     pub fn unseq_mdata_test() {
         let _ = random_client(move |client| {
             let client2 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+            let client5 = client.clone();
+            let client6 = client.clone();
+
             let name = rand::random();
             let tag = 15001;
+            let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+            let _ = entries.insert("key".as_bytes().to_vec(), "value".as_bytes().to_vec());
+            let entries_keys = entries.keys().into_iter().cloned().collect();
+            let entries_values: Vec<Vec<u8>> = entries.values().into_iter().cloned().collect();
 
             let data = UnseqMutableData::new(
                 name,
                 tag,
                 Default::default(),
-                Default::default(),
+                entries.clone(),
                 unwrap!(client.public_bls_key()),
             );
             client
                 .put_unseq_mutable_data(data.clone())
+                .and_then(move |_| {
+                    client3
+                        .get_mdata_version_new(XorName(name), tag)
+                        .map(move |version| assert_eq!(version, 0))
+                })
+                .and_then(move |_| {
+                    client4.list_unseq_mdata_entries(XorName(name), tag).map(
+                        move |fetched_entries| {
+                            assert_eq!(fetched_entries, entries);
+                        },
+                    )
+                })
+                .and_then(move |_| {
+                    client5
+                        .list_mdata_keys_new(XorName(name), tag)
+                        .map(move |keys| assert_eq!(keys, entries_keys))
+                })
+                .and_then(move |_| {
+                    client6
+                        .list_unseq_mdata_values(XorName(name), tag)
+                        .map(move |values| assert_eq!(values, entries_values))
+                })
                 .and_then(move |_| {
                     println!("Put unseq. MData successfully");
 
@@ -866,14 +1173,26 @@ mod tests {
     pub fn seq_mdata_test() {
         let _ = random_client(move |client| {
             let client2 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+            let client5 = client.clone();
+            let client6 = client.clone();
+
             let name = rand::random();
             let tag = 15001;
+            let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
+            let _ = entries.insert(
+                "key".as_bytes().to_vec(),
+                Val::new("value".as_bytes().to_vec(), 0),
+            );
+            let entries_keys = entries.keys().into_iter().cloned().collect();
+            let entries_values: Vec<Val> = entries.values().into_iter().cloned().collect();
 
             let data = SeqMutableData::new(
                 name,
                 tag,
                 Default::default(),
-                Default::default(),
+                entries.clone(),
                 unwrap!(client.public_bls_key()),
             );
             client
@@ -881,11 +1200,41 @@ mod tests {
                 .and_then(move |_| {
                     println!("Put seq. MData successfully");
 
+                    client4
+                        .list_seq_mdata_entries(XorName(name), tag)
+                        .map(move |fetched_entries| {
+                            assert_eq!(fetched_entries, entries);
+                        })
+                })
+                .and_then(move |_| {
+                    client3
+                        .get_mdata_shell_new(XorName(name), tag)
+                        .map(move |fetched_shell| match fetched_shell {
+                            NewMutableData::Sequenced(mdata_shell) => {
+                                assert_eq!(*mdata_shell.name(), name);
+                                assert_eq!(mdata_shell.tag(), tag);
+                                assert_eq!(mdata_shell.entries().len(), 0);
+                            }
+                            _ => panic!("Unexpected data"),
+                        })
+                })
+                .and_then(move |_| {
+                    client5
+                        .list_mdata_keys_new(XorName(name), tag)
+                        .map(move |keys| assert_eq!(keys, entries_keys))
+                })
+                .and_then(move |_| {
+                    client6
+                        .list_seq_mdata_values(XorName(name), tag)
+                        .map(move |values| assert_eq!(values, entries_values))
+                })
+                .and_then(move |_| {
                     client2
-                        .get_seq_mdata(XorName(*data.name()), data.tag())
+                        .get_seq_mdata(XorName(name), tag)
                         .map(move |fetched_data| {
                             assert_eq!(fetched_data.name(), data.name());
                             assert_eq!(fetched_data.tag(), data.tag());
+                            assert_eq!(fetched_data.entries().len(), 1);
                             fetched_data
                         })
                 })
