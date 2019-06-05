@@ -12,6 +12,7 @@
 use super::routing::Routing;
 use super::DEFAULT_MAX_MUTATIONS;
 use crate::client::mock::vault::Vault;
+use crate::client::MsgIdConverter;
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -22,10 +23,9 @@ use routing::{
     TYPE_TAG_SESSION_PACKET,
 };
 use rust_sodium::crypto::sign;
-use safe_nd::mutable_data::{MutableDataRef, UnseqMutableData};
+use safe_nd::mutable_data::{MutableData as NewMutableData, MutableDataRef, UnseqMutableData};
 use safe_nd::request::Request as RpcRequest;
 use safe_nd::response::Response as RpcResponse;
-use safe_nd::MessageId as SndMessageId;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -1031,7 +1031,7 @@ fn unpub_md() {
     let name = rand::random();
     let tag = 15001;
 
-    let data = UnseqMutableData::new(
+    let data = UnseqMutableData::new_with_data(
         name,
         tag,
         Default::default(),
@@ -1044,7 +1044,7 @@ fn unpub_md() {
     let put_request = RpcRequest::PutUnseqMData {
         data: data.clone(),
         requester: owner_key,
-        message_id: SndMessageId::from(message_id),
+        message_id: message_id.to_new(),
     };
 
     let put_req_buffer = unwrap!(serialise(&put_request));
@@ -1055,7 +1055,7 @@ fn unpub_md() {
     let get_request = RpcRequest::GetUnseqMData {
         address: MutableDataRef::new(name, tag),
         requester: full_id.bls_key().public_key(),
-        message_id: SndMessageId::from(message_id2),
+        message_id: message_id2.to_new(),
     };
     let get_req_buffer = unwrap!(serialise(&get_request));
     unwrap!(routing.send(

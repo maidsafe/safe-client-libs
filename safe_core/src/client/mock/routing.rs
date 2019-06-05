@@ -10,6 +10,7 @@
 
 use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;
+use crate::client::MsgIdConverter;
 use crate::config_handler::{get_config, Config};
 use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread;
@@ -21,7 +22,6 @@ use routing::{
 };
 use rust_sodium::crypto::sign;
 use safe_nd::response::Response as RpcResponse;
-use safe_nd::MessageId as SndMessageId;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -150,7 +150,8 @@ impl Routing {
                     RpcResponse::GetUnseqMData { msg_id, .. }
                     | RpcResponse::GetSeqMData { msg_id, .. }
                     | RpcResponse::PutUnseqMData { msg_id, .. }
-                    | RpcResponse::GetMDataShell { msg_id, .. }
+                    | RpcResponse::GetSeqMDataShell { msg_id, .. }
+                    | RpcResponse::GetUnseqMDataShell { msg_id, .. }
                     | RpcResponse::GetMDataVersion { msg_id, .. }
                     | RpcResponse::ListUnseqMDataEntries { msg_id, .. }
                     | RpcResponse::ListSeqMDataEntries { msg_id, .. }
@@ -161,12 +162,12 @@ impl Routing {
                     _ => {
                         // Return random msg_id for now
                         // Other responses should be handled with their data types
-                        SndMessageId::from(MessageId::new())
+                        MessageId::new().to_new()
                     }
                 };
                 let response = Response::RpcResponse {
                     res: Ok(payload.to_vec()),
-                    msg_id: SndMessageId::into(message_id),
+                    msg_id: MessageId::from_new(message_id),
                 };
                 self.send_response(DEFAULT_DELAY_MS, src, dst, response);
                 None
