@@ -52,7 +52,7 @@ use rust_sodium::crypto::{box_, sign};
 use safe_nd::mutable_data::{
     MutableData as NewMutableData, MutableDataRef, SeqMutableData, UnseqMutableData, Value as Val,
 };
-use safe_nd::request::Request;
+use safe_nd::request::{Request, Requester};
 use safe_nd::response::Response;
 use safe_nd::MessageId as NewMessageId;
 use std::cell::RefCell;
@@ -239,7 +239,7 @@ pub trait Client: Clone + 'static {
     fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Unsequenced MData at {:?}", data.name());
 
-        let requester = some_or_err!(self.public_signing_key());
+        let requester = some_or_err!(self.public_bls_key());
         let client = Authority::Client {
             client_id: *some_or_err!(self.full_id()).public_id(),
             proxy_node_name: rand::random(),
@@ -247,7 +247,7 @@ pub trait Client: Clone + 'static {
         send_mutation(self, move |routing, dst, message_id| {
             let request = Request::PutUnseqMData {
                 data: data.clone(),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: message_id.to_new(),
             };
             routing.send(client, dst, &unwrap!(serialise(&request)))
@@ -258,7 +258,7 @@ pub trait Client: Clone + 'static {
     fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Sequenced MData at {:?}", data.name());
 
-        let requester = some_or_err!(self.public_signing_key());
+        let requester = some_or_err!(self.public_bls_key());
         let client = Authority::Client {
             client_id: *some_or_err!(self.full_id()).public_id(),
             proxy_node_name: rand::random(),
@@ -266,7 +266,7 @@ pub trait Client: Clone + 'static {
         send_mutation(self, move |routing, dst, message_id| {
             let request = Request::PutSeqMData {
                 data: data.clone(),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: message_id.to_new(),
             };
             routing.send(client, dst, &unwrap!(serialise(&request)))
@@ -285,7 +285,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::GetUnseqMData {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
             routing.send(
@@ -321,7 +321,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::GetSeqMData {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
             routing.send(
@@ -395,7 +395,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::GetSeqMDataShell {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -433,7 +433,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::GetUnseqMDataShell {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -471,7 +471,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::GetMDataVersion {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -539,7 +539,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::ListUnseqMDataEntries {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -581,7 +581,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::ListSeqMDataEntries {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -630,7 +630,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::ListMDataKeys {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -668,7 +668,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::ListSeqMDataValues {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 
@@ -706,7 +706,7 @@ pub trait Client: Clone + 'static {
         send(self, move |routing, msg_id| {
             let request = Request::ListUnseqMDataValues {
                 address: MutableDataRef::new(name.0, tag),
-                requester,
+                requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
 

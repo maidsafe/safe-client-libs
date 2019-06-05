@@ -17,7 +17,7 @@ use rust_sodium::crypto::sign;
 use safe_nd::mutable_data::{
     Action, MutableData as NewMutableData, MutableDataRef, SeqMutableData, UnseqMutableData,
 };
-use safe_nd::request::Request;
+use safe_nd::request::{Request, Requester};
 use safe_nd::response::Response;
 use std::collections::HashMap;
 use std::env;
@@ -135,20 +135,26 @@ impl Vault {
     pub fn verify_requester(
         &self,
         data_name: DataId,
-        requester: threshold_crypto::PublicKey,
+        requester: Requester,
     ) -> Result<(), ClientError> {
+        // FIXME: Handle permissions properly
+        let public_key_res = match requester {
+            Requester::Owner(_) => Err(ClientError::AccessDenied),
+            Requester::Key(key) => Ok(key),
+        };
+        let public_key = unwrap!(public_key_res);
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
                 Data::NewMutable(data) => match data.clone() {
                     MutableDataKind::Sequenced(mdata) => {
-                        if mdata.is_action_allowed(requester, Action::Read) {
+                        if mdata.is_action_allowed(public_key, Action::Read) {
                             Ok(())
                         } else {
                             Err(ClientError::AccessDenied)
                         }
                     }
                     MutableDataKind::Unsequenced(mdata) => {
-                        if mdata.is_action_allowed(requester, Action::Read) {
+                        if mdata.is_action_allowed(public_key, Action::Read) {
                             Ok(())
                         } else {
                             Err(ClientError::AccessDenied)
@@ -439,7 +445,7 @@ impl Vault {
         &mut self,
         dst: Authority<XorName>,
         address: MutableDataRef,
-        requester: threshold_crypto::PublicKey,
+        requester: Requester,
     ) -> Result<MutableDataKind, ClientError> {
         let data_name = DataId::mutable(XorName(address.name()), address.tag());
         self.authorise_read(&dst, &XorName(address.name()))
@@ -457,9 +463,10 @@ impl Vault {
         &mut self,
         dst: Authority<XorName>,
         data: MutableDataKind,
-        requester: sign::PublicKey,
+        _requester: Requester,
     ) -> Result<(), ClientError> {
         let data_name = DataId::mutable(data.name(), data.tag());
+        /*
         self.authorise_mutation(&dst, &requester)
             .and_then(|_| {
                 if self.contains_data(&data_name) {
@@ -470,6 +477,15 @@ impl Vault {
                 }
             })
             .map(|_| self.commit_mutation(&dst))
+        */
+        // FIXME: Put requests verify the app's public key - Usage of BLS-key TBD
+        if self.contains_data(&data_name) {
+            Err(ClientError::DataExists)
+        } else {
+            self.insert_data(data_name, Data::NewMutable(data));
+            self.commit_mutation(&dst);
+            Ok(())
+        }
     }
 }
 

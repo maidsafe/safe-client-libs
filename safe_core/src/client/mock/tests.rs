@@ -24,7 +24,7 @@ use routing::{
 };
 use rust_sodium::crypto::sign;
 use safe_nd::mutable_data::{MutableData as NewMutableData, MutableDataRef, UnseqMutableData};
-use safe_nd::request::Request as RpcRequest;
+use safe_nd::request::{Request as RpcRequest, Requester};
 use safe_nd::response::Response as RpcResponse;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -1022,6 +1022,7 @@ fn unpub_md() {
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = *full_id.public_id().signing_public_key();
     let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let bls_key = full_id.bls_key().public_key();
 
     let client = Authority::Client {
         client_id: *full_id.public_id(),
@@ -1031,19 +1032,14 @@ fn unpub_md() {
     let name = rand::random();
     let tag = 15001;
 
-    let data = UnseqMutableData::new_with_data(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        full_id.bls_key().public_key(),
-    );
+    let data =
+        UnseqMutableData::new_with_data(name, tag, Default::default(), Default::default(), bls_key);
 
     let message_id = MessageId::new();
 
     let put_request = RpcRequest::PutUnseqMData {
         data: data.clone(),
-        requester: owner_key,
+        requester: Requester::Key(bls_key),
         message_id: message_id.to_new(),
     };
 
@@ -1054,7 +1050,7 @@ fn unpub_md() {
     let message_id2 = MessageId::new();
     let get_request = RpcRequest::GetUnseqMData {
         address: MutableDataRef::new(name, tag),
-        requester: full_id.bls_key().public_key(),
+        requester: Requester::Key(bls_key),
         message_id: message_id2.to_new(),
     };
     let get_req_buffer = unwrap!(serialise(&get_request));
