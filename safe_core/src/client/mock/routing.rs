@@ -158,7 +158,8 @@ impl Routing {
                     | RpcResponse::ListMDataKeys { msg_id, .. }
                     | RpcResponse::ListSeqMDataValues { msg_id, .. }
                     | RpcResponse::ListUnseqMDataValues { msg_id, .. }
-                    | RpcResponse::PutSeqMData { msg_id, .. } => msg_id,
+                    | RpcResponse::PutSeqMData { msg_id, .. }
+                    | RpcResponse::DeleteMData { msg_id, .. } => msg_id,
                     _ => {
                         // Return random msg_id for now
                         // Other responses should be handled with their data types

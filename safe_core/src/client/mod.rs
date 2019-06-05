@@ -345,6 +345,26 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
+    /// Delete MData from network
+    fn delete_mdata(&self, mdataref: MutableDataRef) -> Box<CoreFuture<()>> {
+        trace!("Delete entire Mutable Data");
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+
+        send_mutation(self, move |routing, dst, msg_id| {
+            let request = Request::DeleteMData {
+                address: mdataref.clone(),
+                requester: Requester::Key(requester),
+                message_id: msg_id.to_new(),
+            };
+            routing.send(client, dst, &unwrap!(serialise(&request)))
+        })
+    }
+
     /// Mutates `MutableData` entries in bulk.
     fn mutate_mdata_entries(
         &self,
@@ -1045,9 +1065,9 @@ where
                 let response_buffer = unwrap!(res);
                 let response: Response<ClientError> = unwrap!(deserialise(&response_buffer));
                 match response {
-                    Response::PutUnseqMData { res, .. } | Response::PutSeqMData { res, .. } => {
-                        res.map_err(CoreError::from)
-                    }
+                    Response::PutUnseqMData { res, .. }
+                    | Response::PutSeqMData { res, .. }
+                    | Response::DeleteMData { res, .. } => res.map_err(CoreError::from),
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             }
@@ -1152,26 +1172,24 @@ pub trait XorNameConverter {
 
 impl XorNameConverter for XorName {
     fn to_new(&self) -> NewXorName {
-        NewXorName {
-            0: self.0
-        }
+        NewXorName { 0: self.0 }
     }
 
     fn from_new(new_xor_name: NewXorName) -> Self {
-        XorName {
-            0: new_xor_name.0
-        }
+        XorName { 0: new_xor_name.0 }
     }
 }
 
 impl MsgIdConverter for MessageId {
     fn to_new(&self) -> NewMessageId {
-        NewMessageId { 0: (self.0.to_new()) }
+        NewMessageId {
+            0: (self.0.to_new()),
+        }
     }
 
     fn from_new(new_msg_id: NewMessageId) -> Self {
         MessageId {
-            0: XorName::from_new(new_msg_id.0)
+            0: XorName::from_new(new_msg_id.0),
         }
     }
 }
@@ -1180,6 +1198,7 @@ impl MsgIdConverter for MessageId {
 mod tests {
     use super::*;
     use crate::utils::test_utils::random_client;
+    use safe_nd::XorName as SndXorName;
 
     #[test]
     pub fn unseq_mdata_test() {
@@ -1212,11 +1231,11 @@ mod tests {
                         .map(move |version| assert_eq!(version, 0))
                 })
                 .and_then(move |_| {
-                    client4.list_unseq_mdata_entries(name, tag).map(
-                        move |fetched_entries| {
+                    client4
+                        .list_unseq_mdata_entries(name, tag)
+                        .map(move |fetched_entries| {
                             assert_eq!(fetched_entries, entries);
-                        },
-                    )
+                        })
                 })
                 .and_then(move |_| {
                     client5
@@ -1297,16 +1316,98 @@ mod tests {
                         .map(move |values| assert_eq!(values, entries_values))
                 })
                 .and_then(move |_| {
-                    client2
-                        .get_seq_mdata(name, tag)
-                        .map(move |fetched_data| {
-                            assert_eq!(fetched_data.name(), data.name());
-                            assert_eq!(fetched_data.tag(), data.tag());
-                            assert_eq!(fetched_data.entries().len(), 1);
-                            fetched_data
-                        })
+                    client2.get_seq_mdata(name, tag).map(move |fetched_data| {
+                        assert_eq!(fetched_data.name(), data.name());
+                        assert_eq!(fetched_data.tag(), data.tag());
+                        assert_eq!(fetched_data.entries().len(), 1);
+                        fetched_data
+                    })
                 })
                 .then(|res| res)
         });
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn del_seq_mdata_test() {
+        let _ = random_client(move |client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+            let name = SndXorName(rand::random());
+            let tag = 15001;
+            let mdataref = MutableDataRef::new(name, tag);
+            let data = SeqMutableData::new_with_data(
+                name,
+                tag,
+                Default::default(),
+                Default::default(),
+                unwrap!(client.public_bls_key()),
+            );
+
+            client
+                .put_seq_mutable_data(data.clone())
+                .and_then(move |_| {
+                    client2.delete_mdata(mdataref).map(move |result| {
+                        assert_eq!(result, ());
+                    })
+                })
+                .and_then(move |_| {
+                    client3.get_seq_mdata(XorName::from_new(*data.name()), data.tag())
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn del_unseq_mdata_test() {
+        let _ = random_client(move |client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+            let name = SndXorName(rand::random());
+            let tag = 15001;
+            let mdataref = MutableDataRef::new(name, tag);
+            let data = UnseqMutableData::new_with_data(
+                name,
+                tag,
+                Default::default(),
+                Default::default(),
+                unwrap!(client.public_bls_key()),
+            );
+
+            client
+                .put_unseq_mutable_data(data.clone())
+                .and_then(move |_| {
+                    client2.delete_mdata(mdataref).map(move |result| {
+                        assert_eq!(result, ());
+                    })
+                })
+                .and_then(move |_| {
+                    client3.get_unseq_mdata(XorName::from_new(*data.name()), data.tag())
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn del_unseq_mdata_permission_test() {
+        let name = SndXorName(rand::random());
+        let tag = 15001;
+        let mdataref = MutableDataRef::new(name, tag);
+
+        random_client(move |client| {
+            let data = UnseqMutableData::new_with_data(
+                name,
+                tag,
+                Default::default(),
+                Default::default(),
+                unwrap!(client.public_bls_key()),
+            );
+
+            client.put_unseq_mutable_data(data.clone()).then(|res| res)
+        });
+
+        random_client(move |client1| client1.delete_mdata(mdataref).map_err(CoreError::from));
     }
 }

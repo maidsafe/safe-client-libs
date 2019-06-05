@@ -1032,8 +1032,13 @@ fn unpub_md() {
     let name = XorName(rand::random());
     let tag = 15001;
 
-    let data =
-        UnseqMutableData::new_with_data(name.to_new(), tag, Default::default(), Default::default(), bls_key);
+    let data = UnseqMutableData::new_with_data(
+        name.to_new(),
+        tag,
+        Default::default(),
+        Default::default(),
+        bls_key,
+    );
 
     let message_id = MessageId::new();
 
@@ -1054,11 +1059,7 @@ fn unpub_md() {
         message_id: message_id2.to_new(),
     };
     let get_req_buffer = unwrap!(serialise(&get_request));
-    unwrap!(routing.send(
-        client,
-        Authority::NaeManager(name),
-        &get_req_buffer
-    ));
+    unwrap!(routing.send(client, Authority::NaeManager(name), &get_req_buffer));
     let response2 = expect_success!(routing_rx, message_id2, Response::RpcResponse);
     let rpc_response: RpcResponse<ClientError> = unwrap!(deserialise(&response2));
     match rpc_response {
