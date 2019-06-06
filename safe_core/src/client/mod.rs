@@ -337,7 +337,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::GetSeqMData { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -412,7 +411,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::GetSeqMDataShell { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -450,7 +448,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::GetUnseqMDataShell { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -488,7 +485,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::GetMDataVersion { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -556,7 +552,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::ListUnseqMDataEntries { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -598,7 +593,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::ListSeqMDataEntries { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -647,7 +641,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::ListMDataKeys { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -685,7 +678,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::ListSeqMDataValues { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -723,7 +715,6 @@ pub trait Client: Clone + 'static {
             };
             let result_buffer = unwrap!(res);
             let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
-            dbg!(res.clone());
             match res {
                 Response::ListUnseqMDataValues { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),

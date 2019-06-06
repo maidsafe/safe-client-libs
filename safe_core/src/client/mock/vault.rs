@@ -235,7 +235,6 @@ impl Vault {
         payload: Vec<u8>,
     ) -> Result<(Authority<XorName>, Vec<u8>), ClientError> {
         let request: Request = unwrap!(deserialise(&payload));
-        dbg!(request.clone());
         match request {
             Request::PutUnseqMData {
                 data,
