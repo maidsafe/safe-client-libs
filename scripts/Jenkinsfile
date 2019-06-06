@@ -6,17 +6,7 @@ properties([
 ])
 
 stage('build') {
-    parallel real_linux: {
-        node('docker') {
-            checkout(scm)
-            clean()
-            build_safe_client_libs('real')
-            strip_build_artifacts()
-            package_build_artifacts('real', 'linux')
-            upload_build_artifacts()
-        }
-    },
-    mock_linux: {
+    parallel mock_linux: {
         node('docker') {
             checkout(scm)
             clean()
@@ -27,30 +17,12 @@ stage('build') {
             upload_binary_compatibility_test()
         }
     },
-    real_windows: {
-        node('windows') {
-            checkout(scm)
-            build_safe_client_libs('real')
-            strip_build_artifacts()
-            package_build_artifacts('real', 'windows')
-            upload_build_artifacts()
-        }
-    },
     mock_windows: {
         node('windows') {
             checkout(scm)
             build_safe_client_libs('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'windows')
-            upload_build_artifacts()
-        }
-    },
-    real_osx: {
-        node('osx') {
-            checkout(scm)
-            build_safe_client_libs('real')
-            strip_build_artifacts()
-            package_build_artifacts('real', 'osx')
             upload_build_artifacts()
         }
     },
@@ -92,13 +64,6 @@ stage('test') {
             checkout(scm)
             retrieve_build_artifacts('mock', 'linux')
             run_tests('integration')
-        }
-    },
-    binary_linux: {
-        node('docker') {
-            checkout(scm)
-            retrieve_build_artifacts('mock', 'linux')
-            run_binary_compatibility_tests()
         }
     }
 }
