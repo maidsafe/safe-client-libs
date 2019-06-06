@@ -10,6 +10,7 @@ use super::Account;
 use super::DataId;
 use crate::client::mock::routing::unlimited_muts;
 use crate::config_handler::{Config, DevConfig};
+use crate::client::XorNameConverter;
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, ImmutableData, MutableData as OldMutableData, XorName};
@@ -247,7 +248,7 @@ impl Vault {
                     res: result,
                     msg_id: message_id,
                 }));
-                Ok((Authority::NaeManager(XorName(*data.name())), payload))
+                Ok((Authority::NaeManager(XorName::from_new(*data.name())), payload))
             }
             Request::GetSeqMData {
                 address,
@@ -294,7 +295,7 @@ impl Vault {
                     res: result,
                     msg_id: message_id
                 }));
-                Ok((Authority::NaeManager(XorName(*data.name())), payload))
+                Ok((Authority::NaeManager(XorName::from_new(*data.name())), payload))
             }
             Request::GetSeqMDataShell {
                 address,
@@ -446,8 +447,8 @@ impl Vault {
         address: MutableDataRef,
         requester: Requester,
     ) -> Result<MutableDataKind, ClientError> {
-        let data_name = DataId::mutable(XorName(address.name()), address.tag());
-        self.authorise_read(&dst, &XorName(address.name()))
+        let data_name = DataId::mutable(XorName::from_new(address.name()), address.tag());
+        self.authorise_read(&dst, &XorName::from_new(address.name()))
             .and_then(|_| self.verify_requester(data_name, requester))
             .and_then(|_| match self.get_data(&data_name) {
                 Some(data_type) => match data_type {
@@ -542,8 +543,8 @@ pub enum MutableDataKind {
 impl MutableDataKind {
     fn name(&self) -> XorName {
         match self {
-            MutableDataKind::Sequenced(data) => XorName(*data.name()),
-            MutableDataKind::Unsequenced(data) => XorName(*data.name()),
+            MutableDataKind::Sequenced(data) => XorName::from_new(*data.name()),
+            MutableDataKind::Unsequenced(data) => XorName::from_new(*data.name()),
         }
     }
     fn tag(&self) -> u64 {

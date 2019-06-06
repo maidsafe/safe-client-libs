@@ -12,7 +12,7 @@
 use super::routing::Routing;
 use super::DEFAULT_MAX_MUTATIONS;
 use crate::client::mock::vault::Vault;
-use crate::client::MsgIdConverter;
+use crate::client::{MsgIdConverter, XorNameConverter};
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
@@ -1029,11 +1029,11 @@ fn unpub_md() {
         proxy_node_name: rand::random(),
     };
 
-    let name = rand::random();
+    let name = XorName(rand::random());
     let tag = 15001;
 
     let data =
-        UnseqMutableData::new_with_data(name, tag, Default::default(), Default::default(), bls_key);
+        UnseqMutableData::new_with_data(name.to_new(), tag, Default::default(), Default::default(), bls_key);
 
     let message_id = MessageId::new();
 
@@ -1049,14 +1049,14 @@ fn unpub_md() {
 
     let message_id2 = MessageId::new();
     let get_request = RpcRequest::GetUnseqMData {
-        address: MutableDataRef::new(name, tag),
+        address: MutableDataRef::new(name.to_new(), tag),
         requester: Requester::Key(bls_key),
         message_id: message_id2.to_new(),
     };
     let get_req_buffer = unwrap!(serialise(&get_request));
     unwrap!(routing.send(
         client,
-        Authority::NaeManager(XorName(name)),
+        Authority::NaeManager(name),
         &get_req_buffer
     ));
     let response2 = expect_success!(routing_rx, message_id2, Response::RpcResponse);
@@ -1065,7 +1065,7 @@ fn unpub_md() {
         RpcResponse::GetUnseqMData { res, .. } => {
             let unpub_mdata: UnseqMutableData = unwrap!(res);
             println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
-            assert_eq!(*unpub_mdata.name(), name);
+            assert_eq!(*unpub_mdata.name(), name.to_new());
             assert_eq!(unpub_mdata.tag(), tag);
         }
         _ => panic!("Unexpected response"),

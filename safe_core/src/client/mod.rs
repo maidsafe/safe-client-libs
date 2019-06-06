@@ -54,7 +54,7 @@ use safe_nd::mutable_data::{
 };
 use safe_nd::request::{Request, Requester};
 use safe_nd::response::Response;
-use safe_nd::MessageId as NewMessageId;
+use safe_nd::{MessageId as NewMessageId, XorName as NewXorName};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
@@ -284,7 +284,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::GetUnseqMData {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -320,7 +320,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::GetSeqMData {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -393,7 +393,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::GetSeqMDataShell {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -430,7 +430,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::GetUnseqMDataShell {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -467,7 +467,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::GetMDataVersion {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -534,7 +534,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::ListUnseqMDataEntries {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -575,7 +575,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::ListSeqMDataEntries {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -623,7 +623,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::ListMDataKeys {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -660,7 +660,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::ListSeqMDataValues {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -697,7 +697,7 @@ pub trait Client: Clone + 'static {
         };
         send(self, move |routing, msg_id| {
             let request = Request::ListUnseqMDataValues {
-                address: MutableDataRef::new(name.0, tag),
+                address: MutableDataRef::new(name.to_new(), tag),
                 requester: Requester::Key(requester),
                 message_id: msg_id.to_new(),
             };
@@ -1141,13 +1141,38 @@ pub trait MsgIdConverter {
     fn from_new(new_msg_id: NewMessageId) -> Self;
 }
 
+/// Conversion functions for XorName
+pub trait XorNameConverter {
+    /// Converts routing::XorName to safe-nd::XorName
+    fn to_new(&self) -> NewXorName;
+
+    /// Converts safe-nd::XorName to routing::XorName
+    fn from_new(new_xor_name: NewXorName) -> Self;
+}
+
+impl XorNameConverter for XorName {
+    fn to_new(&self) -> NewXorName {
+        NewXorName {
+            0: self.0
+        }
+    }
+
+    fn from_new(new_xor_name: NewXorName) -> Self {
+        XorName {
+            0: new_xor_name.0
+        }
+    }
+}
+
 impl MsgIdConverter for MessageId {
     fn to_new(&self) -> NewMessageId {
-        NewMessageId { 0: (self.0).0 }
+        NewMessageId { 0: (self.0.to_new()) }
     }
 
     fn from_new(new_msg_id: NewMessageId) -> Self {
-        MessageId::from_name_array(new_msg_id.0)
+        MessageId {
+            0: XorName::from_new(new_msg_id.0)
+        }
     }
 }
 
@@ -1165,7 +1190,7 @@ mod tests {
             let client5 = client.clone();
             let client6 = client.clone();
 
-            let name = rand::random();
+            let name = XorName(rand::random());
             let tag = 15001;
             let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
             let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
@@ -1173,7 +1198,7 @@ mod tests {
             let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
 
             let data = UnseqMutableData::new_with_data(
-                name,
+                name.to_new(),
                 tag,
                 entries.clone(),
                 Default::default(),
@@ -1183,11 +1208,11 @@ mod tests {
                 .put_unseq_mutable_data(data.clone())
                 .and_then(move |_| {
                     client3
-                        .get_mdata_version_new(XorName(name), tag)
+                        .get_mdata_version_new(name, tag)
                         .map(move |version| assert_eq!(version, 0))
                 })
                 .and_then(move |_| {
-                    client4.list_unseq_mdata_entries(XorName(name), tag).map(
+                    client4.list_unseq_mdata_entries(name, tag).map(
                         move |fetched_entries| {
                             assert_eq!(fetched_entries, entries);
                         },
@@ -1195,19 +1220,19 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(XorName(name), tag)
+                        .list_mdata_keys_new(name, tag)
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
                     client6
-                        .list_unseq_mdata_values(XorName(name), tag)
+                        .list_unseq_mdata_values(name, tag)
                         .map(move |values| assert_eq!(values, entries_values))
                 })
                 .and_then(move |_| {
                     println!("Put unseq. MData successfully");
 
                     client2
-                        .get_unseq_mdata(XorName(*data.name()), data.tag())
+                        .get_unseq_mdata(XorName::from_new(*data.name()), data.tag())
                         .map(move |fetched_data| {
                             assert_eq!(fetched_data.name(), data.name());
                             assert_eq!(fetched_data.tag(), data.tag());
@@ -1227,7 +1252,7 @@ mod tests {
             let client5 = client.clone();
             let client6 = client.clone();
 
-            let name = rand::random();
+            let name = XorName(rand::random());
             let tag = 15001;
             let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
             let _ = entries.insert(b"key".to_vec(), Val::new(b"value".to_vec(), 0));
@@ -1235,7 +1260,7 @@ mod tests {
             let entries_values: Vec<Val> = entries.values().cloned().collect();
 
             let data = SeqMutableData::new_with_data(
-                name,
+                name.to_new(),
                 tag,
                 entries.clone(),
                 Default::default(),
@@ -1247,33 +1272,33 @@ mod tests {
                     println!("Put seq. MData successfully");
 
                     client4
-                        .list_seq_mdata_entries(XorName(name), tag)
+                        .list_seq_mdata_entries(name, tag)
                         .map(move |fetched_entries| {
                             assert_eq!(fetched_entries, entries);
                         })
                 })
                 .and_then(move |_| {
                     client3
-                        .get_seq_mdata_shell(XorName(name), tag)
+                        .get_seq_mdata_shell(name, tag)
                         .map(move |mdata_shell| {
-                            assert_eq!(*mdata_shell.name(), name);
+                            assert_eq!(*mdata_shell.name(), name.to_new());
                             assert_eq!(mdata_shell.tag(), tag);
                             assert_eq!(mdata_shell.entries().len(), 0);
                         })
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(XorName(name), tag)
+                        .list_mdata_keys_new(name, tag)
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
                     client6
-                        .list_seq_mdata_values(XorName(name), tag)
+                        .list_seq_mdata_values(name, tag)
                         .map(move |values| assert_eq!(values, entries_values))
                 })
                 .and_then(move |_| {
                     client2
-                        .get_seq_mdata(XorName(name), tag)
+                        .get_seq_mdata(name, tag)
                         .map(move |fetched_data| {
                             assert_eq!(fetched_data.name(), data.name());
                             assert_eq!(fetched_data.tag(), data.tag());
