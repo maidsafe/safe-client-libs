@@ -20,6 +20,7 @@ use safe_nd::mutable_data::{
 };
 use safe_nd::request::{Request, Requester};
 use safe_nd::response::Response;
+use safe_nd::Error;
 use std::collections::HashMap;
 use std::env;
 use std::fs::{File, OpenOptions};
@@ -133,14 +134,25 @@ impl Vault {
         }
     }
 
-    pub fn verify_requester(
+    // Authorise read (non-mutation) operation.
+    pub fn new_authorise_read(
         &self,
-        data_name: DataId,
-        requester: Requester,
-    ) -> Result<(), ClientError> {
+        dst: &Authority<XorName>,
+        data_name: &XorName,
+    ) -> Result<(), Error> {
+        match *dst {
+            Authority::NaeManager(name) if name == *data_name => Ok(()),
+            x => {
+                debug!("Unexpected authority for read: {:?}", x);
+                Err(Error::InvalidOperation)
+            }
+        }
+    }
+
+    pub fn verify_requester(&self, data_name: DataId, requester: Requester) -> Result<(), Error> {
         // FIXME: Handle permissions properly
         let public_key_res = match requester {
-            Requester::Owner(_) => Err(ClientError::AccessDenied),
+            Requester::Owner(_) => Err(Error::AccessDenied),
             Requester::Key(key) => Ok(key),
         };
         let public_key = unwrap!(public_key_res);
@@ -151,21 +163,21 @@ impl Vault {
                         if mdata.is_action_allowed(public_key, Action::Read) {
                             Ok(())
                         } else {
-                            Err(ClientError::AccessDenied)
+                            Err(Error::AccessDenied)
                         }
                     }
                     MutableDataKind::Unsequenced(mdata) => {
                         if mdata.is_action_allowed(public_key, Action::Read) {
                             Ok(())
                         } else {
-                            Err(ClientError::AccessDenied)
+                            Err(Error::AccessDenied)
                         }
                     }
                 },
                 // Handle other types
-                _ => Err(ClientError::NoSuchData),
+                _ => Err(Error::NoSuchData),
             },
-            _ => Err(ClientError::NoSuchData),
+            _ => Err(Error::NoSuchData),
         }
     }
 
@@ -173,12 +185,12 @@ impl Vault {
         &self,
         dst: &Authority<XorName>,
         data_name: &XorName,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         match *dst {
             Authority::NaeManager(name) if name == *data_name => Ok(()),
             x => {
                 debug!("Unexpected authority for delete: {:?}", x);
-                Err(ClientError::InvalidOperation)
+                Err(Error::InvalidOperation)
             }
         }
     }
@@ -187,34 +199,34 @@ impl Vault {
         &self,
         data_name: DataId,
         requester: Requester,
-    ) -> Result<Data, ClientError> {
+    ) -> Result<Data, Error> {
         let req = if let Requester::Key(req) = requester {
             req
         } else {
-            return Err(ClientError::AccessDenied);
+            return Err(Error::AccessDenied);
         };
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
                 Data::NewMutable(kind) => match kind {
                     MutableDataKind::Unsequenced(data) => {
-                        if data.is_action_allowed(req, Action::Delete) {
+                        if data.owners() == &req {
                             Ok(unwrap!(self.get_data(&data_name)))
                         } else {
-                            Err(ClientError::AccessDenied)
+                            Err(Error::AccessDenied)
                         }
                     }
                     MutableDataKind::Sequenced(data) => {
-                        if data.is_action_allowed(req, Action::Delete) {
+                        if data.owners() == &req {
                             Ok(unwrap!(self.get_data(&data_name)))
                         } else {
-                            Err(ClientError::AccessDenied)
+                            Err(Error::AccessDenied)
                         }
                     }
                 },
                 // Handle other types
                 _ => Ok(unwrap!(self.get_data(&data_name))),
             },
-            _ => Err(ClientError::NoSuchData),
+            _ => Err(Error::NoSuchData),
         }
     }
 
@@ -256,12 +268,12 @@ impl Vault {
     }
 
     // Authorise mutation operation.
-    pub fn authorise_mutation1(&self, dst: &Authority<XorName>) -> Result<(), ClientError> {
+    pub fn authorise_mutation1(&self, dst: &Authority<XorName>) -> Result<(), Error> {
         let dst_name = match *dst {
             Authority::ClientManager(name) => name,
             x => {
                 debug!("Unexpected authority for mutation: {:?}", x);
-                return Err(ClientError::InvalidOperation);
+                return Err(Error::InvalidOperation);
             }
         };
 
@@ -269,14 +281,14 @@ impl Vault {
             Some(account) => account,
             None => {
                 debug!("Account not found for {:?}", dst);
-                return Err(ClientError::NoSuchAccount);
+                return Err(Error::NoSuchAccount);
             }
         };
         // TODO: Check if we are the owner or app once account keys are changed to threshold_crypto
 
         let unlimited_mut = unlimited_muts(&self.config);
         if !unlimited_mut && account.account_info().mutations_available == 0 {
-            return Err(ClientError::LowBalance);
+            return Err(Error::LowBalance);
         }
 
         Ok(())
@@ -315,7 +327,7 @@ impl Vault {
         _src: Authority<XorName>,
         dest: Authority<XorName>,
         payload: Vec<u8>,
-    ) -> Result<(Authority<XorName>, Vec<u8>), ClientError> {
+    ) -> Result<(Authority<XorName>, Vec<u8>), Error> {
         let request: Request = unwrap!(deserialise(&payload));
         match request {
             Request::PutUnseqMData {
@@ -343,7 +355,7 @@ impl Vault {
                     .get_mdata(dest, address.clone(), requester)
                     .and_then(|data| match data {
                         MutableDataKind::Sequenced(data) => Ok(data),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::GetSeqMData {
                     res: result,
@@ -360,7 +372,7 @@ impl Vault {
                     .get_mdata(dest, address.clone(), requester)
                     .and_then(|data| match data {
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::GetUnseqMData {
                     res: result,
@@ -393,7 +405,7 @@ impl Vault {
                     .get_mdata(dest, address, requester)
                     .and_then(|data| match data {
                         MutableDataKind::Sequenced(mdata) => Ok(mdata.shell()),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::GetSeqMDataShell {
                     res: result,
@@ -410,7 +422,7 @@ impl Vault {
                     .get_mdata(dest, address, requester)
                     .and_then(|data| match data {
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata.shell()),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::GetUnseqMDataShell {
                     res: result,
@@ -444,7 +456,7 @@ impl Vault {
                     .get_mdata(dest, address.clone(), requester)
                     .and_then(|data| match data {
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata.entries().clone()),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::ListUnseqMDataEntries {
                     res: result,
@@ -461,7 +473,7 @@ impl Vault {
                     .get_mdata(dest, address.clone(), requester)
                     .and_then(|data| match data {
                         MutableDataKind::Sequenced(mdata) => Ok(mdata.entries().clone()),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::ListSeqMDataEntries {
                     res: result,
@@ -495,7 +507,7 @@ impl Vault {
                     .get_mdata(dest, address.clone(), requester)
                     .and_then(|data| match data {
                         MutableDataKind::Sequenced(mdata) => Ok(mdata.values()),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::ListSeqMDataValues {
                     res: result,
@@ -512,7 +524,7 @@ impl Vault {
                     .get_mdata(dest, address.clone(), requester)
                     .and_then(|data| match data {
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata.values()),
-                        _ => Err(ClientError::from("Unexpected data returned")),
+                        _ => Err(Error::from("Unexpected data returned")),
                     });
                 let payload = unwrap!(serialise(&Response::ListUnseqMDataValues {
                     res: result,
@@ -546,16 +558,16 @@ impl Vault {
         dst: Authority<XorName>,
         address: MutableDataRef,
         requester: Requester,
-    ) -> Result<MutableDataKind, ClientError> {
+    ) -> Result<MutableDataKind, Error> {
         let data_name = DataId::mutable(XorName::from_new(address.name()), address.tag());
-        self.authorise_read(&dst, &XorName::from_new(address.name()))
+        self.new_authorise_read(&dst, &XorName::from_new(address.name()))
             .and_then(|_| self.verify_requester(data_name, requester))
             .and_then(|_| match self.get_data(&data_name) {
                 Some(data_type) => match data_type {
                     Data::NewMutable(data) => Ok(data),
-                    _ => Err(ClientError::NoSuchData),
+                    _ => Err(Error::NoSuchData),
                 },
-                None => Err(ClientError::NoSuchData),
+                None => Err(Error::NoSuchData),
             })
     }
 
@@ -564,13 +576,13 @@ impl Vault {
         dst: Authority<XorName>,
         data: MutableDataKind,
         _requester: Requester,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         let data_name = DataId::mutable(data.name(), data.tag());
         /*
         self.authorise_mutation(&dst, &requester)
             .and_then(|_| {
                 if self.contains_data(&data_name) {
-                    Err(ClientError::DataExists)
+                    Err(Error::DataExists)
                 } else {
                     self.insert_data(data_name, Data::NewMutable(data));
                     Ok(())
@@ -580,7 +592,7 @@ impl Vault {
         */
         // FIXME: Put requests verify the app's public key - Usage of BLS-key TBD
         if self.contains_data(&data_name) {
-            Err(ClientError::DataExists)
+            Err(Error::DataExists)
         } else {
             self.insert_data(data_name, Data::NewMutable(data));
             self.commit_mutation(&dst);
@@ -593,13 +605,13 @@ impl Vault {
         dst: Authority<XorName>,
         data: MutableDataRef,
         requester: Requester,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         let data_name = DataId::mutable(XorName::from_new(data.name()), data.tag());
         self.authorise_mutation1(&dst)
             .and_then(|_| self.authorised_delete(data_name, requester))
             .and_then(|_| {
                 if !self.contains_data(&data_name) {
-                    Err(ClientError::NoSuchData)
+                    Err(Error::NoSuchData)
                 } else {
                     self.delete_data(data_name);
                     Ok(())

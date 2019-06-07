@@ -45,8 +45,8 @@ use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, Joiner};
 use routing::{
-    AccountInfo, Authority, ClientError, EntryAction, Event, FullId, ImmutableData, InterfaceError,
-    MessageId, MutableData, PermissionSet, User, Value, XorName,
+    AccountInfo, Authority, EntryAction, Event, FullId, ImmutableData, InterfaceError, MessageId,
+    MutableData, PermissionSet, User, Value, XorName,
 };
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::mutable_data::{
@@ -300,7 +300,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::GetUnseqMData { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -336,7 +336,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::GetSeqMData { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -430,7 +430,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::GetSeqMDataShell { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -467,7 +467,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::GetUnseqMDataShell { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -504,7 +504,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::GetMDataVersion { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -571,7 +571,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::ListUnseqMDataEntries { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -612,7 +612,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::ListSeqMDataEntries { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -660,7 +660,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::ListMDataKeys { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -697,7 +697,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::ListSeqMDataValues { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -734,7 +734,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             };
             let result_buffer = unwrap!(res);
-            let res: Response<ClientError> = unwrap!(deserialise(&result_buffer));
+            let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
                 Response::ListUnseqMDataValues { res, .. } => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1063,7 +1063,7 @@ where
         .and_then(|event| match event {
             CoreEvent::RpcResponse(res) => {
                 let response_buffer = unwrap!(res);
-                let response: Response<ClientError> = unwrap!(deserialise(&response_buffer));
+                let response: Response = unwrap!(deserialise(&response_buffer));
                 match response {
                     Response::PutUnseqMData { res, .. }
                     | Response::PutSeqMData { res, .. }

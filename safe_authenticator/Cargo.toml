@@ -23,6 +23,7 @@ rand = "~0.3.18"
 routing = { git = "https://github.com/lionel1704/routing", branch = "patch" }
 rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.32.1" }
+safe-nd = { git = "https://github.com/yoga07/safe-nd", branch = "errortype" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
 threshold_crypto = "0.3.1"

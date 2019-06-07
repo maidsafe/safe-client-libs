@@ -16,6 +16,7 @@ use routing::ClientError;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::{CoreError, SelfEncryptionStorageError};
+use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error;
 use std::ffi::NulError;
@@ -103,6 +104,12 @@ mod codes {
     pub const ERR_UNREGISTERED_CLIENT_ACCESS: i32 = -1018;
 
     pub const ERR_UNEXPECTED: i32 = -2000;
+
+    // BLS errors.
+    pub const ERR_INVALID_OWNERS_SUCCESSOR: i32 = -3001;
+    pub const ERR_INVALID_PERMISSIONS_SUCCESSOR: i32 = -3002;
+    pub const ERR_SIGN_KEYTYPE_MISMATCH: i32 = -3003;
+    pub const ERR_INVALID_SIGNATURE: i32 = -3004;
 }
 
 /// App error.
@@ -404,6 +411,26 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::NetworkOther(_) => ERR_NETWORK_OTHER,
             ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
+        },
+        CoreError::NewRoutingClientError(ref err) => match *err {
+            SndError::AccessDenied => ERR_ACCESS_DENIED,
+            SndError::NoSuchAccount => ERR_NO_SUCH_ACCOUNT,
+            SndError::AccountExists => ERR_ACCOUNT_EXISTS,
+            SndError::NoSuchData => ERR_NO_SUCH_DATA,
+            SndError::DataExists => ERR_DATA_EXISTS,
+            SndError::NoSuchEntry => ERR_NO_SUCH_ENTRY,
+            SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
+            SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
+            SndError::NoSuchKey => ERR_NO_SUCH_KEY,
+            SndError::InvalidOwners => ERR_INVALID_OWNERS,
+            SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
+            SndError::InvalidOperation => ERR_INVALID_OPERATION,
+            SndError::LowBalance => ERR_LOW_BALANCE,
+            SndError::NetworkOther(_) => ERR_NETWORK_OTHER,
+            SndError::InvalidOwnersSuccessor(_) => ERR_INVALID_OWNERS_SUCCESSOR,
+            SndError::InvalidPermissionsSuccessor(_) => ERR_INVALID_PERMISSIONS_SUCCESSOR,
+            SndError::SigningKeyTypeMismatch => ERR_SIGN_KEYTYPE_MISMATCH,
+            SndError::InvalidSignature => ERR_INVALID_SIGNATURE,
         },
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,

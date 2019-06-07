@@ -12,8 +12,9 @@ use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::messaging;
 use routing::{ClientError, InterfaceError, RoutingError};
+use safe_nd::Error;
 use self_encryption::SelfEncryptionError;
-use std::error::Error;
+use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::io;
 use std::sync::mpsc;
@@ -47,6 +48,8 @@ pub enum CoreError {
     RoutingInterfaceError(InterfaceError),
     /// Routing Client Error.
     RoutingClientError(ClientError),
+    /// Routing Client Error.
+    NewRoutingClientError(Error),
     /// Unable to pack into or operate with size of Salt.
     UnsupportedSaltSizeForPwHash,
     /// Unable to complete computation for password hashing - usually because OS
@@ -105,6 +108,12 @@ impl From<InterfaceError> for CoreError {
 impl From<ClientError> for CoreError {
     fn from(error: ClientError) -> CoreError {
         CoreError::RoutingClientError(error)
+    }
+}
+
+impl From<Error> for CoreError {
+    fn from(error: Error) -> CoreError {
+        CoreError::NewRoutingClientError(error)
     }
 }
 
@@ -175,6 +184,9 @@ impl Debug for CoreError {
             CoreError::RoutingClientError(ref error) => {
                 write!(formatter, "CoreError::RoutingClientError -> {:?}", error)
             }
+            CoreError::NewRoutingClientError(ref error) => {
+                write!(formatter, "CoreError::NewRoutingClientError -> {:?}", error)
+            }
             CoreError::UnsupportedSaltSizeForPwHash => {
                 write!(formatter, "CoreError::UnsupportedSaltSizeForPwHash")
             }
@@ -232,6 +244,9 @@ impl Display for CoreError {
             CoreError::RoutingClientError(ref error) => {
                 write!(formatter, "Routing client error -> {}", error)
             }
+            CoreError::NewRoutingClientError(ref error) => {
+                write!(formatter, "New Routing client error -> {}", error)
+            }
             CoreError::UnsupportedSaltSizeForPwHash => write!(
                 formatter,
                 "Unable to pack into or operate with size of Salt"
@@ -254,7 +269,7 @@ impl Display for CoreError {
     }
 }
 
-impl Error for CoreError {
+impl StdError for CoreError {
     fn description(&self) -> &str {
         match *self {
             CoreError::EncodeDecodeError(_) => "Serialisation error",
@@ -271,6 +286,7 @@ impl Error for CoreError {
             CoreError::RoutingError(_) => "Routing internal error",
             // TODO - use `error.description()` once `InterfaceError` implements `std::error::Error`
             CoreError::RoutingClientError(ref error) => error.description(),
+            CoreError::NewRoutingClientError(ref error) => error.description(),
             CoreError::RoutingInterfaceError(_) => "Routing interface error",
             CoreError::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
             CoreError::UnsuccessfulPwHash => "Failed while password hashing",
@@ -283,7 +299,7 @@ impl Error for CoreError {
         }
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&StdError> {
         match *self {
             CoreError::EncodeDecodeError(ref err) => Some(err),
             CoreError::MpidMessagingError(ref err) => Some(err),

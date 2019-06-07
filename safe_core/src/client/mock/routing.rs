@@ -144,7 +144,7 @@ impl Routing {
             // Responses are sent to client authorities
             Authority::Client { .. } => {
                 // TODO: Getting message_id without deserializing this
-                let resp: RpcResponse<ClientError> = unwrap!(deserialise(&payload.to_vec()));
+                let resp: RpcResponse = unwrap!(deserialise(&payload.to_vec()));
                 // Also make this better
                 let message_id = match resp {
                     RpcResponse::GetUnseqMData { msg_id, .. }
