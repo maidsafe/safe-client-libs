@@ -54,7 +54,7 @@ use safe_nd::mutable_data::{
 };
 use safe_nd::request::{Request, Requester};
 use safe_nd::response::Response;
-use safe_nd::{MessageId as NewMessageId, XorName as NewXorName};
+use safe_nd::{MessageId as NewMessageId, UnpubImmutableData, XorName as NewXorName};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io;
@@ -225,6 +225,80 @@ pub trait Client: Clone + 'static {
         })
     }
 
+    /// Get unpublished immutable data from the network.
+    fn get_unpub_idata(&self, name: NewXorName) -> Box<CoreFuture<UnpubImmutableData>> {
+        trace!("Fetch Unpublished Immutable Data");
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send(self, move |routing, msg_id| {
+            let request = Request::GetUnpubIData {
+                address: name,
+                requester: Requester::Key(requester),
+                message_id: msg_id.to_new(),
+            };
+            routing.send(
+                client,
+                Authority::NaeManager(XorName::from_new(name)),
+                &unwrap!(serialise(&request)),
+            )
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetUnpubIData { res, .. } => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Put unpublished immutable data to the network.
+    fn put_unpub_idata(&self, data: UnpubImmutableData) -> Box<CoreFuture<()>> {
+        trace!("Put Unpublished IData at {:?}", data.name());
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send_mutation(self, move |routing, dst, message_id| {
+            let request = Request::PutUnpubIData {
+                data: data.clone(),
+                requester: Requester::Key(requester),
+                message_id: message_id.to_new(),
+            };
+            routing.send(client, dst, &unwrap!(serialise(&request)))
+        })
+    }
+
+    /// Delete unpublished immutable data from the network.
+    fn del_unpub_idata(&self, name: NewXorName) -> Box<CoreFuture<()>> {
+        trace!("Delete Unpublished IData at {:?}", name);
+
+        let requester = some_or_err!(self.public_bls_key());
+        let client = Authority::Client {
+            client_id: *some_or_err!(self.full_id()).public_id(),
+            proxy_node_name: rand::random(),
+        };
+        send_mutation(self, move |routing, dst, message_id| {
+            let request = Request::DeleteUnpubIData {
+                address: name,
+                requester: Requester::Key(requester),
+                message_id: message_id.to_new(),
+            };
+            routing.send(client, dst, &unwrap!(serialise(&request)))
+        })
+    }
+
     /// Put `MutableData` onto the network.
     fn put_mdata(&self, data: MutableData) -> Box<CoreFuture<()>> {
         trace!("PutMData for {:?}", data);
@@ -275,7 +349,7 @@ pub trait Client: Clone + 'static {
 
     /// Fetch unpublished mutable data from the network
     fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
-        trace!("Fetch Unpublished Mutable Data");
+        trace!("Fetch Unsequenced Mutable Data");
 
         let requester = some_or_err!(self.public_bls_key());
         let client = Authority::Client {
@@ -311,7 +385,7 @@ pub trait Client: Clone + 'static {
 
     /// Fetch sequenced mutable data from the network
     fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
-        trace!("Fetch entries from  Mutable Data");
+        trace!("Fetch Sequenced Mutable Data");
 
         let requester = some_or_err!(self.public_bls_key());
         let client = Authority::Client {
@@ -1065,7 +1139,11 @@ where
                 let response_buffer = unwrap!(res);
                 let response: Response = unwrap!(deserialise(&response_buffer));
                 match response {
-                    Response::PutUnseqMData { res, .. }
+                    // IData
+                    Response::PutUnpubIData { res, .. }
+                    | Response::DeleteUnpubIData { res, .. }
+                    // MData
+                    | Response::PutUnseqMData { res, .. }
                     | Response::PutSeqMData { res, .. }
                     | Response::DeleteMData { res, .. } => res.map_err(CoreError::from),
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1198,7 +1276,58 @@ impl MsgIdConverter for MessageId {
 mod tests {
     use super::*;
     use crate::utils::test_utils::random_client;
-    use safe_nd::XorName as SndXorName;
+    use safe_nd::{Error as SndError, XorName as SndXorName};
+
+    // Test putting, getting, and deleting unpub idata.
+    #[test]
+    pub fn unpub_idata_test() {
+        random_client(move |client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+            let client5 = client.clone();
+
+            let data =
+                UnpubImmutableData::new(Default::default(), unwrap!(client.public_bls_key()));
+            let name = *data.name();
+
+            client
+                // Get inexistant idata
+                .get_unpub_idata(name)
+                .then(|res| -> Result<(), CoreError> {
+                    match res {
+                        Ok(_) => panic!("Idata should not exist yet"),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(e) => panic!("Unexpected: {:?}", e),
+                    }
+                })
+                .and_then(move |_| {
+                    // Put idata
+                    client2.put_unpub_idata(data.clone())
+                })
+                .and_then(move |_| {
+                    // Fetch idata
+                    client3.get_unpub_idata(name).map(move |fetched_data| {
+                        assert_eq!(*fetched_data.name(), name);
+                    })
+                })
+                .and_then(move |()| {
+                    // Delete idata
+                    client4.del_unpub_idata(name)
+                })
+                .and_then(move |()| {
+                    // Make sure idata was deleted
+                    client5.get_unpub_idata(name)
+                })
+                .then(|res| -> Result<(), CoreError> {
+                    match res {
+                        Ok(_) => panic!("Idata still exists after deletion"),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(e) => panic!("Unexpected: {:?}", e),
+                    }
+                })
+        });
+    }
 
     #[test]
     pub fn unseq_mdata_test() {

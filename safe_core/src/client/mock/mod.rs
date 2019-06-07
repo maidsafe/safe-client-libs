@@ -18,7 +18,7 @@ use ::routing::XorName;
 
 /// Identifier of immutable data
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct ImmutableDataId(pub XorName);
+pub struct ImmutableDataId(pub XorName, pub bool);
 
 impl ImmutableDataId {
     pub fn name(&self) -> &XorName {
@@ -47,8 +47,8 @@ pub enum DataId {
 
 impl DataId {
     /// Create `DataId` for immutable data.
-    pub fn immutable(name: XorName) -> Self {
-        DataId::Immutable(ImmutableDataId(name))
+    pub fn immutable(name: XorName, published: bool) -> Self {
+        DataId::Immutable(ImmutableDataId(name, published))
     }
 
     /// Create `DataId` for mutable data.

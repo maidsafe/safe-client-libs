@@ -26,6 +26,7 @@ rand = "~0.3.18"
 routing = { git = "https://github.com/lionel1704/routing", branch = "patch" }
 rust_sodium = "~0.10.2"
 self_encryption = "~0.14.0"
+safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
 tiny-keccak = "~1.4.0"
@@ -33,7 +34,6 @@ threshold_crypto = "0.3.1"
 tokio = "=0.1.8"
 tokio-core = "~0.1.17"
 unwrap = "~1.2.0"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd", branch = "master" }
 
 [dev-dependencies]
 serde_json = "~1.0.9"

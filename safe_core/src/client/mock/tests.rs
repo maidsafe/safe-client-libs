@@ -26,6 +26,7 @@ use rust_sodium::crypto::sign;
 use safe_nd::mutable_data::{MutableData as NewMutableData, MutableDataRef, UnseqMutableData};
 use safe_nd::request::{Request as RpcRequest, Requester};
 use safe_nd::response::Response as RpcResponse;
+use safe_nd::UnpubImmutableData;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -1018,6 +1019,58 @@ fn mutable_data_ownership() {
 }
 
 #[test]
+fn unpub_idata_rpc() {
+    let (mut routing, routing_rx, full_id) = setup();
+    let owner_key = *full_id.public_id().signing_public_key();
+    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let bls_key = full_id.bls_key().public_key();
+
+    let client = Authority::Client {
+        client_id: *full_id.public_id(),
+        proxy_node_name: rand::random(),
+    };
+
+    let data = UnpubImmutableData::new(Default::default(), bls_key);
+    let name = data.name();
+
+    // Construct put request.
+    let message_id = MessageId::new();
+    let put_request = RpcRequest::PutUnpubIData {
+        data: data.clone(),
+        requester: Requester::Key(bls_key),
+        message_id: message_id.to_new(),
+    };
+
+    let put_req_buffer = unwrap!(serialise(&put_request));
+    unwrap!(routing.send(client, client_mgr, &put_req_buffer));
+    let _response = expect_success!(routing_rx, message_id, Response::RpcResponse);
+
+    // Construct get request.
+    let message_id2 = MessageId::new();
+    let get_request = RpcRequest::GetUnpubIData {
+        address: *name,
+        requester: Requester::Key(bls_key),
+        message_id: message_id2.to_new(),
+    };
+
+    let get_req_buffer = unwrap!(serialise(&get_request));
+    unwrap!(routing.send(
+        client,
+        Authority::NaeManager(XorName::from_new(*name)),
+        &get_req_buffer
+    ));
+    let response2 = expect_success!(routing_rx, message_id2, Response::RpcResponse);
+    let rpc_response: RpcResponse = unwrap!(deserialise(&response2));
+    match rpc_response {
+        RpcResponse::GetUnpubIData { res, .. } => {
+            let unpub_idata: UnpubImmutableData = unwrap!(res);
+            assert_eq!(unpub_idata.name(), name);
+        }
+        _ => panic!("Unexpected response"),
+    }
+}
+
+#[test]
 fn unpub_md() {
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = *full_id.public_id().signing_public_key();
@@ -1040,8 +1093,8 @@ fn unpub_md() {
         bls_key,
     );
 
+    // Construct put request.
     let message_id = MessageId::new();
-
     let put_request = RpcRequest::PutUnseqMData {
         data: data.clone(),
         requester: Requester::Key(bls_key),
@@ -1052,6 +1105,7 @@ fn unpub_md() {
     unwrap!(routing.send(client, client_mgr, &put_req_buffer));
     let _response = expect_success!(routing_rx, message_id, Response::RpcResponse);
 
+    // Construct get request.
     let message_id2 = MessageId::new();
     let get_request = RpcRequest::GetUnseqMData {
         address: MutableDataRef::new(name.to_new(), tag),
