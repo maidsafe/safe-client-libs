@@ -26,7 +26,7 @@ serde = "~1.0.27"
 serde_derive = "~1.0.27"
 safe_authenticator = { path = "../safe_authenticator", version = "~0.9.1", optional = true }
 safe_core = { path = "../safe_core", version = "~0.32.1" }
-safe-nd = { git = "https://github.com/yoga07/safe-nd", branch = "errortype" }
+safe-nd = { git = "https://github.com/maidsafe/safe-nd", branch = "master" }
 self_encryption = "~0.14.0"
 threshold_crypto = "0.3.1"
 tiny-keccak = "~1.4.0"
