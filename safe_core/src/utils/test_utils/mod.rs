@@ -24,6 +24,13 @@ use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use std::{iter, u8};
 use tokio_core::reactor::{Core, Handle};
+use threshold_crypto::{PublicKey, SecretKey};
+
+pub fn gen_bls_keys() -> (SecretKey, PublicKey) {
+    let sk = SecretKey::random();
+    let pk = sk.public_key();
+    (sk, pk)
+}
 
 /// Generates random public keys
 pub fn generate_public_keys(len: usize) -> Vec<sign::PublicKey> {

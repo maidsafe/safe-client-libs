@@ -1114,6 +1114,9 @@ fn mutable_data_ownership() {
 
 #[test]
 fn unpub_idata_rpc() {
+    // use crate::utils::test_utils;
+    // use safe_nd::Error;
+
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
@@ -1122,28 +1125,54 @@ fn unpub_idata_rpc() {
     let data = UnpubImmutableData::new(Default::default(), bls_key);
     let name = data.name();
 
-    // Construct put request.
-    let _ = routing.req_as_app(
-        &routing_rx,
-        client_mgr,
-        PublicKey::from(bls_key),
-        RpcRequest::PutUnpubIData { data: data.clone() },
-    );
-
-    // Construct get request.
-    let rpc_response = routing.req_as_app(
-        &routing_rx,
-        client_mgr,
-        PublicKey::from(bls_key),
-        RpcRequest::GetUnpubIData { address: *name },
-    );
-    match rpc_response {
-        RpcResponse::GetUnpubIData(res) => {
-            let unpub_idata: UnpubImmutableData = unwrap!(res);
-            assert_eq!(unpub_idata.name(), name);
-        }
-        _ => panic!("Unexpected response"),
+    // Put unpub idata. Should succeed.
+    {
+        let _ = routing.req_as_app(
+            &routing_rx,
+            client_mgr,
+            PublicKey::from(bls_key),
+            RpcRequest::PutUnpubIData { data: data.clone() },
+        );
     }
+
+    // Get unpub idata. Should succeed.
+    {
+        let rpc_response = routing.req_as_app(
+            &routing_rx,
+            client_mgr,
+            PublicKey::from(bls_key),
+            RpcRequest::GetUnpubIData { address: *name },
+        );
+        match rpc_response {
+            RpcResponse::GetUnpubIData(res) => {
+                let unpub_idata: UnpubImmutableData = unwrap!(res);
+                assert_eq!(unpub_idata.name(), name);
+            }
+            _ => panic!("Unexpected"),
+        }
+    }
+
+    // Try to get unpub idata while not being an owner. Should fail.
+    // {
+    //     let (_, random_pk) = test_utils::gen_bls_keys();
+
+    //     let rpc_response = routing.req_as_app(
+    //         &routing_rx,
+    //         client_mgr,
+    //         PublicKey::from(random_pk),
+    //         RpcRequest::GetUnpubIData { address: *name },
+    //     );
+    //     match rpc_response {
+    //         RpcResponse::GetUnpubIData(res) => match res {
+    //             Ok(_) => panic!("Unexpected"),
+    //             Err(Error::AccessDenied) => (),
+    //             Err(e) => panic!("Unexpected {:?}", e),
+    //         },
+    //         _ => panic!("Unexpected"),
+    //     }
+    // }
+
+    // Try to delete unpub idata while not being an owner. Should fail.
 }
 
 #[test]

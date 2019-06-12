@@ -1416,17 +1416,25 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
+            let client6 = client.clone();
+            let client7 = client.clone();
+            let client8 = client.clone();
 
-            let data =
-                UnpubImmutableData::new(Default::default(), unwrap!(client.public_bls_key()));
+            let value: Vec<u8> = Default::default();
+            let data = UnpubImmutableData::new(value.clone(), unwrap!(client.public_bls_key()));
+            let data2 = UnpubImmutableData::new(value.clone(), unwrap!(client.public_bls_key()));
+            let data3 = UnpubImmutableData::new(value.clone(), unwrap!(client.public_bls_key()));
             let name = *data.name();
+            assert_eq!(name, *data2.name());
+
+            let pub_data = ImmutableData::new(value);
 
             client
                 // Get inexistant idata
                 .get_unpub_idata(name)
                 .then(|res| -> Result<(), CoreError> {
                     match res {
-                        Ok(_) => panic!("Idata should not exist yet"),
+                        Ok(_) => panic!("Unpub idata should not exist yet"),
                         Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
@@ -1436,25 +1444,44 @@ mod tests {
                     client2.put_unpub_idata(data.clone())
                 })
                 .and_then(move |_| {
+                    // Test putting unpub idata with the same value. Should conflict.
+                    client3.put_unpub_idata(data2.clone())
+                })
+                .then(|res| -> Result<(), CoreError> {
+                    match res {
+                        Ok(_) => panic!("Put duplicate unpub idata"),
+                        Err(CoreError::NewRoutingClientError(Error::DataExists)) => Ok(()),
+                        Err(e) => panic!("Unexpected: {:?}", e),
+                    }
+                })
+                .and_then(move |_| {
+                    // Test putting published idata with the same value. Should not conflict.
+                    client4.put_idata(pub_data)
+                })
+                .and_then(move |_| {
                     // Fetch idata
-                    client3.get_unpub_idata(name).map(move |fetched_data| {
+                    client5.get_unpub_idata(name).map(move |fetched_data| {
                         assert_eq!(*fetched_data.name(), name);
                     })
                 })
                 .and_then(move |()| {
                     // Delete idata
-                    client4.del_unpub_idata(name)
+                    client6.del_unpub_idata(name)
                 })
                 .and_then(move |()| {
                     // Make sure idata was deleted
-                    client5.get_unpub_idata(name)
+                    client7.get_unpub_idata(name)
                 })
                 .then(|res| -> Result<(), CoreError> {
                     match res {
-                        Ok(_) => panic!("Idata still exists after deletion"),
+                        Ok(_) => panic!("Unpub idata still exists after deletion"),
                         Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
+                })
+                .and_then(move |_| {
+                    // Test putting unpub idata with the same value again. Should not conflict.
+                    client8.put_unpub_idata(data3.clone())
                 })
         });
     }
