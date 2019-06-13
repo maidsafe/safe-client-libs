@@ -49,11 +49,15 @@ use routing::{
     User, Value,
 };
 use rust_sodium::crypto::{box_, sign};
+use safe_nd::appendable_data::{
+    AppendOnlyDataRef, AppendOnlyKind, Index, Indices, PubPermissionSet, PubPermissions,
+    UnpubPermissionSet, UnpubPermissions, User as SndUser,
+};
 use safe_nd::mutable_data::{
     MutableData as NewMutableData, MutableDataRef, PermissionSet as NewPermissionSet,
     SeqEntryAction, SeqMutableData, UnseqEntryAction, UnseqMutableData, Value as Val,
 };
-use safe_nd::request::Request;
+use safe_nd::request::{AppendOnlyData, AppendOperation, Request};
 use safe_nd::response::{Response, Transaction};
 use safe_nd::{
     AppPermissions, Coins, ImmutableData, Message, MessageId, PublicKey, UnpubImmutableData,
@@ -330,6 +334,339 @@ pub trait Client: Clone + 'static {
     fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
         trace!("Delete Unpublished IData at {:?}", name);
         send_mutation_new(self, Request::DeleteUnpubIData { address: name })
+    }
+
+    /// Put AppendOnly Data into the Network
+    fn put_adata(&self, data: AppendOnlyData) -> Box<CoreFuture<()>> {
+        trace!("Put AppendOnly Data {:?}", data.name());
+        send_mutation_new(self, Request::PutAData { data: data.clone() })
+    }
+
+    /// Get AppendOnly Data from the Network
+    fn get_adata(&self, name: XorName, tag: u64) -> Box<CoreFuture<AppendOnlyData>> {
+        trace!("Get AppendOnly Data at {:?}", name);
+
+        send_new(
+            self,
+            Request::GetAData {
+                address: AppendOnlyDataRef { name, tag },
+            },
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetAData(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Get a Set of Entries for the requested range from an AData.
+    #[allow(clippy::type_complexity)]
+    fn get_adata_range(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        range: (Index, Index),
+    ) -> Box<CoreFuture<Vec<(Vec<u8>, Vec<u8>)>>> {
+        trace!(
+            "Get Rage of entries from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(
+            self,
+            Request::GetADataRange {
+                kind,
+                address,
+                range,
+            },
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetADataRange(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Get latest indices from an AppendOnly Data.
+    fn get_adata_indices(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+    ) -> Box<CoreFuture<Indices>> {
+        trace!(
+            "Get latest indices from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(self, Request::GetADataIndices { kind, address })
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetADataIndices(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
+    }
+
+    /// Get the last data entry from an AppendOnly Data.
+    fn get_adata_last_entry(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+    ) -> Box<CoreFuture<(Vec<u8>, Vec<u8>)>> {
+        trace!(
+            "Get latest indices from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(self, Request::GetADataLastEntry { kind, address })
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
+    }
+
+    /// Get permissions at the provided index.
+    fn get_unpub_adata_permissions_at_index(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        permissions_index: Index,
+    ) -> Box<CoreFuture<UnpubPermissions>> {
+        trace!(
+            "Get latest indices from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(
+            self,
+            Request::GetADataPermissions {
+                kind,
+                address,
+                permissions_index,
+            },
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetUnpubADataPermissionAtIndex(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Get permissions at the provided index.
+    fn get_pub_adata_permissions_at_index(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        permissions_index: Index,
+    ) -> Box<CoreFuture<PubPermissions>> {
+        trace!(
+            "Get latest indices from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(
+            self,
+            Request::GetADataPermissions {
+                kind,
+                address,
+                permissions_index,
+            },
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetPubADataPermissionAtIndex(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Get permissions for a specified user(s).
+    fn get_pub_adata_user_permissions(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        permissions_index: Index,
+        user: SndUser,
+    ) -> Box<CoreFuture<PubPermissionSet>> {
+        trace!(
+            "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(
+            self,
+            Request::GetPubADataUserPermissions {
+                kind,
+                address,
+                permissions_index,
+                user,
+            },
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetPubADataUserPermissions(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Get permissions for a specified user(s).
+    fn get_unpub_adata_user_permissions(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        permissions_index: Index,
+        user: PublicKey,
+    ) -> Box<CoreFuture<UnpubPermissionSet>> {
+        trace!(
+            "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(
+            self,
+            Request::GetUnpubADataUserPermissions {
+                kind,
+                address,
+                permissions_index,
+                user,
+            },
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetUnpubADataUserPermissions(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Add AData Permissions
+    fn add_unpub_adata_permissions(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        permissions: UnpubPermissions,
+    ) -> Box<CoreFuture<()>> {
+        trace!(
+            "Add Permissions to UnPub AppendOnly Data {:?}",
+            address.name()
+        );
+
+        send_mutation_new(
+            self,
+            Request::AddUnpubADataPermissions {
+                kind,
+                address,
+                permissions,
+            },
+        )
+    }
+
+    /// Add Pub AData Permissions
+    fn add_pub_adata_permissions(
+        &self,
+        kind: AppendOnlyKind,
+        address: AppendOnlyDataRef,
+        permissions: PubPermissions,
+    ) -> Box<CoreFuture<()>> {
+        trace!("Add Permissions to AppendOnly Data {:?}", address.name());
+
+        send_mutation_new(
+            self,
+            Request::AddPubADataPermissions {
+                kind,
+                address,
+                permissions,
+            },
+        )
+    }
+
+    /// Append to Published Seq AppendOnly Data
+    fn append_pubseq_adata(&self, append: AppendOperation, index: u64) -> Box<CoreFuture<()>> {
+        send_mutation_new(self, Request::AppendPubSeq { append, index })
+    }
+
+    /// Append to Unpublished Seq AppendOnly Data
+    fn append_unpubseq_adata(&self, append: AppendOperation, index: u64) -> Box<CoreFuture<()>> {
+        send_mutation_new(self, Request::AppendUnpubSeq { append, index })
+    }
+
+    // TODO: To be tested
+    /// Append to Puublished Unseq AppendOnly Data
+    fn append_pubunseq_adata(&self, append: AppendOperation) -> Box<CoreFuture<()>> {
+        send_mutation_new(self, Request::AppendPubUnseq(append))
+    }
+
+    // TODO: To be tested
+    /// Append to Unpublished Unseq AppendOnly Data
+    fn append_unpubunseq_adata(&self, append: AppendOperation) -> Box<CoreFuture<()>> {
+        send_mutation_new(self, Request::AppendUnpubUnseq(append))
+    }
+
+    /// Delete AData from network.
+    fn delete_adata(&self, address: AppendOnlyDataRef) -> Box<CoreFuture<()>> {
+        send_mutation_new(self, Request::DeleteAData(address))
     }
 
     /// Get a transaction.
@@ -1312,6 +1649,13 @@ where
                     | Response::DelAuthKey(res)
                     | Response::PutUnseqMData(res)
                     | Response::DeleteMData(res)
+                    | Response::AddUnpubADataPermissions(res)
+                    | Response::AddPubADataPermissions(res)
+                    | Response::AppendPubSeq(res)
+                    | Response::AppendUnpubSeq(res)
+                    | Response::AppendPubUnseq(res)
+                    | Response::DeleteAData(res)
+                    | Response::PutAData(res)
                     | Response::SetMDataUserPermissions(res)
                     | Response::DelMDataUserPermissions(res)
                     | Response::MutateSeqMDataEntries(res)
@@ -1404,9 +1748,16 @@ type TimeoutFuture = Either<
 mod tests {
     use super::*;
     use crate::utils::test_utils::random_client;
+    use safe_nd::appendable_data::AppendOnlyData;
+    use safe_nd::appendable_data::{
+        Action as ADataAction, Permissions, SeqAppendOnly, SeqAppendOnlyData, UnpubPermissionSet,
+        UnpubPermissions, User,
+    };
     use safe_nd::mutable_data::Action;
+    use safe_nd::request::AppendOnlyData as AData;
     use safe_nd::{Coins, Error, XorName};
     use std::str::FromStr;
+    use threshold_crypto::SecretKey;
 
     // Test putting, getting, and deleting unpub idata.
     #[test]
@@ -2028,4 +2379,604 @@ mod tests {
                 })
         });
     }
+
+    #[test]
+    pub fn put_adata_test() {
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let name = XorName(rand::random());
+            let tag = 10;
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1.get_adata(name, tag).map(move |data| match data {
+                        AData::UnpubSeq(adata) => assert_eq!(adata.name(), name),
+                        _ => panic!("Unexpected data found"),
+                    })
+                })
+                .then(move |res| res)
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    pub fn del_adata_test() {
+        let name = XorName(rand::random());
+        let tag = 15000;
+        random_client(move |client| {
+            let client1 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1.get_adata(name, tag).map(move |data| match data {
+                        AData::UnpubSeq(adata) => assert_eq!(adata.name(), name),
+                        _ => panic!("Unexpected data found"),
+                    })
+                })
+                .and_then(move |_| {
+                    client3.delete_adata(adataref).map(move |data| {
+                        assert_eq!(data, ());
+                    })
+                })
+                .and_then(move |_| {
+                    client4
+                        .get_adata(adataref.name(), adataref.tag())
+                        .map(move |_data| {})
+                })
+                .then(move |res| res)
+        });
+    }
+
+    #[test]
+    pub fn get_adata_range_test() {
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let name = XorName(rand::random());
+            let tag = 10;
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key3 = b"KEY3".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val3 = b"VALUE3".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup3 = (key3, val3);
+            let tup4 = &[(key4, val4)];
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+            kvdata.push(tup3);
+
+            unwrap!(data.append(kvdata.as_slice(), 0));
+            // Test push
+            unwrap!(data.append(tup4, 3));
+
+            let idx_start = Index::FromStart(0);
+            let idx_end = Index::FromEnd(2);
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1
+                        .get_adata_range(AppendOnlyKind::UnpubSeq, adataref, (idx_start, idx_end))
+                        .map(move |data| {
+                            assert_eq!(
+                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).0)),
+                                "KEY2"
+                            );
+                            assert_eq!(
+                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).1)),
+                                "VALUE2"
+                            );
+                        })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn get_adata_indices_test() {
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let name = XorName(rand::random());
+            let tag = 10;
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key3 = b"KEY3".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val3 = b"VALUE3".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup3 = (key3, val3);
+            let tup4 = &[(key4, val4)];
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+            kvdata.push(tup3);
+
+            unwrap!(data.append(kvdata.as_slice(), 0));
+            // Test push
+            unwrap!(data.append(tup4, 3));
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1
+                        .get_adata_indices(AppendOnlyKind::UnpubSeq, adataref)
+                        .map(move |data| {
+                            println!(
+                                "DATA: {}, OWNER: {}, PERMISSIONS: {}",
+                                data.data_index(),
+                                data.owners_index(),
+                                data.permissions_index()
+                            );
+                            assert_eq!(data.data_index(), 4);
+                            assert_eq!(data.owners_index(), 0);
+                            assert_eq!(data.permissions_index(), 1);
+                        })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn get_adata_last_entry_test() {
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let name = XorName(rand::random());
+            let tag = 10;
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key3 = b"KEY3".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val3 = b"VALUE3".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup3 = (key3, val3);
+            let tup4 = &[(key4, val4)];
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+            kvdata.push(tup3);
+
+            unwrap!(data.append(kvdata.as_slice(), 0));
+            // Test push
+            unwrap!(data.append(tup4, 3));
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1
+                        .get_adata_last_entry(AppendOnlyKind::UnpubSeq, adataref)
+                        .map(move |data| {
+                            assert_eq!(unwrap!(std::str::from_utf8(data.0.as_slice())), "KEY4");
+                            assert_eq!(unwrap!(std::str::from_utf8(data.1.as_slice())), "VALUE4");
+                        })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn get_adata_permissions_at_index_test() {
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let sim_client = PublicKey::Bls(SecretKey::random().public_key());
+
+            let name = XorName(rand::random());
+            let tag = 10;
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let mut perms2 = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set2 = UnpubPermissionSet::new(true, false, false);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            let _ = perms2.insert(sim_client, set2);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key3 = b"KEY3".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val3 = b"VALUE3".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup3 = (key3, val3);
+            let tup4 = &[(key4, val4)];
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+            kvdata.push(tup3);
+
+            unwrap!(data.append(kvdata.as_slice(), 0));
+            // Test push
+            unwrap!(data.append(tup4, 3));
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms2,
+                data_index: 4,
+                owner_entry_index: 0,
+            }));
+
+            let idx_start = Index::FromStart(1);
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1
+                        .get_unpub_adata_permissions_at_index(
+                            AppendOnlyKind::UnpubSeq,
+                            adataref,
+                            idx_start,
+                        )
+                        .map(move |data| {
+                            assert_eq!(data.data_index(), 4);
+                        })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn get_unpub_adata_user_permissions_test() {
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let name = XorName(rand::random());
+            let tag = 10;
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, false, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let idx_start = Index::FromStart(0);
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1
+                        .get_unpub_adata_user_permissions(
+                            AppendOnlyKind::UnpubSeq,
+                            adataref,
+                            idx_start,
+                            PublicKey::Bls(unwrap!(client1.public_bls_key())),
+                        )
+                        .map(move |data| {
+                            assert!(!data.is_allowed(ADataAction::Append));
+                        })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn add_unpub_adata_permissions() {
+        let name = XorName(rand::random());
+        let tag = 10;
+
+        let idx_start = Index::FromStart(1);
+
+        let sim_client = PublicKey::Bls(SecretKey::random().public_key());
+        let sim_client1 = sim_client;
+
+        let adataref = AppendOnlyDataRef { name, tag };
+
+        let mut perms2 = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+        let set2 = UnpubPermissionSet::new(true, false, false);
+
+        let _ = perms2.insert(sim_client, set2);
+
+        random_client(move |client| {
+            let client1 = client.clone();
+
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key3 = b"KEY3".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val3 = b"VALUE3".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup3 = (key3, val3);
+            let tup4 = &[(key4, val4)];
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+            kvdata.push(tup3);
+
+            unwrap!(data.append(kvdata.as_slice(), 0));
+            // Test push
+            unwrap!(data.append(tup4, 3));
+
+            let perm_set = UnpubPermissions {
+                permissions: perms2,
+                data_index: 4,
+                owner_entry_index: 0,
+            };
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1.add_unpub_adata_permissions(
+                        AppendOnlyKind::UnpubSeq,
+                        adataref,
+                        perm_set,
+                    )
+                })
+                .then(|res| res)
+        });
+
+        random_client(move |client2| {
+            client2
+                .get_unpub_adata_user_permissions(
+                    AppendOnlyKind::UnpubSeq,
+                    adataref,
+                    idx_start,
+                    sim_client1,
+                )
+                .map(move |data| {
+                    assert!(!data.is_allowed(ADataAction::Append));
+                })
+        });
+    }
+
+    #[test]
+    pub fn append_pubseq_adata_test() {
+        let name = XorName(rand::random());
+        let tag = 10;
+        random_client(move |client| {
+            let client1 = client.clone();
+            let client2 = client.clone();
+
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<PubPermissions>::new(name, tag);
+
+            let mut perms = BTreeMap::<User, PubPermissionSet>::new();
+            let set = PubPermissionSet::new(true, true);
+
+            let usr = User::Key(PublicKey::Bls(unwrap!(client.public_bls_key())));
+            let _ = perms.insert(usr, set);
+
+            unwrap!(data.append_permissions(PubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup4 = [(key4, val4)].to_vec();
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+
+            let append = AppendOperation {
+                address: adataref,
+                values: tup4,
+            };
+
+            client
+                .put_adata(AData::PubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1.append_pubseq_adata(append, 0).map(move |data| {
+                        assert_eq!(data, ());
+                    })
+                })
+                .and_then(move |_| {
+                    client2.get_adata(name, tag).map(move |data| match data {
+                        AData::PubSeq(adata) => assert_eq!(
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last()).0)),
+                            "KEY4"
+                        ),
+                        _ => panic!("UNEXPECTED DATA!"),
+                    })
+                })
+                .then(|res| res)
+        });
+    }
+
+    #[test]
+    pub fn append_unpubseq_adata_test() {
+        let name = XorName(rand::random());
+        let tag = 10;
+        random_client(move |client| {
+            let client1 = client.clone();
+            let client2 = client.clone();
+
+            let adataref = AppendOnlyDataRef { name, tag };
+            let mut data = SeqAppendOnlyData::<UnpubPermissions>::new(name, tag);
+
+            let mut perms = BTreeMap::<PublicKey, UnpubPermissionSet>::new();
+            let set = UnpubPermissionSet::new(true, true, true);
+
+            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+
+            unwrap!(data.append_permissions(UnpubPermissions {
+                permissions: perms,
+                data_index: 0,
+                owner_entry_index: 0,
+            }));
+
+            let key1 = b"KEY1".to_vec();
+            let key2 = b"KEY2".to_vec();
+            let key4 = b"KEY4".to_vec();
+
+            let val1 = b"VALUE1".to_vec();
+            let val2 = b"VALUE2".to_vec();
+            let val4 = b"VALUE4".to_vec();
+
+            let tup1 = (key1, val1);
+            let tup2 = (key2, val2);
+            let tup4 = [(key4, val4)].to_vec();
+
+            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
+            kvdata.push(tup1);
+            kvdata.push(tup2);
+
+            let append = AppendOperation {
+                address: adataref,
+                values: tup4,
+            };
+
+            client
+                .put_adata(AData::UnpubSeq(data.clone()))
+                .and_then(move |_| {
+                    client1.append_unpubseq_adata(append, 0).map(move |data| {
+                        assert_eq!(data, ());
+                    })
+                })
+                .and_then(move |_| {
+                    client2.get_adata(name, tag).map(move |data| match data {
+                        AData::UnpubSeq(adata) => assert_eq!(
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last()).0)),
+                            "KEY4"
+                        ),
+                        _ => panic!("UNEXPECTED DATA!"),
+                    })
+                })
+                .then(|res| res)
+        });
+    }
+
 }

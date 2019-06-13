@@ -13,10 +13,15 @@ use crate::config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
+use safe_nd::appendable_data::{
+    Action as ADataAction, AppendOnlyData, AppendOnlyDataRef, AppendOnlyKind, Index, Indices,
+    PubPermissions, SeqAppendOnly, SeqAppendOnlyData, UnpubPermissions, UnseqAppendOnly,
+    UnseqAppendOnlyData,
+};
 use safe_nd::mutable_data::{
     MutableData as NewMutableData, MutableDataRef, SeqMutableData, UnseqMutableData,
 };
-use safe_nd::request::{Request, Requester};
+use safe_nd::request::{AppendOnlyData as AData, Request, Requester};
 use safe_nd::response::{Response, Transaction};
 use safe_nd::{
     Coins, Error, ImmutableData, Message, MessageId, PublicKey, UnpubImmutableData, XorName,
@@ -865,10 +870,674 @@ impl Vault {
                     });
                 Response::MutateUnseqMDataEntries(result)
             }
+            Request::PutAData { data } => {
+                let result = self.put_adata(dest, data.clone(), requester);
+                Response::PutAData(result)
+            }
+            Request::GetAData { address } => {
+                let result = self.get_adata(dest, address, requester);
+                Response::GetAData(result)
+            }
+            Request::GetADataRange {
+                kind,
+                address,
+                range,
+            } => {
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::PubSeq => match data {
+                            AData::PubSeq(adata) => {
+                                if unwrap!(
+                                    adata.verify_requester(requester.clone(), ADataAction::Read)
+                                ) {
+                                    adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::PubUnseq => match data {
+                            AData::PubUnseq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubSeq => match data {
+                            AData::UnpubSeq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubUnseq => match data {
+                            AData::UnpubUnseq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                    });
+                Response::GetADataRange(res)
+            }
+            Request::GetADataIndices { kind, address } => {
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::PubSeq => match data {
+                            AData::PubSeq(adata) => {
+                                if unwrap!(
+                                    adata.verify_requester(requester.clone(), ADataAction::Read)
+                                ) {
+                                    Ok(Indices::new(
+                                        adata.entry_index(),
+                                        adata.owners_index(),
+                                        adata.permissions_index(),
+                                    ))
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::PubUnseq => match data {
+                            AData::PubUnseq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    Ok(Indices::new(
+                                        adata.entry_index(),
+                                        adata.owners_index(),
+                                        adata.permissions_index(),
+                                    ))
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubSeq => match data {
+                            AData::UnpubSeq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    Ok(Indices::new(
+                                        adata.entry_index(),
+                                        adata.owners_index(),
+                                        adata.permissions_index(),
+                                    ))
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubUnseq => match data {
+                            AData::UnpubUnseq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    Ok(Indices::new(
+                                        adata.entry_index(),
+                                        adata.owners_index(),
+                                        adata.permissions_index(),
+                                    ))
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                    });
+                Response::GetADataIndices(res)
+            }
+            Request::GetADataLastEntry { kind, address } => {
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::PubSeq => match data {
+                            AData::PubSeq(adata) => {
+                                if unwrap!(
+                                    adata.verify_requester(requester.clone(), ADataAction::Read)
+                                ) {
+                                    adata.last().ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::PubUnseq => match data {
+                            AData::PubUnseq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    adata.last().ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubSeq => match data {
+                            AData::UnpubSeq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    adata.last().ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubUnseq => match data {
+                            AData::UnpubUnseq(adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    adata.last().ok_or(Error::NoSuchEntry)
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                    });
+                Response::GetADataLastEntry(res)
+            }
+            Request::GetADataPermissions {
+                kind,
+                address,
+                permissions_index,
+            } => {
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::PubSeq => {
+                            let res = match data {
+                                AData::PubSeq(adata) => {
+                                    if unwrap!(adata
+                                        .verify_requester(requester.clone(), ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetPubADataPermissionAtIndex(res))
+                        }
+                        AppendOnlyKind::PubUnseq => {
+                            let res = match data {
+                                AData::PubUnseq(adata) => {
+                                    if unwrap!(adata.verify_requester(requester, ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetPubADataPermissionAtIndex(res))
+                        }
+                        AppendOnlyKind::UnpubSeq => {
+                            let res = match data {
+                                AData::UnpubSeq(adata) => {
+                                    if unwrap!(adata.verify_requester(requester, ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                        }
+                        AppendOnlyKind::UnpubUnseq => {
+                            let res = match data {
+                                AData::UnpubUnseq(adata) => {
+                                    if unwrap!(adata.verify_requester(requester, ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                        }
+                    });
+                unwrap!(res)
+            }
+            Request::GetPubADataUserPermissions {
+                kind,
+                address,
+                permissions_index,
+                user,
+            } => {
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::PubSeq => {
+                            let res = match data {
+                                AData::PubSeq(adata) => {
+                                    if unwrap!(adata
+                                        .verify_requester(requester.clone(), ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => {
+                                                match perm.clone().permissions().get(&user) {
+                                                    Some(usr) => Ok(*usr),
+                                                    None => Err(Error::NoSuchEntry),
+                                                }
+                                            }
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetPubADataUserPermissions(res))
+                        }
+                        AppendOnlyKind::PubUnseq => {
+                            let res = match data {
+                                AData::PubUnseq(adata) => {
+                                    if unwrap!(adata.verify_requester(requester, ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => {
+                                                match perm.clone().permissions().get(&user) {
+                                                    Some(usr) => Ok(*usr),
+                                                    None => Err(Error::NoSuchEntry),
+                                                }
+                                            }
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetPubADataUserPermissions(res))
+                        }
+                        _ => Ok(Response::GetPubADataUserPermissions(Err(Error::NoSuchData))),
+                    });
+                unwrap!(res)
+            }
+            Request::GetUnpubADataUserPermissions {
+                kind,
+                address,
+                permissions_index,
+                user,
+            } => {
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::UnpubSeq => {
+                            let res = match data {
+                                AData::UnpubSeq(adata) => {
+                                    if unwrap!(adata.verify_requester(requester, ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => {
+                                                match perm.clone().permissions().get(&user) {
+                                                    Some(usr) => Ok(*usr),
+                                                    None => Err(Error::NoSuchAccount),
+                                                }
+                                            }
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetUnpubADataUserPermissions(res))
+                        }
+                        AppendOnlyKind::UnpubUnseq => {
+                            let res = match data {
+                                AData::UnpubUnseq(adata) => {
+                                    if unwrap!(adata.verify_requester(requester, ADataAction::Read))
+                                    {
+                                        let idx = match permissions_index {
+                                            Index::FromStart(idx) => idx as usize,
+                                            Index::FromEnd(idx) => {
+                                                (adata.permissions_index() - idx) as usize
+                                            }
+                                        };
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => {
+                                                match perm.clone().permissions().get(&user) {
+                                                    Some(usr) => Ok(*usr),
+                                                    None => Err(Error::NoSuchEntry),
+                                                }
+                                            }
+                                            None => Err(Error::NoSuchEntry),
+                                        }
+                                    } else {
+                                        Err(Error::AccessDenied)
+                                    }
+                                }
+                                _ => Err(Error::NoSuchData),
+                            };
+                            Ok(Response::GetUnpubADataUserPermissions(res))
+                        }
+                        _ => Ok(Response::GetPubADataUserPermissions(Err(
+                            Error::AccessDenied,
+                        ))),
+                    });
+                unwrap!(res)
+            }
+            Request::AppendPubSeq { append, index } => {
+                let name = append.address.name();
+                let id = DataId::appendonly(name, append.address.tag());
+                let res = self
+                    .get_adata(dest, append.address, requester.clone())
+                    .and_then(move |data| match data {
+                        AData::PubSeq(mut adata) => {
+                            if unwrap!(
+                                adata.verify_requester(requester.clone(), ADataAction::Append)
+                            ) {
+                                unwrap!(adata.append(append.values.as_slice(), index));
+                                self.commit_mutation(&dest);
+                                self.insert_data(
+                                    id,
+                                    Data::AppendOnly(AppendableDataKind::PublishedSequenced(adata)),
+                                );
+                                Ok(())
+                            } else {
+                                Err(Error::AccessDenied)
+                            }
+                        }
+                        _ => Err(Error::NoSuchData),
+                    });
+                Response::AppendPubSeq(res)
+            }
+            Request::AppendUnpubSeq { append, index } => {
+                let name = append.address.name();
+                let id = DataId::appendonly(name, append.address.tag());
+                let res = self
+                    .get_adata(dest, append.address, requester.clone())
+                    .and_then(move |data| match data {
+                        AData::UnpubSeq(mut adata) => {
+                            if unwrap!(
+                                adata.verify_requester(requester.clone(), ADataAction::Append)
+                            ) {
+                                unwrap!(adata.append(append.values.as_slice(), index));
+                                self.commit_mutation(&dest);
+                                self.insert_data(
+                                    id,
+                                    Data::AppendOnly(AppendableDataKind::UnpublishedSequenced(
+                                        adata,
+                                    )),
+                                );
+                                Ok(())
+                            } else {
+                                Err(Error::AccessDenied)
+                            }
+                        }
+                        _ => Err(Error::NoSuchData),
+                    });
+                Response::AppendUnpubSeq(res)
+            }
+            Request::AppendPubUnseq(append) => {
+                let name = append.address.name();
+                let id = DataId::appendonly(name, append.address.tag());
+                let res = self
+                    .get_adata(dest, append.address, requester.clone())
+                    .and_then(move |data| match data {
+                        AData::PubUnseq(mut adata) => {
+                            if unwrap!(
+                                adata.verify_requester(requester.clone(), ADataAction::Append)
+                            ) {
+                                unwrap!(adata.append(append.values.as_slice()));
+                                self.commit_mutation(&dest);
+                                self.insert_data(
+                                    id,
+                                    Data::AppendOnly(AppendableDataKind::PublishedUnsequenced(
+                                        adata,
+                                    )),
+                                );
+                                Ok(())
+                            } else {
+                                Err(Error::AccessDenied)
+                            }
+                        }
+                        _ => Err(Error::NoSuchData),
+                    });
+                Response::AppendPubUnseq(res)
+            }
+            Request::AppendUnpubUnseq(append) => {
+                let name = append.address.name();
+                let id = DataId::appendonly(name, append.address.tag());
+                let res = self
+                    .get_adata(dest, append.address, requester.clone())
+                    .and_then(move |data| match data {
+                        AData::UnpubUnseq(mut adata) => {
+                            if unwrap!(
+                                adata.verify_requester(requester.clone(), ADataAction::Append)
+                            ) {
+                                unwrap!(adata.append(append.values.as_slice()));
+                                self.commit_mutation(&dest);
+                                self.insert_data(
+                                    id,
+                                    Data::AppendOnly(AppendableDataKind::UnpublishedUnsequenced(
+                                        adata,
+                                    )),
+                                );
+                                Ok(())
+                            } else {
+                                Err(Error::AccessDenied)
+                            }
+                        }
+                        _ => Err(Error::NoSuchData),
+                    });
+                Response::AppendUnpubUnseq(res)
+            }
+            Request::AddPubADataPermissions {
+                kind,
+                address,
+                permissions,
+            } => {
+                let name = address.name();
+                let id = DataId::appendonly(name, address.tag());
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match kind {
+                        AppendOnlyKind::PubSeq => match data {
+                            AData::PubSeq(mut adata) => {
+                                if unwrap!(adata.verify_requester(
+                                    requester.clone(),
+                                    ADataAction::ManagePermissions
+                                )) {
+                                    unwrap!(adata.append_permissions(permissions));
+                                    self.commit_mutation(&dest);
+                                    self.insert_data(
+                                        id,
+                                        Data::AppendOnly(AppendableDataKind::PublishedSequenced(
+                                            adata,
+                                        )),
+                                    );
+                                    Ok(())
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::PubUnseq => match data {
+                            AData::PubUnseq(mut adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    unwrap!(adata.append_permissions(permissions));
+                                    self.commit_mutation(&dest);
+                                    self.insert_data(
+                                        id,
+                                        Data::AppendOnly(AppendableDataKind::PublishedUnsequenced(
+                                            adata,
+                                        )),
+                                    );
+                                    Ok(())
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        _ => Err(Error::AccessDenied),
+                    });
+                Response::AddUnpubADataPermissions(res)
+            }
+            Request::AddUnpubADataPermissions {
+                kind,
+                address,
+                permissions,
+            } => {
+                let name = address.name();
+                let id = DataId::appendonly(name, address.tag());
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(|data| match kind {
+                        AppendOnlyKind::UnpubSeq => match data.clone() {
+                            AData::UnpubSeq(mut adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    unwrap!(adata.append_permissions(permissions));
+                                    self.commit_mutation(&dest);
+                                    self.insert_data(
+                                        id,
+                                        Data::AppendOnly(AppendableDataKind::UnpublishedSequenced(
+                                            adata,
+                                        )),
+                                    );
+                                    Ok(())
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        AppendOnlyKind::UnpubUnseq => match data {
+                            AData::UnpubUnseq(mut adata) => {
+                                if unwrap!(adata.verify_requester(requester, ADataAction::Read)) {
+                                    unwrap!(adata.append_permissions(permissions));
+                                    self.commit_mutation(&dest);
+                                    self.insert_data(
+                                        id,
+                                        Data::AppendOnly(
+                                            AppendableDataKind::UnpublishedUnsequenced(adata),
+                                        ),
+                                    );
+                                    Ok(())
+                                } else {
+                                    Err(Error::AccessDenied)
+                                }
+                            }
+                            _ => Err(Error::NoSuchData),
+                        },
+                        _ => Err(Error::AccessDenied),
+                    });
+                Response::AddUnpubADataPermissions(res)
+            }
+            Request::DeleteAData(address) => {
+                let name = address.name();
+                let id = DataId::appendonly(name, address.tag());
+                let res = self
+                    .get_adata(dest, address, requester.clone())
+                    .and_then(move |data| match data {
+                        AData::PubSeq(_adata) => Err(Error::InvalidOperation),
+                        AData::PubUnseq(_adata) => Err(Error::InvalidOperation),
+                        AData::UnpubSeq(adata) => {
+                            if unwrap!(adata.verify_requester(
+                                requester.clone(),
+                                ADataAction::ManagePermissions
+                            )) {
+                                self.commit_mutation(&dest);
+                                self.delete_data(id);
+                                Ok(())
+                            } else {
+                                Err(Error::AccessDenied)
+                            }
+                        }
+                        AData::UnpubUnseq(adata) => {
+                            if unwrap!(adata.verify_requester(
+                                requester.clone(),
+                                ADataAction::ManagePermissions
+                            )) {
+                                self.commit_mutation(&dest);
+                                self.delete_data(id);
+                                Ok(())
+                            } else {
+                                Err(Error::AccessDenied)
+                            }
+                        }
+                    });
+                Response::AddUnpubADataPermissions(res)
+            }
             _ => {
                 // Dummy return
                 // other requests to be handled by their data type impls
-                return Ok((dest, payload));
+                panic!("RPC not implemented")
             }
         };
 
@@ -879,6 +1548,92 @@ impl Vault {
                 message_id,
             })),
         ))
+    }
+
+    pub fn put_adata(
+        &mut self,
+        dst: Authority<XorName>,
+        data: AData,
+        _requester: Requester,
+    ) -> Result<(), Error> {
+        let data_name = DataId::appendonly(data.name(), data.tag());
+        if self.contains_data(&data_name) {
+            Err(Error::DataExists)
+        } else {
+            match data {
+                AData::PubSeq(adata) => {
+                    self.insert_data(
+                        data_name,
+                        Data::AppendOnly(AppendableDataKind::PublishedSequenced(adata)),
+                    );
+                }
+                AData::PubUnseq(adata) => {
+                    self.insert_data(
+                        data_name,
+                        Data::AppendOnly(AppendableDataKind::PublishedUnsequenced(adata)),
+                    );
+                }
+                AData::UnpubSeq(adata) => {
+                    self.insert_data(
+                        data_name,
+                        Data::AppendOnly(AppendableDataKind::UnpublishedSequenced(adata)),
+                    );
+                }
+                AData::UnpubUnseq(adata) => {
+                    self.insert_data(
+                        data_name,
+                        Data::AppendOnly(AppendableDataKind::UnpublishedUnsequenced(adata)),
+                    );
+                }
+            }
+            self.commit_mutation(&dst);
+            Ok(())
+        }
+    }
+
+    pub fn get_adata(
+        &mut self,
+        _dst: Authority<XorName>,
+        data: AppendOnlyDataRef,
+        requester: Requester,
+    ) -> Result<AData, Error> {
+        let data_name = DataId::appendonly(data.name(), data.tag());
+        match self.get_data(&data_name) {
+            Some(data_type) => match data_type {
+                Data::AppendOnly(kind) => match kind {
+                    AppendableDataKind::PublishedSequenced(data) => {
+                        if unwrap!(data.verify_requester(requester, ADataAction::Read)) {
+                            Ok(AData::PubSeq(data))
+                        } else {
+                            Err(Error::AccessDenied)
+                        }
+                    }
+                    AppendableDataKind::UnpublishedSequenced(data) => {
+                        if unwrap!(data.verify_requester(requester, ADataAction::Read)) {
+                            Ok(AData::UnpubSeq(data))
+                        } else {
+                            Err(Error::AccessDenied)
+                        }
+                    }
+                    AppendableDataKind::UnpublishedUnsequenced(data) => {
+                        if unwrap!(data.verify_requester(requester, ADataAction::Read)) {
+                            Ok(AData::UnpubUnseq(data))
+                        } else {
+                            Err(Error::AccessDenied)
+                        }
+                    }
+                    AppendableDataKind::PublishedUnsequenced(data) => {
+                        if unwrap!(data.verify_requester(requester, ADataAction::Read)) {
+                            Ok(AData::PubUnseq(data))
+                        } else {
+                            Err(Error::AccessDenied)
+                        }
+                    }
+                },
+                _ => Err(Error::NoSuchData),
+            },
+            None => Err(Error::NoSuchData),
+        }
     }
 
     pub fn get_idata(
@@ -1057,6 +1812,7 @@ pub enum Data {
     Immutable(ImmutableDataKind),
     OldMutable(OldMutableData),
     NewMutable(MutableDataKind),
+    AppendOnly(AppendableDataKind),
 }
 
 pub struct ImmutableDataRef {
@@ -1105,6 +1861,14 @@ impl MutableDataKind {
             MutableDataKind::Unsequenced(data) => data.tag(),
         }
     }
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub enum AppendableDataKind {
+    PublishedSequenced(SeqAppendOnlyData<PubPermissions>),
+    PublishedUnsequenced(UnseqAppendOnlyData<PubPermissions>),
+    UnpublishedSequenced(SeqAppendOnlyData<UnpubPermissions>),
+    UnpublishedUnsequenced(UnseqAppendOnlyData<UnpubPermissions>),
 }
 
 trait Store: Send {

@@ -36,6 +36,16 @@ impl MutableDataId {
     }
 }
 
+/// Identifier of AppendOnly data
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct AppendOnlyDataId(pub XorName, pub u64);
+
+impl AppendOnlyDataId {
+    pub fn name(&self) -> &XorName {
+        &self.0
+    }
+}
+
 /// Identifier for a data (immutable or mutable)
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub enum DataId {
@@ -43,6 +53,8 @@ pub enum DataId {
     Immutable(ImmutableDataId),
     /// Identifier of mutable data.
     Mutable(MutableDataId),
+    // Identifier for AppendOnly data.
+    Appendable(AppendOnlyDataId),
 }
 
 impl DataId {
@@ -56,11 +68,16 @@ impl DataId {
         DataId::Mutable(MutableDataId(name, tag))
     }
 
+    pub fn appendonly(name: XorName, tag: u64) -> Self {
+        DataId::Appendable(AppendOnlyDataId(name, tag))
+    }
+
     /// Get name of this identifier.
     pub fn name(&self) -> &XorName {
         match *self {
             DataId::Immutable(ref id) => id.name(),
             DataId::Mutable(ref id) => id.name(),
+            DataId::Appendable(ref id) => id.name(),
         }
     }
 }
