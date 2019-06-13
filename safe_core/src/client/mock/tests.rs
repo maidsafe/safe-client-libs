@@ -22,10 +22,10 @@ use routing::{
     MutableData, PermissionSet, Request, Response, User, Value, TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    AppFullId, ClientFullId, Error, ImmutableData, MDataAction as NewAction, MDataAddress,
-    MDataPermissionSet as NewPermissionSet, Message, MessageId, MutableData as NewMutableData,
-    PublicKey, Request as RpcRequest, Response as RpcResponse, UnpubImmutableData,
-    UnseqMutableData, XorName,
+    AppFullId, ClientFullId, Error, IDataAddress, IDataKind, ImmutableData,
+    MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet, Message,
+    MessageId, MutableData as NewMutableData, PublicKey, Request as RpcRequest,
+    Response as RpcResponse, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver};
@@ -1080,32 +1080,86 @@ fn mutable_data_ownership() {
 }
 
 #[test]
+fn pub_idata_rpc() {
+    let (mut routing, routing_rx, full_id) = setup();
+    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
+    let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+
+    let value = unwrap!(utils::generate_random_vector::<u8>(10));
+    let data = ImmutableData::new(value);
+    let name = *data.name();
+
+    // Put pub idata. Should succeed.
+    {
+        let rpc_response = routing.req_as_owner(&routing_rx, RpcRequest::PutIData(data.into()));
+        match rpc_response {
+            RpcResponse::PutIData(res) => {
+                assert!(res.is_ok());
+            }
+            _ => panic!("Unexpected"),
+        }
+    }
+
+    // Get pub idata as an owner. Should succeed.
+    {
+        let rpc_response =
+            routing.req_as_owner(&routing_rx, RpcRequest::GetIData(IDataAddress::Pub(name)));
+        match rpc_response {
+            RpcResponse::GetIData(res) => {
+                let kind: IDataKind = unwrap!(res);
+                assert_eq!(*kind.name(), name);
+                assert!(kind.published());
+            }
+            _ => panic!("Unexpected"),
+        }
+    }
+
+    let (mut app_routing, app_routing_rx, _app_full_id) = setup();
+
+    // Get pub idata while not being an owner. Should succeed.
+    {
+        let rpc_response = app_routing.req_as_app(
+            &app_routing_rx,
+            RpcRequest::GetIData(IDataAddress::Pub(name)),
+        );
+        match rpc_response {
+            RpcResponse::GetIData(res) => {
+                let kind: IDataKind = unwrap!(res);
+                assert_eq!(*kind.name(), name);
+                assert!(kind.published());
+            }
+            _ => panic!("Unexpected"),
+        }
+    }
+}
+
+#[test]
 fn unpub_idata_rpc() {
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
-    let data = UnpubImmutableData::new(Default::default(), *full_id.public_id().bls_public_key());
-    let name = data.name();
+    let value = unwrap!(utils::generate_random_vector::<u8>(10));
+    let data = UnpubImmutableData::new(value, *full_id.public_id().bls_public_key());
+    let name = *data.name();
 
     // Construct put request.
-    let response = routing.req_as_owner(&routing_rx, RpcRequest::PutIData(data.clone()));
+    let response = routing.req_as_owner(&routing_rx, RpcRequest::PutIData(data.into()));
     match response {
-        RpcResponse::PutUnpubIData(res) => {
-            unwrap!(res);
+        RpcResponse::PutIData(res) => {
+            assert!(res.is_ok());
         }
         _ => panic!("Unexpected response"),
     }
 
-    // Construct get request.
-    let rpc_response = routing.req_as_owner(
-        &routing_rx,
-        RpcRequest::GetIData(safe_nd::IDataAddress::Unpub(*name)),
-    );
+    // Get unpub idata. Should succeed.
+    let rpc_response =
+        routing.req_as_owner(&routing_rx, RpcRequest::GetIData(IDataAddress::Unpub(name)));
     match rpc_response {
-        RpcResponse::GetUnpubIData(res) => {
-            let unpub_idata: UnpubImmutableData = unwrap!(res);
-            assert_eq!(unpub_idata.name(), name);
+        RpcResponse::GetIData(res) => {
+            let kind: IDataKind = unwrap!(res);
+            assert_eq!(*kind.name(), name);
+            assert!(!kind.published());
         }
         _ => panic!("Unexpected response"),
     }
@@ -1116,10 +1170,10 @@ fn unpub_idata_rpc() {
     {
         let rpc_response = app_routing.req_as_app(
             &app_routing_rx,
-            RpcRequest::GetIData(safe_nd::IDataAddress::Unpub(*name)),
+            RpcRequest::GetIData(IDataAddress::Unpub(name)),
         );
         match rpc_response {
-            RpcResponse::GetUnpubIData(res) => match res {
+            RpcResponse::GetIData(res) => match res {
                 Ok(_) => panic!("Unexpected"),
                 Err(Error::AccessDenied) => (),
                 Err(e) => panic!("Unexpected {:?}", e),
@@ -1132,7 +1186,7 @@ fn unpub_idata_rpc() {
     {
         let rpc_response = app_routing.req_as_app(
             &app_routing_rx,
-            RpcRequest::DeleteUnpubIData(safe_nd::IDataAddress::Unpub(*name)),
+            RpcRequest::DeleteUnpubIData(IDataAddress::Unpub(name)),
         );
         match rpc_response {
             RpcResponse::DeleteUnpubIData(res) => match res {

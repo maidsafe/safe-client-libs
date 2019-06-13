@@ -14,9 +14,9 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
-    verify_signature, Coins, Error, ImmutableData, MDataAddress, Message, MessageId,
+    verify_signature, Coins, Error, IDataKind, MDataAddress, Message, MessageId,
     MutableData as NewMutableData, PublicId, PublicKey, Request, Response, SeqMutableData,
-    Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
+    Signature, Transaction, UnseqMutableData, XorName,
 };
 use std::collections::HashMap;
 use std::env;
@@ -338,36 +338,38 @@ impl Vault {
                 let result = self
                     .get_idata(ImmutableDataRef {
                         name: *address.name(),
-                        published: false,
+                        published: address.published(),
                     })
                     .and_then(|kind| match kind {
-                        ImmutableDataKind::Unpublished(data) => {
+                        IDataKind::Unpub(ref data) => {
+                            // Check permissions for unpub idata.
                             if PublicKey::from(*data.owners()) == requester_pk {
                                 let sig = match signature {
                                     None => return Err(Error::InvalidSignature),
                                     Some(s) => s,
                                 };
                                 verify_signature(&sig, &requester_pk, &request, &message_id)?;
-                                Ok(data)
+                                Ok(kind)
                             } else {
                                 Err(Error::AccessDenied)
                             }
                         }
-                        _ => Err(Error::from("Unexpected data returned")),
+                        IDataKind::Pub(_) => Ok(kind),
                     });
-                Response::GetUnpubIData(result)
+
+                Response::GetIData(result)
             }
-            Request::PutIData(data) => {
+            Request::PutIData(kind) => {
                 let result = self.put_data(
-                    DataId::immutable(*data.name(), false),
-                    Data::Immutable(ImmutableDataKind::Unpublished(data.clone())),
+                    DataId::immutable(*kind.name(), kind.published()),
+                    Data::Immutable(kind),
                     requester,
                     requester_pk,
                     request,
                     message_id,
                     signature,
                 );
-                Response::PutUnpubIData(result)
+                Response::PutIData(result)
             }
             Request::DeleteUnpubIData(address) => {
                 let result = self.delete_idata(
@@ -803,7 +805,7 @@ impl Vault {
         })
     }
 
-    pub fn get_idata(&mut self, address: ImmutableDataRef) -> Result<ImmutableDataKind, Error> {
+    pub fn get_idata(&mut self, address: ImmutableDataRef) -> Result<IDataKind, Error> {
         let name = address.name;
         let data_name = DataId::immutable(name, address.published);
         match self.get_data(&data_name) {
@@ -825,7 +827,7 @@ impl Vault {
         match self.get_data(&data_name) {
             Some(idata) => {
                 if let Data::Immutable(kind) = idata {
-                    if let ImmutableDataKind::Unpublished(unpub_idata) = kind {
+                    if let IDataKind::Unpub(unpub_idata) = kind {
                         if PublicKey::from(*unpub_idata.owners()) == requester_pk {
                             self.delete_data(data_name);
                             self.commit_mutation(requester.name());
@@ -968,7 +970,7 @@ struct Cache {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub enum Data {
-    Immutable(ImmutableDataKind),
+    Immutable(IDataKind),
     OldMutable(OldMutableData),
     NewMutable(MutableDataKind),
 }
@@ -977,28 +979,6 @@ pub struct ImmutableDataRef {
     name: XorName,
     published: bool,
 }
-
-#[derive(Clone, Deserialize, Serialize)]
-pub enum ImmutableDataKind {
-    Unpublished(UnpubImmutableData),
-    Published(ImmutableData),
-}
-
-// impl ImmutableDataKind {
-//     fn name(&self) -> XorName {
-//         match self {
-//             ImmutableDataKind::Unpublished(data) => *data.name(),
-//             ImmutableDataKind::Published(data) => *data.name(),
-//         }
-//     }
-
-//     fn published(&self) -> bool {
-//         match self {
-//             ImmutableDataKind::Unpublished(_) => false,
-//             ImmutableDataKind::Published(_) => true,
-//         }
-//     }
-// }
 
 #[derive(Clone, Deserialize, Serialize)]
 pub enum MutableDataKind {

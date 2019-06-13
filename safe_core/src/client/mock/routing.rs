@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::vault::{self, Data, ImmutableDataKind, Vault, VaultGuard};
+use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;
 use crate::config_handler::{get_config, Config};
 use maidsafe_utilities::serialisation::serialise;
@@ -18,7 +18,7 @@ use routing::{
 #[cfg(any(feature = "testing", test))]
 use safe_nd::Coins;
 use safe_nd::{AppFullId, ClientFullId};
-use safe_nd::{ImmutableData, Message, MessageId, PublicId, PublicKey, XorName};
+use safe_nd::{IDataKind, ImmutableData, Message, MessageId, PublicId, PublicKey, XorName};
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -244,7 +244,7 @@ impl Routing {
                         None => {
                             vault.insert_data(
                                 DataId::immutable(data_name, true),
-                                Data::Immutable(ImmutableDataKind::Published(data)),
+                                Data::Immutable(data.into()),
                             );
                             Ok(())
                         }
@@ -288,7 +288,7 @@ impl Routing {
                 Err(err)
             } else {
                 match vault.get_data(&DataId::immutable(name, true)) {
-                    Some(Data::Immutable(ImmutableDataKind::Published(data))) => Ok(data),
+                    Some(Data::Immutable(IDataKind::Pub(data))) => Ok(data),
                     _ => Err(ClientError::NoSuchData),
                 }
             }
