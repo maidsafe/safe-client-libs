@@ -21,6 +21,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::mem;
 use tiny_keccak::sha3_256;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Copy, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord, Clone, Hash)]
 pub enum Authority<N: Clone + Copy + Debug> {
     /// Manager of a Client.  XorName is the hash of the Client's `client_key`.
@@ -51,7 +52,7 @@ impl<N: Clone + Copy + Debug> Authority<N> {
     }
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Event {
     /// Received a request message.
@@ -511,9 +512,9 @@ impl MutableData {
             },
         );
 
-        if (!insert.is_empty() && !self.is_action_allowed(requester.clone(), Action::Insert))
-            || (!update.is_empty() && !self.is_action_allowed(requester.clone(), Action::Update))
-            || (!delete.is_empty() && !self.is_action_allowed(requester.clone(), Action::Delete))
+        if (!insert.is_empty() && !self.is_action_allowed(requester, Action::Insert))
+            || (!update.is_empty() && !self.is_action_allowed(requester, Action::Update))
+            || (!delete.is_empty() && !self.is_action_allowed(requester, Action::Delete))
         {
             return Err(ClientError::AccessDenied);
         }
@@ -677,7 +678,7 @@ impl MutableData {
         if version != self.version + 1 {
             return Err(ClientError::InvalidSuccessor(self.version));
         }
-        let prev = self.permissions.insert(user.clone(), permissions);
+        let prev = self.permissions.insert(user, permissions);
         if !self.validate_size() {
             // Serialised data size limit is exceeded
             let _ = match prev {
@@ -806,6 +807,7 @@ impl Debug for MutableData {
 }
 
 /// Request message types
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Request {
     /// Represents a refresh message sent between vaults. Vec<u8> is the message content.
@@ -1266,7 +1268,7 @@ pub enum AccountPacket {
 /// The type of errors that can occur if routing is unable to handle a send request.
 #[derive(Debug)]
 // FIXME - See https://maidsafe.atlassian.net/browse/MAID-2026 for info on removing this exclusion.
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum InterfaceError {
     /// We are not connected to the network.
     NotConnected,
@@ -1281,7 +1283,7 @@ pub enum InterfaceError {
 /// The type of errors that can occur during handling of routing events.
 #[derive(Debug)]
 // FIXME - See https://maidsafe.atlassian.net/browse/MAID-2026 for info on removing this exclusion.
-#[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum RoutingError {
     /// The node/client has not bootstrapped yet
     NotBootstrapped,
