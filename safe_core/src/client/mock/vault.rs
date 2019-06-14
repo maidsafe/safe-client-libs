@@ -704,7 +704,7 @@ impl Vault {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
                             MutableDataKind::Unsequenced(mut mdata) => {
-                                unwrap!(mdata.set_user_permissions(*user, permissions, version));
+                                mdata.set_user_permissions(*user, permissions, version)?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Unsequenced(mdata)),
@@ -713,7 +713,7 @@ impl Vault {
                                 Ok(())
                             }
                             MutableDataKind::Sequenced(mut mdata) => {
-                                unwrap!(mdata.set_user_permissions(*user, permissions, version));
+                                mdata.set_user_permissions(*user, permissions, version)?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Sequenced(mdata)),
@@ -745,7 +745,7 @@ impl Vault {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
                             MutableDataKind::Unsequenced(mut mdata) => {
-                                unwrap!(mdata.del_user_permissions(user, version));
+                                mdata.del_user_permissions(user, version)?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Unsequenced(mdata)),
@@ -754,7 +754,7 @@ impl Vault {
                                 Ok(())
                             }
                             MutableDataKind::Sequenced(mut mdata) => {
-                                unwrap!(mdata.del_user_permissions(user, version));
+                                mdata.del_user_permissions(user, version)?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Sequenced(mdata)),
@@ -809,12 +809,12 @@ impl Vault {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
                             MutableDataKind::Sequenced(mut mdata) => {
-                                unwrap!(mdata.mutate_entries(
+                                mdata.mutate_entries(
                                     actions.clone(),
                                     request,
                                     requester,
-                                    message_id
-                                ));
+                                    message_id,
+                                )?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Sequenced(mdata)),
@@ -847,12 +847,12 @@ impl Vault {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
                             MutableDataKind::Unsequenced(mut mdata) => {
-                                unwrap!(mdata.mutate_entries(
+                                mdata.mutate_entries(
                                     actions.clone(),
                                     request,
                                     requester,
-                                    message_id
-                                ));
+                                    message_id,
+                                )?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Unsequenced(mdata)),
@@ -963,7 +963,6 @@ impl Vault {
         // self.authorise_read(&dst, &address.name())
         // .map_err(|err| Error::from(err.description()))
         // .and_then(|_| match self.get_data(&data_name) {
-        dbg!(request.clone());
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
                 Data::NewMutable(data) => match data.clone() {
@@ -990,7 +989,6 @@ impl Vault {
             },
             None => Err(Error::NoSuchData),
         }
-        // })
     }
 
     pub fn put_mdata(
