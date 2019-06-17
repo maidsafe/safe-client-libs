@@ -19,13 +19,11 @@ use routing::{
     AccountInfo, Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
     MutableData, PermissionSet, Request, Response, User, Value, TYPE_TAG_SESSION_PACKET,
 };
-use safe_nd::mutable_data::{
-    Action as NewAction, MutableData as NewMutableData, MutableDataRef,
-    PermissionSet as NewPermissionSet, UnseqMutableData,
+use safe_nd::{
+    ImmutableData, MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet,
+    Message, MessageId, MutableData as NewMutableData, PublicKey, Request as RpcRequest,
+    Response as RpcResponse, UnpubImmutableData, UnseqMutableData, XorName,
 };
-use safe_nd::request::{Request as RpcRequest, Requester};
-use safe_nd::response::Response as RpcResponse;
-use safe_nd::{ImmutableData, Message, MessageId, PublicKey, UnpubImmutableData, XorName};
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -75,43 +73,17 @@ macro_rules! expect_failure {
 }
 
 impl Routing {
-    fn req_as_app(
-        &mut self,
-        rx: &Receiver<Event>,
-        client_mgr: Authority<XorName>,
-        app_key: PublicKey,
-        request: RpcRequest,
-    ) -> RpcResponse {
-        let msg_id = MessageId::new();
-        unwrap!(self.send(
-            client_mgr,
-            &unwrap!(serialise(&Message::Request {
-                request,
-                message_id: msg_id,
-                requester: Requester::Key(app_key),
-            }))
-        ));
-        let response = expect_success!(rx, msg_id, Response::RpcResponse);
-        unwrap!(deserialise(&response))
-    }
-
-    fn req_as_owner(
-        &mut self,
-        rx: &Receiver<Event>,
-        client_mgr: Authority<XorName>,
-        owner_key: &threshold_crypto::SecretKey,
-        request: RpcRequest,
-    ) -> RpcResponse {
-        let msg_id = MessageId::new();
-        let sig = owner_key.sign(&unwrap!(serialise(&(msg_id, &request))));
-        unwrap!(self.send(
-            client_mgr,
-            &unwrap!(serialise(&Message::Request {
-                request,
-                message_id: msg_id,
-                requester: Requester::Owner(sig),
-            }))
-        ));
+    fn req(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
+        let message_id = MessageId::new();
+        let signature = self
+            .full_id
+            .bls_key()
+            .sign(&unwrap!(serialise(&(msg_id, &request))));
+        unwrap!(self.send(&unwrap!(serialise(&Message::Request {
+            request,
+            message_id,
+            signature,
+        }))));
         let response = expect_success!(rx, msg_id, Response::RpcResponse);
         unwrap!(deserialise(&response))
     }
@@ -626,37 +598,21 @@ fn mutable_data_permissions() {
     let (mut app_routing, app_routing_rx, app_full_id) = setup();
     let app_sign_key = PublicKey::Bls(*app_full_id.public_id().bls_public_key());
 
-    // TODO: send real request
-    let msg_id = MessageId::new();
-    unwrap!(routing.send(
-        client_mgr,
-        &unwrap!(serialise(&Message::Request {
-            request: RpcRequest::ListAuthKeysAndVersion,
-            message_id: msg_id,
-            requester: Requester::Key(owner_key),
-        }))
-    ));
-    let response = expect_success!(routing_rx, msg_id, Response::RpcResponse);
-    let version = match unwrap!(deserialise(&response)) {
+    let response = unwrap!(routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion,));
+    let version = match response {
         RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
         x => panic!("Unexpected response: {:?}", x),
     };
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.send(
-        client_mgr,
-        &unwrap!(serialise(&Message::Request {
-            request: RpcRequest::InsAuthKey {
-                version: version + 1,
-                permissions: Default::default(),
-                key: app_sign_key
-            },
-            message_id: msg_id,
-            requester: Requester::Key(owner_key),
-        }))
-    ));
-    let response = expect_success!(routing_rx, msg_id, Response::RpcResponse);
-    match unwrap!(deserialise(&response)) {
+    let response = routing.req(
+        &routing_rx,
+        RpcRequest::InsAuthKey {
+            version: version + 1,
+            permissions: Default::default(),
+            key: app_sign_key,
+        },
+    );
+    match response {
         RpcResponse::InsAuthKey(Ok(())) => (),
         x => panic!("Unexpected response: {:?}", x),
     };
@@ -895,20 +851,13 @@ fn mutable_data_permissions() {
     let (mut app2_routing, app2_routing_rx, app2_full_id) = setup();
     let app2_sign_key = PublicKey::from(*app2_full_id.public_id().bls_public_key());
 
-    let version = match routing.req_as_app(
-        &routing_rx,
-        client_mgr,
-        app2_sign_key,
-        RpcRequest::ListAuthKeysAndVersion,
-    ) {
+    let version = match app2_routing.req(&app2_routing_rx, RpcRequest::ListAuthKeysAndVersion) {
         RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
         x => panic!("Unexpected {:?}", x),
     };
 
-    let _ = routing.req_as_owner(
+    let _ = routing.req(
         &routing_rx,
-        client_mgr,
-        full_id.bls_key(),
         RpcRequest::InsAuthKey {
             key: app2_sign_key,
             permissions: Default::default(),
@@ -1017,19 +966,14 @@ fn mutable_data_ownership() {
 
     let message_id = MessageId::new();
 
-    let ins_auth_key_req = Message::Request {
-        request: RpcRequest::InsAuthKey {
+    let _resp = owner_routing.req(
+        &owner_routing_rx,
+        RpcRequest::InsAuthKey {
             key: app_sign_key,
             version: 1,
             permissions: Default::default(),
         },
-        requester: Requester::Key(owner_key),
-        message_id,
-    };
-
-    let req_buffer = unwrap!(serialise(&ins_auth_key_req));
-    unwrap!(owner_routing.send(client_mgr, &req_buffer));
-    let _response = expect_success!(owner_routing_rx, message_id, Response::RpcResponse);
+    );
 
     // Attempt to put MutableData using the app sign key as owner key should fail.
     let name = new_rand::random();
@@ -1120,35 +1064,22 @@ fn unpub_idata_rpc() {
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
-    let bls_key = *full_id.public_id().bls_public_key();
 
     let data = UnpubImmutableData::new(Default::default(), bls_key);
     let name = data.name();
 
-    // Put unpub idata. Should succeed.
-    {
-        let _ = routing.req_as_app(
-            &routing_rx,
-            client_mgr,
-            PublicKey::from(bls_key),
-            RpcRequest::PutUnpubIData { data: data.clone() },
-        );
-    }
+    // Construct put request.
+    let _ = routing.req(
+        &routing_rx,
+        RpcRequest::PutUnpubIData { data: data.clone() },
+    );
 
-    // Get unpub idata. Should succeed.
-    {
-        let rpc_response = routing.req_as_app(
-            &routing_rx,
-            client_mgr,
-            PublicKey::from(bls_key),
-            RpcRequest::GetUnpubIData { address: *name },
-        );
-        match rpc_response {
-            RpcResponse::GetUnpubIData(res) => {
-                let unpub_idata: UnpubImmutableData = unwrap!(res);
-                assert_eq!(unpub_idata.name(), name);
-            }
-            _ => panic!("Unexpected"),
+    // Construct get request.
+    let rpc_response = routing.req(&routing_rx, RpcRequest::GetUnpubIData { address: *name });
+    match rpc_response {
+        RpcResponse::GetUnpubIData(res) => {
+            let unpub_idata: UnpubImmutableData = unwrap!(res);
+            assert_eq!(unpub_idata.name(), name);
         }
     }
 
@@ -1214,31 +1145,14 @@ fn unpub_md() {
     let data = UnseqMutableData::new_with_data(name, tag, Default::default(), permissions, bls_key);
 
     // Construct put request.
-    let message_id = MessageId::new();
-
-    let put_request = Message::Request {
-        request: RpcRequest::PutUnseqMData { data: data.clone() },
-        requester: Requester::Key(PublicKey::Bls(bls_key)),
-        message_id,
-    };
-
-    let put_req_buffer = unwrap!(serialise(&put_request));
-    unwrap!(routing.send(client_mgr, &put_req_buffer));
-    let _response = expect_success!(routing_rx, message_id, Response::RpcResponse);
+    let _rpc_response: RpcResponse =
+        routing.req(&routing_rx, RpcRequest::PutUnseqMData(data.clone()));
 
     // Construct get request.
-    let message_id2 = MessageId::new();
-    let get_request = Message::Request {
-        request: RpcRequest::GetUnseqMData {
-            address: MutableDataRef::new(name, tag),
-        },
-        requester: Requester::Key(PublicKey::Bls(bls_key)),
-        message_id: message_id2,
-    };
-    let get_req_buffer = unwrap!(serialise(&get_request));
-    unwrap!(routing.send(Authority::NaeManager(name), &get_req_buffer));
-    let response2 = expect_success!(routing_rx, message_id2, Response::RpcResponse);
-    let rpc_response: RpcResponse = unwrap!(deserialise(&response2));
+    let rpc_response: RpcResponse = routing.req(
+        &routing_rx,
+        RpcRequest::GetMData(MDataAddress::new_unseq(name, tag)),
+    );
     match rpc_response {
         RpcResponse::GetUnseqMData(res) => {
             let unpub_mdata: UnseqMutableData = unwrap!(res);

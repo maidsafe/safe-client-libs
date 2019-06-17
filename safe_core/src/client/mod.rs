@@ -49,15 +49,11 @@ use routing::{
     User, Value,
 };
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::mutable_data::{
-    MutableData as NewMutableData, MutableDataRef, PermissionSet as NewPermissionSet,
-    SeqEntryAction, SeqMutableData, UnseqEntryAction, UnseqMutableData, Value as Val,
-};
-use safe_nd::request::Request;
-use safe_nd::response::{Response, Transaction};
 use safe_nd::{
-    AppPermissions, Coins, ImmutableData, Message, MessageId, PublicKey, UnpubImmutableData,
-    XorName,
+    AppPermissions, Coins, ImmutableData, MDataAddress, MDataPermissionSet as NewPermissionSet,
+    MDataSeqEntryAction as SeqEntryAction, MDataUnseqEntryAction, MDataValue as Val, Message,
+    MessageId, MutableData as NewMutableData, PublicKey, Request, Response, SeqMutableData,
+    Transaction, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -269,7 +265,7 @@ pub trait Client: Clone + 'static {
     /// Put unsequenced mutable data to the network
     fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Unsequenced MData at {:?}", data.name());
-        send_mutation_new(self, Request::PutUnseqMData { data: data.clone() })
+        send_mutation_new(self, Request::PutUnseqMData(data.clone()))
     }
 
     /// Transfer coin balance
@@ -301,37 +297,32 @@ pub trait Client: Clone + 'static {
     fn get_balance(&self, destination: XorName) -> Box<CoreFuture<Coins>> {
         trace!("Get balance for {:?}", destination);
 
-        send_new(
-            self,
-            Request::GetBalance {
-                coins_balance_id: destination,
-            },
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::GetBalance(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::GetBalance(destination))
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetBalance(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Put unpublished immutable data to the network.
     fn put_unpub_idata(&self, data: UnpubImmutableData) -> Box<CoreFuture<()>> {
         trace!("Put Unpublished IData at {:?}", data.name());
-        send_mutation_new(self, Request::PutUnpubIData { data })
+        send_mutation_new(self, Request::PutIData(data))
     }
 
     /// Delete unpublished immutable data from the network.
     fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
         trace!("Delete Unpublished IData at {:?}", name);
-        send_mutation_new(self, Request::DeleteUnpubIData { address: name })
+        send_mutation_new(self, Request::DeleteUnpubIData(name))
     }
 
     /// Get a transaction.
@@ -367,32 +358,27 @@ pub trait Client: Clone + 'static {
     /// Put sequenced mutable data to the network
     fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Sequenced MData at {:?}", data.name());
-        send_mutation_new(self, Request::PutSeqMData { data: data.clone() })
+        send_mutation_new(self, Request::PutSeqMData(data))
     }
 
     /// Fetch unpublished mutable data from the network
     fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
         trace!("Fetch Unsequenced Mutable Data");
 
-        send_new(
-            self,
-            Request::GetUnseqMData {
-                address: MutableDataRef::new(name, tag),
-            },
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::GetUnseqMData(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::GetMData(MDataAddress::new_unseq(name, tag)))
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetUnseqMData(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
@@ -401,8 +387,8 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetSeqMDataValue {
-                address: MutableDataRef::new(name, tag),
+            Request::GetMDataValue {
+                address: MDataAddress::new_seq(name, tag),
                 key,
             },
         )
@@ -432,8 +418,8 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetUnseqMDataValue {
-                address: MutableDataRef::new(name, tag),
+            Request::GetMDataValue {
+                address: MDataAddress::new_unseq(name, tag),
                 key,
             },
         )
@@ -456,32 +442,27 @@ pub trait Client: Clone + 'static {
     fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
         trace!("Fetch Sequenced Mutable Data");
 
-        send_new(
-            self,
-            Request::GetSeqMData {
-                address: MutableDataRef::new(name, tag),
-            },
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::GetSeqMData(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::GetMData(MDataAddress::new_seq(name, tag)))
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetSeqMData(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Delete MData from network
     fn delete_mdata(&self, mdataref: MutableDataRef) -> Box<CoreFuture<()>> {
         trace!("Delete entire Mutable Data");
 
-        send_mutation_new(self, Request::DeleteMData { address: mdataref })
+        send_mutation_new(self, Request::DeleteMData(mdataref))
     }
 
     /// Mutates `MutableData` entries in bulk.
@@ -519,7 +500,7 @@ pub trait Client: Clone + 'static {
         send_mutation_new(
             self,
             Request::MutateSeqMDataEntries {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
                 actions: actions.clone(),
             },
         )
@@ -537,7 +518,7 @@ pub trait Client: Clone + 'static {
         send_mutation_new(
             self,
             Request::MutateUnseqMDataEntries {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_unseq(name, tag),
                 actions: actions.clone(),
             },
         )
@@ -573,9 +554,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetSeqMDataShell {
-                address: MutableDataRef::new(name, tag),
-            },
+            Request::GetMDataShell(MDataAddress::new_seq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -599,7 +578,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::GetUnseqMDataShell {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_unseq(name, tag),
             },
         )
         .and_then(|event| {
@@ -624,7 +603,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::GetMDataVersion {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
             },
         )
         .and_then(|event| {
@@ -681,7 +660,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::ListUnseqMDataEntries {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_unseq(name, tag),
             },
         )
         .and_then(|event| {
@@ -710,7 +689,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::ListSeqMDataEntries {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
             },
         )
         .and_then(|event| {
@@ -746,9 +725,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataKeys {
-                address: MutableDataRef::new(name, tag),
-            },
+            Request::ListMDataKeys(MDataAddress::new_seq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -771,9 +748,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListSeqMDataValues {
-                address: MutableDataRef::new(name, tag),
-            },
+            Request::ListMDataValues(MDataAddress::new_seq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -802,7 +777,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::ListMDataUserPermissions {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
                 user,
             },
         )
@@ -827,9 +802,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListUnseqMDataValues {
-                address: MutableDataRef::new(name, tag),
-            },
+            Request::ListUnseqMDataValues(MDataAddress::new_unseq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -910,7 +883,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::ListMDataPermissions {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
             },
         )
         .and_then(|event| {
@@ -987,7 +960,7 @@ pub trait Client: Clone + 'static {
         send_mutation_new(
             self,
             Request::SetMDataUserPermissions {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
                 user,
                 permissions: permissions.clone(),
                 version,
@@ -1008,7 +981,7 @@ pub trait Client: Clone + 'static {
         send_mutation_new(
             self,
             Request::DelMDataUserPermissions {
-                address: MutableDataRef::new(name, tag),
+                address: MDataAddress::new_seq(name, tag),
                 user,
                 version,
             },
@@ -1641,7 +1614,7 @@ mod tests {
             let client3 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
-            let mdataref = MutableDataRef::new(name, tag);
+            let mdataref = MDataAddress::new_seq(name, tag);
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
@@ -1680,7 +1653,7 @@ mod tests {
             let client3 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
-            let mdataref = MutableDataRef::new(name, tag);
+            let mdataref = MDataAddress::new_unseq(name, tag);
             let data = UnseqMutableData::new_with_data(
                 name,
                 tag,
@@ -1814,7 +1787,7 @@ mod tests {
     pub fn del_unseq_mdata_permission_test() {
         let name = XorName(rand::random());
         let tag = 15001;
-        let mdataref = MutableDataRef::new(name, tag);
+        let mdataref = MDataAddress::new_unseq(name, tag);
 
         random_client(move |client| {
             let data = UnseqMutableData::new_with_data(

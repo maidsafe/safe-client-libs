@@ -26,7 +26,8 @@ new_rand = { package = "rand", version = "0.6" }
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.32.1" }
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+# safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = { path = "../../safe-nd" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
 # threshold_crypto = "0.3.1"

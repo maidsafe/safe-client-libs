@@ -11,7 +11,7 @@
 use super::vault::{self, Data, ImmutableDataKind, Vault, VaultGuard};
 use super::DataId;
 use crate::config_handler::{get_config, Config};
-use maidsafe_utilities::serialisation::{deserialise, serialise};
+use maidsafe_utilities::serialisation::serialise;
 use maidsafe_utilities::thread;
 use routing::{
     Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, InterfaceError,
@@ -122,49 +122,26 @@ impl Routing {
 
     /// Send a routing message
     pub fn send(&mut self, dst: Authority<XorName>, payload: &[u8]) -> Result<(), InterfaceError> {
-        let src = Authority::Client {
-            client_id: *self.full_id.public_id(),
-            proxy_node_name: new_rand::random(),
-        };
+        let mut vault = self.lock_vault(true);
+        let msg: Message =
+            unwrap!(vault.process_request(*self.full_id.public_id(), payload.to_vec()));
 
-        let response = match dst {
-            // Mutation requests are sent to Client manager
-            Authority::ClientManager(_) => {
-                let mut vault = self.lock_vault(true);
-                let res = unwrap!(vault.process_request(src, dst, payload.to_vec()));
-                Some(res)
-            }
-            // Responses are sent to client authorities
-            Authority::Client { .. } => {
-                // TODO: Getting message_id without deserializing this
-                let msg: Message = unwrap!(deserialise(&payload.to_vec()));
-                let (message_id, response) = if let Message::Response {
-                    message_id,
-                    response,
-                } = msg
-                {
-                    (message_id, response)
-                } else {
-                    return Err(InterfaceError::InvalidState);
-                };
-                let response = Response::RpcResponse {
-                    res: Ok(unwrap!(serialise(&response))),
-                    msg_id: message_id,
-                };
-                self.send_response(DEFAULT_DELAY_MS, src, dst, response);
-                None
-            }
-            // Get requests go to Nae Manager
-            Authority::NaeManager(_) => {
-                let mut vault = self.lock_vault(false);
-                let res = unwrap!(vault.process_request(src, dst, payload.to_vec()));
-                Some(res)
-            }
-            // _ => None,
+        // Send response back to a client
+        let (message_id, response) = if let Message::Response {
+            message_id,
+            response,
+        } = msg
+        {
+            (message_id, response)
+        } else {
+            return Err(InterfaceError::InvalidState);
         };
-        if let Some(res) = response {
-            let _ = self.send(src, &res.1);
-        }
+        let response = Response::RpcResponse {
+            res: Ok(unwrap!(serialise(&response))),
+            msg_id: message_id,
+        };
+        self.send_response(DEFAULT_DELAY_MS, self.client_auth, dst, response);
+
         Ok(())
     }
 
