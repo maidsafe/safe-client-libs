@@ -1152,7 +1152,10 @@ fn unpub_idata_rpc() {
         }
     }
 
-    // Try to get unpub idata while not being an owner. Should fail.
+    // TODO: Uncomment the following lines once verification in get_idata, put_idata and
+    // delete_idata has been implemented.
+    //
+    // // Try to get unpub idata while not being an owner. Should fail.
     // {
     //     let (_, random_pk) = test_utils::gen_bls_keys();
 
@@ -1172,7 +1175,25 @@ fn unpub_idata_rpc() {
     //     }
     // }
 
-    // Try to delete unpub idata while not being an owner. Should fail.
+    // // Try to delete unpub idata while not being an owner. Should fail.
+    // {
+    //     let (_, random_pk) = test_utils::gen_bls_keys();
+
+    //     let rpc_response = routing.req_as_app(
+    //         &routing_rx,
+    //         client_mgr,
+    //         PublicKey::from(random_pk),
+    //         RpcRequest::DeleteUnpubIData { address: *name },
+    //     );
+    //     match rpc_response {
+    //         RpcResponse::DeleteUnpubIData(res) => match res {
+    //             Ok(_) => panic!("Unexpected"),
+    //             Err(Error::AccessDenied) => (),
+    //             Err(e) => panic!("Unexpected {:?}", e),
+    //         },
+    //         _ => panic!("Unexpected"),
+    //     }
+    // }
 }
 
 #[test]
