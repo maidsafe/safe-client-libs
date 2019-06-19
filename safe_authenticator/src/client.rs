@@ -34,6 +34,7 @@ use safe_core::{utils, Client, ClientKeys, CoreError, FutureExt, MDataInfo, Netw
 use safe_nd::{
     request::{Request, Requester},
     Message, MessageId, PublicKey,
+    FullIdentity
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -154,7 +155,7 @@ where {
         let pub_key = PublicKey::from(maid_keys.bls_pk);
         let full_id = Some(maid_keys.clone().into());
 
-        let (mut routing, routing_rx) = setup_routing(full_id, None)?;
+        let (mut routing, routing_rx) = setup_routing(full_id, Some(FullIdentity::Client(maid_keys.clone().into())), None)?;
         routing = routing_wrapper_fn(routing);
 
         let acc = Account::new(maid_keys)?;
@@ -298,7 +299,7 @@ where {
 
         let (acc_content, acc_version) = {
             trace!("Creating throw-away routing getter for account packet.");
-            let (mut routing, routing_rx) = setup_routing(None, None)?;
+            let (mut routing, routing_rx) = setup_routing(None, None, None)?;
             routing = routing_wrapper_fn(routing);
 
             let msg_id = MessageId::new();
@@ -334,7 +335,7 @@ where {
         let cm_addr = Authority::ClientManager(XorName::from(pub_key));
 
         trace!("Creating an actual routing...");
-        let (mut routing, routing_rx) = setup_routing(Some(id_packet), None)?;
+        let (mut routing, routing_rx) = setup_routing(Some(id_packet), Some(FullIdentity::Client(acc.maid_keys.clone().into())), None)?;
         routing = routing_wrapper_fn(routing);
 
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());

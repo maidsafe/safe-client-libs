@@ -14,7 +14,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::FullId;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
-use safe_nd::{XorName, XOR_NAME_LEN};
+use safe_nd::{ClientFullId, XorName, XOR_NAME_LEN};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use threshold_crypto::serde_impl::SerdeSecret;
 use tiny_keccak::sha3_256;
@@ -186,6 +186,14 @@ impl Into<FullId> for ClientKeys {
         let sign_sk = (*self.sign_sk).clone();
 
         FullId::with_keys((self.enc_pk, enc_sk), (self.sign_pk, sign_sk), self.bls_sk)
+    }
+}
+
+impl Into<ClientFullId> for ClientKeys {
+    fn into(self) -> ClientFullId {
+        let bls_sk = (self.bls_sk).clone();
+
+        ClientFullId::with_bls_key(bls_sk)
     }
 }
 

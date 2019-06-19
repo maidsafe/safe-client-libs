@@ -22,7 +22,7 @@ use routing::{
 use safe_nd::{
     ImmutableData, MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet,
     Message, MessageId, MutableData as NewMutableData, PublicKey, Request as RpcRequest,
-    Response as RpcResponse, UnpubImmutableData, UnseqMutableData, XorName,
+    Response as RpcResponse, UnpubImmutableData, UnseqMutableData, XorName, FullIdentity, ClientFullId
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver};
@@ -75,16 +75,15 @@ macro_rules! expect_failure {
 impl Routing {
     fn req(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
         let message_id = MessageId::new();
-        let signature = self
-            .full_id
+        let signature = self.full_id
             .bls_key()
-            .sign(&unwrap!(serialise(&(msg_id, &request))));
-        unwrap!(self.send(&unwrap!(serialise(&Message::Request {
+            .sign(&unwrap!(serialise(&(message_id, &request))));
+        unwrap!(self.send(Authority::ClientManager(new_rand::random()) , &unwrap!(serialise(&Message::Request {
             request,
             message_id,
-            signature,
+            signature: Some(safe_nd::Signature::Bls(signature)),
         }))));
-        let response = expect_success!(rx, msg_id, Response::RpcResponse);
+        let response = expect_success!(rx, message_id, Response::RpcResponse);
         unwrap!(deserialise(&response))
     }
 }
@@ -598,7 +597,7 @@ fn mutable_data_permissions() {
     let (mut app_routing, app_routing_rx, app_full_id) = setup();
     let app_sign_key = PublicKey::Bls(*app_full_id.public_id().bls_public_key());
 
-    let response = unwrap!(routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion,));
+    let response = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion,);
     let version = match response {
         RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
         x => panic!("Unexpected response: {:?}", x),
@@ -964,7 +963,7 @@ fn mutable_data_ownership() {
     let (mut app_routing, app_routing_rx, app_full_id) = setup();
     let app_sign_key = PublicKey::from(*app_full_id.public_id().bls_public_key());
 
-    let message_id = MessageId::new();
+    let _message_id = MessageId::new();
 
     let _resp = owner_routing.req(
         &owner_routing_rx,
@@ -1063,19 +1062,19 @@ fn unpub_idata_rpc() {
 
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
-    let data = UnpubImmutableData::new(Default::default(), bls_key);
+    let data = UnpubImmutableData::new(Default::default(), *full_id.public_id().bls_public_key());
     let name = data.name();
 
     // Construct put request.
     let _ = routing.req(
         &routing_rx,
-        RpcRequest::PutUnpubIData { data: data.clone() },
+        RpcRequest::PutIData(data.clone()),
     );
 
     // Construct get request.
-    let rpc_response = routing.req(&routing_rx, RpcRequest::GetUnpubIData { address: *name });
+    let rpc_response = routing.req(&routing_rx, RpcRequest::GetIData(safe_nd::IDataAddress::Unpub(*name)));
     match rpc_response {
         RpcResponse::GetUnpubIData(res) => {
             let unpub_idata: UnpubImmutableData = unwrap!(res);
@@ -1131,7 +1130,7 @@ fn unpub_idata_rpc() {
 fn unpub_md() {
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
     let bls_key = full_id.bls_key().public_key();
 
     let name = XorName(new_rand::random());
@@ -1142,7 +1141,7 @@ fn unpub_md() {
         PublicKey::Bls(bls_key),
         NewPermissionSet::new().allow(NewAction::Read),
     );
-    let data = UnseqMutableData::new_with_data(name, tag, Default::default(), permissions, bls_key);
+    let data = UnseqMutableData::new_with_data(name, tag, Default::default(), permissions, PublicKey::from(bls_key));
 
     // Construct put request.
     let _rpc_response: RpcResponse =
@@ -1533,10 +1532,13 @@ fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId) {
 
 fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
     let full_id = FullId::new();
+    let bls_sk = threshold_crypto::SecretKey::random();
+    let full_id_new = FullIdentity::Client(ClientFullId::with_bls_key(bls_sk));
     let (routing_tx, routing_rx) = mpsc::channel();
     let routing = unwrap!(Routing::new(
         routing_tx,
         Some(full_id.clone()),
+        Some(full_id_new),
         None,
         Duration::new(0, 0),
     ));

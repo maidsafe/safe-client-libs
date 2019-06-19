@@ -25,6 +25,7 @@ use safe_core::{Client, ClientKeys, NetworkTx};
 use safe_nd::{
     request::{Request, Requester},
     Message, MessageId, PublicKey,
+    AppFullId
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -51,7 +52,7 @@ impl AppClient {
     ) -> Result<Self, AppError> {
         trace!("Creating unregistered client.");
 
-        let (routing, routing_rx) = setup_routing(None, config.clone())?;
+        let (routing, routing_rx) = setup_routing(None, None, config.clone())?;
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 
         Ok(Self {
@@ -126,7 +127,7 @@ impl AppClient {
     {
         trace!("Attempting to log into an acc using client keys.");
         let (mut routing, routing_rx) =
-            setup_routing(Some(keys.clone().into()), Some(config.clone()))?;
+            setup_routing(Some(keys.clone().into()), Some(FullIdentity::App(AppFullId::with_keys(keys.bls_sk.clone(), owner))), Some(config.clone()))?;
         routing = routing_wrapper_fn(routing);
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 

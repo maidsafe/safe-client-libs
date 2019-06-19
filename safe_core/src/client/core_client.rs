@@ -29,7 +29,7 @@ use routing::{
 };
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::{Message, MessageId, PublicKey, Request, Signature, XorName};
+use safe_nd::{FullIdentity, Message, MessageId, PublicKey, Request, Signature, XorName};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -120,7 +120,11 @@ impl CoreClient {
         let pub_key = PublicKey::Bls(maid_keys.bls_pk);
         let full_id = Some(maid_keys.clone().into());
 
-        let (mut routing, routing_rx) = setup_routing(full_id, None)?;
+        let (mut routing, routing_rx) = setup_routing(
+            full_id,
+            Some(FullIdentity::Client(maid_keys.clone().into())),
+            None,
+        )?;
         routing = routing_wrapper_fn(routing);
 
         let acc = ClientAccount::new(maid_keys.clone())?;
@@ -185,6 +189,10 @@ impl Client for CoreClient {
 
     fn full_id(&self) -> Option<FullId> {
         Some(ClientKeys::into(self.keys.clone()))
+    }
+
+    fn full_id_new(&self) -> Option<FullIdentity> {
+        Some(FullIdentity::Client(ClientKeys::into(self.keys.clone())))
     }
 
     fn config(&self) -> Option<BootstrapConfig> {

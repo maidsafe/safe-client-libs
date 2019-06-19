@@ -50,10 +50,11 @@ use routing::{
 };
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
-    AppPermissions, Coins, ImmutableData, MDataAddress, MDataPermissionSet as NewPermissionSet,
-    MDataSeqEntryAction as SeqEntryAction, MDataUnseqEntryAction, MDataValue as Val, Message,
-    MessageId, MutableData as NewMutableData, PublicKey, Request, Response, SeqMutableData,
-    Transaction, UnpubImmutableData, UnseqMutableData, XorName,
+    AppPermissions, Coins, FullIdentity, IDataAddress, ImmutableData, MDataAddress,
+    MDataPermissionSet as NewPermissionSet, MDataSeqEntryAction as SeqEntryAction,
+    MDataUnseqEntryAction as UnseqEntryAction, MDataValue as Val, Message, MessageId,
+    MutableData as NewMutableData, PublicKey, Request, Response, SeqMutableData, Transaction,
+    UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -107,6 +108,9 @@ pub trait Client: Clone + 'static {
 
     /// Return the client's ID.
     fn full_id(&self) -> Option<FullId>;
+
+    /// Return the client's new ID.
+    fn full_id_new(&self) -> Option<FullIdentity>;
 
     /// Return a `crust::Config` if the `Client` was initialized with one.
     fn config(&self) -> Option<BootstrapConfig>;
@@ -168,7 +172,7 @@ pub trait Client: Clone + 'static {
         let inner = self.inner();
         let mut inner = inner.borrow_mut();
 
-        let (routing, routing_rx) = setup_routing(opt_id, self.config())?;
+        let (routing, routing_rx) = setup_routing(opt_id, self.full_id_new(), self.config())?;
 
         let joiner = spawn_routing_thread(routing_rx, inner.core_tx.clone(), inner.net_tx.clone());
 
@@ -235,7 +239,7 @@ pub trait Client: Clone + 'static {
     fn get_unpub_idata(&self, name: XorName) -> Box<CoreFuture<UnpubImmutableData>> {
         trace!("Fetch Unpublished Immutable Data");
 
-        send_new(self, Request::GetUnpubIData { address: name })
+        send_new(self, Request::GetIData(IDataAddress::Unpub(name)))
             .and_then(|event| {
                 let res = match event {
                     CoreEvent::RpcResponse(res) => res,
@@ -322,7 +326,7 @@ pub trait Client: Clone + 'static {
     /// Delete unpublished immutable data from the network.
     fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
         trace!("Delete Unpublished IData at {:?}", name);
-        send_mutation_new(self, Request::DeleteUnpubIData(name))
+        send_mutation_new(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name)))
     }
 
     /// Get a transaction.
@@ -459,7 +463,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Delete MData from network
-    fn delete_mdata(&self, mdataref: MutableDataRef) -> Box<CoreFuture<()>> {
+    fn delete_mdata(&self, mdataref: MDataAddress) -> Box<CoreFuture<()>> {
         trace!("Delete entire Mutable Data");
 
         send_mutation_new(self, Request::DeleteMData(mdataref))
@@ -577,9 +581,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetUnseqMDataShell {
-                address: MDataAddress::new_unseq(name, tag),
-            },
+            Request::GetMDataShell(MDataAddress::new_unseq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -602,9 +604,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetMDataVersion {
-                address: MDataAddress::new_seq(name, tag),
-            },
+            Request::GetMDataVersion(MDataAddress::new_seq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -659,9 +659,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListUnseqMDataEntries {
-                address: MDataAddress::new_unseq(name, tag),
-            },
+            Request::ListMDataEntries(MDataAddress::new_unseq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -688,9 +686,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListSeqMDataEntries {
-                address: MDataAddress::new_seq(name, tag),
-            },
+            Request::ListMDataEntries(MDataAddress::new_seq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -802,7 +798,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListUnseqMDataValues(MDataAddress::new_unseq(name, tag)),
+            Request::ListMDataValues(MDataAddress::new_unseq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -882,9 +878,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataPermissions {
-                address: MDataAddress::new_seq(name, tag),
-            },
+            Request::ListMDataPermissions(MDataAddress::new_seq(name, tag)),
         )
         .and_then(|event| {
             let res = match event {
@@ -1184,12 +1178,14 @@ where
 /// Set up routing given a Client `full_id` and optional `config` and connect to the network.
 pub fn setup_routing(
     full_id: Option<FullId>,
+    full_id_new: Option<FullIdentity>,
     config: Option<BootstrapConfig>,
 ) -> Result<(Routing, Receiver<Event>), CoreError> {
     let (routing_tx, routing_rx) = mpsc::channel();
     let routing = Routing::new(
         routing_tx,
         full_id,
+        full_id_new,
         config,
         Duration::from_secs(REQUEST_TIMEOUT_SECS),
     )?;
@@ -1379,7 +1375,7 @@ type TimeoutFuture = Either<
 mod tests {
     use super::*;
     use crate::utils::test_utils::random_client;
-    use safe_nd::mutable_data::Action;
+    use safe_nd::MDataAction;
     use safe_nd::{Coins, Error, XorName};
     use std::str::FromStr;
 
@@ -1477,7 +1473,7 @@ mod tests {
             let tag = 15001;
             let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new().allow(Action::Read);
+            let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
             let _ = permissions.insert(
                 PublicKey::Bls(unwrap!(client.public_bls_key())),
                 permission_set.clone(),
@@ -1491,7 +1487,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
             client
                 .put_unseq_mutable_data(data.clone())
@@ -1551,7 +1547,7 @@ mod tests {
             let entries_keys = entries.keys().cloned().collect();
             let entries_values: Vec<Val> = entries.values().cloned().collect();
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new().allow(Action::Read);
+            let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
             let _ = permissions.insert(
                 PublicKey::Bls(unwrap!(client.public_bls_key())),
                 permission_set.clone(),
@@ -1561,7 +1557,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
             client
                 .put_seq_mutable_data(data.clone())
@@ -1620,7 +1616,7 @@ mod tests {
                 tag,
                 Default::default(),
                 Default::default(),
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
 
             client
@@ -1659,7 +1655,7 @@ mod tests {
                 tag,
                 Default::default(),
                 Default::default(),
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
 
             client
@@ -1795,7 +1791,7 @@ mod tests {
                 tag,
                 Default::default(),
                 Default::default(),
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
 
             client.put_unseq_mutable_data(data.clone()).then(|res| res)
@@ -1827,9 +1823,9 @@ mod tests {
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
             let permission_set = NewPermissionSet::new()
-                .allow(Action::Read)
-                .allow(Action::Insert)
-                .allow(Action::ManagePermissions);
+                .allow(MDataAction::Read)
+                .allow(MDataAction::Insert)
+                .allow(MDataAction::ManagePermissions);
             let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
             let user2 = user;
             let random_user = PublicKey::Bls(threshold_crypto::SecretKey::random().public_key());
@@ -1840,7 +1836,7 @@ mod tests {
                 tag,
                 Default::default(),
                 permissions,
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
             client
                 .put_seq_mutable_data(data.clone())
@@ -1851,8 +1847,8 @@ mod tests {
                 })
                 .and_then(move |_| {
                     let new_perm_set = NewPermissionSet::new()
-                        .allow(Action::ManagePermissions)
-                        .allow(Action::Read);
+                        .allow(MDataAction::ManagePermissions)
+                        .allow(MDataAction::Read);
                     client2
                         .set_mdata_user_permissions_new(name, tag, user, new_perm_set, 1)
                         .and_then(|_| Ok(()))
@@ -1863,9 +1859,9 @@ mod tests {
                     client3
                         .list_mdata_user_permissions_new(name, tag, user2)
                         .and_then(|permissions| {
-                            assert!(!permissions.is_allowed(Action::Insert));
-                            assert!(permissions.is_allowed(Action::Read));
-                            assert!(permissions.is_allowed(Action::ManagePermissions));
+                            assert!(!permissions.is_allowed(MDataAction::Insert));
+                            assert!(permissions.is_allowed(MDataAction::Read));
+                            assert!(permissions.is_allowed(MDataAction::ManagePermissions));
                             println!("Verified new permissions");
 
                             Ok(())
@@ -1904,10 +1900,10 @@ mod tests {
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
             let permission_set = NewPermissionSet::new()
-                .allow(Action::Read)
-                .allow(Action::Insert)
-                .allow(Action::Update)
-                .allow(Action::Delete);
+                .allow(MDataAction::Read)
+                .allow(MDataAction::Insert)
+                .allow(MDataAction::Update)
+                .allow(MDataAction::Delete);
             let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
             let _ = permissions.insert(user, permission_set.clone());
             let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
@@ -1918,7 +1914,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
             client
                 .put_seq_mutable_data(data.clone())
@@ -1978,10 +1974,10 @@ mod tests {
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
             let permission_set = NewPermissionSet::new()
-                .allow(Action::Read)
-                .allow(Action::Insert)
-                .allow(Action::Update)
-                .allow(Action::Delete);
+                .allow(MDataAction::Read)
+                .allow(MDataAction::Insert)
+                .allow(MDataAction::Update)
+                .allow(MDataAction::Delete);
             let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
             let _ = permissions.insert(user, permission_set.clone());
             let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
@@ -1992,7 +1988,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
             client
                 .put_unseq_mutable_data(data.clone())

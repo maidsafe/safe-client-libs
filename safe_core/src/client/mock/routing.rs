@@ -19,7 +19,8 @@ use routing::{
 };
 #[cfg(any(feature = "testing", test))]
 use safe_nd::Coins;
-use safe_nd::{ImmutableData, Message, MessageId, PublicKey, XorName};
+use safe_nd::{ClientFullId, FullIdentity};
+use safe_nd::{ImmutableData, Message, MessageId, PublicId, PublicKey, XorName};
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,6 +28,7 @@ use std::env;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use threshold_crypto::SecretKey as BlsSecretKey;
 
 /// Function that is used to tap into routing requests and return preconditioned responses.
 pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
@@ -78,7 +80,8 @@ pub fn unlimited_muts(config: &Config) -> bool {
 pub struct Routing {
     vault: Arc<Mutex<Vault>>,
     sender: Sender<Event>,
-    full_id: FullId,
+    pub full_id: FullId,
+    full_id_new: FullIdentity,
     client_auth: Authority<XorName>,
     max_ops_countdown: Option<Cell<u64>>,
     timeout_simulation: bool,
@@ -92,6 +95,7 @@ impl Routing {
     pub fn new(
         sender: Sender<Event>,
         id: Option<FullId>,
+        full_id: Option<FullIdentity>,
         _bootstrap_config: Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
@@ -108,10 +112,14 @@ impl Routing {
             proxy_node_name: new_rand::random(),
         };
 
+        let bls_sk = BlsSecretKey::random();
+
         Ok(Routing {
             vault: clone_vault(),
             sender,
             full_id: id.unwrap_or_else(FullId::new),
+            full_id_new: full_id
+                .unwrap_or_else(|| FullIdentity::Client(ClientFullId::with_bls_key(bls_sk))),
             client_auth,
             max_ops_countdown: None,
             timeout_simulation: false,
@@ -122,10 +130,14 @@ impl Routing {
 
     /// Send a routing message
     pub fn send(&mut self, dst: Authority<XorName>, payload: &[u8]) -> Result<(), InterfaceError> {
-        let mut vault = self.lock_vault(true);
-        let msg: Message =
-            unwrap!(vault.process_request(*self.full_id.public_id(), payload.to_vec()));
-
+        let msg: Message = {
+            let mut vault = self.lock_vault(true);
+            let public_id = match &self.full_id_new {
+                FullIdentity::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
+                FullIdentity::App(full_id) => PublicId::App(full_id.public_id().clone()),
+            };
+            unwrap!(vault.process_request(public_id, payload.to_vec()))
+        };
         // Send response back to a client
         let (message_id, response) = if let Message::Response {
             message_id,
@@ -230,7 +242,7 @@ impl Routing {
                         }
                     }
                 })
-                .map(|_| vault.commit_mutation(&dst))
+                .map(|_| vault.commit_mutation(&dst.name()))
         };
 
         self.send_response(
@@ -338,7 +350,7 @@ impl Routing {
                             Ok(())
                         }
                     })
-                    .map(|_| vault.commit_mutation(&dst))
+                    .map(|_| vault.commit_mutation(&dst.name()))
             }
         };
 
@@ -804,7 +816,7 @@ impl Routing {
 
             let output = f(&mut data)?;
             vault.insert_data(DataId::mutable(name, tag), Data::OldMutable(data));
-            vault.commit_mutation(&dst);
+            vault.commit_mutation(&dst.name());
 
             Ok(output)
         };

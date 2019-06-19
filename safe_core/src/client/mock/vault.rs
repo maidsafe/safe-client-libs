@@ -158,8 +158,8 @@ impl Vault {
     pub fn authorise_coin_operation(
         &self,
         coin_balance_name: &XorName,
-        req: &Request,
-        msg_id: MessageId,
+        _req: &Request,
+        _msg_id: MessageId,
         requester: &PublicId,
     ) -> Result<(), Error> {
         // Check if we are the owner or app.
@@ -178,10 +178,10 @@ impl Vault {
             PublicId::Node(_) => return Err(Error::AccessDenied),
         };
 
-        if balance.owner() == requester_pk {
+        if PublicKey::from(*balance.owner()) == *requester_pk {
             Ok(())
         } else {
-            let account = match self.get_account(owner_account) {
+            let account = match self.get_account(&owner_account) {
                 Some(account) => account,
                 None => {
                     debug!("Account not found for {:?}", owner_account);
@@ -340,7 +340,7 @@ impl Vault {
         requester: PublicId,
         payload: Vec<u8>,
     ) -> Result<Message, Error> {
-        let (request, message_id, signature) = if let Message::Request {
+        let (request, message_id, _signature) = if let Message::Request {
             request,
             message_id,
             signature,
@@ -352,9 +352,9 @@ impl Vault {
         };
 
         // Requester's public key
-        let requester_pk = match requester {
-            PublicId::App(pk) => pk.public_key(),
-            PublicId::Client(pk) => pk.public_key(),
+        let requester_pk = match requester.clone() {
+            PublicId::App(pk) => pk.public_key().clone(),
+            PublicId::Client(pk) => pk.public_key().clone(),
             PublicId::Node(_) => return Err(Error::AccessDenied),
         };
 
@@ -362,24 +362,21 @@ impl Vault {
             //
             // Immutable Data
             //
-            Request::GetUnpubIData(address) => {
+            Request::GetIData(address) => {
                 let result = self
-                    .get_idata(
-                        ImmutableDataRef {
-                            name: address,
-                            published: false,
-                        },
-                        requester,
-                    )
+                    .get_idata(ImmutableDataRef {
+                        name: *address.name(),
+                        published: false,
+                    })
                     .and_then(|kind| match kind {
-                        ImmutableDataKind::Unpublished(data) => Ok(data),
+                        ImmutableDataKind::Unpublished(data) => Ok(data), // FIXME: Verify owner
                         _ => Err(Error::from("Unexpected data returned")),
                     });
                 Response::GetUnpubIData(result)
             }
-            Request::PutUnpubIData(data) => {
+            Request::PutIData(data) => {
                 let result =
-                    self.put_idata(ImmutableDataKind::Unpublished(data.clone()), requester);
+                    self.put_idata(requester, ImmutableDataKind::Unpublished(data.clone()));
                 Response::PutUnpubIData(result)
             }
             Request::DeleteUnpubIData(address) => {
@@ -463,7 +460,7 @@ impl Vault {
                 Response::PutUnseqMData(result)
             }
             Request::GetMData(address) => {
-                let result = self.get_mdata(address, requester.clone(), request, message_id);
+                let result = self.get_mdata(address, requester_pk, request, message_id);
 
                 match (address, result) {
                     (MDataAddress::Seq { .. }, Ok(MutableDataKind::Sequenced(mdata))) => {
@@ -474,6 +471,12 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Err(err)) => Response::GetSeqMData(Err(err)),
                     (MDataAddress::Unseq { .. }, Err(err)) => Response::GetUnseqMData(Err(err)),
+                    (MDataAddress::Seq { .. }, Ok(MutableDataKind::Unsequenced(_))) => {
+                        Response::GetSeqMData(Err(Error::from("Unexpected data returned")))
+                    }
+                    (MDataAddress::Unseq { .. }, Ok(MutableDataKind::Sequenced(_))) => {
+                        Response::GetSeqMData(Err(Error::from("Unexpected data returned")))
+                    }
                 }
             }
             Request::PutSeqMData(data) => {
@@ -494,6 +497,12 @@ impl Vault {
                     (MDataAddress::Unseq { .. }, Err(err)) => {
                         Response::GetUnseqMDataValue(Err(err))
                     }
+                    (MDataAddress::Seq { .. }, Ok(MutableDataKind::Unsequenced(_))) => {
+                        Response::GetSeqMDataValue(Err(Error::from("Unexpected data returned")))
+                    }
+                    (MDataAddress::Unseq { .. }, Ok(MutableDataKind::Sequenced(_))) => {
+                        Response::GetUnseqMDataValue(Err(Error::from("Unexpected data returned")))
+                    }
                 }
             }
             Request::GetMDataShell(address) => {
@@ -510,11 +519,17 @@ impl Vault {
                     (MDataAddress::Unseq { .. }, Err(err)) => {
                         Response::GetUnseqMDataShell(Err(err))
                     }
+                    (MDataAddress::Seq { .. }, Ok(MutableDataKind::Unsequenced(_))) => {
+                        Response::GetSeqMDataShell(Err(Error::from("Unexpected data returned")))
+                    }
+                    (MDataAddress::Unseq { .. }, Ok(MutableDataKind::Sequenced(_))) => {
+                        Response::GetUnseqMDataShell(Err(Error::from("Unexpected data returned")))
+                    }
                 }
             }
             Request::GetMDataVersion(address) => {
                 let result = self
-                    .get_mdata(address, requester.clone(), request, message_id)
+                    .get_mdata(address, requester_pk, request, message_id)
                     .and_then(|data| match data {
                         MutableDataKind::Sequenced(mdata) => Ok(mdata.version()),
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata.version()),
@@ -522,7 +537,7 @@ impl Vault {
                 Response::GetMDataVersion(result)
             }
             Request::ListMDataEntries(address) => {
-                let result = self.get_mdata(address, requester.clone(), request, message_id);
+                let result = self.get_mdata(address, requester_pk, request, message_id);
 
                 match (address, result) {
                     (MDataAddress::Seq { .. }, Ok(MutableDataKind::Sequenced(mdata))) => {
@@ -535,11 +550,19 @@ impl Vault {
                     (MDataAddress::Unseq { .. }, Err(err)) => {
                         Response::ListUnseqMDataEntries(Err(err))
                     }
+                    (MDataAddress::Seq { .. }, Ok(MutableDataKind::Unsequenced(_))) => {
+                        Response::ListSeqMDataEntries(Err(Error::from("Unexpected data returned")))
+                    }
+                    (MDataAddress::Unseq { .. }, Ok(MutableDataKind::Sequenced(_))) => {
+                        Response::ListUnseqMDataEntries(Err(Error::from(
+                            "Unexpected data returned",
+                        )))
+                    }
                 }
             }
             Request::ListMDataKeys(address) => {
                 let result = self
-                    .get_mdata(address, requester.clone(), request, message_id)
+                    .get_mdata(address, requester_pk, request, message_id)
                     .and_then(|data| match data {
                         MutableDataKind::Sequenced(mdata) => Ok(mdata.keys().clone()),
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata.keys().clone()),
@@ -547,7 +570,7 @@ impl Vault {
                 Response::ListMDataKeys(result)
             }
             Request::ListMDataValues(address) => {
-                let result = self.get_mdata(address, requester.clone(), request, message_id);
+                let result = self.get_mdata(address, requester_pk, request, message_id);
                 match (address, result) {
                     (MDataAddress::Seq { .. }, Ok(MutableDataKind::Sequenced(mdata))) => {
                         Response::ListSeqMDataValues(Ok(mdata.values()))
@@ -559,24 +582,45 @@ impl Vault {
                     (MDataAddress::Unseq { .. }, Err(err)) => {
                         Response::ListUnseqMDataValues(Err(err))
                     }
+                    (MDataAddress::Seq { .. }, Ok(MutableDataKind::Unsequenced(_))) => {
+                        Response::ListSeqMDataValues(Err(Error::from("Unexpected data returned")))
+                    }
+                    (MDataAddress::Unseq { .. }, Ok(MutableDataKind::Sequenced(_))) => {
+                        Response::ListUnseqMDataValues(Err(Error::from("Unexpected data returned")))
+                    }
                 }
             }
             Request::DeleteMData(address) => {
-                let res = self.authorise_mutation1(&dest).and_then(|_| {
-                    self.get_mdata(address, requester.clone(), request, message_id)
-                        .and_then(|data| match data {
-                            MutableDataKind::Sequenced(mdata) => {
-                                self.delete_data(DataId::mutable(*mdata.name(), mdata.tag()));
-                                self.commit_mutation(requester.name());
-                                Ok(())
+                let res = self
+                    .get_mdata(address, requester_pk, request, message_id)
+                    .and_then(|data| match data {
+                        MutableDataKind::Sequenced(mdata) => {
+                            if let PublicId::Client(client_id) = requester.clone() {
+                                if client_id.public_key() == mdata.owners() {
+                                    self.delete_data(DataId::mutable(*mdata.name(), mdata.tag()));
+                                    self.commit_mutation(requester.name());
+                                    Ok(())
+                                } else {
+                                    Err(Error::InvalidOwners)
+                                }
+                            } else {
+                                Err(Error::AccessDenied)
                             }
-                            MutableDataKind::Unsequenced(mdata) => {
-                                self.delete_data(DataId::mutable(*mdata.name(), mdata.tag()));
-                                self.commit_mutation(requester.name());
-                                Ok(())
+                        }
+                        MutableDataKind::Unsequenced(mdata) => {
+                            if let PublicId::Client(client_id) = requester.clone() {
+                                if client_id.public_key() == mdata.owners() {
+                                    self.delete_data(DataId::mutable(*mdata.name(), mdata.tag()));
+                                    self.commit_mutation(requester.name());
+                                    Ok(())
+                                } else {
+                                    Err(Error::InvalidOwners)
+                                }
+                            } else {
+                                Err(Error::AccessDenied)
                             }
-                        })
-                });
+                        }
+                    });
                 Response::DeleteMData(res)
             }
             Request::SetMDataUserPermissions {
@@ -589,7 +633,7 @@ impl Vault {
                 let user = user;
 
                 let result = self
-                    .get_mdata(address, requester.clone(), request.clone(), message_id)
+                    .get_mdata(address, requester_pk, request.clone(), message_id)
                     .and_then(|data| {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
@@ -623,7 +667,7 @@ impl Vault {
                 let user = *user;
 
                 let result = self
-                    .get_mdata(address, requester.clone(), request, message_id)
+                    .get_mdata(address, requester_pk, request, message_id)
                     .and_then(|data| {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
@@ -651,7 +695,7 @@ impl Vault {
                 let user = *user;
 
                 let result = self
-                    .get_mdata(address, requester.clone(), request, message_id)
+                    .get_mdata(address, requester_pk, request, message_id)
                     .and_then(|data| match data {
                         MutableDataKind::Unsequenced(mdata) => {
                             Ok((*unwrap!(mdata.user_permissions(user))).clone())
@@ -664,7 +708,7 @@ impl Vault {
             }
             Request::ListMDataPermissions(address) => {
                 let result = self
-                    .get_mdata(address, requester.clone(), request, message_id)
+                    .get_mdata(address, requester_pk, request, message_id)
                     .and_then(|data| match data {
                         MutableDataKind::Unsequenced(mdata) => Ok(mdata.permissions()),
                         MutableDataKind::Sequenced(mdata) => Ok(mdata.permissions()),
@@ -678,7 +722,7 @@ impl Vault {
                 let request = request.clone();
 
                 let result = self
-                    .get_mdata(address, requester.clone(), request.clone(), message_id)
+                    .get_mdata(address, requester_pk, request.clone(), message_id)
                     .and_then(move |data| {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
@@ -704,12 +748,12 @@ impl Vault {
                 let actions = actions.clone();
 
                 let result = self
-                    .get_mdata(address, requester.clone(), request.clone(), message_id)
+                    .get_mdata(address, requester_pk, request.clone(), message_id)
                     .and_then(move |data| {
                         let data_name = DataId::mutable(data.name(), data.tag());
                         match data.clone() {
                             MutableDataKind::Unsequenced(mut mdata) => {
-                                mdata.mutate_entries(actions.clone(), requester)?;
+                                mdata.mutate_entries(actions.clone(), requester_pk)?;
                                 self.insert_data(
                                     data_name,
                                     Data::NewMutable(MutableDataKind::Unsequenced(mdata)),
@@ -722,6 +766,7 @@ impl Vault {
                     });
                 Response::MutateUnseqMDataEntries(result)
             }
+            _ => panic!("RPC not handled"),
         };
 
         Ok(Message::Response {
@@ -742,11 +787,7 @@ impl Vault {
         }
     }
 
-    pub fn put_idata(
-        &mut self,
-        requester: PublicKey,
-        data: ImmutableDataKind,
-    ) -> Result<(), Error> {
+    pub fn put_idata(&mut self, requester: PublicId, data: ImmutableDataKind) -> Result<(), Error> {
         let data_name = DataId::immutable(data.name(), data.published());
         /*
         self.authorise_mutation(&dst, &requester)
@@ -773,20 +814,36 @@ impl Vault {
     pub fn delete_idata(
         &mut self,
         address: ImmutableDataRef,
-        _requester: PublicId,
+        requester: PublicId,
     ) -> Result<(), Error> {
+        // Requester's public key
+        let requester_pk = match requester.clone() {
+            PublicId::App(pk) => pk.public_key().clone(),
+            PublicId::Client(pk) => pk.public_key().clone(),
+            PublicId::Node(_) => return Err(Error::AccessDenied),
+        };
+
         let data_name = DataId::immutable(address.name, address.published);
-        self.authorise_mutation1(&dst)
-            // .and_then(|_| self.authorised_delete(data_name, requester))
-            .and_then(|_| {
-                if !self.contains_data(&data_name) {
-                    Err(Error::NoSuchData)
+        match self.get_data(&data_name) {
+            Some(idata) => {
+                if let Data::Immutable(kind) = idata {
+                    if let ImmutableDataKind::Unpublished(unpub_idata) = kind {
+                        if PublicKey::from(*unpub_idata.owners()) == requester_pk {
+                            self.delete_data(data_name);
+                            self.commit_mutation(requester.name());
+                            Ok(())
+                        } else {
+                            Err(Error::AccessDenied)
+                        }
+                    } else {
+                        Err(Error::InvalidOperation)
+                    }
                 } else {
-                    self.delete_data(data_name);
-                    Ok(())
+                    Err(Error::NoSuchData)
                 }
-            })
-            .map(|_| self.commit_mutation(&dst))
+            }
+            None => Err(Error::NoSuchData),
+        }
     }
 
     pub fn get_mdata(
@@ -794,7 +851,7 @@ impl Vault {
         address: MDataAddress,
         requester_pk: PublicKey,
         request: Request,
-        msg_id: MessageId,
+        _msg_id: MessageId,
     ) -> Result<MutableDataKind, Error> {
         let data_name = DataId::mutable(*address.name(), address.tag());
 
@@ -828,16 +885,13 @@ impl Vault {
 
     pub fn put_mdata(&mut self, data: MutableDataKind, requester: PublicId) -> Result<(), Error> {
         let data_name = DataId::mutable(data.name(), data.tag());
-        self.authorise_mutation1(&dst)
-            .and_then(|_| {
-                if self.contains_data(&data_name) {
-                    Err(Error::DataExists)
-                } else {
-                    self.insert_data(data_name, Data::NewMutable(data));
-                    Ok(())
-                }
-            })
-            .map(|_| self.commit_mutation(&requester.name()))
+        if self.contains_data(&data_name) {
+            Err(Error::DataExists)
+        } else {
+            self.insert_data(data_name, Data::NewMutable(data));
+            self.commit_mutation(&requester.name());
+            Ok(())
+        }
     }
 }
 
