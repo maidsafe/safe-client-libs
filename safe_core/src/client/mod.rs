@@ -279,7 +279,7 @@ pub trait Client: Clone + 'static {
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Box<CoreFuture<u64>> {
         trace!("Transfer {} coins to {:?}", amount, destination);
 
         let transaction_id = transaction_id.unwrap_or_else(rand::random);
@@ -293,6 +293,8 @@ pub trait Client: Clone + 'static {
                 transaction_id,
             },
         )
+        .map(move |_| transaction_id)
+        .into_box()
     }
 
     /// Get the current coin balance.
@@ -1750,8 +1752,8 @@ mod tests {
 
     // 1. Create 2 accounts with 2 wallets.
     // 2. Transfer 5 coins from wallet A to wallet B.
-    // 3. Check that the balance of wallet A is credited for 5 coins and the balance of
-    //    wallet B is debited for 5 coins.
+    // 3. Check that the balance of wallet B is credited for 5 coins and the balance of
+    //    wallet A is debited for 5 coins.
     #[test]
     fn coin_balance_transfer() {
         let wallet1 = random_client(move |client| {
@@ -1774,24 +1776,33 @@ mod tests {
 
             let c2 = client.clone();
             let c3 = client.clone();
+            let c4 = client.clone();
 
             client
                 .get_balance(wallet2)
                 .and_then(move |orig_balance| {
                     c2.transfer_coins(wallet2, wallet1, unwrap!(Coins::from_str("5.0")), None)
-                        .map(move |_| orig_balance)
+                        .map(move |transaction_id| (transaction_id, orig_balance))
                 })
-                .and_then(move |orig_balance| {
+                .and_then(move |(transaction_id, orig_balance)| {
                     c3.get_balance(wallet2)
-                        .map(move |new_balance| (new_balance, orig_balance))
+                        .map(move |new_balance| (transaction_id, new_balance, orig_balance))
                 })
-                .and_then(move |(new_balance, orig_balance)| {
+                .and_then(move |(transaction_id, new_balance, orig_balance)| {
                     assert_eq!(
                         new_balance,
                         unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
                     );
-                    // TODO check the transaction
-                    // TODO check the other wallet balance has been incremented
+
+                    c4.get_transaction(wallet1, transaction_id)
+                })
+                .and_then(move |transaction| {
+                    match transaction {
+                        Transaction::Success(amount) => {
+                            assert_eq!(amount, unwrap!(Coins::from_str("5.0")))
+                        }
+                        res => panic!("Unexpected transaction result: {:?}", res),
+                    }
                     Ok(())
                 })
         });

@@ -322,11 +322,11 @@ impl Vault {
         transaction_id: u64,
     ) -> Result<(), Error> {
         match self.get_coin_balance_mut(&source) {
-            Some(balance) => balance.credit_balance(amount, transaction_id)?,
+            Some(balance) => balance.debit_balance(amount)?,
             None => return Err(Error::NoSuchAccount),
         };
         match self.get_coin_balance_mut(&destination) {
-            Some(balance) => balance.debit_balance(amount)?,
+            Some(balance) => balance.credit_balance(amount, transaction_id)?,
             None => return Err(Error::NoSuchAccount),
         };
         Ok(())

@@ -34,7 +34,7 @@ impl CoinBalance {
     }
 
     pub fn credit_balance(&mut self, amount: Coins, transaction_id: u64) -> Result<(), Error> {
-        if let Some(new_balance) = self.value.checked_sub(amount) {
+        if let Some(new_balance) = self.value.checked_add(amount) {
             self.value = new_balance;
             self.add_transaction(amount, transaction_id);
             Ok(())
@@ -44,7 +44,7 @@ impl CoinBalance {
     }
 
     pub fn debit_balance(&mut self, amount: Coins) -> Result<(), Error> {
-        if let Some(new_balance) = self.value.checked_add(amount) {
+        if let Some(new_balance) = self.value.checked_sub(amount) {
             self.value = new_balance;
             Ok(())
         } else {

@@ -142,7 +142,7 @@ fn coin_app_allow_permissions() {
             })
             .then(move |res| {
                 match res {
-                    Ok(()) => (),
+                    Ok(_) => (),
                     res => panic!("Unexpected result: {:?}", res),
                 }
 
