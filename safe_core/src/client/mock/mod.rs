@@ -13,7 +13,7 @@ mod tests;
 pub mod vault;
 
 pub use self::account::{Account, CoinBalance, DEFAULT_MAX_MUTATIONS};
-pub use self::routing::{RequestHookFn, Routing};
+pub use self::routing::{NewFullId, RequestHookFn, Routing};
 use ::routing::XorName;
 
 /// Identifier of immutable data

@@ -19,7 +19,7 @@ use routing::{
 };
 #[cfg(any(feature = "testing", test))]
 use safe_nd::Coins;
-use safe_nd::{ClientFullId, FullIdentity};
+use safe_nd::{AppFullId, ClientFullId};
 use safe_nd::{ImmutableData, Message, MessageId, PublicId, PublicKey, XorName};
 use std;
 use std::cell::Cell;
@@ -82,13 +82,21 @@ pub struct Routing {
     sender: Sender<Event>,
     /// mock_routing::FullId for old types
     pub full_id: FullId,
-    /// safe_nd::FullIdentity for new types
-    pub full_id_new: FullIdentity,
+    /// NewFullId for new types
+    pub full_id_new: NewFullId,
     client_auth: Authority<XorName>,
     max_ops_countdown: Option<Cell<u64>>,
     timeout_simulation: bool,
     request_hook: Option<Box<RequestHookFn>>,
     response_hook: Option<Box<ResponseHookFn>>,
+}
+
+/// An enum representing the Full Id variants for a Client or App
+pub enum NewFullId {
+    /// Represents an application authorised by a client.
+    App(AppFullId),
+    /// Represents a network client.
+    Client(ClientFullId),
 }
 
 impl Routing {
@@ -97,7 +105,7 @@ impl Routing {
     pub fn new(
         sender: Sender<Event>,
         id: Option<FullId>,
-        full_id: Option<FullIdentity>,
+        full_id: Option<NewFullId>,
         _bootstrap_config: Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
@@ -121,7 +129,7 @@ impl Routing {
             sender,
             full_id: id.unwrap_or_else(FullId::new),
             full_id_new: full_id
-                .unwrap_or_else(|| FullIdentity::Client(ClientFullId::with_bls_key(bls_sk))),
+                .unwrap_or_else(|| NewFullId::Client(ClientFullId::with_bls_key(bls_sk))),
             client_auth,
             max_ops_countdown: None,
             timeout_simulation: false,
@@ -135,8 +143,8 @@ impl Routing {
         let msg: Message = {
             let mut vault = self.lock_vault(true);
             let public_id = match &self.full_id_new {
-                FullIdentity::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
-                FullIdentity::App(full_id) => PublicId::App(full_id.public_id().clone()),
+                NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
+                NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
             };
             unwrap!(vault.process_request(public_id, payload.to_vec()))
         };

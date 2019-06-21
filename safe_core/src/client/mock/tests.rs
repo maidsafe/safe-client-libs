@@ -12,15 +12,17 @@
 use super::routing::Routing;
 use super::DEFAULT_MAX_MUTATIONS;
 use crate::client::mock::vault::Vault;
+use crate::client::NewFullId;
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
+
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{
     AccountInfo, Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
     MutableData, PermissionSet, Request, Response, User, Value, TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    ClientFullId, FullIdentity, ImmutableData, MDataAction as NewAction, MDataAddress,
+    AppFullId, ClientFullId, Error, ImmutableData, MDataAction as NewAction, MDataAddress,
     MDataPermissionSet as NewPermissionSet, Message, MessageId, MutableData as NewMutableData,
     PublicKey, Request as RpcRequest, Response as RpcResponse, UnpubImmutableData,
     UnseqMutableData, XorName,
@@ -74,9 +76,27 @@ macro_rules! expect_failure {
 }
 
 impl Routing {
+    fn req_as_app(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
+        let message_id = MessageId::new();
+        let signature = if let NewFullId::App(app_full_id) = &self.full_id_new {
+            app_full_id.sign(&unwrap!(bincode::serialize(&(message_id, &request))))
+        } else {
+            panic!("Unsupported operation")
+        };
+        unwrap!(self.send(
+            Authority::ClientManager(new_rand::random()),
+            &unwrap!(serialise(&Message::Request {
+                request,
+                message_id,
+                signature: Some(signature),
+            }))
+        ));
+        let response = expect_success!(rx, message_id, Response::RpcResponse);
+        unwrap!(deserialise(&response))
+    }
     fn req_as_owner(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
         let message_id = MessageId::new();
-        let signature = if let FullIdentity::Client(client_full_id) = &self.full_id_new {
+        let signature = if let NewFullId::Client(client_full_id) = &self.full_id_new {
             client_full_id.sign(&unwrap!(bincode::serialize(&(&request, message_id))))
         } else {
             panic!("Unsupported operation")
@@ -1061,9 +1081,6 @@ fn mutable_data_ownership() {
 
 #[test]
 fn unpub_idata_rpc() {
-    // use crate::utils::test_utils;
-    // use safe_nd::Error;
-
     let (mut routing, routing_rx, full_id) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
@@ -1090,50 +1107,42 @@ fn unpub_idata_rpc() {
             let unpub_idata: UnpubImmutableData = unwrap!(res);
             assert_eq!(unpub_idata.name(), name);
         }
+        _ => panic!("Unexpected response"),
     }
 
-    // TODO: Uncomment the following lines once verification in get_idata, put_idata and
-    // delete_idata has been implemented.
-    //
-    // // Try to get unpub idata while not being an owner. Should fail.
-    // {
-    //     let (_, random_pk) = test_utils::gen_bls_keys();
+    let (mut app_routing, app_routing_rx, _app_full_id) = setup();
 
-    //     let rpc_response = routing.req_as_app(
-    //         &routing_rx,
-    //         client_mgr,
-    //         PublicKey::from(random_pk),
-    //         RpcRequest::GetUnpubIData { address: *name },
-    //     );
-    //     match rpc_response {
-    //         RpcResponse::GetUnpubIData(res) => match res {
-    //             Ok(_) => panic!("Unexpected"),
-    //             Err(Error::AccessDenied) => (),
-    //             Err(e) => panic!("Unexpected {:?}", e),
-    //         },
-    //         _ => panic!("Unexpected"),
-    //     }
-    // }
+    // Try to get unpub idata while not being an owner. Should fail.
+    {
+        let rpc_response = app_routing.req_as_app(
+            &app_routing_rx,
+            RpcRequest::GetIData(safe_nd::IDataAddress::Unpub(*name)),
+        );
+        match rpc_response {
+            RpcResponse::GetUnpubIData(res) => match res {
+                Ok(_) => panic!("Unexpected"),
+                Err(Error::AccessDenied) => (),
+                Err(e) => panic!("Unexpected {:?}", e),
+            },
+            _ => panic!("Unexpected"),
+        }
+    }
 
-    // // Try to delete unpub idata while not being an owner. Should fail.
-    // {
-    //     let (_, random_pk) = test_utils::gen_bls_keys();
-
-    //     let rpc_response = routing.req_as_app(
-    //         &routing_rx,
-    //         client_mgr,
-    //         PublicKey::from(random_pk),
-    //         RpcRequest::DeleteUnpubIData { address: *name },
-    //     );
-    //     match rpc_response {
-    //         RpcResponse::DeleteUnpubIData(res) => match res {
-    //             Ok(_) => panic!("Unexpected"),
-    //             Err(Error::AccessDenied) => (),
-    //             Err(e) => panic!("Unexpected {:?}", e),
-    //         },
-    //         _ => panic!("Unexpected"),
-    //     }
-    // }
+    // Try to delete unpub idata while not being an owner. Should fail.
+    {
+        let rpc_response = app_routing.req_as_app(
+            &app_routing_rx,
+            RpcRequest::DeleteUnpubIData(safe_nd::IDataAddress::Unpub(*name)),
+        );
+        match rpc_response {
+            RpcResponse::DeleteUnpubIData(res) => match res {
+                Ok(_) => panic!("Unexpected"),
+                Err(Error::AccessDenied) => (),
+                Err(e) => panic!("Unexpected {:?}", e),
+            },
+            _ => panic!("Unexpected"),
+        }
+    }
 }
 
 #[test]
@@ -1553,11 +1562,16 @@ fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId) {
 
 fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
     let full_id = FullId::new();
+    let bls_sk = full_id.bls_key().clone();
+    let bls_pk = bls_sk.public_key();
     let (routing_tx, routing_rx) = mpsc::channel();
     let routing = unwrap!(Routing::new(
         routing_tx,
         Some(full_id.clone()),
-        None,
+        Some(NewFullId::App(AppFullId::with_keys(
+            bls_sk,
+            PublicKey::from(bls_pk),
+        ))),
         None,
         Duration::new(0, 0),
     ));
@@ -1586,7 +1600,7 @@ fn create_account(
         btree_set![owner_key]
     ));
 
-    routing.full_id_new = FullIdentity::Client(ClientFullId::with_bls_key(
+    routing.full_id_new = NewFullId::Client(ClientFullId::with_bls_key(
         routing.full_id.bls_key().clone(),
     ));
 

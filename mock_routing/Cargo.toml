@@ -11,8 +11,7 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-safe-nd = { path = "../../safe-nd" }
-# safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
 maidsafe_utilities = "~0.18.0"
 rust_sodium = "~0.10.2"
 rand = "~0.3.18"

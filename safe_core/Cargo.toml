@@ -37,8 +37,7 @@ threshold_crypto = { git = "https://github.com/poanetwork/threshold_crypto.git",
 tokio = "=0.1.8"
 tokio-core = "~0.1.17"
 unwrap = "~1.2.0"
-# safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
-safe-nd = { path = "../../safe-nd" }
+safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
 
 [dev-dependencies]
 serde_json = "~1.0.9"

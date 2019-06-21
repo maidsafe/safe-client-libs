@@ -14,9 +14,9 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
-    Coins, Error, ImmutableData, MDataAddress, Message, MessageId, MutableData as NewMutableData,
-    PublicId, PublicKey, Request, Response, SeqMutableData, Signature, Transaction,
-    UnpubImmutableData, UnseqMutableData, XorName,
+    verify_signature, Coins, Error, ImmutableData, MDataAddress, Message, MessageId,
+    MutableData as NewMutableData, PublicId, PublicKey, Request, Response, SeqMutableData,
+    Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::HashMap;
 use std::env;
@@ -163,8 +163,11 @@ impl Vault {
         requester_pk: PublicKey,
         signature: Option<Signature>,
     ) -> Result<(), Error> {
-        let message = bincode::serialize(&(&req, msg_id)).unwrap_or_default();
-        requester_pk.verify(&signature.unwrap(), message)?;
+        let sig = match signature {
+            Some(s) => s,
+            None => return Err(Error::InvalidSignature),
+        };
+        verify_signature(&sig, &requester_pk, req, &msg_id)?;
         // Check if we are the owner or app.
         let balance = match self.get_coin_balance(&coin_balance_name) {
             Some(balance) => balance,
@@ -344,10 +347,7 @@ impl Vault {
                                     None => return Err(Error::InvalidSignature),
                                     Some(s) => s,
                                 };
-                                requester_pk.verify(
-                                    &sig,
-                                    &unwrap!(bincode::serialize(&(&request, message_id))),
-                                )?;
+                                verify_signature(&sig, &requester_pk, &request, &message_id)?;
                                 Ok(data)
                             } else {
                                 Err(Error::AccessDenied)
@@ -857,16 +857,14 @@ impl Vault {
             Some(s) => s,
             None => return Err(Error::InvalidSignature),
         };
+        verify_signature(&sig, &requester_pk, &request, &msg_id)?;
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
                 Data::NewMutable(data) => match data.clone() {
                     MutableDataKind::Sequenced(mdata) => {
                         if address.is_unseq() {
                             Err(Error::from("Unexpected data returned"))
-                        } else if mdata
-                            .check_permissions(request, msg_id, requester_pk, sig)
-                            .is_err()
-                        {
+                        } else if mdata.check_permissions(request, requester_pk).is_err() {
                             Err(Error::AccessDenied)
                         } else {
                             Ok(data)
@@ -875,10 +873,7 @@ impl Vault {
                     MutableDataKind::Unsequenced(mdata) => {
                         if address.is_seq() {
                             Err(Error::from("Unexpected data returned"))
-                        } else if mdata
-                            .check_permissions(request, msg_id, requester_pk, sig)
-                            .is_err()
-                        {
+                        } else if mdata.check_permissions(request, requester_pk).is_err() {
                             Err(Error::AccessDenied)
                         } else {
                             Ok(data)
@@ -921,8 +916,7 @@ impl Vault {
             },
             _ => return Err(Error::AccessDenied),
         }
-        let message_buffer = bincode::serialize(&(&request, msg_id)).unwrap_or_default();
-        requester_pk.verify(&sig, message_buffer)?;
+        verify_signature(&sig, &requester_pk, &request, &msg_id)?;
         if self.contains_data(&data_name) {
             Err(Error::DataExists)
         } else {

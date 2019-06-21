@@ -25,6 +25,8 @@ pub use self::mdata_info::MDataInfo;
 #[cfg(feature = "mock-network")]
 pub use self::mock::vault::mock_vault_path;
 #[cfg(feature = "mock-network")]
+pub use self::mock::NewFullId;
+#[cfg(feature = "mock-network")]
 pub use self::mock::Routing as MockRouting;
 
 #[cfg(feature = "mock-network")]
@@ -50,7 +52,7 @@ use routing::{
 };
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
-    AppPermissions, Coins, FullIdentity, IDataAddress, ImmutableData, MDataAddress,
+    AppPermissions, Coins, IDataAddress, ImmutableData, MDataAddress,
     MDataPermissionSet as NewPermissionSet, MDataSeqEntryAction as SeqEntryAction,
     MDataUnseqEntryAction as UnseqEntryAction, MDataValue as Val, Message, MessageId,
     MutableData as NewMutableData, PublicKey, Request, Response, SeqMutableData, Transaction,
@@ -110,7 +112,7 @@ pub trait Client: Clone + 'static {
     fn full_id(&self) -> Option<FullId>;
 
     /// Return the client's new ID.
-    fn full_id_new(&self) -> Option<FullIdentity>;
+    fn full_id_new(&self) -> Option<NewFullId>;
 
     /// Return a `crust::Config` if the `Client` was initialized with one.
     fn config(&self) -> Option<BootstrapConfig>;
@@ -1159,7 +1161,7 @@ where
 /// Set up routing given a Client `full_id` and optional `config` and connect to the network.
 pub fn setup_routing(
     full_id: Option<FullId>,
-    full_id_new: Option<FullIdentity>,
+    full_id_new: Option<NewFullId>,
     config: Option<BootstrapConfig>,
 ) -> Result<(Routing, Receiver<Event>), CoreError> {
     let (routing_tx, routing_rx) = mpsc::channel();

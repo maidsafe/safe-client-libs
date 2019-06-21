@@ -12,6 +12,7 @@ use crate::client::mock::Routing;
 use routing::Client as Routing;
 
 use crate::client::account::{Account as ClientAccount, ClientKeys};
+use crate::client::NewFullId;
 use crate::client::{
     setup_routing, spawn_routing_thread, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
     REQUEST_TIMEOUT_SECS,
@@ -29,7 +30,7 @@ use routing::{
 };
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::{FullIdentity, Message, MessageId, PublicKey, Request, Signature, XorName};
+use safe_nd::{Message, MessageId, PublicKey, Request, Signature, XorName};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -122,7 +123,7 @@ impl CoreClient {
 
         let (mut routing, routing_rx) = setup_routing(
             full_id,
-            Some(FullIdentity::Client(maid_keys.clone().into())),
+            Some(NewFullId::Client(maid_keys.clone().into())),
             None,
         )?;
         routing = routing_wrapper_fn(routing);
@@ -191,8 +192,8 @@ impl Client for CoreClient {
         Some(ClientKeys::into(self.keys.clone()))
     }
 
-    fn full_id_new(&self) -> Option<FullIdentity> {
-        Some(FullIdentity::Client(ClientKeys::into(self.keys.clone())))
+    fn full_id_new(&self) -> Option<NewFullId> {
+        Some(NewFullId::Client(ClientKeys::into(self.keys.clone())))
     }
 
     fn config(&self) -> Option<BootstrapConfig> {

@@ -9,6 +9,8 @@
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 #[cfg(feature = "mock-network")]
+use safe_core::client::NewFullId;
+#[cfg(feature = "mock-network")]
 use safe_core::MockRouting as Routing;
 
 use crate::errors::AppError;
@@ -22,7 +24,7 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, NetworkTx};
-use safe_nd::{AppFullId, FullIdentity, Message, MessageId, PublicKey, Request};
+use safe_nd::{AppFullId, Message, MessageId, PublicKey, Request};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -48,7 +50,7 @@ impl AppClient {
     ) -> Result<Self, AppError> {
         trace!("Creating unregistered client.");
 
-        let (routing, routing_rx) = setup_routing(None, None, config.clone())?;
+        let (routing, routing_rx) = setup_routing(None, None, config)?;
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 
         Ok(Self {
@@ -124,11 +126,11 @@ impl AppClient {
         trace!("Attempting to log into an acc using client keys.");
         let (mut routing, routing_rx) = setup_routing(
             Some(keys.clone().into()),
-            Some(FullIdentity::App(AppFullId::with_keys(
+            Some(NewFullId::App(AppFullId::with_keys(
                 keys.bls_sk.clone(),
                 owner,
             ))),
-            Some(config.clone()),
+            Some(config),
         )?;
         routing = routing_wrapper_fn(routing);
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
@@ -164,8 +166,8 @@ impl Client for AppClient {
         app_inner.keys.clone().map(Into::into)
     }
 
-    fn full_id_new(&self) -> Option<FullIdentity> {
-        Some(FullIdentity::App(AppFullId::with_keys(
+    fn full_id_new(&self) -> Option<NewFullId> {
+        Some(NewFullId::App(AppFullId::with_keys(
             self.secret_bls_key()?,
             self.owner_key()?,
         )))
@@ -173,7 +175,7 @@ impl Client for AppClient {
 
     fn config(&self) -> Option<BootstrapConfig> {
         let app_inner = self.app_inner.borrow();
-        app_inner.config.clone()
+        app_inner.config
     }
 
     fn cm_addr(&self) -> Option<Authority<XorName>> {

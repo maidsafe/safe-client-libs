@@ -208,7 +208,7 @@ pub fn apps_accessing_mutable_data(
             let mut app_access_vec: Vec<AppAccess> = Vec::new();
             for (user, perm_set) in permissions {
                 if let Key(public_key) = user {
-                    let app_access = match apps.get(&PublicKey::from(public_key)) {
+                    let app_access = match apps.get(&public_key) {
                         Some(app_info) => AppAccess {
                             sign_key: public_key,
                             permissions: perm_set,
