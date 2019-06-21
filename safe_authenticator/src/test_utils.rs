@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::not_unsafe_ptr_arg_deref))]
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::client::AuthClient;
 use crate::errors::AuthError;

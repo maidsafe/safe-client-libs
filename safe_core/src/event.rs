@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub const NETWORK_EVENT_START_RANGE: i32 = 0;
 
 /// Wraps responses from routing
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum CoreEvent {
     /// Result of getting account info

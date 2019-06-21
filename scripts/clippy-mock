@@ -2,6 +2,6 @@
 
 set -x;
 
-cd safe_core && cargo clippy --verbose --features="mock-network" --release --profile=test && cd .. &&
-cd safe_authenticator && cargo clippy --verbose --features="mock-network" --release --profile=test && cd .. &&
-cd safe_app && cargo clippy --verbose --features="mock-network" --release --profile=test && cd ..
+cd safe_core && cargo clippy --verbose --features="mock-network" --release --all-targets && cd .. &&
+cd safe_authenticator && cargo clippy --verbose --features="mock-network" --release --all-targets && cd .. &&
+cd safe_app && cargo clippy --verbose --features="mock-network" --release --all-targets && cd ..

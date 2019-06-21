@@ -105,7 +105,7 @@ mod codes {
 }
 
 /// Authenticator errors.
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum AuthError {
     /// Unexpected - probably a logic error.

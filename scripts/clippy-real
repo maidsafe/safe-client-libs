@@ -2,7 +2,7 @@
 
 set -x;
 
-cd safe_core && cargo clippy --verbose --features=testing --release --profile=test && cd .. &&
-cd safe_authenticator && cargo clippy --verbose --features=testing --release --profile=test && cd .. &&
-cd safe_app && cargo clippy --verbose --features=testing --release --profile=test && cd .. &&
-cd tests && cargo clippy --verbose --release --profile=test && cd ..
+cd safe_core && cargo clippy --verbose --features=testing --release --all-targets && cd .. &&
+cd safe_authenticator && cargo clippy --verbose --features=testing --release --all-targets && cd .. &&
+cd safe_app && cargo clippy --verbose --features=testing --release --all-targets && cd .. &&
+cd tests && cargo clippy --verbose --release --all-targets && cd ..

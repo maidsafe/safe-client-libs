@@ -20,7 +20,7 @@ use std::io;
 use std::sync::mpsc;
 
 /// Client Errors
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum CoreError {
     /// Could not Serialise or Deserialise.
     EncodeDecodeError(SerialisationError),

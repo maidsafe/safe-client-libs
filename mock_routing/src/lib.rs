@@ -1267,8 +1267,6 @@ pub enum AccountPacket {
 
 /// The type of errors that can occur if routing is unable to handle a send request.
 #[derive(Debug)]
-// FIXME - See https://maidsafe.atlassian.net/browse/MAID-2026 for info on removing this exclusion.
-#[allow(clippy::large_enum_variant)]
 pub enum InterfaceError {
     /// We are not connected to the network.
     NotConnected,

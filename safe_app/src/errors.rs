@@ -122,7 +122,7 @@ mod codes {
 
 /// App error.
 #[derive(Debug)]
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 pub enum AppError {
     /// Error from safe_core.
     CoreError(CoreError),

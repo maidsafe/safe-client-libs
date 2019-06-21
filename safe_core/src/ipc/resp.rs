@@ -43,7 +43,7 @@ pub static METADATA_KEY_LEN: usize = 9;
 
 /// IPC response.
 // TODO: `TransOwnership` variant
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::large_enum_variant))]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum IpcResp {
     /// Authentication.
