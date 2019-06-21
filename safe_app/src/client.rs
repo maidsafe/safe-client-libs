@@ -22,11 +22,7 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, NetworkTx};
-use safe_nd::{
-    request::{Request, Requester},
-    Message, MessageId, PublicKey,
-    AppFullId
-};
+use safe_nd::{AppFullId, FullIdentity, Message, MessageId, PublicKey, Request};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -126,8 +122,14 @@ impl AppClient {
         F: Fn(Routing) -> Routing,
     {
         trace!("Attempting to log into an acc using client keys.");
-        let (mut routing, routing_rx) =
-            setup_routing(Some(keys.clone().into()), Some(FullIdentity::App(AppFullId::with_keys(keys.bls_sk.clone(), owner))), Some(config.clone()))?;
+        let (mut routing, routing_rx) = setup_routing(
+            Some(keys.clone().into()),
+            Some(FullIdentity::App(AppFullId::with_keys(
+                keys.bls_sk.clone(),
+                owner,
+            ))),
+            Some(config.clone()),
+        )?;
         routing = routing_wrapper_fn(routing);
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 
@@ -160,6 +162,13 @@ impl Client for AppClient {
     fn full_id(&self) -> Option<FullId> {
         let app_inner = self.app_inner.borrow();
         app_inner.keys.clone().map(Into::into)
+    }
+
+    fn full_id_new(&self) -> Option<FullIdentity> {
+        Some(FullIdentity::App(AppFullId::with_keys(
+            self.secret_bls_key()?,
+            self.owner_key()?,
+        )))
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
@@ -218,10 +227,13 @@ impl Client for AppClient {
 
     fn compose_message(&self, request: Request) -> Message {
         let message_id = MessageId::new();
+
+        let sig = unwrap!(self.secret_bls_key())
+            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
         Message::Request {
             request,
             message_id,
-            requester: Requester::Key(PublicKey::Bls(unwrap!(self.public_bls_key()))),
+            signature: Some(safe_nd::Signature::from(sig)),
         }
     }
 }

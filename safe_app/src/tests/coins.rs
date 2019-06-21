@@ -14,7 +14,7 @@ use crate::{run, AppError};
 use futures::Future;
 use routing::XorName;
 use safe_core::{Client, CoreError};
-use safe_nd::{response::Transaction, AppPermissions, Coins, Error, PublicKey};
+use safe_nd::{AppPermissions, Coins, Error, PublicKey, Transaction};
 use std::str::FromStr;
 
 // Apps should not be able to request the coin balance if they don't have

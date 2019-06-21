@@ -599,26 +599,23 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get a current version of `MutableData` from the network.
-    fn get_mdata_version_new(&self, name: XorName, tag: u64) -> Box<CoreFuture<u64>> {
-        trace!("GetMDataVersion for {:?}", name);
+    fn get_mdata_version_new(&self, address: MDataAddress) -> Box<CoreFuture<u64>> {
+        // trace!("GetMDataVersion for {:?}", address);
 
-        send_new(
-            self,
-            Request::GetMDataVersion(MDataAddress::new_seq(name, tag)),
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::GetMDataVersion(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::GetMDataVersion(address))
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetMDataVersion(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Get a current version of `MutableData` from the network.
@@ -705,7 +702,7 @@ pub trait Client: Clone + 'static {
 
     /// Return a list of keys in `MutableData` stored on the network.
     fn list_mdata_keys(&self, name: XorName, tag: u64) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
-        trace!("ListMDataKeys for {:?}", name);
+        // trace!("ListMDataKeys for {:?}", name);
 
         let msg_id = MessageId::new();
         send(self, msg_id, move |routing| {
@@ -716,26 +713,23 @@ pub trait Client: Clone + 'static {
     }
 
     /// Return a list of keys in `MutableData` stored on the network.
-    fn list_mdata_keys_new(&self, name: XorName, tag: u64) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
-        trace!("ListMDataKeys for {:?}", name);
+    fn list_mdata_keys_new(&self, address: MDataAddress) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
+        // trace!("ListMDataKeys for {:?}", name);
 
-        send_new(
-            self,
-            Request::ListMDataKeys(MDataAddress::new_seq(name, tag)),
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::ListMDataKeys(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::ListMDataKeys(address))
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::ListMDataKeys(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Return a list of values in a Sequenced Mutable Data
@@ -764,32 +758,25 @@ pub trait Client: Clone + 'static {
     /// Return the permissions set for a particular user
     fn list_mdata_user_permissions_new(
         &self,
-        name: XorName,
-        tag: u64,
+        address: MDataAddress,
         user: PublicKey,
     ) -> Box<CoreFuture<NewPermissionSet>> {
-        trace!("GetMDataUserPermissions for {:?}", name);
+        // trace!("GetMDataUserPermissions for {:?}", name);
 
-        send_new(
-            self,
-            Request::ListMDataUserPermissions {
-                address: MDataAddress::new_seq(name, tag),
-                user,
-            },
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::ListMDataUserPermissions { address, user })
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Returns a list of values in an Unsequenced Mutable Data
@@ -871,28 +858,24 @@ pub trait Client: Clone + 'static {
     /// Return a list of permissions in `MutableData` stored on the network.
     fn list_mdata_permissions_new(
         &self,
-        name: XorName,
-        tag: u64,
+        address: MDataAddress,
     ) -> Box<CoreFuture<BTreeMap<PublicKey, NewPermissionSet>>> {
-        trace!("List MDataPermissions for {:?}", name);
+        // trace!("List MDataPermissions for {:?}", name);
 
-        send_new(
-            self,
-            Request::ListMDataPermissions(MDataAddress::new_seq(name, tag)),
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
+        send_new(self, Request::ListMDataPermissions(address))
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
     }
 
     /// Return a list of permissions for a particular User in MutableData.
@@ -943,18 +926,17 @@ pub trait Client: Clone + 'static {
     /// Updates or inserts a permissions set for a user
     fn set_mdata_user_permissions_new(
         &self,
-        name: XorName,
-        tag: u64,
+        address: MDataAddress,
         user: PublicKey,
         permissions: NewPermissionSet,
         version: u64,
     ) -> Box<CoreFuture<()>> {
-        trace!("SetMDataUserPermissions for {:?}", name);
+        // trace!("SetMDataUserPermissions for {:?}", name);
 
         send_mutation_new(
             self,
             Request::SetMDataUserPermissions {
-                address: MDataAddress::new_seq(name, tag),
+                address,
                 user,
                 permissions: permissions.clone(),
                 version,
@@ -965,17 +947,16 @@ pub trait Client: Clone + 'static {
     /// Updates or inserts a permissions set for a user
     fn del_mdata_user_permissions_new(
         &self,
-        name: XorName,
-        tag: u64,
+        address: MDataAddress,
         user: PublicKey,
         version: u64,
     ) -> Box<CoreFuture<()>> {
-        trace!("DelMDataUserPermissions for {:?}", name);
+        // trace!("DelMDataUserPermissions for {:?}", name);
 
         send_mutation_new(
             self,
             Request::DelMDataUserPermissions {
-                address: MDataAddress::new_seq(name, tag),
+                address,
                 user,
                 version,
             },
@@ -1495,7 +1476,7 @@ mod tests {
                     println!("Put unseq. MData successfully");
 
                     client3
-                        .get_mdata_version_new(name, tag)
+                        .get_mdata_version_new(MDataAddress::new_unseq(name, tag))
                         .map(move |version| assert_eq!(version, 0))
                 })
                 .and_then(move |_| {
@@ -1507,7 +1488,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(name, tag)
+                        .list_mdata_keys_new(MDataAddress::new_unseq(name, tag))
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
@@ -1581,7 +1562,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(name, tag)
+                        .list_mdata_keys_new(MDataAddress::new_seq(name, tag))
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
@@ -1850,14 +1831,19 @@ mod tests {
                         .allow(MDataAction::ManagePermissions)
                         .allow(MDataAction::Read);
                     client2
-                        .set_mdata_user_permissions_new(name, tag, user, new_perm_set, 1)
+                        .set_mdata_user_permissions_new(
+                            MDataAddress::new_seq(name, tag),
+                            user,
+                            new_perm_set,
+                            1,
+                        )
                         .and_then(|_| Ok(()))
                 })
                 .and_then(move |_| {
                     println!("Modified user permissions");
 
                     client3
-                        .list_mdata_user_permissions_new(name, tag, user2)
+                        .list_mdata_user_permissions_new(MDataAddress::new_seq(name, tag), user2)
                         .and_then(|permissions| {
                             assert!(!permissions.is_allowed(MDataAction::Insert));
                             assert!(permissions.is_allowed(MDataAction::Read));
@@ -1869,13 +1855,17 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client4
-                        .del_mdata_user_permissions_new(name, tag, random_user, 2)
+                        .del_mdata_user_permissions_new(
+                            MDataAddress::new_seq(name, tag),
+                            random_user,
+                            2,
+                        )
                         .and_then(|_| Ok(()))
                 })
                 .and_then(move |_| {
                     println!("Deleted permissions");
                     client5
-                        .list_mdata_permissions_new(name, tag)
+                        .list_mdata_permissions_new(MDataAddress::new_seq(name, tag))
                         .and_then(|permissions| {
                             assert_eq!(permissions.len(), 1);
                             println!("Permission set verified");

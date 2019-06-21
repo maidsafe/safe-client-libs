@@ -31,11 +31,7 @@ use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, CoreError, FutureExt, MDataInfo, NetworkTx};
-use safe_nd::{
-    request::{Request, Requester},
-    Message, MessageId, PublicKey,
-    FullIdentity
-};
+use safe_nd::{FullIdentity, Message, MessageId, PublicKey, Request};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -155,7 +151,11 @@ where {
         let pub_key = PublicKey::from(maid_keys.bls_pk);
         let full_id = Some(maid_keys.clone().into());
 
-        let (mut routing, routing_rx) = setup_routing(full_id, Some(FullIdentity::Client(maid_keys.clone().into())), None)?;
+        let (mut routing, routing_rx) = setup_routing(
+            full_id,
+            Some(FullIdentity::Client(maid_keys.clone().into())),
+            None,
+        )?;
         routing = routing_wrapper_fn(routing);
 
         let acc = Account::new(maid_keys)?;
@@ -335,7 +335,11 @@ where {
         let cm_addr = Authority::ClientManager(XorName::from(pub_key));
 
         trace!("Creating an actual routing...");
-        let (mut routing, routing_rx) = setup_routing(Some(id_packet), Some(FullIdentity::Client(acc.maid_keys.clone().into())), None)?;
+        let (mut routing, routing_rx) = setup_routing(
+            Some(id_packet),
+            Some(FullIdentity::Client(acc.maid_keys.clone().into())),
+            None,
+        )?;
         routing = routing_wrapper_fn(routing);
 
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
@@ -479,6 +483,13 @@ impl Client for AuthClient {
         Some(auth_inner.acc.maid_keys.clone().into())
     }
 
+    fn full_id_new(&self) -> Option<FullIdentity> {
+        let auth_inner = self.auth_inner.borrow();
+        Some(FullIdentity::Client(ClientKeys::into(
+            auth_inner.acc.maid_keys.clone(),
+        )))
+    }
+
     fn config(&self) -> Option<BootstrapConfig> {
         None
     }
@@ -545,7 +556,7 @@ impl Client for AuthClient {
         Message::Request {
             request,
             message_id,
-            requester: Requester::Owner(sig),
+            signature: Some(safe_nd::Signature::from(sig)),
         }
     }
 }
