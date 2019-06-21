@@ -1012,7 +1012,7 @@ dependencies = [
  "safe-nd 0.1.0",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
- "threshold_crypto 0.3.1 (git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy)",
+ "threshold_crypto 0.3.1 (git+https://github.com/poanetwork/threshold_crypto.git)",
  "tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1524,22 +1524,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "safe-nd"
 version = "0.1.0"
-source = "git+https://github.com/maidsafe/safe-nd#8b7217d01f61256a54c698d17f491b3f06c21c45"
-dependencies = [
- "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "ed25519-dalek 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "hex_fmt 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
- "sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "threshold_crypto 0.3.1 (git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy)",
- "tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "unwrap 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "safe-nd"
-version = "0.1.0"
 dependencies = [
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "ed25519-dalek 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1576,7 +1560,7 @@ dependencies = [
  "self_encryption 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
- "threshold_crypto 0.3.1 (git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy)",
+ "threshold_crypto 0.3.1 (git+https://github.com/poanetwork/threshold_crypto.git)",
  "tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1617,7 +1601,7 @@ dependencies = [
  "safe_core 0.32.1",
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
- "threshold_crypto 0.3.1 (git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy)",
+ "threshold_crypto 0.3.1 (git+https://github.com/poanetwork/threshold_crypto.git)",
  "tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1678,7 +1662,7 @@ dependencies = [
  "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
- "threshold_crypto 0.3.1 (git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy)",
+ "threshold_crypto 0.3.1 (git+https://github.com/poanetwork/threshold_crypto.git)",
  "tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1983,7 +1967,7 @@ version = "0.1.0"
 dependencies = [
  "ffi_utils 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "safe-nd 0.1.0 (git+https://github.com/maidsafe/safe-nd)",
+ "safe-nd 0.1.0",
  "safe_app 0.9.1",
  "safe_authenticator 0.9.1",
  "safe_core 0.32.1",
@@ -2013,25 +1997,6 @@ dependencies = [
 name = "threshold_crypto"
 version = "0.3.1"
 source = "git+https://github.com/poanetwork/threshold_crypto.git#594bfdaa309c129dcff0df0e837beb17488756e6"
-dependencies = [
- "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "errno 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "hex_fmt 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "memsec 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "pairing 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand04_compat 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand_chacha 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",
- "tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "threshold_crypto"
-version = "0.3.1"
-source = "git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy#0f41fe7348ca6aa6f9c6492036ee9720032e1727"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "errno 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2654,7 +2619,6 @@ dependencies = [
 "checksum rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 "checksum rustfmt 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ec940eed814db0fb7ab928c5f5025f97dc55d1c0e345e39dda2ce9f945557500"
 "checksum ryu 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "b96a9549dc8d48f2c283938303c4b5a77aa29bfbc5b54b084fb1630408899a8f"
-"checksum safe-nd 0.1.0 (git+https://github.com/maidsafe/safe-nd)" = "<none>"
 "checksum safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "399b14d048a9a9ff0c60efb6cf56fd5e57e8840af43c561e01a490abfb6ea753"
 "checksum safemem 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8dca453248a96cb0749e36ccdfe2b0b4e54a61bfef89fb97ec621eb8e0a93dd9"
 "checksum same-file 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8f20c4be53a8a1ff4c1f1b2bd14570d2f634628709752f0702ecdd2b3f9a5267"
@@ -2691,7 +2655,6 @@ dependencies = [
 "checksum termion 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6a8fb22f7cde82c8220e5aeacb3258ed7ce996142c77cba193f203515e26c330"
 "checksum textwrap 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 "checksum thread_local 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
-"checksum threshold_crypto 0.3.1 (git+https://github.com/nbaksalyar/threshold_crypto.git?branch=pks-copy)" = "<none>"
 "checksum threshold_crypto 0.3.1 (git+https://github.com/poanetwork/threshold_crypto.git)" = "<none>"
 "checksum time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)" = "db8dcfca086c1143c9270ac42a2bbd8a7ee477b78ac8e45b19abfb0cbede4b6f"
 "checksum tiny-keccak 1.4.3 (registry+https://github.com/rust-lang/crates.io-index)" = "dbbdebb0b801c7fa4260b6b9ac5a15980276d7d7bcc2dc2959a7c4dc8b426a1a"

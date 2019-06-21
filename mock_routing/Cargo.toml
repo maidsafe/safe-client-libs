@@ -18,5 +18,5 @@ rust_sodium = "~0.10.2"
 rand = "~0.3.18"
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
-threshold_crypto = { git = "https://github.com/nbaksalyar/threshold_crypto.git", branch = "pks-copy" }
+threshold_crypto = { git = "https://github.com/poanetwork/threshold_crypto.git", branch = "master" }
 tiny-keccak = "~1.4.3"

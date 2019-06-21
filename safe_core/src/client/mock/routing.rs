@@ -80,9 +80,9 @@ pub fn unlimited_muts(config: &Config) -> bool {
 pub struct Routing {
     vault: Arc<Mutex<Vault>>,
     sender: Sender<Event>,
-    /// old
+    /// mock_routing::FullId for old types
     pub full_id: FullId,
-    /// new
+    /// safe_nd::FullIdentity for new types
     pub full_id_new: FullIdentity,
     client_auth: Authority<XorName>,
     max_ops_countdown: Option<Cell<u64>>,

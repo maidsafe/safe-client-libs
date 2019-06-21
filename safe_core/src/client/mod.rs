@@ -463,10 +463,10 @@ pub trait Client: Clone + 'static {
     }
 
     /// Delete MData from network
-    fn delete_mdata(&self, mdataref: MDataAddress) -> Box<CoreFuture<()>> {
-        trace!("Delete entire Mutable Data");
+    fn delete_mdata(&self, address: MDataAddress) -> Box<CoreFuture<()>> {
+        trace!("Delete entire Mutable Data at {:?}", address);
 
-        send_mutation_new(self, Request::DeleteMData(mdataref))
+        send_mutation_new(self, Request::DeleteMData(address))
     }
 
     /// Mutates `MutableData` entries in bulk.
@@ -600,7 +600,7 @@ pub trait Client: Clone + 'static {
 
     /// Get a current version of `MutableData` from the network.
     fn get_mdata_version_new(&self, address: MDataAddress) -> Box<CoreFuture<u64>> {
-        // trace!("GetMDataVersion for {:?}", address);
+        trace!("GetMDataVersion for {:?}", address);
 
         send_new(self, Request::GetMDataVersion(address))
             .and_then(|event| {
@@ -702,7 +702,7 @@ pub trait Client: Clone + 'static {
 
     /// Return a list of keys in `MutableData` stored on the network.
     fn list_mdata_keys(&self, name: XorName, tag: u64) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
-        // trace!("ListMDataKeys for {:?}", name);
+        trace!("ListMDataKeys for {:?}", name);
 
         let msg_id = MessageId::new();
         send(self, msg_id, move |routing| {
@@ -714,7 +714,7 @@ pub trait Client: Clone + 'static {
 
     /// Return a list of keys in `MutableData` stored on the network.
     fn list_mdata_keys_new(&self, address: MDataAddress) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
-        // trace!("ListMDataKeys for {:?}", name);
+        trace!("ListMDataKeys for {:?}", address);
 
         send_new(self, Request::ListMDataKeys(address))
             .and_then(|event| {
@@ -761,7 +761,7 @@ pub trait Client: Clone + 'static {
         address: MDataAddress,
         user: PublicKey,
     ) -> Box<CoreFuture<NewPermissionSet>> {
-        // trace!("GetMDataUserPermissions for {:?}", name);
+        trace!("GetMDataUserPermissions for {:?}", address);
 
         send_new(self, Request::ListMDataUserPermissions { address, user })
             .and_then(|event| {
@@ -860,7 +860,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: MDataAddress,
     ) -> Box<CoreFuture<BTreeMap<PublicKey, NewPermissionSet>>> {
-        // trace!("List MDataPermissions for {:?}", name);
+        trace!("List MDataPermissions for {:?}", address);
 
         send_new(self, Request::ListMDataPermissions(address))
             .and_then(|event| {
@@ -931,7 +931,7 @@ pub trait Client: Clone + 'static {
         permissions: NewPermissionSet,
         version: u64,
     ) -> Box<CoreFuture<()>> {
-        // trace!("SetMDataUserPermissions for {:?}", name);
+        trace!("SetMDataUserPermissions for {:?}", address);
 
         send_mutation_new(
             self,
@@ -951,7 +951,7 @@ pub trait Client: Clone + 'static {
         user: PublicKey,
         version: u64,
     ) -> Box<CoreFuture<()>> {
-        // trace!("DelMDataUserPermissions for {:?}", name);
+        trace!("DelMDataUserPermissions for {:?}", address);
 
         send_mutation_new(
             self,

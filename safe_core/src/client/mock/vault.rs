@@ -158,10 +158,13 @@ impl Vault {
     pub fn authorise_coin_operation(
         &self,
         coin_balance_name: &XorName,
-        _req: &Request,
-        _msg_id: MessageId,
-        requester: &PublicId,
+        req: &Request,
+        msg_id: MessageId,
+        requester_pk: PublicKey,
+        signature: Option<Signature>,
     ) -> Result<(), Error> {
+        let message = bincode::serialize(&(&req, msg_id)).unwrap_or_default();
+        requester_pk.verify(&signature.unwrap(), message)?;
         // Check if we are the owner or app.
         let balance = match self.get_coin_balance(&coin_balance_name) {
             Some(balance) => balance,
@@ -172,13 +175,7 @@ impl Vault {
         };
         let owner_account = XorName::from(PublicKey::from(*balance.owner()));
 
-        let requester_pk = match requester {
-            PublicId::App(pk) => pk.public_key(),
-            PublicId::Client(pk) => pk.public_key(),
-            PublicId::Node(_) => return Err(Error::AccessDenied),
-        };
-
-        if PublicKey::from(*balance.owner()) == *requester_pk {
+        if PublicKey::from(*balance.owner()) == requester_pk {
             Ok(())
         } else {
             let account = match self.get_account(&owner_account) {
@@ -188,7 +185,7 @@ impl Vault {
                     return Err(Error::NoSuchAccount);
                 }
             };
-            match account.auth_keys().get(requester_pk) {
+            match account.auth_keys().get(&requester_pk) {
                 Some(perms) => {
                     if !perms.transfer_coins {
                         debug!("Mutation not authorised");
@@ -236,33 +233,6 @@ impl Vault {
         let unlimited_mut = unlimited_muts(&self.config);
         if !unlimited_mut && account.account_info().mutations_available == 0 {
             return Err(ClientError::LowBalance);
-        }
-
-        Ok(())
-    }
-
-    // Authorise mutation operation.
-    pub fn authorise_mutation1(&self, dst: &Authority<XorName>) -> Result<(), Error> {
-        let dst_name = match *dst {
-            Authority::ClientManager(name) => name,
-            x => {
-                debug!("Unexpected authority for mutation: {:?}", x);
-                return Err(Error::InvalidOperation);
-            }
-        };
-
-        let account = match self.get_account(&dst_name) {
-            Some(account) => account,
-            None => {
-                debug!("Account not found for {:?}", dst);
-                return Err(Error::NoSuchAccount);
-            }
-        };
-        // TODO: Check if we are the owner or app once account keys are changed to threshold_crypto
-
-        let unlimited_mut = unlimited_muts(&self.config);
-        if !unlimited_mut && account.account_info().mutations_available == 0 {
-            return Err(Error::LowBalance);
         }
 
         Ok(())
@@ -406,6 +376,7 @@ impl Vault {
                         published: false,
                     },
                     requester,
+                    requester_pk,
                 );
                 Response::DeleteUnpubIData(result)
             }
@@ -446,9 +417,13 @@ impl Vault {
                 amount,
                 transaction_id,
             } => {
-                if let Err(e) =
-                    self.authorise_coin_operation(&source, &request, message_id, &requester)
-                {
+                if let Err(e) = self.authorise_coin_operation(
+                    &source,
+                    &request,
+                    message_id,
+                    requester_pk,
+                    signature,
+                ) {
                     Response::TransferCoins(Err(e))
                 } else {
                     let res = self.transfer_coins(source, destination, amount, transaction_id);
@@ -460,7 +435,8 @@ impl Vault {
                     &coins_balance_id,
                     &request,
                     message_id,
-                    &requester,
+                    requester_pk,
+                    signature,
                 ) {
                     Response::GetBalance(Err(e))
                 } else {
@@ -843,14 +819,8 @@ impl Vault {
         &mut self,
         address: ImmutableDataRef,
         requester: PublicId,
+        requester_pk: PublicKey,
     ) -> Result<(), Error> {
-        // Requester's public key
-        let requester_pk = match requester.clone() {
-            PublicId::App(pk) => *pk.public_key(),
-            PublicId::Client(pk) => *pk.public_key(),
-            PublicId::Node(_) => return Err(Error::AccessDenied),
-        };
-
         let data_name = DataId::immutable(address.name, address.published);
         match self.get_data(&data_name) {
             Some(idata) => {

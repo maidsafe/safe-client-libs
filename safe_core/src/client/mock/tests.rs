@@ -74,26 +74,6 @@ macro_rules! expect_failure {
 }
 
 impl Routing {
-    #[allow(dead_code)]
-    fn req_as_app(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
-        let message_id = MessageId::new();
-        let signature = if let FullIdentity::App(app_full_id) = &self.full_id_new {
-            app_full_id.sign(&unwrap!(bincode::serialize(&(message_id, &request))))
-        } else {
-            panic!("Unsupported operation")
-        };
-        unwrap!(self.send(
-            Authority::ClientManager(new_rand::random()),
-            &unwrap!(serialise(&Message::Request {
-                request,
-                message_id,
-                signature: Some(signature),
-            }))
-        ));
-        let response = expect_success!(rx, message_id, Response::RpcResponse);
-        unwrap!(deserialise(&response))
-    }
-
     fn req_as_owner(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
         let message_id = MessageId::new();
         let signature = if let FullIdentity::Client(client_full_id) = &self.full_id_new {
@@ -989,8 +969,6 @@ fn mutable_data_ownership() {
     let (mut app_routing, app_routing_rx, app_full_id) = setup();
     let app_sign_key = PublicKey::from(*app_full_id.public_id().bls_public_key());
 
-    let _message_id = MessageId::new();
-
     let _resp = owner_routing.req_as_owner(
         &owner_routing_rx,
         RpcRequest::InsAuthKey {
@@ -1182,8 +1160,13 @@ fn unpub_md() {
     );
 
     // Construct put request.
-    let _rpc_response: RpcResponse =
+    let response: RpcResponse =
         routing.req_as_owner(&routing_rx, RpcRequest::PutUnseqMData(data.clone()));
+
+    match response {
+        RpcResponse::PutUnseqMData(res) => unwrap!(res),
+        _ => panic!("Unexpected response"),
+    };
 
     // Construct get request.
     let rpc_response: RpcResponse = routing.req_as_owner(
@@ -1570,8 +1553,6 @@ fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId) {
 
 fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
     let full_id = FullId::new();
-    // let bls_sk = threshold_crypto::SecretKey::random();
-    // let full_id_new = FullIdentity::App(AppFullId::with_bls_key(full_id.bls_key()));
     let (routing_tx, routing_rx) = mpsc::channel();
     let routing = unwrap!(Routing::new(
         routing_tx,
