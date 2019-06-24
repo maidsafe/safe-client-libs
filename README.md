@@ -1,8 +1,14 @@
 # safe_client_libs
 
+<<<<<<< HEAD
+|Linux/macOS|Windows|
+|:--------:|:-----:|
+|[![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)|[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|
+=======
 |Linux/macOS|Windows|Lines of Code|
 |:--------:|:-----:|:----:|:-----:|
 |[![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)|[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|[![](https://tokei.rs/b1/github/maidsafe/safe_client_libs)](https://github.com/maidsafe/safe_client_libs)
+>>>>>>> e54d5836d4af80c8d93ac0926f695b73dc5475b0
 
 | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
 |:-------:|:-------:|
