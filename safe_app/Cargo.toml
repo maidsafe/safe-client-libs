@@ -10,7 +10,6 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.9.1"
 build = "build.rs"
 edition = "2018"
-autoexamples = "false"
 
 [dependencies]
 config_file_handler = "~0.11.0"
