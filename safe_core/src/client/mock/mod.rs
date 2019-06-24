@@ -69,7 +69,7 @@ impl DataId {
     }
 
     /// Create `DataId` for mutable data.
-    pub fn appendonly(name: XorName, tag: u64) -> Self {
+    pub fn append_only(name: XorName, tag: u64) -> Self {
         DataId::AppendOnly(AppendOnlyId(name, tag))
     }
 

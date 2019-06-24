@@ -14,11 +14,11 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
-    verify_signature, AData, ADataAddress, ADataIndex, ADataIndices, AppendOnlyData, Coins, Error,
-    ImmutableData, MDataAddress, Message, MessageId, MutableData as NewMutableData,
-    PubSeqAppendOnlyData, PubUnseqAppendOnlyData, PublicId, PublicKey, Request, Response,
-    SeqAppendOnly, SeqMutableData, Signature, Transaction, UnpubImmutableData,
-    UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, UnseqMutableData, XorName,
+    verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error, ImmutableData,
+    MDataAddress, Message, MessageId, MutableData as NewMutableData, PubSeqAppendOnlyData,
+    PubUnseqAppendOnlyData, PublicId, PublicKey, Request, Response, SeqAppendOnly, SeqMutableData,
+    Signature, Transaction, UnpubImmutableData, UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData,
+    UnseqAppendOnly, UnseqMutableData, XorName,
 };
 use std::collections::HashMap;
 use std::env;
@@ -804,7 +804,7 @@ impl Vault {
                     AData::UnpubUnseq(adata) => AppendOnlyDataKind::UnpubUnseq(adata),
                 };
                 let result = self.put_data(
-                    DataId::appendonly(*data.name(), data.tag()),
+                    DataId::append_only(*data.name(), data.tag()),
                     Data::AppendOnly(kind),
                     requester,
                     requester_pk,
@@ -819,7 +819,7 @@ impl Vault {
                 Response::GetAData(result)
             }
             Request::DeleteAData(address) => {
-                let id = DataId::appendonly(*address.name(), address.tag());
+                let id = DataId::append_only(*address.name(), address.tag());
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match data {
@@ -838,153 +838,33 @@ impl Vault {
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => match data {
-                            AData::PubSeq(adata) => {
-                                let idx = match data_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.permissions_index() - idx),
-                                };
-                                match adata.shell(idx) {
-                                    Ok(shell) => Ok(AData::PubSeq(shell)),
-                                    Err(_) => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::PubUnseq { .. } => match data {
-                            AData::PubUnseq(adata) => {
-                                let idx = match data_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.permissions_index() - idx),
-                                };
-                                match adata.shell(idx) {
-                                    Ok(shell) => Ok(AData::PubUnseq(shell)),
-                                    Err(_) => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubSeq { .. } => match data {
-                            AData::UnpubSeq(adata) => {
-                                let idx = match data_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.permissions_index() - idx),
-                                };
-                                match adata.shell(idx) {
-                                    Ok(shell) => Ok(AData::UnpubSeq(shell)),
-                                    Err(_) => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubUnseq { .. } => match data {
-                            AData::UnpubUnseq(adata) => {
-                                let idx = match data_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.permissions_index() - idx),
-                                };
-                                match adata.shell(idx) {
-                                    Ok(shell) => Ok(AData::UnpubUnseq(shell)),
-                                    Err(_) => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
+                    .and_then(move |data| {
+                        let idx = match data_index {
+                            ADataIndex::FromStart(idx) => idx,
+                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx),
+                        };
+                        data.get_shell(idx)
                     });
                 Response::GetADataShell(res)
             }
             Request::GetADataRange { address, range } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => match data {
-                            AData::PubSeq(adata) => {
-                                adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::PubUnseq { .. } => match data {
-                            AData::PubUnseq(adata) => {
-                                adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubSeq { .. } => match data {
-                            AData::UnpubSeq(adata) => {
-                                adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubUnseq { .. } => match data {
-                            AData::UnpubUnseq(adata) => {
-                                adata.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
+                    .and_then(move |data| {
+                        data.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
                     });
                 Response::GetADataRange(res)
             }
             Request::GetADataIndices(address) => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => match data {
-                            AData::PubSeq(adata) => Ok(ADataIndices::new(
-                                adata.entry_index(),
-                                adata.owners_index(),
-                                adata.permissions_index(),
-                            )),
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::PubUnseq { .. } => match data {
-                            AData::PubUnseq(adata) => Ok(ADataIndices::new(
-                                adata.entry_index(),
-                                adata.owners_index(),
-                                adata.permissions_index(),
-                            )),
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubSeq { .. } => match data {
-                            AData::UnpubSeq(adata) => Ok(ADataIndices::new(
-                                adata.entry_index(),
-                                adata.owners_index(),
-                                adata.permissions_index(),
-                            )),
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubUnseq { .. } => match data {
-                            AData::UnpubUnseq(adata) => Ok(ADataIndices::new(
-                                adata.entry_index(),
-                                adata.owners_index(),
-                                adata.permissions_index(),
-                            )),
-                            _ => Err(Error::NoSuchData),
-                        },
-                    });
+                    .and_then(move |data| data.indices());
                 Response::GetADataIndices(res)
             }
             Request::GetADataLastEntry(address) => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => match data {
-                            AData::PubSeq(adata) => adata.last().ok_or(Error::NoSuchEntry),
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::PubUnseq { .. } => match data {
-                            AData::PubUnseq(adata) => adata.last().ok_or(Error::NoSuchEntry),
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubSeq { .. } => match data {
-                            AData::UnpubSeq(adata) => adata.last().ok_or(Error::NoSuchEntry),
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubUnseq { .. } => match data {
-                            AData::UnpubUnseq(adata) => adata.last().ok_or(Error::NoSuchEntry),
-                            _ => Err(Error::NoSuchData),
-                        },
-                    });
+                    .and_then(move |data| data.last_entry().ok_or(Error::NoSuchEntry));
                 Response::GetADataLastEntry(res)
             }
             Request::GetADataPermissions {
@@ -994,78 +874,60 @@ impl Vault {
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => {
-                            let res = match data {
-                                AData::PubSeq(adata) => {
-                                    let idx = match permissions_index {
-                                        ADataIndex::FromStart(idx) => idx as usize,
-                                        ADataIndex::FromEnd(idx) => {
-                                            (adata.permissions_index() - idx) as usize
+                    .and_then(move |data| {
+                        let idx = match permissions_index {
+                            ADataIndex::FromStart(idx) => idx as usize,
+                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
+                        };
+                        match address {
+                            ADataAddress::PubSeq { .. } => {
+                                let res = match data {
+                                    AData::PubSeq(adata) => {
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
                                         }
-                                    };
-                                    match adata.fetch_permissions_at_index(idx as u64) {
-                                        Some(perm) => Ok(perm.clone()),
-                                        None => Err(Error::NoSuchEntry),
                                     }
-                                }
-                                _ => Err(Error::NoSuchData),
-                            };
-                            Ok(Response::GetPubADataPermissionAtIndex(res))
-                        }
-                        ADataAddress::PubUnseq { .. } => {
-                            let res = match data {
-                                AData::PubUnseq(adata) => {
-                                    let idx = match permissions_index {
-                                        ADataIndex::FromStart(idx) => idx as usize,
-                                        ADataIndex::FromEnd(idx) => {
-                                            (adata.permissions_index() - idx) as usize
+                                    _ => Err(Error::NoSuchData),
+                                };
+                                Ok(Response::GetPubADataPermissionAtIndex(res))
+                            }
+                            ADataAddress::PubUnseq { .. } => {
+                                let res = match data {
+                                    AData::PubUnseq(adata) => {
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
                                         }
-                                    };
-                                    match adata.fetch_permissions_at_index(idx as u64) {
-                                        Some(perm) => Ok(perm.clone()),
-                                        None => Err(Error::NoSuchEntry),
                                     }
-                                }
-                                _ => Err(Error::NoSuchData),
-                            };
-                            Ok(Response::GetPubADataPermissionAtIndex(res))
-                        }
-                        ADataAddress::UnpubSeq { .. } => {
-                            let res = match data {
-                                AData::UnpubSeq(adata) => {
-                                    let idx = match permissions_index {
-                                        ADataIndex::FromStart(idx) => idx as usize,
-                                        ADataIndex::FromEnd(idx) => {
-                                            (adata.permissions_index() - idx) as usize
+                                    _ => Err(Error::NoSuchData),
+                                };
+                                Ok(Response::GetPubADataPermissionAtIndex(res))
+                            }
+                            ADataAddress::UnpubSeq { .. } => {
+                                let res = match data {
+                                    AData::UnpubSeq(adata) => {
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
                                         }
-                                    };
-                                    match adata.fetch_permissions_at_index(idx as u64) {
-                                        Some(perm) => Ok(perm.clone()),
-                                        None => Err(Error::NoSuchEntry),
                                     }
-                                }
-                                _ => Err(Error::NoSuchData),
-                            };
-                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
-                        }
-                        ADataAddress::UnpubUnseq { .. } => {
-                            let res = match data {
-                                AData::UnpubUnseq(adata) => {
-                                    let idx = match permissions_index {
-                                        ADataIndex::FromStart(idx) => idx as usize,
-                                        ADataIndex::FromEnd(idx) => {
-                                            (adata.permissions_index() - idx) as usize
+                                    _ => Err(Error::NoSuchData),
+                                };
+                                Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                            }
+                            ADataAddress::UnpubUnseq { .. } => {
+                                let res = match data {
+                                    AData::UnpubUnseq(adata) => {
+                                        match adata.fetch_permissions_at_index(idx as u64) {
+                                            Some(perm) => Ok(perm.clone()),
+                                            None => Err(Error::NoSuchEntry),
                                         }
-                                    };
-                                    match adata.fetch_permissions_at_index(idx as u64) {
-                                        Some(perm) => Ok(perm.clone()),
-                                        None => Err(Error::NoSuchEntry),
                                     }
-                                }
-                                _ => Err(Error::NoSuchData),
-                            };
-                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                                    _ => Err(Error::NoSuchData),
+                                };
+                                Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                            }
                         }
                     });
                 unwrap!(res)
@@ -1077,44 +939,12 @@ impl Vault {
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => match data {
-                            AData::PubSeq(adata) => {
-                                let idx = match permissions_index {
-                                    ADataIndex::FromStart(idx) => idx as usize,
-                                    ADataIndex::FromEnd(idx) => {
-                                        (adata.permissions_index() - idx) as usize
-                                    }
-                                };
-                                match adata.fetch_permissions_at_index(idx as u64) {
-                                    Some(perm) => match perm.clone().permissions().get(&user) {
-                                        Some(usr) => Ok(*usr),
-                                        None => Err(Error::NoSuchAccount),
-                                    },
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::PubUnseq { .. } => match data {
-                            AData::PubUnseq(adata) => {
-                                let idx = match permissions_index {
-                                    ADataIndex::FromStart(idx) => idx as usize,
-                                    ADataIndex::FromEnd(idx) => {
-                                        (adata.permissions_index() - idx) as usize
-                                    }
-                                };
-                                match adata.fetch_permissions_at_index(idx as u64) {
-                                    Some(perm) => match perm.clone().permissions().get(&user) {
-                                        Some(usr) => Ok(*usr),
-                                        None => Err(Error::NoSuchEntry),
-                                    },
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        _ => Err(Error::AccessDenied),
+                    .and_then(move |data| {
+                        let idx = match permissions_index {
+                            ADataIndex::FromStart(idx) => idx as usize,
+                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
+                        };
+                        data.get_pub_user_permissions(user, idx as u64)
                     });
                 Response::GetPubADataUserPermissions(res)
             }
@@ -1125,51 +955,17 @@ impl Vault {
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::UnpubSeq { .. } => match data {
-                            AData::UnpubSeq(adata) => {
-                                let idx = match permissions_index {
-                                    ADataIndex::FromStart(idx) => idx as usize,
-                                    ADataIndex::FromEnd(idx) => {
-                                        (adata.permissions_index() - idx) as usize
-                                    }
-                                };
-                                match adata.fetch_permissions_at_index(idx as u64) {
-                                    Some(perm) => match perm.clone().permissions().get(&public_key)
-                                    {
-                                        Some(usr) => Ok(*usr),
-                                        None => Err(Error::NoSuchAccount),
-                                    },
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubUnseq { .. } => match data {
-                            AData::UnpubUnseq(adata) => {
-                                let idx = match permissions_index {
-                                    ADataIndex::FromStart(idx) => idx as usize,
-                                    ADataIndex::FromEnd(idx) => {
-                                        (adata.permissions_index() - idx) as usize
-                                    }
-                                };
-                                match adata.fetch_permissions_at_index(idx as u64) {
-                                    Some(perm) => match perm.clone().permissions().get(&public_key)
-                                    {
-                                        Some(usr) => Ok(*usr),
-                                        None => Err(Error::NoSuchEntry),
-                                    },
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        _ => Err(Error::AccessDenied),
+                    .and_then(move |data| {
+                        let idx = match permissions_index {
+                            ADataIndex::FromStart(idx) => idx as usize,
+                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
+                        };
+                        data.get_unpub_user_permissions(public_key, idx as u64)
                     });
                 Response::GetUnpubADataUserPermissions(res)
             }
             Request::AppendSeq { append, index } => {
-                let id = DataId::appendonly(*append.address.name(), append.address.tag());
+                let id = DataId::append_only(*append.address.name(), append.address.tag());
                 let res = self
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
@@ -1197,7 +993,7 @@ impl Vault {
             }
             Request::AppendUnseq(append) => {
                 let name = append.address.name();
-                let id = DataId::appendonly(*name, append.address.tag());
+                let id = DataId::append_only(*name, append.address.tag());
                 let res = self
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
@@ -1227,7 +1023,7 @@ impl Vault {
                 address,
                 permissions,
             } => {
-                let id = DataId::appendonly(*address.name(), address.tag());
+                let id = DataId::append_only(*address.name(), address.tag());
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
@@ -1263,7 +1059,7 @@ impl Vault {
                 address,
                 permissions,
             } => {
-                let id = DataId::appendonly(*address.name(), address.tag());
+                let id = DataId::append_only(*address.name(), address.tag());
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(|data| match address {
@@ -1296,7 +1092,7 @@ impl Vault {
                 Response::AddUnpubADataPermissions(res)
             }
             Request::SetADataOwner { address, owner } => {
-                let id = DataId::appendonly(*address.name(), address.tag());
+                let id = DataId::append_only(*address.name(), address.tag());
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
@@ -1357,65 +1153,20 @@ impl Vault {
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| match address {
-                        ADataAddress::PubSeq { .. } => match data {
-                            AData::PubSeq(adata) => {
-                                let idx = match owners_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.owners_index() - idx),
-                                };
-                                match adata.fetch_owner_at_index(idx) {
-                                    Some(owner) => Ok(owner.clone()),
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::PubUnseq { .. } => match data {
-                            AData::PubUnseq(adata) => {
-                                let idx = match owners_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.owners_index() - idx),
-                                };
-                                match adata.fetch_owner_at_index(idx) {
-                                    Some(owner) => Ok(owner.clone()),
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubSeq { .. } => match data.clone() {
-                            AData::UnpubSeq(adata) => {
-                                let idx = match owners_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.owners_index() - idx),
-                                };
-                                match adata.fetch_owner_at_index(idx) {
-                                    Some(owner) => Ok(owner.clone()),
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
-                        ADataAddress::UnpubUnseq { .. } => match data {
-                            AData::UnpubUnseq(adata) => {
-                                let idx = match owners_index {
-                                    ADataIndex::FromStart(idx) => idx,
-                                    ADataIndex::FromEnd(idx) => (adata.owners_index() - idx),
-                                };
-                                match adata.fetch_owner_at_index(idx) {
-                                    Some(owner) => Ok(owner.clone()),
-                                    None => Err(Error::NoSuchEntry),
-                                }
-                            }
-                            _ => Err(Error::NoSuchData),
-                        },
+                    .and_then(move |data| {
+                        let idx = match owners_index {
+                            ADataIndex::FromStart(idx) => idx,
+                            ADataIndex::FromEnd(idx) => (data.owners_index() - idx),
+                        };
+                        match data.get_owners(idx) {
+                            Some(owner) => Ok(owner.clone()),
+                            None => Err(Error::NoSuchEntry),
+                        }
                     });
                 Response::GetADataOwners(res)
             }
             _ => panic!("RPC not handled"),
         };
-
         Ok(Message::Response {
             response,
             message_id,
@@ -1430,33 +1181,33 @@ impl Vault {
         requester_pk: PublicKey,
         request: Request,
     ) -> Result<AData, Error> {
-        let data_name = DataId::appendonly(*data.name(), data.tag());
+        let data_name = DataId::append_only(*data.name(), data.tag());
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
                 Data::AppendOnly(kind) => match kind {
                     AppendOnlyDataKind::PubSeq(data) => {
-                        if data.check_permission(request, requester_pk).is_ok() {
+                        if data.check_permission(&request, requester_pk).is_ok() {
                             Ok(AData::PubSeq(data))
                         } else {
                             Err(Error::AccessDenied)
                         }
                     }
                     AppendOnlyDataKind::UnpubSeq(data) => {
-                        if data.check_permission(request, requester_pk).is_ok() {
+                        if data.check_permission(&request, requester_pk).is_ok() {
                             Ok(AData::UnpubSeq(data))
                         } else {
                             Err(Error::AccessDenied)
                         }
                     }
                     AppendOnlyDataKind::UnpubUnseq(data) => {
-                        if data.check_permission(request, requester_pk).is_ok() {
+                        if data.check_permission(&request, requester_pk).is_ok() {
                             Ok(AData::UnpubUnseq(data))
                         } else {
                             Err(Error::AccessDenied)
                         }
                     }
                     AppendOnlyDataKind::PubUnseq(data) => {
-                        if data.check_permission(request, requester_pk).is_ok() {
+                        if data.check_permission(&request, requester_pk).is_ok() {
                             Ok(AData::PubUnseq(data))
                         } else {
                             Err(Error::AccessDenied)
