@@ -33,7 +33,7 @@ use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, CoreError, FutureExt, MDataInfo, NetworkTx};
-use safe_nd::{Message, MessageId, PublicKey, Request};
+use safe_nd::{Message, MessageId, PublicKey, Request, Signature};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -558,7 +558,7 @@ impl Client for AuthClient {
         Message::Request {
             request,
             message_id,
-            signature: Some(safe_nd::Signature::from(sig)),
+            signature: Some(Signature::from(sig)),
         }
     }
 }

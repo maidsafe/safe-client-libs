@@ -17,8 +17,10 @@ use routing::{
 };
 #[cfg(any(feature = "testing", test))]
 use safe_nd::Coins;
-use safe_nd::{AppFullId, ClientFullId};
-use safe_nd::{IDataKind, ImmutableData, Message, MessageId, PublicId, PublicKey, XorName};
+use safe_nd::{
+    AppFullId, ClientFullId, IDataKind, ImmutableData, Message, MessageId, PublicId, PublicKey,
+    Signature, XorName,
+};
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -97,6 +99,16 @@ pub enum NewFullId {
     Client(ClientFullId),
 }
 
+impl NewFullId {
+    /// Signs a given message using the App / Client full id as required
+    pub fn sign(&self, msg: &[u8]) -> Signature {
+        match self {
+            NewFullId::App(app_full_id) => app_full_id.sign(msg),
+            NewFullId::Client(client_full_id) => client_full_id.sign(msg),
+        }
+    }
+}
+
 impl Routing {
     /// Initialises mock routing.
     /// The function signature mirrors `routing::Client`.
@@ -120,7 +132,10 @@ impl Routing {
             proxy_node_name: new_rand::random(),
         };
 
-        let bls_sk = BlsSecretKey::random();
+        let bls_sk = id
+            .as_ref()
+            .map(|id| id.bls_key().clone())
+            .unwrap_or_else(BlsSecretKey::random);
 
         Ok(Routing {
             vault: clone_vault(),

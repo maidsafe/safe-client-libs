@@ -64,7 +64,7 @@ fn md_created_by_app_1() {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let user = PublicKey::Bls(bls_pk);
+                let user = PublicKey::from(bls_pk);
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
                 cl3.set_mdata_user_permissions_new(
                     MDataAddress::new_seq(name2, DIR_TAG),
@@ -92,7 +92,7 @@ fn md_created_by_app_1() {
 
             let mut permissions = BTreeMap::new();
             let _ = permissions.insert(
-                PublicKey::Bls(app_bls_pk),
+                PublicKey::from(app_bls_pk),
                 MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Read),
@@ -116,7 +116,7 @@ fn md_created_by_app_1() {
                 .list_auth_keys_and_version()
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
-                    cl2.ins_auth_key(PublicKey::Bls(app_bls_pk), Default::default(), version + 1)
+                    cl2.ins_auth_key(PublicKey::from(app_bls_pk), Default::default(), version + 1)
                 })
                 .then(move |res| {
                     unwrap!(res);
@@ -177,7 +177,7 @@ fn md_created_by_app_2() {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let user = PublicKey::Bls(bls_pk);
+                let user = PublicKey::from(bls_pk);
                 let permissions = MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
@@ -225,7 +225,7 @@ fn md_created_by_app_2() {
 
             let mut permissions = BTreeMap::new();
             let _ = permissions.insert(
-                PublicKey::Bls(app_bls_pk),
+                PublicKey::from(app_bls_pk),
                 MDataPermissionSet::new().allow(MDataAction::ManagePermissions),
             );
 
@@ -248,7 +248,7 @@ fn md_created_by_app_2() {
                 .list_auth_keys_and_version()
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
-                    cl2.ins_auth_key(PublicKey::Bls(app_bls_pk), Default::default(), version + 1)
+                    cl2.ins_auth_key(PublicKey::from(app_bls_pk), Default::default(), version + 1)
                 })
                 .then(move |res| {
                     unwrap!(res);
@@ -284,11 +284,11 @@ fn multiple_apps() {
         let mut permissions = BTreeMap::new();
         let app2_bls_pk = unwrap!(app2_key_rx.recv());
         let _ = permissions.insert(
-            PublicKey::Bls(app2_bls_pk),
+            PublicKey::from(app2_bls_pk),
             MDataPermissionSet::new().allow(MDataAction::Insert),
         );
         let _ = permissions.insert(
-            PublicKey::Bls(bls_pk),
+            PublicKey::from(bls_pk),
             MDataPermissionSet::new()
                 .allow(MDataAction::ManagePermissions)
                 .allow(MDataAction::Read),
@@ -321,7 +321,7 @@ fn multiple_apps() {
                 assert_eq!(value, MDataValue::new(vec![8, 9, 9], 0));
                 cl3.del_mdata_user_permissions_new(
                     MDataAddress::new_seq(name2, DIR_TAG),
-                    PublicKey::Bls(app2_bls_pk),
+                    PublicKey::from(app2_bls_pk),
                     1,
                 )
                 .map(move |()| entry_key)
@@ -401,7 +401,7 @@ fn permissions_and_version() {
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::Bls(bls_pk),
+            PublicKey::from(bls_pk),
             MDataPermissionSet::new()
                 .allow(MDataAction::ManagePermissions)
                 .allow(MDataAction::Read),
@@ -428,7 +428,7 @@ fn permissions_and_version() {
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
                 cl2.set_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key),
+                    PublicKey::from(random_key),
                     permissions,
                     1,
                 )
@@ -437,7 +437,7 @@ fn permissions_and_version() {
                 unwrap!(res);
                 cl3.del_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key),
+                    PublicKey::from(random_key),
                     1,
                 )
             })
@@ -452,26 +452,25 @@ fn permissions_and_version() {
             .then(move |res| {
                 let permissions = unwrap!(res);
                 assert_eq!(permissions.len(), 2);
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Insert));
-                assert!(
-                    unwrap!(permissions.get(&PublicKey::Bls(bls_pk))).is_allowed(MDataAction::Read)
-                );
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
-                    .is_allowed(MDataAction::Update));
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
-                    .is_allowed(MDataAction::Delete));
-                assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
-                    .is_allowed(MDataAction::ManagePermissions));
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key)))
-                    .is_allowed(MDataAction::Insert));
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Read));
-                assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Update));
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Delete));
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    .is_allowed(MDataAction::ManagePermissions));
+                assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
+                    .is_allowed(MDataAction::Insert));
+                assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
+                    .is_allowed(MDataAction::Read));
+                assert!(unwrap!(permissions.get(&PublicKey::from(random_key)))
+                    .is_allowed(MDataAction::Update));
+                assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
+                    .is_allowed(MDataAction::Delete));
+                assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
                     .is_allowed(MDataAction::ManagePermissions));
                 cl5.get_mdata_version_new(MDataAddress::new_unseq(name, DIR_TAG))
             })
@@ -480,7 +479,7 @@ fn permissions_and_version() {
                 assert_eq!(v, 1);
                 cl6.del_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key),
+                    PublicKey::from(random_key),
                     v + 1,
                 )
             })
@@ -490,16 +489,15 @@ fn permissions_and_version() {
             })
             .map(move |permissions| {
                 assert_eq!(permissions.len(), 1);
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Insert));
-                assert!(
-                    unwrap!(permissions.get(&PublicKey::Bls(bls_pk))).is_allowed(MDataAction::Read)
-                );
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    .is_allowed(MDataAction::Read));
+                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Update));
-                assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::Delete));
-                assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                     .is_allowed(MDataAction::ManagePermissions));
             })
             .map_err(|e| panic!("{:?}", e))
@@ -521,7 +519,7 @@ fn permissions_crud() {
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::Bls(bls_pk),
+            PublicKey::from(bls_pk),
             MDataPermissionSet::new()
                 .allow(MDataAction::ManagePermissions)
                 .allow(MDataAction::Read),
@@ -554,7 +552,7 @@ fn permissions_crud() {
                     .allow(MDataAction::Delete);
                 cl2.set_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key_a),
+                    PublicKey::from(random_key_a),
                     permissions,
                     1,
                 )
@@ -567,32 +565,32 @@ fn permissions_crud() {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::ManagePermissions));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Read));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Update));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::ManagePermissions));
                 }
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Delete);
                 cl4.set_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key_b),
+                    PublicKey::from(random_key_b),
                     permissions,
                     2,
                 )
@@ -605,38 +603,38 @@ fn permissions_crud() {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 3);
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::ManagePermissions));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Update));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_a)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::ManagePermissions));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Update));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::ManagePermissions));
                 }
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Insert);
                 cl6.set_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key_b),
+                    PublicKey::from(random_key_b),
                     permissions,
                     3,
                 )
@@ -645,7 +643,7 @@ fn permissions_crud() {
                 unwrap!(res);
                 cl7.del_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key_a),
+                    PublicKey::from(random_key_a),
                     4,
                 )
             })
@@ -657,23 +655,23 @@ fn permissions_crud() {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::ManagePermissions));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::ManagePermissions));
                 }
 
@@ -682,7 +680,7 @@ fn permissions_crud() {
                     .allow(MDataAction::Delete);
                 cl9.set_mdata_user_permissions_new(
                     MDataAddress::new_unseq(name, DIR_TAG),
-                    PublicKey::Bls(random_key_b),
+                    PublicKey::from(random_key_b),
                     permissions,
                     5,
                 )
@@ -695,23 +693,23 @@ fn permissions_crud() {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
                         .is_allowed(MDataAction::ManagePermissions));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Update));
-                    assert!(unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(!unwrap!(permissions.get(&PublicKey::Bls(random_key_b)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::ManagePermissions));
                 }
 
@@ -733,7 +731,7 @@ fn sequenced_entries_crud() {
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::Bls(bls_pk),
+            PublicKey::from(bls_pk),
             MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
@@ -870,7 +868,7 @@ fn unsequenced_entries_crud() {
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::Bls(bls_pk),
+            PublicKey::from(bls_pk),
             MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)

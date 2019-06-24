@@ -23,7 +23,7 @@ use routing::Value;
 use routing::{BootstrapConfig, XorName};
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
-use safe_nd::PublicKey;
+use safe_nd::{AppFullId, PublicKey};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};
@@ -230,6 +230,13 @@ impl ReprC for AppKeys {
             bls_sk: bls_sk.clone(),
             bls_pk: bls_sk.public_key(),
         })
+    }
+}
+
+impl Into<AppFullId> for AppKeys {
+    fn into(self) -> AppFullId {
+        let bls_sk = self.bls_sk.clone();
+        AppFullId::with_keys(bls_sk, self.owner_key)
     }
 }
 

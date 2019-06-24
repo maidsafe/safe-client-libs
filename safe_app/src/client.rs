@@ -24,7 +24,7 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, NetworkTx};
-use safe_nd::{AppFullId, Message, MessageId, PublicKey, Request};
+use safe_nd::{AppFullId, Message, MessageId, PublicKey, Request, Signature};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -235,7 +235,7 @@ impl Client for AppClient {
         Message::Request {
             request,
             message_id,
-            signature: Some(safe_nd::Signature::from(sig)),
+            signature: Some(Signature::from(sig)),
         }
     }
 }
