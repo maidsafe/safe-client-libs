@@ -2,7 +2,7 @@
 
 |Linux/macOS|Windows|Issues|Lines of Code|
 |:--------:|:-----:|:----:|:-----:|
-|[![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)|[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|[![Stories in Ready](https://badge.waffle.io/maidsafe/safe_client_libs.png?label=ready&title=Ready)](https://waffle.io/maidsafe/safe_client_libs)|[![](https://tokei.rs/b1/github/maidsafe/safe_client_libs)](https://github.com/maidsafe/safe_client_libs)
+|[![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)|[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|[![](https://tokei.rs/b1/github/maidsafe/safe_client_libs)](https://github.com/maidsafe/safe_client_libs)
 
 | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
 |:-------:|:-------:|:-------:|
