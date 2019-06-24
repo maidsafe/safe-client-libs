@@ -3,12 +3,7 @@
 
 |Linux/macOS|Windows|Lines of Code|SAFE Core|SAFE Authenticator|SAFE App|
 |:--------:|:--------:|:-----:|:-----:|:-----:|:-----:|
-|[![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)|
-[![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)|
-[![](https://tokei.rs/b1/github/maidsafe/safe_client_libs)](https://github.com/maidsafe/safe_client_libs)
-[![Documentation](https://docs.rs/safe_core/badge.svg)](https://docs.rs/safe_core) | 
-[![Documentation](https://docs.rs/safe_authenticator/badge.svg)](https://docs.rs/safe_authenticator) | 
-[![Documentation](https://docs.rs/safe_app/badge.svg)](https://docs.rs/safe_app) |
+| [![Build Status](https://travis-ci.com/maidsafe/safe_client_libs.svg?branch=master)](https://travis-ci.com/maidsafe/safe_client_libs)| [![Build status](https://ci.appveyor.com/api/projects/status/qyvxnojplcwcey4l/branch/master?svg=true)](https://ci.appveyor.com/project/MaidSafe-QA/safe-client-libs/branch/master)| [![LoC](https://tokei.rs/b1/github/maidsafe/safe_client_libs)](https://github.com/maidsafe/safe_client_libs)| [![Documentation](https://docs.rs/safe_core/badge.svg)](https://docs.rs/safe_core) | [![Documentation](https://docs.rs/safe_authenticator/badge.svg)](https://docs.rs/safe_authenticator) | [![Documentation](https://docs.rs/safe_app/badge.svg)](https://docs.rs/safe_app) |
 
 
 | [MaidSafe website](https://maidsafe.net) | [SAFE Dev Forum](https://forum.safedev.org) | [SAFE Network Forum](https://safenetforum.org) |
