@@ -10,6 +10,7 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.9.1"
 build = "build.rs"
 edition = "2018"
+autoexamples = "false"
 
 [dependencies]
 config_file_handler = "~0.11.0"
@@ -61,14 +62,3 @@ bindings = ["safe_bindgen"]
 [lib]
 crate_type = ["staticlib", "rlib", "cdylib"]
 
-[[example]]
-bench = false
-name = "client_stress_test"
-
-[[example]]
-bench = false
-name = "gen_invites"
-
-[[example]]
-bench = false
-name = "self_authentication"
