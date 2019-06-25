@@ -1061,7 +1061,7 @@ impl Routing {
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-        owner: threshold_crypto::PublicKey,
+        owner: PublicKey,
     ) {
         let mut vault = self.lock_vault(true);
         vault.mock_create_balance(coin_balance_name, amount, owner);

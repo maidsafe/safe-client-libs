@@ -14,7 +14,7 @@ use crate::{run, AppError};
 use futures::Future;
 use routing::XorName;
 use safe_core::{Client, CoreError};
-use safe_nd::{AppPermissions, Coins, Error, PublicKey, Transaction};
+use safe_nd::{AppPermissions, Coins, Error, Transaction};
 use std::str::FromStr;
 
 // Apps should not be able to request the coin balance if they don't have
@@ -29,16 +29,12 @@ fn coin_app_deny_permissions() {
     let app = create_app();
 
     unwrap!(run(&app, |client, _app_context| {
-        let owner_bls_key = if let PublicKey::Bls(bls) = unwrap!(client.owner_key()) {
-            bls
-        } else {
-            panic!("Unexpected key type")
-        };
-        let owner_coin_balance = XorName::from(unwrap!(client.owner_key()));
-        client.create_coin_balance(
+        let owner_key = unwrap!(client.owner_key());
+        let owner_coin_balance = XorName::from(owner_key);
+        client.test_create_coin_balance(
             &owner_coin_balance,
             unwrap!(Coins::from_str("100.0")),
-            owner_bls_key,
+            owner_key,
         );
 
         let c2 = client.clone();
@@ -87,16 +83,12 @@ fn coin_app_allow_permissions() {
     let app = create_app();
 
     let coin_balance2 = unwrap!(run(&app, |client, _app_context| {
-        let owner_bls_key = if let PublicKey::Bls(bls) = unwrap!(client.owner_key()) {
-            bls
-        } else {
-            panic!("Unexpected key type")
-        };
-        let coin_balance2 = XorName::from(unwrap!(client.owner_key()));
-        client.create_coin_balance(
+        let owner_key = unwrap!(client.owner_key());
+        let coin_balance2 = XorName::from(owner_key);
+        client.test_create_coin_balance(
             &coin_balance2,
             unwrap!(Coins::from_str("50.0")),
-            owner_bls_key,
+            owner_key,
         );
         Ok(coin_balance2)
     }));
@@ -111,16 +103,12 @@ fn coin_app_allow_permissions() {
 
     // Test the basic coin operations.
     unwrap!(run(&app, move |client, _app_context| {
-        let owner_bls_key = if let PublicKey::Bls(bls) = unwrap!(client.owner_key()) {
-            bls
-        } else {
-            panic!("Unexpected key type")
-        };
-        let owner_coin_balance = XorName::from(unwrap!(client.owner_key()));
-        client.create_coin_balance(
+        let owner_key = unwrap!(client.owner_key());
+        let owner_coin_balance = XorName::from(owner_key);
+        client.test_create_coin_balance(
             &owner_coin_balance,
             unwrap!(Coins::from_str("100.0")),
-            owner_bls_key,
+            owner_key,
         );
 
         let c2 = client.clone();

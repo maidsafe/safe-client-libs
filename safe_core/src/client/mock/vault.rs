@@ -148,7 +148,7 @@ impl Vault {
         &mut self,
         coin_balance_name: &XorName,
         amount: Coins,
-        owner: threshold_crypto::PublicKey,
+        owner: PublicKey,
     ) {
         let _ = self
             .cache
@@ -190,19 +190,12 @@ impl Vault {
             }
         };
         // Check if the request was signed by owner of the wallet
-        if verify_signature(
-            &signature,
-            &PublicKey::from(*balance.owner()),
-            request,
-            &message_id,
-        )
-        .is_ok()
-        {
+        if verify_signature(&signature, balance.owner(), request, &message_id).is_ok() {
             return Ok(());
         }
         verify_signature(&signature, &requester_pk, request, &message_id)?;
-        let owner_account = XorName::from(PublicKey::from(*balance.owner()));
-        if PublicKey::from(*balance.owner()) == requester_pk {
+        let owner_account = XorName::from(*balance.owner());
+        if *balance.owner() == requester_pk {
             Ok(())
         } else {
             let account = match self.get_account(&owner_account) {
@@ -293,6 +286,17 @@ impl Vault {
         let _ = self.cache.nae_manager.remove(&name);
     }
 
+    fn create_coin_balance(&mut self, destination: XorName, owner: PublicKey) -> Result<(), Error> {
+        if self.get_coin_balance(&destination).is_some() {
+            return Err(Error::AccountExists);
+        }
+        let _ = self
+            .cache
+            .coin_balances
+            .insert(destination, CoinBalance::new(Coins::from_nano(0)?, owner));
+        Ok(())
+    }
+
     fn transfer_coins(
         &mut self,
         source: XorName,
@@ -359,7 +363,9 @@ impl Vault {
             None => return Err(Error::InvalidSignature),
         };
         match request.clone() {
-            Request::TransferCoins { .. } | Request::GetBalance(_) => (),
+            Request::TransferCoins { .. }
+            | Request::GetBalance(_)
+            | Request::CreateCoinBalance { .. } => (),
             _ => {
                 verify_signature(&sig, &requester_pk, &request, &message_id)?;
             }
@@ -451,6 +457,32 @@ impl Vault {
                 } else {
                     let res = self.transfer_coins(source, destination, amount, transaction_id);
                     Response::TransferCoins(res)
+                }
+            }
+            Request::CreateCoinBalance {
+                source,
+                destination,
+                amount,
+                new_balance_owner,
+                transaction_id,
+            } => {
+                if let Err(e) =
+                    self.authorise_coin_operation(&source, sig, requester_pk, &request, message_id)
+                {
+                    Response::CreateCoinBalance(Err(e))
+                } else {
+                    let res = self
+                        .get_balance(&source)
+                        .and_then(|source_balance| {
+                            if source_balance.checked_sub(amount).is_none() {
+                                return Err(Error::InsufficientBalance);
+                            }
+                            self.create_coin_balance(destination, new_balance_owner)
+                        })
+                        .and_then(|_| {
+                            self.transfer_coins(source, destination, amount, transaction_id)
+                        });
+                    Response::CreateCoinBalance(res)
                 }
             }
             Request::GetBalance(coin_balance_id) => {
@@ -1170,6 +1202,7 @@ impl Vault {
                     });
                 Response::GetADataOwners(res)
             }
+            other => panic!("RPC not handled: {:?}", other),
         };
         Ok(Message::Response {
             response,

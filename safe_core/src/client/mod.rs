@@ -287,6 +287,42 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
+    /// Creates a new coin balance on the network.
+    fn create_coin_balance(
+        &self,
+        source: XorName,
+        secret_key: Option<&threshold_crypto::SecretKey>,
+        destination: XorName,
+        new_balance_owner: PublicKey,
+        amount: Coins,
+        transaction_id: Option<u64>,
+    ) -> Box<CoreFuture<u64>> {
+        trace!(
+            "Create a new coin balance from {:?} at {:?} with {} coins.",
+            source,
+            destination,
+            amount
+        );
+
+        let transaction_id = transaction_id.unwrap_or_else(rand::random);
+        let req = Request::CreateCoinBalance {
+            source,
+            destination,
+            new_balance_owner,
+            amount,
+            transaction_id,
+        };
+        let message = match secret_key {
+            Some(key) => sign_request_with_key(req, key),
+            None => self.compose_message(req),
+        };
+        send_mutation(self, message.message_id(), move |routing, dst| {
+            routing.send(dst, &unwrap!(serialise(&message)))
+        })
+        .map(move |_| transaction_id)
+        .into_box()
+    }
+
     /// Get the current coin balance.
     fn get_balance(
         &self,
@@ -1499,11 +1535,11 @@ pub trait Client: Clone + 'static {
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
     ))]
-    fn create_coin_balance(
+    fn test_create_coin_balance(
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-        owner: threshold_crypto::PublicKey,
+        owner: PublicKey,
     ) {
         let inner = self.inner();
         inner
@@ -1700,6 +1736,7 @@ where
                     Response::PutIData(res)
                     | Response::DeleteUnpubIData(res)
                     | Response::TransferCoins(res)
+                    | Response::CreateCoinBalance(res)
                     | Response::InsAuthKey(res)
                     | Response::DelAuthKey(res)
                     | Response::PutUnseqMData(res)
@@ -2156,10 +2193,10 @@ mod tests {
     fn coin_permissions() {
         let wallet1 = random_client(move |client| {
             let name: XorName = new_rand::random();
-            client.create_coin_balance(
+            client.test_create_coin_balance(
                 &name,
                 unwrap!(Coins::from_str("1000.0")),
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
             Ok::<_, Error>(name)
         });
@@ -2188,7 +2225,7 @@ mod tests {
     }
 
     // 1. Create a client and an anonymous coin balance using a random key-pair
-    // 2. Create another wallet using the client's keys.
+    // 2. Create another wallet with the client's keys, preloading it with some balance from the first wallet.
     // 3. Transfer some safecoin to the client's wallet and verify the transaction.
     #[test]
     fn anonymous_wallet() {
@@ -2201,37 +2238,43 @@ mod tests {
             let client4 = client.clone();
             let bls_sk = threshold_crypto::SecretKey::random();
             let bls_sk2 = bls_sk.clone();
-            client.create_coin_balance(
+            client.test_create_coin_balance(
                 &wallet1,
-                unwrap!(Coins::from_str("50.0")),
-                bls_sk.public_key(),
+                unwrap!(Coins::from_str("500.0")),
+                PublicKey::from(bls_sk.public_key()),
             );
 
-            client1.create_coin_balance(
-                &wallet2,
-                unwrap!(Coins::from_str("0.0")),
-                unwrap!(client.public_bls_key()),
-            );
-
-            client2
-                .transfer_coins(
+            client1
+                .create_coin_balance(
                     wallet1,
-                    Some(&bls_sk),
+                    Some(&bls_sk.clone()),
                     wallet2,
-                    unwrap!(Coins::from_str("5.0")),
+                    PublicKey::from(unwrap!(client.public_bls_key())),
+                    unwrap!(Coins::from_str("100.0")),
                     None,
                 )
+                .and_then(move |_| {
+                    client2
+                        .transfer_coins(
+                            wallet1,
+                            Some(&bls_sk),
+                            wallet2,
+                            unwrap!(Coins::from_str("5.0")),
+                            None,
+                        )
+                        .and_then(move |_| Ok(()))
+                })
                 .and_then(move |_| {
                     client3
                         .get_balance(wallet1, Some(&bls_sk2))
                         .and_then(|balance| {
-                            assert_eq!(balance, unwrap!(Coins::from_str("45.0")));
+                            assert_eq!(balance, unwrap!(Coins::from_str("395.0")));
                             Ok(())
                         })
                 })
                 .and_then(move |_| {
                     client4.get_balance(wallet2, None).and_then(|balance| {
-                        assert_eq!(balance, unwrap!(Coins::from_str("5.0")));
+                        assert_eq!(balance, unwrap!(Coins::from_str("105.0")));
                         Ok(())
                     })
                 })
@@ -2249,10 +2292,10 @@ mod tests {
         random_client(move |client| {
             let client1 = client.clone();
             let client2 = client.clone();
-            client.create_coin_balance(
+            client.test_create_coin_balance(
                 &wallet1,
                 unwrap!(Coins::from_str("0.0")),
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
 
             unwrap!(client1.allocate_test_coins(&wallet1, unwrap!(Coins::from_str("100.0"))));
@@ -2265,10 +2308,10 @@ mod tests {
 
         random_client(move |client| {
             let wallet2 = new_rand::random();
-            client.create_coin_balance(
+            client.test_create_coin_balance(
                 &wallet2,
                 unwrap!(Coins::from_str("100.0")),
-                unwrap!(client.public_bls_key()),
+                PublicKey::from(unwrap!(client.public_bls_key())),
             );
 
             let c2 = client.clone();
