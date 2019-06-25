@@ -31,7 +31,7 @@ COPY . .
 USER maidsafe:maidsafe
 ENV CARGO_TARGET_DIR=/target
 RUN cargo install cargo-script && \
-   ./scripts/build-real && \
+   ./scripts/build-mock && \
    ./scripts/package.rs --help && \
    find /target/release/ -maxdepth 1 -type f -exec rm '{}' \;
 ENTRYPOINT ["fixuid", "-q"]
