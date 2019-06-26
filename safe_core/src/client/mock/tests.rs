@@ -81,14 +81,11 @@ impl Routing {
         let signature = self
             .full_id_new
             .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
-        unwrap!(self.send(
-            Authority::ClientManager(new_rand::random()),
-            &unwrap!(serialise(&Message::Request {
-                request,
-                message_id,
-                signature: Some(signature),
-            }))
-        ));
+        unwrap!(self.send(&unwrap!(serialise(&Message::Request {
+            request,
+            message_id,
+            signature: Some(signature),
+        }))));
         let response = expect_success!(rx, message_id, Response::RpcResponse);
         unwrap!(deserialise(&response))
     }

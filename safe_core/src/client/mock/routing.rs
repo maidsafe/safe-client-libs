@@ -152,7 +152,7 @@ impl Routing {
     }
 
     /// Send a routing message
-    pub fn send(&mut self, dst: Authority<XorName>, payload: &[u8]) -> Result<(), InterfaceError> {
+    pub fn send(&mut self, payload: &[u8]) -> Result<(), InterfaceError> {
         let msg: Message = {
             let mut vault = self.lock_vault(true);
             let public_id = match &self.full_id_new {
@@ -175,7 +175,9 @@ impl Routing {
             res: Ok(unwrap!(serialise(&response))),
             msg_id: message_id,
         };
-        self.send_response(DEFAULT_DELAY_MS, self.client_auth, dst, response);
+        // Use a dummy authority as a placeholder for now
+        let dummy_authority = Authority::NaeManager(new_rand::random());
+        self.send_response(DEFAULT_DELAY_MS, dummy_authority, dummy_authority, response);
 
         Ok(())
     }

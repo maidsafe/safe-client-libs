@@ -280,8 +280,8 @@ pub trait Client: Clone + 'static {
             Some(key) => sign_request_with_key(req, key),
             None => self.compose_message(req),
         };
-        send_mutation(self, message.message_id(), move |routing, dst| {
-            routing.send(dst, &unwrap!(serialise(&message)))
+        send_mutation(self, message.message_id(), move |routing, _| {
+            routing.send(&unwrap!(serialise(&message)))
         })
         .map(move |_| transaction_id)
         .into_box()
@@ -296,13 +296,12 @@ pub trait Client: Clone + 'static {
         trace!("Get balance for {:?}", destination);
 
         let req = Request::GetBalance(destination);
-        let dst = some_or_err!(self.cm_addr());
         let request = match secret_key {
             Some(key) => sign_request_with_key(req, key),
             None => self.compose_message(req),
         };
         send(self, request.message_id(), move |routing| {
-            routing.send(dst, &unwrap!(serialise(&request)))
+            routing.send(&unwrap!(serialise(&request)))
         })
         .and_then(|event| {
             let res = match event {
@@ -1635,10 +1634,9 @@ pub fn setup_routing(
 }
 
 fn send_new(client: &impl Client, request: Request) -> Box<CoreFuture<CoreEvent>> {
-    let dst = some_or_err!(client.cm_addr());
     let request = client.compose_message(request);
     send(client, request.message_id(), move |routing| {
-        routing.send(dst, &unwrap!(serialise(&request)))
+        routing.send(&unwrap!(serialise(&request)))
     })
 }
 
@@ -1679,8 +1677,8 @@ where
 fn send_mutation_new(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
     let message = client.compose_message(req);
 
-    send_mutation(client, message.message_id(), move |routing, dst| {
-        routing.send(dst, &unwrap!(serialise(&message)))
+    send_mutation(client, message.message_id(), move |routing, _| {
+        routing.send(&unwrap!(serialise(&message)))
     })
 }
 
