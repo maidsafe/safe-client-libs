@@ -15,9 +15,9 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
     verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error, IDataKind,
-    MDataAddress, Message, MessageId, MutableData as NewMutableData, PubSeqAppendOnlyData,
+    MDataAddress, Message, MutableData as NewMutableData, PubSeqAppendOnlyData,
     PubUnseqAppendOnlyData, PublicId, PublicKey, Request, Response, SeqAppendOnly, SeqMutableData,
-    Signature, Transaction, UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly,
+    Transaction, UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly,
     UnseqMutableData, XorName,
 };
 use std::collections::HashMap;
@@ -176,10 +176,7 @@ impl Vault {
     pub fn authorise_coin_operation(
         &self,
         coin_balance_name: &XorName,
-        signature: Signature,
         requester_pk: PublicKey,
-        request: &Request,
-        message_id: MessageId,
     ) -> Result<(), Error> {
         // Check if we are the owner or app.
         let balance = match self.get_coin_balance(&coin_balance_name) {
@@ -189,11 +186,6 @@ impl Vault {
                 return Err(Error::NoSuchAccount);
             }
         };
-        // Check if the request was signed by owner of the wallet
-        if verify_signature(&signature, balance.owner(), request, &message_id).is_ok() {
-            return Ok(());
-        }
-        verify_signature(&signature, &requester_pk, request, &message_id)?;
         let owner_account = XorName::from(*balance.owner());
         if *balance.owner() == requester_pk {
             Ok(())
@@ -353,23 +345,16 @@ impl Vault {
         };
 
         // Requester's public key
-        let requester_pk = match requester.clone() {
-            PublicId::App(pk) => *pk.public_key(),
-            PublicId::Client(pk) => *pk.public_key(),
+        let (requester_pk, owner_pk) = match requester.clone() {
+            PublicId::App(pk) => (*pk.public_key(), *pk.owner().public_key()),
+            PublicId::Client(pk) => (*pk.public_key(), *pk.public_key()),
             PublicId::Node(_) => return Err(Error::AccessDenied),
         };
         let sig = match signature {
             Some(s) => s,
             None => return Err(Error::InvalidSignature),
         };
-        match request.clone() {
-            Request::TransferCoins { .. }
-            | Request::GetBalance(_)
-            | Request::CreateCoinBalance { .. } => (),
-            _ => {
-                verify_signature(&sig, &requester_pk, &request, &message_id)?;
-            }
-        }
+        verify_signature(&sig, &requester_pk, &request, &message_id)?;
         let response = match request.clone() {
             //
             // Immutable Data
@@ -445,14 +430,12 @@ impl Vault {
                 }
             }
             Request::TransferCoins {
-                source,
                 destination,
                 amount,
                 transaction_id,
             } => {
-                if let Err(e) =
-                    self.authorise_coin_operation(&source, sig, requester_pk, &request, message_id)
-                {
+                let source: XorName = owner_pk.into();
+                if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
                     Response::TransferCoins(Err(e))
                 } else {
                     let res = self.transfer_coins(source, destination, amount, transaction_id);
@@ -460,15 +443,13 @@ impl Vault {
                 }
             }
             Request::CreateCoinBalance {
-                source,
-                destination,
                 amount,
                 new_balance_owner,
                 transaction_id,
             } => {
-                if let Err(e) =
-                    self.authorise_coin_operation(&source, sig, requester_pk, &request, message_id)
-                {
+                let source = owner_pk.into();
+                let destination = new_balance_owner.into();
+                if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
                     Response::CreateCoinBalance(Err(e))
                 } else {
                     let res = self
@@ -485,14 +466,9 @@ impl Vault {
                     Response::CreateCoinBalance(res)
                 }
             }
-            Request::GetBalance(coin_balance_id) => {
-                if let Err(e) = self.authorise_coin_operation(
-                    &coin_balance_id,
-                    sig,
-                    requester_pk,
-                    &request,
-                    message_id,
-                ) {
+            Request::GetBalance => {
+                let coin_balance_id = owner_pk.into();
+                if let Err(e) = self.authorise_coin_operation(&coin_balance_id, requester_pk) {
                     Response::GetBalance(Err(e))
                 } else {
                     let res = self.get_balance(&coin_balance_id);

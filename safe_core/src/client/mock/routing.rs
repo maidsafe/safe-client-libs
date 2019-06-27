@@ -16,8 +16,8 @@ use routing::{
     MutableData, PermissionSet, Request, Response, RoutingError, User, TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    AppFullId, ClientFullId, IDataKind, ImmutableData, Message, MessageId, PublicId, PublicKey,
-    Signature, XorName,
+    AppFullId, ClientFullId, ClientPublicId, IDataKind, ImmutableData, Message, MessageId,
+    PublicId, PublicKey, Signature, XorName,
 };
 #[cfg(any(feature = "testing", test))]
 use safe_nd::{Coins, Error};
@@ -152,12 +152,21 @@ impl Routing {
     }
 
     /// Send a routing message
-    pub fn send(&mut self, dst: Authority<XorName>, payload: &[u8]) -> Result<(), InterfaceError> {
+    pub fn send(
+        &mut self,
+        requester: Option<PublicKey>,
+        payload: &[u8],
+    ) -> Result<(), InterfaceError> {
         let msg: Message = {
             let mut vault = self.lock_vault(true);
-            let public_id = match &self.full_id_new {
-                NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
-                NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
+            let public_id = match requester {
+                Some(public_key) => {
+                    PublicId::Client(ClientPublicId::new(public_key.into(), public_key))
+                }
+                None => match &self.full_id_new {
+                    NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
+                    NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
+                },
             };
             unwrap!(vault.process_request(public_id, payload.to_vec()))
         };
@@ -175,7 +184,9 @@ impl Routing {
             res: Ok(unwrap!(serialise(&response))),
             msg_id: message_id,
         };
-        self.send_response(DEFAULT_DELAY_MS, self.client_auth, dst, response);
+        // Use dummy authority for now
+        let dummy_authority = Authority::ClientManager(new_rand::random());
+        self.send_response(DEFAULT_DELAY_MS, dummy_authority, dummy_authority, response);
 
         Ok(())
     }
