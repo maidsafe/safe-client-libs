@@ -76,7 +76,7 @@ extern crate unwrap;
 mod real_network;
 
 use futures::future::Future;
-use safe_app::{run, App, Client, ImmutableData};
+use safe_app::{run, App, Client, PubImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
 
@@ -85,7 +85,7 @@ use safe_core::utils::test_utils::random_client;
 // 2. Try to read it as unregistered.
 #[test]
 fn unregistered_client() {
-    let orig_data = ImmutableData::new(unwrap!(utils::generate_random_vector(30)));
+    let orig_data = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
 
     // Registered Client PUTs something onto the network.
     {

@@ -16,8 +16,8 @@ use routing::{
     MutableData, PermissionSet, Request, Response, RoutingError, User, TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    AppFullId, ClientFullId, ClientPublicId, IDataKind, ImmutableData, Message, MessageId,
-    PublicId, PublicKey, Signature, XorName,
+    AppFullId, ClientFullId, ClientPublicId, IData, Message, MessageId, PubImmutableData, PublicId,
+    PublicKey, Signature, XorName,
 };
 #[cfg(any(feature = "testing", test))]
 use safe_nd::{Coins, Error};
@@ -236,11 +236,11 @@ impl Routing {
         Ok(())
     }
 
-    /// Puts ImmutableData to the network.
+    /// Puts PubImmutableData to the network.
     pub fn put_idata(
         &mut self,
         dst: Authority<XorName>,
-        data: ImmutableData,
+        data: PubImmutableData,
         msg_id: MessageId,
     ) -> Result<(), InterfaceError> {
         let data_name = *data.name();
@@ -259,19 +259,17 @@ impl Routing {
 
         let res = {
             let mut vault = self.lock_vault(true);
+            let data_id = DataId::Immutable(data_name);
 
             self.verify_network_limits(msg_id, "put_idata")
                 .and_then(|_| vault.authorise_mutation(&dst, &self.client_key()))
                 .and_then(|_| {
-                    match vault.get_data(&DataId::immutable(*data.name(), true)) {
+                    match vault.get_data(&data_id) {
                         // Immutable data is de-duplicated so always allowed
                         Some(Data::Immutable(_)) => Ok(()),
                         Some(_) => Err(ClientError::DataExists),
                         None => {
-                            vault.insert_data(
-                                DataId::immutable(data_name, true),
-                                Data::Immutable(data.into()),
-                            );
+                            vault.insert_data(data_id, Data::Immutable(data.into()));
                             Ok(())
                         }
                     }
@@ -313,8 +311,8 @@ impl Routing {
             } else if let Err(err) = vault.authorise_read(&dst, &name) {
                 Err(err)
             } else {
-                match vault.get_data(&DataId::immutable(name, true)) {
-                    Some(Data::Immutable(IDataKind::Pub(data))) => Ok(data),
+                match vault.get_data(&DataId::Immutable(name)) {
+                    Some(Data::Immutable(IData::Pub(data))) => Ok(data),
                     _ => Err(ClientError::NoSuchData),
                 }
             }
@@ -337,7 +335,10 @@ impl Routing {
         msg_id: MessageId,
         requester: PublicKey,
     ) -> Result<(), InterfaceError> {
-        let data_name = DataId::mutable(*data.name(), data.tag());
+        let data_name = DataId::Mutable {
+            name: *data.name(),
+            tag: data.tag(),
+        };
         let client_auth = self.client_auth;
         let nae_auth = Authority::NaeManager(*data_name.name());
 
@@ -849,7 +850,7 @@ impl Routing {
             vault.authorise_mutation(&dst, &client_key)?;
 
             let output = f(&mut data)?;
-            vault.insert_data(DataId::mutable(name, tag), Data::OldMutable(data));
+            vault.insert_data(DataId::Mutable { name, tag }, Data::OldMutable(data));
             vault.commit_mutation(&dst.name());
 
             Ok(output)
@@ -898,7 +899,7 @@ impl Routing {
             Err(err)
         } else {
             let mut vault = self.lock_vault(write);
-            match vault.get_data(&DataId::mutable(name, tag)) {
+            match vault.get_data(&DataId::Mutable { name, tag }) {
                 Some(Data::OldMutable(data)) => f(data, &mut *vault),
                 _ => {
                     if tag == TYPE_TAG_SESSION_PACKET {

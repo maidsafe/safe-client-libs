@@ -10,7 +10,7 @@ use crate::errors::CoreError;
 use futures::sync::mpsc;
 use routing::{AccountInfo, MutableData, PermissionSet, User, Value};
 use rust_sodium::crypto::sign;
-use safe_nd::ImmutableData;
+use safe_nd::PubImmutableData;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Network Events will be translated into values starting from this number for
@@ -25,8 +25,8 @@ pub enum CoreEvent {
     GetAccountInfo(Result<AccountInfo, CoreError>),
     /// Result of data mutation request
     Mutation(Result<(), CoreError>),
-    /// Result of getting `ImmutableData`
-    GetIData(Result<ImmutableData, CoreError>),
+    /// Result of getting `PubImmutableData`
+    GetIData(Result<PubImmutableData, CoreError>),
     /// Result of getting a version of `MutableData`
     GetMDataVersion(Result<u64, CoreError>),
     /// Result of getting a list of `MutableData` entries

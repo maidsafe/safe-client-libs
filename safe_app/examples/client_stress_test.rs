@@ -69,7 +69,7 @@ extern crate unwrap;
 use clap::{App, Arg};
 use futures::Future;
 use rand::{Rng, SeedableRng};
-use safe_app::{Client, CoreError, CoreFuture, FutureExt, ImmutableData, MutableData};
+use safe_app::{Client, CoreError, CoreFuture, FutureExt, MutableData, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
 use safe_nd::{PublicKey, XorName};
 use std::sync::mpsc;
@@ -89,7 +89,7 @@ fn random_mutable_data<R: Rng>(type_tag: u64, public_key: &PublicKey, rng: &mut 
 
 enum Data {
     Mutable(MutableData),
-    Immutable(ImmutableData),
+    Immutable(PubImmutableData),
 }
 
 fn main() {
@@ -106,7 +106,7 @@ fn main() {
                 .long("immutable")
                 .takes_value(true)
                 .default_value("100")
-                .help("Number of ImmutableData chunks to Put and Get."),
+                .help("Number of PubImmutableData chunks to Put and Get."),
         )
         .arg(
             Arg::with_name("mutable")
@@ -216,7 +216,7 @@ fn main() {
 
     for _ in 0..immutable_data_count {
         // Construct data
-        let data = ImmutableData::new(rng.gen_iter().take(1024).collect());
+        let data = PubImmutableData::new(rng.gen_iter().take(1024).collect());
         println!("{:?}", data.name());
         stored_data.push(Data::Immutable(data));
     }
@@ -308,13 +308,17 @@ fn main() {
     println!("Done");
 }
 
-fn put_idata(client: &AuthClient, data: ImmutableData, i: usize) -> Box<CoreFuture<ImmutableData>> {
+fn put_idata(
+    client: &AuthClient,
+    data: PubImmutableData,
+    i: usize,
+) -> Box<CoreFuture<PubImmutableData>> {
     let c2 = client.clone();
 
     client
         .put_idata(data.clone())
         .and_then(move |_| {
-            println!("Put ImmutableData chunk #{}: {:?}", i, data.name());
+            println!("Put PubImmutableData chunk #{}: {:?}", i, data.name());
 
             // Get the data
             c2.get_idata(*data.name()).map(move |retrieved_data| {
@@ -324,7 +328,7 @@ fn put_idata(client: &AuthClient, data: ImmutableData, i: usize) -> Box<CoreFutu
         })
         .and_then(move |retrieved_data| {
             println!(
-                "Retrieved ImmutableData chunk #{}: {:?}",
+                "Retrieved PubImmutableData chunk #{}: {:?}",
                 i,
                 retrieved_data.name()
             );

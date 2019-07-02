@@ -19,13 +19,14 @@ use crate::utils;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{
     AccountInfo, Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
-    MutableData, PermissionSet, Request, Response, User, Value, TYPE_TAG_SESSION_PACKET,
+    MutableData as OldMutableData, PermissionSet, Request, Response, User, Value,
+    TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    AppFullId, ClientFullId, Error, IDataAddress, IDataKind, ImmutableData,
+    AppFullId, ClientFullId, Error, IData, IDataAddress, IDataKind, MData,
     MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet, Message,
-    MessageId, MutableData as NewMutableData, PublicKey, Request as RpcRequest,
-    Response as RpcResponse, UnpubImmutableData, UnseqMutableData, XorName,
+    MessageId, PubImmutableData, PublicKey, Request as RpcRequest, Response as RpcResponse,
+    UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver};
@@ -103,8 +104,8 @@ fn immutable_data_basics() {
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
-    // Construct ImmutableData
-    let orig_data = ImmutableData::new(unwrap!(utils::generate_random_vector(100)));
+    // Construct PubImmutableData
+    let orig_data = PubImmutableData::new(unwrap!(utils::generate_random_vector(100)));
     let nae_mgr = Authority::NaeManager(*orig_data.name());
 
     // GetIData should fail
@@ -163,7 +164,7 @@ fn mutable_data_basics() {
     let name = new_rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -200,7 +201,7 @@ fn mutable_data_basics() {
     // different type tag
     let tag2 = 1001u64;
 
-    let data2 = unwrap!(MutableData::new(
+    let data2 = unwrap!(OldMutableData::new(
         name,
         tag2,
         Default::default(),
@@ -367,7 +368,7 @@ fn mutable_data_reclaim() {
     let name = new_rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -456,7 +457,7 @@ fn mutable_data_entry_versioning() {
     let name = new_rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -569,7 +570,7 @@ fn mutable_data_permissions() {
         key0.to_vec() => Value { content: value0_v0, entry_version: 0 }
     ];
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -981,7 +982,7 @@ fn mutable_data_ownership() {
     // Attempt to put MutableData using the app sign key as owner key should fail.
     let name = new_rand::random();
     let tag = 1000u64;
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -999,7 +1000,7 @@ fn mutable_data_ownership() {
     );
 
     // Putting it with correct owner succeeds.
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -1066,7 +1067,7 @@ fn pub_idata_rpc() {
     let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
-    let data = ImmutableData::new(value);
+    let data = PubImmutableData::new(value);
     let name = *data.name();
 
     // Put pub idata. Should succeed.
@@ -1085,9 +1086,9 @@ fn pub_idata_rpc() {
         let rpc_response = routing.req(&routing_rx, RpcRequest::GetIData(IDataAddress::Pub(name)));
         match rpc_response {
             RpcResponse::GetIData(res) => {
-                let kind: IDataKind = unwrap!(res);
-                assert_eq!(*kind.name(), name);
-                assert!(kind.published());
+                let idata: IData = unwrap!(res);
+                assert_eq!(*idata.name(), name);
+                assert!(idata.kind() == IDataKind::Pub);
             }
             _ => panic!("Unexpected"),
         }
@@ -1103,9 +1104,9 @@ fn pub_idata_rpc() {
         );
         match rpc_response {
             RpcResponse::GetIData(res) => {
-                let kind: IDataKind = unwrap!(res);
-                assert_eq!(*kind.name(), name);
-                assert!(kind.published());
+                let idata: IData = unwrap!(res);
+                assert_eq!(*idata.name(), name);
+                assert!(idata.kind() == IDataKind::Pub);
             }
             _ => panic!("Unexpected"),
         }
@@ -1138,9 +1139,9 @@ fn unpub_idata_rpc() {
     );
     match rpc_response {
         RpcResponse::GetIData(res) => {
-            let kind: IDataKind = unwrap!(res);
-            assert_eq!(*kind.name(), name);
-            assert!(!kind.published());
+            let idata: IData = unwrap!(res);
+            assert_eq!(*idata.name(), name);
+            assert!(idata.kind() == IDataKind::Unpub);
         }
         _ => panic!("Unexpected response"),
     }
@@ -1204,7 +1205,10 @@ fn unpub_md() {
     );
 
     // Construct put request.
-    let response: RpcResponse = routing.req(&routing_rx, RpcRequest::PutUnseqMData(data.clone()));
+    let response: RpcResponse = routing.req(
+        &routing_rx,
+        RpcRequest::PutMData(MData::Unseq(data.clone())),
+    );
 
     match response {
         RpcResponse::Mutation(res) => unwrap!(res),
@@ -1214,11 +1218,11 @@ fn unpub_md() {
     // Construct get request.
     let rpc_response: RpcResponse = routing.req(
         &routing_rx,
-        RpcRequest::GetMData(MDataAddress::new_unseq(name, tag)),
+        RpcRequest::GetMData(MDataAddress::Unseq { name, tag }),
     );
     match rpc_response {
-        RpcResponse::GetUnseqMData(res) => {
-            let unpub_mdata: UnseqMutableData = unwrap!(res);
+        RpcResponse::GetMData(res) => {
+            let unpub_mdata: MData = unwrap!(res);
             println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
             assert_eq!(*unpub_mdata.name(), name);
             assert_eq!(unpub_mdata.tag(), tag);
@@ -1322,7 +1326,7 @@ fn low_balance_check() {
         let name = new_rand::random();
         let tag = 1000u64;
 
-        let data = unwrap!(MutableData::new(
+        let data = unwrap!(OldMutableData::new(
             name,
             tag,
             Default::default(),
@@ -1336,7 +1340,7 @@ fn low_balance_check() {
         expect_success!(routing_rx, msg_id, Response::PutMData);
 
         let vec_data = unwrap!(utils::generate_random_vector(10));
-        let data = ImmutableData::new(vec_data);
+        let data = PubImmutableData::new(vec_data);
         let msg_id = MessageId::new();
 
         // Another mutation should fail/succeed depending on config value.
@@ -1447,7 +1451,7 @@ fn config_mock_vault_path() {
     let name = new_rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -1505,7 +1509,7 @@ fn request_hooks() {
     let name = new_rand::random();
     let tag = 10_000u64;
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -1531,7 +1535,7 @@ fn request_hooks() {
     let name = new_rand::random();
     let tag = 12_345u64;
 
-    let data = unwrap!(MutableData::new(
+    let data = unwrap!(OldMutableData::new(
         name,
         tag,
         Default::default(),
@@ -1626,7 +1630,7 @@ fn create_account(
     owner_key: PublicKey,
 ) -> Authority<XorName> {
     let account_name = XorName::from(owner_key);
-    let account_data = unwrap!(MutableData::new(
+    let account_data = unwrap!(OldMutableData::new(
         account_name,
         TYPE_TAG_SESSION_PACKET,
         Default::default(),

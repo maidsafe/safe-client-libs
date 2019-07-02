@@ -52,15 +52,14 @@ use routing::{
 };
 use rust_sodium::crypto::{box_, sign};
 #[cfg(any(feature = "testing", test))]
-use safe_nd::Error;
+use safe_nd::Error as SndError;
 use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataIndex, ADataIndices, ADataOwner, ADataPubPermissionSet,
     ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
-    Coins, IDataAddress, IDataKind, ImmutableData, MDataAddress,
-    MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
-    MDataValue as Val, Message, MessageId, MutableData as NewMutableData, PublicKey, Request,
-    Response, SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData,
-    XorName,
+    Coins, IData, IDataAddress, MData, MDataAddress, MDataPermissionSet as NewPermissionSet,
+    MDataSeqEntryActions, MDataUnseqEntryActions, MDataValue as Val, Message, MessageId,
+    MutableData as NewMutableData, PubImmutableData, PublicKey, Request, Response, SeqMutableData,
+    Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -203,12 +202,12 @@ pub trait Client: Clone + 'static {
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
-    fn get_idata(&self, name: XorName) -> Box<CoreFuture<ImmutableData>> {
+    fn get_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
         trace!("GetIData for {:?}", name);
 
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&name) {
-            trace!("ImmutableData found in cache.");
+            trace!("PubImmutableData found in cache.");
             return future::ok(data.clone()).into_box();
         }
 
@@ -232,7 +231,7 @@ pub trait Client: Clone + 'static {
     // Trait when it arrives in stable. Change from `Box<CoreFuture>` -> `impl
     // CoreFuture`.
     /// Put immutable data onto the network.
-    fn put_idata(&self, data: ImmutableData) -> Box<CoreFuture<()>> {
+    fn put_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
         trace!("PutIData for {:?}", data);
 
         let msg_id = MessageId::new();
@@ -255,7 +254,7 @@ pub trait Client: Clone + 'static {
     /// Put unsequenced mutable data to the network
     fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Unsequenced MData at {:?}", data.name());
-        send_mutation_new(self, Request::PutUnseqMData(data.clone()))
+        send_mutation_new(self, Request::PutMData(MData::Unseq(data.clone())))
     }
 
     /// Transfer coin balance
@@ -358,7 +357,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get published immutable data from the network.
-    fn get_pub_idata(&self, name: XorName) -> Box<CoreFuture<ImmutableData>> {
+    fn get_pub_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
         trace!("Fetch Published Immutable Data");
 
         send_new(self, Request::GetIData(IDataAddress::Pub(name)))
@@ -371,8 +370,8 @@ pub trait Client: Clone + 'static {
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
                     Response::GetIData(res) => match res {
-                        Ok(IDataKind::Pub(data)) => Ok(data),
-                        Ok(IDataKind::Unpub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
+                        Ok(IData::Pub(data)) => Ok(data),
+                        Ok(IData::Unpub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
                         Err(e) => Err(e).map_err(CoreError::from),
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -382,7 +381,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put published immutable data to the network.
-    fn put_pub_idata(&self, data: ImmutableData) -> Box<CoreFuture<()>> {
+    fn put_pub_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
         trace!("Put Published IData at {:?}", data.name());
         send_mutation_new(self, Request::PutIData(data.into()))
     }
@@ -401,8 +400,8 @@ pub trait Client: Clone + 'static {
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
                     Response::GetIData(res) => match res {
-                        Ok(IDataKind::Unpub(data)) => Ok(data),
-                        Ok(IDataKind::Pub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
+                        Ok(IData::Unpub(data)) => Ok(data),
+                        Ok(IData::Pub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
                         Err(e) => Err(e).map_err(CoreError::from),
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -456,14 +455,14 @@ pub trait Client: Clone + 'static {
     /// Put sequenced mutable data to the network
     fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Sequenced MData at {:?}", data.name());
-        send_mutation_new(self, Request::PutSeqMData(data))
+        send_mutation_new(self, Request::PutMData(MData::Seq(data)))
     }
 
     /// Fetch unpublished mutable data from the network
     fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
         trace!("Fetch Unsequenced Mutable Data");
 
-        send_new(self, Request::GetMData(MDataAddress::new_unseq(name, tag)))
+        send_new(self, Request::GetMData(MDataAddress::Unseq { name, tag }))
             .and_then(|event| {
                 let res = match event {
                     CoreEvent::RpcResponse(res) => res,
@@ -472,7 +471,12 @@ pub trait Client: Clone + 'static {
                 let result_buffer = unwrap!(res);
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
-                    Response::GetUnseqMData(res) => res.map_err(CoreError::from),
+                    Response::GetMData(res) => {
+                        res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                            MData::Unseq(data) => Ok(data),
+                            _ => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                    }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             })
@@ -486,7 +490,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::GetMDataValue {
-                address: MDataAddress::new_seq(name, tag),
+                address: MDataAddress::Seq { name, tag },
                 key,
             },
         )
@@ -517,7 +521,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::GetMDataValue {
-                address: MDataAddress::new_unseq(name, tag),
+                address: MDataAddress::Unseq { name, tag },
                 key,
             },
         )
@@ -540,7 +544,7 @@ pub trait Client: Clone + 'static {
     fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
         trace!("Fetch Sequenced Mutable Data");
 
-        send_new(self, Request::GetMData(MDataAddress::new_seq(name, tag)))
+        send_new(self, Request::GetMData(MDataAddress::Seq { name, tag }))
             .and_then(|event| {
                 let res = match event {
                     CoreEvent::RpcResponse(res) => res,
@@ -549,7 +553,12 @@ pub trait Client: Clone + 'static {
                 let result_buffer = unwrap!(res);
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
-                    Response::GetSeqMData(res) => res.map_err(CoreError::from),
+                    Response::GetMData(res) => {
+                        res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                            MData::Seq(data) => Ok(data),
+                            _ => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                    }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             })
@@ -598,7 +607,7 @@ pub trait Client: Clone + 'static {
         send_mutation_new(
             self,
             Request::MutateSeqMDataEntries {
-                address: MDataAddress::new_seq(name, tag),
+                address: MDataAddress::Seq { name, tag },
                 actions,
             },
         )
@@ -616,7 +625,7 @@ pub trait Client: Clone + 'static {
         send_mutation_new(
             self,
             Request::MutateUnseqMDataEntries {
-                address: MDataAddress::new_unseq(name, tag),
+                address: MDataAddress::Unseq { name, tag },
                 actions,
             },
         )
@@ -652,7 +661,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetMDataShell(MDataAddress::new_seq(name, tag)),
+            Request::GetMDataShell(MDataAddress::Seq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -662,7 +671,12 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetSeqMDataShell(res) => res.map_err(CoreError::from),
+                Response::GetMDataShell(res) => {
+                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                        MData::Seq(data) => Ok(data),
+                        _ => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -675,7 +689,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetMDataShell(MDataAddress::new_unseq(name, tag)),
+            Request::GetMDataShell(MDataAddress::Unseq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -685,7 +699,12 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetUnseqMDataShell(res) => res.map_err(CoreError::from),
+                Response::GetMDataShell(res) => {
+                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                        MData::Unseq(data) => Ok(data),
+                        _ => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -750,7 +769,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataEntries(MDataAddress::new_unseq(name, tag)),
+            Request::ListMDataEntries(MDataAddress::Unseq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -777,7 +796,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataEntries(MDataAddress::new_seq(name, tag)),
+            Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -832,7 +851,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataValues(MDataAddress::new_seq(name, tag)),
+            Request::ListMDataValues(MDataAddress::Seq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -879,7 +898,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataValues(MDataAddress::new_unseq(name, tag)),
+            Request::ListMDataValues(MDataAddress::Unseq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -1555,7 +1574,11 @@ pub trait Client: Clone + 'static {
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
     ))]
-    fn allocate_test_coins(&self, coin_balance_name: &XorName, amount: Coins) -> Result<(), Error> {
+    fn allocate_test_coins(
+        &self,
+        coin_balance_name: &XorName,
+        amount: Coins,
+    ) -> Result<(), SndError> {
         let inner = self.inner();
         let result = inner
             .borrow_mut()
@@ -1587,7 +1610,7 @@ pub struct ClientInner<C: Client, T> {
     el_handle: Handle,
     routing: Routing,
     hooks: HashMap<MessageId, Complete<CoreEvent>>,
-    cache: LruCache<XorName, ImmutableData>,
+    cache: LruCache<XorName, PubImmutableData>,
     timeout: Duration,
     joiner: Joiner,
     core_tx: CoreMsgTx<C, T>,
@@ -1600,7 +1623,7 @@ impl<C: Client, T> ClientInner<C, T> {
         el_handle: Handle,
         routing: Routing,
         hooks: HashMap<MessageId, Complete<CoreEvent>>,
-        cache: LruCache<XorName, ImmutableData>,
+        cache: LruCache<XorName, PubImmutableData>,
         timeout: Duration,
         joiner: Joiner,
         core_tx: CoreMsgTx<C, T>,
@@ -1828,7 +1851,7 @@ mod tests {
         MDataAction, PubSeqAppendOnlyData, SeqAppendOnly, UnpubSeqAppendOnlyData,
         UnpubUnseqAppendOnlyData, UnseqAppendOnly,
     };
-    use safe_nd::{Coins, Error, XorName};
+    use safe_nd::{Coins, Error as SndError, XorName};
     use std::str::FromStr;
     use threshold_crypto::SecretKey;
 
@@ -1840,7 +1863,7 @@ mod tests {
             let client3 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = ImmutableData::new(value.clone());
+            let data = PubImmutableData::new(value.clone());
             let name = *data.name();
 
             client
@@ -1849,7 +1872,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(data) => panic!("Pub idata should not exist yet: {:?}", data),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1885,7 +1908,7 @@ mod tests {
             let name = *data.name();
             assert_eq!(name, *data2.name());
 
-            let pub_data = ImmutableData::new(value);
+            let pub_data = PubImmutableData::new(value);
 
             client
                 // Get inexistent idata
@@ -1893,7 +1916,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata should not exist yet"),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1908,7 +1931,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Put duplicate unpub idata"),
-                        Err(CoreError::NewRoutingClientError(Error::DataExists)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::DataExists)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1933,7 +1956,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata still exists after deletion"),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1982,7 +2005,7 @@ mod tests {
                     println!("Put unseq. MData successfully");
 
                     client3
-                        .get_mdata_version_new(MDataAddress::new_unseq(name, tag))
+                        .get_mdata_version_new(MDataAddress::Unseq { name, tag })
                         .map(move |version| assert_eq!(version, 0))
                 })
                 .and_then(move |_| {
@@ -1994,7 +2017,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(MDataAddress::new_unseq(name, tag))
+                        .list_mdata_keys_new(MDataAddress::Unseq { name, tag })
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
@@ -2046,6 +2069,7 @@ mod tests {
                 permissions,
                 PublicKey::from(unwrap!(client.public_bls_key())),
             );
+
             client
                 .put_seq_mutable_data(data.clone())
                 .and_then(move |_| {
@@ -2068,7 +2092,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(MDataAddress::new_seq(name, tag))
+                        .list_mdata_keys_new(MDataAddress::Seq { name, tag })
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
@@ -2097,7 +2121,7 @@ mod tests {
             let client3 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
-            let mdataref = MDataAddress::new_seq(name, tag);
+            let mdataref = MDataAddress::Seq { name, tag };
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
@@ -2118,10 +2142,10 @@ mod tests {
                         .get_unseq_mdata(*data.name(), data.tag())
                         .then(move |res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => (),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => (),
                                 _ => panic!("Unexpected success"),
                             }
-                            Ok::<_, Error>(())
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2136,7 +2160,7 @@ mod tests {
             let client3 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
-            let mdataref = MDataAddress::new_unseq(name, tag);
+            let mdataref = MDataAddress::Unseq { name, tag };
             let data = UnseqMutableData::new_with_data(
                 name,
                 tag,
@@ -2158,10 +2182,10 @@ mod tests {
                         .get_unseq_mdata(*data.name(), data.tag())
                         .then(move |res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => (),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => (),
                                 _ => panic!("Unexpected success"),
                             }
-                            Ok::<_, Error>(())
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2190,10 +2214,10 @@ mod tests {
                 )
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchAccount)) => (),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchAccount)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    Ok::<_, Error>(wallet_a_addr)
+                    Ok::<_, SndError>(wallet_a_addr)
                 })
         });
 
@@ -2205,7 +2229,7 @@ mod tests {
                 .get_balance(None)
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchAccount)) => (),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchAccount)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
                     let wallet_b_addr: XorName = unwrap!(c3.owner_key()).into();
@@ -2230,7 +2254,7 @@ mod tests {
                         }
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    Ok::<_, Error>(())
+                    Ok::<_, SndError>(())
                 })
         });
     }
@@ -2355,7 +2379,7 @@ mod tests {
     pub fn del_unseq_mdata_permission_test() {
         let name = XorName(rand::random());
         let tag = 15001;
-        let mdataref = MDataAddress::new_unseq(name, tag);
+        let mdataref = MDataAddress::Unseq { name, tag };
 
         random_client(move |client| {
             let data = UnseqMutableData::new_with_data(
@@ -2372,10 +2396,10 @@ mod tests {
         random_client(move |client| {
             client.delete_mdata(mdataref).then(|res| {
                 match res {
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     res => panic!("Unexpected result: {:?}", res),
                 }
-                Ok::<_, Error>(())
+                Ok::<_, SndError>(())
             })
         });
     }
@@ -2422,7 +2446,7 @@ mod tests {
                         .allow(MDataAction::Read);
                     client2
                         .set_mdata_user_permissions_new(
-                            MDataAddress::new_seq(name, tag),
+                            MDataAddress::Seq { name, tag },
                             user,
                             new_perm_set,
                             1,
@@ -2436,7 +2460,7 @@ mod tests {
                     println!("Modified user permissions");
 
                     client3
-                        .list_mdata_user_permissions_new(MDataAddress::new_seq(name, tag), user2)
+                        .list_mdata_user_permissions_new(MDataAddress::Seq { name, tag }, user2)
                         .and_then(|permissions| {
                             assert!(!permissions.is_allowed(MDataAction::Insert));
                             assert!(permissions.is_allowed(MDataAction::Read));
@@ -2449,7 +2473,7 @@ mod tests {
                 .and_then(move |_| {
                     client4
                         .del_mdata_user_permissions_new(
-                            MDataAddress::new_seq(name, tag),
+                            MDataAddress::Seq { name, tag },
                             random_user,
                             2,
                         )
@@ -2461,7 +2485,7 @@ mod tests {
                 .and_then(move |_| {
                     println!("Deleted permissions");
                     client5
-                        .list_mdata_permissions_new(MDataAddress::new_seq(name, tag))
+                        .list_mdata_permissions_new(MDataAddress::Seq { name, tag })
                         .and_then(|permissions| {
                             assert_eq!(permissions.len(), 1);
                             println!("Permission set verified");
@@ -2553,10 +2577,10 @@ mod tests {
                         .then(|res| {
                             match res {
                                 Ok(_) => panic!("Unexpected: Entry should not exist"),
-                                Err(CoreError::NewRoutingClientError(Error::NoSuchEntry)) => (),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => (),
                                 Err(err) => panic!("Unexpected error: {:?}", err),
                             }
-                            Ok::<_, Error>(())
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2635,10 +2659,10 @@ mod tests {
                         .then(|res| {
                             match res {
                                 Ok(_) => panic!("Unexpected: Entry should not exist"),
-                                Err(CoreError::NewRoutingClientError(Error::NoSuchEntry)) => (),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => (),
                                 Err(err) => panic!("Unexpected error: {:?}", err),
                             }
-                            Ok::<_, Error>(())
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2659,7 +2683,7 @@ mod tests {
             let set = ADataUnpubPermissionSet::new(true, true, true);
             let idx = ADataIndex::FromStart(0);
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
-            let address = ADataAddress::new_unpub_seq(name, tag);
+            let address = ADataAddress::UnpubSeq { name, tag };
 
             unwrap!(data.append_permissions(ADataUnpubPermissions {
                 permissions: perms,
@@ -2699,8 +2723,8 @@ mod tests {
                 .and_then(move |_| {
                     client4.get_adata(address).then(|res| match res {
                         Ok(_) => panic!("AData was not deleted"),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
-                        Err(e) => panic!("Unexpected Error: {:?}", e),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(e) => panic!("Unexpected error: {:?}", e),
                     })
                 })
                 .then(move |res| res)
@@ -2719,7 +2743,7 @@ mod tests {
 
             let name = XorName(rand::random());
             let tag = 15000;
-            let adataref = ADataAddress::new_unpub_seq(name, tag);
+            let adataref = ADataAddress::UnpubSeq { name, tag };
             let mut data = UnpubSeqAppendOnlyData::new(name, tag);
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
@@ -2853,7 +2877,7 @@ mod tests {
             let client1 = client.clone();
             let client2 = client.clone();
 
-            let adataref = ADataAddress::new_pub_seq(name, tag);
+            let adataref = ADataAddress::PubSeq { name, tag };
             let mut data = PubSeqAppendOnlyData::new(name, tag);
 
             let mut perms = BTreeMap::<ADataUser, ADataPubPermissionSet>::new();
@@ -2917,7 +2941,7 @@ mod tests {
             let client1 = client.clone();
             let client2 = client.clone();
 
-            let adataref = ADataAddress::new_unpub_unseq(name, tag);
+            let adataref = ADataAddress::UnpubUnseq { name, tag };
             let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
 
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
@@ -2981,7 +3005,7 @@ mod tests {
             let client2 = client.clone();
             let client3 = client.clone();
 
-            let adataref = ADataAddress::new_unpub_unseq(name, tag);
+            let adataref = ADataAddress::UnpubUnseq { name, tag };
             let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
 
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
