@@ -18,7 +18,7 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::{Client, CoreError, FutureExt, DIR_TAG};
 use safe_nd::{Error, PublicKey, XorName};
 use safe_nd::{
-    MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryAction, MDataUnseqEntryAction,
+    MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
     MDataValue, SeqMutableData, UnseqMutableData,
 };
 use std::collections::BTreeMap;
@@ -39,24 +39,17 @@ fn md_created_by_app_1() {
         let bls_pk = unwrap!(client.public_bls_key());
         unwrap!(app_keys_tx.send((sign_pk, bls_pk)));
         let name: XorName = unwrap!(name_rx.recv());
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(
-            vec![1, 2, 3, 4],
-            MDataSeqEntryAction::Ins(MDataValue::new(vec![2, 3, 5], 0)),
-        );
+        let entry_actions = MDataSeqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5], 0);
         let cl2 = client.clone();
         let cl3 = client.clone();
         let name2 = name;
         client
-            .mutate_seq_mdata_entries(name, DIR_TAG, actions)
+            .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 2, 3, 4],
-                    MDataSeqEntryAction::Update(MDataValue::new(vec![2, 8, 5], 1)),
-                );
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions =
+                    MDataSeqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5], 1);
+                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -145,8 +138,7 @@ fn md_created_by_app_2() {
         let bls_pk = unwrap!(client.public_bls_key());
         unwrap!(app_keys_tx.send((sign_pk, bls_pk)));
         let name: XorName = unwrap!(name_rx.recv());
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(vec![1, 2, 3, 4], MDataUnseqEntryAction::Ins(vec![2, 3, 5]));
+        let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
         let cl2 = client.clone();
         let cl3 = client.clone();
         let cl4 = client.clone();
@@ -157,19 +149,16 @@ fn md_created_by_app_2() {
         let name4 = name;
         let name5 = name;
         client
-            .mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+            .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 8, 3, 4],
-                    MDataUnseqEntryAction::Update(vec![2, 8, 5]),
-                );
-                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions =
+                    MDataUnseqEntryActions::new().update(vec![1, 8, 3, 4], vec![2, 8, 5]);
+                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -190,18 +179,15 @@ fn md_created_by_app_2() {
             })
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![1, 2, 3, 4], MDataUnseqEntryAction::Ins(vec![2, 3, 5]));
-                cl4.mutate_unseq_mdata_entries(name3, DIR_TAG, actions)
+                let entry_actions =
+                    MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
+                cl4.mutate_unseq_mdata_entries(name3, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 2, 3, 4],
-                    MDataUnseqEntryAction::Update(vec![2, 8, 5]),
-                );
-                cl5.mutate_unseq_mdata_entries(name4, DIR_TAG, actions)
+                let entry_actions =
+                    MDataUnseqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5]);
+                cl5.mutate_unseq_mdata_entries(name4, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -209,9 +195,8 @@ fn md_created_by_app_2() {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![1, 2, 3, 4], MDataUnseqEntryAction::Del);
-                cl6.mutate_unseq_mdata_entries(name5, DIR_TAG, actions)
+                let entry_actions = MDataUnseqEntryActions::new().del(vec![1, 2, 3, 4]);
+                cl6.mutate_unseq_mdata_entries(name5, DIR_TAG, entry_actions)
             })
             .map(move |()| unwrap!(tx.send(())))
             .map_err(|e| panic!("{:?}", e))
@@ -347,27 +332,18 @@ fn multiple_apps() {
         unwrap!(app2_key_tx.send(unwrap!(client.public_bls_key())));
         let name = unwrap!(name_rx.recv());
         let entry_key = vec![1, 2, 3];
-
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(
-            entry_key.clone(),
-            MDataSeqEntryAction::Ins(MDataValue::new(vec![8, 9, 9], 0)),
-        );
+        let entry_actions = MDataSeqEntryActions::new().ins(entry_key.clone(), vec![8, 9, 9], 0);
 
         let cl2 = client.clone();
         client
-            .mutate_seq_mdata_entries(name, DIR_TAG, actions)
+            .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
                 unwrap!(res);
                 unwrap!(entry_tx.send(entry_key));
                 unwrap!(mutate_again_rx.recv());
 
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![2, 2, 2],
-                    MDataSeqEntryAction::Ins(MDataValue::new(vec![21], 0)),
-                );
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataSeqEntryActions::new().ins(vec![2, 2, 2], vec![21], 0);
+                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| -> Result<_, ()> {
                 match res {
@@ -772,23 +748,11 @@ fn sequenced_entries_crud() {
             .put_seq_mutable_data(mdata)
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![0, 1, 1],
-                    MDataSeqEntryAction::Ins(MDataValue {
-                        data: vec![2, 3, 17],
-                        version: 0,
-                    }),
-                );
-                let _ = actions.insert(
-                    vec![0, 1, 0],
-                    MDataSeqEntryAction::Update(MDataValue {
-                        data: vec![2, 8, 64],
-                        version: 1,
-                    }),
-                );
-                let _ = actions.insert(vec![0, 0, 1], MDataSeqEntryAction::Del(1));
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataSeqEntryActions::new()
+                    .ins(vec![0, 1, 1], vec![2, 3, 17], 0)
+                    .update(vec![0, 1, 0], vec![2, 8, 64], 1)
+                    .del(vec![0, 0, 1], 1);
+                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
@@ -812,23 +776,11 @@ fn sequenced_entries_crud() {
                         version: 0,
                     }
                 );
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 0, 0],
-                    MDataSeqEntryAction::Ins(MDataValue {
-                        data: vec![4, 4, 4, 4],
-                        version: 0,
-                    }),
-                );
-                let _ = actions.insert(
-                    vec![0, 1, 0],
-                    MDataSeqEntryAction::Update(MDataValue {
-                        data: vec![64, 8, 1],
-                        version: 2,
-                    }),
-                );
-                let _ = actions.insert(vec![0, 1, 1], MDataSeqEntryAction::Del(1));
-                cl4.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataSeqEntryActions::new()
+                    .ins(vec![1, 0, 0], vec![4, 4, 4, 4], 0)
+                    .update(vec![0, 1, 0], vec![64, 8, 1], 2)
+                    .del(vec![0, 1, 1], 1);
+                cl4.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
@@ -897,12 +849,11 @@ fn unsequenced_entries_crud() {
             .put_unseq_mutable_data(mdata)
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![0, 1, 1], MDataUnseqEntryAction::Ins(vec![2, 3, 17]));
-                let _ =
-                    actions.insert(vec![0, 1, 0], MDataUnseqEntryAction::Update(vec![2, 8, 64]));
-                let _ = actions.insert(vec![0, 0, 1], MDataUnseqEntryAction::Del);
-                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataUnseqEntryActions::new()
+                    .ins(vec![0, 1, 1], vec![2, 3, 17])
+                    .update(vec![0, 1, 0], vec![2, 8, 64])
+                    .del(vec![0, 0, 1]);
+                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
@@ -914,12 +865,11 @@ fn unsequenced_entries_crud() {
                 assert!(entries.get(&vec![0, 0, 1]).is_none());
                 assert_eq!(*unwrap!(entries.get(&vec![0, 1, 0])), vec![2, 8, 64]);
                 assert_eq!(*unwrap!(entries.get(&vec![0, 1, 1])), vec![2, 3, 17],);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![1, 0, 0], MDataUnseqEntryAction::Ins(vec![4, 4, 4, 4]));
-                let _ =
-                    actions.insert(vec![0, 1, 0], MDataUnseqEntryAction::Update(vec![64, 8, 1]));
-                let _ = actions.insert(vec![0, 1, 1], MDataUnseqEntryAction::Del);
-                cl4.mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataUnseqEntryActions::new()
+                    .ins(vec![1, 0, 0], vec![4, 4, 4, 4])
+                    .update(vec![0, 1, 0], vec![64, 8, 1])
+                    .del(vec![0, 1, 1]);
+                cl4.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);

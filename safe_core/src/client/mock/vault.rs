@@ -15,10 +15,8 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
     verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error, IDataKind,
-    MDataAddress, Message, MutableData as NewMutableData, PubSeqAppendOnlyData,
-    PubUnseqAppendOnlyData, PublicId, PublicKey, Request, Response, SeqAppendOnly, SeqMutableData,
-    Transaction, UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly,
-    UnseqMutableData, XorName,
+    MDataAddress, Message, MutableData as NewMutableData, PublicId, PublicKey, Request, Response,
+    SeqAppendOnly, SeqMutableData, Transaction, UnseqAppendOnly, UnseqMutableData, XorName,
 };
 use std::collections::HashMap;
 use std::env;
@@ -814,15 +812,9 @@ impl Vault {
                 Response::MutateUnseqMDataEntries(result)
             }
             Request::PutAData(data) => {
-                let kind = match data.clone() {
-                    AData::PubSeq(adata) => AppendOnlyDataKind::PubSeq(adata),
-                    AData::PubUnseq(adata) => AppendOnlyDataKind::PubUnseq(adata),
-                    AData::UnpubSeq(adata) => AppendOnlyDataKind::UnpubSeq(adata),
-                    AData::UnpubUnseq(adata) => AppendOnlyDataKind::UnpubUnseq(adata),
-                };
                 let result = self.put_data(
                     DataId::append_only(*data.name(), data.tag()),
-                    Data::AppendOnly(kind),
+                    Data::AppendOnly(data),
                     requester,
                 );
                 Response::PutAData(result)
@@ -856,7 +848,7 @@ impl Vault {
                             ADataIndex::FromStart(idx) => idx,
                             ADataIndex::FromEnd(idx) => (data.permissions_index() - idx),
                         };
-                        data.get_shell(idx)
+                        data.shell(idx)
                     });
                 Response::GetADataShell(res)
             }
@@ -957,7 +949,7 @@ impl Vault {
                             ADataIndex::FromStart(idx) => idx as usize,
                             ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
                         };
-                        data.get_pub_user_permissions(user, idx as u64)
+                        data.pub_user_permissions(user, idx as u64)
                     });
                 Response::GetPubADataUserPermissions(res)
             }
@@ -973,7 +965,7 @@ impl Vault {
                             ADataIndex::FromStart(idx) => idx as usize,
                             ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
                         };
-                        data.get_unpub_user_permissions(public_key, idx as u64)
+                        data.unpub_user_permissions(public_key, idx as u64)
                     });
                 Response::GetUnpubADataUserPermissions(res)
             }
@@ -985,19 +977,13 @@ impl Vault {
                         AData::PubSeq(mut adata) => {
                             unwrap!(adata.append(&append.values, index));
                             self.commit_mutation(requester.name());
-                            self.insert_data(
-                                id,
-                                Data::AppendOnly(AppendOnlyDataKind::PubSeq(adata)),
-                            );
+                            self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                             Ok(())
                         }
                         AData::UnpubSeq(mut adata) => {
                             unwrap!(adata.append(&append.values, index));
                             self.commit_mutation(requester.name());
-                            self.insert_data(
-                                id,
-                                Data::AppendOnly(AppendOnlyDataKind::UnpubSeq(adata)),
-                            );
+                            self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                             Ok(())
                         }
                         _ => Err(Error::NoSuchData),
@@ -1013,19 +999,13 @@ impl Vault {
                         AData::PubUnseq(mut adata) => {
                             unwrap!(adata.append(&append.values));
                             self.commit_mutation(requester.name());
-                            self.insert_data(
-                                id,
-                                Data::AppendOnly(AppendOnlyDataKind::PubUnseq(adata)),
-                            );
+                            self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                             Ok(())
                         }
                         AData::UnpubUnseq(mut adata) => {
                             unwrap!(adata.append(&append.values));
                             self.commit_mutation(requester.name());
-                            self.insert_data(
-                                id,
-                                Data::AppendOnly(AppendOnlyDataKind::UnpubUnseq(adata)),
-                            );
+                            self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                             Ok(())
                         }
                         _ => Err(Error::NoSuchData),
@@ -1044,10 +1024,7 @@ impl Vault {
                             AData::PubSeq(mut adata) => {
                                 unwrap!(adata.append_permissions(permissions));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::PubSeq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1056,10 +1033,7 @@ impl Vault {
                             AData::PubUnseq(mut adata) => {
                                 unwrap!(adata.append_permissions(permissions));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::PubUnseq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1080,10 +1054,7 @@ impl Vault {
                             AData::UnpubSeq(mut adata) => {
                                 unwrap!(adata.append_permissions(permissions));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::UnpubSeq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1092,10 +1063,7 @@ impl Vault {
                             AData::UnpubUnseq(mut adata) => {
                                 unwrap!(adata.append_permissions(permissions));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::UnpubUnseq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1113,10 +1081,7 @@ impl Vault {
                             AData::PubSeq(mut adata) => {
                                 unwrap!(adata.append_owner(owner));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::PubSeq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1125,10 +1090,7 @@ impl Vault {
                             AData::PubUnseq(mut adata) => {
                                 unwrap!(adata.append_owner(owner));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::PubUnseq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1137,10 +1099,7 @@ impl Vault {
                             AData::UnpubSeq(mut adata) => {
                                 unwrap!(adata.append_owner(owner));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::UnpubSeq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1149,10 +1108,7 @@ impl Vault {
                             AData::UnpubUnseq(mut adata) => {
                                 unwrap!(adata.append_owner(owner));
                                 self.commit_mutation(requester.name());
-                                self.insert_data(
-                                    id,
-                                    Data::AppendOnly(AppendOnlyDataKind::UnpubUnseq(adata)),
-                                );
+                                self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
                             }
                             _ => Err(Error::NoSuchData),
@@ -1171,7 +1127,7 @@ impl Vault {
                             ADataIndex::FromStart(idx) => idx,
                             ADataIndex::FromEnd(idx) => (data.owners_index() - idx),
                         };
-                        match data.get_owners(idx) {
+                        match data.owners(idx) {
                             Some(owner) => Ok(owner.clone()),
                             None => Err(Error::NoSuchEntry),
                         }
@@ -1197,36 +1153,9 @@ impl Vault {
         let data_name = DataId::append_only(*data.name(), data.tag());
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
-                Data::AppendOnly(kind) => match kind {
-                    AppendOnlyDataKind::PubSeq(data) => {
-                        if data.check_permission(&request, requester_pk).is_ok() {
-                            Ok(AData::PubSeq(data))
-                        } else {
-                            Err(Error::AccessDenied)
-                        }
-                    }
-                    AppendOnlyDataKind::UnpubSeq(data) => {
-                        if data.check_permission(&request, requester_pk).is_ok() {
-                            Ok(AData::UnpubSeq(data))
-                        } else {
-                            Err(Error::AccessDenied)
-                        }
-                    }
-                    AppendOnlyDataKind::UnpubUnseq(data) => {
-                        if data.check_permission(&request, requester_pk).is_ok() {
-                            Ok(AData::UnpubUnseq(data))
-                        } else {
-                            Err(Error::AccessDenied)
-                        }
-                    }
-                    AppendOnlyDataKind::PubUnseq(data) => {
-                        if data.check_permission(&request, requester_pk).is_ok() {
-                            Ok(AData::PubUnseq(data))
-                        } else {
-                            Err(Error::AccessDenied)
-                        }
-                    }
-                },
+                Data::AppendOnly(kind) => kind
+                    .check_permission(&request, requester_pk)
+                    .map(move |_| kind),
                 _ => Err(Error::NoSuchData),
             },
             None => Err(Error::NoSuchData),
@@ -1386,7 +1315,7 @@ pub enum Data {
     Immutable(IDataKind),
     OldMutable(OldMutableData),
     NewMutable(MutableDataKind),
-    AppendOnly(AppendOnlyDataKind),
+    AppendOnly(AData),
 }
 
 pub struct ImmutableDataRef {
@@ -1413,14 +1342,6 @@ impl MutableDataKind {
             MutableDataKind::Unsequenced(data) => data.tag(),
         }
     }
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub enum AppendOnlyDataKind {
-    PubSeq(PubSeqAppendOnlyData),
-    PubUnseq(PubUnseqAppendOnlyData),
-    UnpubSeq(UnpubSeqAppendOnlyData),
-    UnpubUnseq(UnpubUnseqAppendOnlyData),
 }
 
 trait Store: Send {

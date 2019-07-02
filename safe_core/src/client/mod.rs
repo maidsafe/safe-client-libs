@@ -57,10 +57,10 @@ use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataIndex, ADataIndices, ADataOwner, ADataPubPermissionSet,
     ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
     Coins, IDataAddress, IDataKind, ImmutableData, MDataAddress,
-    MDataPermissionSet as NewPermissionSet, MDataSeqEntryAction as SeqEntryAction,
-    MDataUnseqEntryAction as UnseqEntryAction, MDataValue as Val, Message, MessageId,
-    MutableData as NewMutableData, PublicKey, Request, Response, SeqMutableData, Signature,
-    Transaction, UnpubImmutableData, UnseqMutableData, XorName,
+    MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
+    MDataValue as Val, Message, MessageId, MutableData as NewMutableData, PublicKey, Request,
+    Response, SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData,
+    XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -591,7 +591,7 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-        actions: BTreeMap<Vec<u8>, SeqEntryAction>,
+        actions: MDataSeqEntryActions,
     ) -> Box<CoreFuture<()>> {
         trace!("Mutate MData for {:?}", name);
 
@@ -599,7 +599,7 @@ pub trait Client: Clone + 'static {
             self,
             Request::MutateSeqMDataEntries {
                 address: MDataAddress::new_seq(name, tag),
-                actions: actions.clone(),
+                actions,
             },
         )
     }
@@ -609,7 +609,7 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-        actions: BTreeMap<Vec<u8>, UnseqEntryAction>,
+        actions: MDataUnseqEntryActions,
     ) -> Box<CoreFuture<()>> {
         trace!("Mutate MData for {:?}", name);
 
@@ -617,7 +617,7 @@ pub trait Client: Clone + 'static {
             self,
             Request::MutateUnseqMDataEntries {
                 address: MDataAddress::new_unseq(name, tag),
-                actions: actions.clone(),
+                actions,
             },
         )
     }
@@ -2529,16 +2529,10 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    let mut entry_actions: BTreeMap<Vec<u8>, SeqEntryAction> = Default::default();
-                    let _ = entry_actions.insert(
-                        b"key1".to_vec(),
-                        SeqEntryAction::Update(Val::new(b"newValue".to_vec(), 1)),
-                    );
-                    let _ = entry_actions.insert(b"key2".to_vec(), SeqEntryAction::Del(1));
-                    let _ = entry_actions.insert(
-                        b"key3".to_vec(),
-                        SeqEntryAction::Ins(Val::new(b"value".to_vec(), 0)),
-                    );
+                    let entry_actions: MDataSeqEntryActions = MDataSeqEntryActions::new()
+                        .update(b"key1".to_vec(), b"newValue".to_vec(), 0)
+                        .del(b"key2".to_vec(), 1)
+                        .ins(b"key3".to_vec(), b"value".to_vec(), 0);
 
                     client3
                         .mutate_seq_mdata_entries(name, tag, entry_actions.clone())
@@ -2550,17 +2544,17 @@ mod tests {
                         .map(move |fetched_entries| {
                             let mut expected_entries: BTreeMap<_, _> = Default::default();
                             let _ = expected_entries
-                                .insert(b"key1".to_vec(), Val::new(b"newValue".to_vec(), 1));
+                                .insert(b"key1".to_vec(), Val::new(b"newValue".to_vec(), 0));
                             let _ = expected_entries
-                                .insert(b"key3".to_vec(), Val::new(b"value".to_vec(), 0));
+                                .insert(b"key3".to_vec(), Val::new(b"value".to_vec(), 1));
                             assert_eq!(fetched_entries, expected_entries);
                         })
                 })
                 .and_then(move |_| {
                     client5
-                        .get_seq_mdata_value(name, tag, b"key1".to_vec())
+                        .get_seq_mdata_value(name, tag, b"key3".to_vec())
                         .and_then(|fetched_value| {
-                            assert_eq!(fetched_value, Val::new(b"newValue".to_vec(), 1));
+                            assert_eq!(fetched_value, Val::new(b"updatedValue".to_vec(), 1));
                             Ok(())
                         })
                 })
@@ -2616,14 +2610,10 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    let mut entry_actions: BTreeMap<Vec<u8>, UnseqEntryAction> = Default::default();
-                    let _ = entry_actions.insert(
-                        b"key1".to_vec(),
-                        UnseqEntryAction::Update(b"newValue".to_vec()),
-                    );
-                    let _ = entry_actions.insert(b"key2".to_vec(), UnseqEntryAction::Del);
-                    let _ = entry_actions
-                        .insert(b"key3".to_vec(), UnseqEntryAction::Ins(b"value".to_vec()));
+                    let entry_actions: MDataUnseqEntryActions = MDataUnseqEntryActions::new()
+                        .update(b"key1".to_vec(), b"newValue".to_vec())
+                        .del(b"key2".to_vec())
+                        .ins(b"key3".to_vec(), b"value".to_vec());
 
                     client3
                         .mutate_unseq_mdata_entries(name, tag, entry_actions.clone())
@@ -2909,7 +2899,7 @@ mod tests {
                 .and_then(move |_| {
                     client2.get_adata(adataref).map(move |data| match data {
                         AData::PubSeq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last()).0)),
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).0)),
                             "KEY2"
                         ),
                         _ => panic!("UNEXPECTED DATA!"),
@@ -2971,7 +2961,7 @@ mod tests {
                 .and_then(move |_| {
                     client2.get_adata(adataref).map(move |data| match data {
                         AData::UnpubUnseq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last()).0)),
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).0)),
                             "KEY2"
                         ),
                         _ => panic!("UNEXPECTED DATA!"),
@@ -3060,5 +3050,4 @@ mod tests {
                 .then(|res| res)
         });
     }
-
 }
