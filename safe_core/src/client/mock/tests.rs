@@ -618,7 +618,7 @@ fn mutable_data_permissions() {
         },
     );
     match response {
-        RpcResponse::InsAuthKey(Ok(())) => (),
+        RpcResponse::Mutation(Ok(())) => (),
         x => panic!("Unexpected response: {:?}", x),
     };
 
@@ -1073,7 +1073,7 @@ fn pub_idata_rpc() {
     {
         let rpc_response = routing.req(&routing_rx, RpcRequest::PutIData(data.into()));
         match rpc_response {
-            RpcResponse::PutIData(res) => {
+            RpcResponse::Mutation(res) => {
                 assert!(res.is_ok());
             }
             _ => panic!("Unexpected"),
@@ -1125,7 +1125,7 @@ fn unpub_idata_rpc() {
     // Construct put request.
     let response = owner_routing.req(&owner_routing_rx, RpcRequest::PutIData(data.into()));
     match response {
-        RpcResponse::PutIData(res) => {
+        RpcResponse::Mutation(res) => {
             assert!(res.is_ok());
         }
         _ => panic!("Unexpected response"),
@@ -1170,7 +1170,7 @@ fn unpub_idata_rpc() {
             RpcRequest::DeleteUnpubIData(IDataAddress::Unpub(name)),
         );
         match rpc_response {
-            RpcResponse::DeleteUnpubIData(res) => match res {
+            RpcResponse::Mutation(res) => match res {
                 Ok(_) => panic!("Unexpected"),
                 Err(Error::AccessDenied) => (),
                 Err(e) => panic!("Unexpected {:?}", e),
@@ -1207,7 +1207,7 @@ fn unpub_md() {
     let response: RpcResponse = routing.req(&routing_rx, RpcRequest::PutUnseqMData(data.clone()));
 
     match response {
-        RpcResponse::PutUnseqMData(res) => unwrap!(res),
+        RpcResponse::Mutation(res) => unwrap!(res),
         _ => panic!("Unexpected response"),
     };
 

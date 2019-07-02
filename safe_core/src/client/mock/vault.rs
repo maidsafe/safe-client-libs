@@ -383,7 +383,7 @@ impl Vault {
                     Data::Immutable(kind),
                     requester,
                 );
-                Response::PutIData(result)
+                Response::Mutation(result)
             }
             Request::DeleteUnpubIData(address) => {
                 let result = self.delete_idata(
@@ -394,7 +394,7 @@ impl Vault {
                     requester,
                     requester_pk,
                 );
-                Response::DeleteUnpubIData(result)
+                Response::Mutation(result)
             }
             Request::ListAuthKeysAndVersion => {
                 let name = requester.name();
@@ -414,7 +414,7 @@ impl Vault {
             } => {
                 let name = requester.name();
                 if let Some(account) = self.get_account_mut(&name) {
-                    Response::InsAuthKey(account.ins_auth_key(key, permissions, version))
+                    Response::Mutation(account.ins_auth_key(key, permissions, version))
                 } else {
                     return Err(Error::NoSuchAccount);
                 }
@@ -422,7 +422,7 @@ impl Vault {
             Request::DelAuthKey { key, version } => {
                 let name = requester.name();
                 if let Some(account) = self.get_account_mut(&name) {
-                    Response::DelAuthKey(account.del_auth_key(&key, version))
+                    Response::Mutation(account.del_auth_key(&key, version))
                 } else {
                     return Err(Error::NoSuchAccount);
                 }
@@ -434,10 +434,10 @@ impl Vault {
             } => {
                 let source: XorName = owner_pk.into();
                 if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
-                    Response::TransferCoins(Err(e))
+                    Response::Mutation(Err(e))
                 } else {
                     let res = self.transfer_coins(source, destination, amount, transaction_id);
-                    Response::TransferCoins(res)
+                    Response::Mutation(res)
                 }
             }
             Request::CreateCoinBalance {
@@ -448,7 +448,7 @@ impl Vault {
                 let source = owner_pk.into();
                 let destination = new_balance_owner.into();
                 if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
-                    Response::CreateCoinBalance(Err(e))
+                    Response::Mutation(Err(e))
                 } else {
                     let res = self
                         .get_balance(&source)
@@ -461,7 +461,7 @@ impl Vault {
                         .and_then(|_| {
                             self.transfer_coins(source, destination, amount, transaction_id)
                         });
-                    Response::CreateCoinBalance(res)
+                    Response::Mutation(res)
                 }
             }
             Request::GetBalance => {
@@ -486,7 +486,7 @@ impl Vault {
                     Data::NewMutable(MutableDataKind::Unsequenced(data.clone())),
                     requester,
                 );
-                Response::PutUnseqMData(result)
+                Response::Mutation(result)
             }
             Request::GetMData(address) => {
                 let result = self.get_mdata(address, requester_pk, request);
@@ -514,7 +514,7 @@ impl Vault {
                     Data::NewMutable(MutableDataKind::Sequenced(data.clone())),
                     requester,
                 );
-                Response::PutSeqMData(result)
+                Response::Mutation(result)
             }
             Request::GetMDataValue { address, ref key } => {
                 let result = self.get_mdata(address, requester_pk, request.clone());
@@ -668,7 +668,7 @@ impl Vault {
                                 }
                             }
                         });
-                Response::DeleteMData(res)
+                Response::Mutation(res)
             }
             Request::SetMDataUserPermissions {
                 address,
@@ -704,7 +704,7 @@ impl Vault {
                             }
                         }
                     });
-                Response::SetMDataUserPermissions(result)
+                Response::Mutation(result)
             }
             Request::DelMDataUserPermissions {
                 address,
@@ -736,7 +736,7 @@ impl Vault {
                         self.commit_mutation(requester.name());
                         Ok(())
                     });
-                Response::DelMDataUserPermissions(result)
+                Response::Mutation(result)
             }
             Request::ListMDataUserPermissions { address, ref user } => {
                 let user = *user;
@@ -783,7 +783,7 @@ impl Vault {
                             _ => Err(Error::from("Unexpected data returned")),
                         }
                     });
-                Response::MutateSeqMDataEntries(result)
+                Response::Mutation(result)
             }
             Request::MutateUnseqMDataEntries {
                 address,
@@ -809,7 +809,7 @@ impl Vault {
                             _ => Err(Error::from("Unexpected data returned")),
                         }
                     });
-                Response::MutateUnseqMDataEntries(result)
+                Response::Mutation(result)
             }
             Request::PutAData(data) => {
                 let result = self.put_data(
@@ -817,7 +817,7 @@ impl Vault {
                     Data::AppendOnly(data),
                     requester,
                 );
-                Response::PutAData(result)
+                Response::Mutation(result)
             }
             Request::GetAData(address) => {
                 let result = self.get_adata(address, requester_pk, request);
@@ -835,7 +835,7 @@ impl Vault {
                             Ok(())
                         }
                     });
-                Response::DeleteAData(res)
+                Response::Mutation(res)
             }
             Request::GetADataShell {
                 address,
@@ -988,7 +988,7 @@ impl Vault {
                         }
                         _ => Err(Error::NoSuchData),
                     });
-                Response::AppendSeq(res)
+                Response::Mutation(res)
             }
             Request::AppendUnseq(append) => {
                 let name = append.address.name();
@@ -1010,7 +1010,7 @@ impl Vault {
                         }
                         _ => Err(Error::NoSuchData),
                     });
-                Response::AppendUnseq(res)
+                Response::Mutation(res)
             }
             Request::AddPubADataPermissions {
                 address,
@@ -1040,7 +1040,7 @@ impl Vault {
                         },
                         _ => Err(Error::AccessDenied),
                     });
-                Response::AddPubADataPermissions(res)
+                Response::Mutation(res)
             }
             Request::AddUnpubADataPermissions {
                 address,
@@ -1070,7 +1070,7 @@ impl Vault {
                         },
                         _ => Err(Error::AccessDenied),
                     });
-                Response::AddUnpubADataPermissions(res)
+                Response::Mutation(res)
             }
             Request::SetADataOwner { address, owner } => {
                 let id = DataId::append_only(*address.name(), address.tag());
@@ -1114,7 +1114,7 @@ impl Vault {
                             _ => Err(Error::NoSuchData),
                         },
                     });
-                Response::SetADataOwner(res)
+                Response::Mutation(res)
             }
             Request::GetADataOwners {
                 address,

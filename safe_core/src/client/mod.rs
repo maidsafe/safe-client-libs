@@ -1734,26 +1734,7 @@ where
                 let response_buffer = unwrap!(res);
                 let response: Response = unwrap!(deserialise(&response_buffer));
                 match response {
-                    Response::PutIData(res)
-                    | Response::DeleteUnpubIData(res)
-                    | Response::TransferCoins(res)
-                    | Response::CreateCoinBalance(res)
-                    | Response::InsAuthKey(res)
-                    | Response::DelAuthKey(res)
-                    | Response::PutUnseqMData(res)
-                    | Response::DeleteMData(res)
-                    | Response::SetMDataUserPermissions(res)
-                    | Response::DelMDataUserPermissions(res)
-                    | Response::MutateSeqMDataEntries(res)
-                    | Response::MutateUnseqMDataEntries(res)
-                    | Response::PutAData(res)
-                    | Response::DeleteAData(res)
-                    | Response::AddPubADataPermissions(res)
-                    | Response::AddUnpubADataPermissions(res)
-                    | Response::AppendSeq(res)
-                    | Response::AppendUnseq(res)
-                    | Response::SetADataOwner(res)
-                    | Response::PutSeqMData(res) => res.map_err(CoreError::from),
+                    Response::Mutation(res) => res.map_err(CoreError::from),
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             }
