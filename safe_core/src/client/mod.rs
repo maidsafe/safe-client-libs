@@ -2431,9 +2431,8 @@ mod tests {
             );
             client
                 .put_seq_mutable_data(data.clone())
-                .and_then(move |_| {
-                    println!("Put seq. MData successfully");
-
+                .and_then(move |res| {
+                    assert_eq!(res, ());
                     Ok(())
                 })
                 .and_then(move |_| {
@@ -2447,7 +2446,10 @@ mod tests {
                             new_perm_set,
                             1,
                         )
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     println!("Modified user permissions");
@@ -2470,7 +2472,10 @@ mod tests {
                             random_user,
                             2,
                         )
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     println!("Deleted permissions");
@@ -2530,13 +2535,16 @@ mod tests {
                 })
                 .and_then(move |_| {
                     let entry_actions: MDataSeqEntryActions = MDataSeqEntryActions::new()
-                        .update(b"key1".to_vec(), b"newValue".to_vec(), 0)
+                        .update(b"key1".to_vec(), b"newValue".to_vec(), 1)
                         .del(b"key2".to_vec(), 1)
                         .ins(b"key3".to_vec(), b"value".to_vec(), 0);
 
                     client3
                         .mutate_seq_mdata_entries(name, tag, entry_actions.clone())
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     client4
@@ -2544,9 +2552,9 @@ mod tests {
                         .map(move |fetched_entries| {
                             let mut expected_entries: BTreeMap<_, _> = Default::default();
                             let _ = expected_entries
-                                .insert(b"key1".to_vec(), Val::new(b"newValue".to_vec(), 0));
+                                .insert(b"key1".to_vec(), Val::new(b"newValue".to_vec(), 1));
                             let _ = expected_entries
-                                .insert(b"key3".to_vec(), Val::new(b"value".to_vec(), 1));
+                                .insert(b"key3".to_vec(), Val::new(b"value".to_vec(), 0));
                             assert_eq!(fetched_entries, expected_entries);
                         })
                 })
@@ -2554,7 +2562,7 @@ mod tests {
                     client5
                         .get_seq_mdata_value(name, tag, b"key3".to_vec())
                         .and_then(|fetched_value| {
-                            assert_eq!(fetched_value, Val::new(b"updatedValue".to_vec(), 1));
+                            assert_eq!(fetched_value, Val::new(b"value".to_vec(), 0));
                             Ok(())
                         })
                 })
@@ -2617,7 +2625,10 @@ mod tests {
 
                     client3
                         .mutate_unseq_mdata_entries(name, tag, entry_actions.clone())
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     client4
@@ -2822,7 +2833,14 @@ mod tests {
                         assert_eq!(unwrap!(std::str::from_utf8(data.1.as_slice())), "VALUE4");
                     })
                 })
-                .and_then(move |_| client4.add_unpub_adata_permissions(adataref, perm_set))
+                .and_then(move |_| {
+                    client4
+                        .add_unpub_adata_permissions(adataref, perm_set)
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
+                })
                 .and_then(move |_| {
                     client5
                         .get_unpub_adata_permissions_at_index(adataref, perm_idx)
@@ -2892,8 +2910,9 @@ mod tests {
             client
                 .put_adata(AData::PubSeq(data.clone()))
                 .and_then(move |_| {
-                    client1.append_seq_adata(append, 0).map(move |data| {
-                        assert_eq!(data, ());
+                    client1.append_seq_adata(append, 0).then(move |res| {
+                        assert_eq!(unwrap!(res), ());
+                        Ok(())
                     })
                 })
                 .and_then(move |_| {
@@ -2954,8 +2973,9 @@ mod tests {
             client
                 .put_adata(AData::UnpubUnseq(data.clone()))
                 .and_then(move |_| {
-                    client1.append_unseq_adata(append).map(move |data| {
-                        assert_eq!(data, ());
+                    client1.append_unseq_adata(append).then(move |res| {
+                        assert_eq!(unwrap!(res), ());
+                        Ok(())
                     })
                 })
                 .and_then(move |_| {
@@ -3032,8 +3052,9 @@ mod tests {
             client
                 .put_adata(AData::UnpubUnseq(data.clone()))
                 .and_then(move |_| {
-                    client1.set_adata_owners(adataref, owner2).map(move |data| {
-                        assert_eq!(data, ());
+                    client1.set_adata_owners(adataref, owner2).then(move |res| {
+                        assert_eq!(unwrap!(res), ());
+                        Ok(())
                     })
                 })
                 .and_then(move |_| {
