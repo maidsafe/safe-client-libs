@@ -67,6 +67,8 @@ mod codes {
     pub const ERR_NETWORK_OTHER: i32 = -115;
     pub const ERR_INVALID_INVITATION: i32 = -116;
     pub const ERR_INVITATION_ALREADY_CLAIMED: i32 = -117;
+    pub const ERR_DUPLICATE_MSG_ID: i32 = -118;
+    pub const ERR_UNEXPECTED_DATA: i32 = -119;
 
     // IPC errors.
     pub const ERR_AUTH_DENIED: i32 = -200;
@@ -434,6 +436,8 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
             SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
             SndError::NoSuchKey => ERR_NO_SUCH_KEY,
+            SndError::DuplicateMessageId => ERR_DUPLICATE_MSG_ID,
+            SndError::UnexpectedDataReturned => ERR_UNEXPECTED_DATA,
             SndError::InvalidOwners => ERR_INVALID_OWNERS,
             SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
             SndError::InvalidOperation => ERR_INVALID_OPERATION,

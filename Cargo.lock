@@ -1538,7 +1538,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "safe-nd"
 version = "0.1.0"
-source = "git+https://github.com/maidsafe/safe-nd#5c8faba26b9d08f154ec5a38af6a9c67481335ba"
+source = "git+https://github.com/maidsafe/safe-nd#5d540cee0d135980a9ed0b826ce46982af0d6aaa"
 dependencies = [
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "ed25519-dalek 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
