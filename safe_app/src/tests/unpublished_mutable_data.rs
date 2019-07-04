@@ -60,7 +60,10 @@ fn md_created_by_app_1() {
                 let user = PublicKey::from(bls_pk);
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
                 cl3.set_mdata_user_permissions_new(
-                    MDataAddress::new_seq(name2, DIR_TAG),
+                    MDataAddress::Seq {
+                        name: name2,
+                        tag: DIR_TAG,
+                    },
                     user,
                     permissions,
                     2,
@@ -171,7 +174,10 @@ fn md_created_by_app_2() {
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
                 cl3.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name2, DIR_TAG),
+                    MDataAddress::Unseq {
+                        name: name2,
+                        tag: DIR_TAG,
+                    },
                     user,
                     permissions,
                     1,
@@ -305,7 +311,10 @@ fn multiple_apps() {
                 let (value, entry_key) = unwrap!(res);
                 assert_eq!(value, MDataValue::new(vec![8, 9, 9], 0));
                 cl3.del_mdata_user_permissions_new(
-                    MDataAddress::new_seq(name2, DIR_TAG),
+                    MDataAddress::Seq {
+                        name: name2,
+                        tag: DIR_TAG,
+                    },
                     PublicKey::from(app2_bls_pk),
                     1,
                 )
@@ -315,8 +324,11 @@ fn multiple_apps() {
                 let entry_key = unwrap!(res);
                 unwrap!(mutate_again_tx.send(()));
                 unwrap!(final_check_rx.recv());
-                cl4.list_mdata_keys_new(MDataAddress::new_seq(name3, DIR_TAG))
-                    .map(move |x| (x, entry_key))
+                cl4.list_mdata_keys_new(MDataAddress::Seq {
+                    name: name3,
+                    tag: DIR_TAG,
+                })
+                .map(move |x| (x, entry_key))
             })
             .then(move |res| -> Result<_, ()> {
                 let (keys, entry_key) = unwrap!(res);
@@ -403,7 +415,7 @@ fn permissions_and_version() {
                 unwrap!(res);
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
                 cl2.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     permissions,
                     1,
@@ -412,7 +424,7 @@ fn permissions_and_version() {
             .then(move |res| {
                 unwrap!(res);
                 cl3.del_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     1,
                 )
@@ -423,7 +435,7 @@ fn permissions_and_version() {
                     Err(CoreError::NewRoutingClientError(Error::InvalidSuccessor(..))) => (),
                     Err(x) => panic!("Expected Error::InvalidSuccessor. Got {:?}", x),
                 }
-                cl4.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl4.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 let permissions = unwrap!(res);
@@ -448,20 +460,20 @@ fn permissions_and_version() {
                     .is_allowed(MDataAction::Delete));
                 assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
                     .is_allowed(MDataAction::ManagePermissions));
-                cl5.get_mdata_version_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl5.get_mdata_version_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 let v = unwrap!(res);
                 assert_eq!(v, 1);
                 cl6.del_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     v + 1,
                 )
             })
             .then(move |res| {
                 unwrap!(res);
-                cl7.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl7.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .map(move |permissions| {
                 assert_eq!(permissions.len(), 1);
@@ -527,7 +539,7 @@ fn permissions_crud() {
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
                 cl2.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_a),
                     permissions,
                     1,
@@ -535,7 +547,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl3.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl3.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
@@ -565,7 +577,7 @@ fn permissions_crud() {
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Delete);
                 cl4.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
                     2,
@@ -573,7 +585,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl5.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl5.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
@@ -609,7 +621,7 @@ fn permissions_crud() {
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Insert);
                 cl6.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
                     3,
@@ -618,14 +630,14 @@ fn permissions_crud() {
             .then(move |res| {
                 unwrap!(res);
                 cl7.del_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_a),
                     4,
                 )
             })
             .then(move |res| {
                 unwrap!(res);
-                cl8.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl8.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
@@ -655,7 +667,7 @@ fn permissions_crud() {
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
                 cl9.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
                     5,
@@ -663,7 +675,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl10.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl10.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| -> Result<_, ()> {
                 {
