@@ -51,8 +51,6 @@ use routing::{
     User, Value,
 };
 use rust_sodium::crypto::{box_, sign};
-#[cfg(any(feature = "testing", test))]
-use safe_nd::Error as SndError;
 use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataIndex, ADataIndices, ADataOwner, ADataPubPermissionSet,
     ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
@@ -1578,7 +1576,7 @@ pub trait Client: Clone + 'static {
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-    ) -> Result<(), SndError> {
+    ) -> Result<(), safe_nd::Error> {
         let inner = self.inner();
         let result = inner
             .borrow_mut()

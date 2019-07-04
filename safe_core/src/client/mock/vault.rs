@@ -14,8 +14,8 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
-    verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error, IData,
-    IDataAddress, MData, MDataAddress, MDataKind, Message, MutableData, PublicId, PublicKey,
+    verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error as SndError,
+    IData, IDataAddress, MData, MDataAddress, MDataKind, Message, MutableData, PublicId, PublicKey,
     Request, Response, SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
 };
 use std::collections::HashMap;
@@ -168,12 +168,12 @@ impl Vault {
         &mut self,
         coin_balance_name: &XorName,
         amount: Coins,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SndError> {
         let balance = match self.get_coin_balance_mut(coin_balance_name) {
             Some(balance) => balance,
             None => {
                 debug!("Account not found for {:?}", coin_balance_name);
-                return Err(Error::NoSuchAccount);
+                return Err(SndError::NoSuchAccount);
             }
         };
         balance.credit_balance(amount, new_rand::random())
@@ -184,13 +184,13 @@ impl Vault {
         &self,
         coin_balance_name: &XorName,
         requester_pk: PublicKey,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SndError> {
         // Check if we are the owner or app.
         let balance = match self.get_coin_balance(&coin_balance_name) {
             Some(balance) => balance,
             None => {
                 debug!("Coin balance {:?} not found", coin_balance_name);
-                return Err(Error::NoSuchAccount);
+                return Err(SndError::NoSuchAccount);
             }
         };
         let owner_account = XorName::from(*balance.owner());
@@ -201,20 +201,20 @@ impl Vault {
                 Some(account) => account,
                 None => {
                     debug!("Account not found for {:?}", owner_account);
-                    return Err(Error::NoSuchAccount);
+                    return Err(SndError::NoSuchAccount);
                 }
             };
             match account.auth_keys().get(&requester_pk) {
                 Some(perms) => {
                     if !perms.transfer_coins {
                         debug!("Mutation not authorised");
-                        return Err(Error::AccessDenied);
+                        return Err(SndError::AccessDenied);
                     }
                     Ok(())
                 }
                 None => {
                     debug!("App not found");
-                    Err(Error::AccessDenied)
+                    Err(SndError::AccessDenied)
                 }
             }
         }
@@ -285,9 +285,13 @@ impl Vault {
         let _ = self.cache.nae_manager.remove(&name);
     }
 
-    fn create_coin_balance(&mut self, destination: XorName, owner: PublicKey) -> Result<(), Error> {
+    fn create_coin_balance(
+        &mut self,
+        destination: XorName,
+        owner: PublicKey,
+    ) -> Result<(), SndError> {
         if self.get_coin_balance(&destination).is_some() {
-            return Err(Error::AccountExists);
+            return Err(SndError::AccountExists);
         }
         let _ = self
             .cache
@@ -302,14 +306,14 @@ impl Vault {
         destination: XorName,
         amount: Coins,
         transaction_id: u64,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SndError> {
         match self.get_coin_balance_mut(&source) {
             Some(balance) => balance.debit_balance(amount)?,
-            None => return Err(Error::NoSuchAccount),
+            None => return Err(SndError::NoSuchAccount),
         };
         match self.get_coin_balance_mut(&destination) {
             Some(balance) => balance.credit_balance(amount, transaction_id)?,
-            None => return Err(Error::NoSuchAccount),
+            None => return Err(SndError::NoSuchAccount),
         };
         Ok(())
     }
@@ -318,7 +322,7 @@ impl Vault {
         &self,
         coins_balance_id: &XorName,
         transaction_id: u64,
-    ) -> Result<Transaction, Error> {
+    ) -> Result<Transaction, SndError> {
         match self.get_coin_balance(coins_balance_id) {
             Some(balance) => match balance.find_transaction(transaction_id) {
                 Some(amount) => Ok(Transaction::Success(amount)),
@@ -328,10 +332,10 @@ impl Vault {
         }
     }
 
-    fn get_balance(&self, coins_balance_id: &XorName) -> Result<Coins, Error> {
+    fn get_balance(&self, coins_balance_id: &XorName) -> Result<Coins, SndError> {
         match self.get_coin_balance(coins_balance_id) {
             Some(balance) => Ok(balance.balance()),
-            None => Err(Error::NoSuchAccount),
+            None => Err(SndError::NoSuchAccount),
         }
     }
 
@@ -339,7 +343,7 @@ impl Vault {
         &mut self,
         requester: PublicId,
         payload: Vec<u8>,
-    ) -> Result<Message, Error> {
+    ) -> Result<Message, SndError> {
         let (request, message_id, signature) = if let Message::Request {
             request,
             message_id,
@@ -348,18 +352,18 @@ impl Vault {
         {
             (request, message_id, signature)
         } else {
-            return Err(Error::from("Unexpected Message type"));
+            return Err(SndError::from("Unexpected Message type"));
         };
 
         // Requester's public key
         let (requester_pk, owner_pk) = match requester.clone() {
             PublicId::App(pk) => (*pk.public_key(), *pk.owner().public_key()),
             PublicId::Client(pk) => (*pk.public_key(), *pk.public_key()),
-            PublicId::Node(_) => return Err(Error::AccessDenied),
+            PublicId::Node(_) => return Err(SndError::AccessDenied),
         };
         let sig = match signature {
             Some(s) => s,
-            None => return Err(Error::InvalidSignature),
+            None => return Err(SndError::InvalidSignature),
         };
         verify_signature(&sig, &requester_pk, &request, &message_id)?;
         let response = match request.clone() {
@@ -373,7 +377,7 @@ impl Vault {
                         if PublicKey::from(*data.owners()) == requester_pk {
                             Ok(idata)
                         } else {
-                            Err(Error::AccessDenied)
+                            Err(SndError::AccessDenied)
                         }
                     }
                     IData::Pub(_) => Ok(idata),
@@ -401,7 +405,7 @@ impl Vault {
                         account.version(),
                     )))
                 } else {
-                    return Err(Error::NoSuchAccount);
+                    return Err(SndError::NoSuchAccount);
                 }
             }
             Request::InsAuthKey {
@@ -413,7 +417,7 @@ impl Vault {
                 if let Some(account) = self.get_account_mut(&name) {
                     Response::Mutation(account.ins_auth_key(key, permissions, version))
                 } else {
-                    return Err(Error::NoSuchAccount);
+                    return Err(SndError::NoSuchAccount);
                 }
             }
             Request::DelAuthKey { key, version } => {
@@ -421,7 +425,7 @@ impl Vault {
                 if let Some(account) = self.get_account_mut(&name) {
                     Response::Mutation(account.del_auth_key(&key, version))
                 } else {
-                    return Err(Error::NoSuchAccount);
+                    return Err(SndError::NoSuchAccount);
                 }
             }
             Request::TransferCoins {
@@ -451,7 +455,7 @@ impl Vault {
                         .get_balance(&source)
                         .and_then(|source_balance| {
                             if source_balance.checked_sub(amount).is_none() {
-                                return Err(Error::InsufficientBalance);
+                                return Err(SndError::InsufficientBalance);
                             }
                             self.create_coin_balance(destination, new_balance_owner)
                         })
@@ -489,7 +493,7 @@ impl Vault {
                     | (MDataAddress::Unseq { .. }, Err(err)) => Response::GetMData(Err(err)),
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::GetMData(Err(Error::from("Unexpected data returned")))
+                        Response::GetMData(Err(SndError::UnexpectedDataReturned))
                     }
                 }
             }
@@ -512,14 +516,14 @@ impl Vault {
                     (MDataAddress::Seq { .. }, Ok(MData::Seq(mdata))) => {
                         let res = match mdata.get(&key) {
                             Some(value) => Ok(value.clone()),
-                            None => Err(Error::NoSuchEntry),
+                            None => Err(SndError::NoSuchEntry),
                         };
                         Response::GetSeqMDataValue(res)
                     }
                     (MDataAddress::Unseq { .. }, Ok(MData::Unseq(mdata))) => {
                         let res = match mdata.get(&key) {
                             Some(value) => Ok(value.clone()),
-                            None => Err(Error::NoSuchEntry),
+                            None => Err(SndError::NoSuchEntry),
                         };
                         Response::GetUnseqMDataValue(res)
                     }
@@ -529,7 +533,7 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::GetUnseqMDataValue(Err(Error::from("Unexpected data returned")))
+                        Response::GetUnseqMDataValue(Err(SndError::UnexpectedDataReturned))
                     }
                 }
             }
@@ -545,7 +549,7 @@ impl Vault {
                     | (MDataAddress::Unseq { .. }, Err(err)) => Response::GetMDataShell(Err(err)),
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::GetMDataShell(Err(Error::from("Unexpected data returned")))
+                        Response::GetMDataShell(Err(SndError::UnexpectedDataReturned))
                     }
                 }
             }
@@ -574,9 +578,7 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::ListUnseqMDataEntries(Err(Error::from(
-                            "Unexpected data returned",
-                        )))
+                        Response::ListUnseqMDataEntries(Err(SndError::UnexpectedDataReturned))
                     }
                 }
             }
@@ -604,7 +606,7 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::ListUnseqMDataValues(Err(Error::from("Unexpected data returned")))
+                        Response::ListUnseqMDataValues(Err(SndError::UnexpectedDataReturned))
                     }
                 }
             }
@@ -623,10 +625,10 @@ impl Vault {
                                         self.commit_mutation(requester.name());
                                         Ok(())
                                     } else {
-                                        Err(Error::InvalidOwners)
+                                        Err(SndError::InvalidOwners)
                                     }
                                 } else {
-                                    Err(Error::AccessDenied)
+                                    Err(SndError::AccessDenied)
                                 }
                             }
                             MData::Unseq(mdata) => {
@@ -640,10 +642,10 @@ impl Vault {
                                         self.commit_mutation(requester.name());
                                         Ok(())
                                     } else {
-                                        Err(Error::InvalidOwners)
+                                        Err(SndError::InvalidOwners)
                                     }
                                 } else {
-                                    Err(Error::AccessDenied)
+                                    Err(SndError::AccessDenied)
                                 }
                             }
                         });
@@ -752,7 +754,7 @@ impl Vault {
                                 self.commit_mutation(requester.name());
                                 Ok(())
                             }
-                            _ => Err(Error::from("Unexpected data returned")),
+                            _ => Err(SndError::UnexpectedDataReturned),
                         }
                     });
                 Response::Mutation(result)
@@ -779,7 +781,7 @@ impl Vault {
                                 self.commit_mutation(requester.name());
                                 Ok(())
                             }
-                            _ => Err(Error::from("Unexpected data returned")),
+                            _ => Err(SndError::UnexpectedDataReturned),
                         }
                     });
                 Response::Mutation(result)
@@ -812,7 +814,7 @@ impl Vault {
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match data {
                         // Cannot be deleted as it is a published data.
-                        AData::PubSeq(_) | AData::PubUnseq(_) => Err(Error::InvalidOperation),
+                        AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
                         AData::UnpubSeq(_) | AData::UnpubUnseq(_) => {
                             self.delete_data(id);
                             self.commit_mutation(requester.name());
@@ -840,7 +842,7 @@ impl Vault {
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
-                        data.in_range(range.0, range.1).ok_or(Error::NoSuchEntry)
+                        data.in_range(range.0, range.1).ok_or(SndError::NoSuchEntry)
                     });
                 Response::GetADataRange(res)
             }
@@ -853,7 +855,7 @@ impl Vault {
             Request::GetADataLastEntry(address) => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| data.last_entry().ok_or(Error::NoSuchEntry));
+                    .and_then(move |data| data.last_entry().ok_or(SndError::NoSuchEntry));
                 Response::GetADataLastEntry(res)
             }
             Request::GetADataPermissions {
@@ -874,10 +876,10 @@ impl Vault {
                                     AData::PubSeq(adata) => {
                                         match adata.fetch_permissions_at_index(idx as u64) {
                                             Some(perm) => Ok(perm.clone()),
-                                            None => Err(Error::NoSuchEntry),
+                                            None => Err(SndError::NoSuchEntry),
                                         }
                                     }
-                                    _ => Err(Error::NoSuchData),
+                                    _ => Err(SndError::NoSuchData),
                                 };
                                 Ok(Response::GetPubADataPermissionAtIndex(res))
                             }
@@ -886,10 +888,10 @@ impl Vault {
                                     AData::PubUnseq(adata) => {
                                         match adata.fetch_permissions_at_index(idx as u64) {
                                             Some(perm) => Ok(perm.clone()),
-                                            None => Err(Error::NoSuchEntry),
+                                            None => Err(SndError::NoSuchEntry),
                                         }
                                     }
-                                    _ => Err(Error::NoSuchData),
+                                    _ => Err(SndError::NoSuchData),
                                 };
                                 Ok(Response::GetPubADataPermissionAtIndex(res))
                             }
@@ -898,10 +900,10 @@ impl Vault {
                                     AData::UnpubSeq(adata) => {
                                         match adata.fetch_permissions_at_index(idx as u64) {
                                             Some(perm) => Ok(perm.clone()),
-                                            None => Err(Error::NoSuchEntry),
+                                            None => Err(SndError::NoSuchEntry),
                                         }
                                     }
-                                    _ => Err(Error::NoSuchData),
+                                    _ => Err(SndError::NoSuchData),
                                 };
                                 Ok(Response::GetUnpubADataPermissionAtIndex(res))
                             }
@@ -910,10 +912,10 @@ impl Vault {
                                     AData::UnpubUnseq(adata) => {
                                         match adata.fetch_permissions_at_index(idx as u64) {
                                             Some(perm) => Ok(perm.clone()),
-                                            None => Err(Error::NoSuchEntry),
+                                            None => Err(SndError::NoSuchEntry),
                                         }
                                     }
-                                    _ => Err(Error::NoSuchData),
+                                    _ => Err(SndError::NoSuchData),
                                 };
                                 Ok(Response::GetUnpubADataPermissionAtIndex(res))
                             }
@@ -973,7 +975,7 @@ impl Vault {
                             self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                             Ok(())
                         }
-                        _ => Err(Error::NoSuchData),
+                        _ => Err(SndError::NoSuchData),
                     });
                 Response::Mutation(res)
             }
@@ -997,7 +999,7 @@ impl Vault {
                             self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                             Ok(())
                         }
-                        _ => Err(Error::NoSuchData),
+                        _ => Err(SndError::NoSuchData),
                     });
                 Response::Mutation(res)
             }
@@ -1019,7 +1021,7 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
                         ADataAddress::PubUnseq { .. } => match data {
                             AData::PubUnseq(mut adata) => {
@@ -1028,9 +1030,9 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
-                        _ => Err(Error::AccessDenied),
+                        _ => Err(SndError::AccessDenied),
                     });
                 Response::Mutation(res)
             }
@@ -1052,7 +1054,7 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
                         ADataAddress::UnpubUnseq { .. } => match data {
                             AData::UnpubUnseq(mut adata) => {
@@ -1061,9 +1063,9 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
-                        _ => Err(Error::AccessDenied),
+                        _ => Err(SndError::AccessDenied),
                     });
                 Response::Mutation(res)
             }
@@ -1082,7 +1084,7 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
                         ADataAddress::PubUnseq { .. } => match data {
                             AData::PubUnseq(mut adata) => {
@@ -1091,7 +1093,7 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
                         ADataAddress::UnpubSeq { .. } => match data.clone() {
                             AData::UnpubSeq(mut adata) => {
@@ -1100,7 +1102,7 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
                         ADataAddress::UnpubUnseq { .. } => match data {
                             AData::UnpubUnseq(mut adata) => {
@@ -1109,7 +1111,7 @@ impl Vault {
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
                             }
-                            _ => Err(Error::NoSuchData),
+                            _ => Err(SndError::NoSuchData),
                         },
                     });
                 Response::Mutation(res)
@@ -1127,7 +1129,7 @@ impl Vault {
                         };
                         match data.get_owners(idx) {
                             Some(owner) => Ok(owner.clone()),
-                            None => Err(Error::NoSuchEntry),
+                            None => Err(SndError::NoSuchEntry),
                         }
                     });
                 Response::GetADataOwners(res)
@@ -1147,7 +1149,7 @@ impl Vault {
         address: ADataAddress,
         requester_pk: PublicKey,
         request: Request,
-    ) -> Result<AData, Error> {
+    ) -> Result<AData, SndError> {
         let data_id = DataId::AppendOnly {
             name: *address.name(),
             tag: address.tag(),
@@ -1159,24 +1161,24 @@ impl Vault {
                     if adata.check_permission(&request, requester_pk).is_ok() {
                         Ok(adata)
                     } else {
-                        Err(Error::AccessDenied)
+                        Err(SndError::AccessDenied)
                     }
                 }
-                _ => Err(Error::NoSuchData),
+                _ => Err(SndError::NoSuchData),
             },
-            None => Err(Error::NoSuchData),
+            None => Err(SndError::NoSuchData),
         }
     }
 
-    pub fn get_idata(&mut self, address: IDataAddress) -> Result<IData, Error> {
+    pub fn get_idata(&mut self, address: IDataAddress) -> Result<IData, SndError> {
         let data_name = DataId::Immutable(*address.name());
 
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
                 Data::Immutable(data) => Ok(data),
-                _ => Err(Error::NoSuchData),
+                _ => Err(SndError::NoSuchData),
             },
-            None => Err(Error::NoSuchData),
+            None => Err(SndError::NoSuchData),
         }
     }
 
@@ -1185,7 +1187,7 @@ impl Vault {
         address: IDataAddress,
         requester: PublicId,
         requester_pk: PublicKey,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SndError> {
         let data_id = DataId::Immutable(*address.name());
 
         match self.get_data(&data_id) {
@@ -1197,16 +1199,16 @@ impl Vault {
                             self.commit_mutation(requester.name());
                             Ok(())
                         } else {
-                            Err(Error::AccessDenied)
+                            Err(SndError::AccessDenied)
                         }
                     } else {
-                        Err(Error::InvalidOperation)
+                        Err(SndError::InvalidOperation)
                     }
                 } else {
-                    Err(Error::NoSuchData)
+                    Err(SndError::NoSuchData)
                 }
             }
-            None => Err(Error::NoSuchData),
+            None => Err(SndError::NoSuchData),
         }
     }
 
@@ -1215,7 +1217,7 @@ impl Vault {
         address: MDataAddress,
         requester_pk: PublicKey,
         request: Request,
-    ) -> Result<MData, Error> {
+    ) -> Result<MData, SndError> {
         let kind = address.kind();
         let data_name = DataId::Mutable {
             name: *address.name(),
@@ -1227,26 +1229,26 @@ impl Vault {
                 Data::NewMutable(data) => match data.clone() {
                     MData::Seq(mdata) => {
                         if let MDataKind::Unseq = kind {
-                            Err(Error::from("Unexpected data returned"))
+                            Err(SndError::UnexpectedDataReturned)
                         } else if mdata.check_permissions(request, requester_pk).is_err() {
-                            Err(Error::AccessDenied)
+                            Err(SndError::AccessDenied)
                         } else {
                             Ok(data)
                         }
                     }
                     MData::Unseq(mdata) => {
                         if let MDataKind::Seq = kind {
-                            Err(Error::from("Unexpected data returned"))
+                            Err(SndError::UnexpectedDataReturned)
                         } else if mdata.check_permissions(request, requester_pk).is_err() {
-                            Err(Error::AccessDenied)
+                            Err(SndError::AccessDenied)
                         } else {
                             Ok(data)
                         }
                     }
                 },
-                _ => Err(Error::NoSuchData),
+                _ => Err(SndError::NoSuchData),
             },
-            None => Err(Error::NoSuchData),
+            None => Err(SndError::NoSuchData),
         }
     }
 
@@ -1255,25 +1257,25 @@ impl Vault {
         data_name: DataId,
         data: Data,
         requester: PublicId,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SndError> {
         match requester.clone() {
             PublicId::Client(client_public_id) => {
                 if self.get_account(client_public_id.name()).is_none() {
-                    return Err(Error::NoSuchAccount);
+                    return Err(SndError::NoSuchAccount);
                 }
             }
             PublicId::App(app_public_id) => match self.get_account(app_public_id.owner_name()) {
-                None => return Err(Error::NoSuchAccount),
+                None => return Err(SndError::NoSuchAccount),
                 Some(account) => {
                     if !account.auth_keys().contains_key(app_public_id.public_key()) {
-                        return Err(Error::AccessDenied);
+                        return Err(SndError::AccessDenied);
                     }
                 }
             },
-            _ => return Err(Error::AccessDenied),
+            _ => return Err(SndError::AccessDenied),
         }
         if self.contains_data(&data_name) {
-            Err(Error::DataExists)
+            Err(SndError::DataExists)
         } else {
             self.insert_data(data_name, data);
             self.commit_mutation(&requester.name());
