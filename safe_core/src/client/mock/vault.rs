@@ -493,7 +493,7 @@ impl Vault {
                     | (MDataAddress::Unseq { .. }, Err(err)) => Response::GetMData(Err(err)),
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::GetMData(Err(SndError::UnexpectedDataReturned))
+                        Response::GetMData(Err(SndError::NoSuchData))
                     }
                 }
             }
@@ -530,7 +530,7 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::GetUnseqMDataValue(Err(SndError::UnexpectedDataReturned))
+                        Response::GetUnseqMDataValue(Err(SndError::NoSuchData))
                     }
                 }
             }
@@ -546,7 +546,7 @@ impl Vault {
                     | (MDataAddress::Unseq { .. }, Err(err)) => Response::GetMDataShell(Err(err)),
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::GetMDataShell(Err(SndError::UnexpectedDataReturned))
+                        Response::GetMDataShell(Err(SndError::NoSuchData))
                     }
                 }
             }
@@ -575,7 +575,7 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::ListUnseqMDataEntries(Err(SndError::UnexpectedDataReturned))
+                        Response::ListUnseqMDataEntries(Err(SndError::NoSuchData))
                     }
                 }
             }
@@ -603,7 +603,7 @@ impl Vault {
                     }
                     (MDataAddress::Seq { .. }, Ok(MData::Unseq(_)))
                     | (MDataAddress::Unseq { .. }, Ok(MData::Seq(_))) => {
-                        Response::ListUnseqMDataValues(Err(SndError::UnexpectedDataReturned))
+                        Response::ListUnseqMDataValues(Err(SndError::NoSuchData))
                     }
                 }
             }
@@ -736,7 +736,7 @@ impl Vault {
                                 self.commit_mutation(requester.name());
                                 Ok(())
                             }
-                            _ => Err(SndError::UnexpectedDataReturned),
+                            MData::Unseq(_) => Err(SndError::NoSuchData),
                         }
                     });
                 Response::Mutation(result)
@@ -760,7 +760,7 @@ impl Vault {
                                 self.commit_mutation(requester.name());
                                 Ok(())
                             }
-                            _ => Err(SndError::UnexpectedDataReturned),
+                            MData::Seq(_) => Err(SndError::NoSuchData),
                         }
                     });
                 Response::Mutation(result)
@@ -1181,7 +1181,7 @@ impl Vault {
                 Data::NewMutable(data) => match data.clone() {
                     MData::Seq(mdata) => {
                         if let MDataKind::Unseq = kind {
-                            Err(SndError::UnexpectedDataReturned)
+                            Err(SndError::NoSuchData)
                         } else if mdata.check_permissions(request, requester_pk).is_err() {
                             Err(SndError::AccessDenied)
                         } else {
@@ -1190,7 +1190,7 @@ impl Vault {
                     }
                     MData::Unseq(mdata) => {
                         if let MDataKind::Seq = kind {
-                            Err(SndError::UnexpectedDataReturned)
+                            Err(SndError::NoSuchData)
                         } else if mdata.check_permissions(request, requester_pk).is_err() {
                             Err(SndError::AccessDenied)
                         } else {
