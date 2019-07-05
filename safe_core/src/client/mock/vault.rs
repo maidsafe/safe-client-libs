@@ -387,7 +387,7 @@ impl Vault {
             }
             Request::PutIData(idata) => {
                 let result = self.put_data(
-                    DataId::Immutable(*idata.name()),
+                    DataId::Immutable(*idata.address()),
                     Data::Immutable(idata),
                     requester,
                 );
@@ -500,10 +500,7 @@ impl Vault {
             Request::PutMData(data) => {
                 let address = *data.address();
                 let result = self.put_data(
-                    DataId::Mutable {
-                        name: *address.name(),
-                        tag: address.tag(),
-                    },
+                    DataId::Mutable(address),
                     Data::NewMutable(data.clone()),
                     requester,
                 );
@@ -618,10 +615,7 @@ impl Vault {
                                 if let PublicId::Client(client_id) = requester.clone() {
                                     if client_id.public_key() == mdata.owners() {
                                         let address = *mdata.address();
-                                        self.delete_data(DataId::Mutable {
-                                            name: *address.name(),
-                                            tag: address.tag(),
-                                        });
+                                        self.delete_data(DataId::Mutable(address));
                                         self.commit_mutation(requester.name());
                                         Ok(())
                                     } else {
@@ -635,10 +629,7 @@ impl Vault {
                                 if let PublicId::Client(client_id) = requester.clone() {
                                     if client_id.public_key() == mdata.owners() {
                                         let address = *mdata.address();
-                                        self.delete_data(DataId::Mutable {
-                                            name: *address.name(),
-                                            tag: address.tag(),
-                                        });
+                                        self.delete_data(DataId::Mutable(address));
                                         self.commit_mutation(requester.name());
                                         Ok(())
                                     } else {
@@ -664,10 +655,7 @@ impl Vault {
                     .get_mdata(address, requester_pk, request.clone())
                     .and_then(|data| {
                         let address = *data.address();
-                        let data_name = DataId::Mutable {
-                            name: *address.name(),
-                            tag: address.tag(),
-                        };
+                        let data_name = DataId::Mutable(address);
                         match data.clone() {
                             MData::Unseq(mut mdata) => {
                                 mdata.set_user_permissions(*user, permissions, version)?;
@@ -696,10 +684,7 @@ impl Vault {
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
                         let address = *data.address();
-                        let data_name = DataId::Mutable {
-                            name: *address.name(),
-                            tag: address.tag(),
-                        };
+                        let data_name = DataId::Mutable(address);
                         match data.clone() {
                             MData::Unseq(mut mdata) => {
                                 mdata.del_user_permissions(user, version)?;
@@ -743,10 +728,7 @@ impl Vault {
                     .get_mdata(address, requester_pk, request.clone())
                     .and_then(move |data| {
                         let address = *data.address();
-                        let data_name = DataId::Mutable {
-                            name: *address.name(),
-                            tag: address.tag(),
-                        };
+                        let data_name = DataId::Mutable(address);
                         match data.clone() {
                             MData::Seq(mut mdata) => {
                                 mdata.mutate_entries(actions.clone(), requester_pk)?;
@@ -770,10 +752,7 @@ impl Vault {
                     .get_mdata(address, requester_pk, request)
                     .and_then(move |data| {
                         let address = *data.address();
-                        let data_name = DataId::Mutable {
-                            name: *address.name(),
-                            tag: address.tag(),
-                        };
+                        let data_name = DataId::Mutable(address);
                         match data.clone() {
                             MData::Unseq(mut mdata) => {
                                 mdata.mutate_entries(actions.clone(), requester_pk)?;
@@ -790,12 +769,9 @@ impl Vault {
             // ===== Immutable Data =====
             //
             Request::PutAData(adata) => {
-                let address = adata.address();
+                let address = *adata.address();
                 let result = self.put_data(
-                    DataId::AppendOnly {
-                        name: *address.name(),
-                        tag: address.tag(),
-                    },
+                    DataId::AppendOnly(address),
                     Data::AppendOnly(adata),
                     requester,
                 );
@@ -806,10 +782,7 @@ impl Vault {
                 Response::GetAData(result)
             }
             Request::DeleteAData(address) => {
-                let id = DataId::AppendOnly {
-                    name: *address.name(),
-                    tag: address.tag(),
-                };
+                let id = DataId::AppendOnly(address);
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match data {
@@ -956,10 +929,7 @@ impl Vault {
                 Response::GetUnpubADataUserPermissions(res)
             }
             Request::AppendSeq { append, index } => {
-                let id = DataId::AppendOnly {
-                    name: *append.address.name(),
-                    tag: append.address.tag(),
-                };
+                let id = DataId::AppendOnly(append.address);
                 let res = self
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
@@ -980,10 +950,7 @@ impl Vault {
                 Response::Mutation(res)
             }
             Request::AppendUnseq(append) => {
-                let id = DataId::AppendOnly {
-                    name: *append.address.name(),
-                    tag: append.address.tag(),
-                };
+                let id = DataId::AppendOnly(append.address);
                 let res = self
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
@@ -1007,10 +974,7 @@ impl Vault {
                 address,
                 permissions,
             } => {
-                let id = DataId::AppendOnly {
-                    name: *address.name(),
-                    tag: address.tag(),
-                };
+                let id = DataId::AppendOnly(address);
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
@@ -1040,10 +1004,7 @@ impl Vault {
                 address,
                 permissions,
             } => {
-                let id = DataId::AppendOnly {
-                    name: *address.name(),
-                    tag: address.tag(),
-                };
+                let id = DataId::AppendOnly(address);
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(|data| match address {
@@ -1070,10 +1031,7 @@ impl Vault {
                 Response::Mutation(res)
             }
             Request::SetADataOwner { address, owner } => {
-                let id = DataId::AppendOnly {
-                    name: *address.name(),
-                    tag: address.tag(),
-                };
+                let id = DataId::AppendOnly(address);
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
@@ -1150,10 +1108,7 @@ impl Vault {
         requester_pk: PublicKey,
         request: Request,
     ) -> Result<AData, SndError> {
-        let data_id = DataId::AppendOnly {
-            name: *address.name(),
-            tag: address.tag(),
-        };
+        let data_id = DataId::AppendOnly(address);
 
         match self.get_data(&data_id) {
             Some(data_type) => match data_type {
@@ -1171,7 +1126,7 @@ impl Vault {
     }
 
     pub fn get_idata(&mut self, address: IDataAddress) -> Result<IData, SndError> {
-        let data_name = DataId::Immutable(*address.name());
+        let data_name = DataId::Immutable(address);
 
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {
@@ -1188,7 +1143,7 @@ impl Vault {
         requester: PublicId,
         requester_pk: PublicKey,
     ) -> Result<(), SndError> {
-        let data_id = DataId::Immutable(*address.name());
+        let data_id = DataId::Immutable(address);
 
         match self.get_data(&data_id) {
             Some(idata) => {
@@ -1219,10 +1174,7 @@ impl Vault {
         request: Request,
     ) -> Result<MData, SndError> {
         let kind = address.kind();
-        let data_name = DataId::Mutable {
-            name: *address.name(),
-            tag: address.tag(),
-        };
+        let data_name = DataId::Mutable(address);
 
         match self.get_data(&data_name) {
             Some(data_type) => match data_type {

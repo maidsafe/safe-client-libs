@@ -17,25 +17,29 @@ pub use self::account::{Account, CoinBalance, DEFAULT_MAX_MUTATIONS};
 pub use self::routing::{NewFullId, RequestHookFn, Routing};
 
 use ::routing::XorName;
+use safe_nd::{ADataAddress, IDataAddress, MDataAddress};
 
 /// Identifier for a data.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub enum DataId {
+    /// Identifier of old mutable data.
+    OldMutable { name: XorName, tag: u64 },
     /// Identifier of immutable data.
-    Immutable(XorName),
+    Immutable(IDataAddress),
     /// Identifier of mutable data.
-    Mutable { name: XorName, tag: u64 },
+    Mutable(MDataAddress),
     /// Identifier of appendonly data.
-    AppendOnly { name: XorName, tag: u64 },
+    AppendOnly(ADataAddress),
 }
 
 impl DataId {
     /// Get name of this identifier.
     pub fn name(&self) -> &XorName {
         match *self {
-            DataId::Immutable(ref name) => name,
-            DataId::Mutable { ref name, .. } => name,
-            DataId::AppendOnly { ref name, .. } => name,
+            DataId::OldMutable { ref name, .. } => name,
+            DataId::Immutable(ref address) => address.name(),
+            DataId::Mutable(ref address) => address.name(),
+            DataId::AppendOnly(ref address) => address.name(),
         }
     }
 }
