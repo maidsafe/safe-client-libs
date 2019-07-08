@@ -374,7 +374,7 @@ impl Vault {
                 let result = self.get_idata(address).and_then(|idata| match idata {
                     IData::Unpub(ref data) => {
                         // Check permissions for unpub idata.
-                        if PublicKey::from(*data.owners()) == requester_pk {
+                        if *data.owner() == requester_pk {
                             Ok(idata)
                         } else {
                             Err(SndError::AccessDenied)
@@ -441,7 +441,7 @@ impl Vault {
                     Response::Mutation(res)
                 }
             }
-            Request::CreateCoinBalance {
+            Request::CreateBalance {
                 amount,
                 new_balance_owner,
                 transaction_id,
@@ -1194,7 +1194,7 @@ impl Vault {
             Some(idata) => {
                 if let Data::Immutable(data) = idata {
                     if let IData::Unpub(unpub_idata) = data {
-                        if PublicKey::from(*unpub_idata.owners()) == requester_pk {
+                        if *unpub_idata.owner() == requester_pk {
                             self.delete_data(data_id);
                             self.commit_mutation(requester.name());
                             Ok(())

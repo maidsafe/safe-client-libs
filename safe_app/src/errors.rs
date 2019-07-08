@@ -120,6 +120,7 @@ mod codes {
     pub const ERR_FAILED_TO_PARSE: i32 = -4002;
     pub const ERR_TRANSACTION_ID_EXISTS: i32 = -4003;
     pub const ERR_INSUFFICIENT_BALANCE: i32 = -4004;
+    pub const ERR_EXCEEDED_SIZE: i32 = -4005;
 }
 
 /// App error.
@@ -441,7 +442,6 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::InvalidOwners => ERR_INVALID_OWNERS,
             SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
             SndError::InvalidOperation => ERR_INVALID_OPERATION,
-            SndError::LowBalance => ERR_LOW_BALANCE,
             SndError::NetworkOther(_) => ERR_NETWORK_OTHER,
             SndError::InvalidOwnersSuccessor(_) => ERR_INVALID_OWNERS_SUCCESSOR,
             SndError::InvalidPermissionsSuccessor(_) => ERR_INVALID_PERMISSIONS_SUCCESSOR,
@@ -452,6 +452,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::FailedToParse(_) => ERR_FAILED_TO_PARSE,
             SndError::TransactionIdExists => ERR_TRANSACTION_ID_EXISTS,
             SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
+            SndError::ExceededSize => ERR_EXCEEDED_SIZE,
         },
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,

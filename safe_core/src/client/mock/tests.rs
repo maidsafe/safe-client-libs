@@ -1120,7 +1120,8 @@ fn unpub_idata_rpc() {
     let _client_mgr = create_account(&mut owner_routing, &owner_routing_rx, owner_key);
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
-    let data = UnpubImmutableData::new(value, *full_id.public_id().bls_public_key());
+    let data =
+        UnpubImmutableData::new(value, PublicKey::Bls(*full_id.public_id().bls_public_key()));
     let name = *data.name();
 
     // Construct put request.

@@ -300,7 +300,7 @@ pub trait Client: Clone + 'static {
         );
 
         let transaction_id = transaction_id.unwrap_or_else(rand::random);
-        let req = Request::CreateCoinBalance {
+        let req = Request::CreateBalance {
             new_balance_owner,
             amount,
             transaction_id,
@@ -1900,7 +1900,10 @@ mod tests {
             let client8 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = UnpubImmutableData::new(value.clone(), unwrap!(client.public_bls_key()));
+            let data = UnpubImmutableData::new(
+                value.clone(),
+                PublicKey::Bls(unwrap!(client.public_bls_key())),
+            );
             let data2 = data.clone();
             let data3 = data.clone();
             let name = *data.name();
