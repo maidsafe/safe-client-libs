@@ -262,7 +262,7 @@ pub trait Client: Clone + 'static {
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<u64>> {
+    ) -> Box<CoreFuture<Transaction>> {
         trace!("Transfer {} coins to {:?}", amount, destination);
 
         let transaction_id = transaction_id.unwrap_or_else(rand::random);
@@ -278,10 +278,21 @@ pub trait Client: Clone + 'static {
             ),
             None => (self.compose_message(req), None),
         };
-        send_mutation(self, message.message_id(), move |routing, _| {
+        send(self, message.message_id(), move |routing| {
             routing.send(requester, &unwrap!(serialise(&message)))
         })
-        .map(move |_| transaction_id)
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::Transaction(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
         .into_box()
     }
 
@@ -292,7 +303,7 @@ pub trait Client: Clone + 'static {
         new_balance_owner: PublicKey,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<u64>> {
+    ) -> Box<CoreFuture<Transaction>> {
         trace!(
             "Create a new coin balance for {:?} with {} coins.",
             new_balance_owner,
@@ -312,10 +323,21 @@ pub trait Client: Clone + 'static {
             ),
             None => (self.compose_message(req), None),
         };
-        send_mutation(self, message.message_id(), move |routing, _| {
+        send(self, message.message_id(), move |routing| {
             routing.send(requester, &unwrap!(serialise(&message)))
         })
-        .map(move |_| transaction_id)
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::Transaction(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
         .into_box()
     }
 
@@ -418,36 +440,6 @@ pub trait Client: Clone + 'static {
     fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
         trace!("Delete Unpublished IData at {:?}", name);
         send_mutation_new(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name)))
-    }
-
-    /// Get a transaction.
-    fn get_transaction(
-        &self,
-        destination: XorName,
-        transaction_id: u64,
-    ) -> Box<CoreFuture<Transaction>> {
-        trace!("Get transaction {} for {:?}", transaction_id, destination);
-
-        send_new(
-            self,
-            Request::GetTransaction {
-                coins_balance_id: destination,
-                transaction_id,
-            },
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::GetTransaction(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
     }
 
     /// Put sequenced mutable data to the network
@@ -2173,9 +2165,8 @@ mod tests {
             client
                 .put_unseq_mutable_data(data.clone())
                 .and_then(move |_| {
-                    client2.delete_mdata(mdataref).and_then(move |result| {
+                    client2.delete_mdata(mdataref).map(move |result| {
                         assert_eq!(result, ());
-                        Ok(())
                     })
                 })
                 .then(move |_| {
@@ -2215,7 +2206,7 @@ mod tests {
                 )
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchAccount)) => (),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchBalance)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
                     Ok::<_, SndError>(wallet_a_addr)
@@ -2230,7 +2221,7 @@ mod tests {
                 .get_balance(None)
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchAccount)) => (),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchBalance)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
                     let wallet_b_addr: XorName = unwrap!(c3.owner_key()).into();
@@ -2241,18 +2232,20 @@ mod tests {
                     );
 
                     c3.transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
-                        .map(move |v| (v, wallet_a_addr))
                 })
                 .then(move |res| {
-                    let (txn_id, wallet_addr) = unwrap!(res);
-                    c4.get_transaction(wallet_addr, txn_id)
-                })
-                .then(move |res| {
-                    let expected_amt = unwrap!(Coins::from_str("10"));
                     match res {
-                        Ok(Transaction::Success(recieved_amt)) => {
-                            assert_eq!(expected_amt, recieved_amt)
+                        Ok(transaction) => {
+                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("10")))
                         }
+                        res => panic!("Unexpected error: {:?}", res),
+                    }
+                    c4.get_balance(None)
+                })
+                .then(move |res| {
+                    let expected_amt = unwrap!(Coins::from_str("40"));
+                    match res {
+                        Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
                         res => panic!("Unexpected result: {:?}", res),
                     }
                     Ok::<_, SndError>(())
@@ -2287,7 +2280,8 @@ mod tests {
                     unwrap!(Coins::from_str("100.0")),
                     None,
                 )
-                .and_then(move |_| {
+                .and_then(move |transaction| {
+                    assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
                     client2
                         .transfer_coins(
                             Some(&bls_sk),
@@ -2295,18 +2289,18 @@ mod tests {
                             unwrap!(Coins::from_str("5.0")),
                             None,
                         )
-                        .and_then(move |_| Ok(()))
+                        .map(move |transaction| {
+                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
+                        })
                 })
                 .and_then(move |_| {
-                    client3.get_balance(Some(&bls_sk2)).and_then(|balance| {
+                    client3.get_balance(Some(&bls_sk2)).map(|balance| {
                         assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
-                        Ok(())
                     })
                 })
                 .and_then(move |_| {
-                    client4.get_balance(None).and_then(|balance| {
+                    client4.get_balance(None).map(|balance| {
                         assert_eq!(balance, unwrap!(Coins::from_str("405.0")));
-                        Ok(())
                     })
                 })
         });
@@ -2342,33 +2336,22 @@ mod tests {
 
             let c2 = client.clone();
             let c3 = client.clone();
-            let c4 = client.clone();
 
             client
                 .get_balance(None)
                 .and_then(move |orig_balance| {
                     c2.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
-                        .map(move |transaction_id| (transaction_id, orig_balance))
+                        .map(move |_| orig_balance)
                 })
-                .and_then(move |(transaction_id, orig_balance)| {
+                .and_then(move |orig_balance| {
                     c3.get_balance(None)
-                        .map(move |new_balance| (transaction_id, new_balance, orig_balance))
+                        .map(move |new_balance| (new_balance, orig_balance))
                 })
-                .and_then(move |(transaction_id, new_balance, orig_balance)| {
+                .and_then(move |(new_balance, orig_balance)| {
                     assert_eq!(
                         new_balance,
                         unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
                     );
-
-                    c4.get_transaction(wallet1, transaction_id)
-                })
-                .and_then(move |transaction| {
-                    match transaction {
-                        Transaction::Success(amount) => {
-                            assert_eq!(amount, unwrap!(Coins::from_str("5.0")))
-                        }
-                        res => panic!("Unexpected transaction result: {:?}", res),
-                    }
                     Ok(())
                 })
         });

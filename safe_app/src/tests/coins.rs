@@ -14,7 +14,7 @@ use crate::{run, AppError};
 use futures::Future;
 use routing::XorName;
 use safe_core::{Client, CoreError};
-use safe_nd::{AppPermissions, Coins, Error, Transaction};
+use safe_nd::{AppPermissions, Coins, Error};
 use std::str::FromStr;
 
 // Apps should not be able to request the coin balance if they don't have
@@ -38,7 +38,6 @@ fn coin_app_deny_permissions() {
         );
 
         let c2 = client.clone();
-        let c3 = client.clone();
 
         client
             .get_balance(None)
@@ -58,14 +57,6 @@ fn coin_app_deny_permissions() {
             .then(move |res| {
                 match res {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
-
-                c3.get_transaction(owner_coin_balance, 1)
-            })
-            .then(move |res| {
-                match res {
-                    Ok(Transaction::NoSuchTransaction) => (),
                     res => panic!("Unexpected result: {:?}", res),
                 }
                 Ok::<_, AppError>(())
@@ -111,7 +102,6 @@ fn coin_app_allow_permissions() {
         );
 
         let c2 = client.clone();
-        let c3 = client.clone();
 
         client
             .get_balance(None)
@@ -130,17 +120,13 @@ fn coin_app_allow_permissions() {
             })
             .then(move |res| {
                 match res {
-                    Ok(_) => (),
+                    Ok(transaction) => {
+                        assert_eq!(transaction.id, 1);
+                        assert_eq!(transaction.amount, unwrap!(Coins::from_str("1.0")));
+                    }
                     res => panic!("Unexpected result: {:?}", res),
                 }
 
-                c3.get_transaction(owner_coin_balance, 1)
-            })
-            .then(move |res| {
-                match res {
-                    Ok(transaction) => println!("{:?}", transaction),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
                 Ok::<_, AppError>(())
             })
     }));
