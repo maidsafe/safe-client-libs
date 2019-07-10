@@ -16,7 +16,6 @@ use crate::client::NewFullId;
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
 
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{
     AccountInfo, Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
     MutableData as OldMutableData, PermissionSet, Request, Response, User, Value,
@@ -24,35 +23,14 @@ use routing::{
 };
 use safe_nd::{
     AppFullId, ClientFullId, Error, IData, IDataAddress, IDataKind, MData,
-    MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet, Message,
-    MessageId, PubImmutableData, PublicKey, Request as RpcRequest, Response as RpcResponse,
+    MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet, MessageId,
+    PubImmutableData, PublicKey, Request as RpcRequest, Response as RpcResponse,
     UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-
-// Helper macro to receive a routing event and assert it's a response
-// success.
-macro_rules! expect_success {
-    ($rx:expr, $msg_id:expr, $res:path) => {
-        match unwrap!($rx.recv_timeout(Duration::from_secs(10))) {
-            Event::Response {
-                response: $res { res, msg_id },
-                ..
-            } => {
-                assert_eq!(msg_id, $msg_id);
-
-                match res {
-                    Ok(value) => value,
-                    Err(err) => panic!("Unexpected error {:?}", err),
-                }
-            }
-            event => panic!("Unexpected event {:?}", event),
-        }
-    };
-}
 
 // Helper macro to receive a routing event and assert it's a response
 // failure.
@@ -74,25 +52,6 @@ macro_rules! expect_failure {
             event => panic!("Unexpected event {:?}", event),
         }
     };
-}
-
-impl Routing {
-    fn req(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
-        let message_id = MessageId::new();
-        let signature = self
-            .full_id_new
-            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
-        unwrap!(self.send(
-            None,
-            &unwrap!(serialise(&Message::Request {
-                request,
-                message_id,
-                signature: Some(signature),
-            }))
-        ));
-        let response = expect_success!(rx, message_id, Response::RpcResponse);
-        unwrap!(deserialise(&response))
-    }
 }
 
 // Test the basics idata operations.

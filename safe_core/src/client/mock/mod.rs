@@ -9,6 +9,7 @@
 pub mod vault;
 
 mod account;
+#[macro_use]
 mod routing;
 #[cfg(test)]
 mod tests;

@@ -15,8 +15,8 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
     verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error as SndError,
-    IData, IDataAddress, MData, MDataAddress, MDataKind, Message, MutableData, PublicId, PublicKey,
-    Request, Response, SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
+    IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataKind, Message, MutableData,
+    PublicId, PublicKey, Request, Response, SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
 };
 use std::collections::HashMap;
 use std::env;
@@ -38,6 +38,9 @@ pub enum Data {
 }
 
 const FILE_NAME: &str = "MockVault";
+lazy_static! {
+    pub static ref COST_OF_PUT: Coins = unwrap!(Coins::from_nano(1));
+}
 
 pub struct Vault {
     cache: Cache,
@@ -95,6 +98,7 @@ impl Vault {
             cache: Cache {
                 coin_balances: HashMap::new(),
                 client_manager: HashMap::new(),
+                login_packets: HashMap::new(),
                 nae_manager: HashMap::new(),
             },
             config,
@@ -135,6 +139,17 @@ impl Vault {
             .insert(name, Account::new(self.config.clone()));
     }
 
+    pub fn insert_login_packet(&mut self, login_packet: LoginPacket) {
+        let _ = self
+            .cache
+            .login_packets
+            .insert(*login_packet.destination(), login_packet);
+    }
+
+    pub fn get_login_packet(&self, name: &XorName) -> Option<&LoginPacket> {
+        self.cache.login_packets.get(name)
+    }
+
     // Authorise read (non-mutation) operation.
     pub fn authorise_read(
         &self,
@@ -172,7 +187,7 @@ impl Vault {
         let balance = match self.get_coin_balance_mut(coin_balance_name) {
             Some(balance) => balance,
             None => {
-                debug!("Account not found for {:?}", coin_balance_name);
+                debug!("Balance not found for {:?}", coin_balance_name);
                 return Err(SndError::NoSuchBalance);
             }
         };
@@ -238,7 +253,7 @@ impl Vault {
             Some(account) => account,
             None => {
                 debug!("Account not found for {:?}", dst);
-                return Err(ClientError::NoSuchAccount);
+                return Err(ClientError::AccessDenied);
             }
         };
 
@@ -386,6 +401,7 @@ impl Vault {
                 let result = self.delete_idata(address, requester, requester_pk);
                 Response::Mutation(result)
             }
+            // ===== Client (Owner) to SrcElders =====
             Request::ListAuthKeysAndVersion => {
                 let name = requester.name();
                 if let Some(account) = self.get_account(&name) {
@@ -394,7 +410,7 @@ impl Vault {
                         account.version(),
                     )))
                 } else {
-                    return Err(SndError::NoSuchData);
+                    return Err(SndError::AccessDenied);
                 }
             }
             Request::InsAuthKey {
@@ -406,7 +422,7 @@ impl Vault {
                 if let Some(account) = self.get_account_mut(&name) {
                     Response::Mutation(account.ins_auth_key(key, permissions, version))
                 } else {
-                    return Err(SndError::NoSuchData);
+                    return Err(SndError::AccessDenied);
                 }
             }
             Request::DelAuthKey { key, version } => {
@@ -414,9 +430,10 @@ impl Vault {
                 if let Some(account) = self.get_account_mut(&name) {
                     Response::Mutation(account.del_auth_key(&key, version))
                 } else {
-                    return Err(SndError::NoSuchData);
+                    return Err(SndError::AccessDenied);
                 }
             }
+            // ===== Coins =====
             Request::TransferCoins {
                 destination,
                 amount,
@@ -463,6 +480,95 @@ impl Vault {
                     Response::GetBalance(res)
                 }
             }
+            // ===== Account =====
+            Request::CreateLoginPacketFor {
+                new_owner,
+                amount,
+                transaction_id,
+                new_login_packet,
+            } => {
+                let source = owner_pk.into();
+                let new_balance_dest = new_owner.into();
+                // Check if the requester is authorized to perform coin transactions.
+                if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
+                    Response::Mutation(Err(e))
+                }
+                // If a login packet at the given destination exists return an error.
+                else if self
+                    .get_login_packet(new_login_packet.destination())
+                    .is_some()
+                {
+                    Response::Mutation(Err(SndError::LoginPacketExists))
+                } else {
+                    let res = self
+                        .get_balance(&source)
+                        .and_then(|source_balance| {
+                            let debit_amt = amount.checked_add(*COST_OF_PUT);
+                            match debit_amt {
+                                Some(amt) => {
+                                    // Check if the balance has sufficient coin for the transfer and an additional PUT operation
+                                    if source_balance.checked_sub(amt).is_none() {
+                                        return Err(SndError::InsufficientBalance);
+                                    }
+                                }
+                                None => return Err(SndError::ExcessiveValue),
+                            }
+                            // Debit the requester's wallet the cost of inserting a login packet
+                            match self.get_coin_balance_mut(&source) {
+                                Some(balance) => balance.debit_balance(*COST_OF_PUT)?,
+                                None => return Err(SndError::NoSuchBalance),
+                            };
+                            // Create the balance and transfer the mentioned amount of coins
+                            self.create_coin_balance(new_balance_dest, new_owner)
+                        })
+                        .and_then(|_| {
+                            self.transfer_coins(source, new_balance_dest, amount, transaction_id)
+                        })
+                        // Store the login packet
+                        .map(|_| self.insert_login_packet(new_login_packet));
+                    Response::Mutation(res)
+                }
+            }
+            Request::CreateLoginPacket(account_data) => {
+                let source = owner_pk.into();
+                if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
+                    Response::Mutation(Err(e))
+                } else if self.get_login_packet(account_data.destination()).is_some() {
+                    Response::Mutation(Err(SndError::LoginPacketExists))
+                } else {
+                    let res = self
+                        .get_balance(&source)
+                        .and_then(|source_balance| {
+                            if source_balance.checked_sub(*COST_OF_PUT).is_none() {
+                                return Err(SndError::InsufficientBalance);
+                            }
+                            match self.get_coin_balance_mut(&source) {
+                                Some(balance) => balance.debit_balance(*COST_OF_PUT)?,
+                                None => return Err(SndError::NoSuchBalance),
+                            };
+                            Ok(())
+                        })
+                        .map(|_| self.insert_login_packet(account_data));
+                    Response::Mutation(res)
+                }
+            }
+            Request::GetLoginPacket(location) => {
+                let res = match self.get_login_packet(&location) {
+                    None => Err(SndError::NoSuchLoginPacket),
+                    Some(login_packet) => {
+                        if *login_packet.authorised_getter() == owner_pk {
+                            Ok((
+                                login_packet.data().to_vec(),
+                                login_packet.signature().clone(),
+                            ))
+                        } else {
+                            Err(SndError::AccessDenied)
+                        }
+                    }
+                };
+                Response::GetLoginPacket(res)
+            }
+            // ===== Mutable Data =====
             Request::GetMData(address) => {
                 let result = self.get_mdata(address, requester_pk, request);
 
@@ -1270,6 +1376,7 @@ pub fn lock(vault: &Mutex<Vault>, writing: bool) -> VaultGuard {
 struct Cache {
     coin_balances: HashMap<XorName, CoinBalance>,
     client_manager: HashMap<XorName, Account>,
+    login_packets: HashMap<XorName, LoginPacket>,
     nae_manager: HashMap<DataId, Data>,
 }
 

@@ -9,7 +9,7 @@
 use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;
 use crate::config_handler::{get_config, Config};
-use maidsafe_utilities::serialisation::serialise;
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread;
 use routing::{
     Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, InterfaceError,
@@ -17,7 +17,8 @@ use routing::{
 };
 use safe_nd::{
     AppFullId, ClientFullId, ClientPublicId, IData, IDataAddress, Message, MessageId,
-    PubImmutableData, PublicId, PublicKey, Signature, XorName,
+    PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
+    Signature, XorName,
 };
 #[cfg(any(feature = "testing", test))]
 use safe_nd::{Coins, Error};
@@ -25,7 +26,7 @@ use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
@@ -58,6 +59,28 @@ const CHANGE_MDATA_OWNER_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
 lazy_static! {
     static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));
+}
+
+/// Helper macro to receive a routing event and assert it's a response
+/// success.
+#[macro_export]
+macro_rules! expect_success {
+    ($rx:expr, $msg_id:expr, $res:path) => {
+        match unwrap!($rx.recv_timeout(Duration::from_secs(10))) {
+            Event::Response {
+                response: $res { res, msg_id },
+                ..
+            } => {
+                assert_eq!(msg_id, $msg_id);
+
+                match res {
+                    Ok(value) => value,
+                    Err(err) => panic!("Unexpected error {:?}", err),
+                }
+            }
+            event => panic!("Unexpected event {:?}", event),
+        }
+    };
 }
 
 /// Creates a thread-safe reference-counted pointer to the global vault.
@@ -189,6 +212,24 @@ impl Routing {
         self.send_response(DEFAULT_DELAY_MS, dummy_authority, dummy_authority, response);
 
         Ok(())
+    }
+
+    /// Send a request and get a response
+    pub fn req(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
+        let message_id = MessageId::new();
+        let signature = self
+            .full_id_new
+            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+        unwrap!(self.send(
+            None,
+            &unwrap!(serialise(&Message::Request {
+                request,
+                message_id,
+                signature: Some(signature),
+            }))
+        ));
+        let response = expect_success!(rx, message_id, Response::RpcResponse);
+        unwrap!(deserialise(&response))
     }
 
     /// Sets the vault for this routing instance.

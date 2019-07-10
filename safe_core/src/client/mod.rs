@@ -34,18 +34,21 @@ use self::mock::Routing;
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 
+use crate::client::account::Account;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::event::{CoreEvent, NetworkEvent, NetworkTx};
 use crate::event_loop::{CoreFuture, CoreMsgTx};
 use crate::ipc::BootstrapConfig;
-use crate::utils::FutureExt;
+use crate::utils::{self, FutureExt};
 use futures::future::{self, Either, FutureResult, Loop, Then};
 use futures::sync::oneshot;
 use futures::{Complete, Future};
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, Joiner};
+use new_rand::rngs::StdRng;
+use new_rand::SeedableRng;
 use routing::{
     AccountInfo, Authority, EntryAction, Event, FullId, InterfaceError, MutableData, PermissionSet,
     User, Value,
@@ -54,10 +57,11 @@ use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataIndex, ADataIndices, ADataOwner, ADataPubPermissionSet,
     ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
-    Coins, IData, IDataAddress, MData, MDataAddress, MDataPermissionSet as NewPermissionSet,
-    MDataSeqEntryActions, MDataUnseqEntryActions, MDataValue as Val, Message, MessageId,
-    MutableData as NewMutableData, PubImmutableData, PublicKey, Request, Response, SeqMutableData,
-    Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
+    ClientFullId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress,
+    MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
+    MDataValue as Val, Message, MessageId, MutableData as NewMutableData, PubImmutableData,
+    PublicKey, Request, Response, SeqMutableData, Signature, Transaction, UnpubImmutableData,
+    UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -339,6 +343,40 @@ pub trait Client: Clone + 'static {
             }
         })
         .into_box()
+    }
+
+    /// Insert a given login packet at the specified destination
+    fn insert_login_packet_for(
+        &self,
+        secret_key: Option<&threshold_crypto::SecretKey>,
+        new_owner: PublicKey,
+        amount: Coins,
+        transaction_id: Option<u64>,
+        new_login_packet: LoginPacket,
+    ) -> Box<CoreFuture<()>> {
+        trace!(
+            "Insert a login packet for {:?} preloading the wallet with {} coins.",
+            new_owner,
+            amount
+        );
+
+        let transaction_id = transaction_id.unwrap_or_else(rand::random);
+        let req = Request::CreateLoginPacketFor {
+            new_owner,
+            amount,
+            transaction_id,
+            new_login_packet,
+        };
+        let (message, requester) = match secret_key {
+            Some(key) => (
+                sign_request_with_key(req, key),
+                Some(PublicKey::from(key.public_key())),
+            ),
+            None => (self.compose_message(req), None),
+        };
+        send_mutation(self, message.message_id(), move |routing, _| {
+            routing.send(requester, &unwrap!(serialise(&message)))
+        })
     }
 
     /// Get the current coin balance.
@@ -1607,7 +1645,7 @@ pub trait Client: Clone + 'static {
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-    ) -> Result<(), safe_nd::Error> {
+    ) -> Result<(), SndError> {
         let inner = self.inner();
         let result = inner
             .borrow_mut()
@@ -1615,6 +1653,93 @@ pub trait Client: Clone + 'static {
             .allocate_test_coins(coin_balance_name, amount);
         result.clone()
     }
+}
+
+/// Create an account given a locator and passsword and the secret key of an existing coin balance.
+pub fn create_account(
+    acc_locator: &str,
+    acc_password: &str,
+    wallet_sk: &threshold_crypto::SecretKey,
+) -> Result<(), SndError> {
+    trace!("Creating an account.");
+
+    let (password, keyword, pin) =
+        utils::derive_secrets(acc_locator.as_bytes(), acc_password.as_bytes());
+
+    let acc_loc = Account::generate_network_id(&keyword, &pin)
+        .map_err(|_| SndError::from("Cannot generate network ID"))?;
+
+    let maid_keys = ClientKeys::new(None);
+    let acc = Account::new(maid_keys).map_err(|_| SndError::from("Can't create account"))?;
+
+    let acc_buffer = acc
+        .encrypt(&password, &pin)
+        .map_err(|_| SndError::from("Error encrypting account packet"))?;
+    let locator_bytes = acc_locator.as_bytes();
+    let secret_bytes = acc_password.as_bytes();
+    let mut seeder: Vec<u8> = Vec::with_capacity(locator_bytes.len() + secret_bytes.len());
+    seeder.extend_from_slice(locator_bytes);
+    seeder.extend_from_slice(secret_bytes);
+
+    let seed = tiny_keccak::sha3_256(&seeder);
+
+    let mut rng = StdRng::from_seed(seed);
+
+    let client_full_id = ClientFullId::new_bls(&mut rng);
+
+    let sig = client_full_id.sign(&acc_buffer);
+    let client_pk = client_full_id.public_id().public_key();
+    let new_account_data = LoginPacket::new(acc_loc, *client_pk, acc_buffer, sig)?;
+
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            wallet_sk.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, Request::CreateLoginPacket(new_account_data));
+    match rpc_response {
+        Response::Mutation(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Fetches the account data from a location and verifies the signature
+pub fn get_login_packet(acc_locator: &str, acc_password: &str) -> Result<Account, SndError> {
+    let acc_locator = acc_locator.as_bytes();
+    let acc_password = acc_password.as_bytes();
+    let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
+    let acc_loc = Account::generate_network_id(&keyword, &pin)
+        .map_err(|_| SndError::from("Error generating network ID"))?;
+
+    let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+    seeder.extend_from_slice(acc_locator);
+    seeder.extend_from_slice(acc_password);
+
+    let seed = tiny_keccak::sha3_256(&seeder);
+
+    let mut rng = StdRng::from_seed(seed);
+
+    let client_full_id = ClientFullId::new_bls(&mut rng);
+    let client_pk = *client_full_id.public_id().public_key();
+
+    let (mut routing, routing_rx) =
+        setup_routing(None, Some(NewFullId::Client(client_full_id)), None)
+            .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, Request::GetLoginPacket(acc_loc));
+    let (account_buffer, signature) = match rpc_response {
+        Response::GetLoginPacket(res) => res?,
+        _ => return Err(SndError::from("Unexpected response")),
+    };
+
+    client_pk.verify(&signature, account_buffer.as_slice())?;
+    let account = Account::decrypt(account_buffer.as_slice(), &password, &pin)
+        .map_err(|_| SndError::from("Error decrypting login packet"))?;
+    Ok(account)
 }
 
 fn sign_request_with_key(request: Request, key: &threshold_crypto::SecretKey) -> Message {
@@ -3128,6 +3253,78 @@ mod tests {
                     })
                 })
                 .then(|res| res)
+        });
+    }
+
+    // 1. Create a random ClientFullId and a random BLS keypair
+    // 2. Create a LoginPacket with some random data, sign it
+    //    and create an AccountData instance with the BLS public key as the owner
+    // 3. Create a test coin balance for a client and use insert_login_packet_for to store the account packet.
+    // 4. A wallet should be created and preloaded with some safecoin.
+    // 5. Use the BLS secret key to get the balance and verify it.
+    #[test]
+    pub fn account_creation_new1() {
+        random_client(move |client| {
+            let mut rng = new_rand::thread_rng();
+            let client_full_id = ClientFullId::new_bls(&mut rng);
+            let packet_location: XorName = new_rand::random();
+            let bls_sk = threshold_crypto::SecretKey::random();
+            let client_pk = PublicKey::from(bls_sk.public_key());
+            let random_acc_data: [u8; 32] = rand::random();
+            let signature = client_full_id.sign(random_acc_data);
+            let new_account_data = unwrap!(LoginPacket::new(
+                packet_location,
+                client_pk,
+                random_acc_data.to_vec(),
+                signature
+            ));
+
+            let client1 = client.clone();
+            let client2 = client.clone();
+            let owner_key = unwrap!(client.owner_key());
+            let wallet1: XorName = owner_key.into();
+
+            client.test_create_coin_balance(&wallet1, unwrap!(Coins::from_str("100.0")), owner_key);
+
+            client1
+                .insert_login_packet_for(
+                    None,
+                    client_pk,
+                    unwrap!(Coins::from_str("50.0")),
+                    None,
+                    new_account_data,
+                )
+                .and_then(move |_| {
+                    client2
+                        .get_balance(Some(&bls_sk))
+                        .map(|balance| assert_eq!(balance, unwrap!(Coins::from_str("50"))))
+                })
+        });
+    }
+
+    // 1. Create a random BLS key and create a test wallet with some safecoin.
+    // 2. Use this wallet to store a login packet on the network.
+    // 3. Use the credentials to get the account.
+    #[test]
+    pub fn account_creation_new2() {
+        let bls_sk = threshold_crypto::SecretKey::random();
+
+        random_client(move |client| {
+            let wallet: XorName = PublicKey::from(bls_sk.public_key()).into();
+            client.test_create_coin_balance(
+                &wallet,
+                unwrap!(Coins::from_nano(2)),
+                PublicKey::from(bls_sk.public_key()),
+            );
+            let acc_locator: &str = &unwrap!(utils::generate_random_string(10));
+            let acc_password: &str = &unwrap!(utils::generate_random_string(10));
+            unwrap!(create_account(acc_locator, acc_password, &bls_sk));
+
+            let _ = unwrap!(get_login_packet(acc_locator, acc_password));
+
+            client
+                .get_balance(Some(&bls_sk))
+                .map(|balance| assert_eq!(balance, unwrap!(Coins::from_nano(1))))
         });
     }
 }
