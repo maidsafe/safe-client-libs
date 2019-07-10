@@ -173,7 +173,7 @@ impl Vault {
             Some(balance) => balance,
             None => {
                 debug!("Account not found for {:?}", coin_balance_name);
-                return Err(SndError::NoSuchAccount);
+                return Err(SndError::NoSuchBalance);
             }
         };
         balance.credit_balance(amount, new_rand::random())
@@ -190,7 +190,7 @@ impl Vault {
             Some(balance) => balance,
             None => {
                 debug!("Coin balance {:?} not found", coin_balance_name);
-                return Err(SndError::NoSuchAccount);
+                return Err(SndError::NoSuchBalance);
             }
         };
         let owner_account = XorName::from(*balance.owner());
@@ -201,7 +201,7 @@ impl Vault {
                 Some(account) => account,
                 None => {
                     debug!("Account not found for {:?}", owner_account);
-                    return Err(SndError::NoSuchAccount);
+                    return Err(SndError::AccessDenied);
                 }
             };
             match account.auth_keys().get(&requester_pk) {
@@ -291,7 +291,7 @@ impl Vault {
         owner: PublicKey,
     ) -> Result<(), SndError> {
         if self.get_coin_balance(&destination).is_some() {
-            return Err(SndError::AccountExists);
+            return Err(SndError::BalanceExists);
         }
         let _ = self
             .cache
@@ -306,36 +306,25 @@ impl Vault {
         destination: XorName,
         amount: Coins,
         transaction_id: u64,
-    ) -> Result<(), SndError> {
+    ) -> Result<Transaction, SndError> {
         match self.get_coin_balance_mut(&source) {
             Some(balance) => balance.debit_balance(amount)?,
-            None => return Err(SndError::NoSuchAccount),
+            None => return Err(SndError::NoSuchBalance),
         };
         match self.get_coin_balance_mut(&destination) {
             Some(balance) => balance.credit_balance(amount, transaction_id)?,
-            None => return Err(SndError::NoSuchAccount),
+            None => return Err(SndError::NoSuchBalance),
         };
-        Ok(())
-    }
-
-    fn get_transaction(
-        &self,
-        coins_balance_id: &XorName,
-        transaction_id: u64,
-    ) -> Result<Transaction, SndError> {
-        match self.get_coin_balance(coins_balance_id) {
-            Some(balance) => match balance.find_transaction(transaction_id) {
-                Some(amount) => Ok(Transaction::Success(amount)),
-                None => Ok(Transaction::NoSuchTransaction),
-            },
-            None => Ok(Transaction::NoSuchCoinBalance),
-        }
+        Ok(Transaction {
+            id: transaction_id,
+            amount,
+        })
     }
 
     fn get_balance(&self, coins_balance_id: &XorName) -> Result<Coins, SndError> {
         match self.get_coin_balance(coins_balance_id) {
             Some(balance) => Ok(balance.balance()),
-            None => Err(SndError::NoSuchAccount),
+            None => Err(SndError::NoSuchBalance),
         }
     }
 
@@ -405,7 +394,7 @@ impl Vault {
                         account.version(),
                     )))
                 } else {
-                    return Err(SndError::NoSuchAccount);
+                    return Err(SndError::NoSuchData);
                 }
             }
             Request::InsAuthKey {
@@ -417,7 +406,7 @@ impl Vault {
                 if let Some(account) = self.get_account_mut(&name) {
                     Response::Mutation(account.ins_auth_key(key, permissions, version))
                 } else {
-                    return Err(SndError::NoSuchAccount);
+                    return Err(SndError::NoSuchData);
                 }
             }
             Request::DelAuthKey { key, version } => {
@@ -425,7 +414,7 @@ impl Vault {
                 if let Some(account) = self.get_account_mut(&name) {
                     Response::Mutation(account.del_auth_key(&key, version))
                 } else {
-                    return Err(SndError::NoSuchAccount);
+                    return Err(SndError::NoSuchData);
                 }
             }
             Request::TransferCoins {
@@ -435,10 +424,10 @@ impl Vault {
             } => {
                 let source: XorName = owner_pk.into();
                 if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
-                    Response::Mutation(Err(e))
+                    Response::Transaction(Err(e))
                 } else {
                     let res = self.transfer_coins(source, destination, amount, transaction_id);
-                    Response::Mutation(res)
+                    Response::Transaction(res)
                 }
             }
             Request::CreateBalance {
@@ -462,7 +451,7 @@ impl Vault {
                         .and_then(|_| {
                             self.transfer_coins(source, destination, amount, transaction_id)
                         });
-                    Response::Mutation(res)
+                    Response::Transaction(res)
                 }
             }
             Request::GetBalance => {
@@ -473,13 +462,6 @@ impl Vault {
                     let res = self.get_balance(&coin_balance_id);
                     Response::GetBalance(res)
                 }
-            }
-            Request::GetTransaction {
-                coins_balance_id,
-                transaction_id,
-            } => {
-                let transaction = self.get_transaction(&coins_balance_id, transaction_id);
-                Response::GetTransaction(transaction)
             }
             Request::GetMData(address) => {
                 let result = self.get_mdata(address, requester_pk, request);
@@ -1213,11 +1195,15 @@ impl Vault {
         match requester.clone() {
             PublicId::Client(client_public_id) => {
                 if self.get_account(client_public_id.name()).is_none() {
-                    return Err(SndError::NoSuchAccount);
+                    debug!("Account does not exist");
+                    return Err(SndError::AccessDenied);
                 }
             }
             PublicId::App(app_public_id) => match self.get_account(app_public_id.owner_name()) {
-                None => return Err(SndError::NoSuchAccount),
+                None => {
+                    debug!("Account does not exist");
+                    return Err(SndError::AccessDenied);
+                }
                 Some(account) => {
                     if !account.auth_keys().contains_key(app_public_id.public_key()) {
                         return Err(SndError::AccessDenied);
