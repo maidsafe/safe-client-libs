@@ -68,6 +68,8 @@ mod codes {
     pub const ERR_INVITATION_ALREADY_CLAIMED: i32 = -117;
     pub const ERR_INVALID_ENTRY_ACTIONS: i32 = -118;
     pub const ERR_DUPLICATE_MSG_ID: i32 = -119;
+    pub const ERR_DUPLICATE_ENTRY_KEYS: i32 = -120;
+    pub const ERR_KEYS_EXIST: i32 = -121;
 
     // IPC errors.
     pub const ERR_AUTH_DENIED: i32 = -200;
@@ -329,6 +331,8 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
             SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
             SndError::NoSuchKey => ERR_NO_SUCH_KEY,
+            SndError::KeysExist(_) => ERR_KEYS_EXIST,
+            SndError::DuplicateEntryKeys => ERR_DUPLICATE_ENTRY_KEYS,
             SndError::DuplicateMessageId => ERR_DUPLICATE_MSG_ID,
             SndError::InvalidOwners => ERR_INVALID_OWNERS,
             SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,

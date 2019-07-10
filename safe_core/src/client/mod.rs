@@ -991,6 +991,29 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
+    /// Fetch Value for the provided key from AppendOnly Data at {:?}
+    fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Box<CoreFuture<Vec<u8>>> {
+        trace!(
+            "Fetch Value for the provided key from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(self, Request::GetADataValue { address, key })
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetADataValue(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
+    }
+
     /// Get a Set of Entries for the requested range from an AData.
     #[allow(clippy::type_complexity)]
     fn get_adata_range(
@@ -999,7 +1022,7 @@ pub trait Client: Clone + 'static {
         range: (ADataIndex, ADataIndex),
     ) -> Box<CoreFuture<Vec<(Vec<u8>, Vec<u8>)>>> {
         trace!(
-            "Get Rage of entries from AppendOnly Data at {:?}",
+            "Get Range of entries from AppendOnly Data at {:?}",
             address.name()
         );
 
@@ -2236,7 +2259,9 @@ mod tests {
                 })
                 .then(move |res| {
                     match res {
-                        Ok(transaction) => assert_eq!(transaction.amount, unwrap!(Coins::from_str("10"))),
+                        Ok(transaction) => {
+                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("10")))
+                        }
                         res => panic!("Unexpected error: {:?}", res),
                     }
                     c4.get_balance(None)
@@ -2291,7 +2316,7 @@ mod tests {
                         .and_then(move |transaction| {
                             assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
                             Ok(())
-                            })
+                        })
                 })
                 .and_then(move |_| {
                     client3.get_balance(Some(&bls_sk2)).and_then(|balance| {
@@ -2726,6 +2751,7 @@ mod tests {
             let client4 = client.clone();
             let client5 = client.clone();
             let client6 = client.clone();
+            let client7 = client.clone();
 
             let name = XorName(rand::random());
             let tag = 15000;
@@ -2749,14 +2775,14 @@ mod tests {
             let tup1 = (key1, val1);
             let tup2 = (key2, val2);
             let tup3 = (key3, val3);
-            let tup4 = &[(key4, val4)].to_vec();
+            let tup4 = vec![(key4, val4)];
 
             let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
             kvdata.push(tup1);
             kvdata.push(tup2);
             kvdata.push(tup3);
 
-            unwrap!(data.append(&kvdata, 0));
+            unwrap!(data.append(kvdata, 0));
             // Test push
             unwrap!(data.append(tup4, 3));
 
@@ -2819,13 +2845,20 @@ mod tests {
                     })
                 })
                 .and_then(move |_| {
-                    client3.get_adata_last_entry(adataref).map(move |data| {
+                    client3
+                        .get_adata_value(adataref, b"KEY1".to_vec())
+                        .map(move |data| {
+                            assert_eq!(unwrap!(std::str::from_utf8(data.as_slice())), "VALUE1");
+                        })
+                })
+                .and_then(move |_| {
+                    client4.get_adata_last_entry(adataref).map(move |data| {
                         assert_eq!(unwrap!(std::str::from_utf8(data.0.as_slice())), "KEY4");
                         assert_eq!(unwrap!(std::str::from_utf8(data.1.as_slice())), "VALUE4");
                     })
                 })
                 .and_then(move |_| {
-                    client4
+                    client5
                         .add_unpub_adata_permissions(adataref, perm_set)
                         .then(move |res| {
                             assert_eq!(unwrap!(res), ());
@@ -2833,7 +2866,7 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client5
+                    client6
                         .get_unpub_adata_permissions_at_index(adataref, perm_idx)
                         .map(move |data| {
                             let set = unwrap!(data.permissions.get(&sim_client1));
@@ -2841,11 +2874,11 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client6
+                    client7
                         .get_unpub_adata_user_permissions(
                             adataref,
                             idx_start,
-                            PublicKey::Bls(unwrap!(client6.public_bls_key())),
+                            PublicKey::Bls(unwrap!(client7.public_bls_key())),
                         )
                         .map(move |set| {
                             assert!(set.is_allowed(ADataAction::Append));
@@ -3018,7 +3051,7 @@ mod tests {
             kvdata.push(tup1);
             kvdata.push(tup2);
 
-            unwrap!(data.append(&kvdata));
+            unwrap!(data.append(kvdata));
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),

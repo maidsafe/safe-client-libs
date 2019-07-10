@@ -123,7 +123,7 @@ fn coin_app_allow_permissions() {
                     Ok(transaction) => {
                         assert_eq!(transaction.id, 1);
                         assert_eq!(transaction.amount, unwrap!(Coins::from_str("1.0")));
-                    },
+                    }
                     res => panic!("Unexpected result: {:?}", res),
                 }
 
