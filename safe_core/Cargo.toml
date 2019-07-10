@@ -28,7 +28,7 @@ new_rand = { package = "rand", version = "0.6" }
 # routing = { git = "https://github.com/lionel1704/routing", branch = "patch" }
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = { git = "https://github.com/Yoga07/safe-nd/", branch = "adata-value" }
 self_encryption = "~0.14.0"
 serde = "~1.0.27"
 serde_derive = "~1.0.27"

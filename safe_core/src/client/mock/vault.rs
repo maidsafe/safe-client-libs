@@ -801,6 +801,16 @@ impl Vault {
                     });
                 Response::GetADataRange(res)
             }
+            Request::GetADataValue { address, key } => {
+                let res = self
+                    .get_adata(address, requester_pk, request)
+                    .and_then(move |data| {
+                        data.get(key)
+                            .map(move |data| data.clone())
+                            .ok_or(SndError::NoSuchEntry)
+                    });
+                Response::GetADataValue(res)
+            }
             Request::GetADataIndices(address) => {
                 let res = self
                     .get_adata(address, requester_pk, request)
