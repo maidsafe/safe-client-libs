@@ -1206,6 +1206,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
+        permissions_idx: u64,
     ) -> Box<CoreFuture<()>> {
         trace!(
             "Add Permissions to UnPub AppendOnly Data {:?}",
@@ -1217,6 +1218,7 @@ pub trait Client: Clone + 'static {
             Request::AddUnpubADataPermissions {
                 address,
                 permissions,
+                permissions_idx,
             },
         )
     }
@@ -1226,6 +1228,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions: ADataPubPermissions,
+        permissions_idx: u64,
     ) -> Box<CoreFuture<()>> {
         trace!("Add Permissions to AppendOnly Data {:?}", address.name());
 
@@ -1234,15 +1237,28 @@ pub trait Client: Clone + 'static {
             Request::AddPubADataPermissions {
                 address,
                 permissions,
+                permissions_idx,
             },
         )
     }
 
     /// Set new Owners to AData
-    fn set_adata_owners(&self, address: ADataAddress, owner: ADataOwner) -> Box<CoreFuture<()>> {
+    fn set_adata_owners(
+        &self,
+        address: ADataAddress,
+        owner: ADataOwner,
+        owners_idx: u64,
+    ) -> Box<CoreFuture<()>> {
         trace!("Set Owners to AppendOnly Data {:?}", address.name());
 
-        send_mutation_new(self, Request::SetADataOwner { address, owner })
+        send_mutation_new(
+            self,
+            Request::SetADataOwner {
+                address,
+                owner,
+                owners_idx,
+            },
+        )
     }
 
     /// Set new Owners to AData
@@ -2669,18 +2685,21 @@ mod tests {
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
             let address = ADataAddress::UnpubSeq { name, tag };
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
                 data_index: 0,
                 permissions_index: 1,
             };
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::UnpubSeq(data.clone()))
@@ -2747,22 +2766,25 @@ mod tests {
             let tup1 = (key1, val1);
             let tup2 = (key2, val2);
             let tup3 = (key3, val3);
-            let tup4 = &[(key4, val4)].to_vec();
+            let tup4 = vec![(key4, val4)];
 
             let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
             kvdata.push(tup1);
             kvdata.push(tup2);
             kvdata.push(tup3);
 
-            unwrap!(data.append(&kvdata, 0));
+            unwrap!(data.append(kvdata, 0));
             // Test push
             unwrap!(data.append(tup4, 3));
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 4,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 4,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let idx_start = ADataIndex::FromStart(0);
             let idx_end = ADataIndex::FromEnd(2);
@@ -2788,7 +2810,7 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::UnpubSeq(data.clone()))
@@ -2824,7 +2846,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client4
-                        .add_unpub_adata_permissions(adataref, perm_set)
+                        .add_unpub_adata_permissions(adataref, perm_set, 1)
                         .then(move |res| {
                             assert_eq!(unwrap!(res), ());
                             Ok(())
@@ -2870,11 +2892,14 @@ mod tests {
             let usr = ADataUser::Key(PublicKey::Bls(unwrap!(client.public_bls_key())));
             let _ = perms.insert(usr, set);
 
-            unwrap!(data.append_permissions(ADataPubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataPubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let key1 = b"KEY1".to_vec();
             let val1 = b"VALUE1".to_vec();
@@ -2894,7 +2919,7 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::PubSeq(data.clone()))
@@ -2933,11 +2958,14 @@ mod tests {
 
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let key1 = b"KEY1".to_vec();
             let val1 = b"VALUE1".to_vec();
@@ -2957,7 +2985,7 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::UnpubUnseq(data.clone()))
@@ -2997,11 +3025,14 @@ mod tests {
 
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let key1 = b"KEY1".to_vec();
             let key2 = b"KEY2".to_vec();
@@ -3016,7 +3047,7 @@ mod tests {
             kvdata.push(tup1);
             kvdata.push(tup2);
 
-            unwrap!(data.append(&kvdata));
+            unwrap!(data.append(kvdata));
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
@@ -3024,7 +3055,7 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             let owner2 = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client1.public_bls_key())),
@@ -3041,15 +3072,19 @@ mod tests {
             client
                 .put_adata(AData::UnpubUnseq(data.clone()))
                 .and_then(move |_| {
-                    client1.set_adata_owners(adataref, owner2).then(move |res| {
-                        assert_eq!(unwrap!(res), ());
-                        Ok(())
-                    })
+                    client1
+                        .set_adata_owners(adataref, owner2, 1)
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
-                    client2.set_adata_owners(adataref, owner3).map(move |data| {
-                        assert_eq!(data, ());
-                    })
+                    client2
+                        .set_adata_owners(adataref, owner3, 2)
+                        .map(move |data| {
+                            assert_eq!(data, ());
+                        })
                 })
                 .and_then(move |_| {
                     client3.get_adata(adataref).map(move |data| match data {

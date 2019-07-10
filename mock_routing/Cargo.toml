@@ -14,7 +14,7 @@ edition = "2018"
 maidsafe_utilities = "~0.18.0"
 rust_sodium = "~0.10.2"
 rand = "~0.3.18"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = { git = "https://github.com/yoga07/safe-nd", branch = "adata-index" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
 threshold_crypto = { git = "https://github.com/poanetwork/threshold_crypto.git", branch = "master" }
