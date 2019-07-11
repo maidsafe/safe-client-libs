@@ -1655,6 +1655,90 @@ pub trait Client: Clone + 'static {
     }
 }
 
+/// Get the balance at the given key's location
+pub fn get_balance(wallet_sk: &threshold_crypto::SecretKey) -> Result<Coins, SndError> {
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            wallet_sk.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, Request::GetBalance);
+    match rpc_response {
+        Response::GetBalance(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Creates a new coin balance on the network.
+pub fn create_balance(
+    secret_key: &threshold_crypto::SecretKey,
+    new_balance_owner: PublicKey,
+    amount: Coins,
+    transaction_id: Option<u64>,
+) -> Result<Transaction, SndError> {
+    trace!(
+        "Create a new coin balance for {:?} with {} coins.",
+        new_balance_owner,
+        amount
+    );
+
+    let transaction_id = transaction_id.unwrap_or_else(rand::random);
+    let req = Request::CreateBalance {
+        new_balance_owner,
+        amount,
+        transaction_id,
+    };
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            secret_key.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, req);
+    match rpc_response {
+        Response::Transaction(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Transfer coins
+pub fn transfer_coins(
+    secret_key: &threshold_crypto::SecretKey,
+    destination: XorName,
+    amount: Coins,
+    transaction_id: Option<u64>,
+) -> Result<Transaction, SndError> {
+    trace!("Transfer {} coins to {:?}", amount, destination);
+    let transaction_id = transaction_id.unwrap_or_else(rand::random);
+    let req = Request::TransferCoins {
+        destination,
+        amount,
+        transaction_id,
+    };
+
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            secret_key.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, req);
+    match rpc_response {
+        Response::Transaction(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
 /// Create an account given a locator and passsword and the secret key of an existing coin balance.
 pub fn create_account(
     acc_locator: &str,
@@ -3326,5 +3410,37 @@ mod tests {
                 .get_balance(Some(&bls_sk))
                 .map(|balance| assert_eq!(balance, unwrap!(Coins::from_nano(1))))
         });
+    }
+
+    // 1. Create a random BLS key and create a wallet for it with some test safecoin.
+    // 2. Without a client object, try to get the balance, create new wallets and transfer safecoin.
+    #[test]
+    pub fn wallet_transactions_without_client() {
+        let bls_sk = threshold_crypto::SecretKey::random();
+        let client_pk = PublicKey::from(bls_sk.public_key());
+        let wallet: XorName = client_pk.into();
+
+        random_client(move |client| {
+            client.test_create_coin_balance(&wallet, unwrap!(Coins::from_str("50")), client_pk);
+            Ok::<(), SndError>(())
+        });
+
+        let balance = unwrap!(get_balance(&bls_sk));
+        let ten_coins = unwrap!(Coins::from_str("10"));
+        assert_eq!(balance, unwrap!(Coins::from_str("50")));
+
+        let new_bls_sk = threshold_crypto::SecretKey::random();
+        let new_client_pk = PublicKey::from(new_bls_sk.public_key());
+        let new_wallet: XorName = new_client_pk.into();
+        let txn = unwrap!(create_balance(&bls_sk, new_client_pk, ten_coins, None));
+        assert_eq!(txn.amount, ten_coins);
+        let txn2 = unwrap!(transfer_coins(&bls_sk, new_wallet, ten_coins, None));
+        assert_eq!(txn2.amount, ten_coins);
+
+        let client_balance = unwrap!(get_balance(&bls_sk));
+        assert_eq!(client_balance, unwrap!(Coins::from_str("30")));
+
+        let new_client_balance = unwrap!(get_balance(&new_bls_sk));
+        assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
     }
 }
