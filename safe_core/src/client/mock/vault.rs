@@ -804,11 +804,7 @@ impl Vault {
             Request::GetADataValue { address, key } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| {
-                        data.get(&key)
-                            .map(move |data| data.clone())
-                            .ok_or(SndError::NoSuchEntry)
-                    });
+                    .and_then(move |data| data.get(&key).cloned().ok_or(SndError::NoSuchEntry));
                 Response::GetADataValue(res)
             }
             Request::GetADataIndices(address) => {
@@ -926,13 +922,13 @@ impl Vault {
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
                         AData::PubSeq(mut adata) => {
-                            unwrap!(adata.append(append.values, index));
+                            adata.append(append.values, index)?;
                             self.commit_mutation(requester.name());
                             self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                             Ok(())
                         }
                         AData::UnpubSeq(mut adata) => {
-                            unwrap!(adata.append(append.values, index));
+                            adata.append(append.values, index)?;
                             self.commit_mutation(requester.name());
                             self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                             Ok(())
@@ -947,13 +943,13 @@ impl Vault {
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
                         AData::PubUnseq(mut adata) => {
-                            unwrap!(adata.append(append.values));
+                            adata.append(append.values)?;
                             self.commit_mutation(requester.name());
                             self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                             Ok(())
                         }
                         AData::UnpubUnseq(mut adata) => {
-                            unwrap!(adata.append(append.values));
+                            adata.append(append.values)?;
                             self.commit_mutation(requester.name());
                             self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                             Ok(())
@@ -965,6 +961,7 @@ impl Vault {
             Request::AddPubADataPermissions {
                 address,
                 permissions,
+                permissions_idx,
             } => {
                 let id = DataId::AppendOnly(address);
                 let res = self
@@ -972,7 +969,7 @@ impl Vault {
                     .and_then(move |data| match address {
                         ADataAddress::PubSeq { .. } => match data {
                             AData::PubSeq(mut adata) => {
-                                unwrap!(adata.append_permissions(permissions));
+                                adata.append_permissions(permissions, permissions_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                 Ok(())
@@ -981,7 +978,7 @@ impl Vault {
                         },
                         ADataAddress::PubUnseq { .. } => match data {
                             AData::PubUnseq(mut adata) => {
-                                unwrap!(adata.append_permissions(permissions));
+                                adata.append_permissions(permissions, permissions_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                 Ok(())
@@ -995,6 +992,7 @@ impl Vault {
             Request::AddUnpubADataPermissions {
                 address,
                 permissions,
+                permissions_idx,
             } => {
                 let id = DataId::AppendOnly(address);
                 let res = self
@@ -1002,7 +1000,7 @@ impl Vault {
                     .and_then(|data| match address {
                         ADataAddress::UnpubSeq { .. } => match data.clone() {
                             AData::UnpubSeq(mut adata) => {
-                                unwrap!(adata.append_permissions(permissions));
+                                adata.append_permissions(permissions, permissions_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
@@ -1011,7 +1009,7 @@ impl Vault {
                         },
                         ADataAddress::UnpubUnseq { .. } => match data {
                             AData::UnpubUnseq(mut adata) => {
-                                unwrap!(adata.append_permissions(permissions));
+                                adata.append_permissions(permissions, permissions_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
@@ -1022,14 +1020,18 @@ impl Vault {
                     });
                 Response::Mutation(res)
             }
-            Request::SetADataOwner { address, owner } => {
+            Request::SetADataOwner {
+                address,
+                owner,
+                owners_idx,
+            } => {
                 let id = DataId::AppendOnly(address);
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
                         ADataAddress::PubSeq { .. } => match data {
                             AData::PubSeq(mut adata) => {
-                                unwrap!(adata.append_owner(owner));
+                                adata.append_owner(owner, owners_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                 Ok(())
@@ -1038,7 +1040,7 @@ impl Vault {
                         },
                         ADataAddress::PubUnseq { .. } => match data {
                             AData::PubUnseq(mut adata) => {
-                                unwrap!(adata.append_owner(owner));
+                                adata.append_owner(owner, owners_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                 Ok(())
@@ -1047,7 +1049,7 @@ impl Vault {
                         },
                         ADataAddress::UnpubSeq { .. } => match data.clone() {
                             AData::UnpubSeq(mut adata) => {
-                                unwrap!(adata.append_owner(owner));
+                                adata.append_owner(owner, owners_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
@@ -1056,7 +1058,7 @@ impl Vault {
                         },
                         ADataAddress::UnpubUnseq { .. } => match data {
                             AData::UnpubUnseq(mut adata) => {
-                                unwrap!(adata.append_owner(owner));
+                                adata.append_owner(owner, owners_idx)?;
                                 self.commit_mutation(requester.name());
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
