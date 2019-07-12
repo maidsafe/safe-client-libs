@@ -8,7 +8,7 @@
 
 use super::{Client, CoreError, FutureExt};
 use futures::{self, Future};
-use safe_nd::{ImmutableData, XorName, XOR_NAME_LEN};
+use safe_nd::{PubImmutableData, XorName, XOR_NAME_LEN};
 use self_encryption::{Storage, StorageError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
@@ -53,7 +53,7 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
 
     fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData.");
-        let data = ImmutableData::new(data);
+        let data = PubImmutableData::new(data);
         self.client.put_idata(data).map_err(From::from).into_box()
     }
 }

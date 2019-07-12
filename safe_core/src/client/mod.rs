@@ -34,18 +34,21 @@ use self::mock::Routing;
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 
+use crate::client::account::Account;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::event::{CoreEvent, NetworkEvent, NetworkTx};
 use crate::event_loop::{CoreFuture, CoreMsgTx};
 use crate::ipc::BootstrapConfig;
-use crate::utils::FutureExt;
+use crate::utils::{self, FutureExt};
 use futures::future::{self, Either, FutureResult, Loop, Then};
 use futures::sync::oneshot;
 use futures::{Complete, Future};
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, Joiner};
+use new_rand::rngs::StdRng;
+use new_rand::SeedableRng;
 use routing::{
     AccountInfo, Authority, EntryAction, Event, FullId, InterfaceError, MutableData, PermissionSet,
     User, Value,
@@ -54,11 +57,11 @@ use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataIndex, ADataIndices, ADataOwner, ADataPubPermissionSet,
     ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
-    Coins, IDataAddress, IDataKind, ImmutableData, MDataAddress,
-    MDataPermissionSet as NewPermissionSet, MDataSeqEntryAction as SeqEntryAction,
-    MDataUnseqEntryAction as UnseqEntryAction, MDataValue as Val, Message, MessageId,
-    MutableData as NewMutableData, PublicKey, Request, Response, SeqMutableData, Transaction,
-    UnpubImmutableData, UnseqMutableData, XorName,
+    ClientFullId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress,
+    MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
+    MDataValue as Val, Message, MessageId, MutableData as NewMutableData, PubImmutableData,
+    PublicKey, Request, Response, SeqMutableData, Signature, Transaction, UnpubImmutableData,
+    UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -201,12 +204,12 @@ pub trait Client: Clone + 'static {
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
-    fn get_idata(&self, name: XorName) -> Box<CoreFuture<ImmutableData>> {
+    fn get_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
         trace!("GetIData for {:?}", name);
 
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&name) {
-            trace!("ImmutableData found in cache.");
+            trace!("PubImmutableData found in cache.");
             return future::ok(data.clone()).into_box();
         }
 
@@ -230,7 +233,7 @@ pub trait Client: Clone + 'static {
     // Trait when it arrives in stable. Change from `Box<CoreFuture>` -> `impl
     // CoreFuture`.
     /// Put immutable data onto the network.
-    fn put_idata(&self, data: ImmutableData) -> Box<CoreFuture<()>> {
+    fn put_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
         trace!("PutIData for {:?}", data);
 
         let msg_id = MessageId::new();
@@ -253,56 +256,166 @@ pub trait Client: Clone + 'static {
     /// Put unsequenced mutable data to the network
     fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Unsequenced MData at {:?}", data.name());
-        send_mutation_new(self, Request::PutUnseqMData(data.clone()))
+        send_mutation_new(self, Request::PutMData(MData::Unseq(data.clone())))
     }
 
     /// Transfer coin balance
     fn transfer_coins(
         &self,
-        source: XorName,
+        secret_key: Option<&threshold_crypto::SecretKey>,
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<u64>> {
+    ) -> Box<CoreFuture<Transaction>> {
         trace!("Transfer {} coins to {:?}", amount, destination);
 
         let transaction_id = transaction_id.unwrap_or_else(rand::random);
-
-        send_mutation_new(
-            self,
-            Request::TransferCoins {
-                source,
-                destination,
-                amount,
-                transaction_id,
-            },
-        )
-        .map(move |_| transaction_id)
+        let req = Request::TransferCoins {
+            destination,
+            amount,
+            transaction_id,
+        };
+        let (message, requester) = match secret_key {
+            Some(key) => (
+                sign_request_with_key(req, key),
+                Some(PublicKey::from(key.public_key())),
+            ),
+            None => (self.compose_message(req), None),
+        };
+        send(self, message.message_id(), move |routing| {
+            routing.send(requester, &unwrap!(serialise(&message)))
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::Transaction(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
         .into_box()
     }
 
-    /// Get the current coin balance.
-    fn get_balance(&self, destination: XorName) -> Box<CoreFuture<Coins>> {
-        trace!("Get balance for {:?}", destination);
+    /// Creates a new balance on the network.
+    fn create_balance(
+        &self,
+        secret_key: Option<&threshold_crypto::SecretKey>,
+        new_balance_owner: PublicKey,
+        amount: Coins,
+        transaction_id: Option<u64>,
+    ) -> Box<CoreFuture<Transaction>> {
+        trace!(
+            "Create a new balance for {:?} with {} coins.",
+            new_balance_owner,
+            amount
+        );
 
-        send_new(self, Request::GetBalance(destination))
-            .and_then(|event| {
-                let res = match event {
-                    CoreEvent::RpcResponse(res) => res,
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
-                };
-                let result_buffer = unwrap!(res);
-                let res: Response = unwrap!(deserialise(&result_buffer));
-                match res {
-                    Response::GetBalance(res) => res.map_err(CoreError::from),
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
-                }
-            })
-            .into_box()
+        let transaction_id = transaction_id.unwrap_or_else(rand::random);
+        let req = Request::CreateBalance {
+            new_balance_owner,
+            amount,
+            transaction_id,
+        };
+        let (message, requester) = match secret_key {
+            Some(key) => (
+                sign_request_with_key(req, key),
+                Some(PublicKey::from(key.public_key())),
+            ),
+            None => (self.compose_message(req), None),
+        };
+        send(self, message.message_id(), move |routing| {
+            routing.send(requester, &unwrap!(serialise(&message)))
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::Transaction(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+
+    /// Insert a given login packet at the specified destination
+    fn insert_login_packet_for(
+        &self,
+        secret_key: Option<&threshold_crypto::SecretKey>,
+        new_owner: PublicKey,
+        amount: Coins,
+        transaction_id: Option<u64>,
+        new_login_packet: LoginPacket,
+    ) -> Box<CoreFuture<()>> {
+        trace!(
+            "Insert a login packet for {:?} preloading the wallet with {} coins.",
+            new_owner,
+            amount
+        );
+
+        let transaction_id = transaction_id.unwrap_or_else(rand::random);
+        let req = Request::CreateLoginPacketFor {
+            new_owner,
+            amount,
+            transaction_id,
+            new_login_packet,
+        };
+        let (message, requester) = match secret_key {
+            Some(key) => (
+                sign_request_with_key(req, key),
+                Some(PublicKey::from(key.public_key())),
+            ),
+            None => (self.compose_message(req), None),
+        };
+        send_mutation(self, message.message_id(), move |routing, _| {
+            routing.send(requester, &unwrap!(serialise(&message)))
+        })
+    }
+
+    /// Get the current coin balance.
+    fn get_balance(
+        &self,
+        secret_key: Option<&threshold_crypto::SecretKey>,
+    ) -> Box<CoreFuture<Coins>> {
+        let req = Request::GetBalance;
+        let (request, requester) = match secret_key {
+            Some(key) => (
+                sign_request_with_key(req, key),
+                Some(PublicKey::from(key.public_key())),
+            ),
+            None => (self.compose_message(req), None),
+        };
+        trace!(
+            "Get balance for {:?}",
+            requester.unwrap_or_else(|| unwrap!(self.owner_key()))
+        );
+        send(self, request.message_id(), move |routing| {
+            routing.send(requester, &unwrap!(serialise(&request)))
+        })
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::GetBalance(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
     }
 
     /// Get published immutable data from the network.
-    fn get_pub_idata(&self, name: XorName) -> Box<CoreFuture<ImmutableData>> {
+    fn get_pub_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
         trace!("Fetch Published Immutable Data");
 
         send_new(self, Request::GetIData(IDataAddress::Pub(name)))
@@ -315,8 +428,8 @@ pub trait Client: Clone + 'static {
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
                     Response::GetIData(res) => match res {
-                        Ok(IDataKind::Pub(data)) => Ok(data),
-                        Ok(IDataKind::Unpub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
+                        Ok(IData::Pub(data)) => Ok(data),
+                        Ok(IData::Unpub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
                         Err(e) => Err(e).map_err(CoreError::from),
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -326,7 +439,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put published immutable data to the network.
-    fn put_pub_idata(&self, data: ImmutableData) -> Box<CoreFuture<()>> {
+    fn put_pub_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
         trace!("Put Published IData at {:?}", data.name());
         send_mutation_new(self, Request::PutIData(data.into()))
     }
@@ -345,8 +458,8 @@ pub trait Client: Clone + 'static {
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
                     Response::GetIData(res) => match res {
-                        Ok(IDataKind::Unpub(data)) => Ok(data),
-                        Ok(IDataKind::Pub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
+                        Ok(IData::Unpub(data)) => Ok(data),
+                        Ok(IData::Pub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
                         Err(e) => Err(e).map_err(CoreError::from),
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -367,47 +480,17 @@ pub trait Client: Clone + 'static {
         send_mutation_new(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name)))
     }
 
-    /// Get a transaction.
-    fn get_transaction(
-        &self,
-        destination: XorName,
-        transaction_id: u64,
-    ) -> Box<CoreFuture<Transaction>> {
-        trace!("Get transaction {} for {:?}", transaction_id, destination);
-
-        send_new(
-            self,
-            Request::GetTransaction {
-                coins_balance_id: destination,
-                transaction_id,
-            },
-        )
-        .and_then(|event| {
-            let res = match event {
-                CoreEvent::RpcResponse(res) => res,
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            };
-            let result_buffer = unwrap!(res);
-            let res: Response = unwrap!(deserialise(&result_buffer));
-            match res {
-                Response::GetTransaction(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-        })
-        .into_box()
-    }
-
     /// Put sequenced mutable data to the network
     fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
         trace!("Put Sequenced MData at {:?}", data.name());
-        send_mutation_new(self, Request::PutSeqMData(data))
+        send_mutation_new(self, Request::PutMData(MData::Seq(data)))
     }
 
     /// Fetch unpublished mutable data from the network
     fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
         trace!("Fetch Unsequenced Mutable Data");
 
-        send_new(self, Request::GetMData(MDataAddress::new_unseq(name, tag)))
+        send_new(self, Request::GetMData(MDataAddress::Unseq { name, tag }))
             .and_then(|event| {
                 let res = match event {
                     CoreEvent::RpcResponse(res) => res,
@@ -416,7 +499,12 @@ pub trait Client: Clone + 'static {
                 let result_buffer = unwrap!(res);
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
-                    Response::GetUnseqMData(res) => res.map_err(CoreError::from),
+                    Response::GetMData(res) => {
+                        res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                            MData::Unseq(data) => Ok(data),
+                            _ => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                    }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             })
@@ -430,7 +518,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::GetMDataValue {
-                address: MDataAddress::new_seq(name, tag),
+                address: MDataAddress::Seq { name, tag },
                 key,
             },
         )
@@ -461,7 +549,7 @@ pub trait Client: Clone + 'static {
         send_new(
             self,
             Request::GetMDataValue {
-                address: MDataAddress::new_unseq(name, tag),
+                address: MDataAddress::Unseq { name, tag },
                 key,
             },
         )
@@ -484,7 +572,7 @@ pub trait Client: Clone + 'static {
     fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
         trace!("Fetch Sequenced Mutable Data");
 
-        send_new(self, Request::GetMData(MDataAddress::new_seq(name, tag)))
+        send_new(self, Request::GetMData(MDataAddress::Seq { name, tag }))
             .and_then(|event| {
                 let res = match event {
                     CoreEvent::RpcResponse(res) => res,
@@ -493,7 +581,12 @@ pub trait Client: Clone + 'static {
                 let result_buffer = unwrap!(res);
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
-                    Response::GetSeqMData(res) => res.map_err(CoreError::from),
+                    Response::GetMData(res) => {
+                        res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                            MData::Seq(data) => Ok(data),
+                            _ => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                    }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             })
@@ -535,15 +628,15 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-        actions: BTreeMap<Vec<u8>, SeqEntryAction>,
+        actions: MDataSeqEntryActions,
     ) -> Box<CoreFuture<()>> {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation_new(
             self,
             Request::MutateSeqMDataEntries {
-                address: MDataAddress::new_seq(name, tag),
-                actions: actions.clone(),
+                address: MDataAddress::Seq { name, tag },
+                actions,
             },
         )
     }
@@ -553,15 +646,15 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-        actions: BTreeMap<Vec<u8>, UnseqEntryAction>,
+        actions: MDataUnseqEntryActions,
     ) -> Box<CoreFuture<()>> {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation_new(
             self,
             Request::MutateUnseqMDataEntries {
-                address: MDataAddress::new_unseq(name, tag),
-                actions: actions.clone(),
+                address: MDataAddress::Unseq { name, tag },
+                actions,
             },
         )
     }
@@ -596,7 +689,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetMDataShell(MDataAddress::new_seq(name, tag)),
+            Request::GetMDataShell(MDataAddress::Seq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -606,7 +699,12 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetSeqMDataShell(res) => res.map_err(CoreError::from),
+                Response::GetMDataShell(res) => {
+                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                        MData::Seq(data) => Ok(data),
+                        _ => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -619,7 +717,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::GetMDataShell(MDataAddress::new_unseq(name, tag)),
+            Request::GetMDataShell(MDataAddress::Unseq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -629,7 +727,12 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetUnseqMDataShell(res) => res.map_err(CoreError::from),
+                Response::GetMDataShell(res) => {
+                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                        MData::Unseq(data) => Ok(data),
+                        _ => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -694,7 +797,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataEntries(MDataAddress::new_unseq(name, tag)),
+            Request::ListMDataEntries(MDataAddress::Unseq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -721,7 +824,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataEntries(MDataAddress::new_seq(name, tag)),
+            Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -776,7 +879,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataValues(MDataAddress::new_seq(name, tag)),
+            Request::ListMDataValues(MDataAddress::Seq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -823,7 +926,7 @@ pub trait Client: Clone + 'static {
 
         send_new(
             self,
-            Request::ListMDataValues(MDataAddress::new_unseq(name, tag)),
+            Request::ListMDataValues(MDataAddress::Unseq { name, tag }),
         )
         .and_then(|event| {
             let res = match event {
@@ -926,6 +1029,29 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
+    /// Fetch Value for the provided key from AppendOnly Data at {:?}
+    fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Box<CoreFuture<Vec<u8>>> {
+        trace!(
+            "Fetch Value for the provided key from AppendOnly Data at {:?}",
+            address.name()
+        );
+
+        send_new(self, Request::GetADataValue { address, key })
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::GetADataValue(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
+    }
+
     /// Get a Set of Entries for the requested range from an AData.
     #[allow(clippy::type_complexity)]
     fn get_adata_range(
@@ -934,7 +1060,7 @@ pub trait Client: Clone + 'static {
         range: (ADataIndex, ADataIndex),
     ) -> Box<CoreFuture<Vec<(Vec<u8>, Vec<u8>)>>> {
         trace!(
-            "Get Rage of entries from AppendOnly Data at {:?}",
+            "Get Range of entries from AppendOnly Data at {:?}",
             address.name()
         );
 
@@ -1141,6 +1267,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
+        permissions_idx: u64,
     ) -> Box<CoreFuture<()>> {
         trace!(
             "Add Permissions to UnPub AppendOnly Data {:?}",
@@ -1152,6 +1279,7 @@ pub trait Client: Clone + 'static {
             Request::AddUnpubADataPermissions {
                 address,
                 permissions,
+                permissions_idx,
             },
         )
     }
@@ -1161,6 +1289,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions: ADataPubPermissions,
+        permissions_idx: u64,
     ) -> Box<CoreFuture<()>> {
         trace!("Add Permissions to AppendOnly Data {:?}", address.name());
 
@@ -1169,15 +1298,28 @@ pub trait Client: Clone + 'static {
             Request::AddPubADataPermissions {
                 address,
                 permissions,
+                permissions_idx,
             },
         )
     }
 
     /// Set new Owners to AData
-    fn set_adata_owners(&self, address: ADataAddress, owner: ADataOwner) -> Box<CoreFuture<()>> {
+    fn set_adata_owners(
+        &self,
+        address: ADataAddress,
+        owner: ADataOwner,
+        owners_idx: u64,
+    ) -> Box<CoreFuture<()>> {
         trace!("Set Owners to AppendOnly Data {:?}", address.name());
 
-        send_mutation_new(self, Request::SetADataOwner { address, owner })
+        send_mutation_new(
+            self,
+            Request::SetADataOwner {
+                address,
+                owner,
+                owners_idx,
+            },
+        )
     }
 
     /// Set new Owners to AData
@@ -1481,17 +1623,216 @@ pub trait Client: Clone + 'static {
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
     ))]
-    fn create_coin_balance(
-        &self,
-        coin_balance_name: &XorName,
-        amount: Coins,
-        owner: threshold_crypto::PublicKey,
-    ) {
+    fn test_create_balance(&self, coin_balance_name: &XorName, amount: Coins, owner: PublicKey) {
         let inner = self.inner();
         inner
             .borrow_mut()
             .routing
-            .create_coin_balance(coin_balance_name, amount, owner);
+            .create_balance(coin_balance_name, amount, owner);
+    }
+
+    /// Add coins to a coinbalance for testing
+    #[cfg(any(
+        all(test, feature = "mock-network"),
+        all(feature = "testing", feature = "mock-network")
+    ))]
+    fn allocate_test_coins(
+        &self,
+        coin_balance_name: &XorName,
+        amount: Coins,
+    ) -> Result<(), SndError> {
+        let inner = self.inner();
+        let result = inner
+            .borrow_mut()
+            .routing
+            .allocate_test_coins(coin_balance_name, amount);
+        result.clone()
+    }
+}
+
+/// Get the balance at the given key's location
+pub fn wallet_get_balance(wallet_sk: &threshold_crypto::SecretKey) -> Result<Coins, SndError> {
+    trace!("Get balance for {:?}", wallet_sk);
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            wallet_sk.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, Request::GetBalance);
+    match rpc_response {
+        Response::GetBalance(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Creates a new coin balance on the network.
+pub fn wallet_create_balance(
+    secret_key: &threshold_crypto::SecretKey,
+    new_balance_owner: PublicKey,
+    amount: Coins,
+    transaction_id: Option<u64>,
+) -> Result<Transaction, SndError> {
+    trace!(
+        "Create a new coin balance for {:?} with {} coins.",
+        new_balance_owner,
+        amount
+    );
+
+    let transaction_id = transaction_id.unwrap_or_else(rand::random);
+    let req = Request::CreateBalance {
+        new_balance_owner,
+        amount,
+        transaction_id,
+    };
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            secret_key.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, req);
+    match rpc_response {
+        Response::Transaction(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Transfer coins
+pub fn wallet_transfer_coins(
+    secret_key: &threshold_crypto::SecretKey,
+    destination: XorName,
+    amount: Coins,
+    transaction_id: Option<u64>,
+) -> Result<Transaction, SndError> {
+    trace!("Transfer {} coins to {:?}", amount, destination);
+    let transaction_id = transaction_id.unwrap_or_else(rand::random);
+    let req = Request::TransferCoins {
+        destination,
+        amount,
+        transaction_id,
+    };
+
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            secret_key.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, req);
+    match rpc_response {
+        Response::Transaction(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Create an account given a locator and passsword and the secret key of an existing coin balance.
+pub fn create_account(
+    acc_locator: &str,
+    acc_password: &str,
+    wallet_sk: &threshold_crypto::SecretKey,
+) -> Result<(), SndError> {
+    trace!("Creating an account.");
+
+    let (password, keyword, pin) =
+        utils::derive_secrets(acc_locator.as_bytes(), acc_password.as_bytes());
+
+    let acc_loc = Account::generate_network_id(&keyword, &pin)
+        .map_err(|_| SndError::from("Cannot generate network ID"))?;
+
+    let maid_keys = ClientKeys::new(None);
+    let acc = Account::new(maid_keys).map_err(|_| SndError::from("Can't create account"))?;
+
+    let acc_buffer = acc
+        .encrypt(&password, &pin)
+        .map_err(|_| SndError::from("Error encrypting account packet"))?;
+    let locator_bytes = acc_locator.as_bytes();
+    let secret_bytes = acc_password.as_bytes();
+    let mut seeder: Vec<u8> = Vec::with_capacity(locator_bytes.len() + secret_bytes.len());
+    seeder.extend_from_slice(locator_bytes);
+    seeder.extend_from_slice(secret_bytes);
+
+    let seed = tiny_keccak::sha3_256(&seeder);
+
+    let mut rng = StdRng::from_seed(seed);
+
+    let client_full_id = ClientFullId::new_bls(&mut rng);
+
+    let sig = client_full_id.sign(&acc_buffer);
+    let client_pk = client_full_id.public_id().public_key();
+    let new_account_data = LoginPacket::new(acc_loc, *client_pk, acc_buffer, sig)?;
+
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        Some(NewFullId::Client(ClientFullId::with_bls_key(
+            wallet_sk.clone(),
+        ))),
+        None,
+    )
+    .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, Request::CreateLoginPacket(new_account_data));
+    match rpc_response {
+        Response::Mutation(res) => res,
+        _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// Fetches the account data from a location and verifies the signature
+pub fn get_login_packet(acc_locator: &str, acc_password: &str) -> Result<Account, SndError> {
+    let acc_locator = acc_locator.as_bytes();
+    let acc_password = acc_password.as_bytes();
+    let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
+    let acc_loc = Account::generate_network_id(&keyword, &pin)
+        .map_err(|_| SndError::from("Error generating network ID"))?;
+
+    let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+    seeder.extend_from_slice(acc_locator);
+    seeder.extend_from_slice(acc_password);
+
+    let seed = tiny_keccak::sha3_256(&seeder);
+
+    let mut rng = StdRng::from_seed(seed);
+
+    let client_full_id = ClientFullId::new_bls(&mut rng);
+    let client_pk = *client_full_id.public_id().public_key();
+
+    let (mut routing, routing_rx) =
+        setup_routing(None, Some(NewFullId::Client(client_full_id)), None)
+            .map_err(|_| SndError::from("Routing error"))?;
+
+    let rpc_response = routing.req(&routing_rx, Request::GetLoginPacket(acc_loc));
+    let (account_buffer, signature) = match rpc_response {
+        Response::GetLoginPacket(res) => res?,
+        _ => return Err(SndError::from("Unexpected response")),
+    };
+
+    client_pk.verify(&signature, account_buffer.as_slice())?;
+    let account = Account::decrypt(account_buffer.as_slice(), &password, &pin)
+        .map_err(|_| SndError::from("Error decrypting login packet"))?;
+    Ok(account)
+}
+
+fn sign_request_with_key(request: Request, key: &threshold_crypto::SecretKey) -> Message {
+    let message_id = MessageId::new();
+
+    let signature = Some(Signature::from(
+        key.sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
+    ));
+
+    Message::Request {
+        request,
+        message_id,
+        signature,
     }
 }
 
@@ -1503,7 +1844,7 @@ pub struct ClientInner<C: Client, T> {
     el_handle: Handle,
     routing: Routing,
     hooks: HashMap<MessageId, Complete<CoreEvent>>,
-    cache: LruCache<XorName, ImmutableData>,
+    cache: LruCache<XorName, PubImmutableData>,
     timeout: Duration,
     joiner: Joiner,
     core_tx: CoreMsgTx<C, T>,
@@ -1516,7 +1857,7 @@ impl<C: Client, T> ClientInner<C, T> {
         el_handle: Handle,
         routing: Routing,
         hooks: HashMap<MessageId, Complete<CoreEvent>>,
-        cache: LruCache<XorName, ImmutableData>,
+        cache: LruCache<XorName, PubImmutableData>,
         timeout: Duration,
         joiner: Joiner,
         core_tx: CoreMsgTx<C, T>,
@@ -1589,10 +1930,9 @@ pub fn setup_routing(
 }
 
 fn send_new(client: &impl Client, request: Request) -> Box<CoreFuture<CoreEvent>> {
-    let dst = some_or_err!(client.cm_addr());
     let request = client.compose_message(request);
     send(client, request.message_id(), move |routing| {
-        routing.send(dst, &unwrap!(serialise(&request)))
+        routing.send(None, &unwrap!(serialise(&request)))
     })
 }
 
@@ -1633,8 +1973,8 @@ where
 fn send_mutation_new(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
     let message = client.compose_message(req);
 
-    send_mutation(client, message.message_id(), move |routing, dst| {
-        routing.send(dst, &unwrap!(serialise(&message)))
+    send_mutation(client, message.message_id(), move |routing, _| {
+        routing.send(None, &unwrap!(serialise(&message)))
     })
 }
 
@@ -1651,25 +1991,7 @@ where
                 let response_buffer = unwrap!(res);
                 let response: Response = unwrap!(deserialise(&response_buffer));
                 match response {
-                    Response::PutIData(res)
-                    | Response::DeleteUnpubIData(res)
-                    | Response::TransferCoins(res)
-                    | Response::InsAuthKey(res)
-                    | Response::DelAuthKey(res)
-                    | Response::PutUnseqMData(res)
-                    | Response::DeleteMData(res)
-                    | Response::SetMDataUserPermissions(res)
-                    | Response::DelMDataUserPermissions(res)
-                    | Response::MutateSeqMDataEntries(res)
-                    | Response::MutateUnseqMDataEntries(res)
-                    | Response::PutAData(res)
-                    | Response::DeleteAData(res)
-                    | Response::AddPubADataPermissions(res)
-                    | Response::AddUnpubADataPermissions(res)
-                    | Response::AppendSeq(res)
-                    | Response::AppendUnseq(res)
-                    | Response::SetADataOwner(res)
-                    | Response::PutSeqMData(res) => res.map_err(CoreError::from),
+                    Response::Mutation(res) => res.map_err(CoreError::from),
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             }
@@ -1763,7 +2085,7 @@ mod tests {
         MDataAction, PubSeqAppendOnlyData, SeqAppendOnly, UnpubSeqAppendOnlyData,
         UnpubUnseqAppendOnlyData, UnseqAppendOnly,
     };
-    use safe_nd::{Coins, Error, XorName};
+    use safe_nd::{Coins, Error as SndError, XorName};
     use std::str::FromStr;
     use threshold_crypto::SecretKey;
 
@@ -1773,18 +2095,23 @@ mod tests {
         random_client(move |client| {
             let client2 = client.clone();
             let client3 = client.clone();
+            let client4 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = ImmutableData::new(value.clone());
+            let data = PubImmutableData::new(value.clone());
             let name = *data.name();
 
+            let test_data = UnpubImmutableData::new(
+                value.clone(),
+                PublicKey::Bls(threshold_crypto::SecretKey::random().public_key()),
+            );
             client
                 // Get inexistent idata
                 .get_pub_idata(name)
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(data) => panic!("Pub idata should not exist yet: {:?}", data),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1793,8 +2120,19 @@ mod tests {
                     client2.put_pub_idata(data.clone())
                 })
                 .and_then(move |_| {
+                    client3
+                        .put_unpub_idata(test_data.clone())
+                        .then(|res| match res {
+                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
+                                Ok(())
+                            }
+                            Err(e) => panic!("Unexpected: {:?}", e),
+                        })
+                })
+                .and_then(move |_| {
                     // Fetch idata
-                    client3.get_pub_idata(name).map(move |fetched_data| {
+                    client4.get_pub_idata(name).map(move |fetched_data| {
                         assert_eq!(*fetched_data.name(), name);
                     })
                 })
@@ -1814,13 +2152,16 @@ mod tests {
             let client8 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = UnpubImmutableData::new(value.clone(), unwrap!(client.public_bls_key()));
+            let data = UnpubImmutableData::new(
+                value.clone(),
+                PublicKey::Bls(unwrap!(client.public_bls_key())),
+            );
             let data2 = data.clone();
             let data3 = data.clone();
             let name = *data.name();
             assert_eq!(name, *data2.name());
 
-            let pub_data = ImmutableData::new(value);
+            let pub_data = PubImmutableData::new(value);
 
             client
                 // Get inexistent idata
@@ -1828,7 +2169,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata should not exist yet"),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1843,7 +2184,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Put duplicate unpub idata"),
-                        Err(CoreError::NewRoutingClientError(Error::DataExists)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::DataExists)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1868,7 +2209,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata still exists after deletion"),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1917,7 +2258,7 @@ mod tests {
                     println!("Put unseq. MData successfully");
 
                     client3
-                        .get_mdata_version_new(MDataAddress::new_unseq(name, tag))
+                        .get_mdata_version_new(MDataAddress::Unseq { name, tag })
                         .map(move |version| assert_eq!(version, 0))
                 })
                 .and_then(move |_| {
@@ -1929,7 +2270,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(MDataAddress::new_unseq(name, tag))
+                        .list_mdata_keys_new(MDataAddress::Unseq { name, tag })
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
@@ -1965,7 +2306,13 @@ mod tests {
             let name = XorName(rand::random());
             let tag = 15001;
             let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
-            let _ = entries.insert(b"key".to_vec(), Val::new(b"value".to_vec(), 0));
+            let _ = entries.insert(
+                b"key".to_vec(),
+                Val {
+                    data: b"value".to_vec(),
+                    version: 0,
+                },
+            );
             let entries_keys = entries.keys().cloned().collect();
             let entries_values: Vec<Val> = entries.values().cloned().collect();
             let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1981,6 +2328,7 @@ mod tests {
                 permissions,
                 PublicKey::from(unwrap!(client.public_bls_key())),
             );
+
             client
                 .put_seq_mutable_data(data.clone())
                 .and_then(move |_| {
@@ -2003,7 +2351,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5
-                        .list_mdata_keys_new(MDataAddress::new_seq(name, tag))
+                        .list_mdata_keys_new(MDataAddress::Seq { name, tag })
                         .map(move |keys| assert_eq!(keys, entries_keys))
                 })
                 .and_then(move |_| {
@@ -2032,7 +2380,7 @@ mod tests {
             let client3 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
-            let mdataref = MDataAddress::new_seq(name, tag);
+            let mdataref = MDataAddress::Seq { name, tag };
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
@@ -2053,10 +2401,10 @@ mod tests {
                         .get_unseq_mdata(*data.name(), data.tag())
                         .then(move |res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => (),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => (),
                                 _ => panic!("Unexpected success"),
                             }
-                            Ok::<_, Error>(())
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2071,7 +2419,7 @@ mod tests {
             let client3 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
-            let mdataref = MDataAddress::new_unseq(name, tag);
+            let mdataref = MDataAddress::Unseq { name, tag };
             let data = UnseqMutableData::new_with_data(
                 name,
                 tag,
@@ -2093,107 +2441,187 @@ mod tests {
                         .get_unseq_mdata(*data.name(), data.tag())
                         .then(move |res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => (),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => (),
                                 _ => panic!("Unexpected success"),
                             }
-                            Ok::<_, Error>(())
+                            Ok::<_, SndError>(())
                         })
                 })
         });
     }
 
-    // 1. Create 2 accounts with 2 wallets (A and B).
-    // 2. Try to request balance of wallet A from account B. This request should fail.
-    // 3. Try to transfer balance from wallet A to wallet B using account B. This request should fail. -- TODO
-    // 4. Try to request transaction from wallet A using account B. This request should succeed (because transactions are always open).
+    // 1. Create 2 accounts and create a wallet only for account A.
+    // 2. Try to transfer coins from A to inexistent wallet. This request should fail.
+    // 3. Try to request balance of wallet B. This request should fail.
+    // 4. Now create a wallet for account B and transfer some coins to A. This should pass.
+    // 5. Try to request transaction from wallet A using account B. This request should succeed (because transactions are always open).
     #[test]
     fn coin_permissions() {
-        let wallet1 = random_client(move |client| {
-            let name: XorName = new_rand::random();
-            client.create_coin_balance(
-                &name,
-                unwrap!(Coins::from_str("1000.0")),
-                unwrap!(client.public_bls_key()),
+        let wallet_a_addr = random_client(move |client| {
+            let wallet_a_addr: XorName = unwrap!(client.owner_key()).into();
+            client.test_create_balance(
+                &wallet_a_addr,
+                unwrap!(Coins::from_str("10.0")),
+                unwrap!(client.owner_key()),
             );
-            Ok::<_, Error>(name)
+            client
+                .transfer_coins(
+                    None,
+                    new_rand::random(),
+                    unwrap!(Coins::from_str("5.0")),
+                    None,
+                )
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchBalance)) => (),
+                        res => panic!("Unexpected result: {:?}", res),
+                    }
+                    Ok::<_, SndError>(wallet_a_addr)
+                })
         });
 
         random_client(move |client| {
             let c2 = client.clone();
-
+            let c3 = client.clone();
+            let c4 = client.clone();
             client
-                .get_balance(wallet1)
+                .get_balance(None)
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchBalance)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
+                    let wallet_b_addr: XorName = unwrap!(c3.owner_key()).into();
+                    c2.test_create_balance(
+                        &wallet_b_addr,
+                        unwrap!(Coins::from_str("50.0")),
+                        unwrap!(c3.owner_key()),
+                    );
 
-                    c2.get_transaction(wallet1, 1)
+                    c3.transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
                 })
                 .then(move |res| {
                     match res {
-                        Ok(Transaction::NoSuchTransaction) => (),
+                        Ok(transaction) => {
+                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("10")))
+                        }
+                        res => panic!("Unexpected error: {:?}", res),
+                    }
+                    c4.get_balance(None)
+                })
+                .then(move |res| {
+                    let expected_amt = unwrap!(Coins::from_str("40"));
+                    match res {
+                        Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    Ok::<_, Error>(())
+                    Ok::<_, SndError>(())
                 })
         });
     }
 
-    // 1. Create 2 accounts with 2 wallets.
-    // 2. Transfer 5 coins from wallet A to wallet B.
-    // 3. Check that the balance of wallet B is credited for 5 coins and the balance of
-    //    wallet A is debited for 5 coins.
+    // 1. Create a client with a wallet. Create an anonymous wallet preloading it from the client's wallet.
+    // 2. Transfer some safecoin from the anonymous wallet to the client.
+    // 3. Fetch the balances of both the wallets and verify them.
+    #[test]
+    fn anonymous_wallet() {
+        random_client(move |client| {
+            let client1 = client.clone();
+            let client2 = client.clone();
+            let client3 = client.clone();
+            let client4 = client.clone();
+            let bls_sk = threshold_crypto::SecretKey::random();
+            let bls_sk2 = bls_sk.clone();
+            let wallet1: XorName = unwrap!(client.owner_key()).into();
+
+            client.test_create_balance(
+                &wallet1,
+                unwrap!(Coins::from_str("500.0")),
+                unwrap!(client.owner_key()),
+            );
+
+            client1
+                .create_balance(
+                    None,
+                    PublicKey::from(bls_sk.public_key()),
+                    unwrap!(Coins::from_str("100.0")),
+                    None,
+                )
+                .and_then(move |transaction| {
+                    assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
+                    client2
+                        .transfer_coins(
+                            Some(&bls_sk),
+                            wallet1,
+                            unwrap!(Coins::from_str("5.0")),
+                            None,
+                        )
+                        .and_then(move |transaction| {
+                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
+                            Ok(())
+                        })
+                })
+                .and_then(move |_| {
+                    client3.get_balance(Some(&bls_sk2)).and_then(|balance| {
+                        assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
+                        Ok(())
+                    })
+                })
+                .and_then(move |_| {
+                    client4.get_balance(None).and_then(|balance| {
+                        assert_eq!(balance, unwrap!(Coins::from_str("405.0")));
+                        Ok(())
+                    })
+                })
+        });
+    }
+
+    // 1. Create a client A with a wallet and allocate some test safecoin to it.
+    // 2. Get the balance and verify it.
+    // 3. Create another client B with a wallet holding some safecoin.
+    // 4. Transfer some coins from client B to client A and verify the new balance.
+    // 5. Fetch the transaction using the transaction ID and verify the amount.
     #[test]
     fn coin_balance_transfer() {
-        let wallet1 = random_client(move |client| {
-            let name: XorName = new_rand::random();
-            client.create_coin_balance(
-                &name,
-                unwrap!(Coins::from_str("0.0")),
-                unwrap!(client.public_bls_key()),
-            );
-            Ok::<_, Error>(name)
+        let wallet1: XorName = random_client(move |client| {
+            let client1 = client.clone();
+            let client2 = client.clone();
+            let owner_key = unwrap!(client.owner_key());
+            let wallet1: XorName = owner_key.into();
+
+            client.test_create_balance(&wallet1, unwrap!(Coins::from_str("0.0")), owner_key);
+
+            unwrap!(client1.allocate_test_coins(&wallet1, unwrap!(Coins::from_str("100.0"))));
+
+            client2.get_balance(None).and_then(move |balance| {
+                assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
+                Ok(wallet1)
+            })
         });
 
         random_client(move |client| {
-            let wallet2 = new_rand::random();
-            client.create_coin_balance(
-                &wallet2,
-                unwrap!(Coins::from_str("100.0")),
-                unwrap!(client.public_bls_key()),
-            );
+            let owner_key = unwrap!(client.owner_key());
+            let wallet2 = owner_key.into();
+            client.test_create_balance(&wallet2, unwrap!(Coins::from_str("100.0")), owner_key);
 
             let c2 = client.clone();
             let c3 = client.clone();
-            let c4 = client.clone();
 
             client
-                .get_balance(wallet2)
+                .get_balance(None)
                 .and_then(move |orig_balance| {
-                    c2.transfer_coins(wallet2, wallet1, unwrap!(Coins::from_str("5.0")), None)
-                        .map(move |transaction_id| (transaction_id, orig_balance))
+                    c2.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
+                        .map(move |_| orig_balance)
                 })
-                .and_then(move |(transaction_id, orig_balance)| {
-                    c3.get_balance(wallet2)
-                        .map(move |new_balance| (transaction_id, new_balance, orig_balance))
+                .and_then(move |orig_balance| {
+                    c3.get_balance(None)
+                        .map(move |new_balance| (new_balance, orig_balance))
                 })
-                .and_then(move |(transaction_id, new_balance, orig_balance)| {
+                .and_then(move |(new_balance, orig_balance)| {
                     assert_eq!(
                         new_balance,
                         unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
                     );
-
-                    c4.get_transaction(wallet1, transaction_id)
-                })
-                .and_then(move |transaction| {
-                    match transaction {
-                        Transaction::Success(amount) => {
-                            assert_eq!(amount, unwrap!(Coins::from_str("5.0")))
-                        }
-                        res => panic!("Unexpected transaction result: {:?}", res),
-                    }
                     Ok(())
                 })
         });
@@ -2205,7 +2633,7 @@ mod tests {
     pub fn del_unseq_mdata_permission_test() {
         let name = XorName(rand::random());
         let tag = 15001;
-        let mdataref = MDataAddress::new_unseq(name, tag);
+        let mdataref = MDataAddress::Unseq { name, tag };
 
         random_client(move |client| {
             let data = UnseqMutableData::new_with_data(
@@ -2222,10 +2650,10 @@ mod tests {
         random_client(move |client| {
             client.delete_mdata(mdataref).then(|res| {
                 match res {
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     res => panic!("Unexpected result: {:?}", res),
                 }
-                Ok::<_, Error>(())
+                Ok::<_, SndError>(())
             })
         });
     }
@@ -2237,6 +2665,7 @@ mod tests {
     #[test]
     pub fn mdata_permissions_test() {
         random_client(|client| {
+            let client1 = client.clone();
             let client2 = client.clone();
             let client3 = client.clone();
             let client4 = client.clone();
@@ -2257,15 +2686,32 @@ mod tests {
                 name,
                 tag,
                 Default::default(),
-                permissions,
+                permissions.clone(),
                 PublicKey::from(unwrap!(client.public_bls_key())),
+            );
+            let test_data = SeqMutableData::new_with_data(
+                XorName(rand::random()),
+                15000,
+                Default::default(),
+                permissions,
+                PublicKey::Bls(threshold_crypto::SecretKey::random().public_key()),
             );
             client
                 .put_seq_mutable_data(data.clone())
-                .and_then(move |_| {
-                    println!("Put seq. MData successfully");
-
+                .and_then(move |res| {
+                    assert_eq!(res, ());
                     Ok(())
+                })
+                .and_then(move |_| {
+                    client1
+                        .put_seq_mutable_data(test_data.clone())
+                        .then(|res| match res {
+                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
+                                Ok(())
+                            }
+                            Err(e) => panic!("Unexpected: {:?}", e),
+                        })
                 })
                 .and_then(move |_| {
                     let new_perm_set = NewPermissionSet::new()
@@ -2273,18 +2719,21 @@ mod tests {
                         .allow(MDataAction::Read);
                     client2
                         .set_mdata_user_permissions_new(
-                            MDataAddress::new_seq(name, tag),
+                            MDataAddress::Seq { name, tag },
                             user,
                             new_perm_set,
                             1,
                         )
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     println!("Modified user permissions");
 
                     client3
-                        .list_mdata_user_permissions_new(MDataAddress::new_seq(name, tag), user2)
+                        .list_mdata_user_permissions_new(MDataAddress::Seq { name, tag }, user2)
                         .and_then(|permissions| {
                             assert!(!permissions.is_allowed(MDataAction::Insert));
                             assert!(permissions.is_allowed(MDataAction::Read));
@@ -2297,16 +2746,19 @@ mod tests {
                 .and_then(move |_| {
                     client4
                         .del_mdata_user_permissions_new(
-                            MDataAddress::new_seq(name, tag),
+                            MDataAddress::Seq { name, tag },
                             random_user,
                             2,
                         )
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     println!("Deleted permissions");
                     client5
-                        .list_mdata_permissions_new(MDataAddress::new_seq(name, tag))
+                        .list_mdata_permissions_new(MDataAddress::Seq { name, tag })
                         .and_then(|permissions| {
                             assert_eq!(permissions.len(), 1);
                             println!("Permission set verified");
@@ -2327,6 +2779,7 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
+            let client6 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2338,8 +2791,20 @@ mod tests {
             let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
             let _ = permissions.insert(user, permission_set.clone());
             let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
-            let _ = entries.insert(b"key1".to_vec(), Val::new(b"value".to_vec(), 0));
-            let _ = entries.insert(b"key2".to_vec(), Val::new(b"value".to_vec(), 0));
+            let _ = entries.insert(
+                b"key1".to_vec(),
+                Val {
+                    data: b"value".to_vec(),
+                    version: 0,
+                },
+            );
+            let _ = entries.insert(
+                b"key2".to_vec(),
+                Val {
+                    data: b"value".to_vec(),
+                    version: 0,
+                },
+            );
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
@@ -2359,39 +2824,64 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    let mut entry_actions: BTreeMap<Vec<u8>, SeqEntryAction> = Default::default();
-                    let _ = entry_actions.insert(
-                        b"key1".to_vec(),
-                        SeqEntryAction::Update(Val::new(b"newValue".to_vec(), 1)),
-                    );
-                    let _ = entry_actions.insert(b"key2".to_vec(), SeqEntryAction::Del(1));
-                    let _ = entry_actions.insert(
-                        b"key3".to_vec(),
-                        SeqEntryAction::Ins(Val::new(b"value".to_vec(), 0)),
-                    );
+                    let entry_actions: MDataSeqEntryActions = MDataSeqEntryActions::new()
+                        .update(b"key1".to_vec(), b"newValue".to_vec(), 1)
+                        .del(b"key2".to_vec(), 1)
+                        .ins(b"key3".to_vec(), b"value".to_vec(), 0);
 
                     client3
                         .mutate_seq_mdata_entries(name, tag, entry_actions.clone())
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     client4
                         .list_seq_mdata_entries(name, tag)
                         .map(move |fetched_entries| {
                             let mut expected_entries: BTreeMap<_, _> = Default::default();
-                            let _ = expected_entries
-                                .insert(b"key1".to_vec(), Val::new(b"newValue".to_vec(), 1));
-                            let _ = expected_entries
-                                .insert(b"key3".to_vec(), Val::new(b"value".to_vec(), 0));
+                            let _ = expected_entries.insert(
+                                b"key1".to_vec(),
+                                Val {
+                                    data: b"newValue".to_vec(),
+                                    version: 1,
+                                },
+                            );
+                            let _ = expected_entries.insert(
+                                b"key3".to_vec(),
+                                Val {
+                                    data: b"value".to_vec(),
+                                    version: 0,
+                                },
+                            );
                             assert_eq!(fetched_entries, expected_entries);
                         })
                 })
                 .and_then(move |_| {
                     client5
-                        .get_seq_mdata_value(name, tag, b"key1".to_vec())
+                        .get_seq_mdata_value(name, tag, b"key3".to_vec())
                         .and_then(|fetched_value| {
-                            assert_eq!(fetched_value, Val::new(b"newValue".to_vec(), 1));
+                            assert_eq!(
+                                fetched_value,
+                                Val {
+                                    data: b"value".to_vec(),
+                                    version: 0
+                                }
+                            );
                             Ok(())
+                        })
+                })
+                .then(move |_| {
+                    client6
+                        .get_seq_mdata_value(name, tag, b"wrongKey".to_vec())
+                        .then(|res| {
+                            match res {
+                                Ok(_) => panic!("Unexpected: Entry should not exist"),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => (),
+                                Err(err) => panic!("Unexpected error: {:?}", err),
+                            }
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2401,6 +2891,7 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
+            let client6 = client.clone();
             let name = XorName(rand::random());
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2433,18 +2924,17 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    let mut entry_actions: BTreeMap<Vec<u8>, UnseqEntryAction> = Default::default();
-                    let _ = entry_actions.insert(
-                        b"key1".to_vec(),
-                        UnseqEntryAction::Update(b"newValue".to_vec()),
-                    );
-                    let _ = entry_actions.insert(b"key2".to_vec(), UnseqEntryAction::Del);
-                    let _ = entry_actions
-                        .insert(b"key3".to_vec(), UnseqEntryAction::Ins(b"value".to_vec()));
+                    let entry_actions: MDataUnseqEntryActions = MDataUnseqEntryActions::new()
+                        .update(b"key1".to_vec(), b"newValue".to_vec())
+                        .del(b"key2".to_vec())
+                        .ins(b"key3".to_vec(), b"value".to_vec());
 
                     client3
                         .mutate_unseq_mdata_entries(name, tag, entry_actions.clone())
-                        .and_then(|_| Ok(()))
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     client4
@@ -2462,6 +2952,18 @@ mod tests {
                         .and_then(|fetched_value| {
                             assert_eq!(fetched_value, b"newValue".to_vec());
                             Ok(())
+                        })
+                })
+                .then(move |_| {
+                    client6
+                        .get_unseq_mdata_value(name, tag, b"wrongKey".to_vec())
+                        .then(|res| {
+                            match res {
+                                Ok(_) => panic!("Unexpected: Entry should not exist"),
+                                Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => (),
+                                Err(err) => panic!("Unexpected error: {:?}", err),
+                            }
+                            Ok::<_, SndError>(())
                         })
                 })
         });
@@ -2482,20 +2984,23 @@ mod tests {
             let set = ADataUnpubPermissionSet::new(true, true, true);
             let idx = ADataIndex::FromStart(0);
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
-            let address = ADataAddress::new_unpub_seq(name, tag);
+            let address = ADataAddress::UnpubSeq { name, tag };
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
                 data_index: 0,
                 permissions_index: 1,
             };
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::UnpubSeq(data.clone()))
@@ -2522,8 +3027,8 @@ mod tests {
                 .and_then(move |_| {
                     client4.get_adata(address).then(|res| match res {
                         Ok(_) => panic!("AData was not deleted"),
-                        Err(CoreError::NewRoutingClientError(Error::NoSuchData)) => Ok(()),
-                        Err(e) => panic!("Unexpected Error: {:?}", e),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(e) => panic!("Unexpected error: {:?}", e),
                     })
                 })
                 .then(move |res| res)
@@ -2539,10 +3044,12 @@ mod tests {
             let client4 = client.clone();
             let client5 = client.clone();
             let client6 = client.clone();
+            let client7 = client.clone();
+            let client8 = client.clone();
 
             let name = XorName(rand::random());
             let tag = 15000;
-            let adataref = ADataAddress::new_unpub_seq(name, tag);
+            let adataref = ADataAddress::UnpubSeq { name, tag };
             let mut data = UnpubSeqAppendOnlyData::new(name, tag);
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
@@ -2562,22 +3069,25 @@ mod tests {
             let tup1 = (key1, val1);
             let tup2 = (key2, val2);
             let tup3 = (key3, val3);
-            let tup4 = &[(key4, val4)].to_vec();
+            let tup4 = vec![(key4, val4)];
 
             let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
             kvdata.push(tup1);
             kvdata.push(tup2);
             kvdata.push(tup3);
 
-            unwrap!(data.append(&kvdata, 0));
+            unwrap!(data.append(kvdata, 0));
             // Test push
             unwrap!(data.append(tup4, 3));
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 4,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 4,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let idx_start = ADataIndex::FromStart(0);
             let idx_end = ADataIndex::FromEnd(2);
@@ -2603,7 +3113,16 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
+
+            let mut test_data = UnpubSeqAppendOnlyData::new(XorName(rand::random()), 15000);
+            let test_owner = ADataOwner {
+                public_key: PublicKey::Bls(SecretKey::random().public_key()),
+                data_index: 0,
+                permissions_index: 0,
+            };
+
+            unwrap!(test_data.append_owner(test_owner, 0));
 
             client
                 .put_adata(AData::UnpubSeq(data.clone()))
@@ -2612,6 +3131,17 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client1
+                        .put_adata(AData::UnpubSeq(test_data.clone()))
+                        .then(|res| match res {
+                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
+                                Ok(())
+                            }
+                            Err(e) => panic!("Unexpected: {:?}", e),
+                        })
+                })
+                .and_then(move |_| {
+                    client2
                         .get_adata_range(adataref, (idx_start, idx_end))
                         .map(move |data| {
                             assert_eq!(
@@ -2625,21 +3155,35 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client2.get_adata_indices(adataref).map(move |data| {
+                    client3.get_adata_indices(adataref).map(move |data| {
                         assert_eq!(data.data_index(), 4);
                         assert_eq!(data.owners_index(), 1);
                         assert_eq!(data.permissions_index(), 1);
                     })
                 })
                 .and_then(move |_| {
-                    client3.get_adata_last_entry(adataref).map(move |data| {
+                    client4
+                        .get_adata_value(adataref, b"KEY1".to_vec())
+                        .map(move |data| {
+                            assert_eq!(unwrap!(std::str::from_utf8(data.as_slice())), "VALUE1");
+                        })
+                })
+                .and_then(move |_| {
+                    client5.get_adata_last_entry(adataref).map(move |data| {
                         assert_eq!(unwrap!(std::str::from_utf8(data.0.as_slice())), "KEY4");
                         assert_eq!(unwrap!(std::str::from_utf8(data.1.as_slice())), "VALUE4");
                     })
                 })
-                .and_then(move |_| client4.add_unpub_adata_permissions(adataref, perm_set))
                 .and_then(move |_| {
-                    client5
+                    client6
+                        .add_unpub_adata_permissions(adataref, perm_set, 1)
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
+                })
+                .and_then(move |_| {
+                    client7
                         .get_unpub_adata_permissions_at_index(adataref, perm_idx)
                         .map(move |data| {
                             let set = unwrap!(data.permissions.get(&sim_client1));
@@ -2647,11 +3191,11 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client6
+                    client8
                         .get_unpub_adata_user_permissions(
                             adataref,
                             idx_start,
-                            PublicKey::Bls(unwrap!(client6.public_bls_key())),
+                            PublicKey::Bls(unwrap!(client8.public_bls_key())),
                         )
                         .map(move |set| {
                             assert!(set.is_allowed(ADataAction::Append));
@@ -2669,7 +3213,7 @@ mod tests {
             let client1 = client.clone();
             let client2 = client.clone();
 
-            let adataref = ADataAddress::new_pub_seq(name, tag);
+            let adataref = ADataAddress::PubSeq { name, tag };
             let mut data = PubSeqAppendOnlyData::new(name, tag);
 
             let mut perms = BTreeMap::<ADataUser, ADataPubPermissionSet>::new();
@@ -2678,11 +3222,14 @@ mod tests {
             let usr = ADataUser::Key(PublicKey::Bls(unwrap!(client.public_bls_key())));
             let _ = perms.insert(usr, set);
 
-            unwrap!(data.append_permissions(ADataPubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataPubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let key1 = b"KEY1".to_vec();
             let val1 = b"VALUE1".to_vec();
@@ -2702,19 +3249,20 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::PubSeq(data.clone()))
                 .and_then(move |_| {
-                    client1.append_seq_adata(append, 0).map(move |data| {
-                        assert_eq!(data, ());
+                    client1.append_seq_adata(append, 0).then(move |res| {
+                        assert_eq!(unwrap!(res), ());
+                        Ok(())
                     })
                 })
                 .and_then(move |_| {
                     client2.get_adata(adataref).map(move |data| match data {
                         AData::PubSeq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last()).0)),
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).0)),
                             "KEY2"
                         ),
                         _ => panic!("UNEXPECTED DATA!"),
@@ -2732,7 +3280,7 @@ mod tests {
             let client1 = client.clone();
             let client2 = client.clone();
 
-            let adataref = ADataAddress::new_unpub_unseq(name, tag);
+            let adataref = ADataAddress::UnpubUnseq { name, tag };
             let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
 
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
@@ -2740,11 +3288,14 @@ mod tests {
 
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let key1 = b"KEY1".to_vec();
             let val1 = b"VALUE1".to_vec();
@@ -2764,19 +3315,20 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             client
                 .put_adata(AData::UnpubUnseq(data.clone()))
                 .and_then(move |_| {
-                    client1.append_unseq_adata(append).map(move |data| {
-                        assert_eq!(data, ());
+                    client1.append_unseq_adata(append).then(move |res| {
+                        assert_eq!(unwrap!(res), ());
+                        Ok(())
                     })
                 })
                 .and_then(move |_| {
                     client2.get_adata(adataref).map(move |data| match data {
                         AData::UnpubUnseq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last()).0)),
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).0)),
                             "KEY2"
                         ),
                         _ => panic!("UNEXPECTED DATA!"),
@@ -2795,7 +3347,7 @@ mod tests {
             let client2 = client.clone();
             let client3 = client.clone();
 
-            let adataref = ADataAddress::new_unpub_unseq(name, tag);
+            let adataref = ADataAddress::UnpubUnseq { name, tag };
             let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
 
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
@@ -2803,11 +3355,14 @@ mod tests {
 
             let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
 
-            unwrap!(data.append_permissions(ADataUnpubPermissions {
-                permissions: perms,
-                data_index: 0,
-                owner_entry_index: 0,
-            }));
+            unwrap!(data.append_permissions(
+                ADataUnpubPermissions {
+                    permissions: perms,
+                    data_index: 0,
+                    owner_entry_index: 0,
+                },
+                0
+            ));
 
             let key1 = b"KEY1".to_vec();
             let key2 = b"KEY2".to_vec();
@@ -2822,7 +3377,7 @@ mod tests {
             kvdata.push(tup1);
             kvdata.push(tup2);
 
-            unwrap!(data.append(&kvdata));
+            unwrap!(data.append(kvdata));
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
@@ -2830,7 +3385,7 @@ mod tests {
                 permissions_index: 1,
             };
 
-            unwrap!(data.append_owner(owner));
+            unwrap!(data.append_owner(owner, 0));
 
             let owner2 = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client1.public_bls_key())),
@@ -2847,14 +3402,19 @@ mod tests {
             client
                 .put_adata(AData::UnpubUnseq(data.clone()))
                 .and_then(move |_| {
-                    client1.set_adata_owners(adataref, owner2).map(move |data| {
-                        assert_eq!(data, ());
-                    })
+                    client1
+                        .set_adata_owners(adataref, owner2, 1)
+                        .then(move |res| {
+                            assert_eq!(unwrap!(res), ());
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
-                    client2.set_adata_owners(adataref, owner3).map(move |data| {
-                        assert_eq!(data, ());
-                    })
+                    client2
+                        .set_adata_owners(adataref, owner3, 2)
+                        .map(move |data| {
+                            assert_eq!(data, ());
+                        })
                 })
                 .and_then(move |_| {
                     client3.get_adata(adataref).map(move |data| match data {
@@ -2866,4 +3426,112 @@ mod tests {
         });
     }
 
+    // 1. Create a random ClientFullId and a random BLS keypair
+    // 2. Create a LoginPacket with some random data, sign it
+    //    and create an AccountData instance with the BLS public key as the owner
+    // 3. Create a test coin balance for a client and use insert_login_packet_for to store the account packet.
+    // 4. A wallet should be created and preloaded with some safecoin.
+    // 5. Use the BLS secret key to get the balance and verify it.
+    #[test]
+    pub fn account_creation_new1() {
+        random_client(move |client| {
+            let mut rng = new_rand::thread_rng();
+            let client_full_id = ClientFullId::new_bls(&mut rng);
+            let packet_location: XorName = new_rand::random();
+            let bls_sk = threshold_crypto::SecretKey::random();
+            let client_pk = PublicKey::from(bls_sk.public_key());
+            let random_acc_data: [u8; 32] = rand::random();
+            let signature = client_full_id.sign(random_acc_data);
+            let new_account_data = unwrap!(LoginPacket::new(
+                packet_location,
+                client_pk,
+                random_acc_data.to_vec(),
+                signature
+            ));
+
+            let client1 = client.clone();
+            let client2 = client.clone();
+            let owner_key = unwrap!(client.owner_key());
+            let wallet1: XorName = owner_key.into();
+
+            client.test_create_balance(&wallet1, unwrap!(Coins::from_str("100.0")), owner_key);
+
+            client1
+                .insert_login_packet_for(
+                    None,
+                    client_pk,
+                    unwrap!(Coins::from_str("50.0")),
+                    None,
+                    new_account_data,
+                )
+                .and_then(move |_| {
+                    client2
+                        .get_balance(Some(&bls_sk))
+                        .map(|balance| assert_eq!(balance, unwrap!(Coins::from_str("50"))))
+                })
+        });
+    }
+
+    // 1. Create a random BLS key and create a test wallet with some safecoin.
+    // 2. Use this wallet to store a login packet on the network.
+    // 3. Use the credentials to get the account.
+    #[test]
+    pub fn account_creation_new2() {
+        let bls_sk = threshold_crypto::SecretKey::random();
+
+        random_client(move |client| {
+            let wallet: XorName = PublicKey::from(bls_sk.public_key()).into();
+            client.test_create_balance(
+                &wallet,
+                unwrap!(Coins::from_nano(2)),
+                PublicKey::from(bls_sk.public_key()),
+            );
+            let acc_locator: &str = &unwrap!(utils::generate_random_string(10));
+            let acc_password: &str = &unwrap!(utils::generate_random_string(10));
+            unwrap!(create_account(acc_locator, acc_password, &bls_sk));
+
+            let _ = unwrap!(get_login_packet(acc_locator, acc_password));
+
+            client
+                .get_balance(Some(&bls_sk))
+                .map(|balance| assert_eq!(balance, unwrap!(Coins::from_nano(1))))
+        });
+    }
+
+    // 1. Create a random BLS key and create a wallet for it with some test safecoin.
+    // 2. Without a client object, try to get the balance, create new wallets and transfer safecoin.
+    #[test]
+    pub fn wallet_transactions_without_client() {
+        let bls_sk = threshold_crypto::SecretKey::random();
+        let client_pk = PublicKey::from(bls_sk.public_key());
+        let wallet: XorName = client_pk.into();
+
+        random_client(move |client| {
+            client.test_create_balance(&wallet, unwrap!(Coins::from_str("50")), client_pk);
+            Ok::<(), SndError>(())
+        });
+
+        let balance = unwrap!(wallet_get_balance(&bls_sk));
+        let ten_coins = unwrap!(Coins::from_str("10"));
+        assert_eq!(balance, unwrap!(Coins::from_str("50")));
+
+        let new_bls_sk = threshold_crypto::SecretKey::random();
+        let new_client_pk = PublicKey::from(new_bls_sk.public_key());
+        let new_wallet: XorName = new_client_pk.into();
+        let txn = unwrap!(wallet_create_balance(
+            &bls_sk,
+            new_client_pk,
+            ten_coins,
+            None
+        ));
+        assert_eq!(txn.amount, ten_coins);
+        let txn2 = unwrap!(wallet_transfer_coins(&bls_sk, new_wallet, ten_coins, None));
+        assert_eq!(txn2.amount, ten_coins);
+
+        let client_balance = unwrap!(wallet_get_balance(&bls_sk));
+        assert_eq!(client_balance, unwrap!(Coins::from_str("30")));
+
+        let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
+        assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
+    }
 }

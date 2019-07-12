@@ -14,7 +14,7 @@ use crate::{run, AppError};
 use futures::Future;
 use routing::XorName;
 use safe_core::{Client, CoreError};
-use safe_nd::{AppPermissions, Coins, Error, PublicKey, Transaction};
+use safe_nd::{AppPermissions, Coins, Error};
 use std::str::FromStr;
 
 // Apps should not be able to request the coin balance if they don't have
@@ -29,23 +29,18 @@ fn coin_app_deny_permissions() {
     let app = create_app();
 
     unwrap!(run(&app, |client, _app_context| {
-        let owner_bls_key = if let PublicKey::Bls(bls) = unwrap!(client.owner_key()) {
-            bls
-        } else {
-            panic!("Unexpected key type")
-        };
-        let owner_coin_balance = XorName::from(unwrap!(client.owner_key()));
-        client.create_coin_balance(
+        let owner_key = unwrap!(client.owner_key());
+        let owner_coin_balance = XorName::from(owner_key);
+        client.test_create_balance(
             &owner_coin_balance,
             unwrap!(Coins::from_str("100.0")),
-            owner_bls_key,
+            owner_key,
         );
 
         let c2 = client.clone();
-        let c3 = client.clone();
 
         client
-            .get_balance(owner_coin_balance)
+            .get_balance(None)
             .then(move |res| {
                 match res {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
@@ -53,7 +48,7 @@ fn coin_app_deny_permissions() {
                 }
 
                 c2.transfer_coins(
-                    owner_coin_balance,
+                    None,
                     new_rand::random(),
                     unwrap!(Coins::from_str("1.0")),
                     None,
@@ -62,14 +57,6 @@ fn coin_app_deny_permissions() {
             .then(move |res| {
                 match res {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
-
-                c3.get_transaction(owner_coin_balance, 1)
-            })
-            .then(move |res| {
-                match res {
-                    Ok(Transaction::NoSuchTransaction) => (),
                     res => panic!("Unexpected result: {:?}", res),
                 }
                 Ok::<_, AppError>(())
@@ -86,17 +73,9 @@ fn coin_app_allow_permissions() {
     let app = create_app();
 
     let coin_balance2 = unwrap!(run(&app, |client, _app_context| {
-        let owner_bls_key = if let PublicKey::Bls(bls) = unwrap!(client.owner_key()) {
-            bls
-        } else {
-            panic!("Unexpected key type")
-        };
-        let coin_balance2 = XorName::from(unwrap!(client.owner_key()));
-        client.create_coin_balance(
-            &coin_balance2,
-            unwrap!(Coins::from_str("50.0")),
-            owner_bls_key,
-        );
+        let owner_key = unwrap!(client.owner_key());
+        let coin_balance2 = XorName::from(owner_key);
+        client.test_create_balance(&coin_balance2, unwrap!(Coins::from_str("50.0")), owner_key);
         Ok(coin_balance2)
     }));
 
@@ -110,23 +89,18 @@ fn coin_app_allow_permissions() {
 
     // Test the basic coin operations.
     unwrap!(run(&app, move |client, _app_context| {
-        let owner_bls_key = if let PublicKey::Bls(bls) = unwrap!(client.owner_key()) {
-            bls
-        } else {
-            panic!("Unexpected key type")
-        };
-        let owner_coin_balance = XorName::from(unwrap!(client.owner_key()));
-        client.create_coin_balance(
+        let owner_key = unwrap!(client.owner_key());
+        let owner_coin_balance = XorName::from(owner_key);
+        client.test_create_balance(
             &owner_coin_balance,
             unwrap!(Coins::from_str("100.0")),
-            owner_bls_key,
+            owner_key,
         );
 
         let c2 = client.clone();
-        let c3 = client.clone();
 
         client
-            .get_balance(owner_coin_balance)
+            .get_balance(None)
             .then(move |res| {
                 match res {
                     Ok(balance) => println!("{:?}", balance),
@@ -134,7 +108,7 @@ fn coin_app_allow_permissions() {
                 }
 
                 c2.transfer_coins(
-                    owner_coin_balance,
+                    None,
                     coin_balance2,
                     unwrap!(Coins::from_str("1.0")),
                     Some(1),
@@ -142,17 +116,13 @@ fn coin_app_allow_permissions() {
             })
             .then(move |res| {
                 match res {
-                    Ok(_) => (),
+                    Ok(transaction) => {
+                        assert_eq!(transaction.id, 1);
+                        assert_eq!(transaction.amount, unwrap!(Coins::from_str("1.0")));
+                    }
                     res => panic!("Unexpected result: {:?}", res),
                 }
 
-                c3.get_transaction(owner_coin_balance, 1)
-            })
-            .then(move |res| {
-                match res {
-                    Ok(transaction) => println!("{:?}", transaction),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
                 Ok::<_, AppError>(())
             })
     }));

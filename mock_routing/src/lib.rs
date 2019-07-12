@@ -9,7 +9,7 @@
 use maidsafe_utilities::serialisation;
 use rand::{Rand, Rng};
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::{ImmutableData, MessageId as MsgId, PublicKey};
+use safe_nd::{MessageId as MsgId, PubImmutableData, PublicKey};
 pub use safe_nd::{XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{
@@ -113,7 +113,7 @@ pub enum ClientError {
     /// Invalid version for performing a given mutating operation. Contains the
     /// current data version.
     InvalidSuccessor(u64),
-    /// Invalid Operation such as a POST on ImmutableData
+    /// Invalid Operation such as a POST on PubImmutableData
     InvalidOperation,
     /// Wrong invitation token specified by the client
     InvalidInvitation,
@@ -815,18 +815,18 @@ pub enum Request {
     /// Gets MAID account information.
     GetAccountInfo(MsgId),
 
-    // --- ImmutableData ---
+    // --- PubImmutableData ---
     // ==========================
-    /// Puts ImmutableData to the network.
+    /// Puts PubImmutableData to the network.
     PutIData {
-        /// ImmutableData to be stored
-        data: ImmutableData,
+        /// PubImmutableData to be stored
+        data: PubImmutableData,
         /// Unique message identifier
         msg_id: MsgId,
     },
-    /// Fetches ImmutableData from the network by the given name.
+    /// Fetches PubImmutableData from the network by the given name.
     GetIData {
-        /// Network identifier of ImmutableData
+        /// Network identifier of PubImmutableData
         name: XorName,
         /// Unique message identifier
         msg_id: MsgId,
@@ -1046,19 +1046,19 @@ pub enum Response {
         msg_id: MsgId,
     },
 
-    // --- ImmutableData ---
+    // --- PubImmutableData ---
     // ==========================
-    /// Returns a success or failure status of putting ImmutableData to the network.
+    /// Returns a success or failure status of putting PubImmutableData to the network.
     PutIData {
-        /// Result of putting ImmutableData to the network.
+        /// Result of putting PubImmutableData to the network.
         res: Result<(), ClientError>,
         /// Unique message identifier
         msg_id: MsgId,
     },
-    /// Returns a result of fetching ImmutableData from the network.
+    /// Returns a result of fetching PubImmutableData from the network.
     GetIData {
-        /// Result of fetching ImmutableData from the network.
-        res: Result<ImmutableData, ClientError>,
+        /// Result of fetching PubImmutableData from the network.
+        res: Result<PubImmutableData, ClientError>,
         /// Unique message identifier
         msg_id: MsgId,
     },

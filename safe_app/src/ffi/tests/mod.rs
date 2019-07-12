@@ -22,7 +22,7 @@ use safe_core::ffi::AccountInfo;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::{gen_req_id, AuthGranted, Permission};
 use safe_core::Client;
-use safe_nd::ImmutableData;
+use safe_nd::PubImmutableData;
 use std::collections::HashMap;
 use App;
 
@@ -69,7 +69,7 @@ fn account_info() {
 
     unsafe {
         unwrap!((*app).send(move |client, _| client
-            .put_idata(ImmutableData::new(vec![1, 2, 3]))
+            .put_idata(PubImmutableData::new(vec![1, 2, 3]))
             .map_err(move |_| ())
             .into_box()
             .into()));

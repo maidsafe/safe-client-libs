@@ -18,7 +18,7 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::{Client, CoreError, FutureExt, DIR_TAG};
 use safe_nd::{Error, PublicKey, XorName};
 use safe_nd::{
-    MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryAction, MDataUnseqEntryAction,
+    MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
     MDataValue, SeqMutableData, UnseqMutableData,
 };
 use std::collections::BTreeMap;
@@ -36,27 +36,21 @@ fn md_created_by_app_1() {
     let (name_tx, name_rx) = mpsc::channel();
     unwrap!(app.send(move |client, _app_context| {
         let sign_pk = unwrap!(client.public_signing_key());
-        let bls_pk = unwrap!(client.public_bls_key());
-        unwrap!(app_keys_tx.send((sign_pk, bls_pk)));
+        let bls_pk = unwrap!(client.owner_key());
+        let app_bls_key = unwrap!(client.public_bls_key());
+        unwrap!(app_keys_tx.send((sign_pk, PublicKey::from(app_bls_key))));
         let name: XorName = unwrap!(name_rx.recv());
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(
-            vec![1, 2, 3, 4],
-            MDataSeqEntryAction::Ins(MDataValue::new(vec![2, 3, 5], 0)),
-        );
+        let entry_actions = MDataSeqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5], 0);
         let cl2 = client.clone();
         let cl3 = client.clone();
         let name2 = name;
         client
-            .mutate_seq_mdata_entries(name, DIR_TAG, actions)
+            .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 2, 3, 4],
-                    MDataSeqEntryAction::Update(MDataValue::new(vec![2, 8, 5], 1)),
-                );
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions =
+                    MDataSeqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5], 1);
+                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -64,10 +58,13 @@ fn md_created_by_app_1() {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let user = PublicKey::from(bls_pk);
+                let user = bls_pk;
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
                 cl3.set_mdata_user_permissions_new(
-                    MDataAddress::new_seq(name2, DIR_TAG),
+                    MDataAddress::Seq {
+                        name: name2,
+                        tag: DIR_TAG,
+                    },
                     user,
                     permissions,
                     2,
@@ -98,8 +95,6 @@ fn md_created_by_app_1() {
                     .allow(MDataAction::Read),
             );
 
-            let owners = unwrap!(client.public_bls_key());
-
             let name: XorName = XorName(rng.gen());
 
             let mdata = SeqMutableData::new_with_data(
@@ -107,7 +102,7 @@ fn md_created_by_app_1() {
                 DIR_TAG,
                 BTreeMap::new(),
                 permissions,
-                PublicKey::from(owners),
+                unwrap!(client.owner_key()),
             );
             let cl2 = client.clone();
             let cl3 = client.clone();
@@ -142,11 +137,10 @@ fn md_created_by_app_2() {
     let (name_tx, name_rx) = mpsc::channel();
     unwrap!(app.send(move |client, _app_context| {
         let sign_pk = unwrap!(client.public_signing_key());
-        let bls_pk = unwrap!(client.public_bls_key());
-        unwrap!(app_keys_tx.send((sign_pk, bls_pk)));
+        let app_bls_key = unwrap!(client.public_bls_key());
+        unwrap!(app_keys_tx.send((sign_pk, PublicKey::from(app_bls_key))));
         let name: XorName = unwrap!(name_rx.recv());
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(vec![1, 2, 3, 4], MDataUnseqEntryAction::Ins(vec![2, 3, 5]));
+        let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
         let cl2 = client.clone();
         let cl3 = client.clone();
         let cl4 = client.clone();
@@ -157,19 +151,16 @@ fn md_created_by_app_2() {
         let name4 = name;
         let name5 = name;
         client
-            .mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+            .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 8, 3, 4],
-                    MDataUnseqEntryAction::Update(vec![2, 8, 5]),
-                );
-                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions =
+                    MDataUnseqEntryActions::new().update(vec![1, 8, 3, 4], vec![2, 8, 5]);
+                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -177,12 +168,15 @@ fn md_created_by_app_2() {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let user = PublicKey::from(bls_pk);
+                let user = PublicKey::from(app_bls_key);
                 let permissions = MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
                 cl3.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name2, DIR_TAG),
+                    MDataAddress::Unseq {
+                        name: name2,
+                        tag: DIR_TAG,
+                    },
                     user,
                     permissions,
                     1,
@@ -190,18 +184,15 @@ fn md_created_by_app_2() {
             })
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![1, 2, 3, 4], MDataUnseqEntryAction::Ins(vec![2, 3, 5]));
-                cl4.mutate_unseq_mdata_entries(name3, DIR_TAG, actions)
+                let entry_actions =
+                    MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
+                cl4.mutate_unseq_mdata_entries(name3, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 2, 3, 4],
-                    MDataUnseqEntryAction::Update(vec![2, 8, 5]),
-                );
-                cl5.mutate_unseq_mdata_entries(name4, DIR_TAG, actions)
+                let entry_actions =
+                    MDataUnseqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5]);
+                cl5.mutate_unseq_mdata_entries(name4, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -209,9 +200,8 @@ fn md_created_by_app_2() {
                     Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![1, 2, 3, 4], MDataUnseqEntryAction::Del);
-                cl6.mutate_unseq_mdata_entries(name5, DIR_TAG, actions)
+                let entry_actions = MDataUnseqEntryActions::new().del(vec![1, 2, 3, 4]);
+                cl6.mutate_unseq_mdata_entries(name5, DIR_TAG, entry_actions)
             })
             .map(move |()| unwrap!(tx.send(())))
             .map_err(|e| panic!("{:?}", e))
@@ -239,7 +229,7 @@ fn md_created_by_app_2() {
                 DIR_TAG,
                 data,
                 permissions,
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                unwrap!(client.owner_key()),
             );
             let cl2 = client.clone();
             let cl3 = client.clone();
@@ -279,8 +269,8 @@ fn multiple_apps() {
     let (final_check_tx, final_check_rx) = mpsc::channel();
     unwrap!(app1.send(move |client, _app_context| {
         let mut rng = unwrap!(OsRng::new());
-        let bls_pk = unwrap!(client.public_bls_key());
-
+        let bls_pk = unwrap!(client.owner_key());
+        let app_bls_key = unwrap!(client.public_bls_key());
         let mut permissions = BTreeMap::new();
         let app2_bls_pk = unwrap!(app2_key_rx.recv());
         let _ = permissions.insert(
@@ -288,20 +278,15 @@ fn multiple_apps() {
             MDataPermissionSet::new().allow(MDataAction::Insert),
         );
         let _ = permissions.insert(
-            PublicKey::from(bls_pk),
+            PublicKey::from(app_bls_key),
             MDataPermissionSet::new()
                 .allow(MDataAction::ManagePermissions)
                 .allow(MDataAction::Read),
         );
 
         let name: XorName = XorName(rng.gen());
-        let mdata = SeqMutableData::new_with_data(
-            name,
-            DIR_TAG,
-            BTreeMap::new(),
-            permissions,
-            PublicKey::from(bls_pk),
-        );
+        let mdata =
+            SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
         let cl2 = client.clone();
         let cl3 = client.clone();
         let cl4 = client.clone();
@@ -318,9 +303,18 @@ fn multiple_apps() {
             })
             .then(move |res| {
                 let (value, entry_key) = unwrap!(res);
-                assert_eq!(value, MDataValue::new(vec![8, 9, 9], 0));
+                assert_eq!(
+                    value,
+                    MDataValue {
+                        data: vec![8, 9, 9],
+                        version: 0
+                    }
+                );
                 cl3.del_mdata_user_permissions_new(
-                    MDataAddress::new_seq(name2, DIR_TAG),
+                    MDataAddress::Seq {
+                        name: name2,
+                        tag: DIR_TAG,
+                    },
                     PublicKey::from(app2_bls_pk),
                     1,
                 )
@@ -330,8 +324,11 @@ fn multiple_apps() {
                 let entry_key = unwrap!(res);
                 unwrap!(mutate_again_tx.send(()));
                 unwrap!(final_check_rx.recv());
-                cl4.list_mdata_keys_new(MDataAddress::new_seq(name3, DIR_TAG))
-                    .map(move |x| (x, entry_key))
+                cl4.list_mdata_keys_new(MDataAddress::Seq {
+                    name: name3,
+                    tag: DIR_TAG,
+                })
+                .map(move |x| (x, entry_key))
             })
             .then(move |res| -> Result<_, ()> {
                 let (keys, entry_key) = unwrap!(res);
@@ -347,27 +344,18 @@ fn multiple_apps() {
         unwrap!(app2_key_tx.send(unwrap!(client.public_bls_key())));
         let name = unwrap!(name_rx.recv());
         let entry_key = vec![1, 2, 3];
-
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(
-            entry_key.clone(),
-            MDataSeqEntryAction::Ins(MDataValue::new(vec![8, 9, 9], 0)),
-        );
+        let entry_actions = MDataSeqEntryActions::new().ins(entry_key.clone(), vec![8, 9, 9], 0);
 
         let cl2 = client.clone();
         client
-            .mutate_seq_mdata_entries(name, DIR_TAG, actions)
+            .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
                 unwrap!(res);
                 unwrap!(entry_tx.send(entry_key));
                 unwrap!(mutate_again_rx.recv());
 
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![2, 2, 2],
-                    MDataSeqEntryAction::Ins(MDataValue::new(vec![21], 0)),
-                );
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataSeqEntryActions::new().ins(vec![2, 2, 2], vec![21], 0);
+                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| -> Result<_, ()> {
                 match res {
@@ -396,25 +384,21 @@ fn permissions_and_version() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
-        let bls_pk = unwrap!(client.public_bls_key());
+        let bls_pk = unwrap!(client.owner_key());
+        let app_bls_key = unwrap!(client.public_bls_key());
         let random_key = SecretKey::random().public_key();
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::from(bls_pk),
+            PublicKey::from(app_bls_key),
             MDataPermissionSet::new()
                 .allow(MDataAction::ManagePermissions)
                 .allow(MDataAction::Read),
         );
 
         let name: XorName = XorName(rng.gen());
-        let mdata = UnseqMutableData::new_with_data(
-            name,
-            DIR_TAG,
-            BTreeMap::new(),
-            permissions,
-            PublicKey::from(bls_pk),
-        );
+        let mdata =
+            UnseqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
         let cl2 = client.clone();
         let cl3 = client.clone();
         let cl4 = client.clone();
@@ -427,7 +411,7 @@ fn permissions_and_version() {
                 unwrap!(res);
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
                 cl2.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     permissions,
                     1,
@@ -436,7 +420,7 @@ fn permissions_and_version() {
             .then(move |res| {
                 unwrap!(res);
                 cl3.del_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     1,
                 )
@@ -447,20 +431,20 @@ fn permissions_and_version() {
                     Err(CoreError::NewRoutingClientError(Error::InvalidSuccessor(..))) => (),
                     Err(x) => panic!("Expected Error::InvalidSuccessor. Got {:?}", x),
                 }
-                cl4.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl4.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 let permissions = unwrap!(res);
                 assert_eq!(permissions.len(), 2);
-                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Insert));
-                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Read));
-                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Update));
-                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Delete));
-                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::ManagePermissions));
                 assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
                     .is_allowed(MDataAction::Insert));
@@ -472,32 +456,32 @@ fn permissions_and_version() {
                     .is_allowed(MDataAction::Delete));
                 assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
                     .is_allowed(MDataAction::ManagePermissions));
-                cl5.get_mdata_version_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl5.get_mdata_version_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 let v = unwrap!(res);
                 assert_eq!(v, 1);
                 cl6.del_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     v + 1,
                 )
             })
             .then(move |res| {
                 unwrap!(res);
-                cl7.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl7.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .map(move |permissions| {
                 assert_eq!(permissions.len(), 1);
-                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Insert));
-                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Read));
-                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Update));
-                assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::Delete));
-                assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                     .is_allowed(MDataAction::ManagePermissions));
             })
             .map_err(|e| panic!("{:?}", e))
@@ -513,26 +497,22 @@ fn permissions_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
-        let bls_pk = unwrap!(client.public_bls_key());
+        let bls_pk = unwrap!(client.owner_key());
+        let app_bls_key = unwrap!(client.public_bls_key());
         let random_key_a = SecretKey::random().public_key();
         let random_key_b = SecretKey::random().public_key();
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::from(bls_pk),
+            PublicKey::from(app_bls_key),
             MDataPermissionSet::new()
                 .allow(MDataAction::ManagePermissions)
                 .allow(MDataAction::Read),
         );
 
         let name: XorName = XorName(rng.gen());
-        let mdata = UnseqMutableData::new_with_data(
-            name,
-            DIR_TAG,
-            BTreeMap::new(),
-            permissions,
-            PublicKey::from(bls_pk),
-        );
+        let mdata =
+            UnseqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
 
         let cl2 = client.clone();
         let cl3 = client.clone();
@@ -551,7 +531,7 @@ fn permissions_crud() {
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
                 cl2.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_a),
                     permissions,
                     1,
@@ -559,21 +539,21 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl3.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl3.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::ManagePermissions));
                     assert!(unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Insert));
@@ -589,7 +569,7 @@ fn permissions_crud() {
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Delete);
                 cl4.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
                     2,
@@ -597,21 +577,21 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl5.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl5.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 3);
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::ManagePermissions));
                     assert!(unwrap!(permissions.get(&PublicKey::from(random_key_a)))
                         .is_allowed(MDataAction::Insert));
@@ -633,7 +613,7 @@ fn permissions_crud() {
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Insert);
                 cl6.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
                     3,
@@ -642,28 +622,28 @@ fn permissions_crud() {
             .then(move |res| {
                 unwrap!(res);
                 cl7.del_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_a),
                     4,
                 )
             })
             .then(move |res| {
                 unwrap!(res);
-                cl8.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl8.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::ManagePermissions));
                     assert!(unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Insert));
@@ -679,7 +659,7 @@ fn permissions_crud() {
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
                 cl9.set_mdata_user_permissions_new(
-                    MDataAddress::new_unseq(name, DIR_TAG),
+                    MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
                     5,
@@ -687,21 +667,21 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl10.list_mdata_permissions_new(MDataAddress::new_unseq(name, DIR_TAG))
+                cl10.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| -> Result<_, ()> {
                 {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Insert));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Update));
-                    assert!(!unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(!unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Delete));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::Read));
-                    assert!(unwrap!(permissions.get(&PublicKey::from(bls_pk)))
+                    assert!(unwrap!(permissions.get(&PublicKey::from(app_bls_key)))
                         .is_allowed(MDataAction::ManagePermissions));
                     assert!(unwrap!(permissions.get(&PublicKey::from(random_key_b)))
                         .is_allowed(MDataAction::Insert));
@@ -727,11 +707,11 @@ fn sequenced_entries_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
-        let bls_pk = unwrap!(client.public_bls_key());
-
+        let bls_pk = unwrap!(client.owner_key());
+        let app_bls_key = unwrap!(client.public_bls_key());
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::from(bls_pk),
+            PublicKey::from(app_bls_key),
             MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
@@ -756,13 +736,7 @@ fn sequenced_entries_crud() {
         );
 
         let name: XorName = XorName(rng.gen());
-        let mdata = SeqMutableData::new_with_data(
-            name,
-            DIR_TAG,
-            data,
-            permissions,
-            PublicKey::from(bls_pk),
-        );
+        let mdata = SeqMutableData::new_with_data(name, DIR_TAG, data, permissions, bls_pk);
 
         let cl2 = client.clone();
         let cl3 = client.clone();
@@ -772,23 +746,11 @@ fn sequenced_entries_crud() {
             .put_seq_mutable_data(mdata)
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![0, 1, 1],
-                    MDataSeqEntryAction::Ins(MDataValue {
-                        data: vec![2, 3, 17],
-                        version: 0,
-                    }),
-                );
-                let _ = actions.insert(
-                    vec![0, 1, 0],
-                    MDataSeqEntryAction::Update(MDataValue {
-                        data: vec![2, 8, 64],
-                        version: 1,
-                    }),
-                );
-                let _ = actions.insert(vec![0, 0, 1], MDataSeqEntryAction::Del(1));
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataSeqEntryActions::new()
+                    .ins(vec![0, 1, 1], vec![2, 3, 17], 0)
+                    .update(vec![0, 1, 0], vec![2, 8, 64], 1)
+                    .del(vec![0, 0, 1], 1);
+                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
@@ -812,23 +774,11 @@ fn sequenced_entries_crud() {
                         version: 0,
                     }
                 );
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(
-                    vec![1, 0, 0],
-                    MDataSeqEntryAction::Ins(MDataValue {
-                        data: vec![4, 4, 4, 4],
-                        version: 0,
-                    }),
-                );
-                let _ = actions.insert(
-                    vec![0, 1, 0],
-                    MDataSeqEntryAction::Update(MDataValue {
-                        data: vec![64, 8, 1],
-                        version: 2,
-                    }),
-                );
-                let _ = actions.insert(vec![0, 1, 1], MDataSeqEntryAction::Del(1));
-                cl4.mutate_seq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataSeqEntryActions::new()
+                    .ins(vec![1, 0, 0], vec![4, 4, 4, 4], 0)
+                    .update(vec![0, 1, 0], vec![64, 8, 1], 2)
+                    .del(vec![0, 1, 1], 1);
+                cl4.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
@@ -864,11 +814,11 @@ fn unsequenced_entries_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
-        let bls_pk = unwrap!(client.public_bls_key());
-
+        let bls_pk = unwrap!(client.owner_key());
+        let app_bls_key = unwrap!(client.public_bls_key());
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
-            PublicKey::from(bls_pk),
+            PublicKey::from(app_bls_key),
             MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
@@ -881,13 +831,7 @@ fn unsequenced_entries_crud() {
         let _ = data.insert(vec![0, 1, 0], vec![2, 8]);
 
         let name: XorName = XorName(rng.gen());
-        let mdata = UnseqMutableData::new_with_data(
-            name,
-            DIR_TAG,
-            data,
-            permissions,
-            PublicKey::from(bls_pk),
-        );
+        let mdata = UnseqMutableData::new_with_data(name, DIR_TAG, data, permissions, bls_pk);
 
         let cl2 = client.clone();
         let cl3 = client.clone();
@@ -897,12 +841,11 @@ fn unsequenced_entries_crud() {
             .put_unseq_mutable_data(mdata)
             .then(move |res| {
                 unwrap!(res);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![0, 1, 1], MDataUnseqEntryAction::Ins(vec![2, 3, 17]));
-                let _ =
-                    actions.insert(vec![0, 1, 0], MDataUnseqEntryAction::Update(vec![2, 8, 64]));
-                let _ = actions.insert(vec![0, 0, 1], MDataUnseqEntryAction::Del);
-                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataUnseqEntryActions::new()
+                    .ins(vec![0, 1, 1], vec![2, 3, 17])
+                    .update(vec![0, 1, 0], vec![2, 8, 64])
+                    .del(vec![0, 0, 1]);
+                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
@@ -914,12 +857,11 @@ fn unsequenced_entries_crud() {
                 assert!(entries.get(&vec![0, 0, 1]).is_none());
                 assert_eq!(*unwrap!(entries.get(&vec![0, 1, 0])), vec![2, 8, 64]);
                 assert_eq!(*unwrap!(entries.get(&vec![0, 1, 1])), vec![2, 3, 17],);
-                let mut actions = BTreeMap::new();
-                let _ = actions.insert(vec![1, 0, 0], MDataUnseqEntryAction::Ins(vec![4, 4, 4, 4]));
-                let _ =
-                    actions.insert(vec![0, 1, 0], MDataUnseqEntryAction::Update(vec![64, 8, 1]));
-                let _ = actions.insert(vec![0, 1, 1], MDataUnseqEntryAction::Del);
-                cl4.mutate_unseq_mdata_entries(name, DIR_TAG, actions)
+                let entry_actions = MDataUnseqEntryActions::new()
+                    .ins(vec![1, 0, 0], vec![4, 4, 4, 4])
+                    .update(vec![0, 1, 0], vec![64, 8, 1])
+                    .del(vec![0, 1, 1]);
+                cl4.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);

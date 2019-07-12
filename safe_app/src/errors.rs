@@ -67,6 +67,9 @@ mod codes {
     pub const ERR_NETWORK_OTHER: i32 = -115;
     pub const ERR_INVALID_INVITATION: i32 = -116;
     pub const ERR_INVITATION_ALREADY_CLAIMED: i32 = -117;
+    pub const ERR_DUPLICATE_MSG_ID: i32 = -118;
+    pub const ERR_DUPLICATE_ENTRY_KEYS: i32 = -119;
+    pub const ERR_KEYS_EXIST: i32 = -120;
 
     // IPC errors.
     pub const ERR_AUTH_DENIED: i32 = -200;
@@ -119,6 +122,14 @@ mod codes {
     pub const ERR_FAILED_TO_PARSE: i32 = -4002;
     pub const ERR_TRANSACTION_ID_EXISTS: i32 = -4003;
     pub const ERR_INSUFFICIENT_BALANCE: i32 = -4004;
+    pub const ERR_BALANCE_EXISTS: i32 = -4005;
+    pub const ERR_NO_SUCH_BALANCE: i32 = -4006;
+
+    // Login packet errors
+    pub const ERR_EXCEEDED_SIZE: i32 = -5001;
+    pub const ERR_NO_SUCH_LOGIN_PACKET: i32 = -5002;
+    pub const ERR_LOGIN_PACKET_EXISTS: i32 = -5003;
+
 }
 
 /// App error.
@@ -427,18 +438,20 @@ fn core_error_code(err: &CoreError) -> i32 {
         },
         CoreError::NewRoutingClientError(ref err) => match *err {
             SndError::AccessDenied => ERR_ACCESS_DENIED,
-            SndError::NoSuchAccount => ERR_NO_SUCH_ACCOUNT,
-            SndError::AccountExists => ERR_ACCOUNT_EXISTS,
+            SndError::NoSuchLoginPacket => ERR_NO_SUCH_LOGIN_PACKET,
+            SndError::LoginPacketExists => ERR_LOGIN_PACKET_EXISTS,
             SndError::NoSuchData => ERR_NO_SUCH_DATA,
             SndError::DataExists => ERR_DATA_EXISTS,
             SndError::NoSuchEntry => ERR_NO_SUCH_ENTRY,
             SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
             SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
             SndError::NoSuchKey => ERR_NO_SUCH_KEY,
+            SndError::KeysExist(_) => ERR_KEYS_EXIST,
+            SndError::DuplicateEntryKeys => ERR_DUPLICATE_ENTRY_KEYS,
+            SndError::DuplicateMessageId => ERR_DUPLICATE_MSG_ID,
             SndError::InvalidOwners => ERR_INVALID_OWNERS,
             SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
             SndError::InvalidOperation => ERR_INVALID_OPERATION,
-            SndError::LowBalance => ERR_LOW_BALANCE,
             SndError::NetworkOther(_) => ERR_NETWORK_OTHER,
             SndError::InvalidOwnersSuccessor(_) => ERR_INVALID_OWNERS_SUCCESSOR,
             SndError::InvalidPermissionsSuccessor(_) => ERR_INVALID_PERMISSIONS_SUCCESSOR,
@@ -446,10 +459,12 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::InvalidSignature => ERR_INVALID_SIGNATURE,
             SndError::LossOfPrecision => ERR_LOSS_OF_PRECISION,
             SndError::ExcessiveValue => ERR_EXCESSIVE_VALUE,
-            SndError::FailedToParseCoins => ERR_FAILED_TO_PARSE,
-            SndError::FailedToParseIdentity(_) => ERR_FAILED_TO_PARSE_ID,
+            SndError::NoSuchBalance => ERR_NO_SUCH_BALANCE,
+            SndError::BalanceExists => ERR_BALANCE_EXISTS,
+            SndError::FailedToParse(_) => ERR_FAILED_TO_PARSE,
             SndError::TransactionIdExists => ERR_TRANSACTION_ID_EXISTS,
             SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
+            SndError::ExceededSize => ERR_EXCEEDED_SIZE,
         },
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,

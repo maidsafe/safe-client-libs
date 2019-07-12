@@ -9,23 +9,24 @@
 use super::vault::{self, Data, Vault, VaultGuard};
 use super::DataId;
 use crate::config_handler::{get_config, Config};
-use maidsafe_utilities::serialisation::serialise;
+use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread;
 use routing::{
     Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, InterfaceError,
     MutableData, PermissionSet, Request, Response, RoutingError, User, TYPE_TAG_SESSION_PACKET,
 };
-#[cfg(any(feature = "testing", test))]
-use safe_nd::Coins;
 use safe_nd::{
-    AppFullId, ClientFullId, IDataKind, ImmutableData, Message, MessageId, PublicId, PublicKey,
+    AppFullId, ClientFullId, ClientPublicId, IData, IDataAddress, Message, MessageId,
+    PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
     Signature, XorName,
 };
+#[cfg(any(feature = "testing", test))]
+use safe_nd::{Coins, Error};
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
@@ -58,6 +59,28 @@ const CHANGE_MDATA_OWNER_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
 lazy_static! {
     static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));
+}
+
+/// Helper macro to receive a routing event and assert it's a response
+/// success.
+#[macro_export]
+macro_rules! expect_success {
+    ($rx:expr, $msg_id:expr, $res:path) => {
+        match unwrap!($rx.recv_timeout(Duration::from_secs(10))) {
+            Event::Response {
+                response: $res { res, msg_id },
+                ..
+            } => {
+                assert_eq!(msg_id, $msg_id);
+
+                match res {
+                    Ok(value) => value,
+                    Err(err) => panic!("Unexpected error {:?}", err),
+                }
+            }
+            event => panic!("Unexpected event {:?}", event),
+        }
+    };
 }
 
 /// Creates a thread-safe reference-counted pointer to the global vault.
@@ -152,12 +175,21 @@ impl Routing {
     }
 
     /// Send a routing message
-    pub fn send(&mut self, dst: Authority<XorName>, payload: &[u8]) -> Result<(), InterfaceError> {
+    pub fn send(
+        &mut self,
+        requester: Option<PublicKey>,
+        payload: &[u8],
+    ) -> Result<(), InterfaceError> {
         let msg: Message = {
             let mut vault = self.lock_vault(true);
-            let public_id = match &self.full_id_new {
-                NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
-                NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
+            let public_id = match requester {
+                Some(public_key) => {
+                    PublicId::Client(ClientPublicId::new(public_key.into(), public_key))
+                }
+                None => match &self.full_id_new {
+                    NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
+                    NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
+                },
             };
             unwrap!(vault.process_request(public_id, payload.to_vec()))
         };
@@ -175,9 +207,29 @@ impl Routing {
             res: Ok(unwrap!(serialise(&response))),
             msg_id: message_id,
         };
-        self.send_response(DEFAULT_DELAY_MS, self.client_auth, dst, response);
+        // Use dummy authority for now
+        let dummy_authority = Authority::ClientManager(new_rand::random());
+        self.send_response(DEFAULT_DELAY_MS, dummy_authority, dummy_authority, response);
 
         Ok(())
+    }
+
+    /// Send a request and get a response
+    pub fn req(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
+        let message_id = MessageId::new();
+        let signature = self
+            .full_id_new
+            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+        unwrap!(self.send(
+            None,
+            &unwrap!(serialise(&Message::Request {
+                request,
+                message_id,
+                signature: Some(signature),
+            }))
+        ));
+        let response = expect_success!(rx, message_id, Response::RpcResponse);
+        unwrap!(deserialise(&response))
     }
 
     /// Sets the vault for this routing instance.
@@ -225,11 +277,11 @@ impl Routing {
         Ok(())
     }
 
-    /// Puts ImmutableData to the network.
+    /// Puts PubImmutableData to the network.
     pub fn put_idata(
         &mut self,
         dst: Authority<XorName>,
-        data: ImmutableData,
+        data: PubImmutableData,
         msg_id: MessageId,
     ) -> Result<(), InterfaceError> {
         let data_name = *data.name();
@@ -248,19 +300,17 @@ impl Routing {
 
         let res = {
             let mut vault = self.lock_vault(true);
+            let data_id = DataId::Immutable(*data.address());
 
             self.verify_network_limits(msg_id, "put_idata")
                 .and_then(|_| vault.authorise_mutation(&dst, &self.client_key()))
                 .and_then(|_| {
-                    match vault.get_data(&DataId::immutable(*data.name(), true)) {
+                    match vault.get_data(&data_id) {
                         // Immutable data is de-duplicated so always allowed
                         Some(Data::Immutable(_)) => Ok(()),
                         Some(_) => Err(ClientError::DataExists),
                         None => {
-                            vault.insert_data(
-                                DataId::immutable(data_name, true),
-                                Data::Immutable(data.into()),
-                            );
+                            vault.insert_data(data_id, Data::Immutable(data.into()));
                             Ok(())
                         }
                     }
@@ -302,8 +352,8 @@ impl Routing {
             } else if let Err(err) = vault.authorise_read(&dst, &name) {
                 Err(err)
             } else {
-                match vault.get_data(&DataId::immutable(name, true)) {
-                    Some(Data::Immutable(IDataKind::Pub(data))) => Ok(data),
+                match vault.get_data(&DataId::Immutable(IDataAddress::Pub(name))) {
+                    Some(Data::Immutable(IData::Pub(data))) => Ok(data),
                     _ => Err(ClientError::NoSuchData),
                 }
             }
@@ -326,7 +376,10 @@ impl Routing {
         msg_id: MessageId,
         requester: PublicKey,
     ) -> Result<(), InterfaceError> {
-        let data_name = DataId::mutable(*data.name(), data.tag());
+        let data_name = DataId::OldMutable {
+            name: *data.name(),
+            tag: data.tag(),
+        };
         let client_auth = self.client_auth;
         let nae_auth = Authority::NaeManager(*data_name.name());
 
@@ -838,7 +891,7 @@ impl Routing {
             vault.authorise_mutation(&dst, &client_key)?;
 
             let output = f(&mut data)?;
-            vault.insert_data(DataId::mutable(name, tag), Data::OldMutable(data));
+            vault.insert_data(DataId::OldMutable { name, tag }, Data::OldMutable(data));
             vault.commit_mutation(&dst.name());
 
             Ok(output)
@@ -887,7 +940,7 @@ impl Routing {
             Err(err)
         } else {
             let mut vault = self.lock_vault(write);
-            match vault.get_data(&DataId::mutable(name, tag)) {
+            match vault.get_data(&DataId::OldMutable { name, tag }) {
                 Some(Data::OldMutable(data)) => f(data, &mut *vault),
                 _ => {
                     if tag == TYPE_TAG_SESSION_PACKET {
@@ -1057,14 +1110,19 @@ impl Routing {
     }
 
     /// Create coin balance in the mock network arbitrarily.
-    pub fn create_coin_balance(
+    pub fn create_balance(&self, coin_balance_name: &XorName, amount: Coins, owner: PublicKey) {
+        let mut vault = self.lock_vault(true);
+        vault.mock_create_balance(coin_balance_name, amount, owner);
+    }
+
+    /// Add some coins to a wallet's PublicKey
+    pub fn allocate_test_coins(
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-        owner: threshold_crypto::PublicKey,
-    ) {
+    ) -> Result<(), Error> {
         let mut vault = self.lock_vault(true);
-        vault.mock_create_balance(coin_balance_name, amount, owner);
+        vault.mock_increment_balance(coin_balance_name, amount)
     }
 }
 

@@ -89,7 +89,7 @@ pub use safe_core::{
     app_container_name, immutable_data, ipc, mdata_info, nfs, utils, Client, ClientKeys, CoreError,
     CoreFuture, FutureExt, MDataInfo, DIR_TAG, MAIDSAFE_TAG,
 };
-pub use safe_nd::ImmutableData;
+pub use safe_nd::PubImmutableData;
 
 // Export FFI interface.
 

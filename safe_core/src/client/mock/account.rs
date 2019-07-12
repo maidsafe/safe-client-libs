@@ -11,7 +11,6 @@ use crate::config_handler::Config;
 use routing::AccountInfo;
 use safe_nd::{AppPermissions, Coins, Error, PublicKey};
 use std::collections::{BTreeMap, VecDeque};
-use threshold_crypto::PublicKey as BlsPublicKey;
 
 pub const DEFAULT_MAX_MUTATIONS: u64 = 1000;
 pub const DEFAULT_MAX_CREDITS: usize = 100;
@@ -19,13 +18,13 @@ pub const DEFAULT_MAX_CREDITS: usize = 100;
 
 #[derive(Deserialize, Serialize)]
 pub struct CoinBalance {
-    owner: BlsPublicKey,
+    owner: PublicKey,
     value: Coins,
     credits: VecDeque<Credit>,
 }
 
 impl CoinBalance {
-    pub fn new(value: Coins, owner: BlsPublicKey) -> Self {
+    pub fn new(value: Coins, owner: PublicKey) -> Self {
         Self {
             owner,
             value,
@@ -74,7 +73,7 @@ impl CoinBalance {
         self.credits.push_front(credit);
     }
 
-    pub fn owner(&self) -> &BlsPublicKey {
+    pub fn owner(&self) -> &PublicKey {
         &self.owner
     }
 }

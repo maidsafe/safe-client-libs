@@ -215,7 +215,7 @@ mod tests {
     use ffi_utils::test_utils::call_1;
     use safe_core::ffi::AccountInfo;
     use safe_core::utils;
-    use safe_nd::ImmutableData;
+    use safe_nd::PubImmutableData;
     use std::ffi::CString;
     use std::os::raw::c_void;
     use Authenticator;
@@ -374,7 +374,7 @@ mod tests {
 
         unsafe {
             unwrap!((*auth).send(move |client| client
-                .put_idata(ImmutableData::new(vec![1, 2, 3]))
+                .put_idata(PubImmutableData::new(vec![1, 2, 3]))
                 .map_err(move |_| ())
                 .into_box()
                 .into()));

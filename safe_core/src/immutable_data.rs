@@ -13,7 +13,7 @@ use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::{self, FutureExt};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use safe_nd::{ImmutableData, XorName};
+use safe_nd::{PubImmutableData, XorName};
 use self_encryption::{DataMap, SelfEncryptor};
 
 #[derive(Serialize, Deserialize)]
@@ -28,8 +28,8 @@ pub fn create(
     client: &impl Client,
     value: &[u8],
     encryption_key: Option<shared_secretbox::Key>,
-) -> Box<CoreFuture<ImmutableData>> {
-    trace!("Creating conformant ImmutableData.");
+) -> Box<CoreFuture<PubImmutableData>> {
+    trace!("Creating conformant PubImmutableData.");
 
     let client = client.clone();
     let storage = SelfEncryptionStorage::new(client.clone());
@@ -56,10 +56,10 @@ pub fn create(
         .into_box()
 }
 
-/// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
+/// Get the raw bytes from `PubImmutableData` created via the `create` function in this module.
 pub fn extract_value(
     client: &impl Client,
-    data: &ImmutableData,
+    data: &PubImmutableData,
     decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client = client.clone();
@@ -100,8 +100,8 @@ pub fn get_value(
 
 // TODO: consider rewriting these two function to not use recursion.
 
-fn pack(client: impl Client, value: Vec<u8>) -> Box<CoreFuture<ImmutableData>> {
-    let data = ImmutableData::new(value);
+fn pack(client: impl Client, value: Vec<u8>) -> Box<CoreFuture<PubImmutableData>> {
+    let data = PubImmutableData::new(value);
     let serialised_data = fry!(serialise(&data));
 
     if !data.validate_size() {
@@ -121,7 +121,7 @@ fn pack(client: impl Client, value: Vec<u8>) -> Box<CoreFuture<ImmutableData>> {
     }
 }
 
-fn unpack(client: impl Client, data: &ImmutableData) -> Box<CoreFuture<Vec<u8>>> {
+fn unpack(client: impl Client, data: &PubImmutableData) -> Box<CoreFuture<Vec<u8>>> {
     match fry!(deserialise(data.value())) {
         DataTypeEncoding::Serialised(value) => ok!(value),
         DataTypeEncoding::DataMap(data_map) => {

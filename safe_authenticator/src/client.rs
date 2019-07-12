@@ -835,7 +835,7 @@ mod tests {
     #[test]
     fn timeout() {
         use crate::test_utils::random_client;
-        use safe_nd::ImmutableData;
+        use safe_nd::PubImmutableData;
         use std::time::Duration;
 
         // Get
@@ -856,7 +856,7 @@ mod tests {
                     unwrap!(result);
 
                     let data = unwrap!(utils::generate_random_vector(4));
-                    let data = ImmutableData::new(data);
+                    let data = PubImmutableData::new(data);
 
                     client2.put_idata(data)
                 })
