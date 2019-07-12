@@ -37,7 +37,7 @@ pub enum Data {
     AppendOnly(AData),
 }
 
-const FILE_NAME: &str = "MockVault";
+const FILE_NAME: &str = "SCL-Mock";
 lazy_static! {
     pub static ref COST_OF_PUT: Coins = unwrap!(Coins::from_nano(1));
 }
@@ -387,11 +387,21 @@ impl Vault {
                 Response::GetIData(result)
             }
             Request::PutIData(idata) => {
-                let result = self.put_data(
-                    DataId::Immutable(*idata.address()),
-                    Data::Immutable(idata),
-                    requester,
-                );
+                let mut errored = false;
+                if let IData::Unpub(data) = idata.clone() {
+                    if owner_pk != *data.owner() {
+                        errored = true
+                    }
+                }
+                let result = if errored {
+                    Err(SndError::InvalidOwners)
+                } else {
+                    self.put_data(
+                        DataId::Immutable(*idata.address()),
+                        Data::Immutable(idata),
+                        requester,
+                    )
+                };
                 Response::Mutation(result)
             }
             Request::DeleteUnpubIData(address) => {
@@ -584,11 +594,15 @@ impl Vault {
             }
             Request::PutMData(data) => {
                 let address = *data.address();
-                let result = self.put_data(
-                    DataId::Mutable(address),
-                    Data::NewMutable(data.clone()),
-                    requester,
-                );
+                let result = if data.owner() != owner_pk {
+                    Err(SndError::InvalidOwners)
+                } else {
+                    self.put_data(
+                        DataId::Mutable(address),
+                        Data::NewMutable(data.clone()),
+                        requester,
+                    )
+                };
                 Response::Mutation(result)
             }
             Request::GetMDataValue { address, ref key } => {
@@ -854,12 +868,22 @@ impl Vault {
             // ===== Immutable Data =====
             //
             Request::PutAData(adata) => {
+                let owner_idx = adata.owners_index();
                 let address = *adata.address();
-                let result = self.put_data(
-                    DataId::AppendOnly(address),
-                    Data::AppendOnly(adata),
-                    requester,
-                );
+                let result = match adata.get_owners(owner_idx - 1) {
+                    Some(key) => {
+                        if key.public_key != owner_pk {
+                            Err(SndError::InvalidOwners)
+                        } else {
+                            self.put_data(
+                                DataId::AppendOnly(address),
+                                Data::AppendOnly(adata),
+                                requester,
+                            )
+                        }
+                    }
+                    None => Err(SndError::NoSuchEntry),
+                };
                 Response::Mutation(result)
             }
             Request::GetAData(address) => {
@@ -1279,7 +1303,7 @@ impl Vault {
                     MData::Seq(mdata) => {
                         if let MDataKind::Unseq = kind {
                             Err(SndError::NoSuchData)
-                        } else if mdata.check_permissions(request, requester_pk).is_err() {
+                        } else if mdata.check_permissions(&request, requester_pk).is_err() {
                             Err(SndError::AccessDenied)
                         } else {
                             Ok(data)
@@ -1288,7 +1312,7 @@ impl Vault {
                     MData::Unseq(mdata) => {
                         if let MDataKind::Seq = kind {
                             Err(SndError::NoSuchData)
-                        } else if mdata.check_permissions(request, requester_pk).is_err() {
+                        } else if mdata.check_permissions(&request, requester_pk).is_err() {
                             Err(SndError::AccessDenied)
                         } else {
                             Ok(data)

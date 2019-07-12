@@ -2095,11 +2095,16 @@ mod tests {
         random_client(move |client| {
             let client2 = client.clone();
             let client3 = client.clone();
+            let client4 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
             let data = PubImmutableData::new(value.clone());
             let name = *data.name();
 
+            let test_data = UnpubImmutableData::new(
+                value.clone(),
+                PublicKey::Bls(threshold_crypto::SecretKey::random().public_key()),
+            );
             client
                 // Get inexistent idata
                 .get_pub_idata(name)
@@ -2115,8 +2120,19 @@ mod tests {
                     client2.put_pub_idata(data.clone())
                 })
                 .and_then(move |_| {
+                    client3
+                        .put_unpub_idata(test_data.clone())
+                        .then(|res| match res {
+                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
+                                Ok(())
+                            }
+                            Err(e) => panic!("Unexpected: {:?}", e),
+                        })
+                })
+                .and_then(move |_| {
                     // Fetch idata
-                    client3.get_pub_idata(name).map(move |fetched_data| {
+                    client4.get_pub_idata(name).map(move |fetched_data| {
                         assert_eq!(*fetched_data.name(), name);
                     })
                 })
@@ -2290,7 +2306,13 @@ mod tests {
             let name = XorName(rand::random());
             let tag = 15001;
             let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
-            let _ = entries.insert(b"key".to_vec(), Val::new(b"value".to_vec(), 0));
+            let _ = entries.insert(
+                b"key".to_vec(),
+                Val {
+                    data: b"value".to_vec(),
+                    version: 0,
+                },
+            );
             let entries_keys = entries.keys().cloned().collect();
             let entries_values: Vec<Val> = entries.values().cloned().collect();
             let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2643,6 +2665,7 @@ mod tests {
     #[test]
     pub fn mdata_permissions_test() {
         random_client(|client| {
+            let client1 = client.clone();
             let client2 = client.clone();
             let client3 = client.clone();
             let client4 = client.clone();
@@ -2663,14 +2686,32 @@ mod tests {
                 name,
                 tag,
                 Default::default(),
-                permissions,
+                permissions.clone(),
                 PublicKey::from(unwrap!(client.public_bls_key())),
+            );
+            let test_data = SeqMutableData::new_with_data(
+                XorName(rand::random()),
+                15000,
+                Default::default(),
+                permissions,
+                PublicKey::Bls(threshold_crypto::SecretKey::random().public_key()),
             );
             client
                 .put_seq_mutable_data(data.clone())
                 .and_then(move |res| {
                     assert_eq!(res, ());
                     Ok(())
+                })
+                .and_then(move |_| {
+                    client1
+                        .put_seq_mutable_data(test_data.clone())
+                        .then(|res| match res {
+                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
+                                Ok(())
+                            }
+                            Err(e) => panic!("Unexpected: {:?}", e),
+                        })
                 })
                 .and_then(move |_| {
                     let new_perm_set = NewPermissionSet::new()
@@ -2750,8 +2791,20 @@ mod tests {
             let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
             let _ = permissions.insert(user, permission_set.clone());
             let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
-            let _ = entries.insert(b"key1".to_vec(), Val::new(b"value".to_vec(), 0));
-            let _ = entries.insert(b"key2".to_vec(), Val::new(b"value".to_vec(), 0));
+            let _ = entries.insert(
+                b"key1".to_vec(),
+                Val {
+                    data: b"value".to_vec(),
+                    version: 0,
+                },
+            );
+            let _ = entries.insert(
+                b"key2".to_vec(),
+                Val {
+                    data: b"value".to_vec(),
+                    version: 0,
+                },
+            );
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
@@ -2788,10 +2841,20 @@ mod tests {
                         .list_seq_mdata_entries(name, tag)
                         .map(move |fetched_entries| {
                             let mut expected_entries: BTreeMap<_, _> = Default::default();
-                            let _ = expected_entries
-                                .insert(b"key1".to_vec(), Val::new(b"newValue".to_vec(), 1));
-                            let _ = expected_entries
-                                .insert(b"key3".to_vec(), Val::new(b"value".to_vec(), 0));
+                            let _ = expected_entries.insert(
+                                b"key1".to_vec(),
+                                Val {
+                                    data: b"newValue".to_vec(),
+                                    version: 1,
+                                },
+                            );
+                            let _ = expected_entries.insert(
+                                b"key3".to_vec(),
+                                Val {
+                                    data: b"value".to_vec(),
+                                    version: 0,
+                                },
+                            );
                             assert_eq!(fetched_entries, expected_entries);
                         })
                 })
@@ -2799,7 +2862,13 @@ mod tests {
                     client5
                         .get_seq_mdata_value(name, tag, b"key3".to_vec())
                         .and_then(|fetched_value| {
-                            assert_eq!(fetched_value, Val::new(b"value".to_vec(), 0));
+                            assert_eq!(
+                                fetched_value,
+                                Val {
+                                    data: b"value".to_vec(),
+                                    version: 0
+                                }
+                            );
                             Ok(())
                         })
                 })
@@ -2976,6 +3045,7 @@ mod tests {
             let client5 = client.clone();
             let client6 = client.clone();
             let client7 = client.clone();
+            let client8 = client.clone();
 
             let name = XorName(rand::random());
             let tag = 15000;
@@ -3045,6 +3115,15 @@ mod tests {
 
             unwrap!(data.append_owner(owner, 0));
 
+            let mut test_data = UnpubSeqAppendOnlyData::new(XorName(rand::random()), 15000);
+            let test_owner = ADataOwner {
+                public_key: PublicKey::Bls(SecretKey::random().public_key()),
+                data_index: 0,
+                permissions_index: 0,
+            };
+
+            unwrap!(test_data.append_owner(test_owner, 0));
+
             client
                 .put_adata(AData::UnpubSeq(data.clone()))
                 .map(move |res| {
@@ -3052,6 +3131,17 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client1
+                        .put_adata(AData::UnpubSeq(test_data.clone()))
+                        .then(|res| match res {
+                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
+                                Ok(())
+                            }
+                            Err(e) => panic!("Unexpected: {:?}", e),
+                        })
+                })
+                .and_then(move |_| {
+                    client2
                         .get_adata_range(adataref, (idx_start, idx_end))
                         .map(move |data| {
                             assert_eq!(
@@ -3065,27 +3155,27 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client2.get_adata_indices(adataref).map(move |data| {
+                    client3.get_adata_indices(adataref).map(move |data| {
                         assert_eq!(data.data_index(), 4);
                         assert_eq!(data.owners_index(), 1);
                         assert_eq!(data.permissions_index(), 1);
                     })
                 })
                 .and_then(move |_| {
-                    client3
+                    client4
                         .get_adata_value(adataref, b"KEY1".to_vec())
                         .map(move |data| {
                             assert_eq!(unwrap!(std::str::from_utf8(data.as_slice())), "VALUE1");
                         })
                 })
                 .and_then(move |_| {
-                    client4.get_adata_last_entry(adataref).map(move |data| {
+                    client5.get_adata_last_entry(adataref).map(move |data| {
                         assert_eq!(unwrap!(std::str::from_utf8(data.0.as_slice())), "KEY4");
                         assert_eq!(unwrap!(std::str::from_utf8(data.1.as_slice())), "VALUE4");
                     })
                 })
                 .and_then(move |_| {
-                    client5
+                    client6
                         .add_unpub_adata_permissions(adataref, perm_set, 1)
                         .then(move |res| {
                             assert_eq!(unwrap!(res), ());
@@ -3093,7 +3183,7 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client6
+                    client7
                         .get_unpub_adata_permissions_at_index(adataref, perm_idx)
                         .map(move |data| {
                             let set = unwrap!(data.permissions.get(&sim_client1));
@@ -3101,11 +3191,11 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client7
+                    client8
                         .get_unpub_adata_user_permissions(
                             adataref,
                             idx_start,
-                            PublicKey::Bls(unwrap!(client7.public_bls_key())),
+                            PublicKey::Bls(unwrap!(client8.public_bls_key())),
                         )
                         .map(move |set| {
                             assert!(set.is_allowed(ADataAction::Append));
