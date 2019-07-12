@@ -1110,12 +1110,7 @@ impl Routing {
     }
 
     /// Create coin balance in the mock network arbitrarily.
-    pub fn create_coin_balance(
-        &self,
-        coin_balance_name: &XorName,
-        amount: Coins,
-        owner: PublicKey,
-    ) {
+    pub fn create_balance(&self, coin_balance_name: &XorName, amount: Coins, owner: PublicKey) {
         let mut vault = self.lock_vault(true);
         vault.mock_create_balance(coin_balance_name, amount, owner);
     }

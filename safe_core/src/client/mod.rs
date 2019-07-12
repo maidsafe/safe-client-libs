@@ -300,8 +300,8 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
-    /// Creates a new coin balance on the network.
-    fn create_coin_balance(
+    /// Creates a new balance on the network.
+    fn create_balance(
         &self,
         secret_key: Option<&threshold_crypto::SecretKey>,
         new_balance_owner: PublicKey,
@@ -309,7 +309,7 @@ pub trait Client: Clone + 'static {
         transaction_id: Option<u64>,
     ) -> Box<CoreFuture<Transaction>> {
         trace!(
-            "Create a new coin balance for {:?} with {} coins.",
+            "Create a new balance for {:?} with {} coins.",
             new_balance_owner,
             amount
         );
@@ -1623,17 +1623,12 @@ pub trait Client: Clone + 'static {
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
     ))]
-    fn test_create_coin_balance(
-        &self,
-        coin_balance_name: &XorName,
-        amount: Coins,
-        owner: PublicKey,
-    ) {
+    fn test_create_balance(&self, coin_balance_name: &XorName, amount: Coins, owner: PublicKey) {
         let inner = self.inner();
         inner
             .borrow_mut()
             .routing
-            .create_coin_balance(coin_balance_name, amount, owner);
+            .create_balance(coin_balance_name, amount, owner);
     }
 
     /// Add coins to a coinbalance for testing
@@ -1656,7 +1651,8 @@ pub trait Client: Clone + 'static {
 }
 
 /// Get the balance at the given key's location
-pub fn get_balance(wallet_sk: &threshold_crypto::SecretKey) -> Result<Coins, SndError> {
+pub fn wallet_get_balance(wallet_sk: &threshold_crypto::SecretKey) -> Result<Coins, SndError> {
+    trace!("Get balance for {:?}", wallet_sk);
     let (mut routing, routing_rx) = setup_routing(
         None,
         Some(NewFullId::Client(ClientFullId::with_bls_key(
@@ -1674,7 +1670,7 @@ pub fn get_balance(wallet_sk: &threshold_crypto::SecretKey) -> Result<Coins, Snd
 }
 
 /// Creates a new coin balance on the network.
-pub fn create_balance(
+pub fn wallet_create_balance(
     secret_key: &threshold_crypto::SecretKey,
     new_balance_owner: PublicKey,
     amount: Coins,
@@ -1709,7 +1705,7 @@ pub fn create_balance(
 }
 
 /// Transfer coins
-pub fn transfer_coins(
+pub fn wallet_transfer_coins(
     secret_key: &threshold_crypto::SecretKey,
     destination: XorName,
     amount: Coins,
@@ -2441,7 +2437,7 @@ mod tests {
     fn coin_permissions() {
         let wallet_a_addr = random_client(move |client| {
             let wallet_a_addr: XorName = unwrap!(client.owner_key()).into();
-            client.test_create_coin_balance(
+            client.test_create_balance(
                 &wallet_a_addr,
                 unwrap!(Coins::from_str("10.0")),
                 unwrap!(client.owner_key()),
@@ -2474,7 +2470,7 @@ mod tests {
                         res => panic!("Unexpected result: {:?}", res),
                     }
                     let wallet_b_addr: XorName = unwrap!(c3.owner_key()).into();
-                    c2.test_create_coin_balance(
+                    c2.test_create_balance(
                         &wallet_b_addr,
                         unwrap!(Coins::from_str("50.0")),
                         unwrap!(c3.owner_key()),
@@ -2516,14 +2512,14 @@ mod tests {
             let bls_sk2 = bls_sk.clone();
             let wallet1: XorName = unwrap!(client.owner_key()).into();
 
-            client.test_create_coin_balance(
+            client.test_create_balance(
                 &wallet1,
                 unwrap!(Coins::from_str("500.0")),
                 unwrap!(client.owner_key()),
             );
 
             client1
-                .create_coin_balance(
+                .create_balance(
                     None,
                     PublicKey::from(bls_sk.public_key()),
                     unwrap!(Coins::from_str("100.0")),
@@ -2571,7 +2567,7 @@ mod tests {
             let owner_key = unwrap!(client.owner_key());
             let wallet1: XorName = owner_key.into();
 
-            client.test_create_coin_balance(&wallet1, unwrap!(Coins::from_str("0.0")), owner_key);
+            client.test_create_balance(&wallet1, unwrap!(Coins::from_str("0.0")), owner_key);
 
             unwrap!(client1.allocate_test_coins(&wallet1, unwrap!(Coins::from_str("100.0"))));
 
@@ -2584,7 +2580,7 @@ mod tests {
         random_client(move |client| {
             let owner_key = unwrap!(client.owner_key());
             let wallet2 = owner_key.into();
-            client.test_create_coin_balance(&wallet2, unwrap!(Coins::from_str("100.0")), owner_key);
+            client.test_create_balance(&wallet2, unwrap!(Coins::from_str("100.0")), owner_key);
 
             let c2 = client.clone();
             let c3 = client.clone();
@@ -3368,7 +3364,7 @@ mod tests {
             let owner_key = unwrap!(client.owner_key());
             let wallet1: XorName = owner_key.into();
 
-            client.test_create_coin_balance(&wallet1, unwrap!(Coins::from_str("100.0")), owner_key);
+            client.test_create_balance(&wallet1, unwrap!(Coins::from_str("100.0")), owner_key);
 
             client1
                 .insert_login_packet_for(
@@ -3395,7 +3391,7 @@ mod tests {
 
         random_client(move |client| {
             let wallet: XorName = PublicKey::from(bls_sk.public_key()).into();
-            client.test_create_coin_balance(
+            client.test_create_balance(
                 &wallet,
                 unwrap!(Coins::from_nano(2)),
                 PublicKey::from(bls_sk.public_key()),
@@ -3421,26 +3417,31 @@ mod tests {
         let wallet: XorName = client_pk.into();
 
         random_client(move |client| {
-            client.test_create_coin_balance(&wallet, unwrap!(Coins::from_str("50")), client_pk);
+            client.test_create_balance(&wallet, unwrap!(Coins::from_str("50")), client_pk);
             Ok::<(), SndError>(())
         });
 
-        let balance = unwrap!(get_balance(&bls_sk));
+        let balance = unwrap!(wallet_get_balance(&bls_sk));
         let ten_coins = unwrap!(Coins::from_str("10"));
         assert_eq!(balance, unwrap!(Coins::from_str("50")));
 
         let new_bls_sk = threshold_crypto::SecretKey::random();
         let new_client_pk = PublicKey::from(new_bls_sk.public_key());
         let new_wallet: XorName = new_client_pk.into();
-        let txn = unwrap!(create_balance(&bls_sk, new_client_pk, ten_coins, None));
+        let txn = unwrap!(wallet_create_balance(
+            &bls_sk,
+            new_client_pk,
+            ten_coins,
+            None
+        ));
         assert_eq!(txn.amount, ten_coins);
-        let txn2 = unwrap!(transfer_coins(&bls_sk, new_wallet, ten_coins, None));
+        let txn2 = unwrap!(wallet_transfer_coins(&bls_sk, new_wallet, ten_coins, None));
         assert_eq!(txn2.amount, ten_coins);
 
-        let client_balance = unwrap!(get_balance(&bls_sk));
+        let client_balance = unwrap!(wallet_get_balance(&bls_sk));
         assert_eq!(client_balance, unwrap!(Coins::from_str("30")));
 
-        let new_client_balance = unwrap!(get_balance(&new_bls_sk));
+        let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
         assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
     }
 }

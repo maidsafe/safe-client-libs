@@ -300,11 +300,7 @@ impl Vault {
         let _ = self.cache.nae_manager.remove(&name);
     }
 
-    fn create_coin_balance(
-        &mut self,
-        destination: XorName,
-        owner: PublicKey,
-    ) -> Result<(), SndError> {
+    fn create_balance(&mut self, destination: XorName, owner: PublicKey) -> Result<(), SndError> {
         if self.get_coin_balance(&destination).is_some() {
             return Err(SndError::BalanceExists);
         }
@@ -463,7 +459,7 @@ impl Vault {
                             if source_balance.checked_sub(amount).is_none() {
                                 return Err(SndError::InsufficientBalance);
                             }
-                            self.create_coin_balance(destination, new_balance_owner)
+                            self.create_balance(destination, new_balance_owner)
                         })
                         .and_then(|_| {
                             self.transfer_coins(source, destination, amount, transaction_id)
@@ -519,7 +515,7 @@ impl Vault {
                                 None => return Err(SndError::NoSuchBalance),
                             };
                             // Create the balance and transfer the mentioned amount of coins
-                            self.create_coin_balance(new_balance_dest, new_owner)
+                            self.create_balance(new_balance_dest, new_owner)
                         })
                         .and_then(|_| {
                             self.transfer_coins(source, new_balance_dest, amount, transaction_id)
