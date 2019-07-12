@@ -385,13 +385,13 @@ mod mock_routing {
             let c2 = client.clone();
 
             client
-                .get_mdata_version(app_container_md.name, app_container_md.type_tag)
+                .get_mdata_version(app_container_md.name(), app_container_md.type_tag())
                 .then(move |res| {
                     let version = unwrap!(res);
                     assert_eq!(version, 0);
 
                     // Check that the app's container has required permissions.
-                    c2.list_mdata_permissions(app_container_md.name, app_container_md.type_tag)
+                    c2.list_mdata_permissions(app_container_md.name(), app_container_md.type_tag())
                 })
                 .then(move |res| {
                     let perms = unwrap!(res);
@@ -428,8 +428,8 @@ fn test_access_container() {
         let fs: Vec<_> = entries
             .into_iter()
             .map(|(_, dir)| {
-                let f1 = client.list_mdata_entries(dir.name, dir.type_tag);
-                let f2 = client.list_mdata_permissions(dir.name, dir.type_tag);
+                let f1 = client.list_mdata_entries(dir.name(), dir.type_tag());
+                let f2 = client.list_mdata_permissions(dir.name(), dir.type_tag());
 
                 f1.join(f2).map_err(AuthError::from)
             })
@@ -455,7 +455,7 @@ fn config_root_dir() {
     let (dir, entries) = unwrap!(run(&authenticator, |client| {
         let dir = client.config_root_dir();
         client
-            .list_mdata_entries(dir.name, dir.type_tag)
+            .list_mdata_entries(dir.name(), dir.type_tag())
             .map(move |entries| (dir, entries))
             .map_err(AuthError::from)
     }));

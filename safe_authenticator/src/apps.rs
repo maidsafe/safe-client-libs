@@ -107,7 +107,7 @@ pub fn list_revoked(client: &AuthClient) -> Box<AuthFuture<Vec<AppExchangeInfo>>
     config::list_apps(client)
         .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
         .and_then(move |(access_container, auth_cfg)| {
-            c3.list_mdata_entries(access_container.name, access_container.type_tag)
+            c3.list_mdata_entries(access_container.name(), access_container.type_tag())
                 .map_err(From::from)
                 .map(move |entries| (access_container, entries, auth_cfg))
         })
@@ -144,7 +144,7 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
     config::list_apps(client)
         .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
         .and_then(move |(access_container, auth_cfg)| {
-            c3.list_mdata_entries(access_container.name, access_container.type_tag)
+            c3.list_mdata_entries(access_container.name(), access_container.type_tag())
                 .map_err(From::from)
                 .map(move |entries| (access_container, entries, auth_cfg))
         })

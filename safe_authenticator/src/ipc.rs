@@ -120,12 +120,12 @@ pub fn update_container_perms(
                 let perm_set = container_perms_into_permission_set(&access);
 
                 let fut = client
-                    .get_mdata_version(mdata_info.name, mdata_info.type_tag)
+                    .get_mdata_version(mdata_info.name(), mdata_info.type_tag())
                     .and_then(move |version| {
                         recovery::set_mdata_user_permissions(
                             &c2,
-                            mdata_info.name,
-                            mdata_info.type_tag,
+                            mdata_info.name(),
+                            mdata_info.type_tag(),
                             User::Key(app_pk),
                             perm_set,
                             version + 1,

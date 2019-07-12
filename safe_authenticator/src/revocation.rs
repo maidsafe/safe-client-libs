@@ -223,12 +223,12 @@ fn revoke_container_perms(
 
             client
                 .clone()
-                .get_mdata_version(mdata_info.name, mdata_info.type_tag)
+                .get_mdata_version(mdata_info.name(), mdata_info.type_tag())
                 .and_then(move |version| {
                     recovery::del_mdata_user_permissions(
                         &c2,
-                        mdata_info.name,
-                        mdata_info.type_tag,
+                        mdata_info.name(),
+                        mdata_info.type_tag(),
                         User::Key(pk),
                         version + 1,
                     )
@@ -301,7 +301,7 @@ fn fetch_access_container_entries(
     revoked_app_key: Vec<u8>,
 ) -> Box<AuthFuture<BTreeMap<Vec<u8>, Value>>> {
     client
-        .list_mdata_entries(ac_info.name, ac_info.type_tag)
+        .list_mdata_entries(ac_info.name(), ac_info.type_tag())
         .map_err(From::from)
         .map(move |mut entries| {
             let _ = entries.remove(&revoked_app_key);
@@ -385,7 +385,7 @@ fn update_access_container(
             Ok((ac_info, ac_entries, actions, cache))
         })
         .and_then(move |(ac_info, ac_entries, actions, containers)| {
-            c3.mutate_mdata_entries(ac_info.name, ac_info.type_tag, actions.into())
+            c3.mutate_mdata_entries(ac_info.name(), ac_info.type_tag(), actions.into())
                 .map(move |_| (ac_entries, containers))
                 .map_err(From::from)
         })
@@ -427,7 +427,7 @@ fn reencrypt_containers(client: &AuthClient, containers: Containers) -> Box<Auth
     let fs = containers.into_iter().map(move |(_, mdata_info)| {
         let c3 = c2.clone();
 
-        c2.list_mdata_entries(mdata_info.name, mdata_info.type_tag)
+        c2.list_mdata_entries(mdata_info.name(), mdata_info.type_tag())
             .and_then(move |entries| {
                 let mut actions = EntryActions::new();
 
@@ -460,7 +460,7 @@ fn reencrypt_containers(client: &AuthClient, containers: Containers) -> Box<Auth
                 Ok((mdata_info, actions))
             })
             .and_then(move |(mdata_info, actions)| {
-                c3.mutate_mdata_entries(mdata_info.name, mdata_info.type_tag, actions.into())
+                c3.mutate_mdata_entries(mdata_info.name(), mdata_info.type_tag(), actions.into())
             })
             .map_err(From::from)
     });

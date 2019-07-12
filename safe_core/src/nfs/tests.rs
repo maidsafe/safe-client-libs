@@ -21,6 +21,7 @@ use futures::future::{self, Loop};
 use futures::Future;
 use rand::{self, Rng};
 use rust_sodium::crypto::secretbox;
+use safe_nd::MDataKind;
 use self_encryption::MIN_CHUNK_SIZE;
 use std;
 
@@ -34,7 +35,7 @@ fn create_test_file_with_size(
 ) -> Box<NfsFuture<(MDataInfo, File)>> {
     let c2 = client.clone();
     let c3 = client.clone();
-    let root = unwrap!(MDataInfo::random_private(DIR_TAG));
+    let root = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
     let root2 = root.clone();
 
     create_dir(client, &root, btree_map![], btree_map![])
@@ -81,7 +82,8 @@ fn file_fetch_public_md() {
         let c5 = client.clone();
         let c6 = client.clone();
         let c7 = client.clone();
-        let mut root = unwrap!(MDataInfo::random_public(DIR_TAG));
+
+        let mut root = unwrap!(MDataInfo::random_public(MDataKind::Unseq, DIR_TAG));
         root.enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
         root.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
         let root2 = root.clone();

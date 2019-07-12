@@ -101,7 +101,7 @@ mod mock_routing {
         unwrap!(create_file(&auth, docs_md.clone(), "test.doc", vec![2; 10]));
 
         // After re-encryption of the first container (`_video`) is done, simulate a network failure
-        let docs_name = docs_md.name;
+        let docs_name = docs_md.name();
 
         let routing_hook = move |mut routing: MockRouting| -> MockRouting {
             routing.set_request_hook(move |req| {
@@ -550,7 +550,7 @@ mod mock_routing {
                     Request::MutateMDataEntries {
                         name, tag, msg_id, ..
                     } => {
-                        if name == ac_info.name && tag == ac_info.type_tag {
+                        if name == ac_info.name() && tag == ac_info.type_tag() {
                             Some(Response::MutateMDataEntries {
                                 res: Err(ClientError::LowBalance),
                                 msg_id,
@@ -615,8 +615,8 @@ mod mock_routing {
                     // Verify the app has no permissions in the containers.
                     let perms = c1
                         .list_mdata_user_permissions(
-                            mdata_info.name,
-                            mdata_info.type_tag,
+                            mdata_info.name(),
+                            mdata_info.type_tag(),
                             User::Key(app_key),
                         )
                         .then(|res| {
@@ -629,7 +629,7 @@ mod mock_routing {
 
                     // Verify the app can't decrypt the content of the containers.
                     let entries = c1
-                        .list_mdata_entries(mdata_info.name, mdata_info.type_tag)
+                        .list_mdata_entries(mdata_info.name(), mdata_info.type_tag())
                         .then(move |res| {
                             let entries = unwrap!(res);
                             for (key, value) in entries {
@@ -690,7 +690,11 @@ mod mock_routing {
                         // Verify the app has the permissions set according to the access container.
                         let expected_perms = container_perms_into_permission_set(&permissions);
                         let perms = c2
-                            .list_mdata_user_permissions(mdata_info.name, mdata_info.type_tag, user)
+                            .list_mdata_user_permissions(
+                                mdata_info.name(),
+                                mdata_info.type_tag(),
+                                user,
+                            )
                             .then(move |res| {
                                 let perms = unwrap!(res);
                                 assert_eq!(perms, expected_perms);
@@ -699,7 +703,7 @@ mod mock_routing {
 
                         // Verify the app can decrypt the content of the containers.
                         let entries = c2
-                            .list_mdata_entries(mdata_info.name, mdata_info.type_tag)
+                            .list_mdata_entries(mdata_info.name(), mdata_info.type_tag())
                             .then(move |res| {
                                 let entries = unwrap!(res);
                                 for (key, value) in entries {
@@ -797,7 +801,7 @@ fn app_revocation() {
     assert!(ac.is_none());
 
     // Container permissions include only the second app.
-    let (name, tag) = (videos_md2.name, videos_md2.type_tag);
+    let (name, tag) = (videos_md2.name(), videos_md2.type_tag());
     let perms = unwrap!(run(&authenticator, move |client| {
         client.list_mdata_permissions(name, tag).map_err(From::from)
     }));
@@ -1085,10 +1089,10 @@ fn revocation_with_unencrypted_container_entries() {
     // Insert unencrypted stuff into the shared container and the dedicated container.
     unwrap!(run(&auth, move |client| {
         let f0 =
-            client.mutate_mdata_entries(shared_info.name, shared_info.type_tag, shared_actions);
+            client.mutate_mdata_entries(shared_info.name(), shared_info.type_tag(), shared_actions);
         let f1 = client.mutate_mdata_entries(
-            dedicated_info.name,
-            dedicated_info.type_tag,
+            dedicated_info.name(),
+            dedicated_info.type_tag(),
             dedicated_actions,
         );
 
@@ -1100,10 +1104,10 @@ fn revocation_with_unencrypted_container_entries() {
 
     // Verify that the unencrypted entries remain unencrypted after the revocation.
     unwrap!(run(&auth, move |client| {
-        let f0 = client.get_mdata_value(shared_info2.name, shared_info2.type_tag, shared_key);
+        let f0 = client.get_mdata_value(shared_info2.name(), shared_info2.type_tag(), shared_key);
         let f1 = client.get_mdata_value(
-            dedicated_info2.name,
-            dedicated_info2.type_tag,
+            dedicated_info2.name(),
+            dedicated_info2.type_tag(),
             dedicated_key,
         );
 
@@ -1120,7 +1124,7 @@ fn revocation_with_unencrypted_container_entries() {
 fn count_mdata_entries(authenticator: &Authenticator, info: MDataInfo) -> usize {
     unwrap!(run(authenticator, move |client| {
         client
-            .list_mdata_entries(info.name, info.type_tag)
+            .list_mdata_entries(info.name(), info.type_tag())
             .map(|entries| entries.len())
             .map_err(From::from)
     }))

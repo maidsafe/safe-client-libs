@@ -200,7 +200,7 @@ where
     let key = fry!(parent.enc_entry_key(key));
 
     client
-        .get_mdata_value(parent.name, parent.type_tag, key)
+        .get_mdata_value(parent.name(), parent.type_tag(), key)
         .and_then(move |value| {
             let decoded = parent.decrypt(&value.content)?;
             let decoded = if !decoded.is_empty() {
@@ -242,7 +242,7 @@ where
     };
 
     client
-        .mutate_mdata_entries(parent.name, parent.type_tag, actions.into())
+        .mutate_mdata_entries(parent.name(), parent.type_tag(), actions.into())
         .or_else(move |error| {
             // As we are mutating only one entry, let's make the common errors
             // more convenient to handle.

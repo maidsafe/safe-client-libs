@@ -44,8 +44,8 @@ where
         .into_future()
         .and_then(move |(key, value)| {
             client.mutate_mdata_entries(
-                parent.name,
-                parent.type_tag,
+                parent.name(),
+                parent.type_tag(),
                 EntryActions::new().ins(key, value, 0).into(),
             )
         })
@@ -63,7 +63,7 @@ where
         .into_future()
         .and_then(move |key| {
             client
-                .get_mdata_value(parent.name, parent.type_tag, key)
+                .get_mdata_value(parent.name(), parent.type_tag(), key)
                 .map(move |value| (value, parent))
         })
         .and_then(move |(value, parent)| {
@@ -113,7 +113,7 @@ where
 
     let version_fut = match version {
         Version::GetNext => client
-            .get_mdata_value(parent.name, parent.type_tag, key.clone())
+            .get_mdata_value(parent.name(), parent.type_tag(), key.clone())
             .map(move |value| (value.entry_version + 1))
             .into_box(),
         Version::Custom(version) => ok!(version),
@@ -124,8 +124,8 @@ where
         .and_then(move |version| {
             client
                 .mutate_mdata_entries(
-                    parent.name,
-                    parent.type_tag,
+                    parent.name(),
+                    parent.type_tag(),
                     EntryActions::new().del(key, version).into(),
                 )
                 .map(move |()| version)
@@ -164,7 +164,7 @@ where
         .into_future()
         .and_then(move |(key, content)| match version {
             Version::GetNext => client
-                .get_mdata_value(parent.name, parent.type_tag, key.clone())
+                .get_mdata_value(parent.name(), parent.type_tag(), key.clone())
                 .map(move |value| (key, content, value.entry_version + 1, parent))
                 .into_box(),
             Version::Custom(version) => ok!((key, content, version, parent)),
@@ -172,8 +172,8 @@ where
         .and_then(move |(key, content, version, parent)| {
             client2
                 .mutate_mdata_entries(
-                    parent.name,
-                    parent.type_tag,
+                    parent.name(),
+                    parent.type_tag(),
                     EntryActions::new().update(key, content, version).into(),
                 )
                 .map(move |()| version)

@@ -429,7 +429,7 @@ pub trait Client: Clone + 'static {
                 match res {
                     Response::GetIData(res) => match res {
                         Ok(IData::Pub(data)) => Ok(data),
-                        Ok(IData::Unpub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
+                        Ok(IData::Unpub(_)) => Err(CoreError::ReceivedUnexpectedData),
                         Err(e) => Err(e).map_err(CoreError::from),
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -459,7 +459,7 @@ pub trait Client: Clone + 'static {
                 match res {
                     Response::GetIData(res) => match res {
                         Ok(IData::Unpub(data)) => Ok(data),
-                        Ok(IData::Pub(_)) => Err(CoreError::ReceivedUnexpectedEvent),
+                        Ok(IData::Pub(_)) => Err(CoreError::ReceivedUnexpectedData),
                         Err(e) => Err(e).map_err(CoreError::from),
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -502,7 +502,7 @@ pub trait Client: Clone + 'static {
                     Response::GetMData(res) => {
                         res.map_err(CoreError::from).and_then(|mdata| match mdata {
                             MData::Unseq(data) => Ok(data),
-                            _ => Err(CoreError::ReceivedUnexpectedData),
+                            MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
                         })
                     }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -584,7 +584,7 @@ pub trait Client: Clone + 'static {
                     Response::GetMData(res) => {
                         res.map_err(CoreError::from).and_then(|mdata| match mdata {
                             MData::Seq(data) => Ok(data),
-                            _ => Err(CoreError::ReceivedUnexpectedData),
+                            MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
                         })
                     }
                     _ => Err(CoreError::ReceivedUnexpectedEvent),

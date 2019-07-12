@@ -89,7 +89,7 @@ fn md_created_by_app_1() {
 
             let mut permissions = BTreeMap::new();
             let _ = permissions.insert(
-                PublicKey::from(app_bls_pk),
+                app_bls_pk,
                 MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Read),
@@ -111,7 +111,7 @@ fn md_created_by_app_1() {
                 .list_auth_keys_and_version()
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
-                    cl2.ins_auth_key(PublicKey::from(app_bls_pk), Default::default(), version + 1)
+                    cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
                 })
                 .then(move |res| {
                     unwrap!(res);
@@ -215,7 +215,7 @@ fn md_created_by_app_2() {
 
             let mut permissions = BTreeMap::new();
             let _ = permissions.insert(
-                PublicKey::from(app_bls_pk),
+                app_bls_pk,
                 MDataPermissionSet::new().allow(MDataAction::ManagePermissions),
             );
 
@@ -238,7 +238,7 @@ fn md_created_by_app_2() {
                 .list_auth_keys_and_version()
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
-                    cl2.ins_auth_key(PublicKey::from(app_bls_pk), Default::default(), version + 1)
+                    cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
                 })
                 .then(move |res| {
                     unwrap!(res);

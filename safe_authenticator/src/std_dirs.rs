@@ -18,6 +18,7 @@ use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
 use safe_core::utils::symmetric_encrypt;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
+use safe_nd::MDataKind;
 use std::collections::HashMap;
 
 /// Default directories to be created at registration.
@@ -136,10 +137,10 @@ fn create_access_container(
 pub fn random_std_dirs() -> Result<Vec<(&'static str, MDataInfo)>, CoreError> {
     let pub_dirs = DEFAULT_PUBLIC_DIRS
         .iter()
-        .map(|name| MDataInfo::random_public(DIR_TAG).map(|dir| (*name, dir)));
+        .map(|name| MDataInfo::random_public(MDataKind::Unseq, DIR_TAG).map(|dir| (*name, dir)));
     let priv_dirs = DEFAULT_PRIVATE_DIRS
         .iter()
-        .map(|name| MDataInfo::random_private(DIR_TAG).map(|dir| (*name, dir)));
+        .map(|name| MDataInfo::random_private(MDataKind::Unseq, DIR_TAG).map(|dir| (*name, dir)));
     priv_dirs.chain(pub_dirs).collect()
 }
 

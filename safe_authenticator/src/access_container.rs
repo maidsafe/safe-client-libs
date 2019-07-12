@@ -70,7 +70,7 @@ pub fn fetch_authenticator_entry(
     };
 
     client
-        .get_mdata_value(access_container.name, access_container.type_tag, key)
+        .get_mdata_value(access_container.name(), access_container.type_tag(), key)
         .map_err(From::from)
         .and_then(move |value| {
             let enc_key = c2.secret_symmetric_key().ok_or_else(|| {
@@ -107,8 +107,8 @@ pub fn put_authenticator_entry(
 
     recovery::mutate_mdata_entries(
         client,
-        access_container.name,
-        access_container.type_tag,
+        access_container.name(),
+        access_container.type_tag(),
         actions.into(),
     )
     .map_err(From::from)
@@ -148,7 +148,7 @@ pub fn fetch_entry(
     trace!("Fetching entry using entry key {:?}", key);
 
     client
-        .get_mdata_value(access_container.name, access_container.type_tag, key)
+        .get_mdata_value(access_container.name(), access_container.type_tag(), key)
         .map_err(From::from)
         .and_then(move |value| {
             let decoded = if value.content.is_empty() {
@@ -184,8 +184,8 @@ pub fn put_entry(
 
     recovery::mutate_mdata_entries(
         client,
-        access_container.name,
-        access_container.type_tag,
+        access_container.name(),
+        access_container.type_tag(),
         actions.into(),
     )
     .map_err(From::from)
@@ -207,8 +207,8 @@ pub fn delete_entry(
 
     recovery::mutate_mdata_entries(
         client,
-        access_container.name,
-        access_container.type_tag,
+        access_container.name(),
+        access_container.type_tag(),
         actions.into(),
     )
     .map_err(From::from)

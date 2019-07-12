@@ -14,8 +14,9 @@ use routing::XorName;
 use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
-use safe_core::ffi::MDataInfo;
+use safe_core::ffi::{md_kind_clone_from_repr_c, MDataInfo, MDataKind};
 use safe_core::MDataInfo as NativeMDataInfo;
+use safe_nd::MDataAddress;
 use std::os::raw::c_void;
 use std::slice;
 
@@ -23,6 +24,7 @@ use std::slice;
 /// provided private key.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_new_private(
+    md_kind: MDataKind,
     name: *const XorNameArray,
     type_tag: u64,
     secret_key: *const SymSecretKey,
@@ -39,7 +41,10 @@ pub unsafe extern "C" fn mdata_info_new_private(
         let sk = shared_secretbox::Key::from_raw(&*secret_key);
         let nonce = secretbox::Nonce(*nonce);
 
-        let info = NativeMDataInfo::new_private(name, type_tag, (sk, nonce));
+        let md_kind = md_kind_clone_from_repr_c(md_kind);
+        let address = MDataAddress::from_kind(md_kind, name, type_tag);
+
+        let info = NativeMDataInfo::new_private(address, (sk, nonce));
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -50,6 +55,7 @@ pub unsafe extern "C" fn mdata_info_new_private(
 /// Create random, non-encrypted mdata info.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_random_public(
+    md_kind: MDataKind,
     type_tag: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
@@ -59,7 +65,8 @@ pub unsafe extern "C" fn mdata_info_random_public(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = NativeMDataInfo::random_public(type_tag)?;
+        let md_kind = md_kind_clone_from_repr_c(md_kind);
+        let info = NativeMDataInfo::random_public(md_kind, type_tag)?;
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -70,6 +77,7 @@ pub unsafe extern "C" fn mdata_info_random_public(
 /// Create random, encrypted mdata info.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_random_private(
+    md_kind: MDataKind,
     type_tag: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
@@ -79,7 +87,8 @@ pub unsafe extern "C" fn mdata_info_random_private(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let info = NativeMDataInfo::random_private(type_tag)?;
+        let md_kind = md_kind_clone_from_repr_c(md_kind);
+        let info = NativeMDataInfo::random_private(md_kind, type_tag)?;
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -230,32 +239,46 @@ mod tests {
     use routing::XOR_NAME_LEN;
     use rust_sodium::crypto::secretbox;
     use safe_core::crypto::shared_secretbox;
+    use safe_core::ffi::MDataKind;
     use safe_core::MDataInfo;
+    use safe_nd::MDataKind as NativeMDataKind;
 
     // Test creating non-encrypted mdata info.
     #[test]
     fn create_public() {
+        let kind = MDataKind::Seq;
+        let native_kind = NativeMDataKind::Seq;
         let type_tag: u64 = rand::random();
 
-        let info: MDataInfo =
-            unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_public(type_tag, ud, cb))) };
+        let info: MDataInfo = unsafe {
+            unwrap!(call_1(|ud, cb| mdata_info_random_public(
+                kind, type_tag, ud, cb
+            )))
+        };
 
-        assert_eq!(info.type_tag, type_tag);
+        assert_eq!(info.kind(), native_kind);
+        assert_eq!(info.type_tag(), type_tag);
         assert!(info.enc_info.is_none());
     }
 
     // Test creating encrypted mdata info.
     #[test]
     fn create_private() {
+        let kind = MDataKind::Unseq;
+        let native_kind = NativeMDataKind::Unseq;
         let type_tag: u64 = rand::random();
 
-        let rand_info: MDataInfo =
-            unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_private(type_tag, ud, cb))) };
+        let rand_info: MDataInfo = unsafe {
+            unwrap!(call_1(|ud, cb| mdata_info_random_private(
+                kind, type_tag, ud, cb
+            )))
+        };
 
         let key = shared_secretbox::gen_key();
         let nonce = secretbox::gen_nonce();
         let new_info: MDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_new_private(
+                MDataKind::Unseq,
                 &[2; XOR_NAME_LEN],
                 type_tag,
                 &key.0,
@@ -265,10 +288,11 @@ mod tests {
             )))
         };
 
-        assert_eq!(rand_info.type_tag, type_tag);
+        assert_eq!(rand_info.type_tag(), type_tag);
         assert!(rand_info.enc_info.is_some());
 
-        assert_eq!(new_info.type_tag, type_tag);
+        assert_eq!(new_info.kind(), native_kind);
+        assert_eq!(new_info.type_tag(), type_tag);
         match new_info.enc_info {
             Some((ref got_key, ref got_nonce)) => {
                 assert_eq!(*got_key, key);
@@ -281,7 +305,7 @@ mod tests {
     // Test serialising and deserialising mdata_info.
     #[test]
     fn serialise_deserialise() {
-        let info1 = unwrap!(MDataInfo::random_private(1000));
+        let info1 = unwrap!(MDataInfo::random_private(NativeMDataKind::Unseq, 1000));
         let info1_ffi = info1.clone().into_repr_c();
 
         let encoded = unsafe {

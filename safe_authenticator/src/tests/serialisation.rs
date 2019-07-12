@@ -139,7 +139,7 @@ fn verify_std_dirs(
         .chain(DEFAULT_PRIVATE_DIRS.iter())
         .map(|expected_container| {
             let mi = unwrap!(actual_containers.get(*expected_container));
-            client.get_mdata_version(mi.name, mi.type_tag)
+            client.get_mdata_version(mi.name(), mi.type_tag())
         })
         .collect();
 

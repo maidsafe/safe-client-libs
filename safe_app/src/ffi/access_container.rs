@@ -204,7 +204,7 @@ mod tests {
             }
         };
 
-        assert_eq!(md_info.type_tag, DIR_TAG);
+        assert_eq!(md_info.type_tag(), DIR_TAG);
     }
 
     struct PermSet(String, ContainerPermissions);

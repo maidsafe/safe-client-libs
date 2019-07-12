@@ -609,6 +609,7 @@ mod tests {
     use routing::ClientError;
     use safe_core::utils::test_utils::{finish, setup_client};
     use safe_core::{utils, CoreError, DIR_TAG};
+    use safe_nd::MDataKind;
     use tokio_core::reactor::Core;
     use AuthMsgTx;
 
@@ -738,7 +739,7 @@ mod tests {
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let inv = unwrap!(utils::generate_random_string(10));
 
-        let dir = unwrap!(MDataInfo::random_private(DIR_TAG));
+        let dir = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
         let dir_clone = dir.clone();
 
         setup_client(
@@ -770,7 +771,7 @@ mod tests {
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let inv = unwrap!(utils::generate_random_string(10));
 
-        let dir = unwrap!(MDataInfo::random_private(DIR_TAG));
+        let dir = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
         let dir_clone = dir.clone();
 
         setup_client(

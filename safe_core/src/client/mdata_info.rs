@@ -9,23 +9,21 @@
 use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
 use crate::ffi::arrays::{SymNonce, SymSecretKey};
-use crate::ffi::MDataInfo as FfiMDataInfo;
+use crate::ffi::{md_kind_clone_from_repr_c, md_kind_into_repr_c, MDataInfo as FfiMDataInfo};
 use crate::ipc::IpcError;
 use crate::utils::{symmetric_decrypt, symmetric_encrypt};
 use ffi_utils::ReprC;
 use routing::{EntryAction, Value};
 use rust_sodium::crypto::secretbox;
-use safe_nd::XorName;
+use safe_nd::{MDataAddress, MDataKind, XorName};
 use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::sha3_256;
 
 /// Information allowing to locate and access mutable data on the network.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct MDataInfo {
-    /// Name of the data where the directory is stored.
-    pub name: XorName,
-    /// Type tag of the data where the directory is stored.
-    pub type_tag: u64,
+    /// Address of the mutable data, containing its name, type tag, and whether it is sequenced.
+    pub address: MDataAddress,
     /// Key to encrypt/decrypt the directory content and the nonce to be used for keys
     pub enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
 
@@ -36,37 +34,53 @@ pub struct MDataInfo {
 impl MDataInfo {
     /// Construct `MDataInfo` for private (encrypted) data with a provided private key.
     pub fn new_private(
-        name: XorName,
-        type_tag: u64,
+        address: MDataAddress,
         enc_info: (shared_secretbox::Key, secretbox::Nonce),
     ) -> Self {
         MDataInfo {
-            name,
-            type_tag,
+            address,
             enc_info: Some(enc_info),
             new_enc_info: None,
         }
     }
 
     /// Construct `MDataInfo` for public data.
-    pub fn new_public(name: XorName, type_tag: u64) -> Self {
+    pub fn new_public(address: MDataAddress) -> Self {
         MDataInfo {
-            name,
-            type_tag,
+            address,
             enc_info: None,
             new_enc_info: None,
         }
     }
 
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
-    pub fn random_private(type_tag: u64) -> Result<Self, CoreError> {
+    pub fn random_private(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
+        let address = MDataAddress::from_kind(kind, new_rand::random(), type_tag);
         let enc_info = (shared_secretbox::gen_key(), secretbox::gen_nonce());
-        Ok(Self::new_private(new_rand::random(), type_tag, enc_info))
+
+        Ok(Self::new_private(address, enc_info))
     }
 
     /// Generate random `MDataInfo` for public mutable data.
-    pub fn random_public(type_tag: u64) -> Result<Self, CoreError> {
-        Ok(Self::new_public(new_rand::random(), type_tag))
+    pub fn random_public(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
+        let address = MDataAddress::from_kind(kind, new_rand::random(), type_tag);
+
+        Ok(Self::new_public(address))
+    }
+
+    /// Returns the name.
+    pub fn name(&self) -> XorName {
+        *self.address.name()
+    }
+
+    /// Returns the type tag.
+    pub fn type_tag(&self) -> u64 {
+        self.address.tag()
+    }
+
+    /// Returns the kind.
+    pub fn kind(&self) -> MDataKind {
+        self.address.kind()
     }
 
     /// Returns the encryption key, if any.
@@ -134,16 +148,22 @@ impl MDataInfo {
 
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> FfiMDataInfo {
+        let (name, type_tag, kind) = (self.name().0, self.type_tag(), self.kind());
+        let kind = md_kind_into_repr_c(kind);
+
         let (has_enc_info, enc_key, enc_nonce) = enc_info_into_repr_c(self.enc_info);
         let (has_new_enc_info, new_enc_key, new_enc_nonce) =
             enc_info_into_repr_c(self.new_enc_info);
 
         FfiMDataInfo {
-            name: self.name.0,
-            type_tag: self.type_tag,
+            name,
+            type_tag,
+            kind,
+
             has_enc_info,
             enc_key,
             enc_nonce,
+
             has_new_enc_info,
             new_enc_key,
             new_enc_nonce,
@@ -270,23 +290,29 @@ impl ReprC for MDataInfo {
         let FfiMDataInfo {
             name,
             type_tag,
+            kind,
+
             has_enc_info,
             enc_key,
             enc_nonce,
+
             has_new_enc_info,
             new_enc_key,
             new_enc_nonce,
         } = *repr_c;
 
+        let name = XorName(name);
+        let kind = md_kind_clone_from_repr_c(kind);
+
         Ok(Self {
-            name: XorName(name),
-            type_tag,
+            address: MDataAddress::from_kind(kind, name, type_tag),
             enc_info: enc_info_from_repr_c(has_enc_info, enc_key, enc_nonce),
             new_enc_info: enc_info_from_repr_c(has_new_enc_info, new_enc_key, new_enc_nonce),
         })
     }
 }
 
+// Helper function for converting to FFI representation.
 fn enc_info_into_repr_c(
     info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
 ) -> (bool, SymSecretKey, SymNonce) {
@@ -297,6 +323,7 @@ fn enc_info_into_repr_c(
     }
 }
 
+// Helper function for converting from FFI representation.
 fn enc_info_from_repr_c(
     is_set: bool,
     key: SymSecretKey,
@@ -319,7 +346,7 @@ mod tests {
     // Ensure that a private mdata info is encrypted.
     #[test]
     fn private_mdata_info_encrypts() {
-        let info = unwrap!(MDataInfo::random_private(0));
+        let info = unwrap!(MDataInfo::random_private(MDataKind::Seq, 0));
         let key = Vec::from("str of key");
         let val = Vec::from("other is value");
         let enc_key = unwrap!(info.enc_entry_key(&key));
@@ -333,7 +360,7 @@ mod tests {
     // Ensure that a public mdata info is not encrypted.
     #[test]
     fn public_mdata_info_doesnt_encrypt() {
-        let info = unwrap!(MDataInfo::random_public(0));
+        let info = unwrap!(MDataInfo::random_public(MDataKind::Unseq, 0));
         let key = Vec::from("str of key");
         let val = Vec::from("other is value");
         assert_eq!(unwrap!(info.enc_entry_key(&key)), key);
@@ -344,7 +371,7 @@ mod tests {
     // Test creating and committing new encryption info.
     #[test]
     fn decrypt() {
-        let mut info = unwrap!(MDataInfo::random_private(0));
+        let mut info = unwrap!(MDataInfo::random_private(MDataKind::Seq, 0));
 
         let plain = Vec::from("plaintext");
         let old_cipher = unwrap!(info.enc_entry_value(&plain));

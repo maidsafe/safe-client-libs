@@ -23,7 +23,7 @@ use routing::Value;
 use routing::{BootstrapConfig, XorName};
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
-use safe_nd::{AppFullId, PublicKey};
+use safe_nd::{AppFullId, MDataAddress, PublicKey};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};
@@ -307,15 +307,21 @@ impl AccessContInfo {
 
     /// Creates `MDataInfo` from this `AccessContInfo`
     pub fn into_mdata_info(self, enc_key: shared_secretbox::Key) -> MDataInfo {
-        MDataInfo::new_private(self.id, self.tag, (enc_key, self.nonce))
+        MDataInfo::new_private(
+            MDataAddress::Seq {
+                name: self.id,
+                tag: self.tag,
+            },
+            (enc_key, self.nonce),
+        )
     }
 
     /// Creates an `AccessContInfo` from a given `MDataInfo`
     pub fn from_mdata_info(md: &MDataInfo) -> Result<AccessContInfo, IpcError> {
         if let Some((_, nonce)) = md.enc_info {
             Ok(AccessContInfo {
-                id: md.name,
-                tag: md.type_tag,
+                id: md.name(),
+                tag: md.type_tag(),
                 nonce,
             })
         } else {

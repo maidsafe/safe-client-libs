@@ -14,7 +14,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::FullId;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
-use safe_nd::{ClientFullId, XorName, XOR_NAME_LEN};
+use safe_nd::{ClientFullId, MDataKind, XorName, XOR_NAME_LEN};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use threshold_crypto::serde_impl::SerdeSecret;
 use tiny_keccak::sha3_256;
@@ -39,8 +39,8 @@ impl Account {
     pub fn new(maid_keys: ClientKeys) -> Result<Self, CoreError> {
         Ok(Account {
             maid_keys,
-            access_container: MDataInfo::random_private(DIR_TAG)?,
-            config_root: MDataInfo::random_private(DIR_TAG)?,
+            access_container: MDataInfo::random_private(MDataKind::Unseq, DIR_TAG)?,
+            config_root: MDataInfo::random_private(MDataKind::Unseq, DIR_TAG)?,
             root_dirs_created: false,
         })
     }

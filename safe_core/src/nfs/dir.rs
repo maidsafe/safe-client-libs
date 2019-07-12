@@ -26,7 +26,8 @@ pub fn create_dir(
         .ok_or_else(|| NfsError::Unexpected("Owner key not found".to_string())));
     let owners = btree_set![pub_key];
     let dir_md = fry!(
-        MutableData::new(dir.name, dir.type_tag, perms, contents, owners).map_err(CoreError::from)
+        MutableData::new(dir.name(), dir.type_tag(), perms, contents, owners)
+            .map_err(CoreError::from)
     );
     client
         .put_mdata(dir_md)
