@@ -348,7 +348,8 @@ impl Vault {
             request,
             message_id,
             signature,
-        } = unwrap!(deserialise(&payload))
+        } =
+            deserialise(&payload).map_err(|_| SndError::from("Error deserialising message"))?
         {
             (request, message_id, signature)
         } else {
@@ -790,8 +791,8 @@ impl Vault {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| match data {
-                        MData::Unseq(mdata) => Ok((*unwrap!(mdata.user_permissions(user))).clone()),
-                        MData::Seq(mdata) => Ok((*unwrap!(mdata.user_permissions(user))).clone()),
+                        MData::Unseq(mdata) => Ok((*mdata.user_permissions(user)?).clone()),
+                        MData::Seq(mdata) => Ok((*mdata.user_permissions(user)?).clone()),
                     });
                 Response::ListMDataUserPermissions(result)
             }
@@ -984,7 +985,7 @@ impl Vault {
                             }
                         }
                     });
-                unwrap!(res)
+                res?
             }
             Request::GetPubADataUserPermissions {
                 address,
