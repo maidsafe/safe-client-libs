@@ -16,7 +16,7 @@ use futures::Future;
 use maidsafe_utilities::thread;
 use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
 use safe_core::utils::test_utils::random_client;
-use safe_core::{utils, Client, CoreError, FutureExt, DIR_TAG};
+use safe_core::{client::AuthActions, utils, Client, CoreError, FutureExt, DIR_TAG};
 use safe_nd::PublicKey;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CString;

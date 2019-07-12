@@ -20,7 +20,9 @@ use routing::ClientError;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{app_container_name, recovery, Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{
+    app_container_name, client::AuthActions, recovery, Client, CoreError, FutureExt, MDataInfo,
+};
 use safe_nd::{AppPermissions, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;

@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::Client;
+use crate::client::AuthActions;
 use crate::errors::CoreError;
 use crate::event_loop::CoreFuture;
 use crate::utils::FutureExt;
@@ -300,7 +301,7 @@ fn union_permission_sets(a: PermissionSet, b: PermissionSet) -> PermissionSet {
 /// Insert key to maid managers.
 /// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
 pub fn ins_auth_key(
-    client: &impl Client,
+    client: &(impl Client + AuthActions),
     key: PublicKey,
     permissions: AppPermissions,
     version: u64,

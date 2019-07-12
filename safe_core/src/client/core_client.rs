@@ -6,15 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::Routing;
-#[cfg(not(feature = "mock-network"))]
-use routing::Client as Routing;
-
-use crate::client::account::{Account as ClientAccount, ClientKeys};
 use crate::client::NewFullId;
 use crate::client::{
-    setup_routing, spawn_routing_thread, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
+    setup_routing, spawn_routing_thread, AuthActions, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
     REQUEST_TIMEOUT_SECS,
 };
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
@@ -24,6 +21,8 @@ use crate::event_loop::CoreMsgTx;
 use crate::utils;
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::serialise;
+#[cfg(not(feature = "mock-network"))]
+use routing::Client as Routing;
 use routing::{
     AccountPacket, Authority, BootstrapConfig, Event, FullId, MutableData, Response, Value,
     ACC_LOGIN_ENTRY_KEY, TYPE_TAG_SESSION_PACKET,
@@ -256,6 +255,8 @@ impl Client for CoreClient {
         }
     }
 }
+
+impl AuthActions for CoreClient {}
 
 impl Clone for CoreClient {
     fn clone(&self) -> Self {

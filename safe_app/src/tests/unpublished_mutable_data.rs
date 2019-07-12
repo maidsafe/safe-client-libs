@@ -15,7 +15,7 @@ use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
 use safe_core::utils::test_utils::random_client;
-use safe_core::{Client, CoreError, FutureExt, DIR_TAG};
+use safe_core::{client::AuthActions, Client, CoreError, FutureExt, DIR_TAG};
 use safe_nd::{Error, PublicKey, XorName};
 use safe_nd::{
     MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,

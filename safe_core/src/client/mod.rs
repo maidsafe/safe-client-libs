@@ -593,13 +593,6 @@ pub trait Client: Clone + 'static {
             .into_box()
     }
 
-    /// Delete MData from network
-    fn delete_mdata(&self, address: MDataAddress) -> Box<CoreFuture<()>> {
-        trace!("Delete entire Mutable Data at {:?}", address);
-
-        send_mutation_new(self, Request::DeleteMData(address))
-    }
-
     /// Mutates `MutableData` entries in bulk.
     fn mutate_mdata_entries(
         &self,
@@ -1540,54 +1533,6 @@ pub trait Client: Clone + 'static {
         })
     }
 
-    /// Fetches a list of authorised keys and version in MaidManager.
-    fn list_auth_keys_and_version(
-        &self,
-    ) -> Box<CoreFuture<(BTreeMap<PublicKey, AppPermissions>, u64)>> {
-        trace!("ListAuthKeysAndVersion");
-
-        send_new(self, Request::ListAuthKeysAndVersion)
-            .and_then(|event| {
-                let res = match event {
-                    CoreEvent::RpcResponse(res) => res,
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
-                };
-                let result_buffer = unwrap!(res);
-                let res: Response = unwrap!(deserialise(&result_buffer));
-                match res {
-                    Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
-                }
-            })
-            .into_box()
-    }
-
-    /// Adds a new authorised key to MaidManager.
-    fn ins_auth_key(
-        &self,
-        key: PublicKey,
-        permissions: AppPermissions,
-        version: u64,
-    ) -> Box<CoreFuture<()>> {
-        trace!("InsAuthKey ({:?})", key);
-
-        send_mutation_new(
-            self,
-            Request::InsAuthKey {
-                key,
-                permissions,
-                version,
-            },
-        )
-    }
-
-    /// Removes an authorised key from MaidManager.
-    fn del_auth_key(&self, key: PublicKey, version: u64) -> Box<CoreFuture<()>> {
-        trace!("DelAuthKey ({:?})", key);
-
-        send_mutation_new(self, Request::DelAuthKey { key, version })
-    }
-
     #[cfg(any(
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
@@ -1732,6 +1677,66 @@ pub fn wallet_transfer_coins(
     match rpc_response {
         Response::Transaction(res) => res,
         _ => Err(SndError::from("Unexpected response")),
+    }
+}
+
+/// This trait implements functions that are supposed to be called only by CoreClient and AuthClient.
+/// Applications are not allowed to DELETE MData and get/mutate auth keys, hence AppClient does not implement
+/// this trait.
+pub trait AuthActions: Client + Clone + 'static {
+    /// Fetches a list of authorised keys and version.
+    fn list_auth_keys_and_version(
+        &self,
+    ) -> Box<CoreFuture<(BTreeMap<PublicKey, AppPermissions>, u64)>> {
+        trace!("ListAuthKeysAndVersion");
+
+        send_new(self, Request::ListAuthKeysAndVersion)
+            .and_then(|event| {
+                let res = match event {
+                    CoreEvent::RpcResponse(res) => res,
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                };
+                let result_buffer = unwrap!(res);
+                let res: Response = unwrap!(deserialise(&result_buffer));
+                match res {
+                    Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+                }
+            })
+            .into_box()
+    }
+
+    /// Adds a new authorised key.
+    fn ins_auth_key(
+        &self,
+        key: PublicKey,
+        permissions: AppPermissions,
+        version: u64,
+    ) -> Box<CoreFuture<()>> {
+        trace!("InsAuthKey ({:?})", key);
+
+        send_mutation_new(
+            self,
+            Request::InsAuthKey {
+                key,
+                permissions,
+                version,
+            },
+        )
+    }
+
+    /// Removes an authorised key.
+    fn del_auth_key(&self, key: PublicKey, version: u64) -> Box<CoreFuture<()>> {
+        trace!("DelAuthKey ({:?})", key);
+
+        send_mutation_new(self, Request::DelAuthKey { key, version })
+    }
+
+    /// Delete MData from network
+    fn delete_mdata(&self, address: MDataAddress) -> Box<CoreFuture<()>> {
+        trace!("Delete entire Mutable Data at {:?}", address);
+
+        send_mutation_new(self, Request::DeleteMData(address))
     }
 }
 

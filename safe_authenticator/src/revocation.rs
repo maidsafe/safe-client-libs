@@ -16,7 +16,7 @@ use futures::future::{self, Either, Loop};
 use futures::Future;
 use routing::{ClientError, EntryActions, User, Value};
 use safe_core::recovery;
-use safe_core::{Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{client::AuthActions, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::PublicKey;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};

@@ -18,6 +18,7 @@ use crate::ffi::apps::*;
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };
+use crate::safe_core::client::AuthActions;
 use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use crate::safe_core::ipc::{
     self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,

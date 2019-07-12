@@ -27,7 +27,8 @@ use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
 use safe_core::client::{
-    setup_routing, spawn_routing_thread, ClientInner, IMMUT_DATA_CACHE_SIZE, REQUEST_TIMEOUT_SECS,
+    setup_routing, spawn_routing_thread, AuthActions, ClientInner, IMMUT_DATA_CACHE_SIZE,
+    REQUEST_TIMEOUT_SECS,
 };
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 #[cfg(any(test, feature = "testing"))]
@@ -476,6 +477,8 @@ where {
         account.root_dirs_created = val;
     }
 }
+
+impl AuthActions for AuthClient {}
 
 impl Client for AuthClient {
     type MsgType = ();

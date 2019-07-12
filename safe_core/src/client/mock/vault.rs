@@ -339,6 +339,7 @@ impl Vault {
         }
     }
 
+    #[allow(clippy::cognitive_complexity)]
     pub fn process_request(
         &mut self,
         requester: PublicId,
@@ -411,14 +412,12 @@ impl Vault {
             // ===== Client (Owner) to SrcElders =====
             Request::ListAuthKeysAndVersion => {
                 let name = requester.name();
-                if let Some(account) = self.get_account(&name) {
-                    Response::ListAuthKeysAndVersion(Ok((
-                        account.auth_keys().clone(),
-                        account.version(),
-                    )))
+                let res = if let Some(account) = self.get_account(&name) {
+                    Ok((account.auth_keys().clone(), account.version()))
                 } else {
-                    return Err(SndError::AccessDenied);
-                }
+                    Err(SndError::AccessDenied)
+                };
+                Response::ListAuthKeysAndVersion(res)
             }
             Request::InsAuthKey {
                 key,
@@ -426,19 +425,21 @@ impl Vault {
                 version,
             } => {
                 let name = requester.name();
-                if let Some(account) = self.get_account_mut(&name) {
-                    Response::Mutation(account.ins_auth_key(key, permissions, version))
+                let res = if let Some(account) = self.get_account_mut(&name) {
+                    account.ins_auth_key(key, permissions, version)
                 } else {
-                    return Err(SndError::AccessDenied);
-                }
+                    Err(SndError::AccessDenied)
+                };
+                Response::Mutation(res)
             }
             Request::DelAuthKey { key, version } => {
                 let name = requester.name();
-                if let Some(account) = self.get_account_mut(&name) {
-                    Response::Mutation(account.del_auth_key(&key, version))
+                let res = if let Some(account) = self.get_account_mut(&name) {
+                    account.del_auth_key(&key, version)
                 } else {
-                    return Err(SndError::AccessDenied);
-                }
+                    Err(SndError::AccessDenied)
+                };
+                Response::Mutation(res)
             }
             // ===== Coins =====
             Request::TransferCoins {

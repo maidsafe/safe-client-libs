@@ -45,7 +45,7 @@ mod mock_routing {
     use safe_core::ipc::{IpcError, Permission};
     use safe_core::utils::test_utils::Synchronizer;
     use safe_core::MockRouting;
-    use safe_core::{Client, FutureExt};
+    use safe_core::{client::AuthActions, Client, FutureExt};
     use std::collections::HashMap;
     use std::iter;
     use std::sync::{Arc, Barrier};

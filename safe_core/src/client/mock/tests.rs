@@ -22,7 +22,7 @@ use routing::{
     TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    AppFullId, ClientFullId, Error, IData, IDataAddress, IDataKind, MData,
+    AppFullId, AppPermissions, ClientFullId, Error, IData, IDataAddress, IDataKind, MData,
     MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet, MessageId,
     PubImmutableData, PublicKey, Request as RpcRequest, Response as RpcResponse,
     UnpubImmutableData, UnseqMutableData, XorName,
@@ -31,6 +31,7 @@ use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use threshold_crypto::SecretKey;
 
 // Helper macro to receive a routing event and assert it's a response
 // failure.
@@ -1192,80 +1193,233 @@ fn unpub_md() {
 }
 
 // Test auth key operations with valid and invalid version bumps.
-// #[test]
-// fn auth_keys() {
-//     let (mut routing, routing_rx, full_id) = setup();
-//     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-//     let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+#[test]
+fn auth_keys() {
+    let (mut routing, routing_rx, full_id) = setup_with_config(Config {
+        dev: Some(DevConfig {
+            mock_unlimited_mutations: true,
+            mock_in_memory_storage: true,
+            mock_vault_path: None,
+        }),
+    });
+    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
+    let _acc = create_account(&mut routing, &routing_rx, owner_key);
 
-//     let (auth_key1, _) = sign::gen_keypair();
-//     let (auth_key2, _) = sign::gen_keypair();
+    // Initially, the list of auth keys should be empty and the version should be zero.
+    let mut response: RpcResponse = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
 
-//     // Initially, the list of auth keys should be empty and the version should be zero.
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.list_auth_keys_and_version(client_mgr, msg_id));
-//     let (auth_keys, version) =
-//         expect_success!(routing_rx, msg_id, Response::ListAuthKeysAndVersion);
-//     assert!(auth_keys.is_empty());
-//     assert_eq!(version, 0);
+    match response {
+        RpcResponse::ListAuthKeysAndVersion(res) => match res {
+            Ok(keys) => {
+                assert_eq!(keys.0.len(), 0);
+                assert_eq!(keys.1, 0);
+            }
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        },
+        _ => panic!("Unexpected response"),
+    }
 
-//     // Attempt to insert an auth key without proper version bump fails.
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.ins_auth_key(client_mgr, auth_key1, Default::default(), 0, msg_id));
-//     expect_failure!(
-//         routing_rx,
-//         msg_id,
-//         Response::InsAuthKey,
-//         ClientError::InvalidSuccessor(_)
-//     );
+    let app_key = PublicKey::from(SecretKey::random().public_key());
 
-//     // Insert an auth key with proper version bump succeeds.
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.ins_auth_key(client_mgr, auth_key1, Default::default(), 1, msg_id));
-//     expect_success!(routing_rx, msg_id, Response::InsAuthKey);
+    // Attempt to insert auth key without proper version bump fails.
+    let test_ins_auth_key_req = RpcRequest::InsAuthKey {
+        key: app_key,
+        version: 0,
+        permissions: AppPermissions {
+            transfer_coins: true,
+        },
+    };
 
-//     // Retrieve the list of auth keys and version
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.list_auth_keys_and_version(client_mgr, msg_id));
-//     let (auth_keys, version) =
-//         expect_success!(routing_rx, msg_id, Response::ListAuthKeysAndVersion);
-//     assert_eq!(auth_keys.len(), 1);
-//     assert!(auth_keys.contains(&auth_key1));
-//     assert_eq!(version, 1);
+    response = routing.req(&routing_rx, test_ins_auth_key_req);
 
-//     // Attempt to delete auth key without proper version bump fails.
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.del_auth_key(client_mgr, auth_key1, 1, msg_id));
-//     expect_failure!(
-//         routing_rx,
-//         msg_id,
-//         Response::DelAuthKey,
-//         ClientError::InvalidSuccessor(_)
-//     );
+    match response {
+        RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
+        RpcResponse::Mutation(Err(Error::InvalidSuccessor(0))) => (),
+        _ => panic!("Unexpected Response"),
+    }
 
-//     // Attempt to delete non-existing key fails.
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.del_auth_key(client_mgr, auth_key2, 2, msg_id));
-//     expect_failure!(
-//         routing_rx,
-//         msg_id,
-//         Response::DelAuthKey,
-//         ClientError::NoSuchKey
-//     );
+    // Insert an auth key with proper version bump succeeds.
+    let ins_auth_key_req = RpcRequest::InsAuthKey {
+        key: app_key,
+        version: 1,
+        permissions: AppPermissions {
+            transfer_coins: true,
+        },
+    };
 
-//     // Delete auth key with proper version bump succeeds.
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.del_auth_key(client_mgr, auth_key1, 2, msg_id));
-//     expect_success!(routing_rx, msg_id, Response::DelAuthKey);
+    response = routing.req(&routing_rx, ins_auth_key_req);
 
-//     // Retrieve the list of auth keys and version
-//     let msg_id = MessageId::new();
-//     unwrap!(routing.list_auth_keys_and_version(client_mgr, msg_id));
-//     let (auth_keys, version) =
-//         expect_success!(routing_rx, msg_id, Response::ListAuthKeysAndVersion);
-//     assert!(auth_keys.is_empty());
-//     assert_eq!(version, 2);
-// }
+    match response {
+        RpcResponse::Mutation(Ok(())) => (),
+        RpcResponse::Mutation(Err(e)) => panic!("Unexpected Error : {:?}", e),
+        _ => panic!("Unexpected Response"),
+    }
+
+    response = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
+
+    match response {
+        RpcResponse::ListAuthKeysAndVersion(res) => match res {
+            Ok(keys) => {
+                assert_eq!(unwrap!(keys.0.get(&app_key)).transfer_coins, true);
+                assert_eq!(keys.1, 1);
+            }
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        },
+        _ => panic!("Unexpected response"),
+    }
+    // Attempt to delete auth key without proper version bump fails.
+    let test_del_auth_key_req = RpcRequest::DelAuthKey {
+        key: app_key,
+        version: 0,
+    };
+
+    response = routing.req(&routing_rx, test_del_auth_key_req);
+
+    match response {
+        RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
+        RpcResponse::Mutation(Err(Error::InvalidSuccessor(1))) => (),
+        _ => panic!("Unexpected Response"),
+    }
+
+    // Attempt to delete non-existing key fails.
+    let test_auth_key = PublicKey::from(SecretKey::random().public_key());
+
+    let test1_del_auth_key_req = RpcRequest::DelAuthKey {
+        key: test_auth_key,
+        version: 2,
+    };
+
+    response = routing.req(&routing_rx, test1_del_auth_key_req);
+
+    match response {
+        RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
+        RpcResponse::Mutation(Err(Error::NoSuchKey)) => (),
+        _ => panic!("Unexpected Response"),
+    }
+
+    // Delete auth key with proper version bump succeeds.
+    let del_auth_key_req = RpcRequest::DelAuthKey {
+        key: app_key,
+        version: 2,
+    };
+
+    response = routing.req(&routing_rx, del_auth_key_req);
+
+    match response {
+        RpcResponse::Mutation(Ok(())) => (),
+        RpcResponse::Mutation(Err(e)) => panic!("Unexpected Error : {:?}", e),
+        _ => panic!("Unexpected Response"),
+    }
+
+    // Retrieve the list of auth keys and version
+    response = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
+
+    match response {
+        RpcResponse::ListAuthKeysAndVersion(res) => match res {
+            Ok(keys) => {
+                assert_eq!(keys.0.len(), 0);
+                assert_eq!(keys.1, 2);
+            }
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        },
+        _ => panic!("Unexpected response"),
+    }
+}
+
+// Ensure Get/Mutate AuthKeys Requests and DeleteMData Requests called by AppClients fails.
+#[test]
+fn auth_actions_from_app() {
+    // Creates an App Routing instance
+    let (mut app_routing, app_routing_rx, _app_full_id) = setup();
+
+    // Creates a Client Routing instance
+    let (mut routing, routing_rx, full_id) = setup();
+    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
+    let bls_key = full_id.bls_key().public_key();
+    let _ = create_account(&mut routing, &routing_rx, owner_key);
+
+    let name = XorName(new_rand::random());
+    let tag = 15002;
+
+    let mut permissions: BTreeMap<_, _> = Default::default();
+    let _ = permissions.insert(
+        PublicKey::Bls(bls_key),
+        NewPermissionSet::new().allow(NewAction::Read),
+    );
+
+    let data =
+        UnseqMutableData::new_with_data(name, tag, Default::default(), permissions, owner_key);
+
+    let address = MDataAddress::Unseq { name, tag };
+
+    let response: RpcResponse = routing.req(
+        &routing_rx,
+        RpcRequest::PutMData(MData::Unseq(data.clone())),
+    );
+
+    match response {
+        RpcResponse::Mutation(res) => unwrap!(res),
+        _ => panic!("Unexpected response"),
+    };
+
+    // Assert if the inserted data is correct.
+    let rpc_response: RpcResponse = routing.req(
+        &routing_rx,
+        RpcRequest::GetMData(MDataAddress::Unseq { name, tag }),
+    );
+    match rpc_response {
+        RpcResponse::GetMData(res) => {
+            let unpub_mdata: MData = unwrap!(res);
+            println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
+            assert_eq!(*unpub_mdata.name(), name);
+            assert_eq!(unpub_mdata.tag(), tag);
+        }
+        _ => panic!("Unexpected response"),
+    }
+
+    // Delete MData called by apps should fail
+    let del_mdata_by_app = app_routing.req(&app_routing_rx, RpcRequest::DeleteMData(address));
+
+    match del_mdata_by_app {
+        RpcResponse::Mutation(res) => match res {
+            Err(Error::AccessDenied) => (),
+            Err(e) => panic!("Unexpected error {:?}", e),
+            Ok(_) => panic!("Unexpected success"),
+        },
+        app_req => panic!("Unexpected response {:?}", app_req),
+    }
+
+    // List Auth Keys called by apps should fail
+    let list_auth_keys_by_app =
+        app_routing.req(&app_routing_rx, RpcRequest::ListAuthKeysAndVersion);
+
+    match list_auth_keys_by_app {
+        RpcResponse::ListAuthKeysAndVersion(res) => match res {
+            Err(Error::AccessDenied) => (),
+            Err(e) => panic!("Unexpected error: {:?}", e),
+            Ok(_) => panic!("Unexpected success"),
+        },
+        _ => panic!("Unexpected response"),
+    }
+
+    // Delete Auth Keys called by apps should fail
+    let delete_auth_keys_by_app = app_routing.req(
+        &app_routing_rx,
+        RpcRequest::DelAuthKey {
+            key: PublicKey::Bls(bls_key),
+            version: 1,
+        },
+    );
+
+    match delete_auth_keys_by_app {
+        RpcResponse::Mutation(res) => match res {
+            Err(Error::AccessDenied) => (),
+            Err(e) => panic!("Unexpected error: {:?}", e),
+            Ok(_) => panic!("Unexpected success"),
+        },
+        _ => panic!("Unexpected response"),
+    }
+}
 
 // Exhaust the account balance and ensure that mutations fail.
 #[test]
