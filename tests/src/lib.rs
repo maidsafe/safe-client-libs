@@ -90,13 +90,13 @@ fn unregistered_client() {
     // Registered Client PUTs something onto the network.
     {
         let orig_data = orig_data.clone();
-        random_client(|client| client.put_idata(orig_data));
+        random_client(|client| client.put_pub_idata(orig_data));
     }
 
     // Unregistered Client should be able to retrieve the data.
     let app = unwrap!(App::unregistered(|| (), None));
     unwrap!(run(&app, move |client, _context| {
-        let _ = client.get_idata(*orig_data.name()).map(move |data| {
+        let _ = client.get_pub_idata(*orig_data.name()).map(move |data| {
             assert_eq!(data, orig_data);
         });
         Ok(())

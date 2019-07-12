@@ -25,8 +25,15 @@ use safe_authenticator::Authenticator;
 use safe_core::ffi::AccountInfo;
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
 use safe_core::ipc::Permission;
+use safe_core::utils;
+use safe_core::utils::test_utils::random_client;
 #[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
+use safe_core::{Client, CoreError};
+use safe_nd::{
+    AData, ADataAddress, Error as SndError, PubImmutableData, PubUnseqAppendOnlyData,
+    UnpubUnseqAppendOnlyData, XorName,
+};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -271,4 +278,60 @@ fn app_container_creation() {
     let app = authorise_app(&auth, &app_info, &app_id, true);
 
     assert_eq!(num_containers(&app), 1); // should only contain app container
+}
+
+// Test unregistered clients.
+// 1. Have a registered clients put published immutable and published append-only data on the network.
+// 2. Try to read them as unregistered.
+#[test]
+fn unregistered_client() {
+    let addr: XorName = new_rand::random();
+    let tag = 15002;
+    let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
+    let pub_adata: AData = PubUnseqAppendOnlyData::new(addr, tag).into();
+    let unpub_adata: AData = UnpubUnseqAppendOnlyData::new(addr, tag).into();
+
+    // Registered Client PUTs something onto the network.
+    {
+        let pub_idata = pub_idata.clone();
+        let pub_adata = pub_adata.clone();
+        let unpub_adata = unpub_adata.clone();
+        random_client(|client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+            client
+                .put_pub_idata(pub_idata)
+                .and_then(move |_| client2.put_adata(pub_adata))
+                .and_then(move |_| client3.put_adata(unpub_adata))
+        });
+    }
+
+    // Unregistered Client should be able to retrieve the data.
+    let app = unwrap!(App::unregistered(|| (), None));
+    unwrap!(run(&app, move |client, _context| {
+        let client2 = client.clone();
+        let client3 = client.clone();
+
+        client
+            .get_pub_idata(*pub_idata.name())
+            .and_then(move |data| {
+                assert_eq!(data, pub_idata);
+                client2
+                    .get_adata(ADataAddress::PubUnseq { name: addr, tag })
+                    .map(move |data| {
+                        assert_eq!(data, pub_adata);
+                    })
+            })
+            .then(move |_| {
+                client3
+                    .get_adata(ADataAddress::UnpubUnseq { name: addr, tag })
+                    .then(|res| {
+                        match res {
+                            Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
+                            res => panic!("Unexpected result {:?}", res),
+                        }
+                        Ok(())
+                    })
+            })
+    }));
 }

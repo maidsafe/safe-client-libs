@@ -24,7 +24,7 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, NetworkTx};
-use safe_nd::{AppFullId, Message, MessageId, PublicKey, Request, Signature};
+use safe_nd::{AppFullId, ClientFullId, Message, MessageId, PublicKey, Request, Signature};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -50,7 +50,15 @@ impl AppClient {
     ) -> Result<Self, AppError> {
         trace!("Creating unregistered client.");
 
-        let (routing, routing_rx) = setup_routing(None, None, config)?;
+        let client_keys = ClientKeys::new(None);
+
+        let (routing, routing_rx) = setup_routing(
+            None,
+            Some(NewFullId::Client(ClientFullId::with_bls_key(
+                client_keys.bls_sk.clone(),
+            ))),
+            config,
+        )?;
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 
         Ok(Self {
@@ -64,7 +72,12 @@ impl AppClient {
                 core_tx,
                 net_tx,
             ))),
-            app_inner: Rc::new(RefCell::new(AppInner::new(None, None, None, config))),
+            app_inner: Rc::new(RefCell::new(AppInner::new(
+                Some(client_keys),
+                None,
+                None,
+                config,
+            ))),
         })
     }
 
