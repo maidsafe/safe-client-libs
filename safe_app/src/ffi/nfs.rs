@@ -159,6 +159,12 @@ pub unsafe extern "C" fn dir_delete_file(
 }
 
 /// Open the file to read or write its contents.
+///
+/// # Notes
+///
+/// When creating an empty file with no metadata, a null pointer can be passed
+/// in for the `file` argument. In such cases, the library will internally
+/// create a default File with a 0 length `user_metadata_ptr`
 #[no_mangle]
 pub unsafe extern "C" fn file_open(
     app: *const App,
@@ -174,7 +180,11 @@ pub unsafe extern "C" fn file_open(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
-        let file = NativeFile::clone_from_repr_c(file)?;
+        let file = if file.is_null() {
+            NativeFile::new(Vec::new())
+        } else {
+            NativeFile::clone_from_repr_c(file)?
+        };
 
         send(app, user_data, o_cb, move |client, context| {
             let context = context.clone();
