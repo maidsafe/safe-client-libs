@@ -8,6 +8,7 @@ USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
 UNAME_S := $(shell uname -s)
 S3_BUCKET := safe-client-libs-jenkins
+UUID := $(shell uuidgen | sed 's/-//g')
 
 build-container:
 	rm -rf target/
@@ -171,26 +172,6 @@ endif
 	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
 	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
 
-test-artifacts-mock:
-ifeq ($(UNAME_S),Linux)
-	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		-e SCL_TEST_SUITE=mock \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/test-runner-container
-else
-	./scripts/test-mock
-endif
-
-test-artifacts-integration:
-	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		-e SCL_TEST_SUITE=integration \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
-		scripts/test-runner-container
-
 test-artifacts-binary:
 ifndef SCL_BCT_PATH
 	@echo "A value must be supplied for the previous binary compatibility test suite."
@@ -209,15 +190,29 @@ endif
 		scripts/test-runner-container
 
 tests: clean
+ifeq ($(UNAME_S),Linux)
 	rm -rf target/
-	docker run --name safe_app_build \
+	docker run --name "safe_app_tests-${UUID}" \
 		-v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/test-mock
-	docker cp safe_app_build:/target .
-	docker rm -f safe_app_build
+	docker cp "safe_app_tests-${UUID}":/target .
+	docker rm -f "safe_app_tests-${UUID}"
+else
+	./scripts/test-mock
+endif
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+tests-integration: clean
+	rm -rf target/
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		scripts/test-integration
 
 debug:
 	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} /bin/bash

@@ -5,22 +5,21 @@ properties([
     ])
 ])
 
-stage('build') {
+stage('build & test') {
     parallel mock_linux: {
         node('docker') {
             checkout(scm)
             clean()
-            build_safe_client_libs('mock')
+            run_tests('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'linux')
             upload_build_artifacts()
-            upload_binary_compatibility_test()
         }
     },
     mock_windows: {
         node('windows') {
             checkout(scm)
-            build_safe_client_libs('mock')
+            run_tests('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'windows')
             upload_build_artifacts()
@@ -29,40 +28,15 @@ stage('build') {
     mock_osx: {
         node('osx') {
             checkout(scm)
-            build_safe_client_libs('mock')
+            run_tests('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'osx')
             upload_build_artifacts()
         }
-    }
-}
-
-stage('test') {
-    parallel mocked_linux: {
+    },
+    integration_tests: {
         node('docker') {
             checkout(scm)
-            retrieve_build_artifacts('mock', 'linux')
-            run_tests('mock')
-        }
-    },
-    mocked_windows: {
-        node('windows') {
-            checkout(scm)
-            retrieve_build_artifacts('mock', 'windows')
-            run_tests('mock')
-        }
-    },
-    mocked_macos: {
-        node('osx') {
-            checkout(scm)
-            retrieve_build_artifacts('mock', 'osx')
-            run_tests('mock')
-        }
-    },
-    integration_linux: {
-        node('docker') {
-            checkout(scm)
-            retrieve_build_artifacts('mock', 'linux')
             run_tests('integration')
         }
     }
@@ -140,14 +114,6 @@ def package_deploy_artifacts() {
     sh("make package-deploy-artifacts")
 }
 
-def build_safe_client_libs(mode) {
-    if (mode == "real") {
-        sh("make build")
-    } else {
-        sh("make build-mock")
-    }
-}
-
 def strip_build_artifacts() {
     sh("make strip-artifacts")
 }
@@ -182,25 +148,6 @@ def upload_binary_compatibility_test() {
     }
 }
 
-def retrieve_build_artifacts(mode, os) {
-    command = ""
-    if (env.CHANGE_ID?.trim()) {
-        command += "SCL_BRANCH=${env.CHANGE_ID} "
-    } else {
-        command += "SCL_BRANCH=${env.BRANCH_NAME} "
-    }
-    command += "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
-    command += "SCL_BUILD_OS=${os} "
-    if (mode == 'mock') {
-        command += "SCL_BUILD_MOCK=true "
-    } else {
-        command += "SCL_BUILD_MOCK=false "
-    }
-    command += "make retrieve-build-artifacts"
-    sh(command)
-}
-
-
 def run_binary_compatibility_tests() {
     build_number = get_last_successful_build_number(currentBuild)
     if (build_number != -1) {
@@ -221,13 +168,13 @@ def run_binary_compatibility_tests() {
 
 def run_tests(mode, bct_test_path='') {
     if (mode == 'mock') {
-        sh("make test-artifacts-mock")
+        sh("make tests")
     } else if (mode == 'binary') {
         command = "SCL_BCT_PATH=${bct_test_path} "
         command += "make test-artifacts-binary"
         sh(command)
     } else {
-        sh("make test-artifacts-integration")
+        sh("make tests-integration")
     }
 }
 
