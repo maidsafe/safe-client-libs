@@ -63,6 +63,10 @@ stage('deployment') {
             echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
         }
     }
+    if (env.BRANCH_NAME == "experimental") {
+        build(job: '../rust_cache_build-safe_client_libs-windows', wait: false)
+        build(job: '../docker_build-safe_client_libs_build_container', wait: false)
+    }
 }
 
 stage('clean') {
@@ -72,9 +76,6 @@ stage('clean') {
 }
 
 def retrieve_cache() {
-    dir('target') {
-        deleteDir() // REMOVE AFTER TEST
-    }
     if (!fileExists('target')) {
         sh("SCL_BRANCH=${params.CACHE_BRANCH} make retrieve-cache")
     }
