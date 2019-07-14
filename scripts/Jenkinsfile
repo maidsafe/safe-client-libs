@@ -1,6 +1,7 @@
 properties([
     parameters([
-        string(name: 'ARTIFACTS_BUCKET', defaultValue: 'safe-client-libs-jenkins'),
+        string(name: 'ARTIFACTS_BUCKET', defaultValue: 'safe-jenkins-build-artifacts'),
+        string(name: 'CACHE_BRANCH', defaultValue: 'experimental'),
         string(name: 'DEPLOY_BUCKET', defaultValue: 'safe-client-libs')
     ])
 ])
@@ -19,6 +20,7 @@ stage('build & test') {
     mock_windows: {
         node('windows') {
             checkout(scm)
+            retrieve_cache()
             run_tests('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'windows')
@@ -66,6 +68,15 @@ stage('deployment') {
 stage('clean') {
     node('docker') {
         clean()
+    }
+}
+
+def retrieve_cache() {
+    dir('target') {
+        deleteDir() // REMOVE AFTER TEST
+    }
+    if (!fileExists('target')) {
+        sh("SCL_BRANCH=${params.CACHE_BRANCH} make retrieve-cache")
     }
 }
 

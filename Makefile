@@ -7,7 +7,7 @@ PWD := $(shell echo $$PWD)
 USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
 UNAME_S := $(shell uname -s)
-S3_BUCKET := safe-client-libs-jenkins
+S3_BUCKET := safe-jenkins-build-artifacts
 UUID := $(shell uuidgen | sed 's/-//g')
 
 build-container:
@@ -88,6 +88,22 @@ package-deploy-artifacts:
 		-u ${USER_ID}:${GROUP_ID} \
 		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
 		scripts/package-runner-container
+
+retrieve-cache:
+ifndef SCL_BRANCH
+	@echo "A branch reference must be provided."
+	@echo "Please set SCL_BRANCH to a valid branch reference."
+	@exit 1
+endif
+ifeq ($(OS),Windows_NT)
+	aws s3 cp \
+		--no-sign-request \
+		--region eu-west-2 \
+		s3://${S3_BUCKET}/scl-${SCL_BRANCH}-windows-cache.tar.gz .
+endif
+	mkdir target
+	tar -C target -xvf scl-${SCL_BRANCH}-windows-cache.tar.gz
+	rm scl-${SCL_BRANCH}-windows-cache.tar.gz
 
 retrieve-build-artifacts:
 ifndef SCL_BRANCH
@@ -190,6 +206,7 @@ endif
 		scripts/test-runner-container
 
 tests: clean
+	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
 	rm -rf target/
 	docker run --name "safe_app_tests-${UUID}" \
