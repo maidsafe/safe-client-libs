@@ -462,7 +462,7 @@ impl Vault {
                 let source = owner_pk.into();
                 let destination = new_balance_owner.into();
                 if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
-                    Response::Mutation(Err(e))
+                    Response::Transaction(Err(e))
                 } else {
                     let res = self
                         .get_balance(&source)
