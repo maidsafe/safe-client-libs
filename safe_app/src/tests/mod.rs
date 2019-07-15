@@ -31,8 +31,8 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::MockRouting;
 use safe_core::{Client, CoreError};
 use safe_nd::{
-    AData, ADataAddress, Error as SndError, PubImmutableData, PubUnseqAppendOnlyData,
-    UnpubUnseqAppendOnlyData, XorName,
+    ADataAddress, ADataOwner, AppendOnlyData, Error as SndError, PubImmutableData,
+    PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData, XorName,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -288,21 +288,28 @@ fn unregistered_client() {
     let addr: XorName = new_rand::random();
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
-    let pub_adata: AData = PubUnseqAppendOnlyData::new(addr, tag).into();
-    let unpub_adata: AData = UnpubUnseqAppendOnlyData::new(addr, tag).into();
+    let pub_adata = PubUnseqAppendOnlyData::new(addr, tag);
+    let unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
 
     // Registered Client PUTs something onto the network.
     {
         let pub_idata = pub_idata.clone();
-        let pub_adata = pub_adata.clone();
-        let unpub_adata = unpub_adata.clone();
+        let mut pub_adata = pub_adata.clone();
+        let mut unpub_adata = unpub_adata.clone();
         random_client(|client| {
+            let owner = ADataOwner {
+                public_key: unwrap!(client.owner_key()),
+                data_index: 0,
+                permissions_index: 0,
+            };
+            unwrap!(pub_adata.append_owner(owner.clone(), 0));
+            unwrap!(unpub_adata.append_owner(owner, 0));
             let client2 = client.clone();
             let client3 = client.clone();
             client
                 .put_pub_idata(pub_idata)
-                .and_then(move |_| client2.put_adata(pub_adata))
-                .and_then(move |_| client3.put_adata(unpub_adata))
+                .and_then(move |_| client2.put_adata(pub_adata.into()))
+                .and_then(move |_| client3.put_adata(unpub_adata.into()))
         });
     }
 
@@ -319,7 +326,7 @@ fn unregistered_client() {
                 client2
                     .get_adata(ADataAddress::PubUnseq { name: addr, tag })
                     .map(move |data| {
-                        assert_eq!(data, pub_adata);
+                        assert_eq!(data, pub_adata.into());
                     })
             })
             .then(move |_| {
