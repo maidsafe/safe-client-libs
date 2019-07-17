@@ -164,7 +164,7 @@ pub unsafe extern "C" fn dir_delete_file(
 ///
 /// When creating an empty file with no metadata, a null pointer can be passed
 /// in for the `file` argument. In such cases, the library will internally
-/// create a default File with a 0 length `user_metadata_ptr`
+/// create a default File with no user metadata.
 #[no_mangle]
 pub unsafe extern "C" fn file_open(
     app: *const App,
