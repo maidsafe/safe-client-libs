@@ -14,8 +14,8 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
-    verify_signature, AData, ADataAddress, ADataIndex, AppendOnlyData, Coins, Error as SndError,
-    IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataKind, Message, MutableData,
+    verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppendOnlyData, Coins,
+    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction, MDataAddress, Message,
     PublicId, PublicKey, Request, Response, SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
 };
 use std::collections::HashMap;
@@ -87,6 +87,86 @@ fn init_vault_store(config: &Config) -> Box<Store> {
                 Box::new(FileStore::new(&init_vault_path(None)))
             }
         },
+    }
+}
+
+// NOTE: This most probably should be in safe-nd::AData
+fn check_is_owner_adata(data: &AData, requester: PublicKey) -> Result<(), SndError> {
+    data.owner(data.owners_index() - 1).map_or_else(
+        || Err(SndError::InvalidOwners),
+        move |owner| {
+            if owner.public_key == requester {
+                Ok(())
+            } else {
+                Err(SndError::AccessDenied)
+            }
+        },
+    )
+}
+
+fn check_perms_adata(
+    data: &AData,
+    request: &Request,
+    requester: PublicKey,
+) -> Result<(), SndError> {
+    match request {
+        Request::GetAData(..)
+        | Request::GetADataShell { .. }
+        | Request::GetADataValue { .. }
+        | Request::GetADataRange { .. }
+        | Request::GetADataIndices(..)
+        | Request::GetADataLastEntry(..)
+        | Request::GetADataPermissions { .. }
+        | Request::GetPubADataUserPermissions { .. }
+        | Request::GetUnpubADataUserPermissions { .. }
+        | Request::GetADataOwners { .. } => match data {
+            AData::PubUnseq(_) | AData::PubSeq(_) => Ok(()),
+            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => data
+                .check_permission(ADataAction::Read, requester)
+                .map_err(|_| SndError::AccessDenied),
+        },
+        Request::AppendSeq { .. } | Request::AppendUnseq { .. } => data
+            .check_permission(ADataAction::Append, requester)
+            .map_err(|_| SndError::AccessDenied),
+        Request::AddPubADataPermissions { .. } | Request::AddUnpubADataPermissions { .. } => data
+            .check_permission(ADataAction::ManagePermissions, requester)
+            .map_err(|_| SndError::AccessDenied),
+        Request::SetADataOwner { .. } => check_is_owner_adata(data, requester),
+        Request::DeleteAData(_) => match data {
+            AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
+            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => check_is_owner_adata(data, requester),
+        },
+        _ => Err(SndError::InvalidOperation),
+    }
+}
+
+fn check_perms_mdata(
+    data: &MData,
+    request: &Request,
+    requester: PublicKey,
+) -> Result<(), SndError> {
+    match request {
+        Request::GetMData { .. }
+        | Request::GetMDataShell { .. }
+        | Request::GetMDataVersion { .. }
+        | Request::ListMDataKeys { .. }
+        | Request::ListMDataEntries { .. }
+        | Request::ListMDataValues { .. }
+        | Request::GetMDataValue { .. }
+        | Request::ListMDataPermissions { .. }
+        | Request::ListMDataUserPermissions { .. } => {
+            data.check_permissions(MDataAction::Read, requester)
+        }
+
+        Request::SetMDataUserPermissions { .. } | Request::DelMDataUserPermissions { .. } => {
+            data.check_permissions(MDataAction::ManagePermissions, requester)
+        }
+
+        Request::MutateSeqMDataEntries { .. } | Request::MutateUnseqMDataEntries { .. } => Ok(()),
+
+        Request::DeleteMData { .. } => data.check_is_owner(requester),
+
+        _ => Err(SndError::InvalidOperation),
     }
 }
 
@@ -871,7 +951,7 @@ impl Vault {
             Request::PutAData(adata) => {
                 let owner_idx = adata.owners_index();
                 let address = *adata.address();
-                let result = match adata.get_owners(owner_idx - 1) {
+                let result = match adata.owner(owner_idx - 1) {
                     Some(key) => {
                         if key.public_key != owner_pk {
                             Err(SndError::InvalidOwners)
@@ -948,66 +1028,59 @@ impl Vault {
                 Response::GetADataLastEntry(res)
             }
             Request::GetADataPermissions {
-                // Macro cannot be used here
                 address,
                 permissions_index,
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| {
-                        let idx = match permissions_index {
-                            ADataIndex::FromStart(idx) => idx as usize,
-                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
-                        };
-                        match address {
-                            ADataAddress::PubSeq { .. } => {
-                                let res = match data {
-                                    AData::PubSeq(adata) => {
-                                        match adata.fetch_permissions_at_index(idx as u64) {
-                                            Some(perm) => Ok(perm.clone()),
-                                            None => Err(SndError::NoSuchEntry),
-                                        }
+                    .and_then(move |data| match address {
+                        ADataAddress::PubSeq { .. } => {
+                            let res = match data {
+                                AData::PubSeq(adata) => {
+                                    match adata.permissions(permissions_index) {
+                                        Some(perm) => Ok(perm.clone()),
+                                        None => Err(SndError::NoSuchEntry),
                                     }
-                                    _ => Err(SndError::NoSuchData),
-                                };
-                                Ok(Response::GetPubADataPermissionAtIndex(res))
-                            }
-                            ADataAddress::PubUnseq { .. } => {
-                                let res = match data {
-                                    AData::PubUnseq(adata) => {
-                                        match adata.fetch_permissions_at_index(idx as u64) {
-                                            Some(perm) => Ok(perm.clone()),
-                                            None => Err(SndError::NoSuchEntry),
-                                        }
+                                }
+                                _ => Err(SndError::NoSuchData),
+                            };
+                            Ok(Response::GetPubADataPermissionAtIndex(res))
+                        }
+                        ADataAddress::PubUnseq { .. } => {
+                            let res = match data {
+                                AData::PubUnseq(adata) => {
+                                    match adata.permissions(permissions_index) {
+                                        Some(perm) => Ok(perm.clone()),
+                                        None => Err(SndError::NoSuchEntry),
                                     }
-                                    _ => Err(SndError::NoSuchData),
-                                };
-                                Ok(Response::GetPubADataPermissionAtIndex(res))
-                            }
-                            ADataAddress::UnpubSeq { .. } => {
-                                let res = match data {
-                                    AData::UnpubSeq(adata) => {
-                                        match adata.fetch_permissions_at_index(idx as u64) {
-                                            Some(perm) => Ok(perm.clone()),
-                                            None => Err(SndError::NoSuchEntry),
-                                        }
+                                }
+                                _ => Err(SndError::NoSuchData),
+                            };
+                            Ok(Response::GetPubADataPermissionAtIndex(res))
+                        }
+                        ADataAddress::UnpubSeq { .. } => {
+                            let res = match data {
+                                AData::UnpubSeq(adata) => {
+                                    match adata.permissions(permissions_index) {
+                                        Some(perm) => Ok(perm.clone()),
+                                        None => Err(SndError::NoSuchEntry),
                                     }
-                                    _ => Err(SndError::NoSuchData),
-                                };
-                                Ok(Response::GetUnpubADataPermissionAtIndex(res))
-                            }
-                            ADataAddress::UnpubUnseq { .. } => {
-                                let res = match data {
-                                    AData::UnpubUnseq(adata) => {
-                                        match adata.fetch_permissions_at_index(idx as u64) {
-                                            Some(perm) => Ok(perm.clone()),
-                                            None => Err(SndError::NoSuchEntry),
-                                        }
+                                }
+                                _ => Err(SndError::NoSuchData),
+                            };
+                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                        }
+                        ADataAddress::UnpubUnseq { .. } => {
+                            let res = match data {
+                                AData::UnpubUnseq(adata) => {
+                                    match adata.permissions(permissions_index) {
+                                        Some(perm) => Ok(perm.clone()),
+                                        None => Err(SndError::NoSuchEntry),
                                     }
-                                    _ => Err(SndError::NoSuchData),
-                                };
-                                Ok(Response::GetUnpubADataPermissionAtIndex(res))
-                            }
+                                }
+                                _ => Err(SndError::NoSuchData),
+                            };
+                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
                         }
                     });
                 res?
@@ -1019,13 +1092,7 @@ impl Vault {
             } => {
                 let res = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| {
-                        let idx = match permissions_index {
-                            ADataIndex::FromStart(idx) => idx as usize,
-                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
-                        };
-                        data.pub_user_permissions(user, idx as u64)
-                    });
+                    .and_then(move |data| data.pub_user_permissions(user, permissions_index));
                 Response::GetPubADataUserPermissions(res)
             }
             Request::GetUnpubADataUserPermissions {
@@ -1036,11 +1103,7 @@ impl Vault {
                 let res = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
-                        let idx = match permissions_index {
-                            ADataIndex::FromStart(idx) => idx as usize,
-                            ADataIndex::FromEnd(idx) => (data.permissions_index() - idx) as usize,
-                        };
-                        data.unpub_user_permissions(public_key, idx as u64)
+                        data.unpub_user_permissions(public_key, permissions_index)
                     });
                 Response::GetUnpubADataUserPermissions(res)
             }
@@ -1207,8 +1270,8 @@ impl Vault {
                             ADataIndex::FromStart(idx) => idx,
                             ADataIndex::FromEnd(idx) => (data.owners_index() - idx),
                         };
-                        match data.get_owners(idx) {
-                            Some(owner) => Ok(owner.clone()),
+                        match data.owner(idx) {
+                            Some(owner) => Ok(*owner),
                             None => Err(SndError::NoSuchEntry),
                         }
                     });
@@ -1221,9 +1284,7 @@ impl Vault {
             message_id,
         })
     }
-    //
-    // ======= Append Only Data =======
-    //
+
     pub fn get_adata(
         &mut self,
         address: ADataAddress,
@@ -1231,15 +1292,10 @@ impl Vault {
         request: Request,
     ) -> Result<AData, SndError> {
         let data_id = DataId::AppendOnly(address);
-
         match self.get_data(&data_id) {
             Some(data_type) => match data_type {
-                Data::AppendOnly(adata) => {
-                    if adata.check_permission(&request, requester_pk).is_ok() {
-                        Ok(adata)
-                    } else {
-                        Err(SndError::AccessDenied)
-                    }
+                Data::AppendOnly(data) => {
+                    check_perms_adata(&data, &request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),
             },
@@ -1295,31 +1351,11 @@ impl Vault {
         requester_pk: PublicKey,
         request: Request,
     ) -> Result<MData, SndError> {
-        let kind = address.kind();
-        let data_name = DataId::Mutable(address);
-
-        match self.get_data(&data_name) {
+        match self.get_data(&DataId::Mutable(address)) {
             Some(data_type) => match data_type {
-                Data::NewMutable(data) => match data.clone() {
-                    MData::Seq(mdata) => {
-                        if let MDataKind::Unseq = kind {
-                            Err(SndError::NoSuchData)
-                        } else if mdata.check_permissions(&request, requester_pk).is_err() {
-                            Err(SndError::AccessDenied)
-                        } else {
-                            Ok(data)
-                        }
-                    }
-                    MData::Unseq(mdata) => {
-                        if let MDataKind::Seq = kind {
-                            Err(SndError::NoSuchData)
-                        } else if mdata.check_permissions(&request, requester_pk).is_err() {
-                            Err(SndError::AccessDenied)
-                        } else {
-                            Ok(data)
-                        }
-                    }
-                },
+                Data::NewMutable(data) => {
+                    check_perms_mdata(&data, &request, requester_pk).map(move |_| data)
+                }
                 _ => Err(SndError::NoSuchData),
             },
             None => Err(SndError::NoSuchData),

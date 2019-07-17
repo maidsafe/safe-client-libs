@@ -299,10 +299,10 @@ fn unregistered_client() {
         random_client(|client| {
             let owner = ADataOwner {
                 public_key: unwrap!(client.owner_key()),
-                data_index: 0,
+                entries_index: 0,
                 permissions_index: 0,
             };
-            unwrap!(pub_adata.append_owner(owner.clone(), 0));
+            unwrap!(pub_adata.append_owner(owner, 0));
             unwrap!(unpub_adata.append_owner(owner, 0));
             let client2 = client.clone();
             let client3 = client.clone();
@@ -326,7 +326,8 @@ fn unregistered_client() {
                 client2
                     .get_adata(ADataAddress::PubUnseq { name: addr, tag })
                     .map(move |data| {
-                        assert_eq!(data, pub_adata.into());
+                        assert_eq!(data.address(), pub_adata.address());
+                        assert_eq!(data.tag(), pub_adata.tag());
                     })
             })
             .then(move |_| {

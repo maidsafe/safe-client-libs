@@ -59,9 +59,8 @@ use safe_nd::{
     ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
     ClientFullId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress,
     MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
-    MDataValue as Val, Message, MessageId, MutableData as NewMutableData, PubImmutableData,
-    PublicKey, Request, Response, SeqMutableData, Signature, Transaction, UnpubImmutableData,
-    UnseqMutableData, XorName,
+    MDataValue as Val, Message, MessageId, PubImmutableData, PublicKey, Request, Response,
+    SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -3014,15 +3013,15 @@ mod tests {
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
                     permissions: perms,
-                    data_index: 0,
-                    owner_entry_index: 0,
+                    entries_index: 0,
+                    owners_index: 0,
                 },
                 0
             ));
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
-                data_index: 0,
+                entries_index: 0,
                 permissions_index: 1,
             };
             unwrap!(data.append_owner(owner, 0));
@@ -3108,8 +3107,8 @@ mod tests {
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
                     permissions: perms,
-                    data_index: 4,
-                    owner_entry_index: 0,
+                    entries_index: 4,
+                    owners_index: 0,
                 },
                 0
             ));
@@ -3128,13 +3127,13 @@ mod tests {
 
             let perm_set = ADataUnpubPermissions {
                 permissions: perms2,
-                data_index: 4,
-                owner_entry_index: 1,
+                entries_index: 4,
+                owners_index: 1,
             };
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
-                data_index: 4,
+                entries_index: 4,
                 permissions_index: 1,
             };
 
@@ -3143,7 +3142,7 @@ mod tests {
             let mut test_data = UnpubSeqAppendOnlyData::new(XorName(rand::random()), 15000);
             let test_owner = ADataOwner {
                 public_key: PublicKey::Bls(SecretKey::random().public_key()),
-                data_index: 0,
+                entries_index: 0,
                 permissions_index: 0,
             };
 
@@ -3181,7 +3180,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client3.get_adata_indices(adataref).map(move |data| {
-                        assert_eq!(data.data_index(), 4);
+                        assert_eq!(data.entries_index(), 4);
                         assert_eq!(data.owners_index(), 1);
                         assert_eq!(data.permissions_index(), 1);
                     })
@@ -3250,8 +3249,8 @@ mod tests {
             unwrap!(data.append_permissions(
                 ADataPubPermissions {
                     permissions: perms,
-                    data_index: 0,
-                    owner_entry_index: 0,
+                    entries_index: 0,
+                    owners_index: 0,
                 },
                 0
             ));
@@ -3270,7 +3269,7 @@ mod tests {
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
-                data_index: 0,
+                entries_index: 0,
                 permissions_index: 1,
             };
 
@@ -3316,8 +3315,8 @@ mod tests {
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
                     permissions: perms,
-                    data_index: 0,
-                    owner_entry_index: 0,
+                    entries_index: 0,
+                    owners_index: 0,
                 },
                 0
             ));
@@ -3336,7 +3335,7 @@ mod tests {
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
-                data_index: 0,
+                entries_index: 0,
                 permissions_index: 1,
             };
 
@@ -3383,8 +3382,8 @@ mod tests {
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
                     permissions: perms,
-                    data_index: 0,
-                    owner_entry_index: 0,
+                    entries_index: 0,
+                    owners_index: 0,
                 },
                 0
             ));
@@ -3406,7 +3405,7 @@ mod tests {
 
             let owner = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
-                data_index: 2,
+                entries_index: 2,
                 permissions_index: 1,
             };
 
@@ -3414,13 +3413,13 @@ mod tests {
 
             let owner2 = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client1.public_bls_key())),
-                data_index: 2,
+                entries_index: 2,
                 permissions_index: 1,
             };
 
             let owner3 = ADataOwner {
                 public_key: PublicKey::Bls(unwrap!(client2.public_bls_key())),
-                data_index: 2,
+                entries_index: 2,
                 permissions_index: 1,
             };
 
