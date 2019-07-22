@@ -329,34 +329,43 @@ impl Vault {
             }
         };
 
-        let account = match self.get_account(&dst_name) {
-            Some(account) => account,
+        let account = self.get_account(&dst_name);
+
+        let owner_name = XorName::from(*sign_pk);
+        let balance = match self.get_balance(&dst_name) {
+            Ok(coins) => coins,
+            Err(_) => return Err(ClientError::AccessDenied),
+        };
+
+        match account {
             None => {
-                debug!("Account not found for {:?}", dst);
-                return Err(ClientError::AccessDenied);
+                if owner_name != dst_name {
+                    debug!("No apps authorised");
+                    return Err(ClientError::AccessDenied);
+                }
+            }
+            Some(account) => {
+                if owner_name != dst_name && !account.auth_keys().contains_key(sign_pk) {
+                    debug!("Mutation not authorised");
+                    return Err(ClientError::AccessDenied);
+                }
             }
         };
 
-        // Check if we are the owner or app.
-        let owner_name = XorName::from(*sign_pk);
-        if owner_name != dst_name && !account.auth_keys().contains_key(sign_pk) {
-            debug!("Mutation not authorised");
-            return Err(ClientError::AccessDenied);
-        }
-
         let unlimited_mut = unlimited_muts(&self.config);
-        if !unlimited_mut && account.account_info().mutations_available == 0 {
+
+        if !unlimited_mut && balance.checked_sub(*COST_OF_PUT).is_none() {
             return Err(ClientError::LowBalance);
         }
-
         Ok(())
     }
 
     // Commit a mutation.
     pub fn commit_mutation(&mut self, account: &XorName) {
-        {
-            let account = unwrap!(self.get_account_mut(account));
-            account.increment_mutations_counter();
+        let unlimited_mut = unlimited_muts(&self.config);
+        if !unlimited_mut {
+            let balance = unwrap!(self.get_coin_balance_mut(account));
+            unwrap!(balance.debit_balance(*COST_OF_PUT));
         }
     }
 
@@ -445,13 +454,15 @@ impl Vault {
         };
         let sig = match signature {
             Some(s) => s,
-            None => return Err(SndError::InvalidSignature),
+            None => {
+                return Err(SndError::InvalidSignature);
+            }
         };
         verify_signature(&sig, &requester_pk, &request, &message_id)?;
         let response = match request.clone() {
             //
             // Immutable Data
-            //
+            //valid
             Request::GetIData(address) => {
                 let result = self.get_idata(address).and_then(|idata| match idata {
                     IData::Unpub(ref data) => {
@@ -491,35 +502,49 @@ impl Vault {
             }
             // ===== Client (Owner) to SrcElders =====
             Request::ListAuthKeysAndVersion => {
-                let name = requester.name();
-                let res = if let Some(account) = self.get_account(&name) {
-                    Ok((account.auth_keys().clone(), account.version()))
-                } else {
-                    Err(SndError::AccessDenied)
+                let result = {
+                    if owner_pk != requester_pk {
+                        Err(SndError::AccessDenied)
+                    } else {
+                        let name = requester.name();
+                        if self.get_account(&name).is_none() {
+                            self.insert_account(*name);
+                        }
+                        let account = unwrap!(self.get_account(&name));
+                        Ok((account.auth_keys().clone(), account.version()))
+                    }
                 };
-                Response::ListAuthKeysAndVersion(res)
+                Response::ListAuthKeysAndVersion(result)
             }
             Request::InsAuthKey {
                 key,
                 permissions,
                 version,
             } => {
-                let name = requester.name();
-                let res = if let Some(account) = self.get_account_mut(&name) {
-                    account.ins_auth_key(key, permissions, version)
-                } else {
+                let result = if owner_pk != requester_pk {
                     Err(SndError::AccessDenied)
+                } else {
+                    let name = requester.name();
+                    if self.get_account(&name).is_none() {
+                        self.insert_account(*name);
+                    }
+                    let account = unwrap!(self.get_account_mut(&name));
+                    account.ins_auth_key(key, permissions, version)
                 };
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::DelAuthKey { key, version } => {
-                let name = requester.name();
-                let res = if let Some(account) = self.get_account_mut(&name) {
-                    account.del_auth_key(&key, version)
-                } else {
+                let result = if owner_pk != requester_pk {
                     Err(SndError::AccessDenied)
+                } else {
+                    let name = requester.name();
+                    if self.get_account(&name).is_none() {
+                        self.insert_account(*name);
+                    }
+                    let account = unwrap!(self.get_account_mut(&name));
+                    account.del_auth_key(&key, version)
                 };
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             // ===== Coins =====
             Request::TransferCoins {
@@ -636,7 +661,10 @@ impl Vault {
                             };
                             Ok(())
                         })
-                        .map(|_| self.insert_login_packet(account_data));
+                        .map(|_| {
+                            // self.insert_account(account_data.destination());
+                            self.insert_login_packet(account_data)
+                        });
                     Response::Mutation(res)
                 }
             }
@@ -644,7 +672,7 @@ impl Vault {
                 let res = match self.get_login_packet(&location) {
                     None => Err(SndError::NoSuchLoginPacket),
                     Some(login_packet) => {
-                        if *login_packet.authorised_getter() == owner_pk {
+                        if *login_packet.authorised_getter() == requester_pk {
                             Ok((
                                 login_packet.data().to_vec(),
                                 login_packet.signature().clone(),
@@ -655,6 +683,22 @@ impl Vault {
                     }
                 };
                 Response::GetLoginPacket(res)
+            }
+            Request::UpdateLoginPacket(new_packet) => {
+                let res = {
+                    match self.get_login_packet(new_packet.destination()) {
+                        Some(old_packet) => {
+                            if *old_packet.authorised_getter() == requester_pk {
+                                self.insert_login_packet(new_packet);
+                                Ok(())
+                            } else {
+                                Err(SndError::AccessDenied)
+                            }
+                        }
+                        None => Err(SndError::NoSuchLoginPacket),
+                    }
+                };
+                Response::Mutation(res)
             }
             // ===== Mutable Data =====
             Request::GetMData(address) => {
@@ -1277,7 +1321,6 @@ impl Vault {
                     });
                 Response::GetADataOwners(res)
             }
-            other => panic!("RPC not handled: {:?}", other),
         };
         Ok(Message::Response {
             response,
@@ -1369,12 +1412,12 @@ impl Vault {
         requester: PublicId,
     ) -> Result<(), SndError> {
         match requester.clone() {
-            PublicId::Client(client_public_id) => {
-                if self.get_account(client_public_id.name()).is_none() {
-                    debug!("Account does not exist");
-                    return Err(SndError::AccessDenied);
-                }
-            }
+            PublicId::Client(client_public_id) => self
+                .authorise_mutation(
+                    &Authority::ClientManager(*client_public_id.name()),
+                    client_public_id.public_key(),
+                )
+                .map_err(|_| SndError::AccessDenied)?,
             PublicId::App(app_public_id) => match self.get_account(app_public_id.owner_name()) {
                 None => {
                     debug!("Account does not exist");

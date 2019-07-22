@@ -21,10 +21,13 @@ use safe_core::config_handler;
 use safe_core::ipc::req::ContainerPermissions;
 use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq, Permission};
 use safe_core::mock_vault_path;
+use safe_core::utils::test_utils::random_client;
 use safe_core::{Client, FutureExt, MDataInfo};
+use safe_nd::Coins;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[test]
 #[ignore]
@@ -39,7 +42,7 @@ fn serialisation_write_data() {
     let auth = unwrap!(Authenticator::create_acc(
         stash.locator.clone(),
         stash.password.clone(),
-        stash.invitation.clone(),
+        stash.balance_sk.clone(),
         || (),
     ));
 
@@ -167,7 +170,7 @@ fn verify_access_container_entry(
 struct Stash {
     locator: String,
     password: String,
-    invitation: String,
+    balance_sk: threshold_crypto::SecretKey,
     auth_req1: AuthReq,
     auth_req0: AuthReq,
 }
@@ -220,11 +223,17 @@ fn setup() -> (Stash, PathBuf) {
             containers: containers.clone(),
         }
     };
+    let balance_sk = threshold_crypto::SecretKey::random();
+    let balance_pk = balance_sk.public_key();
+    random_client(move |client| {
+        client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+        Ok::<_, AuthError>(())
+    });
 
     let stash = Stash {
         locator: random_string(&mut rng, 16),
         password: random_string(&mut rng, 16),
-        invitation: String::new(),
+        balance_sk,
         auth_req0,
         auth_req1,
     };

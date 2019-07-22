@@ -22,7 +22,6 @@ use routing::{ClientError, Request, Response};
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::test_utils::revoke;
 use safe_authenticator::Authenticator;
-use safe_core::ffi::AccountInfo;
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
 use safe_core::ipc::Permission;
 use safe_core::utils;
@@ -223,8 +222,6 @@ fn num_containers(app: &App) -> usize {
 #[test]
 #[allow(unsafe_code)]
 fn app_container_creation() {
-    use crate::ffi::app_account_info;
-    use ffi_utils::test_utils::call_1;
 
     // Authorise an app for the first time with `app_container` set to `true`.
     let auth = authenticator::create_account_and_login();
@@ -249,18 +246,10 @@ fn app_container_creation() {
 
     assert_eq!(num_containers(&app), 1); // should only contain app container
 
+    // TODO: Replace with balance
     // Make sure no mutations are done when re-authorising the app now.
-    let acct_info1: AccountInfo =
-        unsafe { unwrap!(call_1(|ud, cb| app_account_info(&mut app, ud, cb))) };
 
-    app = authorise_app(&auth, &app_info, &app_id, true);
-
-    let acct_info2: AccountInfo =
-        unsafe { unwrap!(call_1(|ud, cb| app_account_info(&mut app, ud, cb))) };
-    assert_eq!(
-        acct_info1.mutations_available,
-        acct_info2.mutations_available
-    );
+    let _ = authorise_app(&auth, &app_info, &app_id, true);
 
     // Authorise a new app with `app_container` set to `false`.
     let auth = authenticator::create_account_and_login();

@@ -9,20 +9,14 @@
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 #[cfg(feature = "mock-network")]
-use safe_core::client::NewFullId;
-#[cfg(feature = "mock-network")]
 use safe_core::MockRouting as Routing;
 
 use crate::errors::AuthError;
-use crate::AuthFuture;
 use crate::AuthMsgTx;
-use futures::Future;
 use lru_cache::LruCache;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{
-    AccountPacket, Authority, BootstrapConfig, EntryAction, Event, FullId, MutableData, Response,
-    Value, XorName, ACC_LOGIN_ENTRY_KEY, TYPE_TAG_SESSION_PACKET,
-};
+use new_rand::rngs::StdRng;
+use new_rand::SeedableRng;
+use routing::{Authority, BootstrapConfig, FullId, XorName};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
@@ -33,13 +27,18 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
-use safe_core::{utils, Client, ClientKeys, CoreError, FutureExt, MDataInfo, NetworkTx};
-use safe_nd::{Message, MessageId, PublicKey, Request, Signature};
+use safe_core::{utils, Client, ClientKeys, MDataInfo, NetworkTx};
+use safe_nd::{
+    ClientFullId, ClientPublicId, Coins, LoginPacket, Message, MessageId, PublicId, PublicKey,
+    Request, Response, Signature,
+};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::time::Duration;
+use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
 
@@ -55,7 +54,7 @@ impl AuthClient {
     pub(crate) fn registered(
         acc_locator: &str,
         acc_password: &str,
-        invitation: &str,
+        balance_sk: BlsSecretKey,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -63,7 +62,7 @@ impl AuthClient {
         Self::registered_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            invitation,
+            balance_sk,
             el_handle,
             core_tx,
             net_tx,
@@ -81,6 +80,7 @@ impl AuthClient {
     #[cfg(any(test, feature = "testing"))]
     pub(crate) fn registered_with_seed(
         seed: &str,
+        balance_sk: BlsSecretKey,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -93,7 +93,7 @@ where {
         Self::registered_impl(
             arr[0],
             arr[1],
-            "",
+            balance_sk,
             el_handle,
             core_tx,
             net_tx,
@@ -107,7 +107,7 @@ where {
     pub fn registered_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
-        invitation: &str,
+        balance_sk: BlsSecretKey,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -119,7 +119,7 @@ where {
         Self::registered_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            invitation,
+            balance_sk,
             el_handle,
             core_tx,
             net_tx,
@@ -133,7 +133,7 @@ where {
     fn registered_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
-        invitation: &str,
+        balance_sk: BlsSecretKey,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -154,52 +154,54 @@ where {
         let pub_key = PublicKey::from(maid_keys.bls_pk);
         let full_id = Some(maid_keys.clone().into());
 
+        let acc = Account::new(maid_keys.clone())?;
+
+        let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
+
+        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+        seeder.extend_from_slice(acc_locator);
+        seeder.extend_from_slice(acc_password);
+
+        let seed = sha3_256(&seeder);
+        let mut rng = StdRng::from_seed(seed);
+        let client_full_id = ClientFullId::new_bls(&mut rng);
+
+        let sig = client_full_id.sign(&acc_ciphertext);
+        let client_pk = client_full_id.public_id().public_key();
+        let new_account_data = LoginPacket::new(acc_loc, *client_pk, acc_ciphertext, sig)?;
+        let balance_client_id = ClientFullId::with_bls_key(balance_sk);
+
+        {
+            let (mut routing, routing_rx) = setup_routing(
+                full_id.clone(),
+                PublicId::Client(balance_client_id.public_id().clone()),
+                None,
+            )?;
+
+            let rpc_response = routing.req_as_client(
+                &routing_rx,
+                Request::CreateLoginPacketFor {
+                    new_owner: pub_key,
+                    amount: unwrap!(Coins::from_str("1")),
+                    transaction_id: new_rand::random(),
+                    new_login_packet: new_account_data,
+                },
+                &balance_client_id,
+            );
+            match rpc_response {
+                Response::Mutation(res) => res?,
+                _ => return Err(AuthError::from("Unexpected response")),
+            };
+        }
         let (mut routing, routing_rx) = setup_routing(
             full_id,
-            Some(NewFullId::Client(maid_keys.clone().into())),
+            PublicId::Client(ClientPublicId::new(pub_key.into(), pub_key)),
             None,
         )?;
         routing = routing_wrapper_fn(routing);
 
-        let acc = Account::new(maid_keys)?;
-
-        let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
-        let acc_data = btree_map![
-            ACC_LOGIN_ENTRY_KEY.to_owned() => Value {
-                content: serialise(&if !invitation.is_empty() {
-                    AccountPacket::WithInvitation {
-                        invitation_string: invitation.to_owned(),
-                        acc_pkt: acc_ciphertext
-                    }
-                } else {
-                    AccountPacket::AccPkt(acc_ciphertext)
-                })?,
-                entry_version: 0,
-            }
-        ];
-
-        let acc_md = MutableData::new(
-            acc_loc,
-            TYPE_TAG_SESSION_PACKET,
-            BTreeMap::new(),
-            acc_data,
-            btree_set![pub_key],
-        )
-        .map_err(CoreError::from)?;
-
+        let pub_key = PublicKey::from(acc.maid_keys.bls_pk);
         let cm_addr = Authority::ClientManager(XorName::from(pub_key));
-
-        let msg_id = MessageId::new();
-        routing
-            .put_mdata(cm_addr, acc_md.clone(), msg_id, pub_key)
-            .map_err(CoreError::from)
-            .and_then(|_| wait_for_response!(routing_rx, Response::PutMData, msg_id))
-            .map_err(AuthError::from)
-            .map_err(|e| {
-                warn!("Could not put account to the Network: {:?}", e);
-                e
-            })?;
-
         // Create the client
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 
@@ -218,6 +220,7 @@ where {
                 acc,
                 acc_loc,
                 user_cred,
+                full_id: client_full_id,
                 cm_addr,
                 session_packet_version: 0,
             })),
@@ -296,41 +299,44 @@ where {
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
         let acc_loc = Account::generate_network_id(&keyword, &pin)?;
+
+        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+        seeder.extend_from_slice(acc_locator);
+        seeder.extend_from_slice(acc_password);
+
+        let seed = sha3_256(&seeder);
+        let mut rng = StdRng::from_seed(seed);
+        let client_full_id = ClientFullId::new_bls(&mut rng);
+        let client_pk = *client_full_id.public_id().public_key();
+
         let user_cred = UserCred::new(password, pin);
 
-        let dst = Authority::NaeManager(acc_loc);
-
-        let (acc_content, acc_version) = {
+        let (account_buffer, signature) = {
             trace!("Creating throw-away routing getter for account packet.");
-            let (mut routing, routing_rx) = setup_routing(None, None, None)?;
+
+            let (mut routing, routing_rx) = setup_routing(
+                None,
+                PublicId::Client(client_full_id.public_id().clone()),
+                None,
+            )?;
             routing = routing_wrapper_fn(routing);
-
-            let msg_id = MessageId::new();
-            let val = routing
-                .get_mdata_value(
-                    dst,
-                    acc_loc,
-                    TYPE_TAG_SESSION_PACKET,
-                    ACC_LOGIN_ENTRY_KEY.to_owned(),
-                    msg_id,
-                )
-                .map_err(CoreError::from)
-                .and_then(|_| wait_for_response!(routing_rx, Response::GetMDataValue, msg_id))
-                .map_err(AuthError::from)
-                .map_err(|e| {
-                    warn!("Could not fetch account from the Network: {:?}", e);
-                    e
-                })?;
-            (val.content, val.entry_version)
+            let rpc_response = routing.req_as_client(
+                &routing_rx,
+                Request::GetLoginPacket(acc_loc),
+                &client_full_id,
+            );
+            match rpc_response {
+                Response::GetLoginPacket(res) => res?,
+                _ => return Err(AuthError::from("Unexpected response")),
+            }
         };
 
-        let acc = match deserialise::<AccountPacket>(&acc_content)? {
-            AccountPacket::AccPkt(acc_content)
-            | AccountPacket::WithInvitation {
-                acc_pkt: acc_content,
-                ..
-            } => Account::decrypt(&acc_content, &user_cred.password, &user_cred.pin)?,
-        };
+        client_pk.verify(&signature, account_buffer.as_slice())?;
+        let acc = Account::decrypt(
+            account_buffer.as_slice(),
+            &user_cred.password,
+            &user_cred.pin,
+        )?;
 
         let id_packet = acc.maid_keys.clone().into();
 
@@ -340,7 +346,7 @@ where {
         trace!("Creating an actual routing...");
         let (mut routing, routing_rx) = setup_routing(
             Some(id_packet),
-            Some(NewFullId::Client(acc.maid_keys.clone().into())),
+            PublicId::Client(ClientPublicId::new(pub_key.into(), pub_key)),
             None,
         )?;
         routing = routing_wrapper_fn(routing);
@@ -362,8 +368,9 @@ where {
                 acc,
                 acc_loc,
                 user_cred,
+                full_id: client_full_id,
                 cm_addr,
-                session_packet_version: acc_version,
+                session_packet_version: 0,
             })),
         })
     }
@@ -421,47 +428,45 @@ where {
     }
 
     fn prepare_account_packet_update(
+        acc_loc: XorName,
         account: &Account,
         keys: &UserCred,
-        entry_version: u64,
-    ) -> Result<BTreeMap<Vec<u8>, EntryAction>, AuthError> {
+        full_id: &ClientFullId,
+    ) -> Result<LoginPacket, AuthError> {
         let encrypted_account = account.encrypt(&keys.password, &keys.pin)?;
-        let content = serialise(&AccountPacket::AccPkt(encrypted_account))?;
-        Ok(btree_map![
-            ACC_LOGIN_ENTRY_KEY.to_owned() => EntryAction::Update(Value {
-                content,
-                entry_version,
-            })
-        ])
+
+        let sig = full_id.sign(&encrypted_account);
+        let client_pk = full_id.public_id().public_key();
+        LoginPacket::new(acc_loc, *client_pk, encrypted_account, sig).map_err(AuthError::from)
     }
 
     /// Updates user's account packet.
-    pub fn update_account_packet(&self) -> Box<AuthFuture<()>> {
+    pub fn update_account_packet(&self) -> Result<(), AuthError> {
         trace!("Updating account packet.");
 
-        let entry_version = {
-            let mut auth_inner = self.auth_inner.borrow_mut();
-            auth_inner.session_packet_version += 1;
-            auth_inner.session_packet_version
-        };
-
         let auth_inner = self.auth_inner.borrow();
-        let update = {
-            let account = &auth_inner.acc;
-            let keys = &auth_inner.user_cred;
+        let account = &auth_inner.acc;
+        let keys = &auth_inner.user_cred;
+        let client_full_id = &auth_inner.full_id;
+        let acc_loc = &auth_inner.acc_loc;
+        let updated_packet =
+            Self::prepare_account_packet_update(*acc_loc, account, keys, &client_full_id)?;
 
-            fry!(Self::prepare_account_packet_update(
-                account,
-                keys,
-                entry_version,
-            ))
-        };
+        let (mut routing, routing_rx) = setup_routing(
+            None,
+            PublicId::Client(client_full_id.public_id().clone()),
+            None,
+        )?;
 
-        let data_name = auth_inner.acc_loc;
-
-        self.mutate_mdata_entries(data_name, TYPE_TAG_SESSION_PACKET, update)
-            .map_err(AuthError::from)
-            .into_box()
+        let rpc_response = routing.req_as_client(
+            &routing_rx,
+            Request::UpdateLoginPacket(updated_packet),
+            &client_full_id,
+        );
+        match rpc_response {
+            Response::Mutation(res) => res.map_err(AuthError::from),
+            _ => return Err(AuthError::from("Unexpected response")),
+        }
     }
 
     /// Returns the current status of std/root dirs creation.
@@ -488,11 +493,10 @@ impl Client for AuthClient {
         Some(auth_inner.acc.maid_keys.clone().into())
     }
 
-    fn full_id_new(&self) -> Option<NewFullId> {
+    fn public_id(&self) -> PublicId {
         let auth_inner = self.auth_inner.borrow();
-        Some(NewFullId::Client(ClientKeys::into(
-            auth_inner.acc.maid_keys.clone(),
-        )))
+        let client_pk = PublicKey::from(auth_inner.acc.maid_keys.bls_pk);
+        PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk))
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
@@ -538,7 +542,7 @@ impl Client for AuthClient {
         Some(auth_inner.acc.maid_keys.bls_pk)
     }
 
-    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey> {
+    fn secret_bls_key(&self) -> Option<BlsSecretKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.bls_sk.clone())
     }
@@ -581,10 +585,12 @@ impl Clone for AuthClient {
     }
 }
 
+#[allow(dead_code)]
 struct AuthInner {
     acc: Account,
     acc_loc: XorName,
     user_cred: UserCred,
+    full_id: ClientFullId,
     cm_addr: Authority<XorName>,
     session_packet_version: u64,
 }
@@ -609,10 +615,11 @@ impl UserCred {
 mod tests {
     use super::*;
     use futures::sync::mpsc;
-    use routing::ClientError;
-    use safe_core::utils::test_utils::{finish, setup_client};
+    use futures::Future;
+    use safe_core::utils::test_utils::{finish, random_client, setup_client};
     use safe_core::{utils, CoreError, DIR_TAG};
-    use safe_nd::MDataKind;
+    use safe_nd::{Coins, Error as SndError, MDataKind};
+    use std::str::FromStr;
     use tokio_core::reactor::Core;
     use AuthMsgTx;
 
@@ -626,23 +633,28 @@ mod tests {
 
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let inv = unwrap!(utils::generate_random_string(10));
+        let balance_sk = BlsSecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         // Account creation for the 1st time - should succeed
         let _ = unwrap!(AuthClient::registered(
             &sec_0,
             &sec_1,
-            &inv,
+            balance_sk.clone(),
             el.handle(),
             core_tx.clone(),
             net_tx.clone(),
         ));
 
         // Account creation - same secrets - should fail
-        match AuthClient::registered(&sec_0, &sec_1, &inv, el.handle(), core_tx, net_tx) {
+        match AuthClient::registered(&sec_0, &sec_1, balance_sk, el.handle(), core_tx, net_tx) {
             Ok(_) => panic!("Account name hijacking should fail"),
-            Err(AuthError::CoreError(CoreError::RoutingClientError(
-                ClientError::AccountExists,
+            Err(AuthError::CoreError(CoreError::NewRoutingClientError(
+                SndError::LoginPacketExists,
             ))) => (),
             Err(err) => panic!("{:?}", err),
         }
@@ -653,7 +665,12 @@ mod tests {
     fn login() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let inv = unwrap!(utils::generate_random_string(10));
+        let balance_sk = BlsSecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         setup_client(
             &(),
@@ -665,12 +682,12 @@ mod tests {
                     core_tx.clone(),
                     net_tx.clone(),
                 ) {
-                    Err(AuthError::CoreError(CoreError::RoutingClientError(
-                        ClientError::NoSuchAccount,
+                    Err(AuthError::CoreError(CoreError::NewRoutingClientError(
+                        SndError::NoSuchLoginPacket,
                     ))) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
-                AuthClient::registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx)
+                AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
             },
             |_| finish(),
         );
@@ -690,8 +707,15 @@ mod tests {
             let el = unwrap!(Core::new());
             let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
+            let balance_sk = BlsSecretKey::random();
 
-            match AuthClient::registered_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
+            match AuthClient::registered_with_seed(
+                &invalid_seed,
+                balance_sk,
+                el.handle(),
+                core_tx,
+                net_tx,
+            ) {
                 Err(AuthError::CoreError(CoreError::Unexpected(_))) => (),
                 _ => panic!("Expected a failure"),
             }
@@ -708,6 +732,12 @@ mod tests {
         }
 
         let seed = unwrap!(utils::generate_random_string(30));
+        let balance_sk = BlsSecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         setup_client(
             &(),
@@ -718,12 +748,12 @@ mod tests {
                     core_tx.clone(),
                     net_tx.clone(),
                 ) {
-                    Err(AuthError::CoreError(CoreError::RoutingClientError(
-                        ClientError::NoSuchAccount,
+                    Err(AuthError::CoreError(CoreError::NewRoutingClientError(
+                        SndError::NoSuchLoginPacket,
                     ))) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
-                AuthClient::registered_with_seed(&seed, el_h, core_tx, net_tx)
+                AuthClient::registered_with_seed(&seed, balance_sk, el_h, core_tx, net_tx)
             },
             |_| finish(),
         );
@@ -740,7 +770,12 @@ mod tests {
     fn access_container_creation() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let inv = unwrap!(utils::generate_random_string(10));
+        let balance_sk = BlsSecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         let dir = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
         let dir_clone = dir.clone();
@@ -748,7 +783,7 @@ mod tests {
         setup_client(
             &(),
             |el_h, core_tx, net_tx| {
-                AuthClient::registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx)
+                AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
             },
             move |client| {
                 assert!(client.set_access_container(dir));
@@ -772,7 +807,12 @@ mod tests {
     fn config_root_dir_creation() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let inv = unwrap!(utils::generate_random_string(10));
+        let balance_sk = BlsSecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         let dir = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
         let dir_clone = dir.clone();
@@ -780,7 +820,7 @@ mod tests {
         setup_client(
             &(),
             |el_h, core_tx, net_tx| {
-                AuthClient::registered(&sec_0, &sec_1, &inv, el_h, core_tx, net_tx)
+                AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
             },
             move |client| {
                 assert!(client.set_config_root_dir(dir));

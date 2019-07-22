@@ -17,7 +17,7 @@ use crate::test_utils::{
 };
 use crate::{run, Authenticator};
 use futures::Future;
-use routing::{AccountInfo, EntryActions, User};
+use routing::{EntryActions, User};
 use safe_core::ipc::{AuthReq, Permission};
 use safe_core::nfs::NfsError;
 use safe_core::{app_container_name, Client, CoreError, MDataInfo};
@@ -1021,18 +1021,16 @@ fn revocation_symmetric_decipher_failure() {
 fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     // Create account.
     let (auth, ..) = create_authenticator();
-    let account_info_0 = get_account_info(&auth);
 
     // There are no apps, so the queue is empty.
     unwrap!(run(&auth, |client| {
         revocation::flush_app_revocation_queue(client)
     }));
 
-    let account_info_1 = get_account_info(&auth);
-    assert_eq!(account_info_0, account_info_1);
+    // TODO: Verify balance
 
     // Now create an app and revoke it. Then flush the queue again and observe
-    // the account balance did not change.
+    // the account balance did not change.  
     let auth_req = AuthReq {
         app: rand_app(),
         app_container: false,
@@ -1044,15 +1042,13 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
 
     revoke(&auth, &app_id);
 
-    let account_info_2 = get_account_info(&auth);
+    // TODO: Verify balance
 
     // The queue is empty again.
     unwrap!(run(&auth, |client| {
         revocation::flush_app_revocation_queue(client)
     }));
-
-    let account_info_3 = get_account_info(&auth);
-    assert_eq!(account_info_2, account_info_3);
+    // TODO: Verify balance  
 }
 
 #[test]
@@ -1127,11 +1123,5 @@ fn count_mdata_entries(authenticator: &Authenticator, info: MDataInfo) -> usize 
             .list_mdata_entries(info.name(), info.type_tag())
             .map(|entries| entries.len())
             .map_err(From::from)
-    }))
-}
-
-fn get_account_info(authenticator: &Authenticator) -> AccountInfo {
-    unwrap!(run(authenticator, |client| {
-        client.get_account_info().map_err(AuthError::from)
     }))
 }

@@ -9,7 +9,6 @@
 use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::Routing;
-use crate::client::NewFullId;
 use crate::client::{
     setup_routing, spawn_routing_thread, AuthActions, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
     REQUEST_TIMEOUT_SECS,
@@ -20,20 +19,25 @@ use crate::event::NetworkTx;
 use crate::event_loop::CoreMsgTx;
 use crate::utils;
 use lru_cache::LruCache;
-use maidsafe_utilities::serialisation::serialise;
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 use routing::{
-    AccountPacket, Authority, BootstrapConfig, Event, FullId, MutableData, Response, Value,
-    ACC_LOGIN_ENTRY_KEY, TYPE_TAG_SESSION_PACKET,
+    Authority, BootstrapConfig, FullId,
 };
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::{Message, MessageId, PublicKey, Request, Signature, XorName};
+use safe_nd::{
+    ClientPublicId, Message, MessageId, PublicId, PublicKey, Request, Signature, XorName, ClientFullId, Coins, LoginPacket, Response as RpcResponse
+};
+use new_rand::rngs::StdRng;
+use new_rand::SeedableRng;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
+use std::str::FromStr;
+use threshold_crypto::SecretKey as BlsSecretKey;
+use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
 
 /// Wait for a response from the `$rx` receiver with path `$res` and message ID `$msg_id`.
@@ -80,7 +84,7 @@ impl CoreClient {
     pub fn new(
         acc_locator: &str,
         acc_password: &str,
-        invitation: &str,
+        // invitation: &str,
         el_handle: Handle,
         core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
@@ -88,7 +92,7 @@ impl CoreClient {
         Self::new_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            invitation,
+            // invitation,
             el_handle,
             core_tx,
             net_tx,
@@ -100,7 +104,7 @@ impl CoreClient {
     fn new_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
-        invitation: &str,
+        // balance_sk: BlsSecretKey,
         el_handle: Handle,
         core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
@@ -119,50 +123,58 @@ impl CoreClient {
         let maid_keys = ClientKeys::new(id_seed);
         let pub_key = PublicKey::Bls(maid_keys.bls_pk);
         let full_id = Some(maid_keys.clone().into());
-
-        let (mut routing, routing_rx) = setup_routing(
-            full_id,
-            Some(NewFullId::Client(maid_keys.clone().into())),
-            None,
-        )?;
-        routing = routing_wrapper_fn(routing);
+        let balance_sk = BlsSecretKey::random();
 
         let acc = ClientAccount::new(maid_keys.clone())?;
 
         let acc_ciphertext = acc.encrypt(&password, &pin)?;
-        let acc_data = btree_map![
-            ACC_LOGIN_ENTRY_KEY.to_owned() => Value {
-                content: serialise(&if !invitation.is_empty() {
-                    AccountPacket::WithInvitation {
-                        invitation_string: invitation.to_owned(),
-                        acc_pkt: acc_ciphertext
-                    }
-                } else {
-                    AccountPacket::AccPkt(acc_ciphertext)
-                })?,
-                entry_version: 0,
-            }
-        ];
 
-        let acc_md = MutableData::new(
-            acc_loc,
-            TYPE_TAG_SESSION_PACKET,
-            BTreeMap::new(),
-            acc_data,
-            btree_set![pub_key],
+        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+        seeder.extend_from_slice(acc_locator);
+        seeder.extend_from_slice(acc_password);
+
+        let seed = sha3_256(&seeder);
+        let mut rng = StdRng::from_seed(seed);
+        let client_full_id = ClientFullId::new_bls(&mut rng);
+
+        let sig = client_full_id.sign(&acc_ciphertext);
+        let client_pk = client_full_id.public_id().public_key();
+        let new_account_data = LoginPacket::new(acc_loc, *client_pk, acc_ciphertext, sig)?;
+        let balance_client_id = ClientFullId::with_bls_key(balance_sk);
+
+        {
+            let (mut routing, routing_rx) = setup_routing(
+                full_id.clone(),
+                PublicId::Client(balance_client_id.public_id().clone()),
+                None,
+            )?;
+
+            routing.create_balance(*balance_client_id.public_id().public_key(), unwrap!(Coins::from_str("10")));
+
+            let rpc_response = routing.req_as_client(
+                &routing_rx,
+                Request::CreateLoginPacketFor {
+                    new_owner: pub_key,
+                    amount: unwrap!(Coins::from_str("1")),
+                    transaction_id: new_rand::random(),
+                    new_login_packet: new_account_data,
+                },
+                &balance_client_id,
+            );
+            match rpc_response {
+                RpcResponse::Mutation(res) => res?,
+                _ => return Err(CoreError::from("Unexpected response")),
+            };
+        }
+
+        let (mut routing, routing_rx) = setup_routing(
+            full_id,
+            PublicId::Client(ClientPublicId::new(pub_key.into(), pub_key)),
+            None,
         )?;
+        routing = routing_wrapper_fn(routing);
 
         let cm_addr = Authority::ClientManager(XorName::from(pub_key));
-
-        let msg_id = MessageId::new();
-        routing
-            .put_mdata(cm_addr, acc_md.clone(), msg_id, pub_key)
-            .map_err(CoreError::from)
-            .and_then(|_| wait_for_response!(routing_rx, Response::PutMData, msg_id))
-            .map_err(|e| {
-                warn!("Could not put account to the Network: {:?}", e);
-                e
-            })?;
 
         // Create the client
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
@@ -191,8 +203,9 @@ impl Client for CoreClient {
         Some(ClientKeys::into(self.keys.clone()))
     }
 
-    fn full_id_new(&self) -> Option<NewFullId> {
-        Some(NewFullId::Client(ClientKeys::into(self.keys.clone())))
+    fn public_id(&self) -> PublicId {
+        let client_pk = PublicKey::from(self.keys.bls_pk);
+        PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk))
     }
 
     fn config(&self) -> Option<BootstrapConfig> {

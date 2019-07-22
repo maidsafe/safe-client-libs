@@ -17,9 +17,10 @@ use crate::errors::AuthError;
 use crate::Authenticator;
 use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
-use futures::Future;
-use safe_core::ffi::AccountInfo;
-use safe_core::{Client, FutureExt};
+use safe_nd::Coins;
+use safe_core::utils::test_utils::random_client;
+use std::str::FromStr;
+use safe_core::Client;
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
 
@@ -31,7 +32,6 @@ use std::os::raw::{c_char, c_void};
 pub unsafe extern "C" fn create_acc(
     account_locator: *const c_char,
     account_password: *const c_char,
-    invitation: *const c_char,
     user_data: *mut c_void,
     o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
     o_cb: extern "C" fn(
@@ -47,10 +47,17 @@ pub unsafe extern "C" fn create_acc(
 
         let acc_locator = from_c_str(account_locator)?;
         let acc_password = from_c_str(account_password)?;
-        let invitation = from_c_str(invitation)?;
+        // FIXME: Send secret key via FFI API too
+        let balance_sk = threshold_crypto::SecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
+
 
         let authenticator =
-            Authenticator::create_acc(acc_locator, acc_password, invitation, move || {
+            Authenticator::create_acc(acc_locator, acc_password, balance_sk, move || {
                 o_disconnect_notifier_cb(user_data.0)
             })?;
 
@@ -123,38 +130,6 @@ pub unsafe extern "C" fn auth_reconnect(
     })
 }
 
-/// Get the account usage statistics.
-#[no_mangle]
-pub unsafe extern "C" fn auth_account_info(
-    auth: *mut Authenticator,
-    user_data: *mut c_void,
-    o_cb: extern "C" fn(
-        user_data: *mut c_void,
-        result: *const FfiResult,
-        account_info: *const AccountInfo,
-    ),
-) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
-        let user_data = OpaqueCtx(user_data);
-        (*auth).send(move |client| {
-            client
-                .get_account_info()
-                .map(move |acc_info| {
-                    let ffi_acc = AccountInfo {
-                        mutations_done: acc_info.mutations_done,
-                        mutations_available: acc_info.mutations_available,
-                    };
-                    o_cb(user_data.0, FFI_RESULT_OK, &ffi_acc);
-                })
-                .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(AuthError::from(e)), user_data, o_cb);
-                })
-                .into_box()
-                .into()
-        })
-    })
-}
-
 /// Returns the expected name for the application executable without an extension.
 #[no_mangle]
 pub unsafe extern "C" fn auth_exe_file_stem(
@@ -213,8 +188,8 @@ mod tests {
     use super::*;
     use crate::ffi::auth_is_mock;
     use ffi_utils::test_utils::call_1;
-    use safe_core::ffi::AccountInfo;
-    use safe_core::utils;
+    use futures::Future;
+    use safe_core::{utils, FutureExt};
     use safe_nd::PubImmutableData;
     use std::ffi::CString;
     use std::os::raw::c_void;
@@ -239,14 +214,14 @@ mod tests {
     fn create_account_and_login() {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
-        let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
+        // let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         {
             let auth_h: *mut Authenticator = unsafe {
                 unwrap!(call_1(|ud, cb| create_acc(
                     acc_locator.as_ptr(),
                     acc_password.as_ptr(),
-                    invitation.as_ptr(),
+                    // invitation.as_ptr(),
                     ud,
                     disconnect_cb,
                     cb,
@@ -287,7 +262,7 @@ mod tests {
 
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
-        let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
+        // let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         {
             let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();
@@ -300,7 +275,7 @@ mod tests {
                 unwrap!(call_1_with_custom(&mut custom_ud, |ud, cb| create_acc(
                     acc_locator.as_ptr(),
                     acc_password.as_ptr(),
-                    invitation.as_ptr(),
+                    // invitation.as_ptr(),
                     ud,
                     disconnect_cb,
                     cb,
@@ -355,22 +330,22 @@ mod tests {
     fn account_info() {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
-        let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
+        // let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         let auth: *mut Authenticator = unsafe {
             unwrap!(call_1(|ud, cb| create_acc(
                 acc_locator.as_ptr(),
                 acc_password.as_ptr(),
-                invitation.as_ptr(),
+                // invitation.as_ptr(),
                 ud,
                 disconnect_cb,
                 cb,
             )))
         };
 
-        let orig_stats: AccountInfo =
-            unsafe { unwrap!(call_1(|ud, cb| auth_account_info(auth, ud, cb))) };
-        assert!(orig_stats.mutations_available > 0);
+        // let orig_stats: AccountInfo =
+        //     unsafe { unwrap!(call_1(|ud, cb| auth_account_info(auth, ud, cb))) };
+        // assert!(orig_stats.mutations_available > 0);
 
         unsafe {
             unwrap!((*auth).send(move |client| client
@@ -380,13 +355,13 @@ mod tests {
                 .into()));
         }
 
-        let stats: AccountInfo =
-            unsafe { unwrap!(call_1(|ud, cb| auth_account_info(auth, ud, cb))) };
-        assert_eq!(stats.mutations_done, orig_stats.mutations_done + 1);
-        assert_eq!(
-            stats.mutations_available,
-            orig_stats.mutations_available - 1
-        );
+        // let stats: AccountInfo =
+        //     unsafe { unwrap!(call_1(|ud, cb| auth_account_info(auth, ud, cb))) };
+        // assert_eq!(stats.mutations_done, orig_stats.mutations_done + 1);
+        // assert_eq!(
+        //     stats.mutations_available,
+        //     orig_stats.mutations_available - 1
+        // );
 
         unsafe { auth_free(auth) };
     }

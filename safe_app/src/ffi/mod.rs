@@ -43,12 +43,10 @@ use super::errors::AppError;
 use super::App;
 use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
-use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
 use safe_core::ffi::ipc::resp::AuthGranted;
-use safe_core::ffi::AccountInfo;
 use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};
-use safe_core::{self, Client, FutureExt};
+use safe_core::{self, Client};
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::slice;
@@ -125,38 +123,6 @@ pub unsafe extern "C" fn app_reconnect(
             );
             o_cb(user_data.0, FFI_RESULT_OK);
             None
-        })
-    })
-}
-
-/// Get the account usage statistics (mutations done and mutations available).
-#[no_mangle]
-pub unsafe extern "C" fn app_account_info(
-    app: *mut App,
-    user_data: *mut c_void,
-    o_cb: extern "C" fn(
-        user_data: *mut c_void,
-        result: *const FfiResult,
-        account_info: *const AccountInfo,
-    ),
-) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let user_data = OpaqueCtx(user_data);
-        (*app).send(move |client, _| {
-            client
-                .get_account_info()
-                .map(move |acc_info| {
-                    let ffi_acc = AccountInfo {
-                        mutations_done: acc_info.mutations_done,
-                        mutations_available: acc_info.mutations_available,
-                    };
-                    o_cb(user_data.0, FFI_RESULT_OK, &ffi_acc);
-                })
-                .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(AppError::from(e)), user_data, o_cb);
-                })
-                .into_box()
-                .into()
         })
     })
 }
