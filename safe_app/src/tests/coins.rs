@@ -30,12 +30,7 @@ fn coin_app_deny_permissions() {
 
     unwrap!(run(&app, |client, _app_context| {
         let owner_key = unwrap!(client.owner_key());
-        let owner_coin_balance = XorName::from(owner_key);
-        client.test_create_balance(
-            &owner_coin_balance,
-            unwrap!(Coins::from_str("100.0")),
-            owner_key,
-        );
+        client.test_create_balance(owner_key, unwrap!(Coins::from_str("100.0")));
 
         let c2 = client.clone();
 
@@ -75,7 +70,7 @@ fn coin_app_allow_permissions() {
     let coin_balance2 = unwrap!(run(&app, |client, _app_context| {
         let owner_key = unwrap!(client.owner_key());
         let coin_balance2 = XorName::from(owner_key);
-        client.test_create_balance(&coin_balance2, unwrap!(Coins::from_str("50.0")), owner_key);
+        client.test_create_balance(owner_key, unwrap!(Coins::from_str("50.0")));
         Ok(coin_balance2)
     }));
 
@@ -90,12 +85,7 @@ fn coin_app_allow_permissions() {
     // Test the basic coin operations.
     unwrap!(run(&app, move |client, _app_context| {
         let owner_key = unwrap!(client.owner_key());
-        let owner_coin_balance = XorName::from(owner_key);
-        client.test_create_balance(
-            &owner_coin_balance,
-            unwrap!(Coins::from_str("100.0")),
-            owner_key,
-        );
+        client.test_create_balance(owner_key, unwrap!(Coins::from_str("100.0")));
 
         let c2 = client.clone();
 

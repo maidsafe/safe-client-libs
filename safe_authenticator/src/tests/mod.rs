@@ -49,9 +49,10 @@ mod mock_routing {
     use routing::{ClientError, Request, Response, User};
     use safe_core::ipc::AuthReq;
     use safe_core::nfs::NfsError;
-    use safe_core::utils::generate_random_string;
+    use safe_core::utils::{generate_random_string, test_utils::random_client};
     use safe_core::{app_container_name, Client, CoreError, MockRouting};
-    use safe_nd::PublicKey;
+    use safe_nd::{Coins, PublicKey};
+    use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
     // 1. Try to create a new user's account using `safe_authenticator::Authenticator::create_acc`
@@ -73,7 +74,12 @@ mod mock_routing {
         // be possible afterwards.
         let locator = unwrap!(generate_random_string(10));
         let password = unwrap!(generate_random_string(10));
-        let invitation = unwrap!(generate_random_string(10));
+        let balance_sk = threshold_crypto::SecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         {
             let routing_hook = move |mut routing: MockRouting| -> MockRouting {
@@ -105,7 +111,7 @@ mod mock_routing {
             let authenticator = Authenticator::create_acc_with_hook(
                 locator.clone(),
                 password.clone(),
-                invitation,
+                balance_sk,
                 || (),
                 routing_hook,
             );
@@ -220,7 +226,12 @@ mod mock_routing {
     fn app_authentication_recovery() {
         let locator = unwrap!(generate_random_string(10));
         let password = unwrap!(generate_random_string(10));
-        let invitation = unwrap!(generate_random_string(10));
+        let balance_sk = threshold_crypto::SecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
 
         let routing_hook = move |mut routing: MockRouting| -> MockRouting {
             routing.set_request_hook(move |req| {
@@ -244,7 +255,7 @@ mod mock_routing {
         let auth = unwrap!(Authenticator::create_acc_with_hook(
             locator.clone(),
             password.clone(),
-            invitation,
+            balance_sk,
             || (),
             routing_hook,
         ));

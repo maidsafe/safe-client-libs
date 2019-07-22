@@ -211,6 +211,12 @@ impl From<IoError> for AuthError {
     }
 }
 
+impl From<safe_nd::Error> for AuthError {
+    fn from(error: safe_nd::Error) -> AuthError {
+        AuthError::from(CoreError::NewRoutingClientError(error))
+    }
+}
+
 impl<'a> From<&'a str> for AuthError {
     fn from(error: &'a str) -> AuthError {
         AuthError::Unexpected(error.to_owned())

@@ -75,11 +75,11 @@ where
     let c = |el_h, core_tx, net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
-        let invitation = unwrap!(utils::generate_random_string(10));
+        // let invitation = unwrap!(utils::generate_random_string(10));
         CoreClient::new(
             &acc_locator,
             &acc_password,
-            &invitation,
+            // &invitation,
             el_h,
             core_tx,
             net_tx,

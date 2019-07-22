@@ -10,24 +10,23 @@
 #![allow(clippy::cognitive_complexity)]
 
 use super::routing::Routing;
-use super::DEFAULT_MAX_MUTATIONS;
 use crate::client::mock::vault::Vault;
 use crate::client::NewFullId;
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
 
 use routing::{
-    AccountInfo, Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
+    Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
     MutableData as OldMutableData, PermissionSet, Request, Response, User, Value,
-    TYPE_TAG_SESSION_PACKET,
 };
 use safe_nd::{
-    AppFullId, AppPermissions, ClientFullId, Error, IData, IDataAddress, IDataKind, MData,
+    AppFullId, AppPermissions, ClientFullId, Coins, Error, IData, IDataAddress, IDataKind, MData,
     MDataAction as NewAction, MDataAddress, MDataPermissionSet as NewPermissionSet, MessageId,
-    PubImmutableData, PublicKey, Request as RpcRequest, Response as RpcResponse,
+    PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
     UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -58,11 +57,12 @@ macro_rules! expect_failure {
 // Test the basics idata operations.
 #[test]
 fn immutable_data_basics() {
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
 
     // Create account
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct PubImmutableData
     let orig_data = PubImmutableData::new(unwrap!(utils::generate_random_vector(100)));
@@ -89,10 +89,7 @@ fn immutable_data_basics() {
     let got_data = expect_success!(routing_rx, msg_id, Response::GetIData);
     assert_eq!(got_data, orig_data);
 
-    // GetAccountInfo should pass and show one mutation performed
-    let acct_info = account_info(&mut routing, &routing_rx, client_mgr);
-    assert_eq!(acct_info.mutations_done, 1);
-    assert_eq!(acct_info.mutations_available, DEFAULT_MAX_MUTATIONS - 1);
+    // TODO: Verify balance
 
     // Subsequent PutIData for same data should succeed - De-duplication
     let msg_id = MessageId::new();
@@ -105,20 +102,19 @@ fn immutable_data_basics() {
     let got_data = expect_success!(routing_rx, msg_id, Response::GetIData);
     assert_eq!(got_data, orig_data);
 
-    // GetAccountInfo should pass and show two mutations performed
-    let acct_info = account_info(&mut routing, &routing_rx, client_mgr);
-    assert_eq!(acct_info.mutations_done, 2);
-    assert_eq!(acct_info.mutations_available, DEFAULT_MAX_MUTATIONS - 2);
+    // TODO: Verify balance
 }
 
 // Test the basic mdata operations.
 #[test]
 fn mutable_data_basics() {
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
 
     // Create account
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData
     let name = new_rand::random();
@@ -318,11 +314,13 @@ fn mutable_data_basics() {
 // Test reclamation of deleted mdata.
 #[test]
 fn mutable_data_reclaim() {
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
 
     // Create account
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData
     let name = new_rand::random();
@@ -408,10 +406,12 @@ fn mutable_data_reclaim() {
 // Test valid and invalid mdata entry versioning.
 #[test]
 fn mutable_data_entry_versioning() {
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
 
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData
     let name = new_rand::random();
@@ -514,10 +514,12 @@ fn mutable_data_entry_versioning() {
 // Test various operations with and without proper permissions.
 #[test]
 fn mutable_data_permissions() {
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
 
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData with some entries and empty permissions.
     let name = new_rand::random();
@@ -561,10 +563,14 @@ fn mutable_data_permissions() {
     expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
 
     // Create app and authorise it.
-    let (mut app_routing, app_routing_rx, app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, app_full_id, _) = setup();
     let app_sign_key = PublicKey::Bls(*app_full_id.public_id().bls_public_key());
 
-    let response = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
+    let response = routing.req(
+        &routing_rx,
+        RpcRequest::ListAuthKeysAndVersion,
+        &full_id_new,
+    );
     let version = match response {
         RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
         x => panic!("Unexpected response: {:?}", x),
@@ -577,6 +583,7 @@ fn mutable_data_permissions() {
             permissions: Default::default(),
             key: app_sign_key,
         },
+        &full_id_new,
     );
     match response {
         RpcResponse::Mutation(Ok(())) => (),
@@ -814,10 +821,14 @@ fn mutable_data_permissions() {
     expect_success!(app_routing_rx, msg_id, Response::MutateMDataEntries);
 
     // Create another app and authorise it.
-    let (mut app2_routing, app2_routing_rx, app2_full_id) = setup();
+    let (mut app2_routing, app2_routing_rx, app2_full_id, _) = setup();
     let app2_sign_key = PublicKey::from(*app2_full_id.public_id().bls_public_key());
 
-    let version = match routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion) {
+    let version = match routing.req(
+        &routing_rx,
+        RpcRequest::ListAuthKeysAndVersion,
+        &full_id_new,
+    ) {
         RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
         x => panic!("Unexpected {:?}", x),
     };
@@ -829,6 +840,7 @@ fn mutable_data_permissions() {
             permissions: Default::default(),
             version: version + 1,
         },
+        &full_id_new,
     );
 
     // The new app can't mutate entries
@@ -921,23 +933,31 @@ fn mutable_data_permissions() {
 #[test]
 fn mutable_data_ownership() {
     // Create owner's routing client
-    let (mut owner_routing, owner_routing_rx, owner_full_id) = setup();
+    let (mut owner_routing, owner_routing_rx, owner_full_id, _) = setup();
 
     let owner_key = PublicKey::from(*owner_full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut owner_routing, &owner_routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = owner_full_id.bls_key();
+    let (client_mgr, owner_full_id_new) = create_account(&mut owner_routing, coins, owner_sk);
 
     // Create app's routing client and authorise the app.
-    let (mut app_routing, app_routing_rx, app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, app_full_id, _) = setup();
     let app_sign_key = PublicKey::from(*app_full_id.public_id().bls_public_key());
 
-    let _resp = owner_routing.req(
+    let resp = owner_routing.req(
         &owner_routing_rx,
         RpcRequest::InsAuthKey {
             key: app_sign_key,
             version: 1,
             permissions: Default::default(),
         },
+        &owner_full_id_new,
     );
+
+    match resp {
+        RpcResponse::Mutation(res) => unwrap!(res),
+        _ => panic!("Unexpected repsonse"),
+    }
 
     // Attempt to put MutableData using the app sign key as owner key should fail.
     let name = new_rand::random();
@@ -989,8 +1009,10 @@ fn mutable_data_ownership() {
         ClientError::AccessDenied
     );
 
+    let coins = unwrap!(Coins::from_str("10"));
     // Attempt to change owner by app via its own account should fail.
-    let app_client_mgr = create_account(&mut app_routing, &app_routing_rx, app_sign_key);
+    let app_owner_sk = owner_full_id.bls_key();
+    let (app_client_mgr, _) = create_account(&mut app_routing, coins, app_owner_sk);
     let msg_id = MessageId::new();
     unwrap!(app_routing.change_mdata_owner(
         app_client_mgr,
@@ -1022,9 +1044,10 @@ fn mutable_data_ownership() {
 
 #[test]
 fn pub_idata_rpc() {
-    let (mut routing, routing_rx, full_id) = setup();
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let (mut routing, routing_rx, full_id, _) = setup();
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
     let data = PubImmutableData::new(value);
@@ -1032,7 +1055,8 @@ fn pub_idata_rpc() {
 
     // Put pub idata. Should succeed.
     {
-        let rpc_response = routing.req(&routing_rx, RpcRequest::PutIData(data.into()));
+        let rpc_response =
+            routing.req(&routing_rx, RpcRequest::PutIData(data.into()), &full_id_new);
         match rpc_response {
             RpcResponse::Mutation(res) => {
                 assert!(res.is_ok());
@@ -1043,7 +1067,11 @@ fn pub_idata_rpc() {
 
     // Get pub idata as an owner. Should succeed.
     {
-        let rpc_response = routing.req(&routing_rx, RpcRequest::GetIData(IDataAddress::Pub(name)));
+        let rpc_response = routing.req(
+            &routing_rx,
+            RpcRequest::GetIData(IDataAddress::Pub(name)),
+            &full_id_new,
+        );
         match rpc_response {
             RpcResponse::GetIData(res) => {
                 let idata: IData = unwrap!(res);
@@ -1054,13 +1082,14 @@ fn pub_idata_rpc() {
         }
     }
 
-    let (mut app_routing, app_routing_rx, _app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, _, app_full_id_new) = setup();
 
     // Get pub idata while not being an owner. Should succeed.
     {
         let rpc_response = app_routing.req(
             &app_routing_rx,
             RpcRequest::GetIData(IDataAddress::Pub(name)),
+            &app_full_id_new,
         );
         match rpc_response {
             RpcResponse::GetIData(res) => {
@@ -1075,9 +1104,10 @@ fn pub_idata_rpc() {
 
 #[test]
 fn unpub_idata_rpc() {
-    let (mut owner_routing, owner_routing_rx, full_id) = setup();
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let _client_mgr = create_account(&mut owner_routing, &owner_routing_rx, owner_key);
+    let (mut owner_routing, owner_routing_rx, full_id, _) = setup();
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (_, full_id_new) = create_account(&mut owner_routing, coins, owner_sk);
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
     let data =
@@ -1085,7 +1115,11 @@ fn unpub_idata_rpc() {
     let name = *data.name();
 
     // Construct put request.
-    let response = owner_routing.req(&owner_routing_rx, RpcRequest::PutIData(data.into()));
+    let response = owner_routing.req(
+        &owner_routing_rx,
+        RpcRequest::PutIData(data.into()),
+        &full_id_new,
+    );
     match response {
         RpcResponse::Mutation(res) => {
             assert!(res.is_ok());
@@ -1097,6 +1131,7 @@ fn unpub_idata_rpc() {
     let rpc_response = owner_routing.req(
         &owner_routing_rx,
         RpcRequest::GetIData(IDataAddress::Unpub(name)),
+        &full_id_new,
     );
     match rpc_response {
         RpcResponse::GetIData(res) => {
@@ -1107,13 +1142,14 @@ fn unpub_idata_rpc() {
         _ => panic!("Unexpected response"),
     }
 
-    let (mut app_routing, app_routing_rx, _app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, _, app_full_id_new) = setup();
 
     // Try to get unpub idata while not being an owner. Should fail.
     {
         let rpc_response = app_routing.req(
             &app_routing_rx,
             RpcRequest::GetIData(IDataAddress::Unpub(name)),
+            &app_full_id_new,
         );
         match rpc_response {
             RpcResponse::GetIData(res) => match res {
@@ -1130,6 +1166,7 @@ fn unpub_idata_rpc() {
         let rpc_response = app_routing.req(
             &app_routing_rx,
             RpcRequest::DeleteUnpubIData(IDataAddress::Unpub(name)),
+            &app_full_id_new,
         );
         match rpc_response {
             RpcResponse::Mutation(res) => match res {
@@ -1144,9 +1181,10 @@ fn unpub_idata_rpc() {
 
 #[test]
 fn unpub_md() {
-    let (mut routing, routing_rx, full_id) = setup();
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let _client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let (mut routing, routing_rx, full_id, _) = setup();
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
     let bls_key = full_id.bls_key().public_key();
 
     let name = XorName(new_rand::random());
@@ -1169,6 +1207,7 @@ fn unpub_md() {
     let response: RpcResponse = routing.req(
         &routing_rx,
         RpcRequest::PutMData(MData::Unseq(data.clone())),
+        &full_id_new,
     );
 
     match response {
@@ -1180,6 +1219,7 @@ fn unpub_md() {
     let rpc_response: RpcResponse = routing.req(
         &routing_rx,
         RpcRequest::GetMData(MDataAddress::Unseq { name, tag }),
+        &full_id_new,
     );
     match rpc_response {
         RpcResponse::GetMData(res) => {
@@ -1195,18 +1235,23 @@ fn unpub_md() {
 // Test auth key operations with valid and invalid version bumps.
 #[test]
 fn auth_keys() {
-    let (mut routing, routing_rx, full_id) = setup_with_config(Config {
+    let (mut routing, routing_rx, full_id, _) = setup_with_config(Config {
         dev: Some(DevConfig {
             mock_unlimited_mutations: true,
             mock_in_memory_storage: true,
             mock_vault_path: None,
         }),
     });
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let _acc = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
     // Initially, the list of auth keys should be empty and the version should be zero.
-    let mut response: RpcResponse = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
+    let mut response: RpcResponse = routing.req(
+        &routing_rx,
+        RpcRequest::ListAuthKeysAndVersion,
+        &full_id_new,
+    );
 
     match response {
         RpcResponse::ListAuthKeysAndVersion(res) => match res {
@@ -1230,7 +1275,7 @@ fn auth_keys() {
         },
     };
 
-    response = routing.req(&routing_rx, test_ins_auth_key_req);
+    response = routing.req(&routing_rx, test_ins_auth_key_req, &full_id_new);
 
     match response {
         RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
@@ -1247,7 +1292,7 @@ fn auth_keys() {
         },
     };
 
-    response = routing.req(&routing_rx, ins_auth_key_req);
+    response = routing.req(&routing_rx, ins_auth_key_req, &full_id_new);
 
     match response {
         RpcResponse::Mutation(Ok(())) => (),
@@ -1255,7 +1300,11 @@ fn auth_keys() {
         _ => panic!("Unexpected Response"),
     }
 
-    response = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
+    response = routing.req(
+        &routing_rx,
+        RpcRequest::ListAuthKeysAndVersion,
+        &full_id_new,
+    );
 
     match response {
         RpcResponse::ListAuthKeysAndVersion(res) => match res {
@@ -1273,7 +1322,7 @@ fn auth_keys() {
         version: 0,
     };
 
-    response = routing.req(&routing_rx, test_del_auth_key_req);
+    response = routing.req(&routing_rx, test_del_auth_key_req, &full_id_new);
 
     match response {
         RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
@@ -1289,7 +1338,7 @@ fn auth_keys() {
         version: 2,
     };
 
-    response = routing.req(&routing_rx, test1_del_auth_key_req);
+    response = routing.req(&routing_rx, test1_del_auth_key_req, &full_id_new);
 
     match response {
         RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
@@ -1303,7 +1352,7 @@ fn auth_keys() {
         version: 2,
     };
 
-    response = routing.req(&routing_rx, del_auth_key_req);
+    response = routing.req(&routing_rx, del_auth_key_req, &full_id_new);
 
     match response {
         RpcResponse::Mutation(Ok(())) => (),
@@ -1312,7 +1361,11 @@ fn auth_keys() {
     }
 
     // Retrieve the list of auth keys and version
-    response = routing.req(&routing_rx, RpcRequest::ListAuthKeysAndVersion);
+    response = routing.req(
+        &routing_rx,
+        RpcRequest::ListAuthKeysAndVersion,
+        &full_id_new,
+    );
 
     match response {
         RpcResponse::ListAuthKeysAndVersion(res) => match res {
@@ -1330,13 +1383,15 @@ fn auth_keys() {
 #[test]
 fn auth_actions_from_app() {
     // Creates an App Routing instance
-    let (mut app_routing, app_routing_rx, _app_full_id) = setup();
+    let (mut app_routing, app_routing_rx, _, app_full_id_new) = setup();
 
     // Creates a Client Routing instance
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let bls_key = full_id.bls_key().public_key();
-    let _ = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
     let name = XorName(new_rand::random());
     let tag = 15002;
@@ -1355,6 +1410,7 @@ fn auth_actions_from_app() {
     let response: RpcResponse = routing.req(
         &routing_rx,
         RpcRequest::PutMData(MData::Unseq(data.clone())),
+        &full_id_new,
     );
 
     match response {
@@ -1366,6 +1422,7 @@ fn auth_actions_from_app() {
     let rpc_response: RpcResponse = routing.req(
         &routing_rx,
         RpcRequest::GetMData(MDataAddress::Unseq { name, tag }),
+        &full_id_new,
     );
     match rpc_response {
         RpcResponse::GetMData(res) => {
@@ -1378,7 +1435,11 @@ fn auth_actions_from_app() {
     }
 
     // Delete MData called by apps should fail
-    let del_mdata_by_app = app_routing.req(&app_routing_rx, RpcRequest::DeleteMData(address));
+    let del_mdata_by_app = app_routing.req(
+        &app_routing_rx,
+        RpcRequest::DeleteMData(address),
+        &app_full_id_new,
+    );
 
     match del_mdata_by_app {
         RpcResponse::Mutation(res) => match res {
@@ -1390,8 +1451,11 @@ fn auth_actions_from_app() {
     }
 
     // List Auth Keys called by apps should fail
-    let list_auth_keys_by_app =
-        app_routing.req(&app_routing_rx, RpcRequest::ListAuthKeysAndVersion);
+    let list_auth_keys_by_app = app_routing.req(
+        &app_routing_rx,
+        RpcRequest::ListAuthKeysAndVersion,
+        &app_full_id_new,
+    );
 
     match list_auth_keys_by_app {
         RpcResponse::ListAuthKeysAndVersion(res) => match res {
@@ -1409,6 +1473,7 @@ fn auth_actions_from_app() {
             key: PublicKey::Bls(bls_key),
             version: 1,
         },
+        &app_full_id_new,
     );
 
     match delete_auth_keys_by_app {
@@ -1425,15 +1490,18 @@ fn auth_actions_from_app() {
 #[test]
 fn low_balance_check() {
     for &custom_vault in &[true, false] {
-        let (mut routing, routing_rx, full_id) = setup_with_config(Config {
+        let (mut routing, routing_rx, full_id, _) = setup_with_config(Config {
             dev: Some(DevConfig {
                 mock_unlimited_mutations: custom_vault,
                 mock_in_memory_storage: true,
                 mock_vault_path: None,
             }),
         });
-        let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-        let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+        // let owner_key = PublicKey::from(*full_id.public_id();
+        let owner_sk = full_id.bls_key();
+        let owner_key: PublicKey = full_id.bls_key().public_key().into();
+        let coins = unwrap!(Coins::from_nano(5));
+        let (client_mgr, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
         // Put MutableData so we can test getting it later.
         // Do this before exhausting the balance (below).
@@ -1463,22 +1531,23 @@ fn low_balance_check() {
             None => false,
         };
 
-        let mut mutations_available =
-            account_info(&mut routing, &routing_rx, client_mgr).mutations_available;
+        let rpc_response = routing.req(&routing_rx, RpcRequest::GetBalance, &full_id_new);
+        let balance = match rpc_response {
+            RpcResponse::GetBalance(res) => unwrap!(res),
+            _ => panic!("Unexpected response"),
+        };
 
-        // Exhaust the account balance manually.
-        loop {
-            unwrap!(routing.put_idata(client_mgr, data.clone(), msg_id));
-            expect_success!(routing_rx, msg_id, Response::PutIData);
-
-            mutations_available -= 1;
-
-            // Get the account info at each iteration of loop.
-            let acct_info = account_info(&mut routing, &routing_rx, client_mgr);
-            if acct_info.mutations_available == 0 || mutations_available == 0 {
-                break;
-            }
-        }
+        // Exhause the account balance by transferring everyting to a new wallet
+        let new_balance_owner: PublicKey = SecretKey::random().public_key().into();
+        let _ = routing.req(
+            &routing_rx,
+            RpcRequest::CreateBalance {
+                new_balance_owner,
+                amount: balance,
+                transaction_id: rand::random(),
+            },
+            &full_id_new,
+        );
 
         if !unlimited_muts {
             assert!(!custom_vault);
@@ -1521,7 +1590,7 @@ fn invalid_config_mock_vault_path() {
     }
 
     // Make sure that using a non-existant mock-vault path fails.
-    let (mut routing, routing_rx, full_id) = setup_with_config(Config {
+    let (mut routing, _, full_id, _) = setup_with_config(Config {
         dev: Some(DevConfig {
             mock_unlimited_mutations: false,
             mock_in_memory_storage: false,
@@ -1530,8 +1599,21 @@ fn invalid_config_mock_vault_path() {
     });
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
 
-    // This does a `put_mdata`. This should fail.
-    let _ = create_account(&mut routing, &routing_rx, owner_key);
+    // `put_mdata` should fail.
+    let name = new_rand::random();
+    let tag = 1000u64;
+
+    let data = unwrap!(OldMutableData::new(
+        name,
+        tag,
+        Default::default(),
+        Default::default(),
+        btree_set!(owner_key),
+    ));
+    let client_mgr = Authority::ClientManager(owner_key.into());
+
+    let msg_id = MessageId::new();
+    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
 }
 
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
@@ -1551,7 +1633,7 @@ fn config_mock_vault_path() {
         _ => panic!("Error creating directory"),
     }
 
-    let (mut routing, routing_rx, full_id) = setup_with_config(Config {
+    let (mut routing, routing_rx, full_id, _) = setup_with_config(Config {
         dev: Some(DevConfig {
             mock_unlimited_mutations: false,
             mock_in_memory_storage: false,
@@ -1559,7 +1641,9 @@ fn config_mock_vault_path() {
         }),
     });
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Put MutableData. Should succeed.
     let name = new_rand::random();
@@ -1590,7 +1674,7 @@ fn config_mock_vault_path() {
 // Test routing request hooks.
 #[test]
 fn request_hooks() {
-    let (mut routing, routing_rx, full_id) = setup();
+    let (mut routing, routing_rx, full_id, _) = setup();
 
     routing.set_request_hook(move |req| {
         match *req {
@@ -1616,7 +1700,9 @@ fn request_hooks() {
 
     // Create account
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let client_mgr = create_account(&mut routing, &routing_rx, owner_key);
+    let coins = unwrap!(Coins::from_str("10"));
+    let owner_sk = full_id.bls_key();
+    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData (but hook won't allow to store it on the network
     // if the tag is 10000)
@@ -1697,33 +1783,30 @@ fn request_hooks() {
 }
 
 // Setup routing with a shared, global vault.
-fn setup() -> (Routing, Receiver<Event>, FullId) {
-    let (routing, routing_rx, full_id) = setup_impl();
+fn setup() -> (Routing, Receiver<Event>, FullId, NewFullId) {
+    let (routing, routing_rx, full_id, full_id_new) = setup_impl();
 
-    (routing, routing_rx, full_id)
+    (routing, routing_rx, full_id, full_id_new)
 }
 
 // Setup routing with a new, non-shared vault.
-fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId) {
-    let (mut routing, routing_rx, full_id) = setup_impl();
+fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, NewFullId) {
+    let (mut routing, routing_rx, full_id, full_id_new) = setup_impl();
 
     routing.set_vault(&Arc::new(Mutex::new(Vault::new(config))));
 
-    (routing, routing_rx, full_id)
+    (routing, routing_rx, full_id, full_id_new)
 }
 
-fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
+fn setup_impl() -> (Routing, Receiver<Event>, FullId, NewFullId) {
     let full_id = FullId::new();
-    let bls_sk = full_id.bls_key().clone();
-    let bls_pk = bls_sk.public_key();
+    let owner_pk = PublicKey::from(SecretKey::random().public_key());
+    let app_full_id = AppFullId::with_keys(full_id.bls_key().clone(), owner_pk);
     let (routing_tx, routing_rx) = mpsc::channel();
     let routing = unwrap!(Routing::new(
         routing_tx,
         Some(full_id.clone()),
-        Some(NewFullId::App(AppFullId::with_keys(
-            bls_sk,
-            PublicKey::from(bls_pk),
-        ))),
+        PublicId::App(app_full_id.public_id().clone()),
         None,
         Duration::new(0, 0),
     ));
@@ -1734,46 +1817,23 @@ fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
         e => panic!("Unexpected event {:?}", e),
     }
 
-    (routing, routing_rx, full_id)
+    (routing, routing_rx, full_id, NewFullId::App(app_full_id))
 }
 
-// Create account, put it to the network and return `ClientManager` authority for it.
+// Create a wallet for an account, put it to the network and return `ClientManager` authority for it.
 fn create_account(
     routing: &mut Routing,
-    routing_rx: &Receiver<Event>,
-    owner_key: PublicKey,
-) -> Authority<XorName> {
+    coins: Coins,
+    owner_sk: &SecretKey,
+) -> (Authority<XorName>, NewFullId) {
+    let owner_key: PublicKey = owner_sk.public_key().into();
     let account_name = XorName::from(owner_key);
-    let account_data = unwrap!(OldMutableData::new(
-        account_name,
-        TYPE_TAG_SESSION_PACKET,
-        Default::default(),
-        Default::default(),
-        btree_set![owner_key]
-    ));
+    routing.create_balance(owner_key, coins);
 
-    routing.full_id_new = NewFullId::Client(ClientFullId::with_bls_key(
-        routing.full_id.bls_key().clone(),
-    ));
+    routing.public_id = PublicId::Client(safe_nd::ClientPublicId::new(owner_key.into(), owner_key));
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(
+    (
         Authority::ClientManager(account_name),
-        account_data,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
-
-    Authority::ClientManager(account_name)
-}
-
-fn account_info(
-    routing: &mut Routing,
-    routing_rx: &Receiver<Event>,
-    dst: Authority<XorName>,
-) -> AccountInfo {
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_account_info(dst, msg_id));
-    expect_success!(routing_rx, msg_id, Response::GetAccountInfo)
+        NewFullId::Client(ClientFullId::with_bls_key(owner_sk.clone())),
+    )
 }

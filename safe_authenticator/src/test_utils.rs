@@ -32,16 +32,19 @@ use safe_core::ipc::{
 };
 use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::{File, Mode};
-use safe_core::utils::test_utils::setup_client_with_net_obs;
+use safe_core::utils::test_utils::{
+    random_client as random_core_client, setup_client_with_net_obs,
+};
 #[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::PublicKey;
+use safe_nd::{Coins, PublicKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
 use std::os::raw::{c_char, c_void};
 use std::slice;
+use std::str::FromStr;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -73,12 +76,17 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
 
     let locator: String = rng.gen_ascii_chars().take(10).collect();
     let password: String = rng.gen_ascii_chars().take(10).collect();
-    let invitation: String = rng.gen_ascii_chars().take(10).collect();
+    let balance_sk = threshold_crypto::SecretKey::random();
+    let balance_pk = balance_sk.public_key();
+    random_client(move |client| {
+        client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+        Ok::<_, AuthError>(())
+    });
 
     let auth = unwrap!(Authenticator::create_acc(
         locator.clone(),
         password.clone(),
-        invitation,
+        balance_sk,
         || (),
     ));
 
@@ -396,11 +404,16 @@ where
     let c = |el_h, core_tx, net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
-        let invitation = unwrap!(utils::generate_random_string(10));
+        let balance_sk = threshold_crypto::SecretKey::random();
+        let balance_pk = balance_sk.public_key();
+        random_core_client(move |client| {
+            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
+            Ok::<_, AuthError>(())
+        });
         AuthClient::registered(
             &acc_locator,
             &acc_password,
-            &invitation,
+            balance_sk,
             el_h,
             core_tx,
             net_tx,

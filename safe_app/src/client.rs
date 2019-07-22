@@ -9,8 +9,6 @@
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
 #[cfg(feature = "mock-network")]
-use safe_core::client::NewFullId;
-#[cfg(feature = "mock-network")]
 use safe_core::MockRouting as Routing;
 
 use crate::errors::AppError;
@@ -24,7 +22,9 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, NetworkTx};
-use safe_nd::{AppFullId, ClientFullId, Message, MessageId, PublicKey, Request, Signature};
+use safe_nd::{
+    AppFullId, ClientPublicId, Message, MessageId, PublicId, PublicKey, Request, Signature,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -51,12 +51,11 @@ impl AppClient {
         trace!("Creating unregistered client.");
 
         let client_keys = ClientKeys::new(None);
+        let client_pk = PublicKey::from(client_keys.bls_pk);
 
         let (routing, routing_rx) = setup_routing(
             None,
-            Some(NewFullId::Client(ClientFullId::with_bls_key(
-                client_keys.bls_sk.clone(),
-            ))),
+            PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk)),
             config,
         )?;
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
@@ -74,7 +73,7 @@ impl AppClient {
             ))),
             app_inner: Rc::new(RefCell::new(AppInner::new(
                 Some(client_keys),
-                None,
+                Some(client_pk),
                 None,
                 config,
             ))),
@@ -139,10 +138,11 @@ impl AppClient {
         trace!("Attempting to log into an acc using client keys.");
         let (mut routing, routing_rx) = setup_routing(
             Some(keys.clone().into()),
-            Some(NewFullId::App(AppFullId::with_keys(
-                keys.bls_sk.clone(),
-                owner,
-            ))),
+            PublicId::App(
+                AppFullId::with_keys(keys.bls_sk.clone(), owner)
+                    .public_id()
+                    .clone(),
+            ),
             Some(config),
         )?;
         routing = routing_wrapper_fn(routing);
@@ -179,11 +179,12 @@ impl Client for AppClient {
         app_inner.keys.clone().map(Into::into)
     }
 
-    fn full_id_new(&self) -> Option<NewFullId> {
-        Some(NewFullId::App(AppFullId::with_keys(
-            self.secret_bls_key()?,
-            self.owner_key()?,
-        )))
+    fn public_id(&self) -> PublicId {
+        PublicId::App(
+            AppFullId::with_keys(unwrap!(self.secret_bls_key()), unwrap!(self.owner_key()))
+                .public_id()
+                .clone(),
+        )
     }
 
     fn config(&self) -> Option<BootstrapConfig> {

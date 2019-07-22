@@ -79,7 +79,7 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
             // Update account packet - root directories have been created successfully
             // (so we don't have to recover them after login).
             c4.set_std_dirs_created(true);
-            c4.update_account_packet().map_err(From::from).into_box()
+            c4.update_account_packet().map_err(From::from)
         })
         .into_box()
 }

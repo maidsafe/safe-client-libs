@@ -20,8 +20,8 @@ use safe_nd::{
     PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
     Signature, XorName,
 };
-#[cfg(any(feature = "testing", test))]
-use safe_nd::{Coins, Error};
+// #[cfg(any(feature = "testing", test))]
+use safe_nd::Coins;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,7 +29,6 @@ use std::env;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use threshold_crypto::SecretKey as BlsSecretKey;
 
 /// Function that is used to tap into routing requests and return preconditioned responses.
 pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
@@ -43,7 +42,6 @@ const DELAY_THREAD_NAME: &str = "Mock routing delay";
 const DEFAULT_DELAY_MS: u64 = 0;
 const CONNECT_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
-const GET_ACCOUNT_INFO_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const PUT_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 const GET_IDATA_DELAY_MS: u64 = DEFAULT_DELAY_MS;
 
@@ -106,7 +104,7 @@ pub struct Routing {
     /// mock_routing::FullId for old types
     pub full_id: FullId,
     /// NewFullId for new types
-    pub full_id_new: NewFullId,
+    pub public_id: PublicId,
     client_auth: Authority<XorName>,
     max_ops_countdown: Option<Cell<u64>>,
     timeout_simulation: bool,
@@ -138,7 +136,7 @@ impl Routing {
     pub fn new(
         sender: Sender<Event>,
         id: Option<FullId>,
-        full_id: Option<NewFullId>,
+        public_id: PublicId,
         _bootstrap_config: Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
@@ -155,17 +153,11 @@ impl Routing {
             proxy_node_name: new_rand::random(),
         };
 
-        let bls_sk = id
-            .as_ref()
-            .map(|id| id.bls_key().clone())
-            .unwrap_or_else(BlsSecretKey::random);
-
         Ok(Routing {
             vault: clone_vault(),
             sender,
             full_id: id.unwrap_or_else(FullId::new),
-            full_id_new: full_id
-                .unwrap_or_else(|| NewFullId::Client(ClientFullId::with_bls_key(bls_sk))),
+            public_id,
             client_auth,
             max_ops_countdown: None,
             timeout_simulation: false,
@@ -181,16 +173,17 @@ impl Routing {
         payload: &[u8],
     ) -> Result<(), InterfaceError> {
         let msg: Message = {
-            let mut vault = self.lock_vault(true);
             let public_id = match requester {
                 Some(public_key) => {
                     PublicId::Client(ClientPublicId::new(public_key.into(), public_key))
                 }
-                None => match &self.full_id_new {
-                    NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
-                    NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
-                },
+                None => self.public_id.clone()
+                // None => match &self.full_id_new {
+                //     NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
+                //     NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
+                // },
             };
+            let mut vault = self.lock_vault(true);
             unwrap!(vault.process_request(public_id, payload.to_vec()))
         };
         // Send response back to a client
@@ -215,11 +208,35 @@ impl Routing {
     }
 
     /// Send a request and get a response
-    pub fn req(&mut self, rx: &Receiver<Event>, request: RpcRequest) -> RpcResponse {
+    pub fn req(
+        &mut self,
+        rx: &Receiver<Event>,
+        request: RpcRequest,
+        full_id_new: &NewFullId,
+    ) -> RpcResponse {
         let message_id = MessageId::new();
-        let signature = self
-            .full_id_new
-            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+        let signature = full_id_new.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+        unwrap!(self.send(
+            None,
+            &unwrap!(serialise(&Message::Request {
+                request,
+                message_id,
+                signature: Some(signature),
+            }))
+        ));
+        let response = expect_success!(rx, message_id, Response::RpcResponse);
+        unwrap!(deserialise(&response))
+    }
+
+    /// Send a request and get a response
+    pub fn req_as_client(
+        &mut self,
+        rx: &Receiver<Event>,
+        request: RpcRequest,
+        client_full_id: &ClientFullId,
+    ) -> RpcResponse {
+        let message_id = MessageId::new();
+        let signature = client_full_id.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
         unwrap!(self.send(
             None,
             &unwrap!(serialise(&Message::Request {
@@ -235,46 +252,6 @@ impl Routing {
     /// Sets the vault for this routing instance.
     pub fn set_vault(&mut self, vault: &Arc<Mutex<Vault>>) {
         self.vault = Arc::clone(vault);
-    }
-
-    /// Gets MAID account information.
-    pub fn get_account_info(
-        &mut self,
-        dst: Authority<XorName>,
-        msg_id: MessageId,
-    ) -> Result<(), InterfaceError> {
-        let client_auth = self.client_auth;
-
-        let skip = self.intercept_request(GET_ACCOUNT_INFO_DELAY_MS, dst, client_auth, || {
-            Request::GetAccountInfo(msg_id)
-        });
-        if skip {
-            return Ok(());
-        }
-
-        let res = if let Err(err) = self.verify_network_limits(msg_id, "get_account_info") {
-            Err(err)
-        } else {
-            let name = match dst {
-                Authority::ClientManager(name) => name,
-                x => panic!("Unexpected authority: {:?}", x),
-            };
-
-            let vault = self.lock_vault(false);
-            match vault.get_account(&name) {
-                Some(account) => Ok(*account.account_info()),
-                None => Err(ClientError::NoSuchAccount),
-            }
-        };
-
-        self.send_response(
-            GET_ACCOUNT_INFO_DELAY_MS,
-            dst,
-            client_auth,
-            Response::GetAccountInfo { res, msg_id },
-        );
-
-        Ok(())
     }
 
     /// Puts PubImmutableData to the network.
@@ -1066,6 +1043,12 @@ impl Routing {
     fn client_key(&self) -> PublicKey {
         PublicKey::Bls(self.full_id.bls_key().public_key())
     }
+
+    /// Create coin balance in the mock network arbitrarily.
+    pub fn create_balance(&self, owner: PublicKey, amount: Coins) {
+        let mut vault = self.lock_vault(true);
+        vault.mock_create_balance(&owner.into(), amount, owner);
+    }
 }
 
 #[cfg(any(feature = "testing", test))]
@@ -1109,18 +1092,12 @@ impl Routing {
         self.timeout_simulation = enable;
     }
 
-    /// Create coin balance in the mock network arbitrarily.
-    pub fn create_balance(&self, coin_balance_name: &XorName, amount: Coins, owner: PublicKey) {
-        let mut vault = self.lock_vault(true);
-        vault.mock_create_balance(coin_balance_name, amount, owner);
-    }
-
     /// Add some coins to a wallet's PublicKey
     pub fn allocate_test_coins(
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-    ) -> Result<(), Error> {
+    ) -> Result<(), safe_nd::Error> {
         let mut vault = self.lock_vault(true);
         vault.mock_increment_balance(coin_balance_name, amount)
     }

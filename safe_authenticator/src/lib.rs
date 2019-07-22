@@ -154,7 +154,7 @@ impl Authenticator {
     pub fn create_acc<S, N>(
         locator: S,
         password: S,
-        invitation: S,
+        balance_sk: threshold_crypto::SecretKey,
         disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
@@ -163,11 +163,10 @@ impl Authenticator {
     {
         let locator = locator.into();
         let password = password.into();
-        let invitation = invitation.into();
 
         Self::create_acc_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::registered(&locator, &password, &invitation, el_h, core_tx, net_tx)
+                AuthClient::registered(&locator, &password, balance_sk, el_h, core_tx, net_tx)
             },
             disconnect_notifier,
         )
@@ -363,9 +362,10 @@ impl Authenticator {
         N: FnMut() + Send + 'static,
     {
         let seed = seed.into();
+        let balance_sk = threshold_crypto::SecretKey::random();
         Self::login_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::registered_with_seed(&seed, el_h, core_tx, net_tx)
+                AuthClient::registered_with_seed(&seed, balance_sk, el_h, core_tx, net_tx)
             },
             disconnect_notifier,
         )
@@ -391,7 +391,7 @@ impl Authenticator {
     fn create_acc_with_hook<F, S, N>(
         locator: S,
         password: S,
-        invitation: S,
+        balance_sk: threshold_crypto::SecretKey,
         disconnect_notifier: N,
         routing_wrapper_fn: F,
     ) -> Result<Self, AuthError>
@@ -402,14 +402,13 @@ impl Authenticator {
     {
         let locator = locator.into();
         let password = password.into();
-        let invitation = invitation.into();
 
         Self::create_acc_impl(
             move |el_h, core_tx_clone, net_tx| {
                 AuthClient::registered_with_hook(
                     &locator,
                     &password,
-                    &invitation,
+                    balance_sk,
                     el_h,
                     core_tx_clone,
                     net_tx,
