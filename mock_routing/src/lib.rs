@@ -9,11 +9,11 @@
 use maidsafe_utilities::serialisation;
 use rand::{Rand, Rng};
 use rust_sodium::crypto::{box_, sign};
-pub use safe_nd::{
-    MDataAction, MDataPermissionSet, MDataSeqEntryAction, MDataSeqEntryActions, MDataValue,
-    SeqMutableData, XorName, XOR_NAME_LEN,
+use safe_nd::{
+    Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryAction, MDataSeqEntryActions,
+    MDataSeqValue, MessageId as MsgId, PubImmutableData, PublicKey, SeqMutableData,
 };
-use safe_nd::{MessageId as MsgId, PubImmutableData, PublicKey};
+pub use safe_nd::{XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{
     btree_map::{BTreeMap, Entry},
@@ -261,8 +261,8 @@ impl From<SeqMutableData> for MutableData {
     }
 }
 
-impl Into<BTreeMap<Vec<u8>, MDataValue>> for OldEntries {
-    fn into(self) -> BTreeMap<Vec<u8>, MDataValue> {
+impl Into<BTreeMap<Vec<u8>, MDataSeqValue>> for OldEntries {
+    fn into(self) -> BTreeMap<Vec<u8>, MDataSeqValue> {
         self.0
             .into_iter()
             .map(|(key, value)| (key, value.into()))
@@ -270,8 +270,8 @@ impl Into<BTreeMap<Vec<u8>, MDataValue>> for OldEntries {
     }
 }
 
-impl From<BTreeMap<Vec<u8>, MDataValue>> for OldEntries {
-    fn from(entries: BTreeMap<Vec<u8>, MDataValue>) -> Self {
+impl From<BTreeMap<Vec<u8>, MDataSeqValue>> for OldEntries {
+    fn from(entries: BTreeMap<Vec<u8>, MDataSeqValue>) -> Self {
         Self(
             entries
                 .into_iter()
@@ -317,17 +317,17 @@ pub struct Value {
     pub entry_version: u64,
 }
 
-impl Into<MDataValue> for Value {
-    fn into(self) -> MDataValue {
-        MDataValue {
+impl Into<MDataSeqValue> for Value {
+    fn into(self) -> MDataSeqValue {
+        MDataSeqValue {
             data: self.content,
             version: self.entry_version,
         }
     }
 }
 
-impl From<MDataValue> for Value {
-    fn from(value: MDataValue) -> Self {
+impl From<MDataSeqValue> for Value {
+    fn from(value: MDataSeqValue) -> Self {
         Self {
             content: value.data,
             entry_version: value.version,
@@ -1445,6 +1445,14 @@ pub enum InterfaceError {
     ChannelRxError(()),
     /// Error while trying to transmit an event via a channel
     EventSenderError(()),
+    /// Data type error.
+    DataTypeError(SndError),
+}
+
+impl From<SndError> for InterfaceError {
+    fn from(error: SndError) -> Self {
+        InterfaceError::DataTypeError(error)
+    }
 }
 
 /// The type of errors that can occur during handling of routing events.

@@ -189,8 +189,9 @@ impl Routing {
                 None => self.public_id.clone(),
             };
             let mut vault = self.lock_vault(true);
-            unwrap!(vault.process_request(public_id, payload.to_vec()))
-        };
+            vault.process_request(public_id, payload.to_vec())
+        }?;
+
         // Send response back to a client
         let (message_id, response) = if let Message::Response {
             message_id,
@@ -205,6 +206,7 @@ impl Routing {
             res: Ok(unwrap!(serialise(&response))),
             msg_id: message_id,
         };
+
         // Use dummy authority for now
         let dummy_authority = Authority::ClientManager(new_rand::random());
         self.send_response(DEFAULT_DELAY_MS, dummy_authority, dummy_authority, response);

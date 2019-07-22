@@ -12,7 +12,7 @@ use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::messaging;
 use routing::{ClientError, InterfaceError, RoutingError};
-use safe_nd::Error;
+use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -49,7 +49,7 @@ pub enum CoreError {
     /// Routing Client Error.
     RoutingClientError(ClientError),
     /// Routing Client Error.
-    NewRoutingClientError(Error),
+    NewRoutingClientError(SndError),
     /// Unable to pack into or operate with size of Salt.
     UnsupportedSaltSizeForPwHash,
     /// Unable to complete computation for password hashing - usually because OS
@@ -113,8 +113,8 @@ impl From<ClientError> for CoreError {
     }
 }
 
-impl From<Error> for CoreError {
-    fn from(error: Error) -> CoreError {
+impl From<SndError> for CoreError {
+    fn from(error: SndError) -> CoreError {
         CoreError::NewRoutingClientError(error)
     }
 }

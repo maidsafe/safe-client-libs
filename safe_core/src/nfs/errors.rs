@@ -32,25 +32,25 @@ pub enum NfsError {
 }
 
 impl From<CoreError> for NfsError {
-    fn from(error: CoreError) -> NfsError {
+    fn from(error: CoreError) -> Self {
         NfsError::CoreError(error)
     }
 }
 
 impl From<SerialisationError> for NfsError {
-    fn from(error: SerialisationError) -> NfsError {
+    fn from(error: SerialisationError) -> Self {
         NfsError::EncodeDecodeError(error)
     }
 }
 
 impl<'a> From<&'a str> for NfsError {
-    fn from(error: &'a str) -> NfsError {
+    fn from(error: &'a str) -> Self {
         NfsError::Unexpected(error.to_string())
     }
 }
 
 impl From<SelfEncryptionError<SelfEncryptionStorageError>> for NfsError {
-    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> NfsError {
+    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
         NfsError::SelfEncryption(error)
     }
 }
