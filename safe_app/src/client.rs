@@ -30,7 +30,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
-use tokio_core::reactor::Handle;
+use tokio::runtime::current_thread::Handle;
 
 /// Client object used by safe_app.
 pub struct AppClient {

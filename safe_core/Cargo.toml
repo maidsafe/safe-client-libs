@@ -24,8 +24,6 @@ lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.18.0"
 rand = "~0.3.18"
 new_rand = { package = "rand", version = "0.6" }
-# routing = "~0.37.0"
-# routing = { git = "https://github.com/lionel1704/routing", branch = "patch" }
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
@@ -35,8 +33,7 @@ serde = "~1.0.27"
 serde_derive = "~1.0.27"
 tiny-keccak = "~1.5.0"
 threshold_crypto = "~0.3.2"
-tokio = "=0.1.8"
-tokio-core = "~0.1.17"
+tokio = "~0.1.22"
 unwrap = "~1.2.0"
 
 [dev-dependencies]

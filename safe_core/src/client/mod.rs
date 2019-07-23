@@ -40,9 +40,11 @@ use crate::event::{CoreEvent, NetworkEvent, NetworkTx};
 use crate::event_loop::{CoreFuture, CoreMsgTx};
 use crate::ipc::BootstrapConfig;
 use crate::utils::FutureExt;
-use futures::future::{self, Either, FutureResult, Loop, Then};
-use futures::sync::oneshot;
-use futures::{Complete, Future};
+use futures::{
+    future::{self, Either, Loop},
+    sync::oneshot,
+    Complete, Future,
+};
 use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, Joiner};
@@ -62,11 +64,11 @@ use safe_nd::{
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::io;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::time::Duration;
-use tokio_core::reactor::{Handle, Timeout};
+use std::time::{Duration, Instant};
+use tokio::runtime::current_thread::Handle;
+use tokio::timer::Delay;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
@@ -1968,34 +1970,19 @@ where
 }
 
 // Create a future that resolves into `CoreError::RequestTimeout` after the given time interval.
-fn timeout(duration: Duration, handle: &Handle) -> TimeoutFuture {
-    let timeout = match Timeout::new(duration, handle) {
-        Ok(timeout) => timeout,
-        Err(err) => {
-            return Either::A(future::err(CoreError::Unexpected(format!(
-                "Timeout create error: {:?}",
-                err
-            ))));
-        }
-    };
-
-    fn map_result(result: io::Result<()>) -> Result<CoreEvent, CoreError> {
-        match result {
-            Ok(()) => Err(CoreError::RequestTimeout),
-            Err(err) => Err(CoreError::Unexpected(format!(
-                "Timeout fire error {:?}",
-                err
-            ))),
-        }
-    }
-
-    Either::B(timeout.then(map_result))
+// TODO: replace with tokio::timer::Timeout
+fn timeout(
+    duration: Duration,
+    _handle: &Handle,
+) -> impl Future<Item = CoreEvent, Error = CoreError> {
+    Delay::new(Instant::now() + duration).then(|result| match result {
+        Ok(()) => Err(CoreError::RequestTimeout),
+        Err(err) => Err(CoreError::Unexpected(format!(
+            "Timeout fire error {:?}",
+            err
+        ))),
+    })
 }
-
-type TimeoutFuture = Either<
-    FutureResult<CoreEvent, CoreError>,
-    Then<Timeout, Result<CoreEvent, CoreError>, fn(io::Result<()>) -> Result<CoreEvent, CoreError>>,
->;
 
 #[cfg(test)]
 mod tests {

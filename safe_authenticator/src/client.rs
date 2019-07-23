@@ -42,7 +42,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
-use tokio_core::reactor::Handle;
+use tokio::runtime::current_thread::Handle;
 
 /// Client object used by safe_authenticator.
 pub struct AuthClient {
@@ -617,14 +617,14 @@ mod tests {
     use safe_core::{utils, CoreError, DIR_TAG};
     use safe_nd::{Coins, Error as SndError, MDataKind};
     use std::str::FromStr;
-    use tokio_core::reactor::Core;
+    use tokio::runtime::current_thread::Runtime;
     use AuthMsgTx;
 
     // Test account creation.
     // It should succeed the first time and fail the second time with the same secrets.
     #[test]
     fn registered_client() {
-        let el = unwrap!(Core::new());
+        let el = unwrap!(Runtime::new());
         let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
         let (net_tx, _) = mpsc::unbounded();
 
@@ -697,7 +697,7 @@ mod tests {
     fn seeded_login() {
         let invalid_seed = String::from("123");
         {
-            let el = unwrap!(Core::new());
+            let el = unwrap!(Runtime::new());
             let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
             let balance_sk = BlsSecretKey::random();
@@ -714,7 +714,7 @@ mod tests {
             }
         }
         {
-            let el = unwrap!(Core::new());
+            let el = unwrap!(Runtime::new());
             let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
 

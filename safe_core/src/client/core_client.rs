@@ -37,7 +37,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
-use tokio_core::reactor::Handle;
+use tokio::runtime::current_thread::Handle;
 
 /// Wait for a response from the `$rx` receiver with path `$res` and message ID `$msg_id`.
 #[macro_export]

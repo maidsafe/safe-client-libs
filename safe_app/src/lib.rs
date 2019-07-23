@@ -146,7 +146,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::sync::Mutex;
-use tokio_core::reactor::{Core, Handle};
+use tokio::runtime::current_thread::{Handle, Runtime};
 
 macro_rules! try_tx {
     ($result:expr, $tx:ident) => {
@@ -319,13 +319,13 @@ impl App {
         let (tx, rx) = mpsc::sync_channel(0);
 
         let joiner = thread::named("App Event Loop", move || {
-            let el = try_tx!(Core::new(), tx);
+            let mut el = try_tx!(Runtime::new(), tx);
             let el_h = el.handle();
 
             let (core_tx, core_rx) = futures_mpsc::unbounded();
             let (net_tx, net_rx) = futures_mpsc::unbounded();
 
-            el_h.spawn(
+            let _ = el.spawn(
                 net_rx
                     .map(move |event| {
                         if let NetworkEvent::Disconnected = event {

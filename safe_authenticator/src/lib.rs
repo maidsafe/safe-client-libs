@@ -114,7 +114,7 @@ use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, Network
 use std::sync::mpsc as std_mpsc;
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
-use tokio_core::reactor::{Core, Handle};
+use tokio::runtime::current_thread::{Handle, Runtime};
 
 /// Future type specialised with `AuthError` as an error type.
 pub type AuthFuture<T> = Future<Item = T, Error = AuthError>;
@@ -184,7 +184,7 @@ impl Authenticator {
         let (tx, rx) = sync_channel(0);
 
         let joiner = thread::named("Core Event Loop", move || {
-            let el = try_tx!(Core::new(), tx);
+            let mut el = try_tx!(Runtime::new(), tx);
             let el_h = el.handle();
 
             let (core_tx, core_rx) = mpsc::unbounded();
@@ -199,7 +199,7 @@ impl Authenticator {
                     ok!(())
                 })
                 .for_each(|_| Ok(()));
-            el_h.spawn(net_obs_fut);
+            let _ = el.spawn(net_obs_fut);
 
             let client = try_tx!(create_client_fn(el_h, core_tx.clone(), net_tx), tx);
 
@@ -266,7 +266,7 @@ impl Authenticator {
         let (tx, rx) = sync_channel(0);
 
         let joiner = thread::named("Core Event Loop", move || {
-            let el = try_tx!(Core::new(), tx);
+            let mut el = try_tx!(Runtime::new(), tx);
             let el_h = el.handle();
 
             let (core_tx, core_rx) = mpsc::unbounded();
@@ -281,7 +281,7 @@ impl Authenticator {
                     ok!(())
                 })
                 .for_each(|_| Ok(()));
-            el_h.spawn(net_obs_fut);
+            let _ = el.spawn(net_obs_fut);
 
             let client = try_tx!(create_client_fn(el_h, core_tx_clone, net_tx), tx);
 
