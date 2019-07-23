@@ -122,6 +122,8 @@ pub enum AuthError {
     Unexpected(String),
     /// Error from safe_core.
     CoreError(CoreError),
+    /// Error from safe-nd
+    SndError(SndError),
     /// Input/output error.
     IoError(IoError),
     /// NFS error
@@ -143,6 +145,7 @@ impl Display for AuthError {
                 write!(formatter, "Unexpected (probably a logic error): {}", error)
             }
             AuthError::CoreError(ref error) => write!(formatter, "Core error: {}", error),
+            AuthError::SndError(ref error) => write!(formatter, "Safe ND error: {}", error),
             AuthError::IoError(ref error) => write!(formatter, "I/O error: {}", error),
             AuthError::NfsError(ref error) => write!(formatter, "NFS error: {:?}", error),
             AuthError::EncodeDecodeError => write!(formatter, "Serialisation error"),
@@ -211,9 +214,9 @@ impl From<IoError> for AuthError {
     }
 }
 
-impl From<safe_nd::Error> for AuthError {
-    fn from(error: safe_nd::Error) -> AuthError {
-        AuthError::from(CoreError::NewRoutingClientError(error))
+impl From<SndError> for AuthError {
+    fn from(error: SndError) -> AuthError {
+        AuthError::SndError(error)
     }
 }
 
@@ -263,6 +266,7 @@ impl ErrorCode for AuthError {
     fn error_code(&self) -> i32 {
         match *self {
             AuthError::CoreError(ref err) => core_error_code(err),
+            AuthError::SndError(ref err) => safe_nd_error_core(err),
             AuthError::IpcError(ref err) => match *err {
                 IpcError::AuthDenied => ERR_AUTH_DENIED,
                 IpcError::ContainersDenied => ERR_CONTAINERS_DENIED,
@@ -291,6 +295,39 @@ impl ErrorCode for AuthError {
             AuthError::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
             AuthError::Unexpected(_) => ERR_UNEXPECTED,
         }
+    }
+}
+
+fn safe_nd_error_core(err: &SndError) -> i32 {
+    match *err {
+        SndError::AccessDenied => ERR_ACCESS_DENIED,
+        SndError::NoSuchLoginPacket => ERR_NO_SUCH_LOGIN_PACKET,
+        SndError::LoginPacketExists => ERR_LOGIN_PACKET_EXISTS,
+        SndError::NoSuchData => ERR_NO_SUCH_DATA,
+        SndError::DataExists => ERR_DATA_EXISTS,
+        SndError::NoSuchEntry => ERR_NO_SUCH_ENTRY,
+        SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
+        SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
+        SndError::NoSuchKey => ERR_NO_SUCH_KEY,
+        SndError::KeysExist(_) => ERR_KEYS_EXIST,
+        SndError::DuplicateEntryKeys => ERR_DUPLICATE_ENTRY_KEYS,
+        SndError::DuplicateMessageId => ERR_DUPLICATE_MSG_ID,
+        SndError::InvalidOwners => ERR_INVALID_OWNERS,
+        SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
+        SndError::InvalidOperation => ERR_INVALID_OPERATION,
+        SndError::NetworkOther(_) => ERR_NETWORK_OTHER,
+        SndError::InvalidOwnersSuccessor(_) => ERR_INVALID_OWNERS_SUCCESSOR,
+        SndError::InvalidPermissionsSuccessor(_) => ERR_INVALID_PERMISSIONS_SUCCESSOR,
+        SndError::SigningKeyTypeMismatch => ERR_SIGN_KEYTYPE_MISMATCH,
+        SndError::InvalidSignature => ERR_INVALID_SIGNATURE,
+        SndError::LossOfPrecision => ERR_LOSS_OF_PRECISION,
+        SndError::ExcessiveValue => ERR_EXCESSIVE_VALUE,
+        SndError::NoSuchBalance => ERR_NO_SUCH_BALANCE,
+        SndError::BalanceExists => ERR_BALANCE_EXISTS,
+        SndError::FailedToParse(_) => ERR_FAILED_TO_PARSE,
+        SndError::TransactionIdExists => ERR_TRANSACTION_ID_EXISTS,
+        SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
+        SndError::ExceededSize => ERR_EXCEEDED_SIZE,
     }
 }
 
@@ -327,36 +364,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
         },
-        CoreError::NewRoutingClientError(ref err) => match *err {
-            SndError::AccessDenied => ERR_ACCESS_DENIED,
-            SndError::NoSuchLoginPacket => ERR_NO_SUCH_LOGIN_PACKET,
-            SndError::LoginPacketExists => ERR_LOGIN_PACKET_EXISTS,
-            SndError::NoSuchData => ERR_NO_SUCH_DATA,
-            SndError::DataExists => ERR_DATA_EXISTS,
-            SndError::NoSuchEntry => ERR_NO_SUCH_ENTRY,
-            SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
-            SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
-            SndError::NoSuchKey => ERR_NO_SUCH_KEY,
-            SndError::KeysExist(_) => ERR_KEYS_EXIST,
-            SndError::DuplicateEntryKeys => ERR_DUPLICATE_ENTRY_KEYS,
-            SndError::DuplicateMessageId => ERR_DUPLICATE_MSG_ID,
-            SndError::InvalidOwners => ERR_INVALID_OWNERS,
-            SndError::InvalidSuccessor(_) => ERR_INVALID_SUCCESSOR,
-            SndError::InvalidOperation => ERR_INVALID_OPERATION,
-            SndError::NetworkOther(_) => ERR_NETWORK_OTHER,
-            SndError::InvalidOwnersSuccessor(_) => ERR_INVALID_OWNERS_SUCCESSOR,
-            SndError::InvalidPermissionsSuccessor(_) => ERR_INVALID_PERMISSIONS_SUCCESSOR,
-            SndError::SigningKeyTypeMismatch => ERR_SIGN_KEYTYPE_MISMATCH,
-            SndError::InvalidSignature => ERR_INVALID_SIGNATURE,
-            SndError::LossOfPrecision => ERR_LOSS_OF_PRECISION,
-            SndError::ExcessiveValue => ERR_EXCESSIVE_VALUE,
-            SndError::NoSuchBalance => ERR_NO_SUCH_BALANCE,
-            SndError::BalanceExists => ERR_BALANCE_EXISTS,
-            SndError::FailedToParse(_) => ERR_FAILED_TO_PARSE,
-            SndError::TransactionIdExists => ERR_TRANSACTION_ID_EXISTS,
-            SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
-            SndError::ExceededSize => ERR_EXCEEDED_SIZE,
-        },
+        CoreError::NewRoutingClientError(ref err) => safe_nd_error_core(err),
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,

@@ -144,12 +144,6 @@ fn main() {
                 .requires("locator")
                 .help("Use the given Password for login."),
         )
-        .arg(
-            Arg::with_name("invite")
-                .long("invite")
-                .takes_value(true)
-                .help("Use the given invite."),
-        )
         .get_matches();
 
     let immutable_data_count = unwrap!(value_t!(matches, "immutable", usize));
@@ -161,12 +155,6 @@ fn main() {
         rand::random()
     };
     let mut rng = rand::XorShiftRng::from_seed([0, 0, 0, seed]);
-
-    let _invitation: String = if let Some(i) = matches.value_of("invite") {
-        i.to_string()
-    } else {
-        rng.gen_ascii_chars().take(20).collect()
-    };
 
     let get_only = matches.is_present("get-only");
 
@@ -197,13 +185,12 @@ fn main() {
         println!("\t================");
         println!("\nTrying to create an account ...");
 
-        // FIXME
+        // FIXME - pass the secret key of the wallet as a parameter
         let bls_sk = threshold_crypto::SecretKey::random();
 
         let auth = unwrap!(Authenticator::create_acc(
             locator.as_str(),
             password.as_str(),
-            // invitation.as_str(),
             bls_sk,
             || ()
         ));

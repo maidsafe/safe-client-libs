@@ -62,21 +62,11 @@
 #[macro_use]
 extern crate unwrap;
 
-use clap::{App, Arg};
-use safe_app::{utils, ClientError, CoreError};
+use safe_app::{ClientError, CoreError};
 use safe_authenticator::{AuthError, Authenticator};
 
 fn main() {
     unwrap!(maidsafe_utilities::log::init(true));
-
-    let matches = App::new("self_authentication")
-        .arg(
-            Arg::with_name("invite")
-                .long("invite")
-                .takes_value(true)
-                .help("Use the given invite."),
-        )
-        .get_matches();
 
     let mut secret_0 = String::new();
     let mut secret_1 = String::new();
@@ -99,13 +89,7 @@ fn main() {
         let _ = std::io::stdin().read_line(&mut secret_1);
         secret_1 = secret_1.trim().to_string();
 
-        let _invitation: String = if let Some(i) = matches.value_of("invite") {
-            i.to_string()
-        } else {
-            unwrap!(utils::generate_random_string(10))
-        };
-
-        // FIXME
+        // FIXME - pass secret key of the wallet as an argument
         let bls_sk = threshold_crypto::SecretKey::random();
 
         // Account Creation

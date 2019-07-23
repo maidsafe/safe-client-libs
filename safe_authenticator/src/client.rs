@@ -13,7 +13,10 @@ use safe_core::MockRouting as Routing;
 
 use crate::errors::AuthError;
 use crate::AuthMsgTx;
+use crate::AuthFuture;
+use safe_core::FutureExt;
 use lru_cache::LruCache;
+use futures::future;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
 use routing::{Authority, BootstrapConfig, FullId, XorName};
@@ -158,17 +161,11 @@ where {
 
         let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
 
-        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
-        seeder.extend_from_slice(acc_locator);
-        seeder.extend_from_slice(acc_password);
-
-        let seed = sha3_256(&seeder);
-        let mut rng = StdRng::from_seed(seed);
-        let client_full_id = ClientFullId::new_bls(&mut rng);
+        let client_full_id = create_client_id(acc_locator, acc_password);
 
         let sig = client_full_id.sign(&acc_ciphertext);
         let client_pk = client_full_id.public_id().public_key();
-        let new_account_data = LoginPacket::new(acc_loc, *client_pk, acc_ciphertext, sig)?;
+        let new_login_packet = LoginPacket::new(acc_loc, *client_pk, acc_ciphertext, sig)?;
         let balance_client_id = ClientFullId::with_bls_key(balance_sk);
 
         {
@@ -182,9 +179,9 @@ where {
                 &routing_rx,
                 Request::CreateLoginPacketFor {
                     new_owner: pub_key,
-                    amount: unwrap!(Coins::from_str("1")),
+                    amount: Coins::from_str("1")?,
                     transaction_id: new_rand::random(),
-                    new_login_packet: new_account_data,
+                    new_login_packet,
                 },
                 &balance_client_id,
             );
@@ -299,13 +296,7 @@ where {
 
         let acc_loc = Account::generate_network_id(&keyword, &pin)?;
 
-        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
-        seeder.extend_from_slice(acc_locator);
-        seeder.extend_from_slice(acc_password);
-
-        let seed = sha3_256(&seeder);
-        let mut rng = StdRng::from_seed(seed);
-        let client_full_id = ClientFullId::new_bls(&mut rng);
+        let client_full_id = create_client_id(acc_locator, acc_password);
         let client_pk = *client_full_id.public_id().public_key();
 
         let user_cred = UserCred::new(password, pin);
@@ -439,7 +430,7 @@ where {
     }
 
     /// Updates user's account packet.
-    pub fn update_account_packet(&self) -> Result<(), AuthError> {
+    pub fn update_account_packet(&self) -> Box<AuthFuture<()>> {
         trace!("Updating account packet.");
 
         let auth_inner = self.auth_inner.borrow();
@@ -448,13 +439,13 @@ where {
         let client_full_id = &auth_inner.full_id;
         let acc_loc = &auth_inner.acc_loc;
         let updated_packet =
-            Self::prepare_account_packet_update(*acc_loc, account, keys, &client_full_id)?;
+            fry!(Self::prepare_account_packet_update(*acc_loc, account, keys, &client_full_id));
 
-        let (mut routing, routing_rx) = setup_routing(
+        let (mut routing, routing_rx) = fry!(setup_routing(
             None,
             PublicId::Client(client_full_id.public_id().clone()),
             None,
-        )?;
+        ));
 
         let rpc_response = routing.req_as_client(
             &routing_rx,
@@ -462,8 +453,8 @@ where {
             &client_full_id,
         );
         match rpc_response {
-            Response::Mutation(res) => res.map_err(AuthError::from),
-            _ => return Err(AuthError::from("Unexpected response")),
+            Response::Mutation(res) => future::result(res.map_err(AuthError::from)).into_box(),
+            _ => future::result(Err(AuthError::from("Unexpected response"))).into_box(),
         }
     }
 
@@ -480,6 +471,16 @@ where {
         account.root_dirs_created = val;
     }
 }
+
+fn create_client_id(acc_locator: &[u8], acc_password: &[u8]) -> ClientFullId {
+        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+        seeder.extend_from_slice(acc_locator);
+        seeder.extend_from_slice(acc_password);
+
+        let seed = sha3_256(&seeder);
+        let mut rng = StdRng::from_seed(seed);
+        ClientFullId::new_bls(&mut rng)
+    }
 
 impl AuthActions for AuthClient {}
 
@@ -649,9 +650,7 @@ mod tests {
         // Account creation - same secrets - should fail
         match AuthClient::registered(&sec_0, &sec_1, balance_sk, el.handle(), core_tx, net_tx) {
             Ok(_) => panic!("Account name hijacking should fail"),
-            Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                SndError::LoginPacketExists,
-            ))) => (),
+            Err(AuthError::SndError(SndError::LoginPacketExists)) => (),
             Err(err) => panic!("{:?}", err),
         }
     }
@@ -678,9 +677,7 @@ mod tests {
                     core_tx.clone(),
                     net_tx.clone(),
                 ) {
-                    Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                        SndError::NoSuchLoginPacket,
-                    ))) => (),
+                    Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
                 AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
@@ -744,9 +741,7 @@ mod tests {
                     core_tx.clone(),
                     net_tx.clone(),
                 ) {
-                    Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                        SndError::NoSuchLoginPacket,
-                    ))) => (),
+                    Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
                 AuthClient::registered_with_seed(&seed, balance_sk, el_h, core_tx, net_tx)

@@ -74,8 +74,4 @@ name = "client_stress_test"
 
 [[example]]
 bench = false
-name = "gen_invites"
-
-[[example]]
-bench = false
 name = "self_authentication"
