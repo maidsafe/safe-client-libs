@@ -19,23 +19,22 @@ use crate::event::NetworkTx;
 use crate::event_loop::CoreMsgTx;
 use crate::utils;
 use lru_cache::LruCache;
+use new_rand::rngs::StdRng;
+use new_rand::SeedableRng;
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
-use routing::{
-    Authority, BootstrapConfig, FullId,
-};
+use routing::{Authority, BootstrapConfig, FullId};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
-    ClientPublicId, Message, MessageId, PublicId, PublicKey, Request, Signature, XorName, ClientFullId, Coins, LoginPacket, Response as RpcResponse
+    ClientFullId, ClientPublicId, Coins, LoginPacket, Message, MessageId, PublicId, PublicKey,
+    Request, Response as RpcResponse, Signature, XorName,
 };
-use new_rand::rngs::StdRng;
-use new_rand::SeedableRng;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Duration;
 use std::str::FromStr;
+use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
@@ -84,7 +83,6 @@ impl CoreClient {
     pub fn new(
         acc_locator: &str,
         acc_password: &str,
-        // invitation: &str,
         el_handle: Handle,
         core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
@@ -92,7 +90,6 @@ impl CoreClient {
         Self::new_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            // invitation,
             el_handle,
             core_tx,
             net_tx,
@@ -104,7 +101,6 @@ impl CoreClient {
     fn new_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
-        // balance_sk: BlsSecretKey,
         el_handle: Handle,
         core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
@@ -149,7 +145,11 @@ impl CoreClient {
                 None,
             )?;
 
-            routing.create_balance(*balance_client_id.public_id().public_key(), unwrap!(Coins::from_str("10")));
+            // Create a balance that is debited to insert the login packet
+            routing.create_balance(
+                *balance_client_id.public_id().public_key(),
+                unwrap!(Coins::from_str("10")),
+            );
 
             let rpc_response = routing.req_as_client(
                 &routing_rx,

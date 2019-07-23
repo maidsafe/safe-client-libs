@@ -462,7 +462,7 @@ impl Vault {
         let response = match request.clone() {
             //
             // Immutable Data
-            //valid
+            //
             Request::GetIData(address) => {
                 let result = self.get_idata(address).and_then(|idata| match idata {
                     IData::Unpub(ref data) => {
@@ -556,8 +556,8 @@ impl Vault {
                 if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
                     Response::Transaction(Err(e))
                 } else {
-                    let res = self.transfer_coins(source, destination, amount, transaction_id);
-                    Response::Transaction(res)
+                    let result = self.transfer_coins(source, destination, amount, transaction_id);
+                    Response::Transaction(result)
                 }
             }
             Request::CreateBalance {
@@ -570,7 +570,7 @@ impl Vault {
                 if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
                     Response::Transaction(Err(e))
                 } else {
-                    let res = self
+                    let result = self
                         .get_balance(&source)
                         .and_then(|source_balance| {
                             if source_balance.checked_sub(amount).is_none() {
@@ -581,7 +581,7 @@ impl Vault {
                         .and_then(|_| {
                             self.transfer_coins(source, destination, amount, transaction_id)
                         });
-                    Response::Transaction(res)
+                    Response::Transaction(result)
                 }
             }
             Request::GetBalance => {
@@ -589,8 +589,8 @@ impl Vault {
                 if let Err(e) = self.authorise_coin_operation(&coin_balance_id, requester_pk) {
                     Response::GetBalance(Err(e))
                 } else {
-                    let res = self.get_balance(&coin_balance_id);
-                    Response::GetBalance(res)
+                    let result = self.get_balance(&coin_balance_id);
+                    Response::GetBalance(result)
                 }
             }
             // ===== Account =====
@@ -613,7 +613,7 @@ impl Vault {
                 {
                     Response::Mutation(Err(SndError::LoginPacketExists))
                 } else {
-                    let res = self
+                    let result = self
                         .get_balance(&source)
                         .and_then(|source_balance| {
                             let debit_amt = amount.checked_add(*COST_OF_PUT);
@@ -639,7 +639,7 @@ impl Vault {
                         })
                         // Store the login packet
                         .map(|_| self.insert_login_packet(new_login_packet));
-                    Response::Mutation(res)
+                    Response::Mutation(result)
                 }
             }
             Request::CreateLoginPacket(account_data) => {
@@ -649,7 +649,7 @@ impl Vault {
                 } else if self.get_login_packet(account_data.destination()).is_some() {
                     Response::Mutation(Err(SndError::LoginPacketExists))
                 } else {
-                    let res = self
+                    let result = self
                         .get_balance(&source)
                         .and_then(|source_balance| {
                             if source_balance.checked_sub(*COST_OF_PUT).is_none() {
@@ -661,15 +661,12 @@ impl Vault {
                             };
                             Ok(())
                         })
-                        .map(|_| {
-                            // self.insert_account(account_data.destination());
-                            self.insert_login_packet(account_data)
-                        });
-                    Response::Mutation(res)
+                        .map(|_| self.insert_login_packet(account_data));
+                    Response::Mutation(result)
                 }
             }
             Request::GetLoginPacket(location) => {
-                let res = match self.get_login_packet(&location) {
+                let result = match self.get_login_packet(&location) {
                     None => Err(SndError::NoSuchLoginPacket),
                     Some(login_packet) => {
                         if *login_packet.authorised_getter() == requester_pk {
@@ -682,10 +679,10 @@ impl Vault {
                         }
                     }
                 };
-                Response::GetLoginPacket(res)
+                Response::GetLoginPacket(result)
             }
             Request::UpdateLoginPacket(new_packet) => {
-                let res = {
+                let result = {
                     match self.get_login_packet(new_packet.destination()) {
                         Some(old_packet) => {
                             if *old_packet.authorised_getter() == requester_pk {
@@ -698,7 +695,7 @@ impl Vault {
                         None => Err(SndError::NoSuchLoginPacket),
                     }
                 };
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             // ===== Mutable Data =====
             Request::GetMData(address) => {
@@ -735,18 +732,18 @@ impl Vault {
 
                 match (address, result) {
                     (MDataAddress::Seq { .. }, Ok(MData::Seq(mdata))) => {
-                        let res = match mdata.get(&key) {
+                        let result = match mdata.get(&key) {
                             Some(value) => Ok(value.clone()),
                             None => Err(SndError::NoSuchEntry),
                         };
-                        Response::GetSeqMDataValue(res)
+                        Response::GetSeqMDataValue(result)
                     }
                     (MDataAddress::Unseq { .. }, Ok(MData::Unseq(mdata))) => {
-                        let res = match mdata.get(&key) {
+                        let result = match mdata.get(&key) {
                             Some(value) => Ok(value.clone()),
                             None => Err(SndError::NoSuchEntry),
                         };
-                        Response::GetUnseqMDataValue(res)
+                        Response::GetUnseqMDataValue(result)
                     }
                     (MDataAddress::Seq { .. }, Err(err)) => Response::GetSeqMDataValue(Err(err)),
                     (MDataAddress::Unseq { .. }, Err(err)) => {
@@ -832,39 +829,39 @@ impl Vault {
                 }
             }
             Request::DeleteMData(address) => {
-                let res =
-                    self.get_mdata(address, requester_pk, request)
-                        .and_then(|data| match data {
-                            MData::Seq(mdata) => {
-                                if let PublicId::Client(client_id) = requester.clone() {
-                                    if client_id.public_key() == mdata.owners() {
-                                        let address = *mdata.address();
-                                        self.delete_data(DataId::Mutable(address));
-                                        self.commit_mutation(requester.name());
-                                        Ok(())
-                                    } else {
-                                        Err(SndError::InvalidOwners)
-                                    }
+                let result = self
+                    .get_mdata(address, requester_pk, request)
+                    .and_then(|data| match data {
+                        MData::Seq(mdata) => {
+                            if let PublicId::Client(client_id) = requester.clone() {
+                                if client_id.public_key() == mdata.owners() {
+                                    let address = *mdata.address();
+                                    self.delete_data(DataId::Mutable(address));
+                                    self.commit_mutation(requester.name());
+                                    Ok(())
                                 } else {
-                                    Err(SndError::AccessDenied)
+                                    Err(SndError::InvalidOwners)
                                 }
+                            } else {
+                                Err(SndError::AccessDenied)
                             }
-                            MData::Unseq(mdata) => {
-                                if let PublicId::Client(client_id) = requester.clone() {
-                                    if client_id.public_key() == mdata.owners() {
-                                        let address = *mdata.address();
-                                        self.delete_data(DataId::Mutable(address));
-                                        self.commit_mutation(requester.name());
-                                        Ok(())
-                                    } else {
-                                        Err(SndError::InvalidOwners)
-                                    }
+                        }
+                        MData::Unseq(mdata) => {
+                            if let PublicId::Client(client_id) = requester.clone() {
+                                if client_id.public_key() == mdata.owners() {
+                                    let address = *mdata.address();
+                                    self.delete_data(DataId::Mutable(address));
+                                    self.commit_mutation(requester.name());
+                                    Ok(())
                                 } else {
-                                    Err(SndError::AccessDenied)
+                                    Err(SndError::InvalidOwners)
                                 }
+                            } else {
+                                Err(SndError::AccessDenied)
                             }
-                        });
-                Response::Mutation(res)
+                        }
+                    });
+                Response::Mutation(result)
             }
             Request::SetMDataUserPermissions {
                 address,
@@ -1017,7 +1014,7 @@ impl Vault {
             }
             Request::DeleteAData(address) => {
                 let id = DataId::AppendOnly(address);
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match data {
                         // Cannot be deleted as it is a published data.
@@ -1028,13 +1025,13 @@ impl Vault {
                             Ok(())
                         }
                     });
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::GetADataShell {
                 address,
                 data_index,
             } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
                         let idx = match data_index {
@@ -1043,43 +1040,43 @@ impl Vault {
                         };
                         data.shell(idx)
                     });
-                Response::GetADataShell(res)
+                Response::GetADataShell(result)
             }
             Request::GetADataRange { address, range } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
                         data.in_range(range.0, range.1).ok_or(SndError::NoSuchEntry)
                     });
-                Response::GetADataRange(res)
+                Response::GetADataRange(result)
             }
             Request::GetADataValue { address, key } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.get(&key).cloned().ok_or(SndError::NoSuchEntry));
-                Response::GetADataValue(res)
+                Response::GetADataValue(result)
             }
             Request::GetADataIndices(address) => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.indices());
-                Response::GetADataIndices(res)
+                Response::GetADataIndices(result)
             }
             Request::GetADataLastEntry(address) => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.last_entry().ok_or(SndError::NoSuchEntry));
-                Response::GetADataLastEntry(res)
+                Response::GetADataLastEntry(result)
             }
             Request::GetADataPermissions {
                 address,
                 permissions_index,
             } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
                         ADataAddress::PubSeq { .. } => {
-                            let res = match data {
+                            let result = match data {
                                 AData::PubSeq(adata) => {
                                     match adata.permissions(permissions_index) {
                                         Some(perm) => Ok(perm.clone()),
@@ -1088,10 +1085,10 @@ impl Vault {
                                 }
                                 _ => Err(SndError::NoSuchData),
                             };
-                            Ok(Response::GetPubADataPermissionAtIndex(res))
+                            Ok(Response::GetPubADataPermissionAtIndex(result))
                         }
                         ADataAddress::PubUnseq { .. } => {
-                            let res = match data {
+                            let result = match data {
                                 AData::PubUnseq(adata) => {
                                     match adata.permissions(permissions_index) {
                                         Some(perm) => Ok(perm.clone()),
@@ -1100,10 +1097,10 @@ impl Vault {
                                 }
                                 _ => Err(SndError::NoSuchData),
                             };
-                            Ok(Response::GetPubADataPermissionAtIndex(res))
+                            Ok(Response::GetPubADataPermissionAtIndex(result))
                         }
                         ADataAddress::UnpubSeq { .. } => {
-                            let res = match data {
+                            let result = match data {
                                 AData::UnpubSeq(adata) => {
                                     match adata.permissions(permissions_index) {
                                         Some(perm) => Ok(perm.clone()),
@@ -1112,10 +1109,10 @@ impl Vault {
                                 }
                                 _ => Err(SndError::NoSuchData),
                             };
-                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                            Ok(Response::GetUnpubADataPermissionAtIndex(result))
                         }
                         ADataAddress::UnpubUnseq { .. } => {
-                            let res = match data {
+                            let result = match data {
                                 AData::UnpubUnseq(adata) => {
                                     match adata.permissions(permissions_index) {
                                         Some(perm) => Ok(perm.clone()),
@@ -1124,36 +1121,36 @@ impl Vault {
                                 }
                                 _ => Err(SndError::NoSuchData),
                             };
-                            Ok(Response::GetUnpubADataPermissionAtIndex(res))
+                            Ok(Response::GetUnpubADataPermissionAtIndex(result))
                         }
                     });
-                res?
+                result?
             }
             Request::GetPubADataUserPermissions {
                 address,
                 permissions_index,
                 user,
             } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.pub_user_permissions(user, permissions_index));
-                Response::GetPubADataUserPermissions(res)
+                Response::GetPubADataUserPermissions(result)
             }
             Request::GetUnpubADataUserPermissions {
                 address,
                 permissions_index,
                 public_key,
             } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
                         data.unpub_user_permissions(public_key, permissions_index)
                     });
-                Response::GetUnpubADataUserPermissions(res)
+                Response::GetUnpubADataUserPermissions(result)
             }
             Request::AppendSeq { append, index } => {
                 let id = DataId::AppendOnly(append.address);
-                let res = self
+                let result = self
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
                         AData::PubSeq(mut adata) => {
@@ -1170,11 +1167,11 @@ impl Vault {
                         }
                         _ => Err(SndError::NoSuchData),
                     });
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::AppendUnseq(append) => {
                 let id = DataId::AppendOnly(append.address);
-                let res = self
+                let result = self
                     .get_adata(append.address, requester_pk, request)
                     .and_then(move |data| match data {
                         AData::PubUnseq(mut adata) => {
@@ -1191,7 +1188,7 @@ impl Vault {
                         }
                         _ => Err(SndError::NoSuchData),
                     });
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::AddPubADataPermissions {
                 address,
@@ -1199,7 +1196,7 @@ impl Vault {
                 permissions_idx,
             } => {
                 let id = DataId::AppendOnly(address);
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
                         ADataAddress::PubSeq { .. } => match data {
@@ -1222,7 +1219,7 @@ impl Vault {
                         },
                         _ => Err(SndError::AccessDenied),
                     });
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::AddUnpubADataPermissions {
                 address,
@@ -1230,7 +1227,7 @@ impl Vault {
                 permissions_idx,
             } => {
                 let id = DataId::AppendOnly(address);
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(|data| match address {
                         ADataAddress::UnpubSeq { .. } => match data.clone() {
@@ -1253,7 +1250,7 @@ impl Vault {
                         },
                         _ => Err(SndError::AccessDenied),
                     });
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::SetADataOwner {
                 address,
@@ -1261,7 +1258,7 @@ impl Vault {
                 owners_idx,
             } => {
                 let id = DataId::AppendOnly(address);
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| match address {
                         ADataAddress::PubSeq { .. } => match data {
@@ -1301,13 +1298,13 @@ impl Vault {
                             _ => Err(SndError::NoSuchData),
                         },
                     });
-                Response::Mutation(res)
+                Response::Mutation(result)
             }
             Request::GetADataOwners {
                 address,
                 owners_index,
             } => {
-                let res = self
+                let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
                         let idx = match owners_index {
@@ -1319,7 +1316,7 @@ impl Vault {
                             None => Err(SndError::NoSuchEntry),
                         }
                     });
-                Response::GetADataOwners(res)
+                Response::GetADataOwners(result)
             }
         };
         Ok(Message::Response {

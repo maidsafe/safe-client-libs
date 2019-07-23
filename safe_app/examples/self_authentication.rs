@@ -111,12 +111,7 @@ fn main() {
         // Account Creation
         println!("\nTrying to create an account...");
 
-        match Authenticator::create_acc(
-            secret_0.as_str(),
-            secret_1.as_str(),
-            bls_sk,
-            || (),
-        ) {
+        match Authenticator::create_acc(secret_0.as_str(), secret_1.as_str(), bls_sk, || ()) {
             Ok(_) => (),
             Err(AuthError::CoreError(CoreError::RoutingClientError(
                 ClientError::AccountExists,

@@ -12,7 +12,6 @@ mod nfs;
 use super::*;
 use crate::ffi::app_is_mock;
 use crate::ffi::ipc::decode_ipc_msg;
-// use crate::test_utils::create_app;
 use crate::test_utils::gen_app_exchange_info;
 use ffi_utils::test_utils::call_1;
 use safe_authenticator::ffi::ipc::encode_auth_resp;
@@ -54,34 +53,6 @@ fn test_mock_build() {
 fn test_not_mock_build() {
     assert_eq!(app_is_mock(), false);
 }
-
-// // Test account usage statistics before and after a mutation.
-// #[test]
-// fn account_info() {
-//     let app = create_app();
-//     let app = Box::into_raw(Box::new(app));
-
-//     let orig_stats: AccountInfo =
-//         unsafe { unwrap!(call_1(|ud, cb| app_account_info(app, ud, cb))) };
-//     assert!(orig_stats.mutations_available > 0);
-
-//     unsafe {
-//         unwrap!((*app).send(move |client, _| client
-//             .put_idata(PubImmutableData::new(vec![1, 2, 3]))
-//             .map_err(move |_| ())
-//             .into_box()
-//             .into()));
-//     }
-
-//     let stats: AccountInfo = unsafe { unwrap!(call_1(|ud, cb| app_account_info(app, ud, cb))) };
-//     assert_eq!(stats.mutations_done, orig_stats.mutations_done + 1);
-//     assert_eq!(
-//         stats.mutations_available,
-//         orig_stats.mutations_available - 1
-//     );
-
-//     unsafe { app_free(app) };
-// }
 
 // Test disconnection and reconnection with apps.
 #[cfg(all(test, feature = "mock-network"))]

@@ -12,16 +12,16 @@ mod mutable_data;
 mod unpublished_mutable_data;
 
 use crate::ffi::test_utils::test_create_app_with_access;
-use crate::test_utils::gen_app_exchange_info;
 use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access};
-use crate::{run, App};
+use crate::test_utils::{create_random_auth_req, gen_app_exchange_info};
+use crate::{run, App, AppError};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
 #[cfg(feature = "mock-network")]
 use routing::{ClientError, Request, Response};
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::test_utils::revoke;
-use safe_authenticator::Authenticator;
+use safe_authenticator::{run as auth_run, AuthError, Authenticator};
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
 use safe_core::ipc::Permission;
 use safe_core::utils;
@@ -30,8 +30,8 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::MockRouting;
 use safe_core::{Client, CoreError};
 use safe_nd::{
-    ADataAddress, ADataOwner, AppendOnlyData, Error as SndError, PubImmutableData,
-    PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData, XorName,
+    ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
+    PubImmutableData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData, XorName,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -222,7 +222,6 @@ fn num_containers(app: &App) -> usize {
 #[test]
 #[allow(unsafe_code)]
 fn app_container_creation() {
-
     // Authorise an app for the first time with `app_container` set to `true`.
     let auth = authenticator::create_account_and_login();
 
@@ -246,10 +245,18 @@ fn app_container_creation() {
 
     assert_eq!(num_containers(&app), 1); // should only contain app container
 
-    // TODO: Replace with balance
     // Make sure no mutations are done when re-authorising the app now.
+    let orig_balance: Coins = unwrap!(auth_run(&auth, |client| {
+        client.get_balance(None).map_err(AuthError::from)
+    }));
 
     let _ = authorise_app(&auth, &app_info, &app_id, true);
+
+    let new_balance: Coins = unwrap!(auth_run(&auth, |client| {
+        client.get_balance(None).map_err(AuthError::from)
+    }));
+
+    assert_eq!(orig_balance, new_balance);
 
     // Authorise a new app with `app_container` set to `false`.
     let auth = authenticator::create_account_and_login();
@@ -331,4 +338,35 @@ fn unregistered_client() {
                     })
             })
     }));
+}
+
+// Test account usage statistics before and after a mutation.
+#[test]
+fn account_info() {
+    // Create an app that can access the owner's coin balance.
+    let mut app_auth_req = create_random_auth_req();
+    app_auth_req.app_permissions = AppPermissions {
+        transfer_coins: true,
+    };
+
+    let app = unwrap!(create_app_by_req(&app_auth_req));
+
+    let orig_balance: Coins = unwrap!(run(&app, |client, _| {
+        client.get_balance(None).map_err(AppError::from)
+    }));
+
+    unwrap!(run(&app, |client, _| {
+        client
+            .put_idata(PubImmutableData::new(vec![1, 2, 3]))
+            .map_err(AppError::from)
+    }));
+
+    let new_balance: Coins = unwrap!(run(&app, |client, _| {
+        client.get_balance(None).map_err(AppError::from)
+    }));
+
+    assert_eq!(
+        new_balance,
+        unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_nano(1))))
+    );
 }

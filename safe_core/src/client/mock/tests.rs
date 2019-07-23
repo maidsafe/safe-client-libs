@@ -1820,7 +1820,8 @@ fn setup_impl() -> (Routing, Receiver<Event>, FullId, NewFullId) {
     (routing, routing_rx, full_id, NewFullId::App(app_full_id))
 }
 
-// Create a wallet for an account, put it to the network and return `ClientManager` authority for it.
+// Create a wallet for an account, and change the `PublicId` in routing to a Client variant
+// Return the FullId which will be used to sign the requests that follow.
 fn create_account(
     routing: &mut Routing,
     coins: Coins,

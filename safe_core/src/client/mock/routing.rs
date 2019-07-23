@@ -15,13 +15,12 @@ use routing::{
     Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, InterfaceError,
     MutableData, PermissionSet, Request, Response, RoutingError, User, TYPE_TAG_SESSION_PACKET,
 };
+use safe_nd::Coins;
 use safe_nd::{
     AppFullId, ClientFullId, ClientPublicId, IData, IDataAddress, Message, MessageId,
     PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
     Signature, XorName,
 };
-// #[cfg(any(feature = "testing", test))]
-use safe_nd::Coins;
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -177,11 +176,7 @@ impl Routing {
                 Some(public_key) => {
                     PublicId::Client(ClientPublicId::new(public_key.into(), public_key))
                 }
-                None => self.public_id.clone()
-                // None => match &self.full_id_new {
-                //     NewFullId::Client(full_id) => PublicId::Client(full_id.public_id().clone()),
-                //     NewFullId::App(full_id) => PublicId::App(full_id.public_id().clone()),
-                // },
+                None => self.public_id.clone(),
             };
             let mut vault = self.lock_vault(true);
             unwrap!(vault.process_request(public_id, payload.to_vec()))

@@ -222,7 +222,6 @@ where {
                 user_cred,
                 full_id: client_full_id,
                 cm_addr,
-                session_packet_version: 0,
             })),
         })
     }
@@ -370,7 +369,6 @@ where {
                 user_cred,
                 full_id: client_full_id,
                 cm_addr,
-                session_packet_version: 0,
             })),
         })
     }
@@ -585,14 +583,12 @@ impl Clone for AuthClient {
     }
 }
 
-#[allow(dead_code)]
 struct AuthInner {
     acc: Account,
     acc_loc: XorName,
     user_cred: UserCred,
     full_id: ClientFullId,
     cm_addr: Authority<XorName>,
-    session_packet_version: u64,
 }
 
 // ------------------------------------------------------------

@@ -17,12 +17,12 @@ use crate::errors::AuthError;
 use crate::Authenticator;
 use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
-use safe_nd::Coins;
 use safe_core::utils::test_utils::random_client;
-use std::str::FromStr;
 use safe_core::Client;
+use safe_nd::Coins;
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
+use std::str::FromStr;
 
 /// Create a registered client. This or any one of the other companion
 /// functions to get an authenticator instance must be called before initiating any
@@ -54,7 +54,6 @@ pub unsafe extern "C" fn create_acc(
             client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
             Ok::<_, AuthError>(())
         });
-
 
         let authenticator =
             Authenticator::create_acc(acc_locator, acc_password, balance_sk, move || {
@@ -187,6 +186,7 @@ pub extern "C" fn auth_is_mock() -> bool {
 mod tests {
     use super::*;
     use crate::ffi::auth_is_mock;
+    use crate::run;
     use ffi_utils::test_utils::call_1;
     use futures::Future;
     use safe_core::{utils, FutureExt};
@@ -214,14 +214,12 @@ mod tests {
     fn create_account_and_login() {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
-        // let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         {
             let auth_h: *mut Authenticator = unsafe {
                 unwrap!(call_1(|ud, cb| create_acc(
                     acc_locator.as_ptr(),
                     acc_password.as_ptr(),
-                    // invitation.as_ptr(),
                     ud,
                     disconnect_cb,
                     cb,
@@ -262,7 +260,6 @@ mod tests {
 
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
-        // let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         {
             let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();
@@ -275,7 +272,6 @@ mod tests {
                 unwrap!(call_1_with_custom(&mut custom_ud, |ud, cb| create_acc(
                     acc_locator.as_ptr(),
                     acc_password.as_ptr(),
-                    // invitation.as_ptr(),
                     ud,
                     disconnect_cb,
                     cb,
@@ -330,22 +326,20 @@ mod tests {
     fn account_info() {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
-        // let invitation = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         let auth: *mut Authenticator = unsafe {
             unwrap!(call_1(|ud, cb| create_acc(
                 acc_locator.as_ptr(),
                 acc_password.as_ptr(),
-                // invitation.as_ptr(),
                 ud,
                 disconnect_cb,
                 cb,
             )))
         };
 
-        // let orig_stats: AccountInfo =
-        //     unsafe { unwrap!(call_1(|ud, cb| auth_account_info(auth, ud, cb))) };
-        // assert!(orig_stats.mutations_available > 0);
+        let orig_balance: Coins = unwrap!(run(unsafe { &*auth }, |client| {
+            client.get_balance(None).map_err(AuthError::from)
+        }));
 
         unsafe {
             unwrap!((*auth).send(move |client| client
@@ -355,13 +349,13 @@ mod tests {
                 .into()));
         }
 
-        // let stats: AccountInfo =
-        //     unsafe { unwrap!(call_1(|ud, cb| auth_account_info(auth, ud, cb))) };
-        // assert_eq!(stats.mutations_done, orig_stats.mutations_done + 1);
-        // assert_eq!(
-        //     stats.mutations_available,
-        //     orig_stats.mutations_available - 1
-        // );
+        let new_balance: Coins = unwrap!(run(unsafe { &*auth }, |client| {
+            client.get_balance(None).map_err(AuthError::from)
+        }));
+        assert_eq!(
+            new_balance,
+            unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_nano(1))))
+        );
 
         unsafe { auth_free(auth) };
     }
