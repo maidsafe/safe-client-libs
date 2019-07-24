@@ -370,3 +370,32 @@ pub unsafe extern "C" fn file_close(
         })
     })
 }
+
+/// Prevents saving to the network any changes performed on the given file
+/// context handle and frees the handle and its associated file contents.
+///
+/// This should be used sparingly, as it wastes the network GET used to
+/// obtain the file handle.
+#[no_mangle]
+pub unsafe extern "C" fn file_cancel(
+    app: *const App,
+    file_h: FileContextHandle,
+    user_data: *mut c_void,
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, file: *const File),
+) {
+    catch_unwind_cb(user_data, o_cb, || {
+        let user_data = OpaqueCtx(user_data);
+
+        (*app).send(move |_client, context| {
+            let file_ctx = try_cb!(context.object_cache().remove_file(file_h), user_data, o_cb);
+
+            // The reader and/or writer will be dropped automatically.
+            o_cb(
+                user_data.0,
+                FFI_RESULT_OK,
+                &file_ctx.original_file.into_repr_c(),
+            );
+            None
+        })
+    })
+}

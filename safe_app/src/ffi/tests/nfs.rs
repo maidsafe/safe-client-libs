@@ -1172,3 +1172,89 @@ fn write_chunks(
         unwrap!(call_1(|ud, cb| file_close(app, write_h, ud, cb)))
     }
 }
+
+#[test]
+fn cancel_file() {
+    let (app, container_info) = setup();
+
+    // Create empty file and save to directory
+    let user_metadata = b"metadata".to_vec();
+    let file = NativeFile::new(user_metadata.clone());
+    let ffi_file = file.into_repr_c();
+    let file_name = "file.txt";
+    let ffi_file_name = unwrap!(CString::new(file_name));
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| dir_insert_file(
+            &app,
+            &container_info,
+            ffi_file_name.as_ptr(),
+            &ffi_file,
+            ud,
+            cb,
+        )))
+    }
+
+    // Open file for overwriting
+    let write_h = unsafe {
+        unwrap!(call_1(|ud, cb| file_open(
+            &app,
+            &container_info,
+            &ffi_file,
+            OPEN_MODE_OVERWRITE,
+            ud,
+            cb,
+        )))
+    };
+
+    let new_content = b"don't save me";
+
+    // Write file and then cancel
+    let _cancelled_file: NativeFile = unsafe {
+        unwrap!(call_0(|ud, cb| file_write(
+            &app,
+            write_h,
+            new_content.as_ptr(),
+            new_content.len(),
+            ud,
+            cb
+        )));
+        unwrap!(call_1(|ud, cb| file_cancel(&app, write_h, ud, cb)))
+    };
+
+    let even_more_content = b"hello";
+
+    // Using write_h after file_cancel should fail
+    let res: Result<(), i32> = unsafe {
+        call_0(|ud, cb| {
+            file_write(
+                &app,
+                write_h,
+                even_more_content.as_ptr(),
+                even_more_content.len(),
+                ud,
+                cb,
+            )
+        })
+    };
+
+    match res {
+        Err(code) if code == AppError::InvalidFileContextHandle.error_code() => (),
+        Err(x) => panic!("Unexpected: {:?}", x),
+        Ok(_) => panic!("Unexpected success"),
+    }
+
+    // Fetch it back from container and ensure nothing has changed
+    let (retrieved_file, retrieved_version): (NativeFile, u64) = unsafe {
+        unwrap!(call_2(|ud, cb| dir_fetch_file(
+            &app,
+            &container_info,
+            ffi_file_name.as_ptr(),
+            ud,
+            cb
+        )))
+    };
+    assert_eq!(retrieved_file.user_metadata(), &user_metadata[..]);
+    assert_eq!(retrieved_file.size(), 0);
+    assert_eq!(retrieved_version, 0);
+}
