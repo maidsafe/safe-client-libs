@@ -12,11 +12,10 @@ use routing::Client as Routing;
 use safe_core::MockRouting as Routing;
 
 use crate::errors::AuthError;
-use crate::AuthMsgTx;
 use crate::AuthFuture;
-use safe_core::FutureExt;
-use lru_cache::LruCache;
+use crate::AuthMsgTx;
 use futures::future;
+use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
 use routing::{Authority, BootstrapConfig, FullId, XorName};
@@ -30,16 +29,16 @@ use safe_core::client::{
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
+use safe_core::FutureExt;
 use safe_core::{utils, Client, ClientKeys, MDataInfo, NetworkTx};
 use safe_nd::{
-    ClientFullId, ClientPublicId, Coins, LoginPacket, Message, MessageId, PublicId, PublicKey,
-    Request, Response, Signature,
+    ClientFullId, ClientPublicId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request,
+    Response, Signature,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
-use std::str::FromStr;
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
@@ -153,7 +152,9 @@ where {
         let acc_loc = Account::generate_network_id(&keyword, &pin)?;
         let user_cred = UserCred::new(password, pin);
 
-        let maid_keys = ClientKeys::new(id_seed);
+        let mut maid_keys = ClientKeys::new(id_seed);
+        maid_keys.bls_sk = balance_sk.clone();
+        maid_keys.bls_pk = balance_sk.public_key();
         let pub_key = PublicKey::from(maid_keys.bls_pk);
         let full_id = Some(maid_keys.clone().into());
 
@@ -177,12 +178,7 @@ where {
 
             let rpc_response = routing.req_as_client(
                 &routing_rx,
-                Request::CreateLoginPacketFor {
-                    new_owner: pub_key,
-                    amount: Coins::from_str("1")?,
-                    transaction_id: new_rand::random(),
-                    new_login_packet,
-                },
+                Request::CreateLoginPacket(new_login_packet),
                 &balance_client_id,
             );
             match rpc_response {
@@ -438,8 +434,12 @@ where {
         let keys = &auth_inner.user_cred;
         let client_full_id = &auth_inner.full_id;
         let acc_loc = &auth_inner.acc_loc;
-        let updated_packet =
-            fry!(Self::prepare_account_packet_update(*acc_loc, account, keys, &client_full_id));
+        let updated_packet = fry!(Self::prepare_account_packet_update(
+            *acc_loc,
+            account,
+            keys,
+            &client_full_id
+        ));
 
         let (mut routing, routing_rx) = fry!(setup_routing(
             None,
@@ -473,14 +473,14 @@ where {
 }
 
 fn create_client_id(acc_locator: &[u8], acc_password: &[u8]) -> ClientFullId {
-        let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
-        seeder.extend_from_slice(acc_locator);
-        seeder.extend_from_slice(acc_password);
+    let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
+    seeder.extend_from_slice(acc_locator);
+    seeder.extend_from_slice(acc_password);
 
-        let seed = sha3_256(&seeder);
-        let mut rng = StdRng::from_seed(seed);
-        ClientFullId::new_bls(&mut rng)
-    }
+    let seed = sha3_256(&seeder);
+    let mut rng = StdRng::from_seed(seed);
+    ClientFullId::new_bls(&mut rng)
+}
 
 impl AuthActions for AuthClient {}
 
