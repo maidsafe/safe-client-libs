@@ -37,7 +37,7 @@ mod bindings {
         "// Copyright 2018 MaidSafe.net limited.\n\
          //\n\
          // This SAFE Network Software is licensed to you under the MIT license\n\
-         // <LICENSE-MIT or http://opensource.org/licenses/MIT> or the Modified\n\
+         // <LICENSE-MIT or https://opensource.org/licenses/MIT> or the Modified\n\
          // BSD license <LICENSE-BSD or https://opensource.org/licenses/BSD-3-Clause>,\n\
          // at your option. This file may not be copied, modified, or distributed\n\
          // except according to those terms. Please review the Licences for the\n\
