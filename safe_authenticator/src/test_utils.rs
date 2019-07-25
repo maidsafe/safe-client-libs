@@ -174,6 +174,7 @@ pub fn register_app(
 }
 
 /// Register a random app. Returns the ID of the app and the `AuthGranted` struct.
+#[allow(clippy::implicit_hasher)]
 pub fn register_rand_app(
     authenticator: &Authenticator,
     app_container: bool,
@@ -341,6 +342,7 @@ pub fn get_container_from_authenticator_entry(
 }
 
 /// Check that the given permission set is contained in the access container
+#[allow(clippy::implicit_hasher)]
 pub fn compare_access_container_entries(
     authenticator: &Authenticator,
     app_pk: PublicKey,

@@ -642,6 +642,7 @@ impl Routing {
 
     /// Updates or inserts a list of permissions for a particular User in the given
     /// MutableData.
+    #[allow(clippy::too_many_arguments)]
     pub fn set_mdata_user_permissions(
         &mut self,
         dst: Authority<XorName>,
@@ -675,6 +676,7 @@ impl Routing {
     }
 
     /// Deletes a list of permissions for a particular User in the given MutableData.
+    #[allow(clippy::too_many_arguments)]
     pub fn del_mdata_user_permissions(
         &mut self,
         dst: Authority<XorName>,
@@ -811,6 +813,7 @@ impl Routing {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn read_mdata<F, G, R>(
         &mut self,
         dst: Authority<XorName>,
@@ -842,6 +845,7 @@ impl Routing {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn mutate_mdata<F, G, R>(
         &mut self,
         dst: Authority<XorName>,
@@ -882,6 +886,7 @@ impl Routing {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn with_mdata<F, G, R>(
         &mut self,
         name: XorName,

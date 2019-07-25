@@ -73,8 +73,6 @@ pub fn encode_msg_64(msg: &IpcMsg) -> Result<String, IpcError> {
 }
 
 /// Decode `IpcMsg` encoded with base32 encoding.
-// FIXME: bug in clippy - comparison on cfg!(..) deemed a needless bool comparison
-#[allow(clippy::bool_comparison)]
 pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
     let mut chars = encoded.chars();
     let decoded = match chars.next().ok_or(IpcError::InvalidMsg)? {
@@ -85,7 +83,7 @@ pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
     };
 
     let (msg, mock): (IpcMsg, bool) = deserialise(&decoded)?;
-    if mock != cfg!(feature = "mock-network") {
+    if mock ^ cfg!(feature = "mock-network") {
         return Err(IpcError::IncompatibleMockStatus);
     }
 

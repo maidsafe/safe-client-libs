@@ -1769,6 +1769,7 @@ pub struct ClientInner<C: Client, T> {
 
 impl<C: Client, T> ClientInner<C, T> {
     /// Create a new `ClientInner` object.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         el_handle: Handle,
         routing: Routing,

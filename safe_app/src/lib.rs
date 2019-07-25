@@ -58,9 +58,6 @@ maidsafe_logo.png",
 )]
 #![allow(
     box_pointers,
-    clippy::implicit_hasher,
-    clippy::too_many_arguments,
-    clippy::use_debug,
     missing_copy_implementations,
     missing_debug_implementations,
     variant_size_differences

@@ -132,6 +132,7 @@ where {
 
     // This is a Gateway function to the Maidsafe network. This will help create a fresh acc for the
     // user in the SAFE-network.
+    #[allow(clippy::too_many_arguments)]
     fn registered_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],

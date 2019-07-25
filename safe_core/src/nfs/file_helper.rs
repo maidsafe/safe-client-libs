@@ -95,7 +95,6 @@ pub fn read<C: Client>(
 /// If `version` is `Version::GetNext`, the current version is first retrieved from the network, and
 /// that version incremented by one is then used as the actual version.
 // Allow pass by value for consistency with other functions.
-#[allow(unknown_lints)]
 #[allow(clippy::needless_pass_by_value)]
 pub fn delete<S>(
     client: impl Client,

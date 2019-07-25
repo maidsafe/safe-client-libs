@@ -42,6 +42,7 @@ pub fn create_app_by_req(auth_req: &NativeAuthReq) -> Result<App, AppError> {
 }
 
 /// Create an app authorisation request with optional app id and access info.
+#[allow(clippy::implicit_hasher)]
 pub fn create_auth_req(
     app_id: Option<String>,
     access_info: Option<HashMap<String, ContainerPermissions>>,
@@ -71,6 +72,7 @@ pub fn create_random_auth_req() -> NativeAuthReq {
 
 /// Create an app authorisation request with a random id and grant it access to the specified
 /// containers.
+#[allow(clippy::implicit_hasher)]
 pub fn create_auth_req_with_access(
     access_info: HashMap<String, ContainerPermissions>,
 ) -> NativeAuthReq {

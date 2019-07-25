@@ -57,10 +57,7 @@
     box_pointers,
     missing_copy_implementations,
     missing_debug_implementations,
-    variant_size_differences,
-    clippy::implicit_hasher,
-    clippy::too_many_arguments,
-    clippy::use_debug
+    variant_size_differences
 )]
 
 #[macro_use]

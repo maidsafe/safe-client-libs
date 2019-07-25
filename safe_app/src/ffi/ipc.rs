@@ -220,6 +220,7 @@ unsafe extern "C" fn decode_ipc_msg_64(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn decode_ipc_msg_impl(
     msg: IpcMsg,
     user_data: *mut c_void,
