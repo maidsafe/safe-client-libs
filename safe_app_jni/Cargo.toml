@@ -1,27 +1,23 @@
 [package]
-name = "safe_app_jni"
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "SAFE App JNI wrapper"
+edition = "2018"
 homepage = "https://maidsafe.net"
 license = "GPL-3.0"
+name = "safe_app_jni"
 repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.1.0"
-edition = "2018"
 
 [dependencies]
 ffi_utils = { version = "~0.12.0", features = ["java"] }
 jni = "~0.12.0"
 log = "~0.4.5"
+safe_app = { path = "../safe_app", version = "~0.9.1", features = ["bindings"] }
 safe_core = { path = "../safe_core", version = "~0.32.1" }
 unwrap = "~1.2.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "~0.6.0"
-
-[dependencies.safe_app]
-path = "../safe_app"
-version = "~0.9.1"
-features = ["bindings"]
 
 [lib]
 crate_type = ["cdylib"]

@@ -1,6 +1,7 @@
 [package]
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "Integration tests for Safe Client Libs"
+edition = "2018"
 homepage = "https://maidsafe.net"
 license = "GPL-3.0"
 name = "tests"
@@ -10,32 +11,18 @@ version = "0.1.0"
 [dependencies]
 ffi_utils = "~0.12.0"
 futures = "~0.1.17"
+safe_app = { path = "../safe_app", version = "~0.9.1", features = ["testing"] }
+safe_authenticator = { path = "../safe_authenticator", version = "~0.9.1", features = ["testing"] }
+safe_core = { path = "../safe_core", version = "~0.32.1", features = ["testing"] }
 safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
 serde = "~1.0.24"
-serde_json = "~1.0.2"
 serde_derive = "~1.0.24"
+serde_json = "~1.0.2"
 unwrap = "~1.2.0"
-
-[dependencies.safe_app]
-path = "../safe_app"
-version = "~0.9.1"
-features = ["testing"]
-
-[dependencies.safe_authenticator]
-path = "../safe_authenticator"
-version = "~0.9.1"
-features = ["testing"]
-
-[dependencies.safe_core]
-path = "../safe_core"
-version = "~0.32.1"
-features = ["testing"]
 
 [features]
 mock-network = [
-"testing",
-"safe_core/mock-network",
-"safe_authenticator/mock-network",
-"safe_app/mock-network",
+    "safe_core/mock-network",
+    "safe_authenticator/mock-network",
+    "safe_app/mock-network",
 ]
-testing = ["safe_core/testing", "safe_authenticator/testing", "safe_app/testing"]

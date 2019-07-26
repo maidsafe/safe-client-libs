@@ -1,14 +1,13 @@
 [package]
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "Mock routing"
-documentation = "https://docs.rs/safe_core"
+edition = "2018"
 homepage = "https://maidsafe.net"
 license = "GPL-3.0"
 name = "mock_routing"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.1.0"
-edition = "2018"
 
 [dependencies]
 maidsafe_utilities = "~0.18.0"
