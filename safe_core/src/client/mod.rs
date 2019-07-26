@@ -51,13 +51,14 @@ use routing::{
 };
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
-    AData, ADataAddress, ADataAppend, ADataIndex, ADataIndices, ADataOwner, ADataPubPermissionSet,
-    ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions,
-    ClientFullId, ClientPublicId, Coins, Error as SndError, IData, IDataAddress, LoginPacket,
-    MData, MDataAddress, MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions,
-    MDataUnseqEntryActions, MDataValue as Val, Message, MessageId, PubImmutableData, PublicId,
-    PublicKey, Request, Response, SeqMutableData, Signature, Transaction, UnpubImmutableData,
-    UnseqMutableData, XorName,
+    AData, ADataAddress, ADataAppend, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
+    ADataOwner, ADataPubPermissionSet, ADataPubPermissions, ADataUnpubPermissionSet,
+    ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, ClientPublicId, Coins,
+    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress,
+    MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
+    MDataValue as Val, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request,
+    Response, SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData,
+    XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -278,9 +279,13 @@ pub trait Client: Clone + 'static {
             ),
             None => (self.compose_message(req), None),
         };
-        send(self, message.message_id(), move |routing| {
-            routing.send(requester, &unwrap!(serialise(&message)))
-        })
+        send(
+            self,
+            fry!(message
+                .message_id()
+                .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+            move |routing| routing.send(requester, &unwrap!(serialise(&message))),
+        )
         .and_then(|event| {
             let res = match event {
                 CoreEvent::RpcResponse(res) => res,
@@ -323,9 +328,13 @@ pub trait Client: Clone + 'static {
             ),
             None => (self.compose_message(req), None),
         };
-        send(self, message.message_id(), move |routing| {
-            routing.send(requester, &unwrap!(serialise(&message)))
-        })
+        send(
+            self,
+            fry!(message
+                .message_id()
+                .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+            move |routing| routing.send(requester, &unwrap!(serialise(&message))),
+        )
         .and_then(|event| {
             let res = match event {
                 CoreEvent::RpcResponse(res) => res,
@@ -370,9 +379,13 @@ pub trait Client: Clone + 'static {
             ),
             None => (self.compose_message(req), None),
         };
-        send_mutation(self, message.message_id(), move |routing, _| {
-            routing.send(requester, &unwrap!(serialise(&message)))
-        })
+        send_mutation(
+            self,
+            fry!(message
+                .message_id()
+                .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+            move |routing, _| routing.send(requester, &unwrap!(serialise(&message))),
+        )
     }
 
     /// Get the current coin balance.
@@ -392,9 +405,13 @@ pub trait Client: Clone + 'static {
             "Get balance for {:?}",
             requester.unwrap_or_else(|| unwrap!(self.owner_key()))
         );
-        send(self, request.message_id(), move |routing| {
-            routing.send(requester, &unwrap!(serialise(&request)))
-        })
+        send(
+            self,
+            fry!(request
+                .message_id()
+                .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+            move |routing| routing.send(requester, &unwrap!(serialise(&request))),
+        )
         .and_then(|event| {
             let res = match event {
                 CoreEvent::RpcResponse(res) => res,
@@ -1047,7 +1064,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         range: (ADataIndex, ADataIndex),
-    ) -> Box<CoreFuture<Vec<(Vec<u8>, Vec<u8>)>>> {
+    ) -> Box<CoreFuture<ADataEntries>> {
         trace!(
             "Get Range of entries from AppendOnly Data at {:?}",
             address.name()
@@ -1093,7 +1110,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get the last data entry from an AppendOnly Data.
-    fn get_adata_last_entry(&self, address: ADataAddress) -> Box<CoreFuture<(Vec<u8>, Vec<u8>)>> {
+    fn get_adata_last_entry(&self, address: ADataAddress) -> Box<CoreFuture<ADataEntry>> {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -1828,9 +1845,13 @@ pub fn setup_routing(
 
 fn send_new(client: &impl Client, request: Request) -> Box<CoreFuture<CoreEvent>> {
     let request = client.compose_message(request);
-    send(client, request.message_id(), move |routing| {
-        routing.send(None, &unwrap!(serialise(&request)))
-    })
+    send(
+        client,
+        fry!(request
+            .message_id()
+            .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+        move |routing| routing.send(None, &unwrap!(serialise(&request))),
+    )
 }
 
 /// Send a request and return a future that resolves to the response.
@@ -1870,9 +1891,13 @@ where
 fn send_mutation_new(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
     let message = client.compose_message(req);
 
-    send_mutation(client, message.message_id(), move |routing, _| {
-        routing.send(None, &unwrap!(serialise(&message)))
-    })
+    send_mutation(
+        client,
+        fry!(message
+            .message_id()
+            .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+        move |routing, _| routing.send(None, &unwrap!(serialise(&message))),
+    )
 }
 
 /// Sends a mutation request.
@@ -1978,11 +2003,10 @@ mod tests {
     use crate::utils::generate_random_vector;
     use crate::utils::test_utils::random_client;
     use safe_nd::{
-        ADataAction, ADataOwner, ADataUnpubPermissionSet, ADataUnpubPermissions, AppendOnlyData,
-        MDataAction, PubSeqAppendOnlyData, SeqAppendOnly, UnpubSeqAppendOnlyData,
-        UnpubUnseqAppendOnlyData, UnseqAppendOnly,
+        ADataAction, ADataEntry, ADataOwner, ADataUnpubPermissionSet, ADataUnpubPermissions,
+        AppendOnlyData, Coins, Error as SndError, MDataAction, PubSeqAppendOnlyData, SeqAppendOnly,
+        UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
     };
-    use safe_nd::{Coins, Error as SndError, XorName};
     use std::str::FromStr;
     use threshold_crypto::SecretKey;
 
@@ -2979,19 +3003,15 @@ mod tests {
             let val3 = b"VALUE3".to_vec();
             let val4 = b"VALUE4".to_vec();
 
-            let tup1 = (key1, val1);
-            let tup2 = (key2, val2);
-            let tup3 = (key3, val3);
-            let tup4 = vec![(key4, val4)];
-
-            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
-            kvdata.push(tup1);
-            kvdata.push(tup2);
-            kvdata.push(tup3);
+            let kvdata = vec![
+                ADataEntry::new(key1, val1),
+                ADataEntry::new(key2, val2),
+                ADataEntry::new(key3, val3),
+            ];
 
             unwrap!(data.append(kvdata, 0));
             // Test push
-            unwrap!(data.append(tup4, 3));
+            unwrap!(data.append(vec![ADataEntry::new(key4, val4)], 3));
 
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
@@ -3058,11 +3078,11 @@ mod tests {
                         .get_adata_range(adataref, (idx_start, idx_end))
                         .map(move |data| {
                             assert_eq!(
-                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).0)),
+                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).key)),
                                 "KEY2"
                             );
                             assert_eq!(
-                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).1)),
+                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).value)),
                                 "VALUE2"
                             );
                         })
@@ -3083,8 +3103,11 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client5.get_adata_last_entry(adataref).map(move |data| {
-                        assert_eq!(unwrap!(std::str::from_utf8(data.0.as_slice())), "KEY4");
-                        assert_eq!(unwrap!(std::str::from_utf8(data.1.as_slice())), "VALUE4");
+                        assert_eq!(unwrap!(std::str::from_utf8(data.key.as_slice())), "KEY4");
+                        assert_eq!(
+                            unwrap!(std::str::from_utf8(data.value.as_slice())),
+                            "VALUE4"
+                        );
                     })
                 })
                 .and_then(move |_| {
@@ -3149,7 +3172,7 @@ mod tests {
             let key2 = b"KEY2".to_vec();
             let val2 = b"VALUE2".to_vec();
 
-            let tup = [(key1, val1), (key2, val2)].to_vec();
+            let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
 
             let append = ADataAppend {
                 address: adataref,
@@ -3175,7 +3198,7 @@ mod tests {
                 .and_then(move |_| {
                     client2.get_adata(adataref).map(move |data| match data {
                         AData::PubSeq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).0)),
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
                             "KEY2"
                         ),
                         _ => panic!("UNEXPECTED DATA!"),
@@ -3215,7 +3238,7 @@ mod tests {
             let key2 = b"KEY2".to_vec();
             let val2 = b"VALUE2".to_vec();
 
-            let tup = [(key1, val1), (key2, val2)].to_vec();
+            let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
 
             let append = ADataAppend {
                 address: adataref,
@@ -3241,7 +3264,7 @@ mod tests {
                 .and_then(move |_| {
                     client2.get_adata(adataref).map(move |data| match data {
                         AData::UnpubUnseq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).0)),
+                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
                             "KEY2"
                         ),
                         _ => panic!("UNEXPECTED DATA!"),
@@ -3283,12 +3306,7 @@ mod tests {
             let val1 = b"VALUE1".to_vec();
             let val2 = b"VALUE2".to_vec();
 
-            let tup1 = (key1, val1);
-            let tup2 = (key2, val2);
-
-            let mut kvdata = Vec::<(Vec<u8>, Vec<u8>)>::new();
-            kvdata.push(tup1);
-            kvdata.push(tup2);
+            let kvdata = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
 
             unwrap!(data.append(kvdata));
 

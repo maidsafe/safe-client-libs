@@ -1065,7 +1065,7 @@ impl Vault {
             Request::GetADataLastEntry(address) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
-                    .and_then(move |data| data.last_entry().ok_or(SndError::NoSuchEntry));
+                    .and_then(move |data| data.last_entry().cloned().ok_or(SndError::NoSuchEntry));
                 Response::GetADataLastEntry(result)
             }
             Request::GetADataPermissions {

@@ -29,12 +29,12 @@ new_rand = { package = "rand", version = "0.6" }
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
-self_encryption = "~0.14.0"
+# self_encryption = "~0.14.0"
+self_encryption = { git = "https://github.com/maidsafe/self_encryption" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
-tiny-keccak = "~1.4.0"
-# threshold_crypto = "0.3.1"
-threshold_crypto = { git = "https://github.com/poanetwork/threshold_crypto.git", branch = "master" }
+tiny-keccak = "~1.5.0"
+threshold_crypto = "~0.3.2"
 tokio = "=0.1.8"
 tokio-core = "~0.1.17"
 unwrap = "~1.2.0"
