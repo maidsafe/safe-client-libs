@@ -2,19 +2,21 @@
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
 description = "SAFE core"
 documentation = "https://docs.rs/safe_core"
+edition = "2018"
 homepage = "https://maidsafe.net"
 license = "GPL-3.0"
 name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.32.1"
-edition = "2018"
 
 [dependencies]
 bincode = "~1.1.4"
-data-encoding = "~2.1.1"
+bytes = { version = "~0.4.12", features = ["serde"] }
 chrono = { version = "~0.4.0", features = ["serde"] }
 config_file_handler = "~0.11.0"
+crossbeam-channel = "~0.3.9"
+data-encoding = "~2.1.1"
 ffi_utils = "~0.12.0"
 fs2 = "~0.4.3"
 futures = "~0.1.17"
@@ -22,12 +24,12 @@ lazy_static = "~1.2.0"
 log = "~0.4.1"
 lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.18.0"
-rand = "~0.3.18"
 new_rand = { package = "rand", version = "0.6" }
+quic-p2p = "~0.2.0"
+rand = "~0.3.18"
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
-# self_encryption = "~0.14.0"
 self_encryption = { git = "https://github.com/maidsafe/self_encryption" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"

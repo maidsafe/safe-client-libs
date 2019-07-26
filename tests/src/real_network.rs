@@ -28,6 +28,7 @@ use safe_authenticator::ffi::ipc::*;
 use safe_authenticator::ffi::*;
 use safe_authenticator::test_utils::*;
 use safe_authenticator::{AuthError, Authenticator};
+use safe_core::btree_set;
 use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ffi::MDataKind;
 use safe_core::ipc::req::{
@@ -39,6 +40,7 @@ use safe_core::nfs::{Mode, NfsError};
 use safe_core::MDataInfo;
 use safe_core::{utils, CoreError};
 use safe_nd::AppPermissions;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
 use std::env;
@@ -47,6 +49,7 @@ use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
 use std::os::raw::c_void;
+use unwrap::unwrap;
 
 static READ_WRITE_APP_ID: &str = "0123456789";
 static READ_WRITE_FILE_NAME: &str = "test.mp4";

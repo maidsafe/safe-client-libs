@@ -1061,7 +1061,6 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get a Set of Entries for the requested range from an AData.
-    #[allow(clippy::type_complexity)]
     fn get_adata_range(
         &self,
         address: ADataAddress,
@@ -1988,9 +1987,9 @@ fn timeout(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::mock::vault::COST_OF_PUT;
     use crate::utils::generate_random_vector;
     use crate::utils::test_utils::random_client;
-    use crate::client::mock::vault::COST_OF_PUT;
     use safe_nd::{
         ADataAction, ADataEntry, ADataOwner, ADataUnpubPermissionSet, ADataUnpubPermissions,
         AppendOnlyData, Coins, Error as SndError, MDataAction, PubSeqAppendOnlyData, SeqAppendOnly,

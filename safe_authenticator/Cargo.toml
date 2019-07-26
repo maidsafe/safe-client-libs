@@ -1,5 +1,7 @@
 [package]
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
+build = "build.rs"
+edition = "2018"
 description = "SAFE Authenticator"
 documentation = "https://docs.rs/safe_authenticator"
 homepage = "https://maidsafe.net"
@@ -8,21 +10,18 @@ name = "safe_authenticator"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.9.1"
-build = "build.rs"
-edition = "2018"
 
 [dependencies]
 bincode = "~1.1.4"
 config_file_handler = "~0.11.0"
 ffi_utils = "~0.12.0"
 futures = "~0.1.17"
+jni = { version = "~0.12.0", optional = true }
 log = "~0.4.1"
 lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.18.0"
 rand = "~0.3.18"
 new_rand = { package = "rand", version = "0.6" }
-# routing = "~0.37.0"
-# routing = { git = "https://github.com/lionel1704/routing", branch = "patch" }
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.32.1" }
@@ -33,17 +32,13 @@ threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
 tokio = "~0.1.22"
 unwrap = "~1.2.0"
-jni = { version = "~0.12.0", optional = true }
 
-[dev-dependencies.safe_core]
-path = "../safe_core"
-version = "~0.32.1"
-features = ["testing"]
+[dev-dependencies]
+safe_core = { path = "../safe_core", version = "~0.32.1", features = ["testing"] }
 
 [build-dependencies]
 ffi_utils = "~0.12.0"
 jni = "~0.12.0"
-# routing = "~0.37.0"
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe_bindgen = { version = "~0.13.0", optional = true }

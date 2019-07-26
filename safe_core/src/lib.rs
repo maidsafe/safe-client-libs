@@ -109,6 +109,7 @@ pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
 
+mod connection_manager;
 mod errors;
 mod event;
 

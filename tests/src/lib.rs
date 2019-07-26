@@ -57,25 +57,13 @@
     variant_size_differences
 )]
 
-extern crate ffi_utils;
-extern crate futures;
-extern crate safe_app;
-extern crate safe_authenticator;
-extern crate safe_nd;
-#[macro_use]
-extern crate safe_core;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-#[macro_use]
-extern crate unwrap;
-
 mod real_network;
 
 use futures::future::Future;
 use safe_app::{run, App, Client, PubImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
+use unwrap::unwrap;
 
 // Test unregistered clients.
 // 1. Have a registered client PUT something on the network.
