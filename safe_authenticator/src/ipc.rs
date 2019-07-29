@@ -63,8 +63,9 @@ pub fn decode_ipc_msg(
             req: IpcReq::Containers(cont_req),
             req_id,
         } => {
-            let app_id = cont_req.app.id.clone();
+            trace!("Handling IpcReq::Containers({:?})", cont_req);
 
+            let app_id = cont_req.app.id.clone();
             let c2 = client.clone();
 
             config::list_apps(client)

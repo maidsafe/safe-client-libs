@@ -62,7 +62,6 @@ pub fn run<C: Client, T>(mut el: Runtime, client: &C, context: &T, el_rx: CoreMs
             }
             Ok(())
         } else {
-            // Err(io::Error::new(ErrorKind::Other, "Graceful Termination"))
             Err(())
         }
     });

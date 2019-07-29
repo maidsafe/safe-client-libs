@@ -11,6 +11,7 @@ use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::XorName;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::ffi::NulError;
 use std::str::Utf8Error;

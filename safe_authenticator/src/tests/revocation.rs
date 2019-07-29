@@ -163,7 +163,6 @@ mod mock_routing {
     use config;
     use ffi_utils::test_utils::call_0;
     use maidsafe_utilities::SeededRng;
-    use routing::{ClientError, Request, Response};
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
     use safe_core::utils::test_utils::Synchronizer;
@@ -660,10 +659,12 @@ mod mock_routing {
             locator,
             password,
             || (),
-            move |mut routing| {
+            move |mut cm| {
+                // FIXME: hooks system
+                /*
                 let ac_info = ac_info.clone();
 
-                routing.set_request_hook(move |request| match *request {
+                cm.set_request_hook(move |request| match *request {
                     Request::MutateMDataEntries {
                         name, tag, msg_id, ..
                     } => {
@@ -678,8 +679,8 @@ mod mock_routing {
                     }
                     _ => None,
                 });
-
-                routing
+                */
+                cm
             },
         ));
 

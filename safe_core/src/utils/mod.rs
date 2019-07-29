@@ -21,6 +21,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::Rng;
 use rust_sodium::crypto::hash::sha512::{self, Digest, DIGESTBYTES};
 use rust_sodium::crypto::secretbox;
+use serde::{Deserialize, Serialize};
 
 /// Easily create a BTreeSet.
 #[macro_export]
@@ -140,6 +141,27 @@ pub fn derive_secrets(acc_locator: &[u8], acc_password: &[u8]) -> (Vec<u8>, Vec<
     let password = sha512::hash(acc_password).0.to_vec();
 
     (password, keyword, pin)
+}
+
+/// Convert binary data to a diplay-able format
+#[inline]
+pub fn bin_data_format(data: &[u8]) -> String {
+    let len = data.len();
+    if len < 8 {
+        return format!("[ {:?} ]", data);
+    }
+
+    format!(
+        "[ {:02x} {:02x} {:02x} {:02x}..{:02x} {:02x} {:02x} {:02x} ]",
+        data[0],
+        data[1],
+        data[2],
+        data[3],
+        data[len - 4],
+        data[len - 3],
+        data[len - 2],
+        data[len - 1]
+    )
 }
 
 #[cfg(test)]

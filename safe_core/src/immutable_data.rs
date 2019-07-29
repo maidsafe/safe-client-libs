@@ -15,6 +15,7 @@ use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
 use self_encryption::{DataMap, SelfEncryptor};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {

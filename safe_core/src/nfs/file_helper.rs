@@ -15,6 +15,7 @@ use crate::utils::FutureExt;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{Error as SndError, MDataSeqEntryActions};
+use serde::{Deserialize, Serialize};
 
 /// Enum specifying which version should be used in places where a version is required.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

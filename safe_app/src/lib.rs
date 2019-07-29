@@ -136,7 +136,7 @@ use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
-use safe_core::MockRouting as Routing;
+use safe_core::ConnectionManager;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -252,17 +252,17 @@ impl App {
         })
     }
 
-    /// Allows customising the mock Routing client before registering a new account.
+    /// Allows customising the mock Connection Manager before registering a new account.
     #[cfg(feature = "mock-network")]
     pub fn registered_with_hook<N, F>(
         app_id: String,
         auth_granted: AuthGranted,
         disconnect_notifier: N,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AppError>
     where
         N: FnMut() + Send + 'static,
-        F: Fn(Routing) -> Routing + Send + 'static,
+        F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
     {
         let AuthGranted {
             app_keys:
@@ -299,7 +299,7 @@ impl App {
                 core_tx,
                 net_tx,
                 bootstrap_config,
-                routing_wrapper_fn,
+                connection_manager_wrapper_fn,
             )?;
             let context = AppContext::registered(app_id, enc_key, access_container_info);
             Ok((client, context))

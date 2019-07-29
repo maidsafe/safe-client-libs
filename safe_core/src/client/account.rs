@@ -14,8 +14,11 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::FullId;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
-use safe_nd::{ClientFullId, MDataKind, XorName, XOR_NAME_LEN};
-use serde::ser::{Serialize, SerializeStruct, Serializer};
+use safe_nd::{AppFullId, ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Deserialize, Serialize,
+};
 use threshold_crypto::serde_impl::SerdeSecret;
 use tiny_keccak::sha3_256;
 
@@ -171,6 +174,13 @@ impl ClientKeys {
             bls_pk: bls_sk.public_key(),
             bls_sk,
         }
+    }
+
+    /// Convert `ClientKeys` into a full app identity.
+    pub fn into_app_full_id(self, owner_key: PublicKey) -> AppFullId {
+        let bls_sk = (self.bls_sk).clone();
+
+        AppFullId::with_keys(bls_sk, owner_key)
     }
 }
 

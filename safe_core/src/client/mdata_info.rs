@@ -17,6 +17,7 @@ use rust_sodium::crypto::secretbox;
 use safe_nd::{
     MDataAddress, MDataKind, MDataSeqEntries, MDataSeqEntryAction, MDataSeqValue, XorName,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::sha3_256;
 

@@ -21,7 +21,10 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
 use safe_nd::{AppFullId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName};
-use serde::ser::{Serialize, SerializeStruct, Serializer};
+use serde::{
+    ser::{SerializeStruct, Serializer},
+    Deserialize, Serialize,
+};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};
 use std::ptr;

@@ -12,6 +12,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use routing::XorName;
 use safe_nd::{IDataAddress, IDataKind};
+use serde::{Deserialize, Serialize};
 use std::slice;
 
 /// Representation of a File to be put into the network. Could be any kind of

@@ -22,18 +22,20 @@ lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.18.0"
 rand = "~0.3.18"
 new_rand = { package = "rand", version = "0.6" }
+quic-p2p = "~0.2.1"
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.32.1" }
 safe-nd = "~0.2.1"
-serde = "~1.0.27"
-serde_derive = "~1.0.27"
+serde = { version = "~1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
 tokio = "~0.1.22"
 unwrap = "~1.2.0"
+env_logger = { version = "~0.6.2", optional = true }
 
 [dev-dependencies]
+env_logger = "~0.6.2"
 safe_core = { path = "../safe_core", version = "~0.32.1", features = ["testing"] }
 
 [build-dependencies]
@@ -46,7 +48,7 @@ unwrap = "~1.2.0"
 
 [features]
 mock-network = ["testing", "safe_core/mock-network"]
-testing = ["safe_core/testing"]
+testing = ["safe_core/testing", "env_logger"]
 bindings = ["safe_bindgen"]
 
 [lib]

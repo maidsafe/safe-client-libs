@@ -8,11 +8,11 @@
 
 use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
-use crate::client::mock::Routing;
-use crate::client::{
-    setup_routing, spawn_routing_thread, AuthActions, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
-    REQUEST_TIMEOUT_SECS,
-};
+use crate::client::mock::ConnectionManager;
+use crate::client::{req, AuthActions, Client, ClientInner, NewFullId, IMMUT_DATA_CACHE_SIZE};
+use crate::config_handler::Config;
+#[cfg(not(feature = "mock-network"))]
+use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::event::NetworkTx;
@@ -22,60 +22,24 @@ use crate::utils;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
-#[cfg(not(feature = "mock-network"))]
-use routing::Client as Routing;
-use routing::{Authority, FullId};
+use routing::FullId;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     ClientFullId, ClientPublicId, Coins, LoginPacket, Message, MessageId, PublicId, PublicKey,
-    Request, Response as RpcResponse, Signature, XorName,
+    Request, Response, Signature,
 };
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
-use tokio::runtime::current_thread::Handle;
-
-/// Wait for a response from the `$rx` receiver with path `$res` and message ID `$msg_id`.
-#[macro_export]
-macro_rules! wait_for_response {
-    ($rx:expr, $res:path, $msg_id:expr) => {
-        match $rx.recv_timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS)) {
-            Ok(Event::Response {
-                response:
-                    $res {
-                        res,
-                        msg_id: res_msg_id,
-                    },
-                ..
-            }) => {
-                if res_msg_id == $msg_id {
-                    res.map_err(CoreError::RoutingClientError)
-                } else {
-                    warn!("Received response with unexpected message id");
-                    Err(CoreError::OperationAborted)
-                }
-            }
-            Ok(x) => {
-                warn!("Received unexpected response: {:?}", x);
-                Err(CoreError::OperationAborted)
-            }
-            Err(err) => {
-                warn!("Failed to receive response: {:?}", err);
-                Err(CoreError::OperationAborted)
-            }
-        }
-    };
-}
+use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
     inner: Rc<RefCell<ClientInner<CoreClient, ()>>>,
-    cm_addr: Authority<XorName>,
     keys: ClientKeys,
 }
 
@@ -95,7 +59,7 @@ impl CoreClient {
             core_tx,
             net_tx,
             None,
-            |routing| routing,
+            |cm| cm,
         )
     }
 
@@ -106,10 +70,10 @@ impl CoreClient {
         core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
         id_seed: Option<&Seed>,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, CoreError>
     where
-        F: Fn(Routing) -> Routing,
+        F: Fn(ConnectionManager) -> ConnectionManager,
     {
         trace!("Creating an account.");
 
@@ -125,86 +89,84 @@ impl CoreClient {
             maid_keys.bls_pk = balance_sk.public_key();
             maid_keys
         };
-        let pub_key = PublicKey::Bls(maid_keys.bls_pk);
-        let full_id = Some(maid_keys.clone().into());
 
         let acc = ClientAccount::new(maid_keys.clone())?;
 
         let acc_ciphertext = acc.encrypt(&password, &pin)?;
 
-        let client_full_id = {
+        let (client_pk, client_full_id) = {
             let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
             seeder.extend_from_slice(acc_locator);
             seeder.extend_from_slice(acc_password);
 
             let seed = sha3_256(&seeder);
             let mut rng = StdRng::from_seed(seed);
-            ClientFullId::new_bls(&mut rng)
+
+            let client_full_id = ClientFullId::new_bls(&mut rng);
+            (
+                *client_full_id.public_id().public_key(),
+                NewFullId::client(client_full_id),
+            )
         };
 
         let sig = client_full_id.sign(&acc_ciphertext);
-        let client_pk = client_full_id.public_id().public_key();
-        let new_login_packet = LoginPacket::new(acc_loc, *client_pk, acc_ciphertext, sig)?;
+        let new_login_packet = LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig)?;
+
         let balance_client_id = ClientFullId::with_bls_key(balance_sk);
+        let new_balance_owner = *balance_client_id.public_id().public_key();
+
+        let balance_client_id = NewFullId::client(balance_client_id);
+        let balance_pub_id = balance_client_id.public_id();
+
+        // Create the connection manager
+        let mut connection_manager =
+            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+
+        connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         {
-            let (mut routing, routing_rx) = setup_routing(
-                full_id.clone(),
-                PublicId::Client(balance_client_id.public_id().clone()),
-                None,
-            )?;
+            block_on_all(connection_manager.bootstrap(balance_client_id.clone()))?;
 
             // Create the balance for the client
-            let rpc_response = routing.req_as_client(
-                &routing_rx,
+            let response = req(
+                &mut connection_manager,
                 Request::CreateBalance {
-                    new_balance_owner: *balance_client_id.public_id().public_key(),
+                    new_balance_owner,
                     amount: unwrap!(Coins::from_str("10")),
                     transaction_id: new_rand::random(),
                 },
                 &balance_client_id,
-            );
-
-            let _ = match rpc_response {
-                RpcResponse::Transaction(res) => res?,
+            )?;
+            let _ = match response {
+                Response::Transaction(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
             };
 
-            let rpc_response = routing.req_as_client(
-                &routing_rx,
+            let response = req(
+                &mut connection_manager,
                 Request::CreateLoginPacket(new_login_packet),
                 &balance_client_id,
-            );
-            match rpc_response {
-                RpcResponse::Mutation(res) => res?,
+            )?;
+
+            match response {
+                Response::Mutation(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
             };
+
+            block_on_all(connection_manager.disconnect(&balance_pub_id))?;
         }
 
-        let (mut routing, routing_rx) = setup_routing(
-            full_id,
-            PublicId::Client(ClientPublicId::new(pub_key.into(), pub_key)),
-            None,
-        )?;
-        routing = routing_wrapper_fn(routing);
-
-        let cm_addr = Authority::ClientManager(XorName::from(pub_key));
-
-        // Create the client
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+        block_on_all(connection_manager.bootstrap(NewFullId::client(maid_keys.clone().into())))?;
 
         Ok(Self {
             inner: Rc::new(RefCell::new(ClientInner {
                 el_handle,
-                routing,
-                hooks: HashMap::with_capacity(10),
+                connection_manager,
                 cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
-                timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
-                joiner,
+                timeout: Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
                 net_tx,
                 core_tx,
             })),
-            cm_addr,
             keys: maid_keys,
         })
     }
@@ -224,10 +186,6 @@ impl Client for CoreClient {
 
     fn config(&self) -> Option<BootstrapConfig> {
         None
-    }
-
-    fn cm_addr(&self) -> Option<Authority<XorName>> {
-        Some(self.cm_addr)
     }
 
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
@@ -297,7 +255,6 @@ impl Clone for CoreClient {
     fn clone(&self) -> Self {
         CoreClient {
             inner: Rc::clone(&self.inner),
-            cm_addr: self.cm_addr,
             keys: self.keys.clone(),
         }
     }

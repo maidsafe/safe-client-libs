@@ -7,9 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::CoreError;
-use config_file_handler;
 use directories::ProjectDirs;
 use quic_p2p::Config as QuicP2pConfig;
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use std::path::PathBuf;
 use std::{
@@ -30,9 +30,7 @@ const CONFIG_FILE: &str = "safe_core.config";
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     /// QuicP2p options.
-    // TODO: This is an `Option` to play nicely with the functions deserialising `DevConfig`. We
-    // probably want unwrap this as `QuicP2pConfig` can be left in a valid default state.
-    pub quic_p2p: Option<QuicP2pConfig>,
+    pub quic_p2p: QuicP2pConfig,
     /// Developer options.
     pub dev: Option<DevConfig>,
 }
@@ -42,7 +40,7 @@ impl Config {
     pub fn new() -> Self {
         let quic_p2p = Self::read_qp2p_from_file().unwrap_or_default();
         Self {
-            quic_p2p: Some(quic_p2p),
+            quic_p2p,
             dev: None,
         }
     }
@@ -60,7 +58,10 @@ impl Config {
             }
         };
         let reader = BufReader::new(file);
-        let config = serde_json::from_reader(reader)?;
+        let config = serde_json::from_reader(reader).map_err(|err| {
+            info!("Could not parse the config file: {} ({:?})", err, err);
+            err
+        })?;
         Ok(config)
     }
 }
@@ -78,16 +79,7 @@ pub struct DevConfig {
 
 /// Reads the `safe_core` config file and returns it or a default if this fails.
 pub fn get_config() -> Config {
-    read_config_file().unwrap_or_else(|error| {
-        warn!("Failed to parse safe_core config file: {:?}", error);
-        Config::new()
-    })
-}
-
-fn read_config_file() -> Result<Config, CoreError> {
-    // If the config file is not present, a default one will be generated.
-    let file_handler = config_file_handler::FileHandler::new(&get_file_name()?, false)?;
-    Ok(file_handler.read_file()?)
+    Config::new()
 }
 
 fn dirs() -> Result<ProjectDirs, CoreError> {
@@ -105,18 +97,21 @@ fn dirs() -> Result<ProjectDirs, CoreError> {
 /// with the appropriate file name.
 #[cfg(test)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
-    use std::io::Write;
-
-    let mut config_path = config_file_handler::current_bin_dir()?;
+    let mut config_path = PathBuf::new();
     config_path.push(get_file_name()?);
-    let mut file = ::std::fs::File::create(&config_path)?;
-    write!(
-        &mut file,
-        "{}",
-        unwrap!(serde_json::to_string_pretty(config))
-    )?;
-    file.sync_all()?;
     Ok(config_path)
+    // use std::io::Write;
+
+    // let mut config_path = config_file_handler::current_bin_dir()?;
+    // config_path.push(get_file_name()?);
+    // let mut file = ::std::fs::File::create(&config_path)?;
+    // write!(
+    //     &mut file,
+    //     "{}",
+    //     unwrap!(serde_json::to_string_pretty(config))
+    // )?;
+    // file.sync_all()?;
+    // Ok(config_path)
 }
 
 fn get_file_name() -> Result<OsString, CoreError> {

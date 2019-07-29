@@ -11,6 +11,7 @@ use crate::ipc::req::permission_set_into_repr_c;
 use ffi_utils::callback::CallbackArgs;
 use ffi_utils::ReprC;
 use safe_nd::MDataPermissionSet;
+use serde::{Deserialize, Serialize};
 use std::ffi::CString;
 use std::os::raw::c_char;
 

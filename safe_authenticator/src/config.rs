@@ -16,8 +16,7 @@ use safe_core::ipc::resp::AppKeys;
 use safe_core::ipc::IpcError;
 use safe_core::{Client, CoreError, FutureExt};
 use safe_nd::{EntryError, Error as SndError, MDataSeqEntryActions};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use tiny_keccak::sha3_256;
 

@@ -8,12 +8,35 @@
 // Software.
 
 use super::{App, AppError};
+use env_logger::{fmt::Formatter, Builder as LoggerBuilder};
+use log::Record;
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::AuthError;
 use safe_core::ipc::req::{AuthReq as NativeAuthReq, ContainerPermissions};
 use safe_core::ipc::AppExchangeInfo;
 use safe_core::utils;
 use std::collections::HashMap;
+use std::io::Write;
+
+/// Initialise `env_logger` with custom settings.
+pub fn init_log() {
+    let do_format = move |formatter: &mut Formatter, record: &Record<'_>| {
+        let now = formatter.timestamp();
+        writeln!(
+            formatter,
+            "{} {} [{}:{}] {}",
+            formatter.default_styled_level(record.level()),
+            now,
+            record.file().unwrap_or_default(),
+            record.line().unwrap_or_default(),
+            record.args()
+        )
+    };
+    let _ = LoggerBuilder::from_default_env()
+        .format(do_format)
+        .is_test(true)
+        .try_init();
+}
 
 /// Generates an `AppExchangeInfo` structure for a mock application.
 pub fn gen_app_exchange_info() -> AppExchangeInfo {
@@ -38,6 +61,7 @@ pub fn create_app_by_req(auth_req: &NativeAuthReq) -> Result<App, AppError> {
             AuthError::NoSuchContainer(name) => AppError::NoSuchContainer(name),
             _ => AppError::Unexpected(format!("{}", error)),
         })?;
+    trace!("Succesfully registered app: {:?}", auth_granted);
     App::registered(auth_req.app.id.clone(), auth_granted, || ())
 }
 

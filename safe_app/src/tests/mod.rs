@@ -8,6 +8,7 @@
 // Software.
 
 mod append_only_data;
+#[cfg(feature = "mock-network")]
 mod coins;
 mod unpublished_mutable_data;
 
@@ -17,8 +18,6 @@ use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with
 use crate::{run, App, AppError};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
-#[cfg(feature = "mock-network")]
-use routing::{ClientError, Request, Response};
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::test_utils::revoke;
 use safe_authenticator::{run as auth_run, AuthError, Authenticator};
@@ -27,7 +26,7 @@ use safe_core::ipc::Permission;
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
 #[cfg(feature = "mock-network")]
-use safe_core::MockRouting;
+use safe_core::ConnectionManager;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
@@ -110,35 +109,37 @@ fn get_access_info() {
 #[test]
 pub fn login_registered_with_low_balance() {
     // Register a hook prohibiting mutations and login
-    let routing_hook = move |mut routing: MockRouting| -> MockRouting {
-        routing.set_request_hook(move |req| {
+    let cm_hook = move |cm: ConnectionManager| -> ConnectionManager {
+        /* FIXME - hooks
+
+        cm.set_request_hook(move |req| {
             match *req {
                 Request::PutIData { msg_id, .. } => Some(Response::PutIData {
-                    res: Err(ClientError::LowBalance),
+                    res: Err(SndError::LowBalance),
                     msg_id,
                 }),
                 Request::PutMData { msg_id, .. } => Some(Response::PutMData {
-                    res: Err(ClientError::LowBalance),
+                    res: Err(SndError::LowBalance),
                     msg_id,
                 }),
                 Request::MutateMDataEntries { msg_id, .. } => Some(Response::MutateMDataEntries {
-                    res: Err(ClientError::LowBalance),
+                    res: Err(SndError::LowBalance),
                     msg_id,
                 }),
                 Request::SetMDataUserPermissions { msg_id, .. } => {
                     Some(Response::SetMDataUserPermissions {
-                        res: Err(ClientError::LowBalance),
+                        res: Err(SndError::LowBalance),
                         msg_id,
                     })
                 }
                 Request::DelMDataUserPermissions { msg_id, .. } => {
                     Some(Response::DelMDataUserPermissions {
-                        res: Err(ClientError::LowBalance),
+                        res: Err(SndError::LowBalance),
                         msg_id,
                     })
                 }
                 Request::ChangeMDataOwner { msg_id, .. } => Some(Response::ChangeMDataOwner {
-                    res: Err(ClientError::LowBalance),
+                    res: Err(SndError::LowBalance),
                     msg_id,
                 }),
                 // Request::InsAuthKey { msg_id, .. } => Some(Response::InsAuthKey {
@@ -153,7 +154,8 @@ pub fn login_registered_with_low_balance() {
                 _ => None,
             }
         });
-        routing
+         */
+        cm
     };
 
     // Login to the client
@@ -177,7 +179,7 @@ pub fn login_registered_with_low_balance() {
         app_id,
         auth_granted,
         || (),
-        routing_hook,
+        cm_hook,
     ));
 }
 

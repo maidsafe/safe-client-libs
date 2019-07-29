@@ -26,9 +26,11 @@ pub fn create_dir(
     let dir_md =
         SeqMutableData::new_with_data(dir.name(), dir.type_tag(), contents, perms, pub_key);
 
+    trace!("Creating new directory: {:?}", dir);
     client
         .put_seq_mutable_data(dir_md)
         .or_else(move |err| {
+            trace!("Error: {:?}", err);
             match err {
                 // This dir has been already created
                 CoreError::NewRoutingClientError(SndError::DataExists) => Ok(()),

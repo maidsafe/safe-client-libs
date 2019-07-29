@@ -117,7 +117,7 @@ pub unsafe extern "C" fn app_reconnect(
         let user_data = OpaqueCtx(user_data);
         (*app).send(move |client, _| {
             try_cb!(
-                client.restart_routing().map_err(AppError::from),
+                client.restart_network().map_err(AppError::from),
                 user_data.0,
                 o_cb
             );

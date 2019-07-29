@@ -27,6 +27,7 @@ use data_encoding::BASE32_NOPAD;
 use ffi_utils;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::{self, Rng};
+use serde::{Deserialize, Serialize};
 use std::u32;
 
 /// IPC message.

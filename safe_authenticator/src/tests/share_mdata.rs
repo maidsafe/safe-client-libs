@@ -120,6 +120,8 @@ fn share_some_mdatas() {
 // Test making a request to share invalid mutable data.
 #[test]
 fn share_invalid_mdatas() {
+    test_utils::init_log();
+
     let authenticator = test_utils::create_account_and_login();
 
     const NUM_MDATAS: usize = 3;
@@ -344,6 +346,7 @@ fn share_some_mdatas_with_ownership_error() {
 // and the list of permissions are correct.
 #[test]
 fn auth_apps_accessing_mdatas() {
+    test_utils::init_log();
     let authenticator = test_utils::create_account_and_login();
 
     let user = unwrap!(run(&authenticator, move |client| {

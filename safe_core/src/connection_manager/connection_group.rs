@@ -9,23 +9,32 @@
 // TODO - remove this.
 #![allow(dead_code)]
 
-use crate::{client::NewFullId, CoreError, CoreFuture};
+use crate::{client::NewFullId, utils, CoreError, CoreFuture};
+use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
-    future,
     sync::oneshot::{self, Sender},
     Future,
 };
-use maidsafe_utilities::serialisation::{deserialise, serialise};
+use lazy_static::lazy_static;
 use new_rand::Rng;
-use quic_p2p::{self, NodeInfo, Peer, QuicP2p};
+use quic_p2p::{self, Error as QuicP2pError, NodeInfo, Peer, QuicP2p};
 use safe_nd::{Challenge, Message, MessageId, NodePublicId, PublicId, Response};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
-    cell::RefCell,
     collections::{HashMap, HashSet},
     net::SocketAddr,
-    rc::Rc,
+    sync::{Arc, Mutex},
+    time::Duration,
 };
+use tokio::prelude::FutureExt;
+
+/// Request timeout in seconds.
+pub const REQUEST_TIMEOUT_SECS: u64 = 180;
+
+lazy_static! {
+    static ref GROUP_COUNTER: AtomicU64 = AtomicU64::new(0);
+}
 
 // Represents a connection or connection attempt to one of the group's elder vaults.  `public_id`
 // will be `None` if we haven't received the `Challenge::Request` from this vault yet.
@@ -54,14 +63,18 @@ pub(super) struct ConnectionGroup {
     full_id: NewFullId,
     elders: HashMap<SocketAddr, Elder>,
     hooks: HashMap<MessageId, Sender<Response>>, // to be replaced with Accumulator for multiple vaults.
-    quic_p2p: Rc<RefCell<QuicP2p>>,
+    quic_p2p: Arc<Mutex<QuicP2p>>,
+    connection_hook: Option<Sender<()>>,
+    disconnect_tx: Option<Sender<()>>,
+    pub(super) id: u64,
 }
 
 impl ConnectionGroup {
     pub fn new(
         full_id: NewFullId,
         mut elders: HashSet<NodeInfo>,
-        quic_p2p: Rc<RefCell<QuicP2p>>,
+        quic_p2p: Arc<Mutex<QuicP2p>>,
+        connection_hook: Sender<()>,
     ) -> Self {
         Self {
             full_id,
@@ -71,23 +84,44 @@ impl ConnectionGroup {
                 .collect(),
             hooks: Default::default(),
             quic_p2p,
+            connection_hook: Some(connection_hook),
+            disconnect_tx: None,
+            id: GROUP_COUNTER.fetch_add(1, Ordering::SeqCst),
         }
     }
 
     pub fn send(&mut self, msg_id: MessageId, msg: &Message) -> Box<CoreFuture<Response>> {
         let mut rng = new_rand::thread_rng();
-        let bytes = Bytes::from(unwrap!(serialise(msg)));
-        for peer in self.elders.values().map(Elder::peer) {
-            let token = rng.gen();
-            self.quic_p2p.borrow_mut().send(peer, bytes.clone(), token);
-        }
+
+        trace!("Sending message {:?}", msg_id);
 
         let (future_tx, future_rx) = oneshot::channel();
         let _ = self.hooks.insert(msg_id, future_tx);
-        Box::new(future_rx.map_err(|_| CoreError::OperationAborted))
+
+        let bytes = Bytes::from(unwrap!(serialize(msg)));
+        {
+            let mut qp2p = unwrap!(self.quic_p2p.lock());
+
+            for peer in self.elders.values().map(Elder::peer) {
+                let token = rng.gen();
+                qp2p.send(peer, bytes.clone(), token);
+            }
+        }
+
+        Box::new(
+            future_rx
+                .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+                .map_err(|_e| CoreError::RequestTimeout), // .then(move |result| {
+                                                          //     if let Some(inner) = inner_weak.upgrade() {
+                                                          //         let _ = inner.borrow_mut().hooks.remove(&msg_id);
+                                                          //     }
+                                                          //     result
+                                                          // }),
+        )
     }
 
     pub fn handle_bootstrapped_to(&mut self, node_info: NodeInfo) {
+        trace!("{}: Bootstrapped", self.id);
         let _ = self
             .elders
             .insert(node_info.peer_addr, Elder::new(node_info));
@@ -100,28 +134,67 @@ impl ConnectionGroup {
             .map(|elder| elder.public_id.is_some())
             .unwrap_or(false);
 
+        trace!(
+            "{}: Message from {:?}: {}. We have handled challenge? {:?}",
+            self.id,
+            peer_addr,
+            utils::bin_data_format(&msg),
+            have_handled_challenge
+        );
+
         if have_handled_challenge {
-            if let Ok(Message::Response {
-                response,
-                message_id,
-            }) = deserialise(&msg)
-            {
-                self.handle_response(peer_addr, message_id, response)
+            match deserialize(&msg) {
+                Ok(Message::Response {
+                    response,
+                    message_id,
+                }) => self.handle_response(peer_addr, message_id, response),
+                Ok(Message::Notification { notification }) => {
+                    trace!("Got transaction notification: {:?}", notification);
+                }
+                Ok(_msg) => error!("Unexpected message type, expected response."),
+                Err(e) => {
+                    if let Ok(_x) = deserialize::<Challenge>(&msg) {
+                        error!("Unexpected challenge, expected response ({:?}).", e);
+                    } else {
+                        error!("Unexpected error {:?}", e);
+                    }
+                }
             }
-        } else if let Ok(Challenge::Request(PublicId::Node(node_public_id), challenge)) =
-            deserialise(&msg)
-        {
-            self.handle_challenge(peer_addr, node_public_id, challenge);
+        } else {
+            match deserialize(&msg) {
+                Ok(Challenge::Request(PublicId::Node(node_public_id), challenge)) => {
+                    trace!("Got the challenge");
+                    self.handle_challenge(peer_addr, node_public_id, challenge)
+                }
+                Ok(_msg) => error!("Unexpected message type, expected challenge."),
+                Err(e) => error!("Unexpected error {:?}", e),
+            }
         }
     }
 
     /// Handle a response from one of the elders.
     /// `_sender` is unused because we don't need to handle elder groups during the Phase 1.
-    fn handle_response(&mut self, _sender_addr: SocketAddr, msg_id: MessageId, response: Response) {
+    fn handle_response(&mut self, sender_addr: SocketAddr, msg_id: MessageId, response: Response) {
+        trace!(
+            "{}: Response from: {:?}, msg_id: {:?}, resp: {:?}",
+            self.id,
+            sender_addr,
+            msg_id,
+            response
+        );
         let _ = self
             .hooks
             .remove(&msg_id)
-            .map(|sender| sender.send(response));
+            .map(|sender| sender.send(response))
+            .or_else(|| {
+                info!(
+                    "{}: {:?} - No hook found for message ID {:?}",
+                    self.id,
+                    self.full_id.public_id(),
+                    msg_id
+                );
+                None
+            });
     }
 
     /// Handle a challenge request from a newly-connected vault.
@@ -136,15 +209,46 @@ impl ConnectionGroup {
         elder.public_id = Some(sender_id);
         let token = new_rand::thread_rng().gen();
         let response = Challenge::Response(self.full_id.public_id(), self.full_id.sign(&challenge));
-        let msg = Bytes::from(unwrap!(serialise(&response)));
-        self.quic_p2p
-            .borrow_mut()
-            .send(elder.peer.clone(), msg, token);
+        let msg = Bytes::from(unwrap!(serialize(&response)));
+        unwrap!(self.quic_p2p.lock()).send(elder.peer.clone(), msg, token);
+        // trigger the connection future
+        let _ = self.connection_hook.take().map(|hook| hook.send(()));
     }
 
-    /// Terminate the QUIC connections.
-    pub fn close(&mut self) -> impl Future<Item = (), Error = CoreError> {
-        future::err(CoreError::Unexpected("unimplemented".to_string()))
+    /// Terminate the QUIC connections gracefully.
+    pub fn close(&mut self) -> Box<CoreFuture<()>> {
+        trace!("{}: Terminating connection", self.id);
+
+        let (disconnect_tx, disconnect_rx) = futures::oneshot();
+        self.terminate();
+        self.disconnect_tx = Some(disconnect_tx);
+
+        Box::new(disconnect_rx.map_err(|e| CoreError::Unexpected(format!("{}", e))))
+    }
+
+    /// Ask quic-p2p to disconnect this group without waiting on it.
+    /// Use for `ConnectionManager::drop` only!
+    pub(super) fn terminate(&mut self) {
+        let mut qp2p = unwrap!(self.quic_p2p.lock());
+        for peer in self.elders.values().map(Elder::peer) {
+            qp2p.disconnect_from(peer.peer_addr());
+        }
+    }
+
+    pub fn handle_connection_failure(&mut self, peer_addr: SocketAddr, err: QuicP2pError) {
+        if let QuicP2pError::ConnectionCancelled = err {
+            if let Some(tx) = self.disconnect_tx.take() {
+                trace!("{}: Successfully disconnected", self.id);
+                let _ = tx.send(());
+                return;
+            }
+        }
+        trace!(
+            "{}: Recvd connection failure for {}, {}",
+            self.id,
+            peer_addr,
+            err
+        );
     }
 
     pub fn has_peer(&self, peer_addr: &SocketAddr) -> bool {

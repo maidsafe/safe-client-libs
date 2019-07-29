@@ -6,44 +6,39 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#[cfg(not(feature = "mock-network"))]
-use routing::Client as Routing;
-#[cfg(feature = "mock-network")]
-use safe_core::MockRouting as Routing;
-
 use crate::errors::AuthError;
 use crate::AuthFuture;
 use crate::AuthMsgTx;
 use futures::future;
+use futures::sync::mpsc;
+use futures::Future;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
-use routing::{Authority, FullId, XorName};
+use routing::{FullId, XorName};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
-use safe_core::client::{
-    setup_routing, spawn_routing_thread, AuthActions, ClientInner, IMMUT_DATA_CACHE_SIZE,
-    REQUEST_TIMEOUT_SECS,
-};
+use safe_core::client::{req, AuthActions, ClientInner, NewFullId, IMMUT_DATA_CACHE_SIZE};
+use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
-use safe_core::FutureExt;
-use safe_core::{utils, Client, ClientKeys, MDataInfo, NetworkTx};
+use safe_core::{
+    utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkEvent, NetworkTx,
+};
 use safe_nd::{
     ClientFullId, ClientPublicId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request,
     Response, Signature,
 };
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
-use tokio::runtime::current_thread::Handle;
+use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Client object used by safe_authenticator.
 pub struct AuthClient {
@@ -70,7 +65,7 @@ impl AuthClient {
             core_tx,
             net_tx,
             None,
-            |routing| routing,
+            |cm| cm,
         )
     }
 
@@ -101,12 +96,12 @@ where {
             core_tx,
             net_tx,
             Some(&id_seed),
-            |routing| routing,
+            |cm| cm,
         )
     }
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
-    /// Allows customising the mock Routing client before registering a new account
+    /// Allows customising the mock client before registering a new account.
     pub fn registered_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
@@ -114,10 +109,10 @@ where {
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
-        F: Fn(Routing) -> Routing,
+        F: Fn(ConnectionManager) -> ConnectionManager,
     {
         Self::registered_impl(
             acc_locator.as_bytes(),
@@ -127,7 +122,7 @@ where {
             core_tx,
             net_tx,
             None,
-            routing_wrapper_fn,
+            connection_manager_wrapper_fn,
         )
     }
 
@@ -142,81 +137,75 @@ where {
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
         id_seed: Option<&Seed>,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
-        F: Fn(Routing) -> Routing,
+        F: Fn(ConnectionManager) -> ConnectionManager,
     {
         trace!("Creating an account.");
 
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
-        let acc_loc = Account::generate_network_id(&keyword, &pin)?;
+        let acc_locator = Account::generate_network_id(&keyword, &pin)?;
         let user_cred = UserCred::new(password, pin);
 
         let mut maid_keys = ClientKeys::new(id_seed);
         maid_keys.bls_sk = balance_sk.clone();
         maid_keys.bls_pk = balance_sk.public_key();
-        let pub_key = PublicKey::from(maid_keys.bls_pk);
-        let full_id = Some(maid_keys.clone().into());
 
         let acc = Account::new(maid_keys.clone())?;
-
         let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
 
-        let client_full_id = create_client_id(acc_locator, acc_password);
+        let transient_id = create_client_id(&acc_locator.0);
 
-        let sig = client_full_id.sign(&acc_ciphertext);
-        let client_pk = client_full_id.public_id().public_key();
-        let new_login_packet = LoginPacket::new(acc_loc, *client_pk, acc_ciphertext, sig)?;
-        let balance_client_id = ClientFullId::with_bls_key(balance_sk);
+        let sig = transient_id.sign(&acc_ciphertext);
+        let transient_pk = transient_id.public_id().public_key();
+        let new_login_packet = LoginPacket::new(acc_locator, *transient_pk, acc_ciphertext, sig)?;
+
+        let balance_full_id = NewFullId::client(ClientFullId::with_bls_key(balance_sk));
+        let client_full_id = NewFullId::client(maid_keys.into());
+
+        // Create the connection manager
+        let mut connection_manager =
+            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+
+        connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         {
-            let (mut routing, routing_rx) = setup_routing(
-                full_id.clone(),
-                PublicId::Client(balance_client_id.public_id().clone()),
-                None,
+            trace!("Using throw-away connection group to insert a login packet.");
+
+            let _ = block_on_all(connection_manager.bootstrap(balance_full_id.clone()))?;
+
+            let response = req(
+                &mut connection_manager,
+                Request::CreateLoginPacket(new_login_packet),
+                &balance_full_id,
             )?;
 
-            let rpc_response = routing.req_as_client(
-                &routing_rx,
-                Request::CreateLoginPacket(new_login_packet),
-                &balance_client_id,
-            );
-            match rpc_response {
+            match response {
                 Response::Mutation(res) => res?,
                 _ => return Err(AuthError::from("Unexpected response")),
             };
-        }
-        let (mut routing, routing_rx) = setup_routing(
-            full_id,
-            PublicId::Client(ClientPublicId::new(pub_key.into(), pub_key)),
-            None,
-        )?;
-        routing = routing_wrapper_fn(routing);
 
-        let pub_key = PublicKey::from(acc.maid_keys.bls_pk);
-        let cm_addr = Authority::ClientManager(XorName::from(pub_key));
-        // Create the client
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+            let _ = block_on_all(connection_manager.disconnect(&balance_full_id.public_id()))?;
+        }
+
+        let _ = block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
                 el_handle,
-                routing,
-                HashMap::with_capacity(10),
+                connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
-                Duration::from_secs(REQUEST_TIMEOUT_SECS),
-                joiner,
+                Duration::from_secs(180), // FIXME //(REQUEST_TIMEOUT_SECS),
                 core_tx,
                 net_tx,
             ))),
             auth_inner: Rc::new(RefCell::new(AuthInner {
                 acc,
-                acc_loc,
+                acc_loc: acc_locator,
                 user_cred,
                 full_id: client_full_id,
-                cm_addr,
             })),
         })
     }
@@ -255,7 +244,7 @@ where {
     }
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
-    /// Allows customising the mock Routing client before logging into the network.
+    /// Allows customising the mock connection manager before logging into the network.
     pub fn login_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
@@ -265,7 +254,7 @@ where {
         routing_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
-        F: Fn(Routing) -> Routing,
+        F: Fn(ConnectionManager) -> ConnectionManager,
     {
         Self::login_impl(
             acc_locator.as_bytes(),
@@ -283,37 +272,42 @@ where {
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
-        F: Fn(Routing) -> Routing,
+        F: Fn(ConnectionManager) -> ConnectionManager,
     {
         trace!("Attempting to log into an acc.");
 
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
-        let acc_loc = Account::generate_network_id(&keyword, &pin)?;
+        let acc_locator = Account::generate_network_id(&keyword, &pin)?;
 
-        let client_full_id = create_client_id(acc_locator, acc_password);
+        let client_full_id = create_client_id(&acc_locator.0);
         let client_pk = *client_full_id.public_id().public_key();
+        let client_full_id = NewFullId::client(client_full_id);
 
         let user_cred = UserCred::new(password, pin);
 
-        let (account_buffer, signature) = {
-            trace!("Creating throw-away routing getter for account packet.");
+        // Create the connection manager
+        let mut connection_manager =
+            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+        connection_manager = connection_manager_wrapper_fn(connection_manager);
 
-            let (mut routing, routing_rx) = setup_routing(
-                None,
-                PublicId::Client(client_full_id.public_id().clone()),
-                None,
-            )?;
-            routing = routing_wrapper_fn(routing);
-            let rpc_response = routing.req_as_client(
-                &routing_rx,
-                Request::GetLoginPacket(acc_loc),
+        let (account_buffer, signature) = {
+            trace!("Using throw-away connection group to get a login packet.");
+
+            let _ = block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
+
+            let response = req(
+                &mut connection_manager,
+                Request::GetLoginPacket(acc_locator),
                 &client_full_id,
-            );
-            match rpc_response {
+            )?;
+
+            let _ = block_on_all(connection_manager.disconnect(&client_full_id.public_id()))?;
+
+            match response {
                 Response::GetLoginPacket(res) => res?,
                 _ => return Err(AuthError::from("Unexpected response")),
             }
@@ -326,38 +320,26 @@ where {
             &user_cred.pin,
         )?;
 
-        let id_packet = acc.maid_keys.clone().into();
+        let id_packet = NewFullId::client(acc.maid_keys.clone().into());
 
-        let pub_key = PublicKey::from(acc.maid_keys.bls_pk);
-        let cm_addr = Authority::ClientManager(XorName::from(pub_key));
+        trace!("Creating an actual client...");
 
-        trace!("Creating an actual routing...");
-        let (mut routing, routing_rx) = setup_routing(
-            Some(id_packet),
-            PublicId::Client(ClientPublicId::new(pub_key.into(), pub_key)),
-            None,
-        )?;
-        routing = routing_wrapper_fn(routing);
-
-        let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+        let _ = block_on_all(connection_manager.bootstrap(id_packet.clone()))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
                 el_handle,
-                routing,
-                HashMap::with_capacity(10),
+                connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
-                Duration::from_secs(REQUEST_TIMEOUT_SECS),
-                joiner,
+                Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), //FIXME
                 core_tx,
                 net_tx,
             ))),
             auth_inner: Rc::new(RefCell::new(AuthInner {
                 acc,
-                acc_loc,
+                acc_loc: acc_locator,
                 user_cred,
-                full_id: client_full_id,
-                cm_addr,
+                full_id: id_packet,
             })),
         })
     }
@@ -418,13 +400,16 @@ where {
         acc_loc: XorName,
         account: &Account,
         keys: &UserCred,
-        full_id: &ClientFullId,
+        full_id: &NewFullId,
     ) -> Result<LoginPacket, AuthError> {
         let encrypted_account = account.encrypt(&keys.password, &keys.pin)?;
 
         let sig = full_id.sign(&encrypted_account);
-        let client_pk = full_id.public_id().public_key();
-        LoginPacket::new(acc_loc, *client_pk, encrypted_account, sig).map_err(AuthError::from)
+        let client_pk = match full_id.public_id() {
+            PublicId::Client(id) => *id.public_key(),
+            x => panic!("Unexpected ID type {:?}", x), // fixme
+        };
+        LoginPacket::new(acc_loc, client_pk, encrypted_account, sig).map_err(AuthError::from)
     }
 
     /// Updates user's account packet.
@@ -434,30 +419,56 @@ where {
         let auth_inner = self.auth_inner.borrow();
         let account = &auth_inner.acc;
         let keys = &auth_inner.user_cred;
-        let client_full_id = &auth_inner.full_id;
+        let client_full_id = auth_inner.full_id.clone();
         let acc_loc = &auth_inner.acc_loc;
+        let account_packet_id = NewFullId::client(create_client_id(&acc_loc.0));
+        let account_pub_id = account_packet_id.public_id().clone();
         let updated_packet = fry!(Self::prepare_account_packet_update(
             *acc_loc,
             account,
             keys,
-            &client_full_id
+            &account_packet_id
         ));
 
-        let (mut routing, routing_rx) = fry!(setup_routing(
-            None,
-            PublicId::Client(client_full_id.public_id().clone()),
-            None,
-        ));
+        let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-        let rpc_response = routing.req_as_client(
-            &routing_rx,
-            Request::UpdateLoginPacket(updated_packet),
-            &client_full_id,
-        );
-        match rpc_response {
-            Response::Mutation(res) => future::result(res.map_err(AuthError::from)).into_box(),
-            _ => future::result(Err(AuthError::from("Unexpected response"))).into_box(),
-        }
+        let mut client_inner = self.inner.borrow_mut();
+
+        let mut cm = client_inner.cm().clone();
+        let mut cm2 = cm.clone();
+        let mut cm3 = cm.clone();
+        let mut cm4 = cm.clone();
+        let mut cm5 = cm.clone();
+
+        let message_id = MessageId::new();
+        let request = Request::UpdateLoginPacket(updated_packet);
+        let signature =
+            account_packet_id.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+
+        let account_pub_id2 = account_pub_id.clone();
+        let client_pub_id = client_full_id.public_id().clone();
+
+        Box::new(
+            future::lazy(move || cm.disconnect(&client_pub_id))
+                .and_then(move |_| cm2.bootstrap(account_packet_id))
+                .and_then(move |_| {
+                    cm3.send(
+                        &account_pub_id,
+                        &Message::Request {
+                            request,
+                            message_id,
+                            signature: Some(signature),
+                        },
+                    )
+                })
+                .and_then(move |resp| match resp {
+                    Response::Mutation(res) => res.map_err(CoreError::from),
+                    _ => Err(CoreError::from("Unexpected response")),
+                })
+                .and_then(move |resp| cm4.disconnect(&account_pub_id2))
+                .and_then(move |resp| cm5.bootstrap(client_full_id))
+                .map_err(AuthError::from),
+        )
     }
 
     /// Returns the current status of std/root dirs creation.
@@ -474,11 +485,7 @@ where {
     }
 }
 
-fn create_client_id(acc_locator: &[u8], acc_password: &[u8]) -> ClientFullId {
-    let mut seeder: Vec<u8> = Vec::with_capacity(acc_locator.len() + acc_password.len());
-    seeder.extend_from_slice(acc_locator);
-    seeder.extend_from_slice(acc_password);
-
+fn create_client_id(seeder: &[u8]) -> ClientFullId {
     let seed = sha3_256(&seeder);
     let mut rng = StdRng::from_seed(seed);
     ClientFullId::new_bls(&mut rng)
@@ -502,11 +509,6 @@ impl Client for AuthClient {
 
     fn config(&self) -> Option<BootstrapConfig> {
         None
-    }
-
-    fn cm_addr(&self) -> Option<Authority<XorName>> {
-        let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.cm_addr)
     }
 
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
@@ -599,8 +601,7 @@ struct AuthInner {
     acc: Account,
     acc_loc: XorName,
     user_cred: UserCred,
-    full_id: ClientFullId,
-    cm_addr: Authority<XorName>,
+    full_id: NewFullId,
 }
 
 // ------------------------------------------------------------
@@ -840,7 +841,7 @@ mod tests {
     // Test restarting routing after a network disconnect.
     #[cfg(feature = "mock-network")]
     #[test]
-    fn restart_routing() {
+    fn restart_network() {
         use crate::test_utils::random_client_with_net_obs;
         use futures;
         use maidsafe_utilities::thread;
@@ -866,7 +867,7 @@ mod tests {
             move |net_event| unwrap!(tx.send(net_event)),
             move |client| {
                 client.simulate_network_disconnect();
-                unwrap!(client.restart_routing());
+                unwrap!(client.restart_network());
                 keep_alive
             },
         );
@@ -931,7 +932,7 @@ mod tests {
 
         let acc_ciphertext = unwrap!(acc.encrypt(&password, &pin));
 
-        let client_full_id = create_client_id(acc_locator, acc_password);
+        let client_full_id = create_client_id(&acc_loc.0);
 
         let sig = client_full_id.sign(&acc_ciphertext);
         let client_pk = *client_full_id.public_id().public_key();

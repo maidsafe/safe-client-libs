@@ -672,7 +672,7 @@ mod tests {
     use crate::ffi::mutable_data::permissions::USER_ANYONE;
     use crate::run;
     use crate::safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
-    use crate::test_utils::create_app;
+    use crate::test_utils::{self, create_app};
     use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
     use rust_sodium::crypto::box_;
 
@@ -855,6 +855,8 @@ mod tests {
     // Test creating and fetching public sign keys.
     #[test]
     fn sign_public_key_basics() {
+        test_utils::init_log();
+
         let app = create_app();
         let app_sign_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_sign_key(&app, ud, cb))) };
 

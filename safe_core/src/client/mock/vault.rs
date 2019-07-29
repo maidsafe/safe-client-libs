@@ -8,17 +8,19 @@
 
 use super::DataId;
 use super::{Account, CoinBalance};
-use crate::client::mock::routing::unlimited_muts;
+use crate::client::mock::connection_manager::unlimited_muts;
+use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{Authority, ClientError, MutableData as OldMutableData};
+use routing::{Authority, ClientError};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
     Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction, MDataAddress,
     MDataKind, Message, PublicId, PublicKey, Request, Response, Result as SndResult, SeqAppendOnly,
     Transaction, UnseqAppendOnly, XorName,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs::{File, OpenOptions};
@@ -33,15 +35,11 @@ use std::time::SystemTime;
 #[derive(Clone, Deserialize, Serialize)]
 pub enum Data {
     Immutable(IData),
-    OldMutable(OldMutableData),
-    NewMutable(MData),
+    Mutable(MData),
     AppendOnly(AData),
 }
 
 const FILE_NAME: &str = "SCL-Mock";
-lazy_static! {
-    pub static ref COST_OF_PUT: Coins = unwrap!(Coins::from_nano(1));
-}
 
 pub struct Vault {
     cache: Cache,
@@ -247,11 +245,6 @@ impl Vault {
         self.cache.coin_balances.get_mut(name)
     }
 
-    // Get the config for this vault.
-    pub fn config(&self) -> Config {
-        self.config.clone()
-    }
-
     // Create account for the given client manager name.
     pub fn insert_account(&mut self, name: XorName) {
         let _ = self
@@ -269,21 +262,6 @@ impl Vault {
 
     pub fn get_login_packet(&self, name: &XorName) -> Option<&LoginPacket> {
         self.cache.login_packets.get(name)
-    }
-
-    // Authorise read (non-mutation) operation.
-    pub fn authorise_read(
-        &self,
-        dst: &Authority<XorName>,
-        data_name: &XorName,
-    ) -> Result<(), ClientError> {
-        match *dst {
-            Authority::NaeManager(name) if name == *data_name => Ok(()),
-            x => {
-                debug!("Unexpected authority for read: {:?}", x);
-                Err(ClientError::InvalidOperation)
-            }
-        }
     }
 
     /// Instantly creates new balance.
@@ -781,7 +759,7 @@ impl Vault {
                 } else {
                     self.put_data(
                         DataId::Mutable(address),
-                        Data::NewMutable(data.clone()),
+                        Data::Mutable(data.clone()),
                         requester,
                     )
                 };
@@ -913,7 +891,7 @@ impl Vault {
 
                         let data_name = DataId::Mutable(address);
                         data.set_user_permissions(user, permissions, version)?;
-                        self.insert_data(data_name, Data::NewMutable(data));
+                        self.insert_data(data_name, Data::Mutable(data));
                         self.commit_mutation(requester.name());
 
                         Ok(())
@@ -936,7 +914,7 @@ impl Vault {
 
                         let data_name = DataId::Mutable(address);
                         data.del_user_permissions(user, version)?;
-                        self.insert_data(data_name, Data::NewMutable(data));
+                        self.insert_data(data_name, Data::Mutable(data));
                         self.commit_mutation(requester.name());
 
                         Ok(())
@@ -982,7 +960,7 @@ impl Vault {
 
                             let data_name = DataId::Mutable(address);
                             data.mutate_entries(actions.clone(), requester_pk)?;
-                            self.insert_data(data_name, Data::NewMutable(data));
+                            self.insert_data(data_name, Data::Mutable(data));
                             self.commit_mutation(requester.name());
 
                             Ok(())
@@ -1345,7 +1323,7 @@ impl Vault {
     ) -> SndResult<MData> {
         match self.get_data(&DataId::Mutable(address)) {
             Some(data_type) => match data_type {
-                Data::NewMutable(data) => {
+                Data::Mutable(data) => {
                     check_perms_mdata(&data, &request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),

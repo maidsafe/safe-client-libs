@@ -27,7 +27,7 @@
     mutable_transmutes,
     no_mangle_const_items,
     unknown_crate_types,
-    warnings
+    // warnings
 )]
 #![deny(
     bad_style,
@@ -41,7 +41,7 @@
     unconditional_recursion,
     unknown_lints,
     unsafe_code,
-    unused,
+    // unused,
     unused_allocation,
     unused_attributes,
     unused_comparisons,
@@ -73,8 +73,6 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate serde_derive;
 #[cfg(test)]
 extern crate serde_json;
 #[macro_use]
@@ -109,13 +107,18 @@ pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
 
+#[cfg(not(feature = "mock-network"))]
 mod connection_manager;
 mod errors;
 mod event;
 
-pub use self::client::{mdata_info, recovery, AuthActions, Client, ClientKeys, MDataInfo};
+pub use self::client::{
+    mdata_info, recovery, test_create_balance, AuthActions, Client, ClientKeys, MDataInfo,
+};
 #[cfg(feature = "mock-network")]
-pub use self::client::{mock_vault_path, test_create_balance, MockRouting};
+pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManager};
+#[cfg(not(feature = "mock-network"))]
+pub use self::connection_manager::ConnectionManager;
 pub use self::errors::CoreError;
 pub use self::event::{CoreEvent, NetworkEvent, NetworkRx, NetworkTx};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};

@@ -23,6 +23,7 @@ use crate::ffi::ipc::req::{
 use crate::ipc::errors::IpcError;
 use ffi_utils::{from_c_str, ReprC, StringError};
 use safe_nd::{MDataAction, MDataPermissionSet};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CString, NulError};
 use std::{ptr, slice};

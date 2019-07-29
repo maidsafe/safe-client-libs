@@ -19,7 +19,6 @@ use safe_authenticator::test_utils;
 use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::{gen_req_id, AuthGranted, Permission};
-use safe_core::Client;
 use std::collections::HashMap;
 use App;
 

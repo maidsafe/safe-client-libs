@@ -20,7 +20,7 @@
     mutable_transmutes,
     no_mangle_const_items,
     unknown_crate_types,
-    warnings
+    // warnings
 )]
 #![deny(
     bad_style,
@@ -33,7 +33,7 @@
     stable_features,
     unconditional_recursion,
     unknown_lints,
-    unused,
+    // unused,
     unused_allocation,
     unused_attributes,
     unused_comparisons,
@@ -64,8 +64,6 @@
 extern crate ffi_utils;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate serde_derive;
 #[macro_use]
 extern crate safe_core;
 #[macro_use]
@@ -106,7 +104,7 @@ use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::thread::{self, Joiner};
 #[cfg(feature = "mock-network")]
-use safe_core::MockRouting;
+use safe_core::ConnectionManager;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
 use std::sync::mpsc as std_mpsc;
 use std::sync::mpsc::sync_channel;
@@ -390,11 +388,11 @@ impl Authenticator {
         password: S,
         balance_sk: threshold_crypto::SecretKey,
         disconnect_notifier: N,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
         N: FnMut() + Send + 'static,
-        F: Fn(MockRouting) -> MockRouting + Send + 'static,
+        F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
         S: Into<String>,
     {
         let locator = locator.into();
@@ -409,7 +407,7 @@ impl Authenticator {
                     el_h,
                     core_tx_clone,
                     net_tx,
-                    routing_wrapper_fn,
+                    connection_manager_wrapper_fn,
                 )
             },
             disconnect_notifier,
@@ -421,11 +419,11 @@ impl Authenticator {
         locator: S,
         password: S,
         disconnect_notifier: N,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
         S: Into<String>,
-        F: Fn(MockRouting) -> MockRouting + Send + 'static,
+        F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
         N: FnMut() + Send + 'static,
     {
         let locator = locator.into();
@@ -439,7 +437,7 @@ impl Authenticator {
                     el_h,
                     core_tx,
                     net_tx,
-                    routing_wrapper_fn,
+                    connection_manager_wrapper_fn,
                 )
             },
             disconnect_notifier,

@@ -10,6 +10,7 @@ use super::{containers_from_repr_c, containers_into_vec, AppExchangeInfo, Contai
 use crate::ffi::ipc::req as ffi;
 use crate::ipc::errors::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Containers request

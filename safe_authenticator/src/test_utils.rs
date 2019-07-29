@@ -12,9 +12,11 @@ use crate::client::AuthClient;
 use crate::errors::AuthError;
 use crate::ipc::decode_ipc_msg;
 use crate::{access_container, app_auth, config, revocation, run, Authenticator};
+use env_logger::{fmt::Formatter, Builder as LoggerBuilder};
 use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
+use log::Record;
 use rand::{self, Rng};
 use routing::XorName;
 use safe_core::client::{test_create_balance, Client};
@@ -33,12 +35,13 @@ use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::{File, Mode};
 use safe_core::utils::test_utils::setup_client_with_net_obs;
 #[cfg(feature = "mock-network")]
-use safe_core::MockRouting;
+use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
 use safe_nd::{Coins, PublicKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
+use std::io::Write;
 use std::os::raw::{c_char, c_void};
 use std::slice;
 use std::str::FromStr;
@@ -65,6 +68,26 @@ pub enum Payload {
 
 /// Channel type.
 pub type ChannelType = Result<(IpcMsg, Option<Payload>), (i32, Option<IpcMsg>)>;
+
+/// Initialise `env_logger` with custom settings.
+pub fn init_log() {
+    let do_format = move |formatter: &mut Formatter, record: &Record<'_>| {
+        let now = formatter.timestamp();
+        writeln!(
+            formatter,
+            "{} {} [{}:{}] {}",
+            formatter.default_styled_level(record.level()),
+            now,
+            record.file().unwrap_or_default(),
+            record.line().unwrap_or_default(),
+            record.args()
+        )
+    };
+    let _ = LoggerBuilder::from_default_env()
+        .format(do_format)
+        .is_test(true)
+        .try_init();
+}
 
 /// Creates a new random account for authenticator. Returns the `Authenticator`
 /// instance and the locator and password strings.
@@ -93,6 +116,7 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
 pub fn create_account_and_login() -> Authenticator {
     let (_, locator, password) = create_authenticator();
 
+    trace!("Created an account with random login and password, logging in");
     unwrap!(Authenticator::login(locator, password, || ()))
 }
 
@@ -118,7 +142,7 @@ pub fn revoke(authenticator: &Authenticator, app_id: &str) {
 #[cfg(all(any(test, feature = "testing"), feature = "mock-network"))]
 pub fn create_account_and_login_with_hook<F>(hook: F) -> Authenticator
 where
-    F: Fn(MockRouting) -> MockRouting + Send + 'static,
+    F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
 {
     let (_, locator, password) = create_authenticator();
     unwrap!(Authenticator::login_with_hook(
@@ -166,6 +190,7 @@ pub fn register_app(
 
     let auth_req = auth_req.clone();
     run(authenticator, move |client| {
+        trace!("Authenticating app: {:?}", auth_req);
         app_auth::authenticate(client, auth_req)
     })
 }
@@ -521,7 +546,10 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
 
     let ret = match rx.recv_timeout(Duration::from_secs(30)) {
         Ok(r) => r,
-        Err(_) => Err((-1, None)),
+        Err(e) => {
+            error!("auth_decode_ipc_msg_helper: {:?}", e);
+            Err((-1, None))
+        }
     };
     drop(tx);
     ret

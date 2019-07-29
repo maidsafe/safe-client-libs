@@ -11,36 +11,22 @@ pub mod vault;
 mod account;
 #[macro_use]
 mod routing;
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
+mod connection_manager;
 
-pub use self::account::{Account, CoinBalance, DEFAULT_MAX_MUTATIONS};
-pub use self::routing::{NewFullId, RequestHookFn, Routing};
-
-use ::routing::XorName;
+pub use self::account::{Account, CoinBalance};
+pub use self::connection_manager::{ConnectionManager, RequestHookFn};
 use safe_nd::{ADataAddress, IDataAddress, MDataAddress};
+use serde::{Deserialize, Serialize};
 
 /// Identifier for a data.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub enum DataId {
-    /// Identifier of old mutable data.
-    OldMutable { name: XorName, tag: u64 },
     /// Identifier of immutable data.
     Immutable(IDataAddress),
     /// Identifier of mutable data.
     Mutable(MDataAddress),
     /// Identifier of appendonly data.
     AppendOnly(ADataAddress),
-}
-
-impl DataId {
-    /// Get name of this identifier.
-    pub fn name(&self) -> &XorName {
-        match *self {
-            DataId::OldMutable { ref name, .. } => name,
-            DataId::Immutable(ref address) => address.name(),
-            DataId::Mutable(ref address) => address.name(),
-            DataId::AppendOnly(ref address) => address.name(),
-        }
-    }
 }
