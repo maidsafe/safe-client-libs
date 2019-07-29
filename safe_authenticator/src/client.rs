@@ -903,4 +903,62 @@ mod tests {
                 })
         })
     }
+
+    // Create a login packet using some credentials and pass the login packet to a client
+    // who stores it on the network and creates a wallet for it.
+    // Now calling login using the same credentials should succeed and we must be able to fetch the balance.
+    #[test]
+    fn create_login_packet_for_test() {
+        let sec_0 = unwrap!(utils::generate_random_string(10));
+        let sec_1 = unwrap!(utils::generate_random_string(10));
+
+        let acc_locator: &[u8] = sec_0.as_bytes();
+        let acc_password: &[u8] = sec_1.as_bytes();
+
+        let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
+
+        let acc_loc = unwrap!(Account::generate_network_id(&keyword, &pin));
+
+        let maid_keys = ClientKeys::new(None);
+        let acc = unwrap!(Account::new(maid_keys.clone()));
+
+        let acc_ciphertext = unwrap!(acc.encrypt(&password, &pin));
+
+        let client_full_id = create_client_id(acc_locator, acc_password);
+
+        let sig = client_full_id.sign(&acc_ciphertext);
+        let client_pk = client_full_id.public_id().public_key().clone();
+        let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
+        let five_coins = unwrap!(Coins::from_str("5"));
+
+        // Create a client which has a pre-loaded balance and use it to store the login packet on the network
+        random_client(move |client| {
+            client
+                .insert_login_packet_for(
+                    None,
+                    maid_keys.bls_pk.into(),
+                    five_coins,
+                    None,
+                    new_login_packet,
+                )
+                .then(|result| match result {
+                    Ok(()) => Ok::<_, CoreError>(()),
+                    res => panic!("Unexpected {:?}", res),
+                })
+        });
+
+        setup_client(
+            &(),
+            |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
+            move |client| {
+                client.get_balance(None).then(move |result| {
+                    match result {
+                        Ok(balance) => assert_eq!(balance, five_coins),
+                        res => panic!("Unexpected {:?}", res),
+                    }
+                    Ok::<_, CoreError>(())
+                })
+            },
+        );
+    }
 }
