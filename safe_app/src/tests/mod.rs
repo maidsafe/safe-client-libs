@@ -12,8 +12,8 @@ mod mutable_data;
 mod unpublished_mutable_data;
 
 use crate::ffi::test_utils::test_create_app_with_access;
+use crate::test_utils::{create_app, create_random_auth_req, gen_app_exchange_info};
 use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access};
-use crate::test_utils::{create_random_auth_req, gen_app_exchange_info};
 use crate::{run, App, AppError};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
@@ -31,7 +31,8 @@ use safe_core::MockRouting;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
-    PubImmutableData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData, XorName,
+    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
+    XorName,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -335,6 +336,99 @@ fn unregistered_client() {
                             res => panic!("Unexpected result {:?}", res),
                         }
                         Ok(())
+                    })
+            })
+    }));
+}
+
+// Verify that published data can be accessed by both unregistered clients and clients that are not in the permission set
+#[test]
+fn published_data_access() {
+    let name: XorName = new_rand::random();
+    let tag = 15002;
+    let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
+    let pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
+    let pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
+    // Create a random client and store some data
+    {
+        let pub_idata = pub_idata.clone();
+        let mut pub_seq_adata = pub_seq_adata.clone();
+        let mut pub_unseq_adata = pub_unseq_adata.clone();
+        random_client(|client| {
+            let owner = ADataOwner {
+                public_key: unwrap!(client.owner_key()),
+                entries_index: 0,
+                permissions_index: 0,
+            };
+            unwrap!(pub_seq_adata.append_owner(owner, 0));
+            unwrap!(pub_unseq_adata.append_owner(owner, 0));
+            let client2 = client.clone();
+            let client3 = client.clone();
+            client
+                .put_pub_idata(pub_idata)
+                .and_then(move |_| client2.put_adata(pub_seq_adata.into()))
+                .and_then(move |_| client3.put_adata(pub_unseq_adata.into()))
+        });
+    }
+
+    let pub_seq_adata_addr = ADataAddress::PubSeq { name, tag };
+    let pub_unseq_adata_addr = ADataAddress::UnpubSeq { name, tag };
+
+    // Unregistered apps should be able to read the data
+    {
+        let pub_idata = pub_idata.clone();
+        let app = unwrap!(App::unregistered(|| (), None));
+        unwrap!(run(&app, move |client, _context| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+
+            client
+                .get_pub_idata(*pub_idata.name())
+                .map_err(AppError::from)
+                .and_then(move |data| {
+                    assert_eq!(data, pub_idata);
+                    client2
+                        .get_adata(pub_unseq_adata_addr)
+                        .map_err(AppError::from)
+                        .map(move |data| {
+                            assert_eq!(*data.address(), pub_unseq_adata_addr);
+                        })
+                })
+                .then(move |_| {
+                    client3
+                        .get_adata(pub_seq_adata_addr)
+                        .map_err(AppError::from)
+                        .map(move |data| {
+                            assert_eq!(*data.address(), pub_seq_adata_addr);
+                        })
+                })
+        }));
+    }
+
+    // Apps authorised by a different client be able to read the data too
+    let app = create_app();
+    unwrap!(run(&app, move |client, _context| {
+        let client2 = client.clone();
+        let client3 = client.clone();
+
+        client
+            .get_pub_idata(*pub_idata.name())
+            .map_err(AppError::from)
+            .and_then(move |data| {
+                assert_eq!(data, pub_idata);
+                client2
+                    .get_adata(pub_unseq_adata_addr)
+                    .map_err(AppError::from)
+                    .map(move |data| {
+                        assert_eq!(*data.address(), pub_unseq_adata_addr);
+                    })
+            })
+            .then(move |_| {
+                client3
+                    .get_adata(pub_seq_adata_addr)
+                    .map_err(AppError::from)
+                    .map(move |data| {
+                        assert_eq!(*data.address(), pub_seq_adata_addr);
                     })
             })
     }));
