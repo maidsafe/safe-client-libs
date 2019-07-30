@@ -35,8 +35,8 @@ pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
 /// Function that is used to modify responses before they are sent.
 pub type ResponseHookFn = FnMut(Response) -> Response + 'static;
 
-const CONNECT_THREAD_NAME: &str = "Mock routing connect";
-const DELAY_THREAD_NAME: &str = "Mock routing delay";
+const CONNECT_THREAD_NAME: &str = "Mock network connect";
+const DELAY_THREAD_NAME: &str = "Mock network delay";
 
 const DEFAULT_DELAY_MS: u64 = 0;
 const CONNECT_DELAY_MS: u64 = DEFAULT_DELAY_MS;
@@ -120,11 +120,21 @@ pub enum NewFullId {
 }
 
 impl NewFullId {
-    /// Signs a given message using the App / Client full id as required
+    /// Sign a given message using the App / Client full id as required.
     pub fn sign(&self, msg: &[u8]) -> Signature {
         match self {
             NewFullId::App(app_full_id) => app_full_id.sign(msg),
             NewFullId::Client(client_full_id) => client_full_id.sign(msg),
+        }
+    }
+
+    /// Return a corresponding public ID.
+    pub fn public_id(&self) -> PublicId {
+        match self {
+            NewFullId::App(app_full_id) => PublicId::App(app_full_id.public_id().clone()),
+            NewFullId::Client(client_full_id) => {
+                PublicId::Client(client_full_id.public_id().clone())
+            }
         }
     }
 }

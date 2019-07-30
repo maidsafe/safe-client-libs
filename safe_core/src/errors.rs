@@ -67,6 +67,8 @@ pub enum CoreError {
     ConfigError(config_file_handler::Error),
     /// Io error.
     IoError(io::Error),
+    /// QuicP2p error.
+    QuicP2p(quic_p2p::Error),
 }
 
 impl<'a> From<&'a str> for CoreError {
@@ -142,8 +144,14 @@ impl From<config_file_handler::Error> for CoreError {
 }
 
 impl From<io::Error> for CoreError {
-    fn from(error: io::Error) -> CoreError {
+    fn from(error: io::Error) -> Self {
         CoreError::IoError(error)
+    }
+}
+
+impl From<quic_p2p::Error> for CoreError {
+    fn from(error: quic_p2p::Error) -> Self {
+        CoreError::QuicP2p(error)
     }
 }
 
@@ -203,6 +211,7 @@ impl Debug for CoreError {
                 write!(formatter, "CoreError::ConfigError -> {:?}", error)
             }
             CoreError::IoError(ref error) => write!(formatter, "CoreError::IoError -> {:?}", error),
+            CoreError::QuicP2p(ref error) => write!(formatter, "CoreError::QuicP2p -> {:?}", error),
         }
     }
 }
@@ -265,6 +274,7 @@ impl Display for CoreError {
             CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
             CoreError::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
             CoreError::IoError(ref error) => write!(formatter, "Io error: {}", error),
+            CoreError::QuicP2p(ref error) => write!(formatter, "QuicP2P error: {}", error),
         }
     }
 }
@@ -296,6 +306,7 @@ impl StdError for CoreError {
             CoreError::RequestTimeout => "Request has timed out",
             CoreError::ConfigError(ref error) => error.description(),
             CoreError::IoError(ref error) => error.description(),
+            CoreError::QuicP2p(ref error) => error.description(),
         }
     }
 
@@ -307,6 +318,7 @@ impl StdError for CoreError {
             // CoreError::RoutingInterfaceError(ref err) => Some(err),
             CoreError::RoutingClientError(ref err) => Some(err),
             CoreError::SelfEncryption(ref err) => Some(err),
+            CoreError::QuicP2p(ref err) => Some(err),
             _ => None,
         }
     }

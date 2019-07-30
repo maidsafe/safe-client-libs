@@ -125,11 +125,13 @@ mod codes {
     pub const ERR_BALANCE_EXISTS: i32 = -4005;
     pub const ERR_NO_SUCH_BALANCE: i32 = -4006;
 
-    // Login packet errors
+    // Login packet errors.
     pub const ERR_EXCEEDED_SIZE: i32 = -5001;
     pub const ERR_NO_SUCH_LOGIN_PACKET: i32 = -5002;
     pub const ERR_LOGIN_PACKET_EXISTS: i32 = -5003;
 
+    // QuicP2P errors.
+    pub const ERR_QUIC_P2P: i32 = -6000;
 }
 
 /// App error.
@@ -467,6 +469,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::ExceededSize => ERR_EXCEEDED_SIZE,
             SndError::InvalidPermissions => ERR_INVALID_PERMISSIONS,
         },
+        CoreError::QuicP2p(ref _err) => ERR_QUIC_P2P, // FIXME: use proper error codes
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,

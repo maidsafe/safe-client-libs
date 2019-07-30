@@ -113,6 +113,9 @@ mod codes {
     pub const ERR_EXCEEDED_SIZE: i32 = -5001;
     pub const ERR_NO_SUCH_LOGIN_PACKET: i32 = -5002;
     pub const ERR_LOGIN_PACKET_EXISTS: i32 = -5003;
+
+    // Quic P2P errors.
+    pub const ERR_QUIC_P2P: i32 = -6000;
 }
 
 /// Authenticator errors.
@@ -367,6 +370,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
         },
         CoreError::NewRoutingClientError(ref err) => safe_nd_error_core(err),
+        CoreError::QuicP2p(ref _err) => ERR_QUIC_P2P, // FIXME: use proper error codes
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,
