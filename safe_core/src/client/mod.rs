@@ -57,7 +57,7 @@ use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPubPermissionSet, ADataPubPermissions, ADataUnpubPermissionSet,
     ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, ClientPublicId, Coins,
-    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress,
+    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataEntryActions,
     MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
     MDataValue as Val, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request,
     Response, SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData,
@@ -601,9 +601,9 @@ pub trait Client: Clone + 'static {
 
         send_mutation_new(
             self,
-            Request::MutateSeqMDataEntries {
+            Request::MutateMDataEntries {
                 address: MDataAddress::Seq { name, tag },
-                actions,
+                actions: MDataEntryActions::Seq(actions),
             },
         )
     }
@@ -619,9 +619,9 @@ pub trait Client: Clone + 'static {
 
         send_mutation_new(
             self,
-            Request::MutateUnseqMDataEntries {
+            Request::MutateMDataEntries {
                 address: MDataAddress::Unseq { name, tag },
-                actions,
+                actions: MDataEntryActions::Unseq(actions),
             },
         )
     }

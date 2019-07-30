@@ -162,7 +162,7 @@ fn check_perms_mdata(
             data.check_permissions(MDataAction::ManagePermissions, requester)
         }
 
-        Request::MutateSeqMDataEntries { .. } | Request::MutateUnseqMDataEntries { .. } => Ok(()),
+        Request::MutateMDataEntries { .. } => Ok(()),
 
         Request::DeleteMData { .. } => data.check_is_owner(requester),
 
@@ -962,49 +962,23 @@ impl Vault {
                     });
                 Response::ListMDataPermissions(result)
             }
-            Request::MutateSeqMDataEntries {
-                address,
-                ref actions,
-            } => {
-                let result = self
-                    .get_mdata(address, requester_pk, request.clone())
-                    .and_then(move |data| {
-                        let address = *data.address();
-                        let data_name = DataId::Mutable(address);
-                        match data.clone() {
-                            MData::Seq(mut mdata) => {
-                                mdata.mutate_entries(actions.clone(), requester_pk)?;
-                                self.insert_data(data_name, Data::NewMutable(MData::Seq(mdata)));
-                                self.commit_mutation(requester.name());
-                                Ok(())
-                            }
-                            MData::Unseq(_) => Err(SndError::NoSuchData),
-                        }
-                    });
-                Response::Mutation(result)
-            }
-            Request::MutateUnseqMDataEntries {
+            Request::MutateMDataEntries {
                 address,
                 ref actions,
             } => {
                 let request = request.clone();
                 let actions = actions.clone();
 
-                let result = self
-                    .get_mdata(address, requester_pk, request)
-                    .and_then(move |data| {
-                        let address = *data.address();
-                        let data_name = DataId::Mutable(address);
-                        match data.clone() {
-                            MData::Unseq(mut mdata) => {
-                                mdata.mutate_entries(actions.clone(), requester_pk)?;
-                                self.insert_data(data_name, Data::NewMutable(MData::Unseq(mdata)));
-                                self.commit_mutation(requester.name());
-                                Ok(())
-                            }
-                            MData::Seq(_) => Err(SndError::NoSuchData),
-                        }
-                    });
+                let result =
+                    self.get_mdata(address, requester_pk, request)
+                        .and_then(move |mut data| {
+                            let address = *data.address();
+                            let data_name = DataId::Mutable(address);
+                            data.mutate_entries(actions.clone(), requester_pk)?;
+                            self.insert_data(data_name, Data::NewMutable(data));
+                            self.commit_mutation(requester.name());
+                            Ok(())
+                        });
                 Response::Mutation(result)
             }
             //
