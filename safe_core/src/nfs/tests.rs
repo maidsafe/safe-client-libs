@@ -590,8 +590,7 @@ fn file_delete_then_add() {
             })
             .then(move |res| {
                 let (file, dir) = unwrap!(res);
-                file_helper::update(c4, dir.clone(), "hello.txt", &file, Version::GetNext)
-                    .map(move |_| dir)
+                file_helper::insert(c4, dir.clone(), "hello.txt", &file).map(move |_| dir)
             })
             .then(move |res| {
                 let dir = unwrap!(res);
@@ -600,7 +599,7 @@ fn file_delete_then_add() {
             })
             .then(move |res| {
                 let (version, file, dir) = unwrap!(res);
-                assert_eq!(version, 2);
+                assert_eq!(version, 0);
                 file_helper::read(c6, &file, dir.enc_key().cloned())
             })
             .then(move |res| {

@@ -13,10 +13,8 @@ use crate::event_loop::CoreFuture;
 use crate::utils::FutureExt;
 use futures::future::{self, Either, Loop};
 use futures::Future;
-use routing::{
-    Action, ClientError, EntryAction, EntryError, MutableData, PermissionSet, User, Value,
-};
-use safe_nd::{AppPermissions, PublicKey, XorName};
+use routing::{Action, EntryAction, MutableData, PermissionSet, User, Value};
+use safe_nd::{AppPermissions, EntryError as SndEntryError, Error as SndError, PublicKey, XorName};
 use std::collections::BTreeMap;
 
 const MAX_ATTEMPTS: usize = 10;
@@ -32,7 +30,7 @@ pub fn put_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>>
     client
         .put_mdata(data.clone())
         .or_else(move |error| match error {
-            CoreError::RoutingClientError(ClientError::DataExists) => {
+            CoreError::NewRoutingClientError(SndError::DataExists) => {
                 Either::A(update_mdata(&client2, data))
             }
             error => Either::B(future::err(error)),
@@ -55,13 +53,13 @@ pub fn mutate_mdata_entries(
             .mutate_mdata_entries(name, tag, actions.clone())
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::RoutingClientError(ClientError::InvalidEntryActions(errors)) => {
+                CoreError::NewRoutingClientError(SndError::InvalidEntryActions(errors)) => {
                     if attempts < MAX_ATTEMPTS {
                         let actions = fix_entry_actions(actions, &errors);
                         Ok(Loop::Continue((attempts + 1, actions)))
                     } else {
-                        Err(CoreError::RoutingClientError(
-                            ClientError::InvalidEntryActions(errors),
+                        Err(CoreError::NewRoutingClientError(
+                            SndError::InvalidEntryActions(errors),
                         ))
                     }
                 }
@@ -95,7 +93,7 @@ pub fn set_mdata_user_permissions(
             .set_mdata_user_permissions(name, tag, user, permissions, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::RoutingClientError(ClientError::InvalidSuccessor(current_version)) => {
+                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -131,8 +129,8 @@ pub fn del_mdata_user_permissions(
             .del_mdata_user_permissions(name, tag, user, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::RoutingClientError(ClientError::NoSuchKey) => Ok(Loop::Break(())),
-                CoreError::RoutingClientError(ClientError::InvalidSuccessor(current_version)) => {
+                CoreError::NewRoutingClientError(SndError::NoSuchKey) => Ok(Loop::Break(())),
+                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -245,7 +243,7 @@ fn update_mdata_permissions(
 // Modify the given entry actions to fix the entry errors.
 fn fix_entry_actions(
     actions: BTreeMap<Vec<u8>, EntryAction>,
-    errors: &BTreeMap<Vec<u8>, EntryError>,
+    errors: &BTreeMap<Vec<u8>, SndEntryError>,
 ) -> BTreeMap<Vec<u8>, EntryAction> {
     actions
         .into_iter()
@@ -263,19 +261,19 @@ fn fix_entry_actions(
         .collect()
 }
 
-fn fix_entry_action(action: EntryAction, error: &EntryError) -> Option<EntryAction> {
-    match (action, *error) {
-        (EntryAction::Ins(value), EntryError::EntryExists(current_version))
-        | (EntryAction::Update(value), EntryError::InvalidSuccessor(current_version)) => {
+fn fix_entry_action(action: EntryAction, error: &SndEntryError) -> Option<EntryAction> {
+    match (action, error.clone()) {
+        (EntryAction::Ins(value), SndEntryError::EntryExists(current_version))
+        | (EntryAction::Update(value), SndEntryError::InvalidSuccessor(current_version)) => {
             Some(EntryAction::Update(Value {
                 content: value.content,
-                entry_version: current_version + 1,
+                entry_version: (current_version + 1).into(),
             }))
         }
-        (EntryAction::Update(value), EntryError::NoSuchEntry) => Some(EntryAction::Ins(value)),
-        (EntryAction::Del(_), EntryError::NoSuchEntry) => None,
-        (EntryAction::Del(_), EntryError::InvalidSuccessor(current_version)) => {
-            Some(EntryAction::Del(current_version + 1))
+        (EntryAction::Update(value), SndEntryError::NoSuchEntry) => Some(EntryAction::Ins(value)),
+        (EntryAction::Del(_), SndEntryError::NoSuchEntry) => None,
+        (EntryAction::Del(_), SndEntryError::InvalidSuccessor(current_version)) => {
+            Some(EntryAction::Del((current_version + 1).into()))
         }
         (action, _) => Some(action),
     }
@@ -314,7 +312,7 @@ pub fn ins_auth_key(
             .ins_auth_key(key, permissions, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::RoutingClientError(ClientError::InvalidSuccessor(current_version)) => {
+                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -382,11 +380,11 @@ mod tests {
         let _ = actions.insert(vec![7], EntryAction::Del(1));
 
         let mut errors = BTreeMap::new();
-        let _ = errors.insert(vec![1], EntryError::EntryExists(2));
-        let _ = errors.insert(vec![3], EntryError::NoSuchEntry);
-        let _ = errors.insert(vec![4], EntryError::InvalidSuccessor(2));
-        let _ = errors.insert(vec![6], EntryError::NoSuchEntry);
-        let _ = errors.insert(vec![7], EntryError::InvalidSuccessor(2));
+        let _ = errors.insert(vec![1], SndEntryError::EntryExists(2));
+        let _ = errors.insert(vec![3], SndEntryError::NoSuchEntry);
+        let _ = errors.insert(vec![4], SndEntryError::InvalidSuccessor(2));
+        let _ = errors.insert(vec![6], SndEntryError::NoSuchEntry);
+        let _ = errors.insert(vec![7], SndEntryError::InvalidSuccessor(2));
 
         let actions = fix_entry_actions(actions, &errors);
 
@@ -496,8 +494,9 @@ mod tests_with_mock_routing {
                     entry_version: 0,
                 }
             ];
+            let random_key = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
             let permissions = btree_map![
-                User::Anyone => PermissionSet::new().allow(Action::Insert)
+                User::Key(random_key) => PermissionSet::new().allow(Action::Insert)
             ];
             let data0 = unwrap!(MutableData::new(
                 name,
@@ -523,10 +522,9 @@ mod tests_with_mock_routing {
             ];
 
             let bls_sk = threshold_crypto::SecretKey::random();
-            let user = User::Key(PublicKey::Bls(bls_sk.public_key()));
+            let user = User::Key(PublicKey::from(bls_sk.public_key()));
 
             let permissions = btree_map![
-                User::Anyone => PermissionSet::new().allow(Action::Insert).allow(Action::Update),
                 user => PermissionSet::new().allow(Action::Delete)
             ];
 
@@ -565,12 +563,6 @@ mod tests_with_mock_routing {
                 .then(move |res| {
                     let permissions = unwrap!(res);
                     assert_eq!(permissions.len(), 2);
-                    assert_eq!(
-                        *unwrap!(permissions.get(&User::Anyone)),
-                        PermissionSet::new()
-                            .allow(Action::Insert)
-                            .allow(Action::Update)
-                    );
                     assert_eq!(
                         *unwrap!(permissions.get(&user)),
                         PermissionSet::new().allow(Action::Delete)
@@ -645,7 +637,7 @@ mod tests_with_mock_routing {
                 })
                 .then(move |res| {
                     let entries = unwrap!(res);
-                    assert_eq!(entries.len(), 7);
+                    assert_eq!(entries.len(), 5);
 
                     assert_eq!(
                         *unwrap!(entries.get([0].as_ref())),
@@ -682,21 +674,7 @@ mod tests_with_mock_routing {
                             entry_version: 1,
                         }
                     );
-                    assert_eq!(
-                        *unwrap!(entries.get([5].as_ref())),
-                        Value {
-                            content: vec![],
-                            entry_version: 1,
-                        }
-                    );
                     assert!(entries.get([6].as_ref()).is_none());
-                    assert_eq!(
-                        *unwrap!(entries.get([7].as_ref())),
-                        Value {
-                            content: vec![],
-                            entry_version: 1,
-                        }
-                    );
 
                     Ok::<_, CoreError>(())
                 })
@@ -755,7 +733,7 @@ mod tests_with_mock_routing {
                 })
                 .then(move |res| {
                     match res {
-                        Err(CoreError::RoutingClientError(ClientError::NoSuchKey)) => (),
+                        Err(CoreError::NewRoutingClientError(SndError::NoSuchKey)) => (),
                         x => panic!("Unexpected {:?}", x),
                     }
 

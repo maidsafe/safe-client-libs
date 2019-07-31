@@ -14,7 +14,7 @@ use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{ClientError, EntryActions};
+use routing::EntryActions;
 
 /// Enum specifying which version should be used in places where a version is required.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -207,7 +207,7 @@ pub fn write<C: Client>(
 // TODO:  consider performing such conversion directly in the mentioned `impl From`.
 fn convert_error(err: CoreError) -> NfsError {
     match err {
-        CoreError::RoutingClientError(ClientError::NoSuchEntry) => NfsError::FileNotFound,
+        CoreError::NewRoutingClientError(safe_nd::Error::NoSuchEntry) => NfsError::FileNotFound,
         _ => NfsError::from(err),
     }
 }

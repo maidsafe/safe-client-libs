@@ -1450,6 +1450,12 @@ impl Vault {
             _ => return Err(SndError::AccessDenied),
         }
         if self.contains_data(&data_name) {
+            // Published Immutable Data is de-duplicated
+            if let DataId::Immutable(addr) = data_name {
+                if let IDataAddress::Pub(_) = addr {
+                    return Ok(());
+                }
+            }
             Err(SndError::DataExists)
         } else {
             self.insert_data(data_name, data);

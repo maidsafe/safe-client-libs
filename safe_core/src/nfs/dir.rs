@@ -11,7 +11,8 @@ use crate::errors::CoreError;
 use crate::nfs::{NfsError, NfsFuture};
 use crate::utils::FutureExt;
 use futures::Future;
-use routing::{ClientError, MutableData, PermissionSet, User, Value};
+use routing::{MutableData, PermissionSet, User, Value};
+use safe_nd::Error as SndError;
 use std::collections::BTreeMap;
 
 /// Create a new directory based on the provided `MDataInfo`.
@@ -34,7 +35,7 @@ pub fn create_dir(
         .or_else(move |err| {
             match err {
                 // This dir has been already created
-                CoreError::RoutingClientError(ClientError::DataExists) => Ok(()),
+                CoreError::NewRoutingClientError(SndError::DataExists) => Ok(()),
                 e => Err(e),
             }
         })

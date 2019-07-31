@@ -9,8 +9,11 @@
 use maidsafe_utilities::serialisation;
 use rand::{Rand, Rng};
 use rust_sodium::crypto::{box_, sign};
+pub use safe_nd::{
+    MDataAction, MDataPermissionSet, MDataSeqEntryAction, MDataSeqEntryActions, MDataValue,
+    SeqMutableData, XorName, XOR_NAME_LEN,
+};
 use safe_nd::{MessageId as MsgId, PubImmutableData, PublicKey};
-pub use safe_nd::{XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{
     btree_map::{BTreeMap, Entry},
@@ -20,6 +23,9 @@ use std::error::Error;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::mem;
 use tiny_keccak::sha3_256;
+
+#[macro_use]
+extern crate unwrap;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Copy, Deserialize, Debug, PartialEq, PartialOrd, Eq, Ord, Clone, Hash)]
@@ -216,10 +222,90 @@ pub struct MutableData {
     permissions: BTreeMap<User, PermissionSet>,
     /// Version should be increased for every change in MutableData fields
     /// except for data
-    version: u64,
+    pub version: u64,
     /// Contains a set of owners which are allowed to mutate permissions.
     /// Currently limited to one owner to disallow multisig.
     owners: BTreeSet<PublicKey>,
+}
+
+// Wrapper to wrap the old entries map for conversion
+pub struct OldEntries(pub BTreeMap<Vec<u8>, Value>);
+// Wrapper to wrap the old permissions map for conversion
+pub struct OldPermissions(pub BTreeMap<User, PermissionSet>);
+
+impl Into<SeqMutableData> for MutableData {
+    fn into(self) -> SeqMutableData {
+        SeqMutableData::new_with_data(
+            *self.name(),
+            self.tag(),
+            OldEntries(self.entries().clone()).into(),
+            OldPermissions(self.permissions().clone()).into(),
+            *unwrap!(self.owners().iter().next()),
+        )
+    }
+}
+
+impl From<SeqMutableData> for MutableData {
+    fn from(seq_mdata: SeqMutableData) -> Self {
+        let mut owner_set = BTreeSet::new();
+        owner_set.insert(seq_mdata.owners().clone());
+        let mut mdata = unwrap!(MutableData::new(
+            *seq_mdata.address().name(),
+            seq_mdata.address().tag(),
+            OldPermissions::from(seq_mdata.permissions().clone()).0,
+            OldEntries::from(seq_mdata.entries().clone()).0,
+            owner_set
+        ));
+        mdata.version = seq_mdata.version();
+        mdata
+    }
+}
+
+impl Into<BTreeMap<Vec<u8>, MDataValue>> for OldEntries {
+    fn into(self) -> BTreeMap<Vec<u8>, MDataValue> {
+        self.0
+            .into_iter()
+            .map(|(key, value)| (key, value.into()))
+            .collect()
+    }
+}
+
+impl From<BTreeMap<Vec<u8>, MDataValue>> for OldEntries {
+    fn from(entries: BTreeMap<Vec<u8>, MDataValue>) -> Self {
+        Self(
+            entries
+                .into_iter()
+                .map(|(key, value)| (key, value.into()))
+                .collect(),
+        )
+    }
+}
+
+impl Into<BTreeMap<PublicKey, MDataPermissionSet>> for OldPermissions {
+    fn into(self) -> BTreeMap<PublicKey, MDataPermissionSet> {
+        self.0
+            .into_iter()
+            .filter_map(|(user, permission_set)| {
+                if let User::Key(public_key) = user {
+                    Some((public_key, permission_set.into()))
+                } else {
+                    // User::Anyone is not supported
+                    None
+                }
+            })
+            .collect()
+    }
+}
+
+impl From<BTreeMap<PublicKey, MDataPermissionSet>> for OldPermissions {
+    fn from(permission_set: BTreeMap<PublicKey, MDataPermissionSet>) -> Self {
+        Self(
+            permission_set
+                .into_iter()
+                .map(|(key, permission_set)| (User::Key(key), permission_set.into()))
+                .collect(),
+        )
+    }
 }
 
 /// A value in `MutableData`
@@ -229,6 +315,24 @@ pub struct Value {
     pub content: Vec<u8>,
     /// Version of the entry.
     pub entry_version: u64,
+}
+
+impl Into<MDataValue> for Value {
+    fn into(self) -> MDataValue {
+        MDataValue {
+            data: self.content,
+            version: self.entry_version,
+        }
+    }
+}
+
+impl From<MDataValue> for Value {
+    fn from(value: MDataValue) -> Self {
+        Self {
+            content: value.data,
+            entry_version: value.version,
+        }
+    }
 }
 
 /// Subject of permissions
@@ -262,6 +366,46 @@ pub struct PermissionSet {
     update: Option<bool>,
     delete: Option<bool>,
     manage_permissions: Option<bool>,
+}
+
+impl Into<MDataPermissionSet> for PermissionSet {
+    fn into(self) -> MDataPermissionSet {
+        let actions = [
+            (Action::Insert, MDataAction::Insert),
+            (Action::Update, MDataAction::Update),
+            (Action::Delete, MDataAction::Delete),
+            (Action::ManagePermissions, MDataAction::ManagePermissions),
+        ];
+        actions
+            .iter()
+            .fold(MDataPermissionSet::new(), |new_set, action_pair| {
+                if self.is_allowed(action_pair.0) == Some(true) {
+                    new_set.allow(MDataAction::Read).allow(action_pair.1)
+                } else {
+                    new_set
+                }
+            })
+    }
+}
+
+impl From<MDataPermissionSet> for PermissionSet {
+    fn from(permission_set: MDataPermissionSet) -> Self {
+        let actions = [
+            (Action::Insert, MDataAction::Insert),
+            (Action::Update, MDataAction::Update),
+            (Action::Delete, MDataAction::Delete),
+            (Action::ManagePermissions, MDataAction::ManagePermissions),
+        ];
+        actions
+            .iter()
+            .fold(PermissionSet::new(), |old_set, action_pair| {
+                if permission_set.is_allowed(action_pair.1) {
+                    old_set.allow(action_pair.0)
+                } else {
+                    old_set
+                }
+            })
+    }
 }
 
 impl PermissionSet {
@@ -341,10 +485,20 @@ pub enum EntryAction {
     Del(u64),
 }
 
+impl Into<MDataSeqEntryAction> for EntryAction {
+    fn into(self) -> MDataSeqEntryAction {
+        match self {
+            EntryAction::Ins(val) => MDataSeqEntryAction::Ins(val.into()),
+            EntryAction::Update(val) => MDataSeqEntryAction::Update(val.into()),
+            EntryAction::Del(version) => MDataSeqEntryAction::Del(version),
+        }
+    }
+}
+
 /// Helper struct to build entry actions on `MutableData`
 #[derive(Debug, Default, Clone)]
 pub struct EntryActions {
-    actions: BTreeMap<Vec<u8>, EntryAction>,
+    pub actions: BTreeMap<Vec<u8>, EntryAction>,
 }
 
 impl EntryActions {
@@ -387,6 +541,21 @@ impl EntryActions {
 impl Into<BTreeMap<Vec<u8>, EntryAction>> for EntryActions {
     fn into(self) -> BTreeMap<Vec<u8>, EntryAction> {
         self.actions
+    }
+}
+
+impl Into<MDataSeqEntryActions> for EntryActions {
+    fn into(self) -> MDataSeqEntryActions {
+        self.actions.into_iter().fold(
+            MDataSeqEntryActions::new(),
+            |new_actions, (key, old_action)| match old_action {
+                EntryAction::Ins(value) => new_actions.ins(key, value.content, value.entry_version),
+                EntryAction::Update(value) => {
+                    new_actions.update(key, value.content, value.entry_version)
+                }
+                EntryAction::Del(version) => new_actions.del(key, version),
+            },
+        )
     }
 }
 

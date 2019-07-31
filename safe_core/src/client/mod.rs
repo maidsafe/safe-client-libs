@@ -49,7 +49,8 @@ use lru_cache::LruCache;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use maidsafe_utilities::thread::{self, Joiner};
 use routing::{
-    Authority, EntryAction, Event, FullId, InterfaceError, MutableData, PermissionSet, User, Value,
+    Authority, EntryAction, EntryActions, Event, FullId, InterfaceError, MutableData, OldEntries,
+    OldPermissions, PermissionSet, User, Value,
 };
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
@@ -77,18 +78,6 @@ pub const REQUEST_TIMEOUT_SECS: u64 = 180;
 
 const CONNECTION_TIMEOUT_SECS: u64 = 40;
 const RETRY_DELAY_MS: u64 = 800;
-
-macro_rules! match_event {
-    ($r:ident, $event:path) => {
-        match $r {
-            $event(res) => res,
-            x => {
-                debug!("Unexpected Event: {:?}", x);
-                Err(CoreError::ReceivedUnexpectedEvent)
-            }
-        }
-    };
-}
 
 macro_rules! some_or_err {
     ($opt:expr) => {
@@ -204,28 +193,12 @@ pub trait Client: Clone + 'static {
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
     fn get_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
-        trace!("GetIData for {:?}", name);
-
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&name) {
             trace!("PubImmutableData found in cache.");
             return future::ok(data.clone()).into_box();
         }
-
-        let inner = Rc::downgrade(&self.inner());
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.get_idata(Authority::NaeManager(name), name, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::GetIData))
-        .map(move |data| {
-            if let Some(inner) = inner.upgrade() {
-                // Put to cache
-                let _ = inner.borrow_mut().cache.insert(*data.name(), data.clone());
-            }
-            data
-        })
-        .into_box()
+        self.get_pub_idata(name)
     }
 
     // TODO All these return the same future from all branches. So convert to impl
@@ -233,23 +206,12 @@ pub trait Client: Clone + 'static {
     // CoreFuture`.
     /// Put immutable data onto the network.
     fn put_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
-        trace!("PutIData for {:?}", data);
-
-        let msg_id = MessageId::new();
-        send_mutation(self, msg_id, move |routing, dst| {
-            routing.put_idata(dst, data.clone(), msg_id)
-        })
+        self.put_pub_idata(data)
     }
 
     /// Put `MutableData` onto the network.
     fn put_mdata(&self, data: MutableData) -> Box<CoreFuture<()>> {
-        trace!("PutMData for {:?}", data);
-
-        let requester = some_or_err!(self.public_bls_key());
-        let msg_id = MessageId::new();
-        send_mutation(self, msg_id, move |routing, dst| {
-            routing.put_mdata(dst, data.clone(), msg_id, PublicKey::from(requester))
-        })
+        self.put_seq_mutable_data(data.into())
     }
 
     /// Put unsequenced mutable data to the network
@@ -625,20 +587,7 @@ pub trait Client: Clone + 'static {
         tag: u64,
         actions: BTreeMap<Vec<u8>, EntryAction>,
     ) -> Box<CoreFuture<()>> {
-        trace!("PutMData for {:?}", name);
-
-        let requester = some_or_err!(self.public_bls_key());
-        let msg_id = MessageId::new();
-        send_mutation(self, msg_id, move |routing, dst| {
-            routing.mutate_mdata_entries(
-                dst,
-                name,
-                tag,
-                actions.clone(),
-                msg_id,
-                PublicKey::from(requester),
-            )
-        })
+        self.mutate_seq_mdata_entries(name, tag, EntryActions { actions }.into())
     }
 
     /// Mutates sequenced `MutableData` entries in bulk
@@ -679,26 +628,16 @@ pub trait Client: Clone + 'static {
 
     /// Get entire `MutableData` from the network.
     fn get_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<MutableData>> {
-        trace!("GetMData for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.get_mdata(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::GetMData))
-        .into_box()
+        self.get_seq_mdata(name, tag)
+            .and_then(|seq_data| Ok(seq_data.into()))
+            .into_box()
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
     fn get_mdata_shell(&self, name: XorName, tag: u64) -> Box<CoreFuture<MutableData>> {
-        trace!("GetMDataShell for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.get_mdata_shell(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::GetMDataShell))
-        .into_box()
+        self.get_seq_mdata_shell(name, tag)
+            .and_then(|seq_data| Ok(seq_data.into()))
+            .into_box()
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
@@ -781,14 +720,7 @@ pub trait Client: Clone + 'static {
 
     /// Get a current version of `MutableData` from the network.
     fn get_mdata_version(&self, name: XorName, tag: u64) -> Box<CoreFuture<u64>> {
-        trace!("GetMDataVersion for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.get_mdata_version(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::GetMDataVersion))
-        .into_box()
+        self.get_mdata_version_new(MDataAddress::Seq { name, tag })
     }
 
     /// Return a complete list of entries in `MutableData`.
@@ -797,14 +729,9 @@ pub trait Client: Clone + 'static {
         name: XorName,
         tag: u64,
     ) -> Box<CoreFuture<BTreeMap<Vec<u8>, Value>>> {
-        trace!("ListMDataEntries for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.list_mdata_entries(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::ListMDataEntries))
-        .into_box()
+        self.list_seq_mdata_entries(name, tag)
+            .and_then(|seq_entries| Ok(OldEntries::from(seq_entries).0))
+            .into_box()
     }
 
     /// Return a complete list of entries in `MutableData`.
@@ -865,14 +792,7 @@ pub trait Client: Clone + 'static {
 
     /// Return a list of keys in `MutableData` stored on the network.
     fn list_mdata_keys(&self, name: XorName, tag: u64) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
-        trace!("ListMDataKeys for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.list_mdata_keys(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::ListMDataKeys))
-        .into_box()
+        self.list_mdata_keys_new(MDataAddress::Seq { name, tag })
     }
 
     /// Return a list of keys in `MutableData` stored on the network.
@@ -973,26 +893,16 @@ pub trait Client: Clone + 'static {
 
     /// Return a list of keys in `MutableData` stored on the network.
     fn list_mdata_values(&self, name: XorName, tag: u64) -> Box<CoreFuture<Vec<Value>>> {
-        trace!("ListMDataValues for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.list_mdata_values(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::ListMDataValues))
-        .into_box()
+        self.list_seq_mdata_values(name, tag)
+            .and_then(|seq_values| Ok(seq_values.into_iter().map(|value| value.into()).collect()))
+            .into_box()
     }
 
     /// Get a single entry from `MutableData`.
     fn get_mdata_value(&self, name: XorName, tag: u64, key: Vec<u8>) -> Box<CoreFuture<Value>> {
-        trace!("GetMDataValue for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.get_mdata_value(Authority::NaeManager(name), name, tag, key.clone(), msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::GetMDataValue))
-        .into_box()
+        self.get_seq_mdata_value(name, tag, key)
+            .and_then(|seq_value| Ok(seq_value.into()))
+            .into_box()
     }
     // ======= Append Only Data =======
     //
@@ -1413,14 +1323,9 @@ pub trait Client: Clone + 'static {
         name: XorName,
         tag: u64,
     ) -> Box<CoreFuture<BTreeMap<User, PermissionSet>>> {
-        trace!("ListMDataPermissions for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            routing.list_mdata_permissions(Authority::NaeManager(name), name, tag, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::ListMDataPermissions))
-        .into_box()
+        self.list_mdata_permissions_new(MDataAddress::Seq { name, tag })
+            .and_then(|new_permissions| Ok(OldPermissions::from(new_permissions).0))
+            .into_box()
     }
 
     /// Return a list of permissions in `MutableData` stored on the network.
@@ -1453,15 +1358,13 @@ pub trait Client: Clone + 'static {
         tag: u64,
         user: User,
     ) -> Box<CoreFuture<PermissionSet>> {
-        trace!("ListMDataUserPermissions for {:?}", name);
-
-        let msg_id = MessageId::new();
-        send(self, msg_id, move |routing| {
-            let dst = Authority::NaeManager(name);
-            routing.list_mdata_user_permissions(dst, name, tag, user, msg_id)
-        })
-        .and_then(|event| match_event!(event, CoreEvent::ListMDataUserPermissions))
-        .into_box()
+        if let User::Key(public_key) = user {
+            self.list_mdata_user_permissions_new(MDataAddress::Seq { name, tag }, public_key)
+                .and_then(|new_permissions| Ok(PermissionSet::from(new_permissions)))
+                .into_box()
+        } else {
+            future::result(Err(CoreError::OperationForbidden)).into_box()
+        }
     }
 
     /// Updates or inserts a permission set for a given user
@@ -1473,22 +1376,16 @@ pub trait Client: Clone + 'static {
         permissions: PermissionSet,
         version: u64,
     ) -> Box<CoreFuture<()>> {
-        trace!("SetMDataUserPermissions for {:?}", name);
-
-        let requester = some_or_err!(self.public_bls_key());
-        let msg_id = MessageId::new();
-        send_mutation(self, msg_id, move |routing, dst| {
-            routing.set_mdata_user_permissions(
-                dst,
-                name,
-                tag,
-                user,
-                permissions,
+        if let User::Key(public_key) = user {
+            self.set_mdata_user_permissions_new(
+                MDataAddress::Seq { name, tag },
+                public_key,
+                permissions.into(),
                 version,
-                msg_id,
-                PublicKey::from(requester),
             )
-        })
+        } else {
+            future::result(Err(CoreError::OperationForbidden)).into_box()
+        }
     }
 
     /// Updates or inserts a permissions set for a user
@@ -1539,21 +1436,15 @@ pub trait Client: Clone + 'static {
         user: User,
         version: u64,
     ) -> Box<CoreFuture<()>> {
-        trace!("DelMDataUserPermissions for {:?}", name);
-
-        let requester = some_or_err!(self.public_bls_key());
-        let msg_id = MessageId::new();
-        send_mutation(self, msg_id, move |routing, dst| {
-            routing.del_mdata_user_permissions(
-                dst,
-                name,
-                tag,
-                user,
+        if let User::Key(public_key) = user {
+            self.del_mdata_user_permissions_new(
+                MDataAddress::Seq { name, tag },
+                public_key,
                 version,
-                msg_id,
-                PublicKey::from(requester),
             )
-        })
+        } else {
+            future::result(Err(CoreError::OperationForbidden)).into_box()
+        }
     }
 
     /// Sends an ownership transfer request.
