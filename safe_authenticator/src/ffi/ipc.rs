@@ -16,7 +16,7 @@ use ffi_utils::{
     catch_unwind_cb, from_c_str, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::{stream, Future, Stream};
-use routing::{ClientError, User};
+use routing::User;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
 use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::ipc::req::{
@@ -387,9 +387,11 @@ pub unsafe extern "C" fn encode_containers_resp(
 
                                     // Adding a new access container entry
                                     Ok((_, None))
-                                    | Err(AuthError::CoreError(CoreError::RoutingClientError(
-                                        ClientError::NoSuchEntry,
-                                    ))) => 0,
+                                    | Err(AuthError::CoreError(
+                                        CoreError::NewRoutingClientError(
+                                            safe_nd::Error::NoSuchEntry,
+                                        ),
+                                    )) => 0,
 
                                     // Error has occurred while trying to get an
                                     // existing entry

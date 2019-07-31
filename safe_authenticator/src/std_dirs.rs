@@ -12,13 +12,13 @@ use crate::config::KEY_APPS;
 use crate::{AuthError, AuthFuture};
 use futures::{future, Future};
 use maidsafe_utilities::serialisation::serialise;
-use routing::{ClientError, Value};
+use routing::Value;
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
 use safe_core::utils::symmetric_encrypt;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
-use safe_nd::MDataKind;
+use safe_nd::{Error as SndError, MDataKind};
 use std::collections::HashMap;
 
 /// Default directories to be created at registration.
@@ -52,8 +52,8 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
                     // Make sure that all default dirs have been created
                     create_std_dirs(&c3, &default_containers)
                 }
-                Err(AuthError::CoreError(CoreError::RoutingClientError(
-                    ClientError::NoSuchData,
+                Err(AuthError::CoreError(CoreError::NewRoutingClientError(
+                    SndError::NoSuchData,
                 ))) => {
                     // Access container hasn't been created yet
                     let access_cont_value = fry!(random_std_dirs())

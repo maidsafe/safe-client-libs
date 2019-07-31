@@ -7,7 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY, ERR_NO_SUCH_KEY};
+use crate::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY};
 use crate::ffi::mdata_info::*;
 use crate::ffi::mutable_data::entries::*;
 use crate::ffi::mutable_data::entry_actions::*;
@@ -15,6 +15,7 @@ use crate::ffi::mutable_data::permissions::*;
 use crate::ffi::mutable_data::*;
 use crate::ffi::object_cache::MDataPermissionsHandle;
 use crate::permissions::UserPermissionSet;
+use crate::run;
 use crate::test_utils::create_app;
 use ffi_utils::test_utils::{
     call_0, call_1, call_vec, call_vec_u8, send_via_user_data, sender_as_user_data,
@@ -26,6 +27,7 @@ use safe_core::ffi::MDataKind;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
+use safe_nd::PublicKey;
 use std::sync::mpsc;
 
 // The usual test to insert, update, delete and list all permissions from the FFI point of view.
@@ -38,6 +40,12 @@ fn permissions_crud_ffi() {
         .allow(Action::Insert)
         .allow(Action::ManagePermissions);
 
+    let app_pk_handle = unwrap!(run(&app, move |client, context| {
+        Ok(context
+            .object_cache()
+            .insert_pub_key(PublicKey::from(unwrap!(client.public_bls_key()))))
+    }));
+
     // Create permissions
     let perms_h: MDataPermissionsHandle =
         unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
@@ -46,12 +54,12 @@ fn permissions_crud_ffi() {
         let ffi_perm_set = permission_set_into_repr_c(perm_set);
         assert!(ffi_perm_set.insert);
 
-        // Create permissions for anyone
+        // Create permissions for the app
         let len: usize = unsafe {
             unwrap!(call_0(|ud, cb| mdata_permissions_insert(
                 &app,
                 perms_h,
-                USER_ANYONE,
+                app_pk_handle,
                 &ffi_perm_set,
                 ud,
                 cb
@@ -66,7 +74,7 @@ fn permissions_crud_ffi() {
             unwrap!(call_1(|ud, cb| mdata_permissions_get(
                 &app,
                 perms_h,
-                USER_ANYONE,
+                app_pk_handle,
                 ud,
                 cb
             )))
@@ -84,8 +92,13 @@ fn permissions_crud_ffi() {
         };
 
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].user_h, USER_ANYONE);
         assert_eq!(result[0].perm_set, perm_set);
+        unwrap!(run(&app, move |_, context| {
+            let key = *unwrap!(context.object_cache().get_pub_key(result[0].user_h));
+            let expected = *unwrap!(context.object_cache().get_pub_key(app_pk_handle));
+            assert_eq!(key, expected);
+            Ok(())
+        }));
     }
 
     // Try to create an empty public MD
@@ -115,7 +128,7 @@ fn permissions_crud_ffi() {
             unwrap!(call_1(|ud, cb| mdata_list_user_permissions(
                 &app,
                 &md_info_pub,
-                USER_ANYONE,
+                app_pk_handle,
                 ud,
                 cb
             )))
@@ -137,7 +150,7 @@ fn permissions_crud_ffi() {
                 mdata_set_user_permissions(
                     &app,
                     &md_info_pub,
-                    USER_ANYONE,
+                    app_pk_handle,
                     &permission_set_into_repr_c(perm_set_new),
                     0,
                     ud,
@@ -157,7 +170,7 @@ fn permissions_crud_ffi() {
                 mdata_set_user_permissions(
                     &app,
                     &md_info_pub,
-                    USER_ANYONE,
+                    app_pk_handle,
                     &permission_set_into_repr_c(perm_set_new),
                     1,
                     ud,
@@ -167,7 +180,7 @@ fn permissions_crud_ffi() {
 
             // Delete the permission set - should succeed
             unwrap!(call_0(|ud, cb| {
-                mdata_del_user_permissions(&app, &md_info_pub, USER_ANYONE, 2, ud, cb);
+                mdata_del_user_permissions(&app, &md_info_pub, app_pk_handle, 2, ud, cb);
             }));
 
             // Try to change permissions - should fail
@@ -175,7 +188,7 @@ fn permissions_crud_ffi() {
                 mdata_set_user_permissions(
                     &app,
                     &md_info_pub,
-                    USER_ANYONE,
+                    app_pk_handle,
                     &permission_set_into_repr_c(perm_set_new),
                     3,
                     ud,
@@ -190,11 +203,11 @@ fn permissions_crud_ffi() {
         };
 
         let result: Result<FfiPermissionSet, i32> = unsafe {
-            call_1(|ud, cb| mdata_list_user_permissions(&app, &md_info_pub, USER_ANYONE, ud, cb))
+            call_1(|ud, cb| mdata_list_user_permissions(&app, &md_info_pub, app_pk_handle, ud, cb))
         };
 
         match result {
-            Err(ERR_NO_SUCH_KEY) => (),
+            Err(ERR_ACCESS_DENIED) => (),
             _ => panic!("User permissions listed without key"),
         }
     }
@@ -216,11 +229,17 @@ fn entries_crud_ffi() {
     let perms_h: MDataPermissionsHandle =
         unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
 
+    let app_pk_handle = unwrap!(run(&app, move |client, context| {
+        Ok(context
+            .object_cache()
+            .insert_pub_key(PublicKey::from(unwrap!(client.public_bls_key()))))
+    }));
+
     unsafe {
         unwrap!(call_0(|ud, cb| mdata_permissions_insert(
             &app,
             perms_h,
-            USER_ANYONE,
+            app_pk_handle,
             &permission_set_into_repr_c(perm_set),
             ud,
             cb,
@@ -345,7 +364,7 @@ fn entries_crud_ffi() {
         unwrap!(call_1(|ud, cb| mdata_list_user_permissions(
             &app,
             &md_info_pub,
-            USER_ANYONE,
+            app_pk_handle,
             ud,
             cb
         )))

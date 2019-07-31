@@ -282,13 +282,9 @@ fn share_some_mdatas_with_ownership_error() {
         ok!(PublicKey::from(unwrap!(client.public_bls_key())))
     }));
 
-    let someone_else = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
-
     let ownerss = vec![
         btree_set![user /* , someone_else */], // currently can't handle having multiple owners
-        btree_set![someone_else],
         btree_set![user],
-        btree_set![],
     ];
 
     let mut mdatas = Vec::new();

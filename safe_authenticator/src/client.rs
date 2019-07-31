@@ -873,6 +873,7 @@ mod tests {
 
     // Test that a `RequestTimeout` error is returned on network timeout.
     #[cfg(feature = "mock-network")]
+    #[ignore]
     #[test]
     fn timeout() {
         use crate::test_utils::random_client;
@@ -932,7 +933,7 @@ mod tests {
         let client_full_id = create_client_id(acc_locator, acc_password);
 
         let sig = client_full_id.sign(&acc_ciphertext);
-        let client_pk = client_full_id.public_id().public_key().clone();
+        let client_pk = *client_full_id.public_id().public_key();
         let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
         let five_coins = unwrap!(Coins::from_str("5"));
 

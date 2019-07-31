@@ -66,6 +66,7 @@ mod mock_routing {
     //    (= operation recovery worked after log in)
     // 5. Check the access container entry in the user's config root - it must be accessible
     #[test]
+    #[ignore]
     fn std_dirs_recovery() {
         use safe_core::DIR_TAG;
 

@@ -11,11 +11,12 @@ use crate::client::AuthClient;
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{ClientError, EntryActions, EntryError};
+use routing::EntryActions;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::AppKeys;
 use safe_core::ipc::IpcError;
 use safe_core::{Client, CoreError, FutureExt};
+use safe_nd::{EntryError, Error as SndError};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
@@ -212,7 +213,7 @@ where
             Ok((Some(value.entry_version), decoded))
         })
         .or_else(|error| match error {
-            CoreError::RoutingClientError(ClientError::NoSuchEntry) => {
+            CoreError::NewRoutingClientError(SndError::NoSuchEntry) => {
                 Ok((None, Default::default()))
             }
             _ => Err(AuthError::from(error)),
@@ -246,15 +247,15 @@ where
         .or_else(move |error| {
             // As we are mutating only one entry, let's make the common errors
             // more convenient to handle.
-            if let CoreError::RoutingClientError(ClientError::InvalidEntryActions(ref errors)) =
+            if let CoreError::NewRoutingClientError(SndError::InvalidEntryActions(ref errors)) =
                 error
             {
                 if let Some(error) = errors.get(&key) {
                     match *error {
                         EntryError::InvalidSuccessor(version)
                         | EntryError::EntryExists(version) => {
-                            return Err(CoreError::RoutingClientError(
-                                ClientError::InvalidSuccessor(version),
+                            return Err(CoreError::NewRoutingClientError(
+                                SndError::InvalidSuccessor(version.into()),
                             ));
                         }
                         _ => (),
@@ -293,8 +294,8 @@ where
                 let f = update_entry(&c2, &key, &item, new_version)
                     .map(move |_| Loop::Break((new_version, item)))
                     .or_else(move |error| match error {
-                        AuthError::CoreError(CoreError::RoutingClientError(
-                            ClientError::InvalidSuccessor(_),
+                        AuthError::CoreError(CoreError::NewRoutingClientError(
+                            SndError::InvalidSuccessor(_),
                         )) => {
                             let f = get_entry(&c3, &key).map(move |(version, item)| {
                                 Loop::Continue((key, next_version(version), item))

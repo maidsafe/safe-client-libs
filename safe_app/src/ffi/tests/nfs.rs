@@ -475,8 +475,8 @@ fn fetch_file() {
 // 2. Insert file into the container.
 // 3. Delete file in the container.
 // 4. Create non-empty file with new contents.
-// 5. Update the file in the container with new contents and version.
-// 6. Fetch the file from the container, check that it has the updated version.
+// 5. Add the file back to the container with the new content
+// 6. Fetch the file from the container, check that it has version 0.
 // 7. Read the file contents and ensure that they correspond to the data from step 4.
 #[test]
 fn delete_then_open_file() {
@@ -568,19 +568,17 @@ fn delete_then_open_file() {
         unwrap!(call_1(|ud, cb| file_close(&app, write_h, ud, cb)))
     };
 
-    // Update file in container.
-    let version: u64 = unsafe {
-        unwrap!(call_1(|ud, cb| dir_update_file(
+    // Add the file back to the container
+    unsafe {
+        unwrap!(call_0(|ud, cb| dir_insert_file(
             &app,
             &container_info,
             ffi_file_name2.as_ptr(),
             &new_file.into_repr_c(),
-            2,
             ud,
             cb,
         )))
     };
-    assert_eq!(version, 2);
 
     // Fetch the file.
     let (file, version): (NativeFile, u64) = {
@@ -594,7 +592,7 @@ fn delete_then_open_file() {
             )))
         }
     };
-    assert_eq!(version, 2);
+    assert_eq!(version, 0);
 
     // Read the content.
     let read_write_h = unsafe {

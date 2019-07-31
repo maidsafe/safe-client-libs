@@ -14,10 +14,10 @@ use crate::test_utils::create_app;
 use ffi_utils::test_utils::call_1;
 use futures::Future;
 use maidsafe_utilities::thread;
-use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
+use routing::{Action, EntryAction, MutableData, PermissionSet, User, Value, XorName};
 use safe_core::utils::test_utils::random_client;
 use safe_core::{client::AuthActions, utils, Client, CoreError, FutureExt, DIR_TAG};
-use safe_nd::PublicKey;
+use safe_nd::{Error as SndError, PublicKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -50,7 +50,7 @@ fn md_created_by_app_1() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("Put should be rejected by MaidManagers"),
-                    Err(CoreError::RoutingClientError(ClientError::InvalidOwners)) => (),
+                    Err(CoreError::NewRoutingClientError(safe_nd::Error::InvalidOwners)) => (),
                     Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
                 }
                 let mut owners = BTreeSet::new();
@@ -98,19 +98,10 @@ fn md_created_by_app_2() {
             owners,
         ));
         let name2 = name;
-        let cl2 = client.clone();
         client
             .put_mdata(mdata)
-            .then(move |res| {
-                unwrap!(res);
-                cl2.change_mdata_owner(name, DIR_TAG, sign_pk, 1)
-            })
             .then(move |res| -> Result<_, ()> {
-                match res {
-                    Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
-                    Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
-                }
+                unwrap!(res);
                 unwrap!(alt_client_tx.send((name2, sign_pk)));
                 Ok(())
             })
@@ -119,25 +110,16 @@ fn md_created_by_app_2() {
     }));
     let _joiner = thread::named("Alt client", || {
         random_client(move |client| {
-            let (name, sign_pk) = unwrap!(alt_client_rx.recv());
+            let (_, sign_pk) = unwrap!(alt_client_rx.recv());
             let cl2 = client.clone();
-            let cl3 = client.clone();
             client
                 .list_auth_keys_and_version()
                 .then(move |res| {
                     let (_, version) = unwrap!(res);
                     cl2.ins_auth_key(sign_pk, Default::default(), version + 1)
                 })
-                .then(move |res| {
-                    unwrap!(res);
-                    cl3.change_mdata_owner(name, DIR_TAG, sign_pk, 1)
-                })
                 .then(move |res| -> Result<(), ()> {
-                    match res {
-                        Ok(()) => panic!("It should fail"),
-                        Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
-                        Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
-                    }
+                    unwrap!(res);
                     unwrap!(tx.send(()));
                     Ok(())
                 })
@@ -187,7 +169,7 @@ fn md_created_by_app_3() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
                 }
                 let user = User::Key(sign_pk);
@@ -197,7 +179,7 @@ fn md_created_by_app_3() {
             .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
                 }
                 unwrap!(tx.send(()));
@@ -285,7 +267,7 @@ fn md_created_by_app_4() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
                 }
                 let mut actions = BTreeMap::new();
@@ -301,7 +283,7 @@ fn md_created_by_app_4() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
                 }
                 let user = User::Key(sign_pk);
@@ -337,7 +319,7 @@ fn md_created_by_app_4() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
                 }
                 let mut actions = BTreeMap::new();
@@ -406,6 +388,7 @@ fn multiple_apps() {
     let app2 = create_app();
     let (tx, rx) = mpsc::channel();
     let (name_tx, name_rx) = mpsc::channel();
+    let (app2_key_tx, app2_key_rx) = mpsc::channel();
     let (entry_tx, entry_rx) = mpsc::channel();
     let (mutate_again_tx, mutate_again_rx) = mpsc::channel();
     let (final_check_tx, final_check_rx) = mpsc::channel();
@@ -413,7 +396,11 @@ fn multiple_apps() {
         let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
 
         let mut permissions = BTreeMap::new();
-        let _ = permissions.insert(User::Anyone, PermissionSet::new().allow(Action::Insert));
+        let app_2_pk: threshold_crypto::PublicKey = unwrap!(app2_key_rx.recv());
+        let _ = permissions.insert(
+            User::Key(app_2_pk.into()),
+            PermissionSet::new().allow(Action::Insert),
+        );
         let _ = permissions.insert(
             User::Key(sign_pk),
             PermissionSet::new().allow(Action::ManagePermissions),
@@ -453,7 +440,7 @@ fn multiple_apps() {
                         entry_version: 1,
                     }
                 );
-                cl3.del_mdata_user_permissions(name2, DIR_TAG, User::Anyone, 1)
+                cl3.del_mdata_user_permissions(name2, DIR_TAG, User::Key(app_2_pk.into()), 1)
                     .map(move |()| entry_key)
             })
             .then(move |res| {
@@ -474,6 +461,7 @@ fn multiple_apps() {
             .into()
     }));
     unwrap!(app2.send(move |client, _app_context| {
+        unwrap!(app2_key_tx.send(unwrap!(client.public_bls_key())));
         let name = unwrap!(name_rx.recv());
         let entry_key = vec![1, 2, 3];
 
@@ -508,7 +496,7 @@ fn multiple_apps() {
             .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::RoutingClientError(ClientError::AccessDenied)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
                     Err(x) => panic!("Expected ClientError::AccessDenied. Got {:?}", x),
                 }
                 unwrap!(final_check_tx.send(()));
@@ -571,7 +559,7 @@ fn permissions_and_version() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail with invalid successor"),
-                    Err(CoreError::RoutingClientError(ClientError::InvalidSuccessor(..))) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::InvalidSuccessor(..))) => (),
                     Err(x) => panic!("Expected ClientError::InvalidSuccessor. Got {:?}", x),
                 }
                 cl4.list_mdata_permissions(name, DIR_TAG)
@@ -806,7 +794,7 @@ fn permissions_crud() {
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
                             .is_allowed(Action::Insert),
-                        Some(false)
+                        None
                     );
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
@@ -866,7 +854,7 @@ fn permissions_crud() {
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
                             .is_allowed(Action::Insert),
-                        Some(false)
+                        None
                     );
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
@@ -924,7 +912,7 @@ fn permissions_crud() {
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
                             .is_allowed(Action::Insert),
-                        Some(false)
+                        None
                     );
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
@@ -934,7 +922,7 @@ fn permissions_crud() {
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
                             .is_allowed(Action::Delete),
-                        Some(false)
+                        None
                     );
                     assert_eq!(
                         unwrap!(permissions.get(&User::Key(random_key_b)))
@@ -1022,14 +1010,7 @@ fn entries_crud() {
             })
             .then(move |res| {
                 let entries = unwrap!(res);
-                assert_eq!(entries.len(), 3);
-                assert_eq!(
-                    *unwrap!(entries.get(&vec![0, 0, 1])),
-                    Value {
-                        content: vec![],
-                        entry_version: 2,
-                    }
-                );
+                assert_eq!(entries.len(), 2);
                 assert_eq!(
                     *unwrap!(entries.get(&vec![0, 1, 0])),
                     Value {
@@ -1068,26 +1049,12 @@ fn entries_crud() {
             })
             .then(|res| -> Result<_, ()> {
                 let entries = unwrap!(res);
-                assert_eq!(entries.len(), 4);
-                assert_eq!(
-                    *unwrap!(entries.get(&vec![0, 0, 1])),
-                    Value {
-                        content: vec![],
-                        entry_version: 2,
-                    }
-                );
+                assert_eq!(entries.len(), 2);
                 assert_eq!(
                     *unwrap!(entries.get(&vec![0, 1, 0])),
                     Value {
                         content: vec![64, 8, 1],
                         entry_version: 3,
-                    }
-                );
-                assert_eq!(
-                    *unwrap!(entries.get(&vec![0, 1, 1])),
-                    Value {
-                        content: vec![],
-                        entry_version: 2,
                     }
                 );
                 assert_eq!(

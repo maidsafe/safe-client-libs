@@ -248,7 +248,7 @@ impl Into<SeqMutableData> for MutableData {
 impl From<SeqMutableData> for MutableData {
     fn from(seq_mdata: SeqMutableData) -> Self {
         let mut owner_set = BTreeSet::new();
-        owner_set.insert(seq_mdata.owners().clone());
+        owner_set.insert(seq_mdata.owner().clone());
         let mut mdata = unwrap!(MutableData::new(
             *seq_mdata.address().name(),
             seq_mdata.address().tag(),

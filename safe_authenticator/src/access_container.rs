@@ -19,7 +19,8 @@ use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
-use safe_core::{recovery, Client, FutureExt, MDataInfo};
+use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
+use safe_nd::{Error as SndError, MDataAction, MDataAddress, MDataPermissionSet, PublicKey};
 use std::collections::HashMap;
 
 /// Key of the authenticator entry in the access container.
@@ -149,15 +150,13 @@ pub fn fetch_entry(
 
     client
         .get_mdata_value(access_container.name(), access_container.type_tag(), key)
-        .map_err(From::from)
-        .and_then(move |value| {
-            let decoded = if value.content.is_empty() {
-                None
-            } else {
-                Some(decode_app_entry(&value.content, &app_keys.enc_key)?)
-            };
-
-            Ok((value.entry_version, decoded))
+        .then(move |result| match result {
+            Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => Ok((0, None)),
+            Err(err) => Err(AuthError::from(err)),
+            Ok(value) => {
+                let decoded = Some(decode_app_entry(&value.content, &app_keys.enc_key)?);
+                Ok((value.entry_version, decoded))
+            }
         })
         .into_box()
 }
@@ -172,7 +171,10 @@ pub fn put_entry(
 ) -> Box<AuthFuture<()>> {
     trace!("Putting access container entry for app {}...", app_id);
 
+    let client2 = client.clone();
+    let client3 = client.clone();
     let access_container = client.access_container();
+    let acc_cont_info = access_container.clone();
     let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
     let ciphertext = fry!(encode_app_entry(permissions, &app_keys.enc_key));
 
@@ -181,15 +183,34 @@ pub fn put_entry(
     } else {
         EntryActions::new().update(key, ciphertext, version)
     };
+    let app_pk: PublicKey = app_keys.bls_pk.into();
 
-    recovery::mutate_mdata_entries(
-        client,
-        access_container.name(),
-        access_container.type_tag(),
-        actions.into(),
-    )
-    .map_err(From::from)
-    .into_box()
+    client
+        .get_mdata_version(access_container.name(), access_container.type_tag())
+        .map_err(AuthError::from)
+        .and_then(move |shell_version| {
+            client2
+                .set_mdata_user_permissions_new(
+                    MDataAddress::Seq {
+                        name: acc_cont_info.name(),
+                        tag: acc_cont_info.type_tag(),
+                    },
+                    app_pk,
+                    MDataPermissionSet::new().allow(MDataAction::Read),
+                    shell_version + 1,
+                )
+                .map_err(AuthError::from)
+        })
+        .and_then(move |_| {
+            recovery::mutate_mdata_entries(
+                &client3,
+                access_container.name(),
+                access_container.type_tag(),
+                actions.into(),
+            )
+            .map_err(AuthError::from)
+        })
+        .into_box()
 }
 
 /// Deletes entry from the access container.
@@ -202,15 +223,36 @@ pub fn delete_entry(
     // TODO: make sure this can't be called for authenticator Entry-0
 
     let access_container = client.access_container();
+    let acc_cont_info = access_container.clone();
     let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
     let actions = EntryActions::new().del(key, version);
+    let client2 = client.clone();
+    let client3 = client.clone();
+    let app_pk: PublicKey = app_keys.bls_pk.into();
 
-    recovery::mutate_mdata_entries(
-        client,
-        access_container.name(),
-        access_container.type_tag(),
-        actions.into(),
-    )
-    .map_err(From::from)
-    .into_box()
+    client
+        .get_mdata_version(access_container.name(), access_container.type_tag())
+        .map_err(AuthError::from)
+        .and_then(move |shell_version| {
+            client2
+                .del_mdata_user_permissions_new(
+                    MDataAddress::Seq {
+                        name: acc_cont_info.name(),
+                        tag: acc_cont_info.type_tag(),
+                    },
+                    app_pk,
+                    shell_version + 1,
+                )
+                .map_err(AuthError::from)
+        })
+        .and_then(move |_| {
+            recovery::mutate_mdata_entries(
+                &client3,
+                access_container.name(),
+                access_container.type_tag(),
+                actions.into(),
+            )
+            .map_err(AuthError::from)
+        })
+        .into_box()
 }

@@ -15,7 +15,7 @@ use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
-use routing::{ClientError, User, XorName};
+use routing::{User, XorName};
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{
     container_perms_into_permission_set, ContainerPermissions, IpcReq, ShareMDataReq,
@@ -189,7 +189,7 @@ pub fn decode_share_mdata_req(
                                         Err(_) => Err(ShareMDataError::InvalidMetadata),
                                     }
                                 })),
-                            Err(CoreError::RoutingClientError(ClientError::NoSuchEntry)) => {
+                            Err(CoreError::NewRoutingClientError(safe_nd::Error::NoSuchEntry)) => {
                                 // Allow requesting shared access to arbitrary Mutable Data objects even
                                 // if they don't have metadata.
                                 let user_metadata = UserMetadata {
