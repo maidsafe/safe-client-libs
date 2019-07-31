@@ -12,103 +12,145 @@
 mod connection_group;
 
 use crate::{client::NewFullId, event::NetworkTx, CoreError, CoreFuture};
+use bytes::Bytes;
 use connection_group::ConnectionGroup;
 use crossbeam_channel::{self, Receiver};
 use futures::{
     future::{self, IntoFuture},
     stream::Stream,
-    sync::mpsc,
+    sync::mpsc::{self, UnboundedReceiver},
     Future,
 };
 use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, NodeInfo, Peer, QuicP2p};
-use safe_nd::{PublicId, Response};
-use std::collections::HashMap;
-use std::thread;
-use std::{cell::RefCell, rc::Rc};
+use safe_nd::{Message, PublicId, Response};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    thread,
+    {
+        collections::{hash_map::Entry, HashMap, HashSet},
+        net::SocketAddr,
+    },
+};
 use tokio::runtime::current_thread;
 
 /// Initialises QuicP2p instance. Establishes new connections.
 /// Contains a reference to crossbeam channel provided by quic-p2p for capturing the events.
 pub struct ConnectionManager {
-    quic_p2p: QuicP2p,
-    groups: Rc<RefCell<HashMap<PublicId, ConnectionGroup>>>,
+    inner: Rc<RefCell<Inner>>,
 }
 
 impl ConnectionManager {
-    pub fn new(config: Option<&QuicP2pConfig>, net_tx: &NetworkTx) -> Result<Self, CoreError> {
-        // 1. build QuicP2p object.
-        // 2. start an event loop passing quic-p2p events to the core event loop, triggering the future task.
+    pub fn new(
+        config: Option<&QuicP2pConfig>,
+        net_tx: &NetworkTx,
+        full_id: NewFullId,
+    ) -> Result<Self, CoreError> {
         let (event_tx, event_rx) = crossbeam_channel::unbounded();
-
-        let quic_p2p = Builder::new(event_tx).build()?;
-        let groups = Rc::new(RefCell::new(HashMap::default()));
-
+        let quic_p2p = Rc::new(RefCell::new(Builder::new(event_tx).build()?));
         let (qp2p_stream_tx, qp2p_stream_rx) = mpsc::unbounded();
-        setup_quic_p2p_event_loop(event_rx.clone(), qp2p_stream_tx);
+        setup_quic_p2p_event_loop(event_rx, qp2p_stream_tx);
 
-        let groups_ref = Rc::downgrade(&groups);
+        // Create initial `ConnectionGroup` with no pending contacts.  This will be updated when
+        // handling the `BootstrappedTo` event.
+        let mut groups = HashMap::default();
+        let _ = groups.insert(
+            full_id.public_id(),
+            ConnectionGroup::new(full_id, HashSet::default(), Rc::clone(&quic_p2p)),
+        );
 
-        let stream_fut = qp2p_stream_rx.for_each(move |event| {
-            match event {
-                Event::BootstrappedTo { node } => {
-                    println!("BootstrappedTo -> {:?}", node);
-                }
-                Event::NewMessage { peer_addr, msg } => {
-                    println!("NewMsg -> {:?}", peer_addr);
-                }
-                Event::Finish => return Err(()),
-                ev => println!("{:?}", ev),
-            }
-            Ok(())
-
-            // if let Some(grp) = groups_ref.upgrade() {
-            //     let conn_group = grp.borrow_mut();
-            //     conn_group.get(&sender_public_id).handle_response(event);
-            // } else {
-            //     // Shut down the message loop.
-            //     return Err(());
-            // }
-
-            // network events go to:
-            // net_tx: &NetworkTx,
+        let inner = Rc::new(RefCell::new(Inner { quic_p2p, groups }));
+        let weak_inner = Rc::downgrade(&inner);
+        let stream_future = qp2p_stream_rx.for_each(move |event| {
+            weak_inner.upgrade().ok_or(()).map(|inner| {
+                inner.borrow_mut().handle_quic_p2p_event(event);
+            })
         });
+        current_thread::spawn(stream_future);
 
-        current_thread::spawn(stream_fut);
-
-        Ok(Self { quic_p2p, groups })
+        Ok(Self { inner })
     }
 
-    pub fn send(&mut self, pub_id: &PublicId, msg: &[u8]) -> Box<CoreFuture<Response>> {
-        // 1. Get the connection group, either from `self.groups` or connect if need be.
-        // 2. Call `group.send()`.
-        let mut groups = self.groups.borrow_mut();
-
-        let mut conn_group = fry!(groups.get_mut(&pub_id).ok_or_else(|| {
+    /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
+    pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
+        let msg_id = if let Message::Request { message_id, .. } = msg {
+            *message_id
+        } else {
+            return Box::new(future::err(CoreError::Unexpected(
+                "Not a Request".to_string(),
+            )));
+        };
+        let mut inner = self.inner.borrow_mut();
+        let mut conn_group = fry!(inner.groups.get_mut(&pub_id).ok_or_else(|| {
             CoreError::Unexpected("No connection group found - did you call `connect`?".to_string())
         }));
 
-        conn_group.send(&mut self.quic_p2p, msg)
+        conn_group.send(msg_id, msg)
     }
 
-    pub fn connect(&mut self, full_id: &NewFullId) -> impl Future<Item = (), Error = CoreError> {
-        // 1. handle the initial handshake process (responding to the challenge etc.)
-        // 2. return a new connection.
-        //    it's is a no-op for already-established connections.
-        let conn_group = ConnectionGroup::new();
-
-        // TODO: check for an already existing connection
-        let _ = self
-            .groups
-            .borrow_mut()
-            .insert(full_id.public_id(), conn_group);
+    pub fn connect(
+        &mut self,
+        full_id: NewFullId,
+        elders: HashSet<NodeInfo>,
+    ) -> impl Future<Item = (), Error = CoreError> {
+        let quic_p2p = Rc::clone(&self.inner.borrow().quic_p2p);
+        match self.inner.borrow_mut().groups.entry(full_id.public_id()) {
+            Entry::Vacant(value) => {
+                let _ = value.insert(ConnectionGroup::new(full_id, elders, quic_p2p));
+            }
+            Entry::Occupied(_) => return future::ok(()),
+        }
 
         future::err(CoreError::Unexpected("unimplemented".to_string()))
     }
+}
 
+struct Inner {
+    quic_p2p: Rc<RefCell<QuicP2p>>,
+    groups: HashMap<PublicId, ConnectionGroup>,
+}
+
+impl Inner {
     fn handle_quic_p2p_event(&mut self, event: Event) {
-        // should handle new messages sent by vault (assuming it's only the `Challenge::Request` or `Response` for now)
+        use Event::*;
+        // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
         // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.handle_response(sender, token, response)` should be called.
-        unimplemented!();
+        match event {
+            BootstrapFailure => unimplemented!(),
+            BootstrappedTo { node } => self.handle_bootstrapped_to(node),
+            ConnectionFailure { peer_addr, err } => unimplemented!(),
+            SentUserMessage {
+                peer_addr,
+                msg,
+                token,
+            } => unimplemented!(),
+            UnsentUserMessage {
+                peer_addr,
+                msg,
+                token,
+            } => unimplemented!(),
+            ConnectedTo { peer } => (),
+            NewMessage { peer_addr, msg } => self.handle_new_message(peer_addr, msg),
+            Finish => unimplemented!(),
+        }
+    }
+
+    fn handle_bootstrapped_to(&mut self, node: NodeInfo) {
+        if let Some(group) = self.groups.values_mut().next() {
+            group.handle_bootstrapped_to(node)
+        }
+    }
+
+    fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: Bytes) {
+        let _ = self
+            .connection_group_mut(&peer_addr)
+            .map(|group| group.handle_new_message(peer_addr, msg));
+    }
+
+    fn connection_group_mut(&mut self, peer_addr: &SocketAddr) -> Option<&mut ConnectionGroup> {
+        self.groups
+            .values_mut()
+            .find(|group| group.has_peer(peer_addr))
     }
 }
 
