@@ -255,14 +255,18 @@ impl Client for CoreClient {
         Some(PublicKey::from(self.keys.bls_pk))
     }
 
-    fn compose_message(&self, request: Request) -> Message {
+    fn compose_message(&self, request: Request, sign: bool) -> Message {
         let message_id = MessageId::new();
 
-        let signature = Some(Signature::from(
-            self.keys
-                .bls_sk
-                .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
-        ));
+        let signature = if sign {
+            Some(Signature::from(
+                self.keys
+                    .bls_sk
+                    .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
+            ))
+        } else {
+            None
+        };
 
         Message::Request {
             request,

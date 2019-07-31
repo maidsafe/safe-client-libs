@@ -552,20 +552,25 @@ impl Client for AuthClient {
         Some(PublicKey::from(auth_inner.acc.maid_keys.bls_pk))
     }
 
-    fn compose_message(&self, request: Request) -> Message {
+    fn compose_message(&self, request: Request, sign: bool) -> Message {
         let auth_inner = self.auth_inner.borrow();
         let message_id = MessageId::new();
 
-        let sig = auth_inner
-            .acc
-            .maid_keys
-            .bls_sk
-            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+        let signature = if sign {
+            let sig = auth_inner
+                .acc
+                .maid_keys
+                .bls_sk
+                .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+            Some(Signature::from(sig))
+        } else {
+            None
+        };
 
         Message::Request {
             request,
             message_id,
-            signature: Some(Signature::from(sig)),
+            signature,
         }
     }
 }

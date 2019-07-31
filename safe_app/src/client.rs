@@ -242,15 +242,21 @@ impl Client for AppClient {
         app_inner.owner_key
     }
 
-    fn compose_message(&self, request: Request) -> Message {
+    fn compose_message(&self, request: Request, sign: bool) -> Message {
         let message_id = MessageId::new();
 
-        let sig = unwrap!(self.secret_bls_key())
-            .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+        let signature = if sign {
+            let sig = unwrap!(self.secret_bls_key())
+                .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
+            Some(Signature::from(sig))
+        } else {
+            None
+        };
+
         Message::Request {
             request,
             message_id,
-            signature: Some(Signature::from(sig)),
+            signature,
         }
     }
 }

@@ -428,6 +428,23 @@ impl Vault {
         }
     }
 
+    fn request_is_get_for_pub_data(request: &Request) -> bool {
+        match *request {
+            Request::GetIData(address) => address.is_pub(),
+            Request::GetAData(address)
+            | Request::GetADataShell { address, .. }
+            | Request::GetADataRange { address, .. }
+            | Request::GetADataValue { address, .. }
+            | Request::GetADataIndices(address)
+            | Request::GetADataLastEntry(address)
+            | Request::GetADataPermissions { address, .. }
+            | Request::GetPubADataUserPermissions { address, .. }
+            | Request::GetUnpubADataUserPermissions { address, .. }
+            | Request::GetADataOwners { address, .. } => address.is_pub(),
+            _ => false,
+        }
+    }
+
     #[allow(clippy::cognitive_complexity)]
     pub fn process_request(
         &mut self,
@@ -452,13 +469,17 @@ impl Vault {
             PublicId::Client(pk) => (*pk.public_key(), *pk.public_key()),
             PublicId::Node(_) => return Err(SndError::AccessDenied),
         };
-        let sig = match signature {
-            Some(s) => s,
-            None => {
-                return Err(SndError::InvalidSignature);
-            }
-        };
-        verify_signature(&sig, &requester_pk, &request, &message_id)?;
+
+        if !Self::request_is_get_for_pub_data(&request) {
+            let sig = match signature {
+                Some(s) => s,
+                None => {
+                    return Err(SndError::InvalidSignature);
+                }
+            };
+            verify_signature(&sig, &requester_pk, &request, &message_id)?;
+        }
+
         let response = match request.clone() {
             //
             // Immutable Data
@@ -834,7 +855,7 @@ impl Vault {
                     .and_then(|data| match data {
                         MData::Seq(mdata) => {
                             if let PublicId::Client(client_id) = requester.clone() {
-                                if client_id.public_key() == mdata.owners() {
+                                if client_id.public_key() == mdata.owner() {
                                     let address = *mdata.address();
                                     self.delete_data(DataId::Mutable(address));
                                     self.commit_mutation(requester.name());
@@ -848,7 +869,7 @@ impl Vault {
                         }
                         MData::Unseq(mdata) => {
                             if let PublicId::Client(client_id) = requester.clone() {
-                                if client_id.public_key() == mdata.owners() {
+                                if client_id.public_key() == mdata.owner() {
                                     let address = *mdata.address();
                                     self.delete_data(DataId::Mutable(address));
                                     self.commit_mutation(requester.name());
