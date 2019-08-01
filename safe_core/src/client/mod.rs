@@ -55,13 +55,13 @@ use routing::{
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppend, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
-    ADataOwner, ADataPubPermissionSet, ADataPubPermissions, ADataUnpubPermissionSet,
-    ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, ClientPublicId, Coins,
-    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataEntryActions,
-    MDataPermissionSet as NewPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
-    MDataValue as Val, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request,
-    Response, SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData,
-    XorName,
+    ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
+    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId,
+    ClientPublicId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData,
+    MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet as NewPermissionSet,
+    MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
+    MDataValues, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request, Response,
+    SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -493,7 +493,12 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
-    fn get_seq_mdata_value(&self, name: XorName, tag: u64, key: Vec<u8>) -> Box<CoreFuture<Val>> {
+    fn get_seq_mdata_value(
+        &self,
+        name: XorName,
+        tag: u64,
+        key: Vec<u8>,
+    ) -> Box<CoreFuture<MDataSeqValue>> {
         trace!("Fetch MDataValue for {:?}", name);
 
         send_new(
@@ -512,7 +517,12 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetSeqMDataValue(res) => res.map_err(CoreError::from),
+                Response::GetMDataValue(res) => {
+                    res.map_err(CoreError::from).and_then(|value| match value {
+                        MDataValue::Seq(val) => Ok(val),
+                        MDataValue::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -544,7 +554,12 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetUnseqMDataValue(res) => res.map_err(CoreError::from),
+                Response::GetMDataValue(res) => {
+                    res.map_err(CoreError::from).and_then(|value| match value {
+                        MDataValue::Unseq(val) => Ok(val),
+                        MDataValue::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -755,7 +770,13 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::ListUnseqMDataEntries(res) => res.map_err(CoreError::from),
+                Response::ListMDataEntries(res) => {
+                    res.map_err(CoreError::from)
+                        .and_then(|entries| match entries {
+                            MDataEntries::Unseq(data) => Ok(data),
+                            MDataEntries::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -763,11 +784,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Return a complete list of entries in `MutableData`.
-    fn list_seq_mdata_entries(
-        &self,
-        name: XorName,
-        tag: u64,
-    ) -> Box<CoreFuture<BTreeMap<Vec<u8>, Val>>> {
+    fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Box<CoreFuture<MDataSeqEntries>> {
         trace!("ListSeqMDataEntries for {:?}", name);
 
         send_new(
@@ -783,7 +800,13 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::ListSeqMDataEntries(res) => res.map_err(CoreError::from),
+                Response::ListMDataEntries(res) => {
+                    res.map_err(CoreError::from)
+                        .and_then(|entries| match entries {
+                            MDataEntries::Seq(data) => Ok(data),
+                            MDataEntries::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -816,7 +839,11 @@ pub trait Client: Clone + 'static {
     }
 
     /// Return a list of values in a Sequenced Mutable Data
-    fn list_seq_mdata_values(&self, name: XorName, tag: u64) -> Box<CoreFuture<Vec<Val>>> {
+    fn list_seq_mdata_values(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Box<CoreFuture<Vec<MDataSeqValue>>> {
         trace!("List MDataValues for {:?}", name);
 
         send_new(
@@ -832,7 +859,13 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::ListSeqMDataValues(res) => res.map_err(CoreError::from),
+                Response::ListMDataValues(res) => {
+                    res.map_err(CoreError::from)
+                        .and_then(|values| match values {
+                            MDataValues::Seq(data) => Ok(data),
+                            MDataValues::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -884,7 +917,13 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::ListUnseqMDataValues(res) => res.map_err(CoreError::from),
+                Response::ListMDataValues(res) => {
+                    res.map_err(CoreError::from)
+                        .and_then(|values| match values {
+                            MDataValues::Unseq(data) => Ok(data),
+                            MDataValues::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -1103,7 +1142,13 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetUnpubADataPermissionAtIndex(res) => res.map_err(CoreError::from),
+                Response::GetADataPermissions(res) => {
+                    res.map_err(CoreError::from)
+                        .and_then(|permissions| match permissions {
+                            ADataPermissions::Unpub(data) => Ok(data),
+                            ADataPermissions::Pub(_) => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -1137,7 +1182,13 @@ pub trait Client: Clone + 'static {
             let result_buffer = unwrap!(res);
             let res: Response = unwrap!(deserialise(&result_buffer));
             match res {
-                Response::GetPubADataPermissionAtIndex(res) => res.map_err(CoreError::from),
+                Response::GetADataPermissions(res) => {
+                    res.map_err(CoreError::from)
+                        .and_then(|permissions| match permissions {
+                            ADataPermissions::Pub(data) => Ok(data),
+                            ADataPermissions::Unpub(_) => Err(CoreError::ReceivedUnexpectedData),
+                        })
+                }
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
         })
@@ -2145,16 +2196,16 @@ mod tests {
 
             let name = XorName(rand::random());
             let tag = 15001;
-            let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
+            let mut entries: MDataSeqEntries = Default::default();
             let _ = entries.insert(
                 b"key".to_vec(),
-                Val {
+                MDataSeqValue {
                     data: b"value".to_vec(),
                     version: 0,
                 },
             );
             let entries_keys = entries.keys().cloned().collect();
-            let entries_values: Vec<Val> = entries.values().cloned().collect();
+            let entries_values: Vec<MDataSeqValue> = entries.values().cloned().collect();
             let mut permissions: BTreeMap<_, _> = Default::default();
             let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
             let _ = permissions.insert(
@@ -2649,17 +2700,17 @@ mod tests {
                 .allow(MDataAction::Delete);
             let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
             let _ = permissions.insert(user, permission_set.clone());
-            let mut entries: BTreeMap<Vec<u8>, Val> = Default::default();
+            let mut entries: MDataSeqEntries = Default::default();
             let _ = entries.insert(
                 b"key1".to_vec(),
-                Val {
+                MDataSeqValue {
                     data: b"value".to_vec(),
                     version: 0,
                 },
             );
             let _ = entries.insert(
                 b"key2".to_vec(),
-                Val {
+                MDataSeqValue {
                     data: b"value".to_vec(),
                     version: 0,
                 },
@@ -2702,14 +2753,14 @@ mod tests {
                             let mut expected_entries: BTreeMap<_, _> = Default::default();
                             let _ = expected_entries.insert(
                                 b"key1".to_vec(),
-                                Val {
+                                MDataSeqValue {
                                     data: b"newValue".to_vec(),
                                     version: 1,
                                 },
                             );
                             let _ = expected_entries.insert(
                                 b"key3".to_vec(),
-                                Val {
+                                MDataSeqValue {
                                     data: b"value".to_vec(),
                                     version: 0,
                                 },
@@ -2723,7 +2774,7 @@ mod tests {
                         .and_then(|fetched_value| {
                             assert_eq!(
                                 fetched_value,
-                                Val {
+                                MDataSeqValue {
                                     data: b"value".to_vec(),
                                     version: 0
                                 }

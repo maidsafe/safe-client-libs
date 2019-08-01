@@ -18,8 +18,8 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::{client::AuthActions, Client, CoreError, FutureExt, DIR_TAG};
 use safe_nd::{Error, PublicKey, XorName};
 use safe_nd::{
-    MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, MDataUnseqEntryActions,
-    MDataValue, SeqMutableData, UnseqMutableData,
+    MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, MDataSeqValue,
+    MDataUnseqEntryActions, SeqMutableData, UnseqMutableData,
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc;
@@ -305,7 +305,7 @@ fn multiple_apps() {
                 let (value, entry_key) = unwrap!(res);
                 assert_eq!(
                     value,
-                    MDataValue {
+                    MDataSeqValue {
                         data: vec![8, 9, 9],
                         version: 0
                     }
@@ -722,14 +722,14 @@ fn sequenced_entries_crud() {
         let mut data = BTreeMap::new();
         let _ = data.insert(
             vec![0, 0, 1],
-            MDataValue {
+            MDataSeqValue {
                 data: vec![1],
                 version: 0,
             },
         );
         let _ = data.insert(
             vec![0, 1, 0],
-            MDataValue {
+            MDataSeqValue {
                 data: vec![2, 8],
                 version: 0,
             },
@@ -762,14 +762,14 @@ fn sequenced_entries_crud() {
                 assert!(entries.get(&vec![0, 0, 1]).is_none());
                 assert_eq!(
                     *unwrap!(entries.get(&vec![0, 1, 0])),
-                    MDataValue {
+                    MDataSeqValue {
                         data: vec![2, 8, 64],
                         version: 1,
                     }
                 );
                 assert_eq!(
                     *unwrap!(entries.get(&vec![0, 1, 1])),
-                    MDataValue {
+                    MDataSeqValue {
                         data: vec![2, 3, 17],
                         version: 0,
                     }
@@ -790,7 +790,7 @@ fn sequenced_entries_crud() {
                 assert!(entries.get(&vec![0, 0, 1]).is_none());
                 assert_eq!(
                     *unwrap!(entries.get(&vec![0, 1, 0])),
-                    MDataValue {
+                    MDataSeqValue {
                         data: vec![64, 8, 1],
                         version: 2,
                     }
@@ -798,7 +798,7 @@ fn sequenced_entries_crud() {
                 assert!(entries.get(&vec![0, 1, 1]).is_none());
                 assert_eq!(
                     *unwrap!(entries.get(&vec![1, 0, 0])),
-                    MDataValue {
+                    MDataSeqValue {
                         data: vec![4, 4, 4, 4],
                         version: 0,
                     }

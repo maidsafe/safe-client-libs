@@ -450,7 +450,7 @@ impl Vault {
     pub fn process_request(
         &mut self,
         requester: PublicId,
-        payload: Vec<u8>,
+        payload: &[u8],
     ) -> Result<Message, SndError> {
         // Deserialise the request, returning an early error on failure.
         let (request, message_id, signature) = if let Message::Request {
@@ -458,7 +458,7 @@ impl Vault {
             message_id,
             signature,
         } =
-            deserialise(&payload).map_err(|_| SndError::from("Error deserialising message"))?
+            deserialise(payload).map_err(|_| SndError::from("Error deserialising message"))?
         {
             (request, message_id, signature)
         } else {
@@ -476,11 +476,11 @@ impl Vault {
             if !Self::request_is_get_for_pub_data(&request) {
                 match signature {
                     Some(sig) => verify_signature(&sig, &requester_pk, &request, &message_id)?,
-                    None => Err(SndError::InvalidSignature),
+                    None => return Err(SndError::InvalidSignature),
                 }
             }
 
-            (requester_pk, owner_pk)
+            Ok((requester_pk, owner_pk))
         });
 
         // Return errors as a response message corresponding to the incoming request message.
@@ -771,25 +771,19 @@ impl Vault {
                     (MDataKind::Seq, Ok(MData::Seq(mdata))) => {
                         let result = mdata
                             .get(&key)
-                            .map(|value| value.clone())
+                            .map(|value| value.clone().into())
                             .ok_or(SndError::NoSuchEntry);
-                        Response::GetSeqMDataValue(result)
+                        Response::GetMDataValue(result)
                     }
                     (MDataKind::Unseq, Ok(MData::Unseq(mdata))) => {
                         let result = mdata
                             .get(&key)
-                            .map(|value| value.clone())
+                            .map(|value| value.clone().into())
                             .ok_or(SndError::NoSuchEntry);
-                        Response::GetUnseqMDataValue(result)
+                        Response::GetMDataValue(result)
                     }
-                    (MDataKind::Seq, Err(err)) => Response::GetSeqMDataValue(Err(err)),
-                    (MDataKind::Unseq, Err(err)) => Response::GetUnseqMDataValue(Err(err)),
-                    (MDataKind::Seq, Ok(_)) => {
-                        Response::GetSeqMDataValue(Err(SndError::NoSuchData))
-                    }
-                    (MDataKind::Unseq, Ok(_)) => {
-                        Response::GetUnseqMDataValue(Err(SndError::NoSuchData))
-                    }
+                    (_, Err(err)) => Response::GetMDataValue(Err(err)),
+                    (_, Ok(_)) => Response::GetMDataValue(Err(SndError::NoSuchData)),
                 }
             }
             Request::GetMDataShell(address) => {
@@ -821,19 +815,13 @@ impl Vault {
 
                 match (address.kind(), data) {
                     (MDataKind::Seq, Ok(MData::Seq(mdata))) => {
-                        Response::ListSeqMDataEntries(Ok(mdata.entries().clone()))
+                        Response::ListMDataEntries(Ok(mdata.entries().clone().into()))
                     }
                     (MDataKind::Unseq, Ok(MData::Unseq(mdata))) => {
-                        Response::ListUnseqMDataEntries(Ok(mdata.entries().clone()))
+                        Response::ListMDataEntries(Ok(mdata.entries().clone().into()))
                     }
-                    (MDataKind::Seq, Err(err)) => Response::ListSeqMDataEntries(Err(err)),
-                    (MDataKind::Unseq, Err(err)) => Response::ListUnseqMDataEntries(Err(err)),
-                    (MDataKind::Seq, Ok(_)) => {
-                        Response::ListSeqMDataEntries(Err(SndError::NoSuchData))
-                    }
-                    (MDataKind::Unseq, Ok(_)) => {
-                        Response::ListUnseqMDataEntries(Err(SndError::NoSuchData))
-                    }
+                    (_, Err(err)) => Response::ListMDataEntries(Err(err)),
+                    (_, Ok(_)) => Response::ListMDataEntries(Err(SndError::NoSuchData)),
                 }
             }
             Request::ListMDataKeys(address) => {
@@ -853,19 +841,13 @@ impl Vault {
 
                 match (address.kind(), data) {
                     (MDataKind::Seq, Ok(MData::Seq(mdata))) => {
-                        Response::ListSeqMDataValues(Ok(mdata.values()))
+                        Response::ListMDataValues(Ok(mdata.values().into()))
                     }
                     (MDataKind::Unseq, Ok(MData::Unseq(mdata))) => {
-                        Response::ListUnseqMDataValues(Ok(mdata.values()))
+                        Response::ListMDataValues(Ok(mdata.values().into()))
                     }
-                    (MDataKind::Seq, Err(err)) => Response::ListSeqMDataValues(Err(err)),
-                    (MDataKind::Unseq, Err(err)) => Response::ListUnseqMDataValues(Err(err)),
-                    (MDataKind::Seq, Ok(_)) => {
-                        Response::ListSeqMDataValues(Err(SndError::NoSuchData))
-                    }
-                    (MDataKind::Unseq, Ok(_)) => {
-                        Response::ListUnseqMDataValues(Err(SndError::NoSuchData))
-                    }
+                    (_, Err(err)) => Response::ListMDataValues(Err(err)),
+                    (_, Ok(_)) => Response::ListMDataValues(Err(SndError::NoSuchData)),
                 }
             }
             Request::DeleteMData(address) => {
@@ -877,7 +859,7 @@ impl Vault {
                         }
 
                         if let PublicId::Client(client_id) = requester.clone() {
-                            if client_id.public_key() == data.owner() {
+                            if *client_id.public_key() == data.owner() {
                                 self.delete_data(DataId::Mutable(address));
                                 self.commit_mutation(requester.name());
                                 Ok(())
@@ -901,7 +883,7 @@ impl Vault {
 
                 let result = self
                     .get_mdata(address, requester_pk, request.clone())
-                    .and_then(|data| {
+                    .and_then(|mut data| {
                         if address != *data.address() {
                             return Err(SndError::NoSuchData);
                         }
@@ -924,7 +906,7 @@ impl Vault {
 
                 let result = self
                     .get_mdata(address, requester_pk, request)
-                    .and_then(|data| {
+                    .and_then(|mut data| {
                         if address != *data.address() {
                             return Err(SndError::NoSuchData);
                         }
@@ -968,20 +950,20 @@ impl Vault {
                 address,
                 ref actions,
             } => {
-                let result = self
-                    .get_mdata(address, requester_pk, request)
-                    .and_then(move |data| {
-                        if address != *data.address() {
-                            return Err(SndError::NoSuchData);
-                        }
+                let result =
+                    self.get_mdata(address, requester_pk, request)
+                        .and_then(move |mut data| {
+                            if address != *data.address() {
+                                return Err(SndError::NoSuchData);
+                            }
 
-                        let data_name = DataId::Mutable(address);
-                        data.mutate_entries(actions.clone(), requester_pk)?;
-                        self.insert_data(data_name, Data::NewMutable(data));
-                        self.commit_mutation(requester.name());
+                            let data_name = DataId::Mutable(address);
+                            data.mutate_entries(actions.clone(), requester_pk)?;
+                            self.insert_data(data_name, Data::NewMutable(data));
+                            self.commit_mutation(requester.name());
 
-                        Ok(())
-                    });
+                            Ok(())
+                        });
                 Response::Mutation(result)
             }
             //
@@ -1074,30 +1056,20 @@ impl Vault {
                 let data = self.get_adata(address, requester_pk, request);
 
                 match (address.kind(), data) {
-                    (kind, Ok(data)) if kind.is_pub() && data.is_pub() => {
-                        Response::GetPubADataPermissionAtIndex(
+                    (kind, Ok(ref data)) if kind.is_pub() && data.is_pub() => {
+                        Response::GetADataPermissions(
                             data.pub_permissions(permissions_index)
-                                .map(|perm| perm.clone()),
+                                .map(|perm| perm.clone().into()),
                         )
                     }
-                    (kind, Ok(data)) if kind.is_pub() && data.is_pub() => {
-                        Response::GetUnpubADataPermissionAtIndex(
+                    (kind, Ok(ref data)) if kind.is_unpub() && data.is_unpub() => {
+                        Response::GetADataPermissions(
                             data.unpub_permissions(permissions_index)
-                                .map(|perm| perm.clone()),
+                                .map(|perm| perm.clone().into()),
                         )
                     }
-                    (kind, Err(err)) if kind.is_pub() => {
-                        Response::GetPubADataPermissionAtIndex(Err(err))
-                    }
-                    (kind, Err(err)) if kind.is_unpub() => {
-                        Response::GetUnpubADataPermissionAtIndex(Err(err))
-                    }
-                    (kind, Ok(_)) if kind.is_pub() => {
-                        Response::GetPubADataPermissionAtIndex(Err(SndError::NoSuchData))
-                    }
-                    (kind, Ok(_)) if kind.is_unpub() => {
-                        Response::GetUnpubADataPermissionAtIndex(Err(SndError::NoSuchData))
-                    }
+                    (_, Err(err)) => Response::GetADataPermissions(Err(err)),
+                    (_, Ok(_)) => Response::GetADataPermissions(Err(SndError::NoSuchData)),
                 }
             }
             Request::GetPubADataUserPermissions {
@@ -1406,7 +1378,8 @@ impl Vault {
         if self.contains_data(&data_name) {
             // Published Immutable Data is de-duplicated
             if let DataId::Immutable(addr) = data_name {
-                if let IDataAddress::Pub(_) = addr {
+                if addr.is_pub() {
+                    self.commit_mutation(&requester.name());
                     return Ok(());
                 }
             }

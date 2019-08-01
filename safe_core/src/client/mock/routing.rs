@@ -189,7 +189,7 @@ impl Routing {
                 None => self.public_id.clone(),
             };
             let mut vault = self.lock_vault(true);
-            vault.process_request(public_id, payload.to_vec())
+            vault.process_request(public_id, payload)
         }?;
 
         // Send response back to a client
