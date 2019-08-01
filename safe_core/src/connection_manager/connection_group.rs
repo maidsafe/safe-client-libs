@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 // TODO - remove this.
-#![allow(unused)]
+#![allow(dead_code)]
 
 use crate::{client::NewFullId, CoreError, CoreFuture};
 use bytes::Bytes;
@@ -18,7 +18,7 @@ use futures::{
 };
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use new_rand::Rng;
-use quic_p2p::{self, Config as QuicP2pConfig, Event, NodeInfo, Peer, QuicP2p, Token};
+use quic_p2p::{self, NodeInfo, Peer, QuicP2p};
 use safe_nd::{Challenge, Message, MessageId, NodePublicId, PublicId, Response};
 use std::{
     cell::RefCell,

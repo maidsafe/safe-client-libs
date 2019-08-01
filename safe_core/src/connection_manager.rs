@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 // TODO - remove this.
-#![allow(unused)]
+#![allow(dead_code)]
 
 mod connection_group;
 
@@ -15,13 +15,8 @@ use crate::{client::NewFullId, event::NetworkTx, CoreError, CoreFuture};
 use bytes::Bytes;
 use connection_group::ConnectionGroup;
 use crossbeam_channel::{self, Receiver};
-use futures::{
-    future::{self, IntoFuture},
-    stream::Stream,
-    sync::mpsc::{self, UnboundedReceiver},
-    Future,
-};
-use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, NodeInfo, Peer, QuicP2p};
+use futures::{future, stream::Stream, sync::mpsc, Future};
+use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, NodeInfo, QuicP2p};
 use safe_nd::{Message, PublicId, Response};
 use std::{
     cell::RefCell,
@@ -42,12 +37,16 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     pub fn new(
-        config: Option<&QuicP2pConfig>,
-        net_tx: &NetworkTx,
+        config: Option<QuicP2pConfig>,
+        _net_tx: &NetworkTx,
         full_id: NewFullId,
     ) -> Result<Self, CoreError> {
         let (event_tx, event_rx) = crossbeam_channel::unbounded();
-        let quic_p2p = Rc::new(RefCell::new(Builder::new(event_tx).build()?));
+        let mut quic_p2p_builder = Builder::new(event_tx);
+        if let Some(config) = config {
+            quic_p2p_builder = quic_p2p_builder.with_config(config);
+        }
+        let quic_p2p = Rc::new(RefCell::new(quic_p2p_builder.build()?));
         let (qp2p_stream_tx, qp2p_stream_rx) = mpsc::unbounded();
         setup_quic_p2p_event_loop(event_rx, qp2p_stream_tx);
 
@@ -81,7 +80,7 @@ impl ConnectionManager {
             )));
         };
         let mut inner = self.inner.borrow_mut();
-        let mut conn_group = fry!(inner.groups.get_mut(&pub_id).ok_or_else(|| {
+        let conn_group = fry!(inner.groups.get_mut(&pub_id).ok_or_else(|| {
             CoreError::Unexpected("No connection group found - did you call `connect`?".to_string())
         }));
 
@@ -115,6 +114,9 @@ impl Inner {
         use Event::*;
         // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
         // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.handle_response(sender, token, response)` should be called.
+        //
+        // TODO - remove `allow`
+        #[allow(unused)]
         match event {
             BootstrapFailure => unimplemented!(),
             BootstrappedTo { node } => self.handle_bootstrapped_to(node),
