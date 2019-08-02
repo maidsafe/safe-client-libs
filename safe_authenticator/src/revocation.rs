@@ -14,12 +14,12 @@ use crate::client::AuthClient;
 use crate::config::{self, AppInfo, RevocationQueue};
 use futures::future::{self, Either, Loop};
 use futures::Future;
-use routing::User;
 use safe_core::recovery;
 use safe_core::{client::AuthActions, Client, CoreError, FutureExt, MDataInfo};
-use safe_nd::{Error as SndError, PublicKey};
+use safe_nd::{Error, MDataAddress, PublicKey};
 use std::collections::HashMap;
 
+//type MDataEntries = BTreeMap<Vec<u8>, MDataValue>;
 type Containers = HashMap<String, MDataInfo>;
 
 /// Revoke app access using a revocation queue.
@@ -128,37 +128,33 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
     let c3 = client.clone();
     let c4 = client.clone();
 
-    // 1. Delete the app key from MaidManagers
+    // 1. Delete the app key
     // 2. Remove the app key from containers permissions
     // 3. Refresh the containers info from the user's root dir (as the access
     //    container entry is not updated with the new keys info - so we have to
     //    make sure that we use correct encryption keys if the previous revoke
     //    attempt has failed)
-    // 4. Re-encrypt private containers that the app had access to
-    // 5. Remove the revoked app from the access container
+    // 4. Remove the revoked app from the access container
     config::get_app(client, app_id)
         .and_then(move |app| {
             delete_app_auth_key(&c2, PublicKey::from(app.keys.bls_pk)).map(move |_| app)
         })
         .and_then(move |app| {
-            access_container::fetch_entry(&c3, &app.info.id, app.keys.clone()).and_then(
-                move |(version, ac_entry)| {
-                    match ac_entry {
-                        Some(ac_entry) => {
-                            let containers: Containers = ac_entry
-                                .into_iter()
-                                .map(|(name, (mdata_info, _))| (name, mdata_info))
-                                .collect();
+            access_container::fetch_entry(&c3, &app.info.id, app.keys.clone()).then(move |res| {
+                match res {
+                    Ok((version, ac_entry)) => {
+                        let containers: Containers = ac_entry
+                            .into_iter()
+                            .map(|(name, (mdata_info, _))| (name, mdata_info))
+                            .collect();
 
-                            clear_from_access_container_entry(&c4, app, version, containers)
-                        }
-                        // If the access container entry was not found, exit without an error,
-                        // as the entry must have been deleted with the app having stayed on the
-                        // revocation queue.
-                        None => ok!(()),
+                        clear_from_access_container_entry(&c4, app, version, containers)
                     }
-                },
-            )
+                    // If the access container entry was not found, the entry must have been
+                    // deleted with the app having stayed on the revocation queue.
+                    Err(_e) => ok!(()),
+                }
+            })
         })
         .into_box()
 }
@@ -179,7 +175,7 @@ fn delete_app_auth_key(client: &AuthClient, key: PublicKey) -> Box<AuthFuture<()
             }
         })
         .or_else(|error| match error {
-            CoreError::NewRoutingClientError(SndError::NoSuchKey) => Ok(()),
+            CoreError::NewRoutingClientError(Error::NoSuchKey) => Ok(()),
             error => Err(AuthError::from(error)),
         })
         .into_box()
@@ -215,13 +211,16 @@ fn revoke_container_perms(
 
             client
                 .clone()
-                .get_mdata_version(mdata_info.name(), mdata_info.type_tag())
+                .get_mdata_version_new(MDataAddress::Seq {
+                    name: mdata_info.name(),
+                    tag: mdata_info.type_tag(),
+                })
                 .and_then(move |version| {
                     recovery::del_mdata_user_permissions(
                         &c2,
                         mdata_info.name(),
                         mdata_info.type_tag(),
-                        User::Key(pk),
+                        pk,
                         version + 1,
                     )
                 })

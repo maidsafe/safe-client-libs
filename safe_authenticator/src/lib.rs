@@ -214,7 +214,6 @@ impl Authenticator {
                     .into_box()
                     .into()))
             );
-
             event_loop::run(el, &client, &(), core_rx);
         });
 

@@ -6,11 +6,14 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{permission_set_clone_from_repr_c, permission_set_into_repr_c, AppExchangeInfo};
+use super::{
+    permission_set_clone_from_repr_c_new, permission_set_into_repr_c_new, AppExchangeInfo,
+};
 use crate::ffi::ipc::req as ffi;
 use crate::ipc::errors::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC};
-use routing::{PermissionSet, XorName};
+use routing::XorName;
+use safe_nd::MDataPermissionSet;
 use std::slice;
 
 /// Represents a request to share mutable data.
@@ -30,7 +33,7 @@ pub struct ShareMData {
     /// The mutable data name.
     pub name: XorName,
     /// The permissions being requested.
-    pub perms: PermissionSet,
+    pub perms: MDataPermissionSet,
 }
 
 impl ShareMDataReq {
@@ -77,7 +80,7 @@ impl ShareMData {
         Ok(ffi::ShareMData {
             type_tag: self.type_tag,
             name: self.name.0,
-            perms: permission_set_into_repr_c(self.perms),
+            perms: permission_set_into_repr_c_new(self.perms),
         })
     }
 }
@@ -90,7 +93,7 @@ impl ReprC for ShareMData {
         Ok(Self {
             type_tag: (*repr_c).type_tag,
             name: XorName((*repr_c).name),
-            perms: permission_set_clone_from_repr_c((*repr_c).perms)?,
+            perms: permission_set_clone_from_repr_c_new((*repr_c).perms)?,
         })
     }
 }

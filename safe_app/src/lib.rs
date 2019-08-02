@@ -478,14 +478,14 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
     ));
 
     client
-        .get_mdata_value(
+        .get_seq_mdata_value(
             context.access_container_info.id,
             context.access_container_info.tag,
             entry_key,
         )
         .map_err(AppError::from)
         .and_then(move |value| {
-            let encoded = utils::symmetric_decrypt(&value.content, &context.sym_enc_key)?;
+            let encoded = utils::symmetric_decrypt(&value.data, &context.sym_enc_key)?;
             let decoded = deserialise(&encoded)?;
 
             *context.access_info.borrow_mut() = decoded;

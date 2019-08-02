@@ -13,9 +13,10 @@ use crate::ffi::{md_kind_clone_from_repr_c, md_kind_into_repr_c, MDataInfo as Ff
 use crate::ipc::IpcError;
 use crate::utils::{symmetric_decrypt, symmetric_encrypt};
 use ffi_utils::ReprC;
-use routing::{EntryAction, Value};
 use rust_sodium::crypto::secretbox;
-use safe_nd::{MDataAddress, MDataKind, XorName};
+use safe_nd::{
+    MDataAddress, MDataKind, MDataSeqEntries, MDataSeqEntryAction, MDataSeqValue, XorName,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use tiny_keccak::sha3_256;
 
@@ -174,8 +175,8 @@ impl MDataInfo {
 /// Encrypt the entries (both keys and values) using the `MDataInfo`.
 pub fn encrypt_entries(
     info: &MDataInfo,
-    entries: &BTreeMap<Vec<u8>, Value>,
-) -> Result<BTreeMap<Vec<u8>, Value>, CoreError> {
+    entries: &BTreeMap<Vec<u8>, MDataSeqValue>,
+) -> Result<BTreeMap<Vec<u8>, MDataSeqValue>, CoreError> {
     let mut output = BTreeMap::new();
 
     for (key, value) in entries {
@@ -191,16 +192,20 @@ pub fn encrypt_entries(
 /// mutated by the encrypted actions will end up encrypted using the `MDataInfo`.
 pub fn encrypt_entry_actions(
     info: &MDataInfo,
-    actions: &BTreeMap<Vec<u8>, EntryAction>,
-) -> Result<BTreeMap<Vec<u8>, EntryAction>, CoreError> {
+    actions: &BTreeMap<Vec<u8>, MDataSeqEntryAction>,
+) -> Result<BTreeMap<Vec<u8>, MDataSeqEntryAction>, CoreError> {
     let mut output = BTreeMap::new();
 
     for (key, action) in actions {
         let encrypted_key = info.enc_entry_key(key)?;
         let encrypted_action = match *action {
-            EntryAction::Ins(ref value) => EntryAction::Ins(encrypt_value(info, value)?),
-            EntryAction::Update(ref value) => EntryAction::Update(encrypt_value(info, value)?),
-            EntryAction::Del(version) => EntryAction::Del(version),
+            MDataSeqEntryAction::Ins(ref value) => {
+                MDataSeqEntryAction::Ins(encrypt_value(info, value)?)
+            }
+            MDataSeqEntryAction::Update(ref value) => {
+                MDataSeqEntryAction::Update(encrypt_value(info, value)?)
+            }
+            MDataSeqEntryAction::Del(version) => MDataSeqEntryAction::Del(version),
         };
 
         let _ = output.insert(encrypted_key, encrypted_action);
@@ -212,8 +217,8 @@ pub fn encrypt_entry_actions(
 /// Decrypt entries using the `MDataInfo`.
 pub fn decrypt_entries(
     info: &MDataInfo,
-    entries: &BTreeMap<Vec<u8>, Value>,
-) -> Result<BTreeMap<Vec<u8>, Value>, CoreError> {
+    entries: &BTreeMap<Vec<u8>, MDataSeqValue>,
+) -> Result<MDataSeqEntries, CoreError> {
     let mut output = BTreeMap::new();
 
     for (key, value) in entries {
@@ -241,7 +246,10 @@ pub fn decrypt_keys(
 }
 
 /// Decrypt all values using the `MDataInfo`.
-pub fn decrypt_values(info: &MDataInfo, values: &[Value]) -> Result<Vec<Value>, CoreError> {
+pub fn decrypt_values(
+    info: &MDataInfo,
+    values: &[MDataSeqValue],
+) -> Result<Vec<MDataSeqValue>, CoreError> {
     let mut output = Vec::with_capacity(values.len());
 
     for value in values {
@@ -251,17 +259,17 @@ pub fn decrypt_values(info: &MDataInfo, values: &[Value]) -> Result<Vec<Value>, 
     Ok(output)
 }
 
-fn encrypt_value(info: &MDataInfo, value: &Value) -> Result<Value, CoreError> {
-    Ok(Value {
-        content: info.enc_entry_value(&value.content)?,
-        entry_version: value.entry_version,
+fn encrypt_value(info: &MDataInfo, value: &MDataSeqValue) -> Result<MDataSeqValue, CoreError> {
+    Ok(MDataSeqValue {
+        data: info.enc_entry_value(&value.data)?,
+        version: value.version,
     })
 }
 
-fn decrypt_value(info: &MDataInfo, value: &Value) -> Result<Value, CoreError> {
-    Ok(Value {
-        content: info.decrypt(&value.content)?,
-        entry_version: value.entry_version,
+fn decrypt_value(info: &MDataInfo, value: &MDataSeqValue) -> Result<MDataSeqValue, CoreError> {
+    Ok(MDataSeqValue {
+        data: info.decrypt(&value.data)?,
+        version: value.version,
     })
 }
 
@@ -360,7 +368,7 @@ mod tests {
     // Ensure that a public mdata info is not encrypted.
     #[test]
     fn public_mdata_info_doesnt_encrypt() {
-        let info = unwrap!(MDataInfo::random_public(MDataKind::Unseq, 0));
+        let info = unwrap!(MDataInfo::random_public(MDataKind::Seq, 0));
         let key = Vec::from("str of key");
         let val = Vec::from("other is value");
         assert_eq!(unwrap!(info.enc_entry_key(&key)), key);

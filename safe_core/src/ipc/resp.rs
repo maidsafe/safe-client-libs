@@ -12,18 +12,16 @@ use crate::client::MDataInfo;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::ffi::ipc::resp as ffi;
 use crate::ipc::req::{
-    container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c,
-    permission_set_into_repr_c, ContainerPermissions,
+    container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c_new,
+    permission_set_into_repr_c_new, ContainerPermissions,
 };
 use crate::ipc::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::PermissionSet;
-use routing::Value;
 use routing::{BootstrapConfig, XorName};
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
-use safe_nd::{AppFullId, MDataAddress, PublicKey};
+use safe_nd::{AppFullId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};
@@ -367,7 +365,7 @@ pub struct AppAccess {
     /// App's or user's public key
     pub sign_key: PublicKey,
     /// A list of permissions
-    pub permissions: PermissionSet,
+    pub permissions: MDataPermissionSet,
     /// App's user-facing name
     pub name: Option<String>,
     /// App id
@@ -401,7 +399,7 @@ impl AppAccess {
 
         Ok(ffi::AppAccess {
             sign_key: key,
-            permissions: permission_set_into_repr_c(permissions),
+            permissions: permission_set_into_repr_c_new(permissions),
             name,
             app_id,
         })
@@ -425,7 +423,7 @@ impl ReprC for AppAccess {
                 threshold_crypto::PublicKey::from_bytes(sign_key)
                     .map_err(|_| IpcError::EncodeDecodeError)?,
             ),
-            permissions: permission_set_clone_from_repr_c(permissions)?,
+            permissions: permission_set_clone_from_repr_c_new(permissions)?,
             name: if name.is_null() {
                 None
             } else {
@@ -506,10 +504,10 @@ pub struct MDataValue {
 
 impl MDataValue {
     /// Convert routing representation to `MDataValue`.
-    pub fn from_routing(value: Value) -> Self {
+    pub fn from_routing(value: MDataSeqValue) -> Self {
         MDataValue {
-            content: value.content,
-            entry_version: value.entry_version,
+            content: value.data,
+            entry_version: value.version,
         }
     }
 
@@ -611,46 +609,37 @@ impl ReprC for MDataEntry {
 #[allow(unsafe_code)]
 mod tests {
     use super::*;
-    // use crate::ipc::BootstrapConfig;
+    use crate::ipc::BootstrapConfig;
     use ffi_utils::ReprC;
     use routing::{XorName, XOR_NAME_LEN};
     use rust_sodium::crypto::secretbox;
+    use threshold_crypto::SecretKey;
 
     // // Test converting an `AuthGranted` object to its FFI representation and then back again.
-    // #[test]
-    // fn auth_granted() {
-    //     let (ok, _) = shared_sign::gen_keypair();
-    //     let (pk, sk) = shared_sign::gen_keypair();
-    //     let key = shared_secretbox::gen_key();
-    //     let (ourpk, oursk) = shared_box::gen_keypair();
-    //     let ak = AppKeys {
-    //         owner_key: ok,
-    //         enc_key: key,
-    //         sign_pk: pk,
-    //         sign_sk: sk,
-    //         enc_pk: ourpk,
-    //         enc_sk: oursk,
-    //     };
-    //     let ac = AccessContInfo {
-    //         id: XorName([2; XOR_NAME_LEN]),
-    //         tag: 681,
-    //         nonce: secretbox::gen_nonce(),
-    //     };
-    //     let ag = AuthGranted {
-    //         app_keys: ak,
-    //         bootstrap_config: BootstrapConfig::default(),
-    //         access_container_info: ac,
-    //         access_container_entry: AccessContainerEntry::default(),
-    //     };
+    #[test]
+    fn auth_granted() {
+        let bls_pk = PublicKey::Bls(SecretKey::random().public_key());
+        let ak = AppKeys::random(bls_pk);
+        let ac = AccessContInfo {
+            id: XorName([2; XOR_NAME_LEN]),
+            tag: 681,
+            nonce: secretbox::gen_nonce(),
+        };
+        let ag = AuthGranted {
+            app_keys: ak,
+            bootstrap_config: BootstrapConfig::default(),
+            access_container_info: ac,
+            access_container_entry: AccessContainerEntry::default(),
+        };
 
-    //     let ffi = unwrap!(ag.into_repr_c());
+        let ffi = unwrap!(ag.into_repr_c());
 
-    //     assert_eq!(ffi.access_container_info.tag, 681);
+        assert_eq!(ffi.access_container_info.tag, 681);
 
-    //     let ag = unsafe { unwrap!(AuthGranted::clone_from_repr_c(&ffi)) };
+        let ag = unsafe { unwrap!(AuthGranted::clone_from_repr_c(&ffi)) };
 
-    //     assert_eq!(ag.access_container_info.tag, 681);
-    // }
+        assert_eq!(ag.access_container_info.tag, 681);
+    }
 
     // // Testing converting an `AppKeys` object to its FFI representation and back again.
     // #[test]

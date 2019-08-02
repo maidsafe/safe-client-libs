@@ -14,13 +14,12 @@ use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::EntryActions;
 use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
-use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
-use safe_nd::{Error as SndError, MDataAction, MDataAddress, MDataPermissionSet, PublicKey};
+use safe_core::{recovery, Client, FutureExt, MDataInfo};
+use safe_nd::{MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, PublicKey};
 use std::collections::HashMap;
 
 /// Key of the authenticator entry in the access container.
@@ -71,14 +70,14 @@ pub fn fetch_authenticator_entry(
     };
 
     client
-        .get_mdata_value(access_container.name(), access_container.type_tag(), key)
+        .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
         .map_err(From::from)
         .and_then(move |value| {
             let enc_key = c2.secret_symmetric_key().ok_or_else(|| {
                 AuthError::Unexpected("Secret symmetric key not found".to_string())
             })?;
-            decode_authenticator_entry(&value.content, &enc_key)
-                .map(|decoded| (value.entry_version, decoded))
+            decode_authenticator_entry(&value.data, &enc_key)
+                .map(|decoded| (value.version, decoded))
         })
         .into_box()
 }
@@ -101,16 +100,16 @@ pub fn put_authenticator_entry(
     };
 
     let actions = if version == 0 {
-        EntryActions::new().ins(key, ciphertext, 0)
+        MDataSeqEntryActions::new().ins(key, ciphertext, 0)
     } else {
-        EntryActions::new().update(key, ciphertext, version)
+        MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
     recovery::mutate_mdata_entries(
         client,
         access_container.name(),
         access_container.type_tag(),
-        actions.into(),
+        actions,
     )
     .map_err(From::from)
     .into_box()
@@ -139,7 +138,7 @@ pub fn fetch_entry(
     client: &AuthClient,
     app_id: &str,
     app_keys: AppKeys,
-) -> Box<AuthFuture<(u64, Option<AccessContainerEntry>)>> {
+) -> Box<AuthFuture<(u64, AccessContainerEntry)>> {
     trace!(
         "Fetching access container entry for app with ID {}...",
         app_id
@@ -149,13 +148,13 @@ pub fn fetch_entry(
     trace!("Fetching entry using entry key {:?}", key);
 
     client
-        .get_mdata_value(access_container.name(), access_container.type_tag(), key)
-        .then(move |result| match result {
-            Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => Ok((0, None)),
-            Err(err) => Err(AuthError::from(err)),
-            Ok(value) => {
-                let decoded = Some(decode_app_entry(&value.content, &app_keys.enc_key)?);
-                Ok((value.entry_version, decoded))
+        .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
+        .then(move |value| {
+            if let Err(e) = value {
+                Err(AuthError::from(e))
+            } else {
+                let val = unwrap!(value);
+                Ok((val.version, decode_app_entry(&val.data, &app_keys.enc_key)?))
             }
         })
         .into_box()
@@ -170,7 +169,6 @@ pub fn put_entry(
     version: u64,
 ) -> Box<AuthFuture<()>> {
     trace!("Putting access container entry for app {}...", app_id);
-
     let client2 = client.clone();
     let client3 = client.clone();
     let access_container = client.access_container();
@@ -179,14 +177,18 @@ pub fn put_entry(
     let ciphertext = fry!(encode_app_entry(permissions, &app_keys.enc_key));
 
     let actions = if version == 0 {
-        EntryActions::new().ins(key, ciphertext, 0)
+        MDataSeqEntryActions::new().ins(key, ciphertext, 0)
     } else {
-        EntryActions::new().update(key, ciphertext, version)
+        MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
+
     let app_pk: PublicKey = app_keys.bls_pk.into();
 
     client
-        .get_mdata_version(access_container.name(), access_container.type_tag())
+        .get_mdata_version_new(MDataAddress::Seq {
+            name: access_container.name(),
+            tag: access_container.type_tag(),
+        })
         .map_err(AuthError::from)
         .and_then(move |shell_version| {
             client2
@@ -225,13 +227,16 @@ pub fn delete_entry(
     let access_container = client.access_container();
     let acc_cont_info = access_container.clone();
     let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
-    let actions = EntryActions::new().del(key, version);
     let client2 = client.clone();
     let client3 = client.clone();
+    let actions = MDataSeqEntryActions::new().del(key, version);
     let app_pk: PublicKey = app_keys.bls_pk.into();
 
     client
-        .get_mdata_version(access_container.name(), access_container.type_tag())
+        .get_mdata_version_new(MDataAddress::Seq {
+            name: access_container.name(),
+            tag: access_container.type_tag(),
+        })
         .map_err(AuthError::from)
         .and_then(move |shell_version| {
             client2

@@ -13,8 +13,10 @@ use crate::event_loop::CoreFuture;
 use crate::utils::FutureExt;
 use futures::future::{self, Either, Loop};
 use futures::Future;
-use routing::{Action, EntryAction, MutableData, PermissionSet, User, Value};
-use safe_nd::{AppPermissions, EntryError as SndEntryError, Error as SndError, PublicKey, XorName};
+use safe_nd::{
+    AppPermissions, EntryError, Error, MDataAction, MDataAddress, MDataPermissionSet,
+    MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey, SeqMutableData, XorName,
+};
 use std::collections::BTreeMap;
 
 const MAX_ATTEMPTS: usize = 10;
@@ -24,13 +26,13 @@ const MAX_ATTEMPTS: usize = 10;
 /// If the data already exists, it tries to mutate it so its entries and permissions
 /// are the same as those of the data being put, except it wont delete existing
 /// entries or remove existing permissions.
-pub fn put_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>> {
+pub fn put_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()>> {
     let client2 = client.clone();
 
     client
-        .put_mdata(data.clone())
+        .put_seq_mutable_data(data.clone())
         .or_else(move |error| match error {
-            CoreError::NewRoutingClientError(SndError::DataExists) => {
+            CoreError::NewRoutingClientError(Error::DataExists) => {
                 Either::A(update_mdata(&client2, data))
             }
             error => Either::B(future::err(error)),
@@ -43,23 +45,23 @@ pub fn mutate_mdata_entries(
     client: &impl Client,
     name: XorName,
     tag: u64,
-    actions: BTreeMap<Vec<u8>, EntryAction>,
+    actions: MDataSeqEntryActions,
 ) -> Box<CoreFuture<()>> {
     let state = (0, actions);
     let client = client.clone();
 
     future::loop_fn(state, move |(attempts, actions)| {
         client
-            .mutate_mdata_entries(name, tag, actions.clone())
+            .mutate_seq_mdata_entries(name, tag, actions.clone())
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::InvalidEntryActions(errors)) => {
+                CoreError::NewRoutingClientError(Error::InvalidEntryActions(errors)) => {
                     if attempts < MAX_ATTEMPTS {
                         let actions = fix_entry_actions(actions, &errors);
-                        Ok(Loop::Continue((attempts + 1, actions)))
+                        Ok(Loop::Continue((attempts + 1, actions.into())))
                     } else {
                         Err(CoreError::NewRoutingClientError(
-                            SndError::InvalidEntryActions(errors),
+                            Error::InvalidEntryActions(errors),
                         ))
                     }
                 }
@@ -79,10 +81,9 @@ pub fn mutate_mdata_entries(
 /// Sets user permission on the mutable data and tries to recover from errors.
 pub fn set_mdata_user_permissions(
     client: &impl Client,
-    name: XorName,
-    tag: u64,
-    user: User,
-    permissions: PermissionSet,
+    name: MDataAddress,
+    user: PublicKey,
+    permissions: MDataPermissionSet,
     version: u64,
 ) -> Box<CoreFuture<()>> {
     let state = (0, version);
@@ -90,10 +91,10 @@ pub fn set_mdata_user_permissions(
 
     future::loop_fn(state, move |(attempts, version)| {
         client
-            .set_mdata_user_permissions(name, tag, user, permissions, version)
+            .set_mdata_user_permissions_new(name, user, permissions.clone(), version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
+                CoreError::NewRoutingClientError(Error::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -118,7 +119,7 @@ pub fn del_mdata_user_permissions(
     client: &impl Client,
     name: XorName,
     tag: u64,
-    user: User,
+    user: PublicKey,
     version: u64,
 ) -> Box<CoreFuture<()>> {
     let state = (0, version);
@@ -126,11 +127,11 @@ pub fn del_mdata_user_permissions(
 
     future::loop_fn(state, move |(attempts, version)| {
         client
-            .del_mdata_user_permissions(name, tag, user, version)
+            .del_mdata_user_permissions_new(MDataAddress::Seq { name, tag }, user, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::NoSuchKey) => Ok(Loop::Break(())),
-                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
+                CoreError::NewRoutingClientError(Error::NoSuchKey) => Ok(Loop::Break(())),
+                CoreError::NewRoutingClientError(Error::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -150,13 +151,17 @@ pub fn del_mdata_user_permissions(
     .into_box()
 }
 
-fn update_mdata(client: &impl Client, data: MutableData) -> Box<CoreFuture<()>> {
+fn update_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()>> {
     let client2 = client.clone();
     let client3 = client.clone();
 
-    let f0 = client.list_mdata_entries(*data.name(), data.tag());
-    let f1 = client.list_mdata_permissions(*data.name(), data.tag());
-    let f2 = client.get_mdata_version(*data.name(), data.tag());
+    let address = MDataAddress::Seq {
+        name: *data.name(),
+        tag: data.tag(),
+    };
+    let f0 = client.list_seq_mdata_entries(*data.name(), data.tag());
+    let f1 = client.list_mdata_permissions_new(address);
+    let f2 = client.get_mdata_version_new(address);
 
     f0.join3(f1, f2)
         .and_then(move |(entries, permissions, version)| {
@@ -187,40 +192,43 @@ fn update_mdata_entries(
     client: &impl Client,
     name: XorName,
     tag: u64,
-    current_entries: &BTreeMap<Vec<u8>, Value>,
-    desired_entries: BTreeMap<Vec<u8>, Value>,
+    current_entries: &BTreeMap<Vec<u8>, MDataSeqValue>,
+    desired_entries: BTreeMap<Vec<u8>, MDataSeqValue>,
 ) -> Box<CoreFuture<()>> {
-    let actions = desired_entries
+    let actions: BTreeMap<Vec<u8>, MDataSeqEntryAction> = desired_entries
         .into_iter()
         .filter_map(|(key, value)| {
             if let Some(current_value) = current_entries.get(&key) {
-                if current_value.entry_version <= value.entry_version {
-                    Some((key, EntryAction::Update(value)))
+                if current_value.version <= value.version {
+                    Some((key, MDataSeqEntryAction::Update(value)))
                 } else {
                     None
                 }
             } else {
-                Some((key, EntryAction::Ins(value)))
+                Some((key, MDataSeqEntryAction::Ins(value)))
             }
         })
         .collect();
 
-    mutate_mdata_entries(client, name, tag, actions)
+    mutate_mdata_entries(client, name, tag, actions.into())
 }
 
 fn update_mdata_permissions(
     client: &impl Client,
     name: XorName,
     tag: u64,
-    current_permissions: &BTreeMap<User, PermissionSet>,
-    desired_permissions: BTreeMap<User, PermissionSet>,
+    current_permissions: &BTreeMap<PublicKey, MDataPermissionSet>,
+    desired_permissions: BTreeMap<PublicKey, MDataPermissionSet>,
     version: u64,
 ) -> Box<CoreFuture<()>> {
     let permissions: Vec<_> = desired_permissions
         .into_iter()
         .map(|(user, desired_set)| {
             if let Some(current_set) = current_permissions.get(&user) {
-                (user, union_permission_sets(*current_set, desired_set))
+                (
+                    user,
+                    union_permission_sets(current_set.clone(), desired_set),
+                )
             } else {
                 (user, desired_set)
             }
@@ -230,8 +238,14 @@ fn update_mdata_permissions(
     let state = (client.clone(), permissions, version);
     future::loop_fn(state, move |(client, mut permissions, version)| {
         if let Some((user, set)) = permissions.pop() {
-            let f = set_mdata_user_permissions(&client, name, tag, user, set, version)
-                .map(move |_| Loop::Continue((client, permissions, version + 1)));
+            let f = set_mdata_user_permissions(
+                &client,
+                MDataAddress::Seq { name, tag },
+                user,
+                set,
+                version,
+            )
+            .map(move |_| Loop::Continue((client, permissions, version + 1)));
             Either::A(f)
         } else {
             Either::B(future::ok(Loop::Break(())))
@@ -242,14 +256,16 @@ fn update_mdata_permissions(
 
 // Modify the given entry actions to fix the entry errors.
 fn fix_entry_actions(
-    actions: BTreeMap<Vec<u8>, EntryAction>,
-    errors: &BTreeMap<Vec<u8>, SndEntryError>,
-) -> BTreeMap<Vec<u8>, EntryAction> {
+    actions: MDataSeqEntryActions,
+    errors: &BTreeMap<Vec<u8>, EntryError>,
+) -> BTreeMap<Vec<u8>, MDataSeqEntryAction> {
     actions
+        .actions()
+        .clone()
         .into_iter()
         .filter_map(|(key, action)| {
             if let Some(error) = errors.get(&key) {
-                if let Some(action) = fix_entry_action(action, error) {
+                if let Some(action) = fix_entry_action(action, error.clone()) {
                     Some((key, action))
                 } else {
                     None
@@ -261,39 +277,45 @@ fn fix_entry_actions(
         .collect()
 }
 
-fn fix_entry_action(action: EntryAction, error: &SndEntryError) -> Option<EntryAction> {
-    match (action, error.clone()) {
-        (EntryAction::Ins(value), SndEntryError::EntryExists(current_version))
-        | (EntryAction::Update(value), SndEntryError::InvalidSuccessor(current_version)) => {
-            Some(EntryAction::Update(Value {
-                content: value.content,
-                entry_version: (current_version + 1).into(),
+fn fix_entry_action(action: MDataSeqEntryAction, error: EntryError) -> Option<MDataSeqEntryAction> {
+    match (action, error) {
+        (MDataSeqEntryAction::Ins(value), EntryError::EntryExists(current_version))
+        | (MDataSeqEntryAction::Update(value), EntryError::InvalidSuccessor(current_version)) => {
+            Some(MDataSeqEntryAction::Update(MDataSeqValue {
+                data: value.data,
+                version: (current_version + 1) as u64,
             }))
         }
-        (EntryAction::Update(value), SndEntryError::NoSuchEntry) => Some(EntryAction::Ins(value)),
-        (EntryAction::Del(_), SndEntryError::NoSuchEntry) => None,
-        (EntryAction::Del(_), SndEntryError::InvalidSuccessor(current_version)) => {
-            Some(EntryAction::Del((current_version + 1).into()))
+        (MDataSeqEntryAction::Update(value), EntryError::NoSuchEntry) => {
+            Some(MDataSeqEntryAction::Ins(value))
+        }
+        (MDataSeqEntryAction::Del(_), EntryError::NoSuchEntry) => None,
+        (MDataSeqEntryAction::Del(_), EntryError::InvalidSuccessor(current_version)) => {
+            Some(MDataSeqEntryAction::Del(current_version as u64 + 1))
         }
         (action, _) => Some(action),
     }
 }
 
 // Create union of the two permission sets, preferring allows to deny's.
-fn union_permission_sets(a: PermissionSet, b: PermissionSet) -> PermissionSet {
+fn union_permission_sets(a: MDataPermissionSet, b: MDataPermissionSet) -> MDataPermissionSet {
     let actions = [
-        Action::Insert,
-        Action::Update,
-        Action::Delete,
-        Action::ManagePermissions,
+        MDataAction::Insert,
+        MDataAction::Update,
+        MDataAction::Delete,
+        MDataAction::ManagePermissions,
     ];
-    actions.iter().fold(PermissionSet::new(), |set, &action| {
-        match (a.is_allowed(action), b.is_allowed(action)) {
-            (Some(true), _) | (_, Some(true)) => set.allow(action),
-            (Some(false), _) | (_, Some(false)) => set.deny(action),
-            _ => set,
-        }
-    })
+    actions
+        .iter()
+        .fold(MDataPermissionSet::new(), |set, &action| {
+            if a.is_allowed(action) | b.is_allowed(action) {
+                set.allow(action)
+            } else if (a.is_allowed(action) == false) | (b.is_allowed(action) == false) {
+                set.deny(action)
+            } else {
+                set
+            }
+        })
 }
 
 /// Insert key to maid managers.
@@ -312,7 +334,7 @@ pub fn ins_auth_key(
             .ins_auth_key(key, permissions, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
+                CoreError::NewRoutingClientError(Error::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -335,130 +357,107 @@ pub fn ins_auth_key(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use safe_nd::MDataSeqValue;
 
     // Test modifying given entry actions to fix entry errors
     #[test]
     fn test_fix_entry_actions() {
-        let mut actions = BTreeMap::new();
-        let _ = actions.insert(
-            vec![0],
-            EntryAction::Ins(Value {
-                content: vec![0],
-                entry_version: 0,
-            }),
-        );
-        let _ = actions.insert(
-            vec![1],
-            EntryAction::Ins(Value {
-                content: vec![1],
-                entry_version: 0,
-            }),
-        );
-        let _ = actions.insert(
-            vec![2],
-            EntryAction::Update(Value {
-                content: vec![2],
-                entry_version: 1,
-            }),
-        );
-        let _ = actions.insert(
-            vec![3],
-            EntryAction::Update(Value {
-                content: vec![3],
-                entry_version: 1,
-            }),
-        );
-        let _ = actions.insert(
-            vec![4],
-            EntryAction::Update(Value {
-                content: vec![4],
-                entry_version: 1,
-            }),
-        );
-        let _ = actions.insert(vec![5], EntryAction::Del(1));
-        let _ = actions.insert(vec![6], EntryAction::Del(1));
-        let _ = actions.insert(vec![7], EntryAction::Del(1));
+        let actions = MDataSeqEntryActions::new()
+            .ins(vec![0], vec![0], 0)
+            .ins(vec![1], vec![1], 0)
+            .update(vec![2], vec![2], 1)
+            .update(vec![3], vec![3], 1)
+            .update(vec![4], vec![4], 1)
+            .del(vec![5], 1)
+            .del(vec![6], 1)
+            .del(vec![7], 1);
 
         let mut errors = BTreeMap::new();
-        let _ = errors.insert(vec![1], SndEntryError::EntryExists(2));
-        let _ = errors.insert(vec![3], SndEntryError::NoSuchEntry);
-        let _ = errors.insert(vec![4], SndEntryError::InvalidSuccessor(2));
-        let _ = errors.insert(vec![6], SndEntryError::NoSuchEntry);
-        let _ = errors.insert(vec![7], SndEntryError::InvalidSuccessor(2));
+        let _ = errors.insert(vec![1], EntryError::EntryExists(2));
+        let _ = errors.insert(vec![3], EntryError::NoSuchEntry);
+        let _ = errors.insert(vec![4], EntryError::InvalidSuccessor(2));
+        let _ = errors.insert(vec![6], EntryError::NoSuchEntry);
+        let _ = errors.insert(vec![7], EntryError::InvalidSuccessor(2));
 
         let actions = fix_entry_actions(actions, &errors);
 
         // 0: insert is OK.
         assert_eq!(
             *unwrap!(actions.get([0].as_ref())),
-            EntryAction::Ins(Value {
-                content: vec![0],
-                entry_version: 0,
+            MDataSeqEntryAction::Ins(MDataSeqValue {
+                data: vec![0],
+                version: 0,
             })
         );
 
         // 1: insert is transformed to update
         assert_eq!(
             *unwrap!(actions.get([1].as_ref())),
-            EntryAction::Update(Value {
-                content: vec![1],
-                entry_version: 3,
+            MDataSeqEntryAction::Update(MDataSeqValue {
+                data: vec![1],
+                version: 3,
             })
         );
 
         // 2: update is OK.
         assert_eq!(
             *unwrap!(actions.get([2].as_ref())),
-            EntryAction::Update(Value {
-                content: vec![2],
-                entry_version: 1,
+            MDataSeqEntryAction::Update(MDataSeqValue {
+                data: vec![2],
+                version: 1,
             })
         );
 
         // 3: update is transformed to insert.
         assert_eq!(
             *unwrap!(actions.get([3].as_ref())),
-            EntryAction::Ins(Value {
-                content: vec![3],
-                entry_version: 1,
+            MDataSeqEntryAction::Ins(MDataSeqValue {
+                data: vec![3],
+                version: 1,
             })
         );
 
         // 4: update version is fixed.
         assert_eq!(
             *unwrap!(actions.get([4].as_ref())),
-            EntryAction::Update(Value {
-                content: vec![4],
-                entry_version: 3,
+            MDataSeqEntryAction::Update(MDataSeqValue {
+                data: vec![4],
+                version: 3,
             })
         );
 
         // 5: delete is OK.
-        assert_eq!(*unwrap!(actions.get([5].as_ref())), EntryAction::Del(1));
+        assert_eq!(
+            *unwrap!(actions.get([5].as_ref())),
+            MDataSeqEntryAction::Del(1)
+        );
 
         // 6: delete action is removed, as there is nothing to delete.
         assert!(actions.get([6].as_ref()).is_none());
 
         // 7: delete version is fixed.
-        assert_eq!(*unwrap!(actions.get([7].as_ref())), EntryAction::Del(3));
+        assert_eq!(
+            *unwrap!(actions.get([7].as_ref())),
+            MDataSeqEntryAction::Del(3)
+        );
     }
 
     // Test creating a union of two permission sets
     #[test]
     fn test_union_permission_sets() {
-        let a = PermissionSet::new()
-            .allow(Action::Insert)
-            .deny(Action::Update)
-            .deny(Action::ManagePermissions);
-        let b = PermissionSet::new()
-            .allow(Action::Update)
-            .allow(Action::Delete);
+        let a = MDataPermissionSet::new()
+            .allow(MDataAction::Insert)
+            .deny(MDataAction::Update)
+            .deny(MDataAction::ManagePermissions);
+        let b = MDataPermissionSet::new()
+            .allow(MDataAction::Update)
+            .allow(MDataAction::Delete);
 
         let c = union_permission_sets(a, b);
-        assert_eq!(c.is_allowed(Action::Insert), Some(true));
-        assert_eq!(c.is_allowed(Action::Update), Some(true));
-        assert_eq!(c.is_allowed(Action::Delete), Some(true));
-        assert_eq!(c.is_allowed(Action::ManagePermissions), Some(false));
+        assert_eq!(c.is_allowed(MDataAction::Insert), true);
+        assert_eq!(c.is_allowed(MDataAction::Update), true);
+        assert_eq!(c.is_allowed(MDataAction::Delete), true);
+        assert_eq!(c.is_allowed(MDataAction::ManagePermissions), false);
     }
 }
 
@@ -466,7 +465,7 @@ mod tests {
 mod tests_with_mock_routing {
     use super::*;
     use crate::utils::test_utils::random_client;
-    use routing::{Action, EntryActions, MutableData};
+    use safe_nd::MDataSeqValue;
 
     // Test putting mdata and recovering from errors
     #[test]
@@ -478,94 +477,91 @@ mod tests_with_mock_routing {
 
             let name = new_rand::random();
             let tag = 10_000;
-            let owners = btree_set![PublicKey::Bls(unwrap!(client.public_bls_key()))];
+            let owners = PublicKey::Bls(unwrap!(client.public_bls_key()));
 
             let entries = btree_map![
-                vec![0] => Value {
-                    content: vec![0, 0],
-                    entry_version: 0,
+                 vec![0] => MDataSeqValue {
+                    data: vec![0, 0],
+                    version: 0,
                 },
-                vec![1] => Value {
-                    content: vec![1, 0],
-                    entry_version: 1,
+                 vec![1] => MDataSeqValue {
+                    data: vec![1, 0],
+                    version: 1,
                 },
-                vec![2] => Value {
-                    content: vec![2, 0],
-                    entry_version: 0,
-                }
-            ];
-            let random_key = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
-            let permissions = btree_map![
-                User::Key(random_key) => PermissionSet::new().allow(Action::Insert)
-            ];
-            let data0 = unwrap!(MutableData::new(
-                name,
-                tag,
-                permissions,
-                entries,
-                owners.clone(),
-            ));
-
-            let entries = btree_map![
-                vec![0] => Value {
-                    content: vec![0, 1],
-                    entry_version: 1,
-                },
-                vec![1] => Value {
-                    content: vec![1, 1],
-                    entry_version: 0,
-                },
-                vec![3] => Value {
-                    content: vec![3, 1],
-                    entry_version: 0,
+                 vec![2] => MDataSeqValue {
+                    data: vec![2, 0],
+                    version: 0,
                 }
             ];
 
             let bls_sk = threshold_crypto::SecretKey::random();
-            let user = User::Key(PublicKey::from(bls_sk.public_key()));
+            let user = PublicKey::Bls(bls_sk.public_key());
 
             let permissions = btree_map![
-                user => PermissionSet::new().allow(Action::Delete)
+                user => MDataPermissionSet::new().allow(MDataAction::Insert)
+            ];
+            let data0 =
+                SeqMutableData::new_with_data(name, tag, entries, permissions, owners.clone());
+
+            let entries1 = btree_map![
+                vec![0] => MDataSeqValue {
+                    data: vec![0, 1],
+                    version: 1,
+                },
+                vec![1] => MDataSeqValue {
+                    data: vec![1, 1],
+                    version: 0,
+                },
+                vec![3] => MDataSeqValue {
+                    data: vec![3, 1],
+                    version: 0,
+                }
             ];
 
-            let data1 = unwrap!(MutableData::new(name, tag, permissions, entries, owners));
+            let permissions = btree_map![
+               user => MDataPermissionSet::new().allow(MDataAction::Delete)
+            ];
+
+            let data1 = SeqMutableData::new_with_data(name, tag, entries1, permissions, owners);
 
             client
-                .put_mdata(data0)
+                .put_seq_mutable_data(data0)
                 .then(move |res| {
                     unwrap!(res);
                     put_mdata(&client2, data1)
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    client3.list_mdata_entries(name, tag)
+                    client3.list_seq_mdata_entries(name, tag)
                 })
                 .then(move |res| {
                     let entries = unwrap!(res);
                     assert_eq!(entries.len(), 4);
                     assert_eq!(
                         *unwrap!(entries.get([0].as_ref())),
-                        Value {
-                            content: vec![0, 1],
-                            entry_version: 1,
+                        MDataSeqValue {
+                            data: vec![0, 1],
+                            version: 1,
                         }
                     );
                     assert_eq!(
                         *unwrap!(entries.get([1].as_ref())),
-                        Value {
-                            content: vec![1, 0],
-                            entry_version: 1,
+                        MDataSeqValue {
+                            data: vec![1, 0],
+                            version: 1,
                         }
                     );
 
-                    client4.list_mdata_permissions(name, tag)
+                    client4.list_mdata_permissions_new(MDataAddress::Seq { name, tag })
                 })
                 .then(move |res| {
                     let permissions = unwrap!(res);
-                    assert_eq!(permissions.len(), 2);
+                    assert_eq!(permissions.len(), 1);
                     assert_eq!(
                         *unwrap!(permissions.get(&user)),
-                        PermissionSet::new().allow(Action::Delete)
+                        MDataPermissionSet::new()
+                            .allow(MDataAction::Insert)
+                            .allow(MDataAction::Delete)
                     );
 
                     Ok::<_, CoreError>(())
@@ -580,45 +576,40 @@ mod tests_with_mock_routing {
             let client2 = client.clone();
             let client3 = client.clone();
 
-            let name = new_rand::random();
+            let name = XorName(new_rand::random());
             let tag = 10_000;
             let entries = btree_map![
-                vec![1] => Value {
-                    content: vec![1],
-                    entry_version: 0,
+                vec![1] => MDataSeqValue {
+                    data: vec![1],
+                    version: 0,
                 },
-                vec![2] => Value {
-                    content: vec![2],
-                    entry_version: 0,
+                vec![2] => MDataSeqValue {
+                    data: vec![2],
+                    version: 0,
                 },
-                vec![4] => Value {
-                    content: vec![4],
-                    entry_version: 0,
+                vec![4] => MDataSeqValue {
+                    data: vec![4],
+                    version: 0,
                 },
-                vec![5] => Value {
-                    content: vec![5],
-                    entry_version: 0,
+                vec![5] => MDataSeqValue {
+                    data: vec![5],
+                    version: 0,
                 },
-                vec![7] => Value {
-                    content: vec![7],
-                    entry_version: 0,
+                vec![7] => MDataSeqValue {
+                    data: vec![7],
+                    version: 0,
                 }
             ];
-            let owners = btree_set![PublicKey::Bls(unwrap!(client.public_bls_key()))];
-            let data = unwrap!(MutableData::new(
-                name,
-                tag,
-                Default::default(),
-                entries,
-                owners,
-            ));
+            let owners = PublicKey::Bls(unwrap!(client.public_bls_key()));
+            let data =
+                SeqMutableData::new_with_data(name, tag, entries, Default::default(), owners);
 
             client
-                .put_mdata(data)
+                .put_seq_mutable_data(data)
                 .then(move |res| {
                     unwrap!(res);
 
-                    let actions = EntryActions::new()
+                    let actions = MDataSeqEntryActions::new()
                         .ins(vec![0], vec![0], 0) // normal insert
                         .ins(vec![1], vec![1, 0], 0) // insert to existing entry
                         .update(vec![2], vec![2, 0], 1) // normal update
@@ -626,14 +617,13 @@ mod tests_with_mock_routing {
                         .update(vec![4], vec![4, 0], 0) // update with invalid version
                         .del(vec![5], 1) // normal delete
                         .del(vec![6], 1) // delete of non-existing entry
-                        .del(vec![7], 0) // delete with invalid version
-                        .into();
+                        .del(vec![7], 0); // delete with invalid version
 
                     mutate_mdata_entries(&client2, name, tag, actions)
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    client3.list_mdata_entries(name, tag)
+                    client3.list_seq_mdata_entries(name, tag)
                 })
                 .then(move |res| {
                     let entries = unwrap!(res);
@@ -641,40 +631,42 @@ mod tests_with_mock_routing {
 
                     assert_eq!(
                         *unwrap!(entries.get([0].as_ref())),
-                        Value {
-                            content: vec![0],
-                            entry_version: 0,
+                        MDataSeqValue {
+                            data: vec![0],
+                            version: 0,
                         }
                     );
                     assert_eq!(
                         *unwrap!(entries.get([1].as_ref())),
-                        Value {
-                            content: vec![1, 0],
-                            entry_version: 1,
+                        MDataSeqValue {
+                            data: vec![1, 0],
+                            version: 1,
                         }
                     );
                     assert_eq!(
                         *unwrap!(entries.get([2].as_ref())),
-                        Value {
-                            content: vec![2, 0],
-                            entry_version: 1,
+                        MDataSeqValue {
+                            data: vec![2, 0],
+                            version: 1,
                         }
                     );
                     assert_eq!(
                         *unwrap!(entries.get([3].as_ref())),
-                        Value {
-                            content: vec![3],
-                            entry_version: 1,
+                        MDataSeqValue {
+                            data: vec![3],
+                            version: 1,
                         }
                     );
                     assert_eq!(
                         *unwrap!(entries.get([4].as_ref())),
-                        Value {
-                            content: vec![4, 0],
-                            entry_version: 1,
+                        MDataSeqValue {
+                            data: vec![4, 0],
+                            version: 1,
                         }
                     );
+                    assert!(entries.get([5].as_ref()).is_none());
                     assert!(entries.get([6].as_ref()).is_none());
+                    assert!(entries.get([7].as_ref()).is_none());
 
                     Ok::<_, CoreError>(())
                 })
@@ -691,49 +683,57 @@ mod tests_with_mock_routing {
             let client5 = client.clone();
             let client6 = client.clone();
 
-            let name = new_rand::random();
+            let name = XorName(new_rand::random());
             let tag = 10_000;
-            let owners = btree_set![PublicKey::from(unwrap!(client.public_bls_key()))];
-            let data = unwrap!(MutableData::new(
+            let owners = PublicKey::from(unwrap!(client.public_bls_key()));
+            let data = SeqMutableData::new_with_data(
                 name,
                 tag,
                 Default::default(),
                 Default::default(),
                 owners,
-            ));
+            );
 
             let bls_sk1 = threshold_crypto::SecretKey::random();
             let bls_sk2 = threshold_crypto::SecretKey::random();
 
-            let user0 = User::Key(PublicKey::from(bls_sk1.public_key()));
-            let user1 = User::Key(PublicKey::from(bls_sk2.public_key()));
-            let permissions = PermissionSet::new().allow(Action::Insert);
+            let user0 = PublicKey::from(bls_sk1.public_key());
+            let user1 = PublicKey::from(bls_sk2.public_key());
 
             client
-                .put_mdata(data)
+                .put_seq_mutable_data(data)
                 .then(move |res| {
                     unwrap!(res);
                     // set with invalid version
-                    set_mdata_user_permissions(&client2, name, tag, user0, permissions, 0)
+                    set_mdata_user_permissions(
+                        &client2,
+                        MDataAddress::Seq { name, tag },
+                        user0,
+                        MDataPermissionSet::new().allow(MDataAction::Insert),
+                        0,
+                    )
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    client3.list_mdata_user_permissions(name, tag, user0)
+                    client3.list_mdata_user_permissions_new(MDataAddress::Seq { name, tag }, user0)
                 })
                 .then(move |res| {
                     let retrieved_permissions = unwrap!(res);
-                    assert_eq!(retrieved_permissions, permissions);
+                    assert_eq!(
+                        retrieved_permissions,
+                        MDataPermissionSet::new().allow(MDataAction::Insert)
+                    );
 
                     // delete with invalid version
                     del_mdata_user_permissions(&client4, name, tag, user0, 0)
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    client5.list_mdata_user_permissions(name, tag, user0)
+                    client5.list_mdata_user_permissions_new(MDataAddress::Seq { name, tag }, user0)
                 })
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchKey)) => (),
+                        Err(CoreError::NewRoutingClientError(Error::NoSuchKey)) => (),
                         x => panic!("Unexpected {:?}", x),
                     }
 

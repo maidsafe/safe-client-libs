@@ -16,7 +16,6 @@ use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
 use rand::{self, Rng};
-use routing::User;
 use routing::XorName;
 use safe_core::client::Client;
 use safe_core::crypto::shared_secretbox;
@@ -38,7 +37,7 @@ use safe_core::utils::test_utils::{
 #[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{Coins, PublicKey};
+use safe_nd::{Coins, MDataAddress, PublicKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
@@ -320,9 +319,12 @@ pub fn try_access_container<S: Into<String>>(
 ) -> Option<AccessContainerEntry> {
     let app_keys = auth_granted.app_keys;
     let app_id = app_id.into();
-    unwrap!(run(authenticator, move |client| {
+    match run(authenticator, move |client| {
         access_container::fetch_entry(client, &app_id, app_keys).map(move |(_, entry)| entry)
-    }))
+    }) {
+        Ok(res) => Some(res),
+        Err(_e) => None,
+    }
 }
 
 /// Get the container `MDataInfo` from the authenticator entry in the access container.
@@ -351,7 +353,7 @@ pub fn compare_access_container_entries(
 ) {
     let results = unwrap!(run(authenticator, move |client| {
         let mut reqs = Vec::new();
-        let user = User::Key(app_pk);
+        let user = app_pk;
 
         for (container, expected_perms) in expected {
             // Check the requested permissions in the access container.
@@ -365,7 +367,13 @@ pub fn compare_access_container_entries(
             assert_eq!(perms, expected_perms);
 
             let fut = client
-                .list_mdata_user_permissions(md_info.name(), md_info.type_tag(), user)
+                .list_mdata_user_permissions_new(
+                    MDataAddress::Seq {
+                        name: md_info.name(),
+                        tag: md_info.type_tag(),
+                    },
+                    user,
+                )
                 .map(move |perms| (perms, expected_perm_set));
 
             reqs.push(fut);

@@ -595,7 +595,7 @@ fn entries_crud_ffi() {
     // Check mdata_list_values
     {
         let vals_list: Vec<MDataValue> = unsafe {
-            unwrap!(call_vec(|ud, cb| mdata_list_values(
+            unwrap!(call_vec(|ud, cb| seq_mdata_list_values(
                 &app,
                 &md_info_priv,
                 ud,

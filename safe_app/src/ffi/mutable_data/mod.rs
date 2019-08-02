@@ -282,7 +282,7 @@ pub unsafe extern "C" fn mdata_list_keys(
 
 /// Get list of all values in the mutable data.
 #[no_mangle]
-pub unsafe extern "C" fn mdata_list_values(
+pub unsafe extern "C" fn seq_mdata_list_values(
     app: *const App,
     info: *const MDataInfo,
     user_data: *mut c_void,
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn mdata_list_values(
 
         (*app).send(move |client, _context| {
             client
-                .list_mdata_values(info.name(), info.type_tag())
+                .list_seq_mdata_values(info.name(), info.type_tag())
                 .map_err(AppError::from)
                 .then(move |result| {
                     match result {

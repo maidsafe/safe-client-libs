@@ -35,7 +35,7 @@ fn create_test_file_with_size(
 ) -> Box<NfsFuture<(MDataInfo, File)>> {
     let c2 = client.clone();
     let c3 = client.clone();
-    let root = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
+    let root = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
     let root2 = root.clone();
 
     create_dir(client, &root, btree_map![], btree_map![])
@@ -567,6 +567,7 @@ fn file_delete_then_add() {
         let c4 = client.clone();
         let c5 = client.clone();
         let c6 = client.clone();
+        let c7 = client.clone();
 
         create_test_file(client)
             .then(move |res| {
@@ -575,10 +576,11 @@ fn file_delete_then_add() {
                     .map(move |_| (dir, file))
             })
             .then(move |res| {
-                let (dir, file) = unwrap!(res);
-
-                file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned())
-                    .map(move |writer| (writer, dir))
+                let (_dir, _file) = unwrap!(res);
+                create_test_file(&c7).and_then(move |(dir1, file1)| {
+                    file_helper::write(c3, file1, Mode::Overwrite, dir1.enc_key().cloned())
+                        .map(move |writer| (writer, dir1))
+                })
             })
             .then(move |res| {
                 let (writer, dir) = unwrap!(res);
@@ -590,7 +592,8 @@ fn file_delete_then_add() {
             })
             .then(move |res| {
                 let (file, dir) = unwrap!(res);
-                file_helper::insert(c4, dir.clone(), "hello.txt", &file).map(move |_| dir)
+                file_helper::update(c4, dir.clone(), "hello.txt", &file, Version::GetNext)
+                    .map(move |_| dir)
             })
             .then(move |res| {
                 let dir = unwrap!(res);
@@ -599,7 +602,7 @@ fn file_delete_then_add() {
             })
             .then(move |res| {
                 let (version, file, dir) = unwrap!(res);
-                assert_eq!(version, 0);
+                assert_eq!(version, 1);
                 file_helper::read(c6, &file, dir.enc_key().cloned())
             })
             .then(move |res| {

@@ -14,7 +14,7 @@ use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use futures::{Future, IntoFuture};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::EntryActions;
+use safe_nd::{Error, MDataSeqEntryActions};
 
 /// Enum specifying which version should be used in places where a version is required.
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -43,10 +43,10 @@ where
         })
         .into_future()
         .and_then(move |(key, value)| {
-            client.mutate_mdata_entries(
+            client.mutate_seq_mdata_entries(
                 parent.name(),
                 parent.type_tag(),
-                EntryActions::new().ins(key, value, 0).into(),
+                MDataSeqEntryActions::new().ins(key, value, 0).into(),
             )
         })
         .map_err(From::from)
@@ -63,13 +63,13 @@ where
         .into_future()
         .and_then(move |key| {
             client
-                .get_mdata_value(parent.name(), parent.type_tag(), key)
+                .get_seq_mdata_value(parent.name(), parent.type_tag(), key)
                 .map(move |value| (value, parent))
         })
         .and_then(move |(value, parent)| {
-            let plaintext = parent.decrypt(&value.content)?;
+            let plaintext = parent.decrypt(&value.data)?;
             let file = deserialise(&plaintext)?;
-            Ok((value.entry_version, file))
+            Ok((value.version, file))
         })
         .map_err(convert_error)
         .into_box()
@@ -112,8 +112,8 @@ where
 
     let version_fut = match version {
         Version::GetNext => client
-            .get_mdata_value(parent.name(), parent.type_tag(), key.clone())
-            .map(move |value| (value.entry_version + 1))
+            .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
+            .map(move |value| (value.version + 1))
             .into_box(),
         Version::Custom(version) => ok!(version),
     }
@@ -122,10 +122,10 @@ where
     version_fut
         .and_then(move |version| {
             client
-                .mutate_mdata_entries(
+                .mutate_seq_mdata_entries(
                     parent.name(),
                     parent.type_tag(),
-                    EntryActions::new().del(key, version).into(),
+                    MDataSeqEntryActions::new().del(key, version).into(),
                 )
                 .map(move |()| version)
                 .map_err(convert_error)
@@ -163,17 +163,19 @@ where
         .into_future()
         .and_then(move |(key, content)| match version {
             Version::GetNext => client
-                .get_mdata_value(parent.name(), parent.type_tag(), key.clone())
-                .map(move |value| (key, content, value.entry_version + 1, parent))
+                .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
+                .map(move |value| (key, content, value.version + 1, parent))
                 .into_box(),
             Version::Custom(version) => ok!((key, content, version, parent)),
         })
         .and_then(move |(key, content, version, parent)| {
             client2
-                .mutate_mdata_entries(
+                .mutate_seq_mdata_entries(
                     parent.name(),
                     parent.type_tag(),
-                    EntryActions::new().update(key, content, version).into(),
+                    MDataSeqEntryActions::new()
+                        .update(key, content, version)
+                        .into(),
                 )
                 .map(move |()| version)
         })
@@ -207,7 +209,7 @@ pub fn write<C: Client>(
 // TODO:  consider performing such conversion directly in the mentioned `impl From`.
 fn convert_error(err: CoreError) -> NfsError {
     match err {
-        CoreError::NewRoutingClientError(safe_nd::Error::NoSuchEntry) => NfsError::FileNotFound,
+        CoreError::NewRoutingClientError(Error::NoSuchEntry) => NfsError::FileNotFound,
         _ => NfsError::from(err),
     }
 }

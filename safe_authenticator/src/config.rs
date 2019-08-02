@@ -11,12 +11,11 @@ use crate::client::AuthClient;
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::EntryActions;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::AppKeys;
 use safe_core::ipc::IpcError;
 use safe_core::{Client, CoreError, FutureExt};
-use safe_nd::{EntryError, Error as SndError};
+use safe_nd::{EntryError, Error, MDataSeqEntryActions};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
@@ -201,21 +200,19 @@ where
     let key = fry!(parent.enc_entry_key(key));
 
     client
-        .get_mdata_value(parent.name(), parent.type_tag(), key)
+        .get_seq_mdata_value(parent.name(), parent.type_tag(), key)
         .and_then(move |value| {
-            let decoded = parent.decrypt(&value.content)?;
+            let decoded = parent.decrypt(&value.data)?;
             let decoded = if !decoded.is_empty() {
                 deserialise(&decoded)?
             } else {
                 Default::default()
             };
 
-            Ok((Some(value.entry_version), decoded))
+            Ok((Some(value.version), decoded))
         })
         .or_else(|error| match error {
-            CoreError::NewRoutingClientError(SndError::NoSuchEntry) => {
-                Ok((None, Default::default()))
-            }
+            CoreError::NewRoutingClientError(Error::NoSuchEntry) => Ok((None, Default::default())),
             _ => Err(AuthError::from(error)),
         })
         .into_box()
@@ -237,26 +234,25 @@ where
     let encoded = fry!(parent.enc_entry_value(&encoded));
 
     let actions = if new_version == 0 {
-        EntryActions::new().ins(key.clone(), encoded, 0)
+        MDataSeqEntryActions::new().ins(key.clone(), encoded, 0)
     } else {
-        EntryActions::new().update(key.clone(), encoded, new_version)
+        MDataSeqEntryActions::new().update(key.clone(), encoded, new_version)
     };
 
     client
-        .mutate_mdata_entries(parent.name(), parent.type_tag(), actions.into())
+        .mutate_seq_mdata_entries(parent.name(), parent.type_tag(), actions.into())
         .or_else(move |error| {
             // As we are mutating only one entry, let's make the common errors
             // more convenient to handle.
-            if let CoreError::NewRoutingClientError(SndError::InvalidEntryActions(ref errors)) =
-                error
+            if let CoreError::NewRoutingClientError(Error::InvalidEntryActions(ref errors)) = error
             {
                 if let Some(error) = errors.get(&key) {
                     match *error {
                         EntryError::InvalidSuccessor(version)
                         | EntryError::EntryExists(version) => {
-                            return Err(CoreError::NewRoutingClientError(
-                                SndError::InvalidSuccessor(version.into()),
-                            ));
+                            return Err(CoreError::NewRoutingClientError(Error::InvalidSuccessor(
+                                version as u64,
+                            )));
                         }
                         _ => (),
                     }
@@ -295,7 +291,7 @@ where
                     .map(move |_| Loop::Break((new_version, item)))
                     .or_else(move |error| match error {
                         AuthError::CoreError(CoreError::NewRoutingClientError(
-                            SndError::InvalidSuccessor(_),
+                            Error::InvalidSuccessor(_),
                         )) => {
                             let f = get_entry(&c3, &key).map(move |(version, item)| {
                                 Loop::Continue((key, next_version(version), item))

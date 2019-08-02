@@ -15,7 +15,6 @@ use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
-use routing::{User, XorName};
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{
     container_perms_into_permission_set, ContainerPermissions, IpcReq, ShareMDataReq,
@@ -23,7 +22,7 @@ use safe_core::ipc::req::{
 use safe_core::ipc::resp::{AccessContainerEntry, IpcResp, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, IpcError, IpcMsg};
 use safe_core::{recovery, Client, CoreError, FutureExt};
-use safe_nd::PublicKey;
+use safe_nd::{Error, MDataAddress, PublicKey, XorName};
 use std::collections::HashMap;
 use std::ffi::CString;
 
@@ -120,13 +119,18 @@ pub fn update_container_perms(
                 let perm_set = container_perms_into_permission_set(&access);
 
                 let fut = client
-                    .get_mdata_version(mdata_info.name(), mdata_info.type_tag())
+                    .get_mdata_version_new(MDataAddress::Seq {
+                        name: mdata_info.name(),
+                        tag: mdata_info.type_tag(),
+                    })
                     .and_then(move |version| {
                         recovery::set_mdata_user_permissions(
                             &c2,
-                            mdata_info.name(),
-                            mdata_info.type_tag(),
-                            User::Key(app_pk),
+                            MDataAddress::Seq {
+                                name: mdata_info.name(),
+                                tag: mdata_info.type_tag(),
+                            },
+                            app_pk,
                             perm_set,
                             version + 1,
                         )
@@ -175,13 +179,13 @@ pub fn decode_share_mdata_req(
         let type_tag = mdata.type_tag;
 
         let future = client
-            .get_mdata_shell(name, type_tag)
+            .get_seq_mdata_shell(name, type_tag)
             .and_then(move |shell| {
-                if shell.owners().contains(&user) {
+                if *shell.owner() == user {
                     let future_metadata = client
-                        .get_mdata_value(name, type_tag, METADATA_KEY.into())
+                        .get_seq_mdata_value(name, type_tag, METADATA_KEY.into())
                         .then(move |res| match res {
-                            Ok(value) => Ok(deserialise::<UserMetadata>(&value.content)
+                            Ok(value) => Ok(deserialise::<UserMetadata>(&value.data)
                                 .map_err(|_| ShareMDataError::InvalidMetadata)
                                 .and_then(move |metadata| {
                                     match metadata.into_md_response(name, type_tag) {
@@ -189,7 +193,7 @@ pub fn decode_share_mdata_req(
                                         Err(_) => Err(ShareMDataError::InvalidMetadata),
                                     }
                                 })),
-                            Err(CoreError::NewRoutingClientError(safe_nd::Error::NoSuchEntry)) => {
+                            Err(CoreError::NewRoutingClientError(Error::NoSuchEntry)) => {
                                 // Allow requesting shared access to arbitrary Mutable Data objects even
                                 // if they don't have metadata.
                                 let user_metadata = UserMetadata {
