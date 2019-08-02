@@ -181,6 +181,7 @@ fn write_data() {
                     &*auth_h,
                     file,
                     Mode::Overwrite,
+                    true,
                     videos_md.enc_key().cloned(),
                     vec![1; 10],
                 ));
@@ -194,6 +195,7 @@ fn write_data() {
                     videos_md.clone(),
                     file_name,
                     vec![1; 10],
+                    true,
                 ));
             }
         }
@@ -248,7 +250,7 @@ fn read_data() {
     unsafe {
         let file = unwrap!(fetch_file(&*auth_h, videos_md.clone(), file_name));
 
-        let content = unwrap!(read_file(&*auth_h, file, videos_md.enc_key().cloned()));
+        let content = unwrap!(read_file(&*auth_h, file, true, videos_md.enc_key().cloned()));
         assert_eq!(content, vec![1; 10]);
     }
 
@@ -534,6 +536,7 @@ fn authorisation_and_revocation() {
             videos_md.clone(),
             file_name.as_str(),
             vec![1; 10],
+            true,
         ));
         videos_md
     };

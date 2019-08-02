@@ -63,6 +63,7 @@ use futures::future::Future;
 use safe_app::{run, App, Client, PubImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
+use safe_nd::IDataAddress;
 use unwrap::unwrap;
 
 // Test unregistered clients.
@@ -75,15 +76,17 @@ fn unregistered_client() {
     // Registered Client PUTs something onto the network.
     {
         let orig_data = orig_data.clone();
-        random_client(|client| client.put_pub_idata(orig_data));
+        random_client(|client| client.put_idata(orig_data));
     }
 
     // Unregistered Client should be able to retrieve the data.
     let app = unwrap!(App::unregistered(|| (), None));
     unwrap!(run(&app, move |client, _context| {
-        let _ = client.get_pub_idata(*orig_data.name()).map(move |data| {
-            assert_eq!(data, orig_data);
-        });
+        let _ = client
+            .get_idata(IDataAddress::Pub(*orig_data.name()))
+            .map(move |data| {
+                assert_eq!(data, orig_data.into());
+            });
         Ok(())
     }));
 }

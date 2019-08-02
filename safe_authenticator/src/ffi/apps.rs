@@ -316,7 +316,13 @@ mod tests {
 
         // Put a file with predefined content into app A's own container.
         let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id3))) });
-        unwrap!(create_file(&auth, mdata_info.clone(), "test", vec![1; 10]));
+        unwrap!(create_file(
+            &auth,
+            mdata_info.clone(),
+            "test",
+            vec![1; 10],
+            true
+        ));
 
         // Revoke app A
         {

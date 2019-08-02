@@ -31,8 +31,8 @@ use safe_core::MockRouting;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
-    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
-    XorName,
+    IDataAddress, PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData,
+    UnpubUnseqAppendOnlyData, XorName,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -304,7 +304,7 @@ fn unregistered_client() {
             let client2 = client.clone();
             let client3 = client.clone();
             client
-                .put_pub_idata(pub_idata)
+                .put_idata(pub_idata)
                 .and_then(move |_| client2.put_adata(pub_adata.into()))
                 .and_then(move |_| client3.put_adata(unpub_adata.into()))
         });
@@ -317,9 +317,9 @@ fn unregistered_client() {
         let client3 = client.clone();
 
         client
-            .get_pub_idata(*pub_idata.name())
+            .get_idata(IDataAddress::Pub(*pub_idata.name()))
             .and_then(move |data| {
-                assert_eq!(data, pub_idata);
+                assert_eq!(data, pub_idata.into());
                 client2
                     .get_adata(ADataAddress::PubUnseq { name: addr, tag })
                     .map(move |data| {
@@ -365,7 +365,7 @@ fn published_data_access() {
             let client2 = client.clone();
             let client3 = client.clone();
             client
-                .put_pub_idata(pub_idata)
+                .put_idata(pub_idata)
                 .and_then(move |_| client2.put_adata(pub_seq_adata.into()))
                 .and_then(move |_| client3.put_adata(pub_unseq_adata.into()))
         });
@@ -383,10 +383,10 @@ fn published_data_access() {
             let client3 = client.clone();
 
             client
-                .get_pub_idata(*pub_idata.name())
+                .get_idata(IDataAddress::Pub(*pub_idata.name()))
                 .map_err(AppError::from)
                 .and_then(move |data| {
-                    assert_eq!(data, pub_idata);
+                    assert_eq!(data, pub_idata.into());
                     client2
                         .get_adata(pub_unseq_adata_addr)
                         .map_err(AppError::from)
@@ -412,10 +412,10 @@ fn published_data_access() {
         let client3 = client.clone();
 
         client
-            .get_pub_idata(*pub_idata.name())
+            .get_idata(IDataAddress::Pub(*pub_idata.name()))
             .map_err(AppError::from)
             .and_then(move |data| {
-                assert_eq!(data, pub_idata);
+                assert_eq!(data, pub_idata.into());
                 client2
                     .get_adata(pub_unseq_adata_addr)
                     .map_err(AppError::from)

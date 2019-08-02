@@ -79,13 +79,15 @@ where
 pub fn read<C: Client>(
     client: C,
     file: &File,
+    published: bool,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<Reader<C>>> {
     trace!("Reading file {:?}", file);
     Reader::new(
         client.clone(),
-        SelfEncryptionStorage::new(client),
+        SelfEncryptionStorage::new(client, published),
         file,
+        published,
         encryption_key,
     )
 }
@@ -189,15 +191,17 @@ pub fn write<C: Client>(
     client: C,
     file: File,
     mode: Mode,
+    published: bool,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<Writer<C>>> {
     trace!("Creating a writer for a file");
 
     Writer::new(
         &client.clone(),
-        SelfEncryptionStorage::new(client),
+        SelfEncryptionStorage::new(client, published),
         file,
         mode,
+        published,
         encryption_key,
     )
 }

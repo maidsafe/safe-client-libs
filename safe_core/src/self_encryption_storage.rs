@@ -8,7 +8,7 @@
 
 use super::{Client, CoreError, FutureExt};
 use futures::{self, Future};
-use safe_nd::{PubImmutableData, XorName, XOR_NAME_LEN};
+use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData, XorName, XOR_NAME_LEN};
 use self_encryption::{Storage, StorageError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
@@ -17,12 +17,13 @@ use std::fmt::{self, Display, Formatter};
 /// to put or get data from the network.
 pub struct SelfEncryptionStorage<C: Client> {
     client: C,
+    published: bool,
 }
 
 impl<C: Client> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
-    pub fn new(client: C) -> Self {
-        SelfEncryptionStorage { client }
+    pub fn new(client: C, published: bool) -> Self {
+        SelfEncryptionStorage { client, published }
     }
 }
 
@@ -44,8 +45,14 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
             XorName(temp)
         };
 
+        let address = if self.published {
+            IDataAddress::Pub(name)
+        } else {
+            IDataAddress::Unpub(name)
+        };
+
         self.client
-            .get_idata(name)
+            .get_idata(address)
             .map(|data| data.value().clone())
             .map_err(From::from)
             .into_box()
@@ -53,8 +60,15 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
 
     fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData.");
-        let data = PubImmutableData::new(data);
-        self.client.put_idata(data).map_err(From::from).into_box()
+        let idata: IData = if self.published {
+            PubImmutableData::new(data).into()
+        } else {
+            UnpubImmutableData::new(data, unwrap!(self.client.public_bls_key()).into()).into()
+        };
+        self.client
+            .put_idata(idata)
+            .map_err(From::from)
+            .into_box()
     }
 }
 

@@ -60,8 +60,8 @@ use safe_nd::{
     ClientPublicId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData,
     MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet as NewPermissionSet,
     MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
-    MDataValues, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request, Response,
-    SeqMutableData, Signature, Transaction, UnpubImmutableData, UnseqMutableData, XorName,
+    MDataValues, Message, MessageId, PublicId, PublicKey, Request, Response,
+    SeqMutableData, Signature, Transaction, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -190,25 +190,9 @@ pub trait Client: Clone + 'static {
         }
     }
 
-    /// Get immutable data from the network. If the data exists locally in the cache then it will be
-    /// immediately returned without making an actual network request.
-    fn get_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
-        let inner = self.inner();
-        if let Some(data) = inner.borrow_mut().cache.get_mut(&name) {
-            trace!("PubImmutableData found in cache.");
-            return future::ok(data.clone()).into_box();
-        }
-        self.get_pub_idata(name)
-    }
-
     // TODO All these return the same future from all branches. So convert to impl
     // Trait when it arrives in stable. Change from `Box<CoreFuture>` -> `impl
     // CoreFuture`.
-    /// Put immutable data onto the network.
-    fn put_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
-        self.put_pub_idata(data)
-    }
-
     /// Put `MutableData` onto the network.
     fn put_mdata(&self, data: MutableData) -> Box<CoreFuture<()>> {
         self.put_seq_mutable_data(data.into())
@@ -391,11 +375,26 @@ pub trait Client: Clone + 'static {
         .into_box()
     }
 
-    /// Get published immutable data from the network.
-    fn get_pub_idata(&self, name: XorName) -> Box<CoreFuture<PubImmutableData>> {
-        trace!("Fetch Published Immutable Data");
+    /// Put immutable data to the network.
+    fn put_idata(&self, data: impl Into<IData>) -> Box<CoreFuture<()>> {
+        let idata: IData = data.into();
+        trace!("Put Published IData at {:?}", idata.name());
+        send_mutation_new(self, Request::PutIData(idata))
+    }
 
-        send_new(self, Request::GetIData(IDataAddress::Pub(name)), false)
+    /// Get immutable data from the network. If the data exists locally in the cache then it will be
+    /// immediately returned without making an actual network request.
+    fn get_idata(&self, address: IDataAddress) -> Box<CoreFuture<IData>> {
+        trace!("Fetch Immutable Data");
+
+        let inner = self.inner();
+        if let Some(data) = inner.borrow_mut().cache.get_mut(&address) {
+            trace!("PubImmutableData found in cache.");
+            return future::ok(data.clone()).into_box();
+        }
+
+        let inner = Rc::downgrade(&self.inner());
+        send_new(self, Request::GetIData(address), address.is_unpub())
             .and_then(|event| {
                 let res = match event {
                     CoreEvent::RpcResponse(res) => res,
@@ -404,55 +403,31 @@ pub trait Client: Clone + 'static {
                 let result_buffer = unwrap!(res);
                 let res: Response = unwrap!(deserialise(&result_buffer));
                 match res {
-                    Response::GetIData(res) => match res {
-                        Ok(IData::Pub(data)) => Ok(data),
-                        Ok(IData::Unpub(_)) => Err(CoreError::ReceivedUnexpectedData),
-                        Err(e) => Err(e).map_err(CoreError::from),
-                    },
+                    Response::GetIData(res) => res.map_err(CoreError::from),
                     _ => Err(CoreError::ReceivedUnexpectedEvent),
                 }
             })
-            .into_box()
-    }
-
-    /// Put published immutable data to the network.
-    fn put_pub_idata(&self, data: PubImmutableData) -> Box<CoreFuture<()>> {
-        trace!("Put Published IData at {:?}", data.name());
-        send_mutation_new(self, Request::PutIData(data.into()))
-    }
-
-    /// Get unpublished immutable data from the network.
-    fn get_unpub_idata(&self, name: XorName) -> Box<CoreFuture<UnpubImmutableData>> {
-        trace!("Fetch Unpublished Immutable Data");
-
-        send_new(self, Request::GetIData(IDataAddress::Unpub(name)), true)
-            .and_then(|event| {
-                let res = match event {
-                    CoreEvent::RpcResponse(res) => res,
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
-                };
-                let result_buffer = unwrap!(res);
-                let res: Response = unwrap!(deserialise(&result_buffer));
-                match res {
-                    Response::GetIData(res) => match res {
-                        Ok(IData::Unpub(data)) => Ok(data),
-                        Ok(IData::Pub(_)) => Err(CoreError::ReceivedUnexpectedData),
-                        Err(e) => Err(e).map_err(CoreError::from),
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
+            .map(move |data| {
+                if let Some(inner) = inner.upgrade() {
+                    // Put to cache
+                    let _ = inner
+                        .borrow_mut()
+                        .cache
+                        .insert(*data.address(), data.clone());
                 }
+                data
             })
             .into_box()
-    }
-
-    /// Put unpublished immutable data to the network.
-    fn put_unpub_idata(&self, data: UnpubImmutableData) -> Box<CoreFuture<()>> {
-        trace!("Put Unpublished IData at {:?}", data.name());
-        send_mutation_new(self, Request::PutIData(data.into()))
     }
 
     /// Delete unpublished immutable data from the network.
     fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
+        let inner = self.inner();
+        if inner.borrow_mut().cache.remove(&IDataAddress::Unpub(name)).is_some() {
+            trace!("Deleted UnpubImmutableData from cache.");
+        }
+
+        let _ = Rc::downgrade(&self.inner());
         trace!("Delete Unpublished IData at {:?}", name);
         send_mutation_new(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name)))
     }
@@ -1739,7 +1714,7 @@ pub struct ClientInner<C: Client, T> {
     el_handle: Handle,
     routing: Routing,
     hooks: HashMap<MessageId, Complete<CoreEvent>>,
-    cache: LruCache<XorName, PubImmutableData>,
+    cache: LruCache<IDataAddress, IData>,
     timeout: Duration,
     joiner: Joiner,
     core_tx: CoreMsgTx<C, T>,
@@ -1753,7 +1728,7 @@ impl<C: Client, T> ClientInner<C, T> {
         el_handle: Handle,
         routing: Routing,
         hooks: HashMap<MessageId, Complete<CoreEvent>>,
-        cache: LruCache<XorName, PubImmutableData>,
+        cache: LruCache<IDataAddress, IData>,
         timeout: Duration,
         joiner: Joiner,
         core_tx: CoreMsgTx<C, T>,
@@ -1974,8 +1949,9 @@ mod tests {
     use crate::utils::test_utils::random_client;
     use safe_nd::{
         ADataAction, ADataEntry, ADataOwner, ADataUnpubPermissionSet, ADataUnpubPermissions,
-        AppendOnlyData, Coins, Error as SndError, MDataAction, PubSeqAppendOnlyData, SeqAppendOnly,
-        UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
+        AppendOnlyData, Coins, Error as SndError, MDataAction, PubImmutableData,
+        PubSeqAppendOnlyData, SeqAppendOnly, UnpubImmutableData, UnpubSeqAppendOnlyData,
+        UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
     };
     use std::str::FromStr;
     use threshold_crypto::SecretKey;
@@ -1990,7 +1966,7 @@ mod tests {
 
             let value = unwrap!(generate_random_vector::<u8>(10));
             let data = PubImmutableData::new(value.clone());
-            let name = *data.name();
+            let address = *data.address();
 
             let test_data = UnpubImmutableData::new(
                 value.clone(),
@@ -1998,7 +1974,7 @@ mod tests {
             );
             client
                 // Get inexistent idata
-                .get_pub_idata(name)
+                .get_idata(address)
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(data) => panic!("Pub idata should not exist yet: {:?}", data),
@@ -2008,11 +1984,11 @@ mod tests {
                 })
                 .and_then(move |_| {
                     // Put idata
-                    client2.put_pub_idata(data.clone())
+                    client2.put_idata(data.clone())
                 })
                 .and_then(move |_| {
                     client3
-                        .put_unpub_idata(test_data.clone())
+                        .put_idata(test_data.clone())
                         .then(|res| match res {
                             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
                             Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
@@ -2023,8 +1999,8 @@ mod tests {
                 })
                 .and_then(move |_| {
                     // Fetch idata
-                    client4.get_pub_idata(name).map(move |fetched_data| {
-                        assert_eq!(*fetched_data.name(), name);
+                    client4.get_idata(address).map(move |fetched_data| {
+                        assert_eq!(*fetched_data.address(), address);
                     })
                 })
         })
@@ -2049,14 +2025,14 @@ mod tests {
             );
             let data2 = data.clone();
             let data3 = data.clone();
-            let name = *data.name();
-            assert_eq!(name, *data2.name());
+            let address = *data.address();
+            assert_eq!(address, *data2.address());
 
             let pub_data = PubImmutableData::new(value);
 
             client
                 // Get inexistent idata
-                .get_unpub_idata(name)
+                .get_idata(address)
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata should not exist yet"),
@@ -2066,11 +2042,11 @@ mod tests {
                 })
                 .and_then(move |_| {
                     // Put idata
-                    client2.put_unpub_idata(data.clone())
+                    client2.put_idata(data.clone())
                 })
                 .and_then(move |_| {
                     // Test putting unpub idata with the same value. Should conflict.
-                    client3.put_unpub_idata(data2.clone())
+                    client3.put_idata(data2.clone())
                 })
                 .then(|res| -> Result<(), CoreError> {
                     match res {
@@ -2081,21 +2057,21 @@ mod tests {
                 })
                 .and_then(move |_| {
                     // Test putting published idata with the same value. Should not conflict.
-                    client4.put_pub_idata(pub_data)
+                    client4.put_idata(pub_data)
                 })
                 .and_then(move |_| {
                     // Fetch idata
-                    client5.get_unpub_idata(name).map(move |fetched_data| {
-                        assert_eq!(*fetched_data.name(), name);
+                    client5.get_idata(address).map(move |fetched_data| {
+                        assert_eq!(*fetched_data.address(), address);
                     })
                 })
                 .and_then(move |()| {
                     // Delete idata
-                    client6.del_unpub_idata(name)
+                    client6.del_unpub_idata(*address.name())
                 })
                 .and_then(move |()| {
                     // Make sure idata was deleted
-                    client7.get_unpub_idata(name)
+                    client7.get_idata(address)
                 })
                 .then(|res| -> Result<(), CoreError> {
                     match res {
@@ -2106,7 +2082,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     // Test putting unpub idata with the same value again. Should not conflict.
-                    client8.put_unpub_idata(data3.clone())
+                    client8.put_idata(data3.clone())
                 })
         });
     }

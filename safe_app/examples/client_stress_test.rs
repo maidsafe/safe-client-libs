@@ -69,7 +69,7 @@ use futures::Future;
 use rand::{Rng, SeedableRng};
 use safe_app::{Client, CoreError, CoreFuture, FutureExt, MutableData, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
-use safe_nd::{PublicKey, XorName};
+use safe_nd::{IData, IDataAddress, PublicKey, XorName};
 use std::sync::mpsc;
 
 fn random_mutable_data<R: Rng>(type_tag: u64, public_key: &PublicKey, rng: &mut R) -> MutableData {
@@ -87,7 +87,7 @@ fn random_mutable_data<R: Rng>(type_tag: u64, public_key: &PublicKey, rng: &mut 
 
 enum Data {
     Mutable(MutableData),
-    Immutable(PubImmutableData),
+    Immutable(IData),
 }
 
 fn main() {
@@ -207,7 +207,7 @@ fn main() {
         // Construct data
         let data = PubImmutableData::new(rng.gen_iter().take(1024).collect());
         println!("{:?}", data.name());
-        stored_data.push(Data::Immutable(data));
+        stored_data.push(Data::Immutable(data.into()));
     }
 
     let (tx, rx) = mpsc::channel();
@@ -256,11 +256,13 @@ fn main() {
 
                     fut.and_then(move |data| {
                         // Get all the chunks again.
-                        c3.get_idata(*data.name()).map(move |retrieved_data| {
-                            assert_eq!(data, retrieved_data);
-                            println!("Retrieved chunk #{}: {:?}", i, data.name());
-                            Ok(())
-                        })
+                        c3.get_idata(IDataAddress::Pub(*data.name())).map(
+                            move |retrieved_data| {
+                                println!("Retrieved chunk #{}: {:?}", i, data.name());
+                                assert_eq!(data, retrieved_data);
+                                Ok(())
+                            },
+                        )
                     })
                     .into_box()
                 }
@@ -297,11 +299,7 @@ fn main() {
     println!("Done");
 }
 
-fn put_idata(
-    client: &AuthClient,
-    data: PubImmutableData,
-    i: usize,
-) -> Box<CoreFuture<PubImmutableData>> {
+fn put_idata(client: &AuthClient, data: IData, i: usize) -> Box<CoreFuture<IData>> {
     let c2 = client.clone();
 
     client
@@ -310,10 +308,11 @@ fn put_idata(
             println!("Put PubImmutableData chunk #{}: {:?}", i, data.name());
 
             // Get the data
-            c2.get_idata(*data.name()).map(move |retrieved_data| {
-                assert_eq!(data, retrieved_data);
-                retrieved_data
-            })
+            c2.get_idata(IDataAddress::Pub(*data.name()))
+                .map(move |retrieved_data| {
+                    assert_eq!(data, retrieved_data);
+                    retrieved_data
+                })
         })
         .and_then(move |retrieved_data| {
             println!(

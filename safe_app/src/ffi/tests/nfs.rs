@@ -149,6 +149,7 @@ fn open_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -210,6 +211,7 @@ fn open_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
+            true,
             ud,
             cb,
         )))
@@ -302,6 +304,7 @@ fn open_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))
@@ -352,6 +355,7 @@ fn fetch_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -404,6 +408,7 @@ fn fetch_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
+            true,
             ud,
             cb,
         )))
@@ -449,6 +454,7 @@ fn fetch_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
+            true,
             ud,
             cb,
         )))
@@ -497,6 +503,7 @@ fn delete_then_open_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -551,6 +558,7 @@ fn delete_then_open_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -601,6 +609,7 @@ fn delete_then_open_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
+            true,
             ud,
             cb,
         )))
@@ -644,6 +653,7 @@ fn open_close_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -693,6 +703,7 @@ fn open_close_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))
@@ -720,6 +731,7 @@ fn open_close_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -747,6 +759,7 @@ fn open_close_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_APPEND,
+            true,
             ud,
             cb,
         )))
@@ -774,6 +787,7 @@ fn file_open_read_write() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -798,6 +812,7 @@ fn file_open_read_write() {
             &container_info,
             &written_file.into_repr_c(),
             OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))
@@ -846,6 +861,7 @@ fn file_open_read_write() {
             &container_info,
             &written_file.into_repr_c(),
             OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))
@@ -891,6 +907,7 @@ fn file_read_chunks() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -939,6 +956,7 @@ fn file_read_chunks() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))
@@ -1013,6 +1031,7 @@ fn file_write_chunks() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
+            true,
             ud,
             cb,
         )))
@@ -1053,6 +1072,7 @@ fn file_write_chunks() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))
@@ -1091,6 +1111,7 @@ fn file_write_chunks() {
             &container_info,
             &ffi_file,
             OPEN_MODE_APPEND,
+            true,
             ud,
             cb
         )))
@@ -1105,6 +1126,7 @@ fn file_write_chunks() {
             &container_info,
             &written_file.into_repr_c(),
             OPEN_MODE_READ,
+            true,
             ud,
             cb,
         )))

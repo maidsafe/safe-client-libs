@@ -28,9 +28,10 @@ impl<C: Client> Reader<C> {
         client: C,
         storage: SelfEncryptionStorage<C>,
         file: &File,
+        published: bool,
         encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Self>> {
-        data_map::get(&client, file.data_map_name(), encryption_key)
+        data_map::get(&client, file.data_map_name(), published, encryption_key)
             .and_then(move |data_map| {
                 let self_encryptor = SelfEncryptor::new(storage, data_map)?;
 

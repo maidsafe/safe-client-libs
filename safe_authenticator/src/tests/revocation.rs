@@ -219,8 +219,15 @@ mod mock_routing {
             videos_md.clone(),
             "video.mp4",
             vec![1; 10],
+            true,
         ));
-        unwrap!(create_file(&auth, docs_md.clone(), "test.doc", vec![2; 10]));
+        unwrap!(create_file(
+            &auth,
+            docs_md.clone(),
+            "test.doc",
+            vec![2; 10],
+            true
+        ));
 
         // After re-encryption of the first container (`_video`) is done, simulate a network failure
         // let docs_name = docs_md.name();
@@ -470,7 +477,7 @@ mod mock_routing {
 
         // Put a file into the shared container.
         let info = unwrap!(get_container_from_authenticator_entry(&auth, "_documents"));
-        unwrap!(create_file(&auth, info, "shared.txt", vec![0; 10]));
+        unwrap!(create_file(&auth, info, "shared.txt", vec![0; 10], true));
 
         // Put a file into the dedicated container of each app.
         for app_id in &[&app_id_0, &app_id_1] {
@@ -478,7 +485,7 @@ mod mock_routing {
                 &auth,
                 &app_container_name(app_id),
             ));
-            unwrap!(create_file(&auth, info, "private.txt", vec![0; 10]));
+            unwrap!(create_file(&auth, info, "private.txt", vec![0; 10], true));
         }
 
         // Try to revoke the app concurrently using multiple authenticators (running
@@ -569,7 +576,7 @@ mod mock_routing {
 
         // Put a file into the shared container.
         let info = unwrap!(get_container_from_authenticator_entry(&auth, "_documents"));
-        unwrap!(create_file(&auth, info, "shared.txt", vec![0; 10]));
+        unwrap!(create_file(&auth, info, "shared.txt", vec![0; 10], true));
 
         // Put a file into the dedicated container of each app.
         for app_id in &[&app_id_0, &app_id_1, &app_id_2] {
@@ -577,7 +584,7 @@ mod mock_routing {
                 &auth,
                 &app_container_name(app_id),
             ));
-            unwrap!(create_file(&auth, info, "private.txt", vec![0; 10]));
+            unwrap!(create_file(&auth, info, "private.txt", vec![0; 10], true));
         }
 
         // Revoke the first two apps, concurrently.
@@ -719,6 +726,7 @@ fn app_revocation() {
         videos_md1.clone(),
         "1.mp4",
         vec![1; 10],
+        true,
     ));
 
     let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
@@ -728,6 +736,7 @@ fn app_revocation() {
         videos_md2.clone(),
         "2.mp4",
         vec![1; 10],
+        true,
     ));
 
     let app_container_name = app_container_name(&app_id2);
@@ -737,6 +746,7 @@ fn app_revocation() {
         app_container_md.clone(),
         "3.mp4",
         vec![1; 10],
+        true,
     ));
 
     // There should be 2 entries.
@@ -918,6 +928,7 @@ fn revocation_symmetric_decipher_failure() {
         downloads_md.clone(),
         "video.mp4",
         vec![1; 10],
+        true,
     ));
 
     // Push apps 1 and 2 to the revocation queue.

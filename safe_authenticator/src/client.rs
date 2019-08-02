@@ -621,7 +621,7 @@ mod tests {
     use futures::Future;
     use safe_core::utils::test_utils::{finish, random_client, setup_client};
     use safe_core::{utils, CoreError, DIR_TAG};
-    use safe_nd::{Coins, Error as SndError, MDataKind};
+    use safe_nd::{Coins, Error as SndError, IDataAddress, MDataKind};
     use std::str::FromStr;
     use tokio::runtime::current_thread::Runtime;
     use AuthMsgTx;
@@ -888,7 +888,7 @@ mod tests {
             client.set_timeout(Duration::from_millis(250));
 
             client
-                .get_idata(new_rand::random())
+                .get_idata(IDataAddress::Pub(new_rand::random()))
                 .then(|result| match result {
                     Ok(_) => panic!("Unexpected success"),
                     Err(CoreError::RequestTimeout) => Ok::<_, CoreError>(()),
