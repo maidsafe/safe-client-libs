@@ -12,7 +12,7 @@ use safe_app::ffi::app_registered;
 use safe_app::ffi::ipc::*;
 use safe_app::ffi::mdata_info::mdata_info_random_public;
 use safe_app::ffi::mutable_data::entries::{
-    mdata_entries_insert, mdata_entries_new, mdata_list_entries,
+    mdata_entries_insert, mdata_entries_new, seq_mdata_list_entries,
 };
 use safe_app::ffi::mutable_data::entry_actions::{
     mdata_entry_actions_delete, mdata_entry_actions_insert, mdata_entry_actions_new,
@@ -371,7 +371,7 @@ fn mdata_operations() {
     println!("Getting the list of mdata entries...");
 
     let entries: Vec<MDataEntry> = unsafe {
-        unwrap!(call_vec(|ud, cb| mdata_list_entries(
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_entries(
             app, entries_h, ud, cb
         )))
     };
@@ -448,7 +448,7 @@ fn mdata_operations() {
     let entries_h = unsafe { unwrap!(call_1(|ud, cb| mdata_entries(app, &mdata_info, ud, cb))) };
 
     let entries: Vec<MDataEntry> = unsafe {
-        unwrap!(call_vec(|ud, cb| mdata_list_entries(
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_entries(
             app, entries_h, ud, cb
         )))
     };

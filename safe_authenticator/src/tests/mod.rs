@@ -30,7 +30,7 @@ use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
 use safe_core::{app_container_name, mdata_info, Client};
-use safe_nd::PublicKey;
+use safe_nd::{MDataAddress, PublicKey};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -46,12 +46,12 @@ mod mock_routing {
     use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use crate::{test_utils, Authenticator};
     use futures::Future;
-    use routing::{ClientError, Request, Response, User};
+    use routing::{ClientError, Request, Response};
     use safe_core::ipc::AuthReq;
     use safe_core::nfs::NfsError;
     use safe_core::utils::{generate_random_string, test_utils::random_client};
     use safe_core::{app_container_name, Client, CoreError, MockRouting};
-    use safe_nd::{Coins, PublicKey};
+    use safe_nd::{Coins, Error as SndError, MDataAddress, PublicKey};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -368,7 +368,9 @@ mod mock_routing {
             routing_hook,
         ));
         match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::CoreError(CoreError::RoutingClientError(ClientError::LowBalance))) => (),
+            Err(AuthError::CoreError(CoreError::NewRoutingClientError(
+                SndError::InsufficientBalance,
+            ))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 
@@ -398,17 +400,23 @@ mod mock_routing {
             let c2 = client.clone();
 
             client
-                .get_mdata_version(app_container_md.name(), app_container_md.type_tag())
+                .get_mdata_version_new(MDataAddress::Seq {
+                    name: app_container_md.name(),
+                    tag: app_container_md.type_tag(),
+                })
                 .then(move |res| {
                     let version = unwrap!(res);
                     assert_eq!(version, 0);
 
                     // Check that the app's container has required permissions.
-                    c2.list_mdata_permissions(app_container_md.name(), app_container_md.type_tag())
+                    c2.list_mdata_permissions_new(MDataAddress::Seq {
+                        name: app_container_md.name(),
+                        tag: app_container_md.type_tag(),
+                    })
                 })
                 .then(move |res| {
                     let perms = unwrap!(res);
-                    assert!(perms.contains_key(&User::Key(app_pk)));
+                    assert!(perms.contains_key(&app_pk));
                     assert_eq!(perms.len(), 1);
 
                     Ok(())
@@ -441,8 +449,11 @@ fn test_access_container() {
         let fs: Vec<_> = entries
             .into_iter()
             .map(|(_, dir)| {
-                let f1 = client.list_mdata_entries(dir.name(), dir.type_tag());
-                let f2 = client.list_mdata_permissions(dir.name(), dir.type_tag());
+                let f1 = client.list_seq_mdata_entries(dir.name(), dir.type_tag());
+                let f2 = client.list_mdata_permissions_new(MDataAddress::Seq {
+                    name: dir.name(),
+                    tag: dir.type_tag(),
+                });
 
                 f1.join(f2).map_err(AuthError::from)
             })
@@ -468,7 +479,7 @@ fn config_root_dir() {
     let (dir, entries) = unwrap!(run(&authenticator, |client| {
         let dir = client.config_root_dir();
         client
-            .list_mdata_entries(dir.name(), dir.type_tag())
+            .list_seq_mdata_entries(dir.name(), dir.type_tag())
             .map(move |entries| (dir, entries))
             .map_err(AuthError::from)
     }));
@@ -477,7 +488,7 @@ fn config_root_dir() {
 
     // Verify it contains the required entries.
     let config = unwrap!(entries.get(KEY_APPS));
-    assert!(config.content.is_empty());
+    assert!(config.data.is_empty());
 }
 
 // Test app authentication.

@@ -338,7 +338,6 @@ mod tests {
     use crate::test_utils;
     use ffi_utils::test_utils::{call_1, call_2};
     use ffi_utils::ReprC;
-    use routing::{Action, PermissionSet};
     use rust_sodium::crypto::secretbox;
     use safe_authenticator::ffi::ipc::encode_auth_resp;
     use safe_authenticator::test_utils as auth_utils;
@@ -349,7 +348,7 @@ mod tests {
         ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData, ShareMDataReq,
     };
     use safe_core::utils;
-    use safe_nd::PublicKey;
+    use safe_nd::{MDataAction, MDataPermissionSet, PublicKey};
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
@@ -584,9 +583,9 @@ mod tests {
             mdata: vec![ShareMData {
                 type_tag: new_rand::random(),
                 name: new_rand::random(),
-                perms: PermissionSet::new()
-                    .allow(Action::Insert)
-                    .allow(Action::Update),
+                perms: MDataPermissionSet::new()
+                    .allow(MDataAction::Insert)
+                    .allow(MDataAction::Update),
             }],
         };
 

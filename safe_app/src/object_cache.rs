@@ -19,7 +19,7 @@ use routing::{EntryAction, PermissionSet, User, Value};
 use rust_sodium::crypto::{box_, sign};
 use safe_core::crypto::{shared_box, shared_sign};
 use safe_core::SelfEncryptionStorage;
-use safe_nd::PublicKey;
+use safe_nd::{MDataSeqValue, PublicKey};
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, HashMap};
@@ -31,6 +31,7 @@ pub struct ObjectCache {
     encrypt_key: Store<box_::PublicKey>,
     secret_key: Store<shared_box::SecretKey>,
     mdata_entries: Store<BTreeMap<Vec<u8>, Value>>,
+    mdata_entries_new: Store<BTreeMap<Vec<u8>, MDataSeqValue>>,
     mdata_entry_actions: Store<BTreeMap<Vec<u8>, EntryAction>>,
     mdata_permissions: Store<BTreeMap<User, PermissionSet>>,
     se_reader: Store<SelfEncryptor<SelfEncryptionStorage<AppClient>>>,
@@ -50,6 +51,7 @@ impl ObjectCache {
             encrypt_key: Store::new(),
             secret_key: Store::new(),
             mdata_entries: Store::new(),
+            mdata_entries_new: Store::new(),
             mdata_entry_actions: Store::new(),
             mdata_permissions: Store::new(),
             se_reader: Store::new(),
@@ -68,6 +70,7 @@ impl ObjectCache {
         self.encrypt_key.clear();
         self.secret_key.clear();
         self.mdata_entries.clear();
+        self.mdata_entries_new.clear();
         self.mdata_entry_actions.clear();
         self.mdata_permissions.clear();
         self.se_reader.clear();
@@ -137,6 +140,15 @@ impl_cache!(
     get_mdata_entries,
     insert_mdata_entries,
     remove_mdata_entries
+);
+impl_cache!(
+    mdata_entries_new,
+    BTreeMap<Vec<u8>, MDataSeqValue>,
+    MDataEntriesHandle,
+    InvalidMDataEntriesHandle,
+    get_mdata_entries_new,
+    insert_mdata_entries_new,
+    remove_mdata_entries_new
 );
 impl_cache!(
     mdata_entry_actions,

@@ -23,7 +23,7 @@ use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq, Permission}
 use safe_core::mock_vault_path;
 use safe_core::utils::test_utils::random_client;
 use safe_core::{Client, FutureExt, MDataInfo};
-use safe_nd::Coins;
+use safe_nd::{Coins, MDataAddress};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -142,7 +142,10 @@ fn verify_std_dirs(
         .chain(DEFAULT_PRIVATE_DIRS.iter())
         .map(|expected_container| {
             let mi = unwrap!(actual_containers.get(*expected_container));
-            client.get_mdata_version(mi.name(), mi.type_tag())
+            client.get_mdata_version_new(MDataAddress::Seq {
+                name: mi.name(),
+                tag: mi.type_tag(),
+            })
         })
         .collect();
 

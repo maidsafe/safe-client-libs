@@ -35,7 +35,7 @@ fn create_test_file_with_size(
 ) -> Box<NfsFuture<(MDataInfo, File)>> {
     let c2 = client.clone();
     let c3 = client.clone();
-    let root = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
+    let root = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
     let root2 = root.clone();
 
     create_dir(client, &root, btree_map![], btree_map![])
@@ -576,9 +576,10 @@ fn file_delete_then_add() {
             })
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
-
+                // create_test_file(&c7).and_then(move |(dir1, file1)| {
                 file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
+                // })
             })
             .then(move |res| {
                 let (writer, dir) = unwrap!(res);

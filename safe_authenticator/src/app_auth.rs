@@ -19,10 +19,8 @@ use futures::Future;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{
-    app_container_name, client::AuthActions, recovery, Client, CoreError, FutureExt, MDataInfo,
-};
-use safe_nd::{AppPermissions, Error as SndError, PublicKey};
+use safe_core::{app_container_name, client::AuthActions, recovery, Client, FutureExt, MDataInfo};
+use safe_nd::{AppPermissions, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 
@@ -51,10 +49,7 @@ pub fn app_state(client: &AuthClient, apps: &Apps, app_id: &str) -> Box<AuthFutu
             .then(move |res| {
                 match res {
                     Ok((_version, Some(_))) => Ok(AppState::Authenticated),
-                    Ok((_, None))
-                    | Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                        SndError::NoSuchEntry,
-                    ))) => {
+                    Ok((_, None)) => {
                         // App is not in access container, so it is revoked
                         Ok(AppState::Revoked)
                     }
@@ -117,11 +112,9 @@ fn update_access_container(
         .then(move |res| {
             let version = match res {
                 // Updating an existing entry
-                Ok((version, _)) => version + 1,
+                Ok((version, Some(_))) => version + 1,
                 // Adding a new access container entry
-                Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                    SndError::NoSuchEntry,
-                ))) => 0,
+                Ok((_, None)) => 0,
                 // Error has occurred while trying to get an existing entry
                 Err(e) => return Err(e),
             };

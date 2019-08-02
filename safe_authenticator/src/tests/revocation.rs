@@ -21,7 +21,7 @@ use crate::{
     {access_container, run, AuthFuture, Authenticator},
 };
 use futures::{future, Future};
-use routing::{EntryActions, User};
+use routing::User;
 use safe_core::{
     app_container_name,
     client::AuthActions,
@@ -31,7 +31,7 @@ use safe_core::{
     nfs::NfsError,
     Client, CoreError, FutureExt, MDataInfo,
 };
-use safe_nd::PublicKey;
+use safe_nd::{MDataAddress, MDataSeqEntryActions, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 
@@ -117,7 +117,7 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
         })
         .then(move |res| {
             let (app_key, ac_entry) = unwrap!(res);
-            let user = User::Key(app_key);
+            let user = app_key;
             let ac_entry = unwrap!(ac_entry);
 
             let futures = ac_entry
@@ -126,7 +126,13 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
                     // Verify the app has the permissions set according to the access container.
                     let expected_perms = container_perms_into_permission_set(&permissions);
                     let perms = c2
-                        .list_mdata_user_permissions(mdata_info.name(), mdata_info.type_tag(), user)
+                        .list_mdata_user_permissions_new(
+                            MDataAddress::Seq {
+                                name: mdata_info.name(),
+                                tag: mdata_info.type_tag(),
+                            },
+                            user,
+                        )
                         .then(move |res| {
                             let perms = unwrap!(res);
                             assert_eq!(perms, expected_perms);
@@ -135,16 +141,16 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
 
                     // Verify the app can decrypt the content of the containers.
                     let entries = c2
-                        .list_mdata_entries(mdata_info.name(), mdata_info.type_tag())
+                        .list_seq_mdata_entries(mdata_info.name(), mdata_info.type_tag())
                         .then(move |res| {
                             let entries = unwrap!(res);
                             for (key, value) in entries {
-                                if value.content.is_empty() {
+                                if value.data.is_empty() {
                                     continue;
                                 }
 
                                 let _ = unwrap!(mdata_info.decrypt(&key));
-                                let _ = unwrap!(mdata_info.decrypt(&value.content));
+                                let _ = unwrap!(mdata_info.decrypt(&value.data));
                             }
 
                             Ok(())
@@ -169,10 +175,9 @@ mod mock_routing {
     use ffi_utils::test_utils::call_0;
     use maidsafe_utilities::SeededRng;
     use routing::{ClientError, Request, Response};
-    use safe_core::{
-        ipc::{IpcError, Permission},
-        utils::test_utils::Synchronizer,
-    };
+    use safe_core::client::AuthActions;
+    use safe_core::ipc::{IpcError, Permission};
+    use safe_core::utils::test_utils::Synchronizer;
     use std::{
         collections::HashMap,
         iter,
@@ -233,30 +238,28 @@ mod mock_routing {
 
         // Hooks are disabled
 
-        // let routing_hook = move |mut routing: MockRouting| -> MockRouting {
-        //     routing.set_request_hook(move |req| {
-        //         match *req {
-        //             // Simulate a network failure for the request to re-encrypt
-        //             // the `_documents` container, so it remains untouched.
-        //             Request::MutateMDataEntries { name, msg_id, .. } if name == docs_name => {
-        //                 Some(Response::MutateMDataEntries {
-        //                     msg_id,
-        //                     res: Err(ClientError::LowBalance),
-        //                 })
-        //             }
-        //             // Pass-through
-        //             _ => None,
-        //         }
-        //     });
-        //     routing
-        // };
-
-        // let auth = unwrap!(Authenticator::login_with_hook(
-        //     locator.clone(),
-        //     password.clone(),
-        //     || (),
-        //     routing_hook,
-        // ));
+        //        let routing_hook = move |mut routing: MockRouting| -> MockRouting {
+        //            routing.set_request_hook_new(move |req| {
+        //                match *req {
+        //                    // Simulate a network failure for the request to re-encrypt
+        //                    // the `_documents` container, so it remains untouched.
+        //                    SndRequest::MutateSeqMDataEntries { address, .. }
+        //                        if *address.name() == docs_name =>
+        //                    {
+        //                        Some(SndResponse::Mutation(Err(Error::InsufficientBalance)))
+        //                    }
+        //                    // Pass-through
+        //                    _ => None,
+        //                }
+        //            });
+        //            routing
+        //        };
+        //        let auth = unwrap!(Authenticator::login_with_hook(
+        //            locator.clone(),
+        //            password.clone(),
+        //            || (),
+        //            routing_hook,
+        //        ));
 
         // Revoke the app.
         match try_revoke(&auth, &app_id) {
@@ -770,10 +773,12 @@ fn app_revocation() {
     // Container permissions include only the second app.
     let (name, tag) = (videos_md2.name(), videos_md2.type_tag());
     let perms = unwrap!(run(&authenticator, move |client| {
-        client.list_mdata_permissions(name, tag).map_err(From::from)
+        client
+            .list_mdata_permissions_new(MDataAddress::Seq { name, tag })
+            .map_err(From::from)
     }));
-    assert!(!perms.contains_key(&User::Key(PublicKey::from(auth_granted1.app_keys.bls_pk)),));
-    assert!(perms.contains_key(&User::Key(PublicKey::from(auth_granted2.app_keys.bls_pk)),));
+    assert!(!perms.contains_key(&PublicKey::from(auth_granted1.app_keys.bls_pk)));
+    assert!(perms.contains_key(&PublicKey::from(auth_granted2.app_keys.bls_pk)));
 
     // Check that the first app is now revoked, but the second app is not.
     let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
@@ -871,6 +876,7 @@ fn app_revocation() {
 
 // Test that corrupting an app's entry before trying to revoke it results in a
 // `SymmetricDecipherFailure` error and immediate return, without revoking more apps.
+// TODO: Alter/Deprecate this test as the new impl does not perform re-encryption
 #[test]
 fn revocation_symmetric_decipher_failure() {
     let authenticator = create_account_and_login();
@@ -1045,9 +1051,8 @@ fn revocation_with_unencrypted_container_entries() {
     let shared_info2 = shared_info.clone();
     let shared_key = b"shared-key".to_vec();
     let shared_content = b"shared-value".to_vec();
-    let shared_actions = EntryActions::new()
-        .ins(shared_key.clone(), shared_content.clone(), 0)
-        .into();
+    let shared_actions =
+        MDataSeqEntryActions::new().ins(shared_key.clone(), shared_content.clone(), 0);
 
     let dedicated_info = unwrap!(get_container_from_authenticator_entry(
         &auth,
@@ -1056,15 +1061,17 @@ fn revocation_with_unencrypted_container_entries() {
     let dedicated_info2 = dedicated_info.clone();
     let dedicated_key = b"dedicated-key".to_vec();
     let dedicated_content = b"dedicated-value".to_vec();
-    let dedicated_actions = EntryActions::new()
-        .ins(dedicated_key.clone(), dedicated_content.clone(), 0)
-        .into();
+    let dedicated_actions =
+        MDataSeqEntryActions::new().ins(dedicated_key.clone(), dedicated_content.clone(), 0);
 
     // Insert unencrypted stuff into the shared container and the dedicated container.
     unwrap!(run(&auth, move |client| {
-        let f0 =
-            client.mutate_mdata_entries(shared_info.name(), shared_info.type_tag(), shared_actions);
-        let f1 = client.mutate_mdata_entries(
+        let f0 = client.mutate_seq_mdata_entries(
+            shared_info.name(),
+            shared_info.type_tag(),
+            shared_actions,
+        );
+        let f1 = client.mutate_seq_mdata_entries(
             dedicated_info.name(),
             dedicated_info.type_tag(),
             dedicated_actions,
@@ -1078,8 +1085,9 @@ fn revocation_with_unencrypted_container_entries() {
 
     // Verify that the unencrypted entries remain unencrypted after the revocation.
     unwrap!(run(&auth, move |client| {
-        let f0 = client.get_mdata_value(shared_info2.name(), shared_info2.type_tag(), shared_key);
-        let f1 = client.get_mdata_value(
+        let f0 =
+            client.get_seq_mdata_value(shared_info2.name(), shared_info2.type_tag(), shared_key);
+        let f1 = client.get_seq_mdata_value(
             dedicated_info2.name(),
             dedicated_info2.type_tag(),
             dedicated_key,
@@ -1087,8 +1095,8 @@ fn revocation_with_unencrypted_container_entries() {
 
         f0.join(f1).then(move |res| {
             let (shared_value, dedicated_value) = unwrap!(res);
-            assert_eq!(shared_value.content, shared_content);
-            assert_eq!(dedicated_value.content, dedicated_content);
+            assert_eq!(shared_value.data, shared_content);
+            assert_eq!(dedicated_value.data, dedicated_content);
 
             Ok(())
         })
@@ -1098,7 +1106,7 @@ fn revocation_with_unencrypted_container_entries() {
 fn count_mdata_entries(authenticator: &Authenticator, info: MDataInfo) -> usize {
     unwrap!(run(authenticator, move |client| {
         client
-            .list_mdata_entries(info.name(), info.type_tag())
+            .list_seq_mdata_entries(info.name(), info.type_tag())
             .map(|entries| entries.len())
             .map_err(From::from)
     }))

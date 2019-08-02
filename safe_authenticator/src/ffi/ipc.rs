@@ -16,7 +16,7 @@ use ffi_utils::{
     catch_unwind_cb, from_c_str, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::{stream, Future, Stream};
-use routing::User;
+use safe_core::client::Client;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
 use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::ipc::req::{
@@ -25,8 +25,8 @@ use safe_core::ipc::req::{
 };
 use safe_core::ipc::resp::IpcResp;
 use safe_core::ipc::{decode_msg, IpcError, IpcMsg};
-use safe_core::{client, Client, CoreError, FutureExt};
-use safe_nd::PublicKey;
+use safe_core::{client, CoreError, FutureExt};
+use safe_nd::{MDataAddress, PublicKey};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 
@@ -386,12 +386,7 @@ pub unsafe extern "C" fn encode_containers_resp(
                                     }
 
                                     // Adding a new access container entry
-                                    Ok((_, None))
-                                    | Err(AuthError::CoreError(
-                                        CoreError::NewRoutingClientError(
-                                            safe_nd::Error::NoSuchEntry,
-                                        ),
-                                    )) => 0,
+                                    Ok((_, None)) => 0,
 
                                     // Error has occurred while trying to get an
                                     // existing entry
@@ -466,19 +461,21 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
 
                 config::get_app(client, &share_mdata_req.app.id)
                     .and_then(move |app_info| {
-                        let user = User::Key(PublicKey::from(app_info.keys.bls_pk));
+                        let user = PublicKey::from(app_info.keys.bls_pk);
                         let num_mdata = share_mdata_req.mdata.len();
                         stream::iter_ok(share_mdata_req.mdata.into_iter())
                             .map(move |mdata| {
                                 client_cloned0
-                                    .get_mdata_shell(mdata.name, mdata.type_tag)
+                                    .get_seq_mdata_shell(mdata.name, mdata.type_tag)
                                     .map(|md| (md.version(), mdata))
                             })
                             .buffer_unordered(num_mdata)
                             .map(move |(version, mdata)| {
-                                client_cloned1.set_mdata_user_permissions(
-                                    mdata.name,
-                                    mdata.type_tag,
+                                client_cloned1.set_mdata_user_permissions_new(
+                                    MDataAddress::Seq {
+                                        name: mdata.name,
+                                        tag: mdata.type_tag,
+                                    },
                                     user,
                                     mdata.perms,
                                     version + 1,

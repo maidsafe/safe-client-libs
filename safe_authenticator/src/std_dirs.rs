@@ -12,13 +12,12 @@ use crate::config::KEY_APPS;
 use crate::{AuthError, AuthFuture};
 use futures::{future, Future};
 use maidsafe_utilities::serialisation::serialise;
-use routing::Value;
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
 use safe_core::utils::symmetric_encrypt;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
-use safe_nd::{Error as SndError, MDataKind};
+use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
 use std::collections::HashMap;
 
 /// Default directories to be created at registration.
@@ -86,7 +85,7 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
 
 fn create_config_dir(client: &AuthClient, config_dir: &MDataInfo) -> Box<AuthFuture<()>> {
     let config_dir_entries =
-        btree_map![KEY_APPS.to_vec() => Value { content: Vec::new(), entry_version: 0 }];
+        btree_map![KEY_APPS.to_vec() => MDataSeqValue { data: Vec::new(), version: 0 }];
 
     let config_dir_entries = fry!(mdata_info::encrypt_entries(config_dir, &config_dir_entries));
 
@@ -123,7 +122,7 @@ fn create_access_container(
         client,
         access_container,
         btree_map![
-            authenticator_key => Value { entry_version: 0, content: access_cont_value }
+            authenticator_key => MDataSeqValue { version: 0, data: access_cont_value }
         ],
         btree_map![],
     )
@@ -137,10 +136,10 @@ fn create_access_container(
 pub fn random_std_dirs() -> Result<Vec<(&'static str, MDataInfo)>, CoreError> {
     let pub_dirs = DEFAULT_PUBLIC_DIRS
         .iter()
-        .map(|name| MDataInfo::random_public(MDataKind::Unseq, DIR_TAG).map(|dir| (*name, dir)));
+        .map(|name| MDataInfo::random_public(MDataKind::Seq, DIR_TAG).map(|dir| (*name, dir)));
     let priv_dirs = DEFAULT_PRIVATE_DIRS
         .iter()
-        .map(|name| MDataInfo::random_private(MDataKind::Unseq, DIR_TAG).map(|dir| (*name, dir)));
+        .map(|name| MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map(|dir| (*name, dir)));
     priv_dirs.chain(pub_dirs).collect()
 }
 

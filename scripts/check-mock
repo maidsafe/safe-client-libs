@@ -5,4 +5,5 @@ set -x;
 cargo check --verbose --features=mock-network --release --manifest-path=safe_core/Cargo.toml &&
 cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
 cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
-cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_app/Cargo.toml
+cargo check --verbose --features="testing mock-network" --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
+cargo check --verbose --features="mock-network" --release --lib --tests --manifest-path=tests/Cargo.toml
