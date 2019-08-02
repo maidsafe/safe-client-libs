@@ -7,49 +7,178 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::utils::{corrupt_container, create_containers_req};
-use crate::config::{self, get_app_revocation_queue, push_to_app_revocation_queue};
-use crate::errors::AuthError;
-use crate::revocation;
-use crate::test_utils::{
-    access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
-    get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
-    try_access_container, try_revoke,
+use crate::{
+    app_auth::{app_state, AppState},
+    client::AuthClient,
+    config::{self, get_app_revocation_queue, push_to_app_revocation_queue},
+    errors::AuthError,
+    revocation,
+    test_utils::{
+        access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
+        get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
+        try_access_container, try_revoke,
+    },
+    {access_container, run, AuthFuture, Authenticator},
 };
-use crate::{run, Authenticator};
-use futures::Future;
+use futures::{future, Future};
 use routing::{EntryActions, User};
-use safe_core::ipc::{AuthReq, Permission};
-use safe_core::nfs::NfsError;
-use safe_core::{app_container_name, Client, CoreError, MDataInfo};
+use safe_core::{
+    app_container_name,
+    client::AuthActions,
+    ipc::req::container_perms_into_permission_set,
+    ipc::resp::AccessContainerEntry,
+    ipc::{AuthReq, Permission},
+    nfs::NfsError,
+    Client, CoreError, FutureExt, MDataInfo,
+};
 use safe_nd::PublicKey;
 use std::collections::HashMap;
+use tiny_keccak::sha3_256;
+
+fn verify_app_is_revoked(
+    client: &AuthClient,
+    app_id: String,
+    prev_ac_entry: AccessContainerEntry,
+) -> Box<AuthFuture<()>> {
+    let c0 = client.clone();
+    let c1 = client.clone();
+
+    config::list_apps(client)
+        .and_then(move |(_, apps)| {
+            let auth_keys = c0.list_auth_keys_and_version().map_err(AuthError::from);
+            let state = app_state(&c0, &apps, &app_id);
+
+            let app_hash = sha3_256(app_id.as_bytes());
+            let app_key = PublicKey::from(unwrap!(apps.get(&app_hash)).keys.bls_pk);
+
+            auth_keys
+                .join(state)
+                .map(move |((auth_keys, _), state)| (auth_keys, app_key, state))
+        })
+        .and_then(move |(auth_keys, app_key, state)| -> Result<_, AuthError> {
+            // Verify the app is no longer authenticated.
+            if auth_keys.contains_key(&app_key) {
+                return Err(AuthError::Unexpected("App is still authenticated".into()));
+            }
+
+            // Verify its state is `Revoked` (meaning it has no entry in the access container).
+            assert_match!(state, AppState::Revoked);
+
+            Ok(app_key)
+        })
+        .and_then(move |app_key| {
+            let futures = prev_ac_entry.into_iter().map(move |(_, (mdata_info, _))| {
+                // Verify the app has no permissions in the containers.
+                c1.list_mdata_user_permissions(
+                    mdata_info.name(),
+                    mdata_info.type_tag(),
+                    User::Key(app_key),
+                )
+                .then(|res| {
+                    assert_match!(
+                        res,
+                        Err(CoreError::NewRoutingClientError(safe_nd::Error::NoSuchKey))
+                    );
+                    Ok(())
+                })
+            });
+
+            future::join_all(futures).map(|_| ())
+        })
+        .into_box()
+}
+
+fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthFuture<()>> {
+    let c0 = client.clone();
+    let c1 = client.clone();
+    let c2 = client.clone();
+
+    config::list_apps(client)
+        .then(move |res| {
+            let (_, mut apps) = unwrap!(res);
+
+            let app_hash = sha3_256(app_id.as_bytes());
+            let app_keys = unwrap!(apps.remove(&app_hash)).keys;
+
+            c0.list_auth_keys_and_version()
+                .map_err(AuthError::from)
+                .map(move |(auth_keys, _)| (auth_keys, app_id, app_keys))
+        })
+        .then(move |res| {
+            let (auth_keys, app_id, app_keys) = unwrap!(res);
+            let app_key = PublicKey::from(app_keys.bls_pk);
+
+            // Verify the app is authenticated.
+            assert!(auth_keys.contains_key(&app_key));
+
+            // Fetch the access container entry
+            access_container::fetch_entry(&c1, &app_id, app_keys)
+                .map(move |(_, entry)| (app_key, entry))
+        })
+        .then(move |res| {
+            let (app_key, ac_entry) = unwrap!(res);
+            let user = User::Key(app_key);
+            let ac_entry = unwrap!(ac_entry);
+
+            let futures = ac_entry
+                .into_iter()
+                .map(move |(_, (mdata_info, permissions))| {
+                    // Verify the app has the permissions set according to the access container.
+                    let expected_perms = container_perms_into_permission_set(&permissions);
+                    let perms = c2
+                        .list_mdata_user_permissions(mdata_info.name(), mdata_info.type_tag(), user)
+                        .then(move |res| {
+                            let perms = unwrap!(res);
+                            assert_eq!(perms, expected_perms);
+                            Ok(())
+                        });
+
+                    // Verify the app can decrypt the content of the containers.
+                    let entries = c2
+                        .list_mdata_entries(mdata_info.name(), mdata_info.type_tag())
+                        .then(move |res| {
+                            let entries = unwrap!(res);
+                            for (key, value) in entries {
+                                if value.content.is_empty() {
+                                    continue;
+                                }
+
+                                let _ = unwrap!(mdata_info.decrypt(&key));
+                                let _ = unwrap!(mdata_info.decrypt(&value.content));
+                            }
+
+                            Ok(())
+                        });
+
+                    perms.join(entries).map(|_| ())
+                });
+
+            future::join_all(futures).map(|_| ())
+        })
+        .into_box()
+}
 
 #[cfg(feature = "mock-network")]
 mod mock_routing {
     use super::*;
-    use crate::access_container;
-    use crate::app_auth::{app_state, AppState};
-    use crate::client::AuthClient;
-    use crate::ffi::ipc::auth_flush_app_revocation_queue;
-    use crate::test_utils::{
-        get_container_from_authenticator_entry, register_rand_app, try_revoke,
+    use crate::{
+        ffi::ipc::auth_flush_app_revocation_queue,
+        test_utils::{get_container_from_authenticator_entry, register_rand_app, try_revoke},
     };
-    use crate::AuthFuture;
     use config;
     use ffi_utils::test_utils::call_0;
-    use futures::future;
     use maidsafe_utilities::SeededRng;
     use routing::{ClientError, Request, Response};
-    use safe_core::ipc::req::container_perms_into_permission_set;
-    use safe_core::ipc::resp::AccessContainerEntry;
-    use safe_core::ipc::{IpcError, Permission};
-    use safe_core::utils::test_utils::Synchronizer;
-    use safe_core::{client::AuthActions, Client, FutureExt};
-    use std::collections::HashMap;
-    use std::iter;
-    use std::sync::{Arc, Barrier};
-    use std::thread;
-    use tiny_keccak::sha3_256;
+    use safe_core::{
+        ipc::{IpcError, Permission},
+        utils::test_utils::Synchronizer,
+    };
+    use std::{
+        collections::HashMap,
+        iter,
+        sync::{Arc, Barrier},
+        thread,
+    };
 
     // Test operation recovery for app revocation
     //
@@ -174,31 +303,11 @@ mod mock_routing {
         // App revocation should succeed
         revoke(&auth, &app_id);
 
-        // Try to access both files using previous keys - they shouldn't be accessible
-        match fetch_file(&auth, docs_md, "test.doc") {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-            // FIXME: Will be resolved by issue #915
-            Ok(_) => (),
-            x => panic!("Unexpected {:?}", x),
-        }
-        match fetch_file(&auth, videos_md, "video.mp4") {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-            // FIXME: Will be resolved by issue #915
-            Ok(_) => (),
-            x => panic!("Unexpected {:?}", x),
-        }
-
-        // Get the new encryption info from the authenticator entry (as the app entry has been
-        // removed now). Both containers should be accessible with the new keys without any extra
-        // effort
-        let ac_entries = try_access_container(&auth, app_id.clone(), auth_granted.clone());
-        assert!(ac_entries.is_none());
-
-        let new_docs_md = unwrap!(get_container_from_authenticator_entry(&auth, "_documents"));
-        let new_videos_md = unwrap!(get_container_from_authenticator_entry(&auth, "_videos"));
-
-        let _ = unwrap!(fetch_file(&auth, new_docs_md, "test.doc"));
-        let _ = unwrap!(fetch_file(&auth, new_videos_md, "video.mp4"));
+        // Check that the app is now revoked.
+        let app_id = app_id.clone();
+        unwrap!(run(&auth, move |client| {
+            verify_app_is_revoked(client, app_id, ac_entries)
+        }));
     }
 
     // Test app cannot be (re)authenticated while it's being revoked.
@@ -584,137 +693,6 @@ mod mock_routing {
             }
         }
     }
-
-    fn verify_app_is_revoked(
-        client: &AuthClient,
-        app_id: String,
-        prev_ac_entry: AccessContainerEntry,
-    ) -> Box<AuthFuture<()>> {
-        let c0 = client.clone();
-        let c1 = client.clone();
-
-        config::list_apps(client)
-            .then(move |res| {
-                let (_, apps) = unwrap!(res);
-
-                let auth_keys = c0.list_auth_keys_and_version().map_err(AuthError::from);
-                let state = app_state(&c0, &apps, &app_id);
-
-                let app_hash = sha3_256(app_id.as_bytes());
-                let app_key = PublicKey::from(unwrap!(apps.get(&app_hash)).keys.bls_pk);
-
-                auth_keys
-                    .join(state)
-                    .map(move |((auth_keys, _), state)| (auth_keys, app_key, state))
-            })
-            .then(move |res| -> Result<_, AuthError> {
-                let (auth_keys, app_key, state) = unwrap!(res);
-
-                // Verify the app is no longer authenticated.
-                assert!(!auth_keys.contains_key(&app_key));
-
-                // Verify its state is `Revoked` (meaning it has no entry in the
-                // access container)
-                assert_match!(state, AppState::Revoked);
-
-                Ok(app_key)
-            })
-            .then(move |res| {
-                let app_key = unwrap!(res);
-                let futures = prev_ac_entry.into_iter().map(move |(_, (mdata_info, _))| {
-                    // Verify the app has no permissions in the containers.
-                    c1.list_mdata_user_permissions(
-                        mdata_info.name(),
-                        mdata_info.type_tag(),
-                        User::Key(app_key),
-                    )
-                    .then(|res| {
-                        assert_match!(
-                            res,
-                            Err(CoreError::NewRoutingClientError(safe_nd::Error::NoSuchKey))
-                        );
-                        Ok(())
-                    })
-                });
-
-                future::join_all(futures).map(|_| ())
-            })
-            .into_box()
-    }
-
-    fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthFuture<()>> {
-        let c0 = client.clone();
-        let c1 = client.clone();
-        let c2 = client.clone();
-
-        config::list_apps(client)
-            .then(move |res| {
-                let (_, mut apps) = unwrap!(res);
-
-                let app_hash = sha3_256(app_id.as_bytes());
-                let app_keys = unwrap!(apps.remove(&app_hash)).keys;
-
-                c0.list_auth_keys_and_version()
-                    .map_err(AuthError::from)
-                    .map(move |(auth_keys, _)| (auth_keys, app_id, app_keys))
-            })
-            .then(move |res| {
-                let (auth_keys, app_id, app_keys) = unwrap!(res);
-                let app_key = PublicKey::from(app_keys.bls_pk);
-
-                // Verify the app is authenticated.
-                assert!(auth_keys.contains_key(&app_key));
-
-                // Fetch the access container entry
-                access_container::fetch_entry(&c1, &app_id, app_keys)
-                    .map(move |(_, entry)| (app_key, entry))
-            })
-            .then(move |res| {
-                let (app_key, ac_entry) = unwrap!(res);
-                let user = User::Key(app_key);
-                let ac_entry = unwrap!(ac_entry);
-
-                let futures = ac_entry
-                    .into_iter()
-                    .map(move |(_, (mdata_info, permissions))| {
-                        // Verify the app has the permissions set according to the access container.
-                        let expected_perms = container_perms_into_permission_set(&permissions);
-                        let perms = c2
-                            .list_mdata_user_permissions(
-                                mdata_info.name(),
-                                mdata_info.type_tag(),
-                                user,
-                            )
-                            .then(move |res| {
-                                let perms = unwrap!(res);
-                                assert_eq!(perms, expected_perms);
-                                Ok(())
-                            });
-
-                        // Verify the app can decrypt the content of the containers.
-                        let entries = c2
-                            .list_mdata_entries(mdata_info.name(), mdata_info.type_tag())
-                            .then(move |res| {
-                                let entries = unwrap!(res);
-                                for (key, value) in entries {
-                                    if value.content.is_empty() {
-                                        continue;
-                                    }
-
-                                    let _ = unwrap!(mdata_info.decrypt(&key));
-                                    let _ = unwrap!(mdata_info.decrypt(&value.content));
-                                }
-
-                                Ok(())
-                            });
-
-                        perms.join(entries).map(|_| ())
-                    });
-
-                future::join_all(futures).map(|_| ())
-            })
-            .into_box()
-    }
 }
 
 // The app revocation and re-authorisation workflow.
@@ -782,7 +760,7 @@ fn app_revocation() {
     // Revoke the first app.
     revoke(&authenticator, &app_id1);
 
-    // There should now be 2 entries
+    // There should now be 2 entries.
     assert_eq!(count_mdata_entries(&authenticator, videos_md1.clone()), 2);
 
     // The first app is no longer in the access container.
@@ -797,20 +775,14 @@ fn app_revocation() {
     assert!(!perms.contains_key(&User::Key(PublicKey::from(auth_granted1.app_keys.bls_pk)),));
     assert!(perms.contains_key(&User::Key(PublicKey::from(auth_granted2.app_keys.bls_pk)),));
 
-    // The first app can no longer access the files.
-    match fetch_file(&authenticator, videos_md1.clone(), "1.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-        // FIXME: Will be resolved by issue #915
-        Ok(_) => (),
-        x => panic!("Unexpected {:?}", x),
-    }
+    // Check that the first app is now revoked, but the second app is not.
+    let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
+    unwrap!(run(&authenticator, move |client| {
+        let app_1 = verify_app_is_revoked(client, app_id1_clone, ac_entries);
+        let app_2 = verify_app_is_authenticated(client, app_id2_clone);
 
-    match fetch_file(&authenticator, videos_md1.clone(), "2.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-        // FIXME: Will be resolved by issue #915
-        Ok(_) => (),
-        x => panic!("Unexpected {:?}", x),
-    }
+        app_1.join(app_2).map(|_| ())
+    }));
 
     // The second app can still access both files after re-fetching the access container.
     let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
@@ -835,22 +807,17 @@ fn app_revocation() {
     // Revoke the first app again. Only the second app can access the files.
     revoke(&authenticator, &app_id1);
 
-    // There should now be 2 entries
+    // There should now be 2 entries.
     assert_eq!(count_mdata_entries(&authenticator, videos_md1.clone()), 2);
 
-    match fetch_file(&authenticator, videos_md1.clone(), "1.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-        // FIXME: Will be resolved by issue #915
-        Ok(_) => (),
-        x => panic!("Unexpected {:?}", x),
-    }
+    // Check that the first app is now revoked, but the second app is not.
+    let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
+    unwrap!(run(&authenticator, move |client| {
+        let app_1 = verify_app_is_revoked(client, app_id1_clone, ac_entries);
+        let app_2 = verify_app_is_authenticated(client, app_id2_clone);
 
-    match fetch_file(&authenticator, videos_md1.clone(), "2.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-        // FIXME: Will be resolved by issue #915
-        Ok(_) => (),
-        x => panic!("Unexpected {:?}", x),
-    }
+        app_1.join(app_2).map(|_| ())
+    }));
 
     let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
     let (videos_md2, _) = unwrap!(ac_entries.remove("_videos"));
@@ -860,12 +827,14 @@ fn app_revocation() {
     // Revoke the second app that has created its own app container.
     revoke(&authenticator, &app_id2);
 
-    match fetch_file(&authenticator, videos_md2.clone(), "1.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
-        // FIXME: Will be resolved by issue #915
-        Ok(_) => (),
-        x => panic!("Unexpected {:?}", x),
-    }
+    // Check that the first and second apps are both revoked.
+    let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
+    unwrap!(run(&authenticator, move |client| {
+        let app_1 = verify_app_is_revoked(client, app_id1_clone, ac_entries.clone());
+        let app_2 = verify_app_is_revoked(client, app_id2_clone, ac_entries);
+
+        app_1.join(app_2).map(|_| ())
+    }));
 
     // Try to reauthorise and revoke the second app again - as it should have reused its
     // app container, the subsequent reauthorisation + revocation should work correctly too.
@@ -885,7 +854,19 @@ fn app_revocation() {
         "3.mp4",
     ));
 
+    // Check that the second app is authenticated.
+    let app_id2_clone = app_id2.clone();
+    unwrap!(run(&authenticator, move |client| {
+        verify_app_is_authenticated(client, app_id2_clone)
+    }));
+
     revoke(&authenticator, &app_id2);
+
+    // Check that the second app is now revoked again.
+    let app_id2_clone = app_id2.clone();
+    unwrap!(run(&authenticator, move |client| {
+        verify_app_is_revoked(client, app_id2_clone, ac_entries)
+    }));
 }
 
 // Test that corrupting an app's entry before trying to revoke it results in a

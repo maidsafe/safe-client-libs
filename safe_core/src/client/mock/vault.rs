@@ -14,12 +14,12 @@ use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError, MutableData as OldMutableData};
 use safe_nd::{
-    verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppendOnlyData, Coins,
-    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction, MDataAddress,
-    MDataKind, Message, PublicId, PublicKey, Request, Response, SeqAppendOnly, Transaction,
-    UnseqAppendOnly, XorName,
+    verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
+    Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction, MDataAddress,
+    MDataKind, Message, PublicId, PublicKey, Request, Response, Result as SndResult, SeqAppendOnly,
+    Transaction, UnseqAppendOnly, XorName,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -92,7 +92,7 @@ fn init_vault_store(config: &Config) -> Box<Store> {
 }
 
 // NOTE: This most probably should be in safe-nd::AData
-fn check_is_owner_adata(data: &AData, requester: PublicKey) -> Result<(), SndError> {
+fn check_is_owner_adata(data: &AData, requester: PublicKey) -> SndResult<()> {
     data.owner(data.owners_index() - 1).map_or_else(
         || Err(SndError::InvalidOwners),
         move |owner| {
@@ -105,11 +105,7 @@ fn check_is_owner_adata(data: &AData, requester: PublicKey) -> Result<(), SndErr
     )
 }
 
-fn check_perms_adata(
-    data: &AData,
-    request: &Request,
-    requester: PublicKey,
-) -> Result<(), SndError> {
+fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> SndResult<()> {
     match request {
         Request::GetAData(..)
         | Request::GetADataShell { .. }
@@ -141,11 +137,7 @@ fn check_perms_adata(
     }
 }
 
-fn check_perms_mdata(
-    data: &MData,
-    request: &Request,
-    requester: PublicKey,
-) -> Result<(), SndError> {
+fn check_perms_mdata(data: &MData, request: &Request, requester: PublicKey) -> SndResult<()> {
     match request {
         Request::GetMData { .. }
         | Request::GetMDataShell { .. }
@@ -168,6 +160,54 @@ fn check_perms_mdata(
         Request::DeleteMData { .. } => data.check_is_owner(requester),
 
         _ => Err(SndError::InvalidOperation),
+    }
+}
+
+enum RequestType {
+    GetForPub,
+    GetForUnpub,
+    Mutation,
+}
+
+// Is the request a GET and if so, is it for pub or unpub data?
+fn request_is_get(request: &Request) -> RequestType {
+    match *request {
+        Request::GetIData(address) => {
+            if address.is_pub() {
+                RequestType::GetForPub
+            } else {
+                RequestType::GetForUnpub
+            }
+        }
+
+        Request::GetAData(address)
+        | Request::GetADataShell { address, .. }
+        | Request::GetADataRange { address, .. }
+        | Request::GetADataValue { address, .. }
+        | Request::GetADataIndices(address)
+        | Request::GetADataLastEntry(address)
+        | Request::GetADataPermissions { address, .. }
+        | Request::GetPubADataUserPermissions { address, .. }
+        | Request::GetUnpubADataUserPermissions { address, .. }
+        | Request::GetADataOwners { address, .. } => {
+            if address.is_pub() {
+                RequestType::GetForPub
+            } else {
+                RequestType::GetForUnpub
+            }
+        }
+
+        Request::GetMData(_)
+        | Request::GetMDataValue { .. }
+        | Request::GetMDataShell(_)
+        | Request::GetMDataVersion(_)
+        | Request::ListMDataEntries(_)
+        | Request::ListMDataKeys(_)
+        | Request::ListMDataValues(_)
+        | Request::ListMDataPermissions(_)
+        | Request::ListMDataUserPermissions { .. } => RequestType::GetForUnpub,
+
+        _ => RequestType::Mutation,
     }
 }
 
@@ -264,7 +304,7 @@ impl Vault {
         &mut self,
         coin_balance_name: &XorName,
         amount: Coins,
-    ) -> Result<(), SndError> {
+    ) -> SndResult<()> {
         let balance = match self.get_coin_balance_mut(coin_balance_name) {
             Some(balance) => balance,
             None => {
@@ -280,7 +320,7 @@ impl Vault {
         &self,
         coin_balance_name: &XorName,
         requester_pk: PublicKey,
-    ) -> Result<(), SndError> {
+    ) -> SndResult<()> {
         // Check if we are the owner or app.
         let balance = match self.get_coin_balance(&coin_balance_name) {
             Some(balance) => balance,
@@ -390,7 +430,7 @@ impl Vault {
         let _ = self.cache.nae_manager.remove(&name);
     }
 
-    fn create_balance(&mut self, destination: XorName, owner: PublicKey) -> Result<(), SndError> {
+    fn create_balance(&mut self, destination: XorName, owner: PublicKey) -> SndResult<()> {
         if self.get_coin_balance(&destination).is_some() {
             return Err(SndError::BalanceExists);
         }
@@ -407,7 +447,7 @@ impl Vault {
         destination: XorName,
         amount: Coins,
         transaction_id: u64,
-    ) -> Result<Transaction, SndError> {
+    ) -> SndResult<Transaction> {
         match self.get_coin_balance_mut(&source) {
             Some(balance) => balance.debit_balance(amount)?,
             None => return Err(SndError::NoSuchBalance),
@@ -422,36 +462,15 @@ impl Vault {
         })
     }
 
-    fn get_balance(&self, coins_balance_id: &XorName) -> Result<Coins, SndError> {
+    fn get_balance(&self, coins_balance_id: &XorName) -> SndResult<Coins> {
         match self.get_coin_balance(coins_balance_id) {
             Some(balance) => Ok(balance.balance()),
             None => Err(SndError::NoSuchBalance),
         }
     }
 
-    fn request_is_get_for_pub_data(request: &Request) -> bool {
-        match *request {
-            Request::GetIData(address) => address.is_pub(),
-            Request::GetAData(address)
-            | Request::GetADataShell { address, .. }
-            | Request::GetADataRange { address, .. }
-            | Request::GetADataValue { address, .. }
-            | Request::GetADataIndices(address)
-            | Request::GetADataLastEntry(address)
-            | Request::GetADataPermissions { address, .. }
-            | Request::GetPubADataUserPermissions { address, .. }
-            | Request::GetUnpubADataUserPermissions { address, .. }
-            | Request::GetADataOwners { address, .. } => address.is_pub(),
-            _ => false,
-        }
-    }
-
     #[allow(clippy::cognitive_complexity)]
-    pub fn process_request(
-        &mut self,
-        requester: PublicId,
-        payload: &[u8],
-    ) -> Result<Message, SndError> {
+    pub fn process_request(&mut self, requester: PublicId, payload: &[u8]) -> SndResult<Message> {
         // Deserialise the request, returning an early error on failure.
         let (request, message_id, signature) = if let Message::Request {
             request,
@@ -467,17 +486,34 @@ impl Vault {
 
         // Get the requester's public key.
         let result = match requester.clone() {
-            PublicId::App(pk) => Ok((*pk.public_key(), *pk.owner().public_key())),
-            PublicId::Client(pk) => Ok((*pk.public_key(), *pk.public_key())),
+            PublicId::App(pk) => Ok((true, *pk.public_key(), *pk.owner().public_key())),
+            PublicId::Client(pk) => Ok((false, *pk.public_key(), *pk.public_key())),
             PublicId::Node(_) => Err(SndError::AccessDenied),
         }
-        .and_then(|(requester_pk, owner_pk)| {
-            // Verify signature unless the request is a GET for public data.
-            if !Self::request_is_get_for_pub_data(&request) {
-                match signature {
-                    Some(sig) => verify_signature(&sig, &requester_pk, &request, &message_id)?,
-                    None => return Err(SndError::InvalidSignature),
+        .and_then(|(is_app, requester_pk, owner_pk)| {
+            let request_type = request_is_get(&request);
+
+            match request_type {
+                RequestType::GetForUnpub | RequestType::Mutation => {
+                    // For apps, check if its public key is listed as an auth key.
+                    if is_app {
+                        let auth_keys = self
+                            .get_account(&requester.name())
+                            .map(|account| (account.auth_keys().clone()))
+                            .unwrap_or_else(Default::default);
+
+                        if !auth_keys.contains_key(&requester_pk) {
+                            return Err(SndError::AccessDenied);
+                        }
+                    }
+
+                    // Verify signature if the request is not a GET for public data.
+                    match signature {
+                        Some(sig) => verify_signature(&sig, &requester_pk, &request, &message_id)?,
+                        None => return Err(SndError::InvalidSignature),
+                    }
                 }
+                RequestType::GetForPub => (),
             }
 
             Ok((requester_pk, owner_pk))
@@ -542,12 +578,7 @@ impl Vault {
                     if owner_pk != requester_pk {
                         Err(SndError::AccessDenied)
                     } else {
-                        let name = requester.name();
-                        if self.get_account(&name).is_none() {
-                            self.insert_account(*name);
-                        }
-                        let account = unwrap!(self.get_account(&name));
-                        Ok((account.auth_keys().clone(), account.version()))
+                        Ok(self.list_auth_keys_and_version(&requester.name()))
                     }
                 };
                 Response::ListAuthKeysAndVersion(result)
@@ -560,12 +591,7 @@ impl Vault {
                 let result = if owner_pk != requester_pk {
                     Err(SndError::AccessDenied)
                 } else {
-                    let name = requester.name();
-                    if self.get_account(&name).is_none() {
-                        self.insert_account(*name);
-                    }
-                    let account = unwrap!(self.get_account_mut(&name));
-                    account.ins_auth_key(key, permissions, version)
+                    self.ins_auth_key(&requester.name(), key, permissions, version)
                 };
                 Response::Mutation(result)
             }
@@ -573,12 +599,7 @@ impl Vault {
                 let result = if owner_pk != requester_pk {
                     Err(SndError::AccessDenied)
                 } else {
-                    let name = requester.name();
-                    if self.get_account(&name).is_none() {
-                        self.insert_account(*name);
-                    }
-                    let account = unwrap!(self.get_account_mut(&name));
-                    account.del_auth_key(&key, version)
+                    self.del_auth_key(&requester.name(), key, version)
                 };
                 Response::Mutation(result)
             }
@@ -1272,25 +1293,7 @@ impl Vault {
         })
     }
 
-    pub fn get_adata(
-        &mut self,
-        address: ADataAddress,
-        requester_pk: PublicKey,
-        request: Request,
-    ) -> Result<AData, SndError> {
-        let data_id = DataId::AppendOnly(address);
-        match self.get_data(&data_id) {
-            Some(data_type) => match data_type {
-                Data::AppendOnly(data) => {
-                    check_perms_adata(&data, &request, requester_pk).map(move |_| data)
-                }
-                _ => Err(SndError::NoSuchData),
-            },
-            None => Err(SndError::NoSuchData),
-        }
-    }
-
-    pub fn get_idata(&mut self, address: IDataAddress) -> Result<IData, SndError> {
+    pub fn get_idata(&mut self, address: IDataAddress) -> SndResult<IData> {
         let data_name = DataId::Immutable(address);
 
         match self.get_data(&data_name) {
@@ -1307,7 +1310,7 @@ impl Vault {
         address: IDataAddress,
         requester: PublicId,
         requester_pk: PublicKey,
-    ) -> Result<(), SndError> {
+    ) -> SndResult<()> {
         let data_id = DataId::Immutable(address);
 
         match self.get_data(&data_id) {
@@ -1337,11 +1340,29 @@ impl Vault {
         address: MDataAddress,
         requester_pk: PublicKey,
         request: Request,
-    ) -> Result<MData, SndError> {
+    ) -> SndResult<MData> {
         match self.get_data(&DataId::Mutable(address)) {
             Some(data_type) => match data_type {
                 Data::NewMutable(data) => {
                     check_perms_mdata(&data, &request, requester_pk).map(move |_| data)
+                }
+                _ => Err(SndError::NoSuchData),
+            },
+            None => Err(SndError::NoSuchData),
+        }
+    }
+
+    pub fn get_adata(
+        &mut self,
+        address: ADataAddress,
+        requester_pk: PublicKey,
+        request: Request,
+    ) -> SndResult<AData> {
+        let data_id = DataId::AppendOnly(address);
+        match self.get_data(&data_id) {
+            Some(data_type) => match data_type {
+                Data::AppendOnly(data) => {
+                    check_perms_adata(&data, &request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),
             },
@@ -1354,7 +1375,7 @@ impl Vault {
         data_name: DataId,
         data: Data,
         requester: PublicId,
-    ) -> Result<(), SndError> {
+    ) -> SndResult<()> {
         match requester.clone() {
             PublicId::Client(client_public_id) => self
                 .authorise_mutation(
@@ -1389,6 +1410,42 @@ impl Vault {
             self.commit_mutation(&requester.name());
             Ok(())
         }
+    }
+
+    fn list_auth_keys_and_version(
+        &mut self,
+        name: &XorName,
+    ) -> (BTreeMap<PublicKey, AppPermissions>, u64) {
+        if self.get_account(&name).is_none() {
+            self.insert_account(*name);
+        }
+        let account = unwrap!(self.get_account(&name));
+
+        (account.auth_keys().clone(), account.version())
+    }
+
+    fn ins_auth_key(
+        &mut self,
+        name: &XorName,
+        key: PublicKey,
+        permissions: AppPermissions,
+        version: u64,
+    ) -> SndResult<()> {
+        if self.get_account(&name).is_none() {
+            self.insert_account(*name);
+        }
+        let account = unwrap!(self.get_account_mut(&name));
+
+        account.ins_auth_key(key, permissions, version)
+    }
+
+    fn del_auth_key(&mut self, name: &XorName, key: PublicKey, version: u64) -> SndResult<()> {
+        if self.get_account(&name).is_none() {
+            self.insert_account(*name);
+        }
+        let account = unwrap!(self.get_account_mut(&name));
+
+        account.del_auth_key(&key, version)
     }
 }
 
