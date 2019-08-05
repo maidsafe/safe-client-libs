@@ -317,7 +317,7 @@ fn unregistered_client() {
         let client3 = client.clone();
 
         client
-            .get_idata(IDataAddress::Pub(*pub_idata.name()))
+            .get_idata(*pub_idata.address())
             .and_then(move |data| {
                 assert_eq!(data, pub_idata.into());
                 client2
@@ -383,7 +383,7 @@ fn published_data_access() {
             let client3 = client.clone();
 
             client
-                .get_idata(IDataAddress::Pub(*pub_idata.name()))
+                .get_idata(*pub_idata.address())
                 .map_err(AppError::from)
                 .and_then(move |data| {
                     assert_eq!(data, pub_idata.into());

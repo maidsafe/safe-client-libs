@@ -256,13 +256,12 @@ fn main() {
 
                     fut.and_then(move |data| {
                         // Get all the chunks again.
-                        c3.get_idata(IDataAddress::Pub(*data.name())).map(
-                            move |retrieved_data| {
+                        c3.get_idata(IDataAddress::Pub(*data.name()))
+                            .map(move |retrieved_data| {
                                 println!("Retrieved chunk #{}: {:?}", i, data.name());
                                 assert_eq!(data, retrieved_data);
                                 Ok(())
-                            },
-                        )
+                            })
                     })
                     .into_box()
                 }

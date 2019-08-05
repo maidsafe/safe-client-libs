@@ -65,10 +65,17 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
         } else {
             UnpubImmutableData::new(data, unwrap!(self.client.public_bls_key()).into()).into()
         };
-        self.client
-            .put_idata(idata)
-            .map_err(From::from)
-            .into_box()
+        self.client.put_idata(idata).map_err(From::from).into_box()
+    }
+
+    fn generate_address(&self, data: &[u8]) -> Vec<u8> {
+        let idata: IData = if self.published {
+            PubImmutableData::new(data.to_vec()).into()
+        } else {
+            UnpubImmutableData::new(data.to_vec(), unwrap!(self.client.public_bls_key()).into())
+                .into()
+        };
+        idata.name().0.to_vec()
     }
 }
 

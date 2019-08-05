@@ -21,9 +21,11 @@ use futures::future::{self, Loop};
 use futures::Future;
 use rand::{self, Rng};
 use rust_sodium::crypto::secretbox;
-use safe_nd::MDataKind;
+use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
 use std;
+use std::sync::mpsc;
+use std::thread;
 
 const APPEND_SIZE: usize = 10;
 const ORIG_SIZE: usize = 5555;
@@ -156,6 +158,114 @@ fn file_fetch_public_md() {
                 })
             })
     });
+}
+
+// Test inserting files to, and fetching from, a public mdata.
+// Insert a file as Unpublished Immutable data and verify that it can be fetched.
+// Other clients should not be able to fetch the file.
+// After deletion the file should not be accessible anymore.
+#[allow(unsafe_code)]
+#[test]
+fn files_stored_in_unpublished_idata() {
+    let (client1_tx, client1_rx) = mpsc::channel();
+    let (client2_tx, client2_rx) = mpsc::channel();
+    let (finish_tx, finish_rx) = mpsc::channel();
+    let _joiner = thread::spawn(|| {
+        random_client(|client| {
+            let c2 = client.clone();
+            let c3 = client.clone();
+            let c4 = client.clone();
+            let c5 = client.clone();
+            let c6 = client.clone();
+            let c7 = client.clone();
+
+            let root = unwrap!(MDataInfo::random_public(MDataKind::Unseq, DIR_TAG));
+            let root2 = root.clone();
+
+            create_dir(client, &root, btree_map![], btree_map![])
+                .then(move |res| {
+                    assert!(res.is_ok());
+
+                    file_helper::write(
+                        c2.clone(),
+                        File::new(Vec::new()),
+                        Mode::Overwrite,
+                        false,
+                        None,
+                    )
+                })
+                .then(move |res| {
+                    let writer = unwrap!(res);
+
+                    writer
+                        .write(&[0u8; ORIG_SIZE])
+                        .and_then(move |_| writer.close())
+                })
+                .then(move |res| {
+                    let file = unwrap!(res);
+
+                    file_helper::insert(c3, root2.clone(), "", &file).map(move |_| root2)
+                })
+                .then(move |res| {
+                    let dir = unwrap!(res);
+
+                    file_helper::fetch(c4, dir.clone(), "").map(move |(_version, file)| (dir, file))
+                })
+                .then(move |res| {
+                    let (dir, file) = unwrap!(res);
+
+                    file_helper::read(c5, &file, false, None).map(move |reader| (reader, dir))
+                })
+                .then(move |res| {
+                    let (reader, dir) = unwrap!(res);
+                    let size = reader.size();
+                    println!("reading {} bytes", size);
+                    reader.read(0, size).map(move |data| {
+                        assert_eq!(data, vec![0u8; ORIG_SIZE]);
+                        dir
+                    })
+                })
+                .then(move |res| {
+                    let dir = unwrap!(res);
+
+                    unwrap!(client1_tx.send(dir.clone()));
+
+                    std::thread::sleep(std::time::Duration::new(3, 0));
+                    unwrap!(client2_rx.recv());
+                    file_helper::delete(c6, dir.clone(), "", false, Version::Custom(1)).map(|_| dir)
+                })
+                .then(move |res| {
+                    let dir = unwrap!(res);
+
+                    file_helper::fetch(c7, dir.clone(), "")
+                })
+                .then(move |res| {
+                    match res {
+                        Err(NfsError::FileNotFound) => (),
+                        Ok(_) => panic!("Unexpected success"),
+                        Err(e) => panic!("Unexpected error {:?}", e),
+                    }
+                    unwrap!(finish_tx.send(()));
+                    Ok::<_, CoreError>(())
+                })
+        });
+    });
+
+    let dir: MDataInfo = unwrap!(client1_rx.recv());
+    random_client(move |client| {
+        file_helper::fetch(client.clone(), dir.clone(), "").then(|res| {
+            match res {
+                Ok(_) => panic!("Unexpected success"),
+                Err(NfsError::CoreError(CoreError::NewRoutingClientError(
+                    SndError::AccessDenied,
+                ))) => (),
+                Err(err) => panic!("Unexpected error: {:?}", err),
+            }
+            Ok::<_, CoreError>(())
+        })
+    });
+    unwrap!(client2_tx.send(()));
+    unwrap!(finish_rx.recv());
 }
 
 // Create a file and open it for reading.
@@ -537,7 +647,7 @@ fn file_delete() {
         create_test_file(client, true)
             .then(move |res| {
                 let (dir, _file) = unwrap!(res);
-                file_helper::delete(c2, dir.clone(), "hello.txt", Version::Custom(1)).map(
+                file_helper::delete(c2, dir.clone(), "hello.txt", true, Version::Custom(1)).map(
                     move |version| {
                         assert_eq!(version, 1);
                         dir
@@ -574,7 +684,7 @@ fn file_delete_then_add() {
         create_test_file(client, true)
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
-                file_helper::delete(c2, dir.clone(), "hello.txt", Version::Custom(1))
+                file_helper::delete(c2, dir.clone(), "hello.txt", true, Version::Custom(1))
                     .map(move |_| (dir, file))
             })
             .then(move |res| {

@@ -102,12 +102,17 @@ pub fn delete<S>(
     client: impl Client,
     parent: MDataInfo,
     name: S,
+    published: bool,
     version: Version,
 ) -> Box<NfsFuture<u64>>
 where
     S: AsRef<str>,
 {
     let name = name.as_ref();
+    let name2 = name.to_owned().clone();
+    let client2 = client.clone();
+    let client3 = client.clone();
+    let parent2 = parent.clone();
     trace!("Deleting file with name {}.", name);
 
     let key = fry!(parent.enc_entry_key(name.as_bytes()));
@@ -123,8 +128,22 @@ where
 
     version_fut
         .and_then(move |version| {
-            client
-                .mutate_seq_mdata_entries(
+            if !published {
+                fetch(client, parent2, name2)
+                    .and_then(move |(_, file)| {
+                        client2
+                            .del_unpub_idata(*file.data_map_name())
+                            .map(move |_| version)
+                            .map_err(NfsError::from)
+                    })
+                    .into_box()
+            } else {
+                ok!(version)
+            }
+        })
+        .and_then(move |version| {
+            client3
+                .mutate_mdata_entries(
                     parent.name(),
                     parent.type_tag(),
                     MDataSeqEntryActions::new().del(key, version),

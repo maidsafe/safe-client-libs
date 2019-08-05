@@ -250,7 +250,12 @@ fn read_data() {
     unsafe {
         let file = unwrap!(fetch_file(&*auth_h, videos_md.clone(), file_name));
 
-        let content = unwrap!(read_file(&*auth_h, file, true, videos_md.enc_key().cloned()));
+        let content = unwrap!(read_file(
+            &*auth_h,
+            file,
+            true,
+            videos_md.enc_key().cloned()
+        ));
         assert_eq!(content, vec![1; 10]);
     }
 

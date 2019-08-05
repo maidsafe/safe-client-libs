@@ -109,6 +109,7 @@ fn basics() {
             &app,
             &container_info,
             ffi_file_name0.as_ptr(),
+            true,
             1,
             ud,
             cb
@@ -539,6 +540,7 @@ fn delete_then_open_file() {
             &app,
             &container_info,
             ffi_file_name2.as_ptr(),
+            true,
             GET_NEXT_VERSION,
             ud,
             cb

@@ -1955,7 +1955,7 @@ dependencies = [
 [[package]]
 name = "self_encryption"
 version = "0.14.0"
-source = "git+https://github.com/maidsafe/self_encryption#833b3a8d500f888918aff3df78d127f43ecee0e2"
+source = "git+https://github.com/maidsafe/self_encryption#0e415d6091604e6e0bfe380430dded9fb9dec4d5"
 dependencies = [
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "brotli 3.3.0 (registry+https://github.com/rust-lang/crates.io-index)",

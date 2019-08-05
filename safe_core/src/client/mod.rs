@@ -60,8 +60,8 @@ use safe_nd::{
     ClientPublicId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData,
     MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet as NewPermissionSet,
     MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
-    MDataValues, Message, MessageId, PublicId, PublicKey, Request, Response,
-    SeqMutableData, Signature, Transaction, UnseqMutableData, XorName,
+    MDataValues, Message, MessageId, PublicId, PublicKey, Request, Response, SeqMutableData,
+    Signature, Transaction, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -423,7 +423,12 @@ pub trait Client: Clone + 'static {
     /// Delete unpublished immutable data from the network.
     fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
         let inner = self.inner();
-        if inner.borrow_mut().cache.remove(&IDataAddress::Unpub(name)).is_some() {
+        if inner
+            .borrow_mut()
+            .cache
+            .remove(&IDataAddress::Unpub(name))
+            .is_some()
+        {
             trace!("Deleted UnpubImmutableData from cache.");
         }
 
@@ -1987,15 +1992,11 @@ mod tests {
                     client2.put_idata(data.clone())
                 })
                 .and_then(move |_| {
-                    client3
-                        .put_idata(test_data.clone())
-                        .then(|res| match res {
-                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
-                                Ok(())
-                            }
-                            Err(e) => panic!("Unexpected: {:?}", e),
-                        })
+                    client3.put_idata(test_data.clone()).then(|res| match res {
+                        Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+                        Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => Ok(()),
+                        Err(e) => panic!("Unexpected: {:?}", e),
+                    })
                 })
                 .and_then(move |_| {
                     // Fetch idata

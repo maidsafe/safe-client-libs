@@ -268,6 +268,7 @@ pub fn delete_file<S: Into<String>>(
     authenticator: &Authenticator,
     container_info: MDataInfo,
     name: S,
+    published: bool,
     version: u64,
 ) -> Result<u64, AuthError> {
     let name = name.into();
@@ -276,6 +277,7 @@ pub fn delete_file<S: Into<String>>(
             client.clone(),
             container_info,
             name,
+            published,
             Version::Custom(version),
         )
         .map_err(From::from)

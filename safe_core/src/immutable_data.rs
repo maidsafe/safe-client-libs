@@ -222,7 +222,7 @@ mod tests {
                 let client2 = client.clone();
                 let client3 = client.clone();
 
-                create(client, &value_before.clone(), true, Some(key.clone()))
+                create(client, &value_before.clone(), false, Some(key.clone()))
                     .then(move |res| {
                         let data_before = unwrap!(res);
                         let data_name = *data_before.name();
@@ -230,7 +230,7 @@ mod tests {
                     })
                     .then(move |res| {
                         let data_name = unwrap!(res);
-                        get_value(&client3, &data_name, true, Some(key))
+                        get_value(&client3, &data_name, false, Some(key))
                     })
                     .then(move |res| {
                         let value_after = unwrap!(res);
@@ -292,11 +292,6 @@ mod tests {
             })
         }
 
-        /*
-
-        Storing unpublished immutable data using this module requires changes in
-        self_encryption see https://github.com/maidsafe/self_encryption/issues/249
-
         // Put published Retrieve unpublished - Should fail
         {
             let value = value.clone();
@@ -313,7 +308,7 @@ mod tests {
                     })
                     .then(move |res| {
                         let data_name = unwrap!(res);
-                        get_value(&client3, &data_name, true, None)
+                        get_value(&client3, &data_name, false, None)
                     })
                     .then(|res| {
                         assert!(res.is_err());
@@ -330,7 +325,7 @@ mod tests {
                 let client2 = client.clone();
                 let client3 = client.clone();
 
-                create(client, &value, true, None)
+                create(client, &value, false, None)
                     .then(move |res| {
                         let data = unwrap!(res);
                         let data_name = *data.name();
@@ -345,6 +340,6 @@ mod tests {
                         finish()
                     })
             })
-        }*/
+        }
     }
 }
