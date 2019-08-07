@@ -20,7 +20,7 @@ use ffi_utils::{
 use routing::ClientError;
 use safe_core::ffi::ipc::resp::{MDataEntry, MDataKey, MDataValue};
 use safe_core::CoreError;
-use safe_nd::MDataSeqValue;
+use safe_nd::{Error, MDataSeqValue};
 use std::collections::BTreeMap;
 use std::os::raw::c_void;
 
@@ -165,7 +165,7 @@ pub unsafe extern "C" fn mdata_entries_get_new(
 
             let value = entries
                 .get(&key)
-                .ok_or(ClientError::NoSuchEntry)
+                .ok_or(Error::NoSuchEntry)
                 .map_err(CoreError::from)
                 .map_err(AppError::from);
             let value = try_cb!(value, user_data, o_cb);

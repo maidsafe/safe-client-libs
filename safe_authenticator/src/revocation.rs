@@ -16,7 +16,7 @@ use futures::future::{self, Either, Loop};
 use futures::Future;
 use safe_core::recovery;
 use safe_core::{client::AuthActions, Client, CoreError, FutureExt, MDataInfo};
-use safe_nd::{Error as SndError, MDataAddress, PublicKey};
+use safe_nd::{Error as SndError, PublicKey};
 use std::collections::HashMap;
 
 type Containers = HashMap<String, MDataInfo>;
@@ -127,7 +127,7 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
     let c3 = client.clone();
     let c4 = client.clone();
 
-    // 1. Delete the app key
+    // 1. Delete the app key from the Client Handlers
     // 2. Remove the app key from containers permissions
     // 3. Refresh the containers info from the user's root dir (as the access
     //    container entry is not updated with the new keys info - so we have to
@@ -212,15 +212,11 @@ fn revoke_container_perms(
 
             client
                 .clone()
-                .get_mdata_version_new(MDataAddress::Seq {
-                    name: mdata_info.name(),
-                    tag: mdata_info.type_tag(),
-                })
+                .get_mdata_version_new(*mdata_info.address())
                 .and_then(move |version| {
                     recovery::del_mdata_user_permissions(
                         &c2,
-                        mdata_info.name(),
-                        mdata_info.type_tag(),
+                        *mdata_info.address(),
                         pk,
                         version + 1,
                     )

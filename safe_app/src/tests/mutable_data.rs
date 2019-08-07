@@ -50,7 +50,7 @@ fn md_created_by_app_1() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("Put should be rejected by MaidManagers"),
-                    Err(CoreError::NewRoutingClientError(safe_nd::Error::InvalidOwners)) => (),
+                    Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => (),
                     Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
                 }
                 let mut owners = BTreeSet::new();

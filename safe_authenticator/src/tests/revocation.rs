@@ -21,7 +21,6 @@ use crate::{
     {access_container, run, AuthFuture, Authenticator},
 };
 use futures::{future, Future};
-use routing::User;
 use safe_core::{
     app_container_name,
     client::AuthActions,
@@ -31,7 +30,7 @@ use safe_core::{
     nfs::NfsError,
     Client, CoreError, FutureExt, MDataInfo,
 };
-use safe_nd::{MDataAddress, MDataSeqEntryActions, PublicKey};
+use safe_nd::{Error as SndError, MDataAddress, MDataSeqEntryActions, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 
@@ -69,18 +68,14 @@ fn verify_app_is_revoked(
         .and_then(move |app_key| {
             let futures = prev_ac_entry.into_iter().map(move |(_, (mdata_info, _))| {
                 // Verify the app has no permissions in the containers.
-                c1.list_mdata_user_permissions(
-                    mdata_info.name(),
-                    mdata_info.type_tag(),
-                    User::Key(app_key),
-                )
-                .then(|res| {
-                    assert_match!(
-                        res,
-                        Err(CoreError::NewRoutingClientError(safe_nd::Error::NoSuchKey))
-                    );
-                    Ok(())
-                })
+                c1.list_mdata_user_permissions_new(*mdata_info.address(), app_key)
+                    .then(|res| {
+                        assert_match!(
+                            res,
+                            Err(CoreError::NewRoutingClientError(SndError::NoSuchKey))
+                        );
+                        Ok(())
+                    })
             });
 
             future::join_all(futures).map(|_| ())
@@ -126,13 +121,7 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
                     // Verify the app has the permissions set according to the access container.
                     let expected_perms = container_perms_into_permission_set(&permissions);
                     let perms = c2
-                        .list_mdata_user_permissions_new(
-                            MDataAddress::Seq {
-                                name: mdata_info.name(),
-                                tag: mdata_info.type_tag(),
-                            },
-                            user,
-                        )
+                        .list_mdata_user_permissions_new(*mdata_info.address(), user)
                         .then(move |res| {
                             let perms = unwrap!(res);
                             assert_eq!(perms, expected_perms);
@@ -878,6 +867,7 @@ fn app_revocation() {
 // `SymmetricDecipherFailure` error and immediate return, without revoking more apps.
 // TODO: Alter/Deprecate this test as the new impl does not perform re-encryption
 #[test]
+#[ignore]
 fn revocation_symmetric_decipher_failure() {
     let authenticator = create_account_and_login();
 

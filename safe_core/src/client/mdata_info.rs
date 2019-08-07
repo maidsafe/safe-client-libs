@@ -79,6 +79,11 @@ impl MDataInfo {
         self.address.tag()
     }
 
+    /// Returns the address of the data.
+    pub fn address(&self) -> &MDataAddress {
+        &self.address
+    }
+
     /// Returns the kind.
     pub fn kind(&self) -> MDataKind {
         self.address.kind()
@@ -175,8 +180,8 @@ impl MDataInfo {
 /// Encrypt the entries (both keys and values) using the `MDataInfo`.
 pub fn encrypt_entries(
     info: &MDataInfo,
-    entries: &BTreeMap<Vec<u8>, MDataSeqValue>,
-) -> Result<BTreeMap<Vec<u8>, MDataSeqValue>, CoreError> {
+    entries: &MDataSeqEntries,
+) -> Result<MDataSeqEntries, CoreError> {
     let mut output = BTreeMap::new();
 
     for (key, value) in entries {
@@ -217,7 +222,7 @@ pub fn encrypt_entry_actions(
 /// Decrypt entries using the `MDataInfo`.
 pub fn decrypt_entries(
     info: &MDataInfo,
-    entries: &BTreeMap<Vec<u8>, MDataSeqValue>,
+    entries: &MDataSeqEntries,
 ) -> Result<MDataSeqEntries, CoreError> {
     let mut output = BTreeMap::new();
 

@@ -13,9 +13,7 @@ use crate::client::AuthClient;
 use crate::{AuthError, AuthFuture};
 use futures::Future;
 use safe_core::{app_container_name, nfs, Client, FutureExt, MDataInfo, DIR_TAG};
-use safe_nd::{
-    MDataAction, MDataAddress, MDataKind, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
-};
+use safe_nd::{MDataAction, MDataKind, MDataPermissionSet, MDataSeqEntryActions, PublicKey};
 
 /// Returns an app's dedicated container if available and stored in the access container,
 /// `None` otherwise.
@@ -52,24 +50,18 @@ pub fn fetch_or_create(
                         .allow(MDataAction::Delete)
                         .allow(MDataAction::ManagePermissions);
 
-                    c2.get_mdata_version_new(MDataAddress::Seq {
-                        name: mdata_info.name(),
-                        tag: mdata_info.type_tag(),
-                    })
-                    .and_then(move |version| {
-                        c2.set_mdata_user_permissions_new(
-                            MDataAddress::Seq {
-                                name: mdata_info.name(),
-                                tag: mdata_info.type_tag(),
-                            },
-                            app_pk,
-                            ps,
-                            version + 1,
-                        )
-                        .map(move |_| mdata_info)
-                    })
-                    .map_err(From::from)
-                    .into_box()
+                    c2.get_mdata_version_new(*mdata_info.address())
+                        .and_then(move |version| {
+                            c2.set_mdata_user_permissions_new(
+                                *mdata_info.address(),
+                                app_pk,
+                                ps,
+                                version + 1,
+                            )
+                            .map(move |_| mdata_info)
+                        })
+                        .map_err(From::from)
+                        .into_box()
                 }
                 None => {
                     // If the container is not found, create it

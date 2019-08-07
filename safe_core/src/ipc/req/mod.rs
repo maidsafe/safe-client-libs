@@ -196,7 +196,7 @@ pub fn permission_set_into_repr_c(perms: PermissionSet) -> FfiPermissionSet {
 /// Convert a `PermissionSet` into its C representation.
 pub fn permission_set_into_repr_c_new(perms: MDataPermissionSet) -> FfiPermissionSet {
     FfiPermissionSet {
-        read: true,
+        read: perms.is_allowed(MDataAction::Read),
         insert: perms.is_allowed(MDataAction::Insert),
         update: perms.is_allowed(MDataAction::Update),
         delete: perms.is_allowed(MDataAction::Delete),

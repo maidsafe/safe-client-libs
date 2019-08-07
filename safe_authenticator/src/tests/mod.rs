@@ -30,7 +30,7 @@ use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
 use safe_core::{app_container_name, mdata_info, Client};
-use safe_nd::{MDataAddress, PublicKey};
+use safe_nd::PublicKey;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -51,7 +51,7 @@ mod mock_routing {
     use safe_core::nfs::NfsError;
     use safe_core::utils::{generate_random_string, test_utils::random_client};
     use safe_core::{app_container_name, Client, CoreError, MockRouting};
-    use safe_nd::{Coins, Error as SndError, MDataAddress, PublicKey};
+    use safe_nd::{Coins, Error as SndError, PublicKey};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -392,7 +392,7 @@ mod mock_routing {
             test_utils::access_container(&auth, app_id.clone(), auth_granted.clone());
         let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
-        let (app_container_md, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
+        let (app_container, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
         let app_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
 
@@ -400,19 +400,13 @@ mod mock_routing {
             let c2 = client.clone();
 
             client
-                .get_mdata_version_new(MDataAddress::Seq {
-                    name: app_container_md.name(),
-                    tag: app_container_md.type_tag(),
-                })
+                .get_mdata_version_new(*app_container.address())
                 .then(move |res| {
                     let version = unwrap!(res);
                     assert_eq!(version, 0);
 
                     // Check that the app's container has required permissions.
-                    c2.list_mdata_permissions_new(MDataAddress::Seq {
-                        name: app_container_md.name(),
-                        tag: app_container_md.type_tag(),
-                    })
+                    c2.list_mdata_permissions_new(*app_container.address())
                 })
                 .then(move |res| {
                     let perms = unwrap!(res);
@@ -450,10 +444,7 @@ fn test_access_container() {
             .into_iter()
             .map(|(_, dir)| {
                 let f1 = client.list_seq_mdata_entries(dir.name(), dir.type_tag());
-                let f2 = client.list_mdata_permissions_new(MDataAddress::Seq {
-                    name: dir.name(),
-                    tag: dir.type_tag(),
-                });
+                let f2 = client.list_mdata_permissions_new(*dir.address());
 
                 f1.join(f2).map_err(AuthError::from)
             })

@@ -12,8 +12,7 @@ use super::{
 use crate::ffi::ipc::req as ffi;
 use crate::ipc::errors::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC};
-use routing::XorName;
-use safe_nd::MDataPermissionSet;
+use safe_nd::{MDataPermissionSet, XorName};
 use std::slice;
 
 /// Represents a request to share mutable data.

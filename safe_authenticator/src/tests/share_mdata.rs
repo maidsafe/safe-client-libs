@@ -72,8 +72,7 @@ fn share_some_mdatas() {
         let name = new_rand::random();
         let tag = 0;
         let mdata = {
-            let owners = user;
-            SeqMutableData::new_with_data(name, tag, btree_map![], btree_map![], owners)
+            SeqMutableData::new_with_data(name, tag, Default::default(), Default::default(), user)
         };
 
         unwrap!(run(&authenticator, move |client| {
@@ -190,9 +189,8 @@ fn share_some_mdatas_with_valid_metadata() {
                 data: unwrap!(serialise(&metadata)),
                 version: 0,
             };
-            let owners = user;
             let entries = btree_map![METADATA_KEY.to_vec() => value];
-            SeqMutableData::new_with_data(name, tag, entries, BTreeMap::new(), owners)
+            SeqMutableData::new_with_data(name, tag, entries, BTreeMap::new(), user)
         };
 
         unwrap!(run(&authenticator, move |client| {
@@ -274,30 +272,25 @@ fn share_some_mdatas_with_ownership_error() {
         ok!(PublicKey::from(unwrap!(client.public_bls_key())))
     }));
 
-    let ownerss = vec![user, user];
+    let name = new_rand::random();
+    let mdata = SeqMutableData::new_with_data(name, 0, btree_map![], btree_map![], user);
 
-    let mut mdatas = Vec::new();
-    for owners in ownerss {
-        let name = new_rand::random();
-        let mdata = SeqMutableData::new_with_data(name, 0, btree_map![], btree_map![], owners);
+    unwrap!(run(&authenticator, move |client| {
+        client
+            .put_seq_mutable_data(mdata)
+            .map_err(AuthError::CoreError)
+    }));
 
-        unwrap!(run(&authenticator, move |client| {
-            client
-                .put_seq_mutable_data(mdata)
-                .map_err(AuthError::CoreError)
-        }));
-
-        mdatas.push(ShareMData {
-            type_tag: 0,
-            name,
-            perms: MDataPermissionSet::new().allow(MDataAction::Insert),
-        });
-    }
+    let share_md = ShareMData {
+        type_tag: 0,
+        name,
+        perms: MDataPermissionSet::new().allow(MDataAction::Insert),
+    };
 
     let req_id = ipc::gen_req_id();
     let req = ShareMDataReq {
         app: test_utils::rand_app(),
-        mdata: mdatas.clone(),
+        mdata: vec![share_md.clone()],
     };
     let msg = IpcMsg::Req {
         req_id,

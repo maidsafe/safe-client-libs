@@ -18,10 +18,10 @@ use crate::ipc::req::{
 use crate::ipc::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{BootstrapConfig, XorName};
+use routing::BootstrapConfig;
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
-use safe_nd::{AppFullId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey};
+use safe_nd::{AppFullId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};

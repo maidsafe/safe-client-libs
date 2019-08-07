@@ -576,10 +576,8 @@ fn file_delete_then_add() {
             })
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
-                // create_test_file(&c7).and_then(move |(dir1, file1)| {
                 file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
-                // })
             })
             .then(move |res| {
                 let (writer, dir) = unwrap!(res);

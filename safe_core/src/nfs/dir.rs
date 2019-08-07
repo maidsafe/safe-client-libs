@@ -11,14 +11,14 @@ use crate::errors::CoreError;
 use crate::nfs::{NfsError, NfsFuture};
 use crate::utils::FutureExt;
 use futures::Future;
-use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqValue, PublicKey, SeqMutableData};
+use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqEntries, PublicKey, SeqMutableData};
 use std::collections::BTreeMap;
 
 /// Create a new directory based on the provided `MDataInfo`.
 pub fn create_dir(
     client: &impl Client,
     dir: &MDataInfo,
-    contents: BTreeMap<Vec<u8>, MDataSeqValue>,
+    contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
 ) -> Box<NfsFuture<()>> {
     let pub_key = fry!(client

@@ -774,7 +774,7 @@ mod tests {
             Ok::<_, AuthError>(())
         });
 
-        let dir = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
+        let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
         let dir_clone = dir.clone();
 
         setup_client(
@@ -811,7 +811,7 @@ mod tests {
             Ok::<_, AuthError>(())
         });
 
-        let dir = unwrap!(MDataInfo::random_private(MDataKind::Unseq, DIR_TAG));
+        let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
         let dir_clone = dir.clone();
 
         setup_client(

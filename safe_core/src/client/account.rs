@@ -39,8 +39,8 @@ impl Account {
     pub fn new(maid_keys: ClientKeys) -> Result<Self, CoreError> {
         Ok(Account {
             maid_keys,
-            access_container: MDataInfo::random_private(MDataKind::Unseq, DIR_TAG)?,
-            config_root: MDataInfo::random_private(MDataKind::Unseq, DIR_TAG)?,
+            access_container: MDataInfo::random_private(MDataKind::Seq, DIR_TAG)?,
+            config_root: MDataInfo::random_private(MDataKind::Seq, DIR_TAG)?,
             root_dirs_created: false,
         })
     }

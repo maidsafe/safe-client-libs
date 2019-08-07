@@ -20,8 +20,7 @@ use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
 use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
-    Error as SndError, MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions,
-    PublicKey,
+    Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
 use std::collections::HashMap;
 
@@ -108,14 +107,9 @@ pub fn put_authenticator_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    recovery::mutate_mdata_entries(
-        client,
-        access_container.name(),
-        access_container.type_tag(),
-        actions,
-    )
-    .map_err(From::from)
-    .into_box()
+    recovery::mutate_mdata_entries(client, *access_container.address(), actions)
+        .map_err(From::from)
+        .into_box()
 }
 
 /// Decodes raw app entry.
@@ -189,18 +183,12 @@ pub fn put_entry(
     let app_pk: PublicKey = app_keys.bls_pk.into();
 
     client
-        .get_mdata_version_new(MDataAddress::Seq {
-            name: access_container.name(),
-            tag: access_container.type_tag(),
-        })
+        .get_mdata_version_new(*access_container.address())
         .map_err(AuthError::from)
         .and_then(move |shell_version| {
             client2
                 .set_mdata_user_permissions_new(
-                    MDataAddress::Seq {
-                        name: acc_cont_info.name(),
-                        tag: acc_cont_info.type_tag(),
-                    },
+                    *acc_cont_info.address(),
                     app_pk,
                     MDataPermissionSet::new().allow(MDataAction::Read),
                     shell_version + 1,
@@ -208,13 +196,8 @@ pub fn put_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(
-                &client3,
-                access_container.name(),
-                access_container.type_tag(),
-                actions,
-            )
-            .map_err(AuthError::from)
+            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+                .map_err(AuthError::from)
         })
         .into_box()
 }
@@ -237,31 +220,16 @@ pub fn delete_entry(
     let app_pk: PublicKey = app_keys.bls_pk.into();
 
     client
-        .get_mdata_version_new(MDataAddress::Seq {
-            name: access_container.name(),
-            tag: access_container.type_tag(),
-        })
+        .get_mdata_version_new(*access_container.address())
         .map_err(AuthError::from)
         .and_then(move |shell_version| {
             client2
-                .del_mdata_user_permissions_new(
-                    MDataAddress::Seq {
-                        name: acc_cont_info.name(),
-                        tag: acc_cont_info.type_tag(),
-                    },
-                    app_pk,
-                    shell_version + 1,
-                )
+                .del_mdata_user_permissions_new(*acc_cont_info.address(), app_pk, shell_version + 1)
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(
-                &client3,
-                access_container.name(),
-                access_container.type_tag(),
-                actions,
-            )
-            .map_err(AuthError::from)
+            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+                .map_err(AuthError::from)
         })
         .into_box()
 }

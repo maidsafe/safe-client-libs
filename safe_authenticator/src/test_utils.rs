@@ -37,7 +37,7 @@ use safe_core::utils::test_utils::{
 #[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{Coins, MDataAddress, PublicKey};
+use safe_nd::{Coins, PublicKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
@@ -364,13 +364,7 @@ pub fn compare_access_container_entries(
             assert_eq!(perms, expected_perms);
 
             let fut = client
-                .list_mdata_user_permissions_new(
-                    MDataAddress::Seq {
-                        name: md_info.name(),
-                        tag: md_info.type_tag(),
-                    },
-                    user,
-                )
+                .list_mdata_user_permissions_new(*md_info.address(), user)
                 .map(move |perms| (perms, expected_perm_set));
 
             reqs.push(fut);
