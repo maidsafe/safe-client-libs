@@ -134,20 +134,17 @@ fn basics() {
 fn open_file() {
     let (app, container_info) = setup();
 
-    // Create non-empty file.
-    let file = NativeFile::new(Vec::new());
-    let ffi_file = file.into_repr_c();
-
     let file_name1 = "file1.txt";
     let ffi_file_name1 = unwrap!(CString::new(file_name1));
 
     let content = b"hello world";
 
+    // Use a null ffi_file, since it's not necessary for creating a new empty file
     let write_h = unsafe {
         unwrap!(call_1(|ud, cb| file_open(
             &app,
             &container_info,
-            &ffi_file,
+            std::ptr::null(),
             OPEN_MODE_OVERWRITE,
             ud,
             cb,
