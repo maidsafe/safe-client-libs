@@ -30,7 +30,6 @@ pub struct Writer<C: Client> {
     client: C,
     file: File,
     self_encryptor: SequentialEncryptor<SelfEncryptionStorage<C>>,
-    published: bool,
     encryption_key: Option<shared_secretbox::Key>,
 }
 
@@ -41,14 +40,13 @@ impl<C: Client> Writer<C> {
         storage: SelfEncryptionStorage<C>,
         file: File,
         mode: Mode,
-        published: bool,
         encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Writer<C>>> {
         let fut = match mode {
             Mode::Append => data_map::get(
                 client,
                 file.data_map_name(),
-                published,
+                file.published(),
                 encryption_key.clone(),
             )
             .map(Some)
@@ -63,7 +61,6 @@ impl<C: Client> Writer<C> {
             client,
             file,
             self_encryptor,
-            published,
             encryption_key,
         })
         .map_err(From::from)
@@ -92,7 +89,7 @@ impl<C: Client> Writer<C> {
         let size = self.self_encryptor.len();
         let client = self.client;
         let encryption_key = self.encryption_key;
-        let published = self.published;
+        let published = file.published();
 
         self.self_encryptor
             .close()

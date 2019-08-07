@@ -31,8 +31,8 @@ use safe_core::MockRouting;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
-    IDataAddress, PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData,
-    UnpubUnseqAppendOnlyData, XorName,
+    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
+    XorName,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -412,7 +412,7 @@ fn published_data_access() {
         let client3 = client.clone();
 
         client
-            .get_idata(IDataAddress::Pub(*pub_idata.name()))
+            .get_idata(*pub_idata.address())
             .map_err(AppError::from)
             .and_then(move |data| {
                 assert_eq!(data, pub_idata.into());

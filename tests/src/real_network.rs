@@ -181,7 +181,6 @@ fn write_data() {
                     &*auth_h,
                     file,
                     Mode::Overwrite,
-                    true,
                     videos_md.enc_key().cloned(),
                     vec![1; 10],
                 ));
@@ -250,12 +249,7 @@ fn read_data() {
     unsafe {
         let file = unwrap!(fetch_file(&*auth_h, videos_md.clone(), file_name));
 
-        let content = unwrap!(read_file(
-            &*auth_h,
-            file,
-            true,
-            videos_md.enc_key().cloned()
-        ));
+        let content = unwrap!(read_file(&*auth_h, file, videos_md.enc_key().cloned()));
         assert_eq!(content, vec![1; 10]);
     }
 

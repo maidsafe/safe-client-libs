@@ -218,9 +218,8 @@ pub fn create_file<S: Into<String>>(
 
         file_helper::write(
             client.clone(),
-            File::new(vec![]),
+            File::new(vec![], published),
             Mode::Overwrite,
-            published,
             container_info.enc_key().cloned(),
         )
         .then(move |res| {
@@ -250,11 +249,10 @@ pub fn fetch_file<S: Into<String>>(
 pub fn read_file(
     authenticator: &Authenticator,
     file: File,
-    published: bool,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<Vec<u8>, AuthError> {
     run(authenticator, move |client| {
-        file_helper::read(client.clone(), &file, published, encryption_key)
+        file_helper::read(client.clone(), &file, encryption_key)
             .then(|res| {
                 let reader = unwrap!(res);
                 reader.read(0, reader.size())
@@ -289,12 +287,11 @@ pub fn write_file(
     authenticator: &Authenticator,
     file: File,
     mode: Mode,
-    published: bool,
     encryption_key: Option<shared_secretbox::Key>,
     content: Vec<u8>,
 ) -> Result<(), AuthError> {
     run(authenticator, move |client| {
-        file_helper::write(client.clone(), file, mode, published, encryption_key)
+        file_helper::write(client.clone(), file, mode, encryption_key)
             .then(move |res| {
                 let writer = unwrap!(res);
                 writer

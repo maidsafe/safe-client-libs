@@ -19,7 +19,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::XorName;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::{immutable_data, Client, FutureExt, SelfEncryptionStorage};
-use safe_nd::IDataAddress;
+use safe_nd::{IDataAddress, IDataKind};
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
 
@@ -181,8 +181,9 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(
             let client3 = client.clone();
             let context2 = context.clone();
             let context3 = context.clone();
-
-            immutable_data::get_value(client, &name, published, None)
+            let idata_kind = IDataKind::from_flag(published);
+            let address = IDataAddress::from_kind(idata_kind, name);
+            immutable_data::get_value(client, address, None)
                 .map_err(AppError::from)
                 .and_then(move |enc_data_map| {
                     let ser_data_map = CipherOpt::decrypt(&enc_data_map, &context2, &client2)?;
@@ -222,11 +223,8 @@ pub unsafe extern "C" fn idata_serialised_size(
         let name = XorName(*name);
 
         (*app).send(move |client, _| {
-            let address = if published {
-                IDataAddress::Pub(name)
-            } else {
-                IDataAddress::Unpub(name)
-            };
+            let idata_kind = IDataKind::from_flag(published);
+            let address = IDataAddress::from_kind(idata_kind, name);
             client
                 .get_idata(address)
                 .map(move |idata| o_cb(user_data.0, FFI_RESULT_OK, idata.serialised_size()))

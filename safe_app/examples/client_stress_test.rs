@@ -69,7 +69,7 @@ use futures::Future;
 use rand::{Rng, SeedableRng};
 use safe_app::{Client, CoreError, CoreFuture, FutureExt, MutableData, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
-use safe_nd::{IData, IDataAddress, PublicKey, XorName};
+use safe_nd::{IData, PublicKey, XorName};
 use std::sync::mpsc;
 
 fn random_mutable_data<R: Rng>(type_tag: u64, public_key: &PublicKey, rng: &mut R) -> MutableData {
@@ -256,12 +256,11 @@ fn main() {
 
                     fut.and_then(move |data| {
                         // Get all the chunks again.
-                        c3.get_idata(IDataAddress::Pub(*data.name()))
-                            .map(move |retrieved_data| {
-                                println!("Retrieved chunk #{}: {:?}", i, data.name());
-                                assert_eq!(data, retrieved_data);
-                                Ok(())
-                            })
+                        c3.get_idata(*data.address()).map(move |retrieved_data| {
+                            println!("Retrieved chunk #{}: {:?}", i, data.name());
+                            assert_eq!(data, retrieved_data);
+                            Ok(())
+                        })
                     })
                     .into_box()
                 }
@@ -307,11 +306,10 @@ fn put_idata(client: &AuthClient, data: IData, i: usize) -> Box<CoreFuture<IData
             println!("Put PubImmutableData chunk #{}: {:?}", i, data.name());
 
             // Get the data
-            c2.get_idata(IDataAddress::Pub(*data.name()))
-                .map(move |retrieved_data| {
-                    assert_eq!(data, retrieved_data);
-                    retrieved_data
-                })
+            c2.get_idata(*data.address()).map(move |retrieved_data| {
+                assert_eq!(data, retrieved_data);
+                retrieved_data
+            })
         })
         .and_then(move |retrieved_data| {
             println!(

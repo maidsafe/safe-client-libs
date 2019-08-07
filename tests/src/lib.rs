@@ -63,7 +63,6 @@ use futures::future::Future;
 use safe_app::{run, App, Client, PubImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
-use safe_nd::IDataAddress;
 use unwrap::unwrap;
 
 // Test unregistered clients.
@@ -82,11 +81,9 @@ fn unregistered_client() {
     // Unregistered Client should be able to retrieve the data.
     let app = unwrap!(App::unregistered(|| (), None));
     unwrap!(run(&app, move |client, _context| {
-        let _ = client
-            .get_idata(IDataAddress::Pub(*orig_data.name()))
-            .map(move |data| {
-                assert_eq!(data, orig_data.into());
-            });
+        let _ = client.get_idata(*orig_data.address()).map(move |data| {
+            assert_eq!(data, orig_data.into());
+        });
         Ok(())
     }));
 }

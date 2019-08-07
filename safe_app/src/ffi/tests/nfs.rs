@@ -75,7 +75,7 @@ fn basics() {
 
     // Create empty file.
     let user_metadata = b"metadata".to_vec();
-    let file = NativeFile::new(user_metadata.clone());
+    let file = NativeFile::new(user_metadata.clone(), true);
     let ffi_file = file.into_repr_c();
 
     unsafe {
@@ -136,7 +136,7 @@ fn open_file() {
     let (app, container_info) = setup();
 
     // Create non-empty file.
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let file_name1 = "file1.txt";
@@ -150,7 +150,6 @@ fn open_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -212,7 +211,6 @@ fn open_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
-            true,
             ud,
             cb,
         )))
@@ -305,7 +303,6 @@ fn open_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))
@@ -342,7 +339,7 @@ fn fetch_file() {
     let (app, container_info) = setup();
 
     // Create non-empty file.
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let file_name1 = "";
@@ -356,7 +353,6 @@ fn fetch_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -409,7 +405,6 @@ fn fetch_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
-            true,
             ud,
             cb,
         )))
@@ -455,7 +450,6 @@ fn fetch_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
-            true,
             ud,
             cb,
         )))
@@ -490,7 +484,7 @@ fn delete_then_open_file() {
     let (app, container_info) = setup();
 
     // Create non-empty file.
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let file_name2 = "file2.txt";
@@ -504,7 +498,6 @@ fn delete_then_open_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -549,7 +542,7 @@ fn delete_then_open_file() {
     assert_eq!(version, 1);
 
     // Create new non-empty file.
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let content_new = b"hello goodbye";
@@ -560,7 +553,6 @@ fn delete_then_open_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -611,7 +603,6 @@ fn delete_then_open_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ | OPEN_MODE_APPEND,
-            true,
             ud,
             cb,
         )))
@@ -644,7 +635,7 @@ fn open_close_file() {
 
     // Create a file.
     let user_metadata = b"metadata".to_vec();
-    let file = NativeFile::new(user_metadata.clone());
+    let file = NativeFile::new(user_metadata.clone(), true);
     let ffi_file = file.into_repr_c();
 
     let content = b"hello world";
@@ -655,7 +646,6 @@ fn open_close_file() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -705,7 +695,6 @@ fn open_close_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))
@@ -733,7 +722,6 @@ fn open_close_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -761,7 +749,6 @@ fn open_close_file() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_APPEND,
-            true,
             ud,
             cb,
         )))
@@ -776,7 +763,7 @@ fn file_open_read_write() {
     let (app, container_info) = setup();
 
     // Create empty file.
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let initial_content = b"";
@@ -789,7 +776,6 @@ fn file_open_read_write() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -814,7 +800,6 @@ fn file_open_read_write() {
             &container_info,
             &written_file.into_repr_c(),
             OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))
@@ -863,7 +848,6 @@ fn file_open_read_write() {
             &container_info,
             &written_file.into_repr_c(),
             OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))
@@ -895,7 +879,7 @@ fn file_read_chunks() {
     let (app, container_info) = setup();
 
     // Create non-empty file.
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let file_name = "file.txt";
@@ -909,7 +893,6 @@ fn file_read_chunks() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -958,7 +941,6 @@ fn file_read_chunks() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))
@@ -1021,7 +1003,7 @@ fn file_write_chunks() {
 
     // Test overwrite mode
 
-    let file = NativeFile::new(Vec::new());
+    let file = NativeFile::new(Vec::new(), true);
     let ffi_file = file.into_repr_c();
 
     let file_name = "file.txt";
@@ -1033,7 +1015,6 @@ fn file_write_chunks() {
             &container_info,
             &ffi_file,
             OPEN_MODE_OVERWRITE,
-            true,
             ud,
             cb,
         )))
@@ -1074,7 +1055,6 @@ fn file_write_chunks() {
             &container_info,
             &file.into_repr_c(),
             OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))
@@ -1113,7 +1093,6 @@ fn file_write_chunks() {
             &container_info,
             &ffi_file,
             OPEN_MODE_APPEND,
-            true,
             ud,
             cb
         )))
@@ -1128,7 +1107,6 @@ fn file_write_chunks() {
             &container_info,
             &written_file.into_repr_c(),
             OPEN_MODE_READ,
-            true,
             ud,
             cb,
         )))

@@ -343,7 +343,7 @@ mod tests {
 
         unsafe {
             unwrap!((*auth).send(move |client| client
-                .put_pub_idata(PubImmutableData::new(vec![1, 2, 3]))
+                .put_idata(PubImmutableData::new(vec![1, 2, 3]))
                 .map_err(move |_| ())
                 .into_box()
                 .into()));

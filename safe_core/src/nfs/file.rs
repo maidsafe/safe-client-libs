@@ -22,17 +22,19 @@ pub struct File {
     modified: DateTime<Utc>,
     user_metadata: Vec<u8>,
     data_map_name: XorName,
+    published: bool,
 }
 
 impl File {
     /// Create a new instance of FileMetadata
-    pub fn new(user_metadata: Vec<u8>) -> File {
+    pub fn new(user_metadata: Vec<u8>, published: bool) -> File {
         File {
             size: 0,
             created: Utc::now(),
             modified: Utc::now(),
             user_metadata,
             data_map_name: XorName::default(),
+            published,
         }
     }
 
@@ -53,6 +55,7 @@ impl File {
             user_metadata_len,
             user_metadata_cap,
             data_map_name: self.data_map_name().0,
+            published: self.published(),
         }
     }
 
@@ -79,6 +82,11 @@ impl File {
     /// Get user setteble custom metadata
     pub fn user_metadata(&self) -> &[u8] {
         &self.user_metadata
+    }
+
+    /// Get published status of a file
+    pub fn published(&self) -> bool {
+        self.published
     }
 
     /// Set the data-map name of the File
@@ -120,7 +128,7 @@ impl ReprC for File {
         let created = convert_date_time((*repr_c).created_sec, (*repr_c).created_nsec)?;
         let modified = convert_date_time((*repr_c).modified_sec, (*repr_c).modified_nsec)?;
 
-        let mut file = File::new(user_metadata);
+        let mut file = File::new(user_metadata, (*repr_c).published);
         file.set_size((*repr_c).size);
         file.set_created_time(created);
         file.set_modified_time(modified);
@@ -145,7 +153,7 @@ mod tests {
     // Test that serialising and deserialising a file restores the original file.
     #[test]
     fn serialise_deserialise() {
-        let obj_before = File::new("{mime:\"application/json\"}".to_string().into_bytes());
+        let obj_before = File::new("{mime:\"application/json\"}".to_string().into_bytes(), true);
         let serialised_data = unwrap!(serialise(&obj_before));
         let obj_after = unwrap!(deserialise(&serialised_data));
         assert_eq!(obj_before, obj_after);

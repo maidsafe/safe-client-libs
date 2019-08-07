@@ -378,7 +378,7 @@ pub trait Client: Clone + 'static {
     /// Put immutable data to the network.
     fn put_idata(&self, data: impl Into<IData>) -> Box<CoreFuture<()>> {
         let idata: IData = data.into();
-        trace!("Put Published IData at {:?}", idata.name());
+        trace!("Put IData at {:?}", idata.name());
         send_mutation_new(self, Request::PutIData(idata))
     }
 
@@ -389,7 +389,7 @@ pub trait Client: Clone + 'static {
 
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&address) {
-            trace!("PubImmutableData found in cache.");
+            trace!("ImmutableData found in cache.");
             return future::ok(data.clone()).into_box();
         }
 

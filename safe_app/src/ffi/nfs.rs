@@ -168,7 +168,6 @@ pub unsafe extern "C" fn file_open(
     parent_info: *const MDataInfo,
     file: *const File,
     open_mode: u64,
-    published: bool,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
         user_data: *mut c_void,
@@ -186,13 +185,8 @@ pub unsafe extern "C" fn file_open(
 
             // Initialise the reader if OPEN_MODE_READ is requested.
             let reader = if open_mode & OPEN_MODE_READ != 0 {
-                let fut = file_helper::read(
-                    client.clone(),
-                    &file,
-                    published,
-                    parent_info.enc_key().cloned(),
-                )
-                .map(Some);
+                let fut = file_helper::read(client.clone(), &file, parent_info.enc_key().cloned())
+                    .map(Some);
                 Either::A(fut)
             } else {
                 Either::B(future::ok(None))
@@ -209,7 +203,6 @@ pub unsafe extern "C" fn file_open(
                     client.clone(),
                     file,
                     writer_mode,
-                    published,
                     parent_info.enc_key().cloned(),
                 )
                 .map(Some);

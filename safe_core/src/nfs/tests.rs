@@ -47,9 +47,8 @@ fn create_test_file_with_size(
 
             file_helper::write(
                 c2.clone(),
-                File::new(Vec::new()),
+                File::new(Vec::new(), published),
                 Mode::Overwrite,
-                published,
                 root.enc_key().cloned(),
             )
         })
@@ -98,9 +97,8 @@ fn file_fetch_public_md() {
 
                 file_helper::write(
                     c2.clone(),
-                    File::new(Vec::new()),
+                    File::new(Vec::new(), true),
                     Mode::Overwrite,
-                    true,
                     root.enc_key().cloned(),
                 )
             })
@@ -124,7 +122,7 @@ fn file_fetch_public_md() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                file_helper::read(c5, &file, true, dir.enc_key().cloned())
+                file_helper::read(c5, &file, dir.enc_key().cloned())
                     .map(move |reader| (reader, dir))
             })
             .then(move |res| {
@@ -146,7 +144,7 @@ fn file_fetch_public_md() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                file_helper::read(c7, &file, true, dir.enc_key().cloned())
+                file_helper::read(c7, &file, dir.enc_key().cloned())
                     .map(move |reader| (reader, dir))
             })
             .then(move |res| {
@@ -188,9 +186,8 @@ fn files_stored_in_unpublished_idata() {
 
                     file_helper::write(
                         c2.clone(),
-                        File::new(Vec::new()),
+                        File::new(Vec::new(), false),
                         Mode::Overwrite,
-                        false,
                         None,
                     )
                 })
@@ -214,7 +211,7 @@ fn files_stored_in_unpublished_idata() {
                 .then(move |res| {
                     let (dir, file) = unwrap!(res);
 
-                    file_helper::read(c5, &file, false, None).map(move |reader| (reader, dir))
+                    file_helper::read(c5, &file, None).map(move |reader| (reader, dir))
                 })
                 .then(move |res| {
                     let (reader, dir) = unwrap!(res);
@@ -280,7 +277,7 @@ fn file_read() {
                 let (dir, file) = unwrap!(res);
                 let creation_time = *file.created_time();
 
-                file_helper::read(c2, &file, true, dir.enc_key().cloned())
+                file_helper::read(c2, &file, dir.enc_key().cloned())
                     .map(move |reader| (reader, file, creation_time))
             })
             .then(|res| {
@@ -312,7 +309,7 @@ fn file_read_chunks() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                file_helper::read(c2, &file, true, dir.enc_key().cloned())
+                file_helper::read(c2, &file, dir.enc_key().cloned())
             })
             .then(|res| {
                 let reader = unwrap!(res);
@@ -395,7 +392,7 @@ fn file_write_chunks() {
                 // Updating file - overwrite
                 let (dir, file) = unwrap!(res);
 
-                file_helper::write(c2, file, Mode::Overwrite, true, dir.enc_key().cloned())
+                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -442,7 +439,7 @@ fn file_write_chunks() {
                 // Updating file - append
                 let (file, dir) = unwrap!(res);
 
-                file_helper::write(c3, file, Mode::Append, true, dir.enc_key().cloned())
+                file_helper::write(c3, file, Mode::Append, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -488,7 +485,7 @@ fn file_write_chunks() {
             .then(move |res| {
                 let (file, dir) = unwrap!(res);
 
-                file_helper::read(c4, &file, true, dir.enc_key().cloned())
+                file_helper::read(c4, &file, dir.enc_key().cloned())
             })
             .then(move |res| {
                 let reader = unwrap!(res);
@@ -519,7 +516,7 @@ fn file_update_overwrite() {
                 let (dir, file) = unwrap!(res);
                 let creation_time = *file.created_time();
 
-                file_helper::write(c2, file, Mode::Overwrite, true, dir.enc_key().cloned())
+                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir, creation_time))
             })
             .then(move |res| {
@@ -546,7 +543,7 @@ fn file_update_overwrite() {
                 assert_eq!(creation_time, *file.created_time());
                 assert!(creation_time <= *file.modified_time());
 
-                file_helper::read(c5, &file, true, dir.enc_key().cloned())
+                file_helper::read(c5, &file, dir.enc_key().cloned())
             })
             .then(move |res| {
                 let reader = unwrap!(res);
@@ -578,7 +575,7 @@ fn file_update_append() {
                         let (dir, file) = unwrap!(res);
 
                         // Updating file - append
-                        file_helper::write(c2, file, Mode::Append, true, dir.enc_key().cloned())
+                        file_helper::write(c2, file, Mode::Append, dir.enc_key().cloned())
                             .map(move |writer| (dir, writer))
                     })
                     .then(move |res| {
@@ -590,7 +587,7 @@ fn file_update_append() {
                     })
                     .then(move |res| {
                         let (dir, file) = unwrap!(res);
-                        file_helper::read(c3, &file, true, dir.enc_key().cloned())
+                        file_helper::read(c3, &file, dir.enc_key().cloned())
                     })
                     .then(move |res| {
                         let reader = unwrap!(res);
@@ -690,7 +687,7 @@ fn file_delete_then_add() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                file_helper::write(c3, file, Mode::Overwrite, true, dir.enc_key().cloned())
+                file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -713,7 +710,7 @@ fn file_delete_then_add() {
             .then(move |res| {
                 let (version, file, dir) = unwrap!(res);
                 assert_eq!(version, 0);
-                file_helper::read(c6, &file, true, dir.enc_key().cloned())
+                file_helper::read(c6, &file, dir.enc_key().cloned())
             })
             .then(move |res| {
                 let reader = unwrap!(res);
@@ -740,28 +737,22 @@ fn file_open_close() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
                 // Open the file for reading
-                file_helper::read(c2, &file, true, dir.enc_key().cloned())
+                file_helper::read(c2, &file, dir.enc_key().cloned())
                     .map(move |reader| (reader, file, dir))
             })
             .then(move |res| {
                 // The reader should get dropped implicitly
                 let (_reader, file, dir) = unwrap!(res);
                 // Open the file for writing
-                file_helper::write(
-                    c3,
-                    file.clone(),
-                    Mode::Overwrite,
-                    true,
-                    dir.enc_key().cloned(),
-                )
-                .map(move |writer| (writer, file, dir))
+                file_helper::write(c3, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
+                    .map(move |writer| (writer, file, dir))
             })
             .then(move |res| {
                 let (writer, file, dir) = unwrap!(res);
                 // Close the file
                 let _ = writer.close();
                 // Open the file for appending
-                file_helper::write(c4, file.clone(), Mode::Append, true, dir.enc_key().cloned())
+                file_helper::write(c4, file.clone(), Mode::Append, dir.enc_key().cloned())
                     .map(move |writer| (writer, file, dir))
             })
             .then(move |res| {
@@ -769,7 +760,7 @@ fn file_open_close() {
                 // Close the file
                 let _ = writer.close();
                 // Open the file for reading, ensure it has original contents
-                file_helper::read(c5, &file, true, dir.enc_key().cloned())
+                file_helper::read(c5, &file, dir.enc_key().cloned())
             })
             .then(move |res| {
                 let reader = unwrap!(res);
@@ -797,33 +788,21 @@ fn file_open_concurrent() {
                 let (dir, file) = unwrap!(res);
 
                 // Open the first writer.
-                file_helper::write(
-                    c2,
-                    file.clone(),
-                    Mode::Overwrite,
-                    true,
-                    dir.enc_key().cloned(),
-                )
-                .map(move |writer1| (writer1, file, dir))
+                file_helper::write(c2, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
+                    .map(move |writer1| (writer1, file, dir))
             })
             .then(move |res| {
                 let (writer1, file, dir) = unwrap!(res);
 
                 // Open the second writer concurrently.
-                file_helper::write(
-                    c3,
-                    file.clone(),
-                    Mode::Overwrite,
-                    true,
-                    dir.enc_key().cloned(),
-                )
-                .map(move |writer2| (writer1, writer2, file, dir))
+                file_helper::write(c3, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
+                    .map(move |writer2| (writer1, writer2, file, dir))
             })
             .then(move |res| {
                 let (writer1, writer2, file, dir) = unwrap!(res);
 
                 // Open a reader concurrently.
-                file_helper::read(c4, &file, true, dir.enc_key().cloned())
+                file_helper::read(c4, &file, dir.enc_key().cloned())
                     .map(move |reader| (writer1, writer2, reader, file, dir))
             })
             .then(move |res| {
@@ -858,7 +837,7 @@ fn file_open_concurrent() {
                 let (file, file2, dir) = unwrap!(res);
 
                 // Open the original file for reading again, it should be unchanged.
-                file_helper::read(c5, &file, true, dir.enc_key().cloned())
+                file_helper::read(c5, &file, dir.enc_key().cloned())
                     .map(|reader| (reader, file2, dir))
             })
             .then(move |res| {
@@ -874,7 +853,7 @@ fn file_open_concurrent() {
                 let (file2, dir) = unwrap!(res);
 
                 // Open the file written by writer2.
-                file_helper::read(c6, &file2, true, dir.enc_key().cloned())
+                file_helper::read(c6, &file2, dir.enc_key().cloned())
             })
             .then(move |res| {
                 let reader = unwrap!(res);
@@ -906,9 +885,8 @@ fn encryption() {
 
         file_helper::write(
             client.clone(),
-            File::new(Vec::new()),
+            File::new(Vec::new(), true),
             Mode::Overwrite,
-            true,
             Some(key.clone()),
         )
         .then(move |res| {
@@ -918,7 +896,7 @@ fn encryption() {
         .then(move |res| {
             // Attempt to read without an encryption key fails.
             let file = unwrap!(res);
-            file_helper::read(c2, &file, true, None)
+            file_helper::read(c2, &file, None)
                 .and_then(|_| Err(NfsError::from("Unexpected success")))
                 .or_else(move |_error| -> Result<_, NfsError> {
                     // TODO: assert the error is of the expected variant.
@@ -928,7 +906,7 @@ fn encryption() {
         .then(move |res| {
             // Attempt to read using incorrect encryption key fails.
             let file = unwrap!(res);
-            file_helper::read(c3, &file, true, Some(wrong_key))
+            file_helper::read(c3, &file, Some(wrong_key))
                 .and_then(|_| Err(NfsError::from("Unexpected success")))
                 .or_else(move |error| match error {
                     NfsError::CoreError(CoreError::SymmetricDecipherFailure) => Ok(file),
@@ -938,7 +916,7 @@ fn encryption() {
         .then(move |res| {
             // Attempt to read using original encryption key succeeds.
             let file = unwrap!(res);
-            file_helper::read(c4, &file, true, Some(key))
+            file_helper::read(c4, &file, Some(key))
         })
         .then(move |res| {
             let reader = unwrap!(res);
