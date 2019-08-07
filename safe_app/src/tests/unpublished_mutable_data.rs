@@ -7,10 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::client::AppClient;
-use crate::run;
-use crate::test_utils::create_app;
-// use crate::AppError;
+use crate::{client::AppClient, errors::AppError, run, test_utils::create_app};
 use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
@@ -42,7 +39,7 @@ fn md_created_by_app_1() {
         let name: XorName = unwrap!(name_rx.recv());
         let entry_actions = MDataSeqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5], 0);
         let cl2 = client.clone();
-        let cl3 = client.clone();
+        let c3 = client.clone();
         let name2 = name;
         client
             .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
@@ -60,7 +57,7 @@ fn md_created_by_app_1() {
                 }
                 let user = bls_pk;
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
-                cl3.set_mdata_user_permissions_new(
+                c3.set_mdata_user_permissions_new(
                     MDataAddress::Seq {
                         name: name2,
                         tag: DIR_TAG,
@@ -105,7 +102,7 @@ fn md_created_by_app_1() {
                 client.owner_key(),
             );
             let cl2 = client.clone();
-            let cl3 = client.clone();
+            let c3 = client.clone();
 
             client
                 .list_auth_keys_and_version()
@@ -115,7 +112,7 @@ fn md_created_by_app_1() {
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    cl3.put_seq_mutable_data(mdata)
+                    c3.put_seq_mutable_data(mdata)
                 })
                 .map(move |()| unwrap!(name_tx.send(name)))
                 .map_err(|e| panic!("{:?}", e))
@@ -142,10 +139,10 @@ fn md_created_by_app_2() {
         let name: XorName = unwrap!(name_rx.recv());
         let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
         let cl2 = client.clone();
-        let cl3 = client.clone();
-        let cl4 = client.clone();
-        let cl5 = client.clone();
-        let cl6 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
         let name2 = name;
         let name3 = name;
         let name4 = name;
@@ -172,7 +169,7 @@ fn md_created_by_app_2() {
                 let permissions = MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
-                cl3.set_mdata_user_permissions_new(
+                c3.set_mdata_user_permissions_new(
                     MDataAddress::Unseq {
                         name: name2,
                         tag: DIR_TAG,
@@ -186,13 +183,13 @@ fn md_created_by_app_2() {
                 unwrap!(res);
                 let entry_actions =
                     MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
-                cl4.mutate_unseq_mdata_entries(name3, DIR_TAG, entry_actions)
+                c4.mutate_unseq_mdata_entries(name3, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
                 let entry_actions =
                     MDataUnseqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5]);
-                cl5.mutate_unseq_mdata_entries(name4, DIR_TAG, entry_actions)
+                c5.mutate_unseq_mdata_entries(name4, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 match res {
@@ -201,7 +198,7 @@ fn md_created_by_app_2() {
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 let entry_actions = MDataUnseqEntryActions::new().del(vec![1, 2, 3, 4]);
-                cl6.mutate_unseq_mdata_entries(name5, DIR_TAG, entry_actions)
+                c6.mutate_unseq_mdata_entries(name5, DIR_TAG, entry_actions)
             })
             .map(move |()| unwrap!(tx.send(())))
             .map_err(|e| panic!("{:?}", e))
@@ -232,7 +229,7 @@ fn md_created_by_app_2() {
                 client.owner_key(),
             );
             let cl2 = client.clone();
-            let cl3 = client.clone();
+            let c3 = client.clone();
 
             client
                 .list_auth_keys_and_version()
@@ -242,13 +239,48 @@ fn md_created_by_app_2() {
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    cl3.put_unseq_mutable_data(mdata)
+                    c3.put_unseq_mutable_data(mdata)
                 })
                 .map(move |()| unwrap!(name_tx.send(name)))
                 .map_err(|e| panic!("{:?}", e))
         });
     });
     unwrap!(rx.recv());
+}
+
+// MD created by App. App lists its own sign_pk in owners field: Put should fail - Rejected by
+// MaidManagers. Should pass when it lists the owner's sign_pk instead.
+#[test]
+#[allow(unsafe_code)]
+fn md_created_by_app_3() {
+    let app = create_app();
+
+    unwrap!(run(&app, |client: &AppClient, _app_context| {
+        let owners = PublicKey::from(client.public_bls_key());
+        let name: XorName = new_rand::random();
+        let mdata =
+            SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), BTreeMap::new(), owners);
+        let c2 = client.clone();
+        client
+            .put_seq_mutable_data(mdata)
+            .then(move |res| {
+                match res {
+                    Ok(()) => panic!("Put should be rejected by MaidManagers"),
+                    Err(CoreError::NewRoutingClientError(Error::InvalidOwners)) => (),
+                    Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
+                }
+                let owners = c2.owner_key();
+                let mdata = SeqMutableData::new_with_data(
+                    name,
+                    DIR_TAG,
+                    BTreeMap::new(),
+                    BTreeMap::new(),
+                    owners,
+                );
+                c2.put_seq_mutable_data(mdata)
+            })
+            .map_err(AppError::from)
+    }));
 }
 
 // MD created by App1, with permission to insert for App2 and permission to manage-permissions only
@@ -287,9 +319,9 @@ fn multiple_apps() {
         let name: XorName = XorName(rng.gen());
         let mdata =
             SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
-        let cl2 = client.clone();
-        let cl3 = client.clone();
-        let cl4 = client.clone();
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
         let name2 = name;
         let name3 = name;
         client
@@ -298,7 +330,7 @@ fn multiple_apps() {
                 unwrap!(res);
                 unwrap!(name_tx.send(name));
                 let entry_key: Vec<u8> = unwrap!(entry_rx.recv());
-                cl2.get_seq_mdata_value(name, DIR_TAG, entry_key.clone())
+                c2.get_seq_mdata_value(name, DIR_TAG, entry_key.clone())
                     .map(move |v| (v, entry_key))
             })
             .then(move |res| {
@@ -310,7 +342,7 @@ fn multiple_apps() {
                         version: 0
                     }
                 );
-                cl3.del_mdata_user_permissions_new(
+                c3.del_mdata_user_permissions_new(
                     MDataAddress::Seq {
                         name: name2,
                         tag: DIR_TAG,
@@ -324,7 +356,7 @@ fn multiple_apps() {
                 let entry_key = unwrap!(res);
                 unwrap!(mutate_again_tx.send(()));
                 unwrap!(final_check_rx.recv());
-                cl4.list_mdata_keys_new(MDataAddress::Seq {
+                c4.list_mdata_keys_new(MDataAddress::Seq {
                     name: name3,
                     tag: DIR_TAG,
                 })
@@ -346,7 +378,7 @@ fn multiple_apps() {
         let entry_key = vec![1, 2, 3];
         let entry_actions = MDataSeqEntryActions::new().ins(entry_key.clone(), vec![8, 9, 9], 0);
 
-        let cl2 = client.clone();
+        let c2 = client.clone();
         client
             .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {
@@ -355,7 +387,7 @@ fn multiple_apps() {
                 unwrap!(mutate_again_rx.recv());
 
                 let entry_actions = MDataSeqEntryActions::new().ins(vec![2, 2, 2], vec![21], 0);
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
+                c2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| -> Result<_, ()> {
                 match res {
@@ -399,18 +431,18 @@ fn permissions_and_version() {
         let name: XorName = XorName(rng.gen());
         let mdata =
             UnseqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
-        let cl2 = client.clone();
-        let cl3 = client.clone();
-        let cl4 = client.clone();
-        let cl5 = client.clone();
-        let cl6 = client.clone();
-        let cl7 = client.clone();
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
+        let c7 = client.clone();
         client
             .put_unseq_mutable_data(mdata)
             .then(move |res| {
                 unwrap!(res);
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
-                cl2.set_mdata_user_permissions_new(
+                c2.set_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     permissions,
@@ -419,7 +451,7 @@ fn permissions_and_version() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl3.del_mdata_user_permissions_new(
+                c3.del_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     1,
@@ -431,7 +463,7 @@ fn permissions_and_version() {
                     Err(CoreError::NewRoutingClientError(Error::InvalidSuccessor(..))) => (),
                     Err(x) => panic!("Expected Error::InvalidSuccessor. Got {:?}", x),
                 }
-                cl4.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
+                c4.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 let permissions = unwrap!(res);
@@ -452,12 +484,12 @@ fn permissions_and_version() {
                     .is_allowed(MDataAction::Delete));
                 assert!(!unwrap!(permissions.get(&PublicKey::from(random_key)))
                     .is_allowed(MDataAction::ManagePermissions));
-                cl5.get_mdata_version_new(MDataAddress::Unseq { name, tag: DIR_TAG })
+                c5.get_mdata_version_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 let v = unwrap!(res);
                 assert_eq!(v, 1);
-                cl6.del_mdata_user_permissions_new(
+                c6.del_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key),
                     v + 1,
@@ -465,7 +497,7 @@ fn permissions_and_version() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl7.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
+                c7.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .map(move |permissions| {
                 assert_eq!(permissions.len(), 1);
@@ -506,15 +538,15 @@ fn permissions_crud() {
         let mdata =
             UnseqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
 
-        let cl2 = client.clone();
-        let cl3 = client.clone();
-        let cl4 = client.clone();
-        let cl5 = client.clone();
-        let cl6 = client.clone();
-        let cl7 = client.clone();
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
+        let c7 = client.clone();
         let cl8 = client.clone();
-        let cl9 = client.clone();
-        let cl10 = client.clone();
+        let c9 = client.clone();
+        let c10 = client.clone();
         client
             .put_unseq_mutable_data(mdata)
             .then(move |res| {
@@ -522,7 +554,7 @@ fn permissions_crud() {
                 let permissions = MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
-                cl2.set_mdata_user_permissions_new(
+                c2.set_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_a),
                     permissions,
@@ -531,7 +563,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl3.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
+                c3.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
@@ -560,7 +592,7 @@ fn permissions_crud() {
                 }
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Delete);
-                cl4.set_mdata_user_permissions_new(
+                c4.set_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
@@ -569,7 +601,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl5.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
+                c5.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| {
                 {
@@ -604,7 +636,7 @@ fn permissions_crud() {
                 }
 
                 let permissions = MDataPermissionSet::new().allow(MDataAction::Insert);
-                cl6.set_mdata_user_permissions_new(
+                c6.set_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
@@ -613,7 +645,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl7.del_mdata_user_permissions_new(
+                c7.del_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_a),
                     4,
@@ -650,7 +682,7 @@ fn permissions_crud() {
                 let permissions = MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
-                cl9.set_mdata_user_permissions_new(
+                c9.set_mdata_user_permissions_new(
                     MDataAddress::Unseq { name, tag: DIR_TAG },
                     PublicKey::from(random_key_b),
                     permissions,
@@ -659,7 +691,7 @@ fn permissions_crud() {
             })
             .then(move |res| {
                 unwrap!(res);
-                cl10.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
+                c10.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })
             })
             .then(move |res| -> Result<_, ()> {
                 {
@@ -730,10 +762,10 @@ fn sequenced_entries_crud() {
         let name: XorName = XorName(rng.gen());
         let mdata = SeqMutableData::new_with_data(name, DIR_TAG, data, permissions, bls_pk);
 
-        let cl2 = client.clone();
-        let cl3 = client.clone();
-        let cl4 = client.clone();
-        let cl5 = client.clone();
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
         client
             .put_seq_mutable_data(mdata)
             .then(move |res| {
@@ -742,11 +774,11 @@ fn sequenced_entries_crud() {
                     .ins(vec![0, 1, 1], vec![2, 3, 17], 0)
                     .update(vec![0, 1, 0], vec![2, 8, 64], 1)
                     .del(vec![0, 0, 1], 1);
-                cl2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
+                c2.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
-                cl3.list_seq_mdata_entries(name, DIR_TAG)
+                c3.list_seq_mdata_entries(name, DIR_TAG)
             })
             .then(move |res| {
                 let entries = unwrap!(res);
@@ -770,11 +802,11 @@ fn sequenced_entries_crud() {
                     .ins(vec![1, 0, 0], vec![4, 4, 4, 4], 0)
                     .update(vec![0, 1, 0], vec![64, 8, 1], 2)
                     .del(vec![0, 1, 1], 1);
-                cl4.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
+                c4.mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
-                cl5.list_seq_mdata_entries(name, DIR_TAG)
+                c5.list_seq_mdata_entries(name, DIR_TAG)
             })
             .then(|res| -> Result<_, ()> {
                 let entries = unwrap!(res);
@@ -825,10 +857,10 @@ fn unsequenced_entries_crud() {
         let name: XorName = XorName(rng.gen());
         let mdata = UnseqMutableData::new_with_data(name, DIR_TAG, data, permissions, bls_pk);
 
-        let cl2 = client.clone();
-        let cl3 = client.clone();
-        let cl4 = client.clone();
-        let cl5 = client.clone();
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
         client
             .put_unseq_mutable_data(mdata)
             .then(move |res| {
@@ -837,11 +869,11 @@ fn unsequenced_entries_crud() {
                     .ins(vec![0, 1, 1], vec![2, 3, 17])
                     .update(vec![0, 1, 0], vec![2, 8, 64])
                     .del(vec![0, 0, 1]);
-                cl2.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
+                c2.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
-                cl3.list_unseq_mdata_entries(name, DIR_TAG)
+                c3.list_unseq_mdata_entries(name, DIR_TAG)
             })
             .then(move |res| {
                 let entries = unwrap!(res);
@@ -853,11 +885,11 @@ fn unsequenced_entries_crud() {
                     .ins(vec![1, 0, 0], vec![4, 4, 4, 4])
                     .update(vec![0, 1, 0], vec![64, 8, 1])
                     .del(vec![0, 1, 1]);
-                cl4.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
+                c4.mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             })
             .then(move |res| {
                 unwrap!(res);
-                cl5.list_unseq_mdata_entries(name, DIR_TAG)
+                c5.list_unseq_mdata_entries(name, DIR_TAG)
             })
             .then(|res| -> Result<_, ()> {
                 let entries = unwrap!(res);

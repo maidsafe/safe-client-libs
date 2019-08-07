@@ -12,7 +12,7 @@ use safe_app::ffi::app_registered;
 use safe_app::ffi::ipc::*;
 use safe_app::ffi::mdata_info::mdata_info_random_public;
 use safe_app::ffi::mutable_data::entries::{
-    mdata_entries_insert, mdata_entries_new, seq_mdata_list_entries,
+    seq_mdata_entries_insert, seq_mdata_entries_new, seq_mdata_list_entries,
 };
 use safe_app::ffi::mutable_data::entry_actions::{
     mdata_entry_actions_delete, mdata_entry_actions_insert, mdata_entry_actions_new,
@@ -22,7 +22,7 @@ use safe_app::ffi::mutable_data::permissions::{
     mdata_permissions_insert, mdata_permissions_new, USER_ANYONE,
 };
 use safe_app::ffi::mutable_data::{mdata_entries, mdata_mutate_entries, mdata_put};
-use safe_app::{Action, App, PermissionSet};
+use safe_app::App;
 use safe_authenticator::ffi::apps::*;
 use safe_authenticator::ffi::ipc::*;
 use safe_authenticator::ffi::*;
@@ -39,7 +39,7 @@ use safe_core::ipc::{AuthGranted, Permission};
 use safe_core::nfs::{Mode, NfsError};
 use safe_core::MDataInfo;
 use safe_core::{utils, CoreError};
-use safe_nd::AppPermissions;
+use safe_nd::{AppPermissions, MDataAction, MDataPermissionSet};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::collections::HashMap;
@@ -307,10 +307,10 @@ fn mdata_operations() {
     let perms_h = unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(app, ud, cb))) };
     {
         // Create a permissions set
-        let perms_set = PermissionSet::new()
-            .allow(Action::Insert)
-            .allow(Action::Update)
-            .allow(Action::Delete);
+        let perms_set = MDataPermissionSet::new()
+            .allow(MDataAction::Insert)
+            .allow(MDataAction::Update)
+            .allow(MDataAction::Delete);
 
         unsafe {
             unwrap!(call_0(|ud, cb| mdata_permissions_insert(
@@ -324,7 +324,7 @@ fn mdata_operations() {
         };
     }
 
-    let entries_h = unsafe { unwrap!(call_1(|ud, cb| mdata_entries_new(app, ud, cb))) };
+    let entries_h = unsafe { unwrap!(call_1(|ud, cb| seq_mdata_entries_new(app, ud, cb))) };
 
     let key0 = b"random_key_1".to_vec();
     let value0 = b"Scotland to try Scotch whisky".to_vec();
@@ -335,7 +335,7 @@ fn mdata_operations() {
     let value2 = b"Cyprus for falafels and kebab".to_vec();
 
     unsafe {
-        unwrap!(call_0(|ud, cb| mdata_entries_insert(
+        unwrap!(call_0(|ud, cb| seq_mdata_entries_insert(
             app,
             entries_h,
             key0.as_ptr(),
@@ -345,7 +345,7 @@ fn mdata_operations() {
             ud,
             cb
         )));
-        unwrap!(call_0(|ud, cb| mdata_entries_insert(
+        unwrap!(call_0(|ud, cb| seq_mdata_entries_insert(
             app,
             entries_h,
             key1.as_ptr(),

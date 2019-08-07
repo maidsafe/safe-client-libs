@@ -21,12 +21,12 @@ use ffi_utils::test_utils::{
     call_0, call_1, call_vec, call_vec_u8, send_via_user_data, sender_as_user_data,
 };
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult};
-use routing::{Action, PermissionSet as NativePermissionSet};
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
-use safe_core::ffi::MDataKind;
+use safe_core::ffi::{MDataInfo, MDataKind};
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
+use safe_nd::{MDataAction, MDataPermissionSet};
 use std::sync::mpsc;
 
 // The usual test to insert, update, delete and list all permissions from the FFI point of view.
@@ -35,9 +35,10 @@ fn permissions_crud_ffi() {
     let app = create_app();
 
     // Create a permissions set
-    let perm_set = NativePermissionSet::new()
-        .allow(Action::Insert)
-        .allow(Action::ManagePermissions);
+    let perm_set = MDataPermissionSet::new()
+        .allow(MDataAction::Read)
+        .allow(MDataAction::Insert)
+        .allow(MDataAction::ManagePermissions);
 
     let app_pk_handle = unwrap!(run(&app, move |client, context| {
         Ok(context.object_cache().insert_pub_key(client.public_key()))
@@ -48,7 +49,7 @@ fn permissions_crud_ffi() {
         unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
 
     {
-        let ffi_perm_set = permission_set_into_repr_c(perm_set);
+        let ffi_perm_set = permission_set_into_repr_c(perm_set.clone());
         assert!(ffi_perm_set.insert);
 
         // Create permissions for the app
@@ -79,8 +80,8 @@ fn permissions_crud_ffi() {
         assert!(perm_set2.insert);
         let perm_set2 = unwrap!(permission_set_clone_from_repr_c(perm_set2));
 
-        assert_eq!(Some(true), perm_set2.is_allowed(Action::Insert));
-        assert_eq!(None, perm_set2.is_allowed(Action::Update));
+        assert!(perm_set2.is_allowed(MDataAction::Insert));
+        assert!(!perm_set2.is_allowed(MDataAction::Update));
 
         let result: Vec<UserPermissionSet> = unsafe {
             unwrap!(call_vec(|ud, cb| mdata_list_permission_sets(
@@ -101,7 +102,7 @@ fn permissions_crud_ffi() {
     // Try to create an empty public MD
     let md_info_pub: NativeMDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_public(
-            MDataKind::Unseq,
+            MDataKind::Seq,
             10_000,
             ud,
             cb
@@ -131,15 +132,12 @@ fn permissions_crud_ffi() {
             )))
         };
         let read_perm_set = unwrap!(permission_set_clone_from_repr_c(read_perm_set));
-        assert_eq!(Some(true), read_perm_set.is_allowed(Action::Insert));
-        assert_eq!(
-            Some(true),
-            read_perm_set.is_allowed(Action::ManagePermissions)
-        );
-        assert_eq!(None, read_perm_set.is_allowed(Action::Update));
+        assert!(read_perm_set.is_allowed(MDataAction::Insert));
+        assert!(read_perm_set.is_allowed(MDataAction::ManagePermissions));
+        assert!(!read_perm_set.is_allowed(MDataAction::Update));
 
         // Create a new permissions set
-        let perm_set_new = NativePermissionSet::new().allow(Action::ManagePermissions);
+        let perm_set_new = MDataPermissionSet::new().allow(MDataAction::ManagePermissions);
 
         let result = unsafe {
             // Should fail due to invalid version
@@ -148,7 +146,7 @@ fn permissions_crud_ffi() {
                     &app,
                     &md_info_pub,
                     app_pk_handle,
-                    &permission_set_into_repr_c(perm_set_new),
+                    &permission_set_into_repr_c(perm_set_new.clone()),
                     0,
                     ud,
                     cb,
@@ -168,7 +166,7 @@ fn permissions_crud_ffi() {
                     &app,
                     &md_info_pub,
                     app_pk_handle,
-                    &permission_set_into_repr_c(perm_set_new),
+                    &permission_set_into_repr_c(perm_set_new.clone()),
                     1,
                     ud,
                     cb,
@@ -186,7 +184,7 @@ fn permissions_crud_ffi() {
                     &app,
                     &md_info_pub,
                     app_pk_handle,
-                    &permission_set_into_repr_c(perm_set_new),
+                    &permission_set_into_repr_c(perm_set_new.clone()),
                     3,
                     ud,
                     cb,
@@ -220,7 +218,9 @@ fn entries_crud_ffi() {
     const VALUE: &[u8] = b"world";
 
     // Create a permissions set
-    let perm_set = NativePermissionSet::new().allow(Action::Insert);
+    let perm_set = MDataPermissionSet::new()
+        .allow(MDataAction::Read)
+        .allow(MDataAction::Insert);
 
     // Create permissions
     let perms_h: MDataPermissionsHandle =
@@ -244,7 +244,7 @@ fn entries_crud_ffi() {
     // Try to create an empty public MD
     let md_info_pub: NativeMDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_public(
-            MDataKind::Unseq,
+            MDataKind::Seq,
             10_000,
             ud,
             cb
@@ -274,7 +274,7 @@ fn entries_crud_ffi() {
     // Try to create a MD instance using the same name & a different type tag - it should pass.
     let xor_name = md_info_pub.name;
     let md_info_pub_2 = MDataInfo {
-        kind: MDataKind::Unseq,
+        kind: MDataKind::Seq,
         name: xor_name,
         type_tag: 10_001,
         has_enc_info: false,
@@ -366,13 +366,13 @@ fn entries_crud_ffi() {
     };
     let read_perm_set = unwrap!(permission_set_clone_from_repr_c(read_perm_set));
 
-    assert_eq!(Some(true), read_perm_set.is_allowed(Action::Insert));
-    assert_eq!(None, read_perm_set.is_allowed(Action::Update));
+    assert!(read_perm_set.is_allowed(MDataAction::Insert));
+    assert!(!read_perm_set.is_allowed(MDataAction::Update));
 
     // Try to create a private MD
     let md_info_priv: NativeMDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_private(
-            MDataKind::Unseq,
+            MDataKind::Seq,
             10_001,
             ud,
             cb
@@ -514,7 +514,7 @@ fn entries_crud_ffi() {
 
         let fake_key = vec![0];
         unsafe {
-            mdata_entries_get(
+            seq_mdata_entries_get(
                 &app,
                 entries_h,
                 fake_key.as_ptr(),
@@ -535,7 +535,7 @@ fn entries_crud_ffi() {
         let mut ud = Default::default();
 
         unsafe {
-            mdata_entries_get(
+            seq_mdata_entries_get(
                 &app,
                 entries_h,
                 key_enc.as_ptr(),
@@ -560,7 +560,11 @@ fn entries_crud_ffi() {
         };
         assert_eq!(&decrypted, &VALUE, "decrypted invalid value");
 
-        unsafe { unwrap!(call_0(|ud, cb| mdata_entries_free(&app, entries_h, ud, cb))) }
+        unsafe {
+            unwrap!(call_0(|ud, cb| seq_mdata_entries_free(
+                &app, entries_h, ud, cb
+            )))
+        }
     }
 
     // Check mdata_list_keys

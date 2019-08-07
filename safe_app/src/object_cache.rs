@@ -15,11 +15,13 @@ use crate::cipher_opt::CipherOpt;
 use crate::client::AppClient;
 use crate::ffi::nfs::FileContext;
 use crate::ffi::object_cache::*;
-use routing::{EntryAction, PermissionSet, User, Value};
 use rust_sodium::crypto::{box_, sign};
 use safe_core::crypto::{shared_box, shared_sign};
 use safe_core::SelfEncryptionStorage;
-use safe_nd::{MDataSeqValue, PublicKey};
+use safe_nd::{
+    MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataUnseqEntries,
+    MDataUnseqEntryActions, PublicKey,
+};
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, HashMap};
@@ -30,10 +32,11 @@ pub struct ObjectCache {
     cipher_opt: Store<CipherOpt>,
     encrypt_key: Store<box_::PublicKey>,
     secret_key: Store<shared_box::SecretKey>,
-    mdata_entries: Store<BTreeMap<Vec<u8>, Value>>,
-    mdata_entries_new: Store<BTreeMap<Vec<u8>, MDataSeqValue>>,
-    mdata_entry_actions: Store<BTreeMap<Vec<u8>, EntryAction>>,
-    mdata_permissions: Store<BTreeMap<User, PermissionSet>>,
+    seq_mdata_entries: Store<MDataSeqEntries>,
+    unseq_mdata_entries: Store<MDataUnseqEntries>,
+    seq_mdata_entry_actions: Store<MDataSeqEntryActions>,
+    unseq_mdata_entry_actions: Store<MDataUnseqEntryActions>,
+    mdata_permissions: Store<BTreeMap<PublicKey, MDataPermissionSet>>,
     se_reader: Store<SelfEncryptor<SelfEncryptionStorage<AppClient>>>,
     se_writer: Store<SequentialEncryptor<SelfEncryptionStorage<AppClient>>>,
     pub_sign_key: Store<sign::PublicKey>,
@@ -50,9 +53,10 @@ impl ObjectCache {
             cipher_opt: Store::new(),
             encrypt_key: Store::new(),
             secret_key: Store::new(),
-            mdata_entries: Store::new(),
-            mdata_entries_new: Store::new(),
-            mdata_entry_actions: Store::new(),
+            seq_mdata_entries: Store::new(),
+            unseq_mdata_entries: Store::new(),
+            seq_mdata_entry_actions: Store::new(),
+            unseq_mdata_entry_actions: Store::new(),
             mdata_permissions: Store::new(),
             se_reader: Store::new(),
             se_writer: Store::new(),
@@ -69,9 +73,10 @@ impl ObjectCache {
         self.cipher_opt.clear();
         self.encrypt_key.clear();
         self.secret_key.clear();
-        self.mdata_entries.clear();
-        self.mdata_entries_new.clear();
-        self.mdata_entry_actions.clear();
+        self.seq_mdata_entries.clear();
+        self.unseq_mdata_entries.clear();
+        self.seq_mdata_entry_actions.clear();
+        self.unseq_mdata_entry_actions.clear();
         self.mdata_permissions.clear();
         self.se_reader.clear();
         self.se_writer.clear();
@@ -133,34 +138,43 @@ impl_cache!(
     remove_secret_key
 );
 impl_cache!(
-    mdata_entries,
-    BTreeMap<Vec<u8>, Value>,
+    seq_mdata_entries,
+    MDataSeqEntries,
     MDataEntriesHandle,
     InvalidMDataEntriesHandle,
-    get_mdata_entries,
-    insert_mdata_entries,
-    remove_mdata_entries
+    get_seq_mdata_entries,
+    insert_seq_mdata_entries,
+    remove_seq_mdata_entries
 );
 impl_cache!(
-    mdata_entries_new,
-    BTreeMap<Vec<u8>, MDataSeqValue>,
-    MDataEntriesHandle,
-    InvalidMDataEntriesHandle,
-    get_mdata_entries_new,
-    insert_mdata_entries_new,
-    remove_mdata_entries_new
-);
-impl_cache!(
-    mdata_entry_actions,
-    BTreeMap<Vec<u8>, EntryAction>,
+    seq_mdata_entry_actions,
+    MDataSeqEntryActions,
     MDataEntryActionsHandle,
     InvalidMDataEntryActionsHandle,
-    get_mdata_entry_actions,
-    insert_mdata_entry_actions,
-    remove_mdata_entry_actions
+    get_seq_mdata_entry_actions,
+    insert_seq_mdata_entry_actions,
+    remove_seq_mdata_entry_actions
+);
+impl_cache!(
+    unseq_mdata_entries,
+    MDataUnseqEntries,
+    MDataEntriesHandle,
+    InvalidMDataEntriesHandle,
+    get_unseq_mdata_entries,
+    insert_unseq_mdata_entries,
+    remove_unseq_mdata_entries
+);
+impl_cache!(
+    unseq_mdata_entry_actions,
+    MDataUnseqEntryActions,
+    MDataEntryActionsHandle,
+    InvalidMDataEntryActionsHandle,
+    get_unseq_mdata_entry_actions,
+    insert_unseq_mdata_entry_actions,
+    remove_unseq_mdata_entry_actions
 );
 impl_cache!(mdata_permissions,
-            BTreeMap<User, PermissionSet>,
+            BTreeMap<PublicKey, MDataPermissionSet>,
             MDataPermissionsHandle,
             InvalidMDataPermissionsHandle,
             get_mdata_permissions,

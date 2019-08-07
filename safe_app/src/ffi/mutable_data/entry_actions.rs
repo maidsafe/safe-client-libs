@@ -13,7 +13,7 @@ use crate::ffi::helper::send_sync;
 use crate::ffi::object_cache::MDataEntryActionsHandle;
 use crate::App;
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult};
-use routing::{EntryAction, Value};
+use safe_nd::{MDataSeqEntryAction, MDataSeqValue};
 use std::os::raw::c_void;
 
 /// Create new entry actions.
@@ -30,7 +30,9 @@ pub unsafe extern "C" fn mdata_entry_actions_new(
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, |_, context| {
             let actions = Default::default();
-            Ok(context.object_cache().insert_mdata_entry_actions(actions))
+            Ok(context
+                .object_cache()
+                .insert_seq_mdata_entry_actions(actions))
         })
     })
 }
@@ -48,9 +50,9 @@ pub unsafe extern "C" fn mdata_entry_actions_insert(
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     add_action(app, actions_h, key, key_len, user_data, o_cb, || {
-        EntryAction::Ins(Value {
-            content: vec_clone_from_raw_parts(value, value_len),
-            entry_version: 0,
+        MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: vec_clone_from_raw_parts(value, value_len),
+            version: 0,
         })
     })
 }
@@ -64,14 +66,14 @@ pub unsafe extern "C" fn mdata_entry_actions_update(
     key_len: usize,
     value: *const u8,
     value_len: usize,
-    entry_version: u64,
+    version: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     add_action(app, actions_h, key, key_len, user_data, o_cb, || {
-        EntryAction::Update(Value {
-            content: vec_clone_from_raw_parts(value, value_len),
-            entry_version,
+        MDataSeqEntryAction::Update(MDataSeqValue {
+            data: vec_clone_from_raw_parts(value, value_len),
+            version,
         })
     })
 }
@@ -83,12 +85,12 @@ pub unsafe extern "C" fn mdata_entry_actions_delete(
     actions_h: MDataEntryActionsHandle,
     key: *const u8,
     key_len: usize,
-    entry_version: u64,
+    version: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
     add_action(app, actions_h, key, key_len, user_data, o_cb, || {
-        EntryAction::Del(entry_version)
+        MDataSeqEntryAction::Del(version)
     })
 }
 
@@ -104,7 +106,7 @@ pub unsafe extern "C" fn mdata_entry_actions_free(
         send_sync(app, user_data, o_cb, move |_, context| {
             let _ = context
                 .object_cache()
-                .remove_mdata_entry_actions(actions_h)?;
+                .remove_seq_mdata_entry_actions(actions_h)?;
             Ok(())
         })
     })
@@ -121,15 +123,17 @@ unsafe fn add_action<F>(
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
     f: F,
 ) where
-    F: FnOnce() -> EntryAction,
+    F: FnOnce() -> MDataSeqEntryAction,
 {
     catch_unwind_cb(user_data, o_cb, || {
         let key = vec_clone_from_raw_parts(key, key_len);
         let action = f();
 
         send_sync(app, user_data, o_cb, move |_, context| {
-            let mut actions = context.object_cache().get_mdata_entry_actions(actions_h)?;
-            let _ = actions.insert(key, action);
+            let actions = &mut context
+                .object_cache()
+                .get_seq_mdata_entry_actions(actions_h)?;
+            actions.add_action(key, action);
             Ok(())
         })
     })
@@ -141,8 +145,8 @@ mod tests {
     use crate::run;
     use crate::test_utils::create_app;
     use ffi_utils::test_utils::{call_0, call_1};
-    use routing::{EntryAction, Value};
     use safe_core::utils;
+    use safe_nd::{MDataSeqEntryAction, MDataSeqValue};
 
     // Test entry action basics such as insert, update, and delete.
     #[test]
@@ -152,7 +156,9 @@ mod tests {
         let handle = unsafe { unwrap!(call_1(|ud, cb| mdata_entry_actions_new(&app, ud, cb))) };
 
         unwrap!(run(&app, move |_, context| {
-            let actions = unwrap!(context.object_cache().get_mdata_entry_actions(handle));
+            let entry_actions =
+                &unwrap!(context.object_cache().get_seq_mdata_entry_actions(handle));
+            let actions = entry_actions.actions();
             assert!(actions.is_empty());
             Ok(())
         }));
@@ -203,27 +209,27 @@ mod tests {
         }
 
         unwrap!(run(&app, move |_, context| {
-            let actions = unwrap!(context.object_cache().get_mdata_entry_actions(handle));
+            let entry_actions =
+                &unwrap!(context.object_cache().get_seq_mdata_entry_actions(handle));
+            let actions = entry_actions.actions();
             assert_eq!(actions.len(), 3);
 
             match *unwrap!(actions.get(&key0)) {
-                EntryAction::Ins(Value {
-                    ref content,
-                    entry_version: 0,
-                }) if *content == value0 => (),
+                MDataSeqEntryAction::Ins(MDataSeqValue {
+                    ref data,
+                    version: 0,
+                }) if *data == value0 => (),
                 _ => panic!("Unexpected action"),
             }
 
             match *unwrap!(actions.get(&key1)) {
-                EntryAction::Update(Value {
-                    ref content,
-                    entry_version,
-                }) if *content == value1 && entry_version == version1 => (),
+                MDataSeqEntryAction::Update(MDataSeqValue { ref data, version })
+                    if *data == value1 && version == version1 => {}
                 _ => panic!("Unexpected action"),
             }
 
             match *unwrap!(actions.get(&key2)) {
-                EntryAction::Del(version) if version == version2 => Ok(()),
+                MDataSeqEntryAction::Del(version) if version == version2 => Ok(()),
                 _ => panic!("Unexpected action"),
             }
         }));
@@ -237,7 +243,7 @@ mod tests {
         unwrap!(run(&app, move |_, context| {
             assert!(context
                 .object_cache()
-                .get_mdata_entry_actions(handle)
+                .get_seq_mdata_entry_actions(handle)
                 .is_err());
             Ok(())
         }));

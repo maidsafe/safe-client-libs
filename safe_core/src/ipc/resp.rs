@@ -12,8 +12,8 @@ use crate::client::MDataInfo;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::ffi::ipc::resp as ffi;
 use crate::ipc::req::{
-    container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c_new,
-    permission_set_into_repr_c_new, ContainerPermissions,
+    container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c,
+    permission_set_into_repr_c, ContainerPermissions,
 };
 use crate::ipc::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
@@ -399,7 +399,7 @@ impl AppAccess {
 
         Ok(ffi::AppAccess {
             sign_key: key,
-            permissions: permission_set_into_repr_c_new(permissions),
+            permissions: permission_set_into_repr_c(permissions),
             name,
             app_id,
         })
@@ -423,7 +423,7 @@ impl ReprC for AppAccess {
                 threshold_crypto::PublicKey::from_bytes(sign_key)
                     .map_err(|_| IpcError::EncodeDecodeError)?,
             ),
-            permissions: permission_set_clone_from_repr_c_new(permissions)?,
+            permissions: permission_set_clone_from_repr_c(permissions)?,
             name: if name.is_null() {
                 None
             } else {

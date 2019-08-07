@@ -241,15 +241,15 @@ fn fix_entry_actions(
     errors: &BTreeMap<Vec<u8>, EntryError>,
 ) -> BTreeMap<Vec<u8>, MDataSeqEntryAction> {
     actions
-        .actions()
-        .iter()
+        .into_actions()
+        .into_iter()
         .fold(BTreeMap::new(), |mut fixed_action, (key, action)| {
-            if let Some(error) = errors.get(key) {
-                if let Some(action) = fix_entry_action(action, error) {
-                    let _ = fixed_action.insert(key.clone(), action);
+            if let Some(error) = errors.get(&key) {
+                if let Some(action) = fix_entry_action(&action, error) {
+                    let _ = fixed_action.insert(key, action);
                 }
             } else {
-                let _ = fixed_action.insert(key.clone(), action.clone());
+                let _ = fixed_action.insert(key, action);
             }
             fixed_action
         })

@@ -16,7 +16,6 @@ use crate::ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle, NULL_OB
 use crate::permissions;
 use crate::App;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
-use routing::User;
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use std::os::raw::c_void;
@@ -102,14 +101,14 @@ pub unsafe extern "C" fn mdata_permissions_get(
                 o_cb
             );
 
-            let permission_set = *try_cb!(
+            let permission_set = try_cb!(
                 permissions
                     .get(&user,)
                     .ok_or(AppError::InvalidSignPubKeyHandle,),
                 user_data,
                 o_cb
             );
-            let permission_set = permission_set_into_repr_c(permission_set);
+            let permission_set = permission_set_into_repr_c(permission_set.clone());
 
             o_cb(user_data.0, FFI_RESULT_OK, &permission_set);
             None
@@ -142,13 +141,10 @@ pub unsafe extern "C" fn mdata_list_permission_sets(
             let user_perm_sets: Vec<UserPermissionSet> = permissions
                 .iter()
                 .map(|(user_key, permission_set)| {
-                    let user_h = match *user_key {
-                        User::Key(key) => context.object_cache().insert_pub_key(key),
-                        User::Anyone => USER_ANYONE,
-                    };
+                    let user_h = context.object_cache().insert_pub_key(*user_key);
                     permissions::UserPermissionSet {
                         user_h,
-                        perm_set: *permission_set,
+                        perm_set: permission_set.clone(),
                     }
                     .into_repr_c()
                 })

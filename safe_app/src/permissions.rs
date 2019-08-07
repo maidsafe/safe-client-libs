@@ -12,17 +12,17 @@
 use crate::ffi::mutable_data::permissions::UserPermissionSet as FfiUserPermissionSet;
 use crate::ffi::object_cache::SignPubKeyHandle;
 use ffi_utils::ReprC;
-use routing::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::IpcError;
+use safe_nd::MDataPermissionSet;
 
 /// Object representing a (User, Permission Set) pair.
-#[derive(Copy, Clone, Default, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Default, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct UserPermissionSet {
     /// User's sign key handle.
     pub user_h: SignPubKeyHandle,
     /// User's permission set.
-    pub perm_set: PermissionSet,
+    pub perm_set: MDataPermissionSet,
 }
 
 impl UserPermissionSet {

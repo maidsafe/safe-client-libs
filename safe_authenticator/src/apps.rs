@@ -169,7 +169,7 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
                     let mut containers = HashMap::new();
 
                     for (container_name, (_, permission_set)) in app_access {
-                        unwrap!(containers.insert(container_name, permission_set));
+                        let _ = containers.insert(container_name, permission_set);
                     }
 
                     let registered_app = RegisteredApp {

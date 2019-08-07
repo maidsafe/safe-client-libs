@@ -10,7 +10,7 @@ use crate::ffi::arrays::XorNameArray;
 use crate::ipc::req::permission_set_into_repr_c;
 use ffi_utils::callback::CallbackArgs;
 use ffi_utils::ReprC;
-use routing;
+use safe_nd::MDataPermissionSet;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
@@ -44,7 +44,7 @@ impl ReprC for PermissionSet {
 
 impl CallbackArgs for PermissionSet {
     fn default() -> Self {
-        permission_set_into_repr_c(routing::PermissionSet::new())
+        permission_set_into_repr_c(MDataPermissionSet::new())
     }
 }
 

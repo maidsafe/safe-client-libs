@@ -26,7 +26,7 @@ routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe_authenticator = { path = "../safe_authenticator", version = "~0.9.1", optional = true }
 safe_core = { path = "../safe_core", version = "~0.32.1" }
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = "~0.2.1"
 self_encryption = { git = "https://github.com/maidsafe/self_encryption" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"

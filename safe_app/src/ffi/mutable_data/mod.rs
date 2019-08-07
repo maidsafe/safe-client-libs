@@ -26,7 +26,7 @@ use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::Future;
-use routing::MutableData;
+use maidsafe_utilities::serialisation::serialised_size;
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ffi::ipc::resp::MDataKey;
 use safe_core::ffi::ipc::resp::MDataValue;
@@ -34,7 +34,8 @@ use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey as NativeMDataKey, MDataValue as NativeMDataValue};
 use safe_core::Client;
-use safe_core::{CoreError, FutureExt, MDataInfo as NativeMDataInfo};
+use safe_core::{FutureExt, MDataInfo as NativeMDataInfo};
+use safe_nd::SeqMutableData;
 use std::os::raw::c_void;
 
 /// Special value that represents an empty permission set.
@@ -80,7 +81,7 @@ pub unsafe extern "C" fn mdata_put(
 
             let entries = if entries_h != ENTRIES_EMPTY {
                 try_cb!(
-                    context.object_cache().get_mdata_entries(entries_h),
+                    context.object_cache().get_seq_mdata_entries(entries_h),
                     user_data,
                     o_cb
                 )
@@ -89,22 +90,16 @@ pub unsafe extern "C" fn mdata_put(
                 Default::default()
             };
 
-            let data = try_cb!(
-                MutableData::new(
-                    info.name(),
-                    info.type_tag(),
-                    permissions,
-                    entries,
-                    btree_set![owner_key],
-                )
-                .map_err(CoreError::from)
-                .map_err(AppError::from),
-                user_data,
-                o_cb
+            let data = SeqMutableData::new_with_data(
+                info.name(),
+                info.type_tag(),
+                entries,
+                permissions,
+                owner_key,
             );
 
             client
-                .put_mdata(data)
+                .put_seq_mutable_data(data)
                 .map_err(AppError::from)
                 .then(move |result| {
                     call_result_cb!(result, user_data, o_cb);
@@ -128,7 +123,7 @@ pub unsafe extern "C" fn mdata_get_version(
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         send(app, user_data, o_cb, move |client, _| {
-            client.get_mdata_version(info.name(), info.type_tag())
+            client.get_mdata_version_new(*info.address())
         })
     })
 }
@@ -146,9 +141,9 @@ pub unsafe extern "C" fn mdata_serialised_size(
 
         send(app, user_data, o_cb, move |client, _| {
             client
-                .get_mdata(info.name(), info.type_tag())
+                .get_seq_mdata(info.name(), info.type_tag())
                 .map_err(AppError::from)
-                .and_then(move |mdata| Ok(mdata.serialised_size()))
+                .and_then(move |mdata| Ok(serialised_size(&mdata)))
         })
     })
 }
@@ -179,8 +174,8 @@ pub unsafe extern "C" fn mdata_get_value(
 
         (*app).send(move |client, _| {
             client
-                .get_mdata_value(info.name(), info.type_tag(), key)
-                .and_then(move |value| Ok((value.content, value.entry_version)))
+                .get_seq_mdata_value(info.name(), info.type_tag(), key)
+                .and_then(move |value| Ok((value.data, value.version)))
                 .map(move |(content, version)| {
                     o_cb(
                         user_data.0,
@@ -220,9 +215,11 @@ pub unsafe extern "C" fn mdata_entries(
             let info = info.clone();
 
             client
-                .list_mdata_entries(info.name(), info.type_tag())
+                .list_seq_mdata_entries(info.name(), info.type_tag())
                 .map_err(AppError::from)
-                .and_then(move |entries| Ok(context.object_cache().insert_mdata_entries(entries)))
+                .and_then(move |entries| {
+                    Ok(context.object_cache().insert_seq_mdata_entries(entries))
+                })
         })
     })
 }
@@ -247,7 +244,7 @@ pub unsafe extern "C" fn mdata_list_keys(
 
         (*app).send(move |client, _context| {
             client
-                .list_mdata_keys(info.name(), info.type_tag())
+                .list_mdata_keys_new(*info.address())
                 .map_err(AppError::from)
                 .then(move |result| {
                     match result {
@@ -342,13 +339,15 @@ pub unsafe extern "C" fn mdata_mutate_entries(
 
         (*app).send(move |client, context| {
             let actions = try_cb!(
-                context.object_cache().get_mdata_entry_actions(actions_h),
+                context
+                    .object_cache()
+                    .get_seq_mdata_entry_actions(actions_h),
                 user_data,
                 o_cb
             );
 
             client
-                .mutate_mdata_entries(info.name(), info.type_tag(), actions.clone())
+                .mutate_seq_mdata_entries(info.name(), info.type_tag(), actions.clone())
                 .map_err(AppError::from)
                 .then(move |result| {
                     call_result_cb!(result, user_data, o_cb);
@@ -379,7 +378,7 @@ pub unsafe extern "C" fn mdata_list_permissions(
             let context = context.clone();
 
             client
-                .list_mdata_permissions(info.name(), info.type_tag())
+                .list_mdata_permissions_new(*info.address())
                 .map(move |perms| helper::insert_permissions(context.object_cache(), perms))
         })
     })
@@ -412,7 +411,7 @@ pub unsafe extern "C" fn mdata_list_user_permissions(
             );
 
             client
-                .list_mdata_user_permissions(info.name(), info.type_tag(), user)
+                .list_mdata_user_permissions_new(*info.address(), user)
                 .map(move |set| {
                     let perm_set = permission_set_into_repr_c(set);
                     o_cb(user_data.0, FFI_RESULT_OK, &perm_set);
@@ -454,13 +453,7 @@ pub unsafe extern "C" fn mdata_set_user_permissions(
             let permission_set = unwrap!(permission_set_clone_from_repr_c(permission_set));
 
             client
-                .set_mdata_user_permissions(
-                    info.name(),
-                    info.type_tag(),
-                    user,
-                    permission_set,
-                    version,
-                )
+                .set_mdata_user_permissions_new(*info.address(), user, permission_set, version)
                 .map_err(AppError::from)
                 .then(move |result| {
                     call_result_cb!(result, user_data, o_cb);
@@ -496,7 +489,7 @@ pub unsafe extern "C" fn mdata_del_user_permissions(
             );
 
             client
-                .del_mdata_user_permissions(info.name(), info.type_tag(), user, version)
+                .del_mdata_user_permissions_new(*info.address(), user, version)
                 .map_err(AppError::from)
                 .then(move |result| {
                     call_result_cb!(result, user_data, o_cb);

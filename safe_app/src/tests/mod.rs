@@ -9,7 +9,6 @@
 
 mod append_only_data;
 mod coins;
-mod mutable_data;
 mod unpublished_mutable_data;
 
 use crate::ffi::test_utils::test_create_app_with_access;
