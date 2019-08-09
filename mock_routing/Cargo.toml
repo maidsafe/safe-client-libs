@@ -13,7 +13,7 @@ version = "0.1.0"
 maidsafe_utilities = "~0.18.0"
 rust_sodium = "~0.10.2"
 rand = "~0.3.18"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = "~0.2.0"
 serde = "~1.0.27"
 serde_derive = "~1.0.27"
 threshold_crypto = "~0.3.2"

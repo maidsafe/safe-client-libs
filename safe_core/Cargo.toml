@@ -30,7 +30,7 @@ quic-p2p = "~0.2.0"
 rand = "~0.3.18"
 routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = "~0.2.0"
 self_encryption = { git = "https://github.com/maidsafe/self_encryption" }
 serde = "~1.0.27"
 serde_derive = "~1.0.27"

@@ -54,7 +54,7 @@ use routing::{
 };
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
-    AData, ADataAddress, ADataAppend, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
+    AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
     ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId,
     ClientPublicId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData,
@@ -1255,7 +1255,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
-        permissions_idx: u64,
+        permissions_index: u64,
     ) -> Box<CoreFuture<()>> {
         trace!(
             "Add Permissions to UnPub AppendOnly Data {:?}",
@@ -1267,7 +1267,7 @@ pub trait Client: Clone + 'static {
             Request::AddUnpubADataPermissions {
                 address,
                 permissions,
-                permissions_idx,
+                permissions_index,
             },
         )
     }
@@ -1277,7 +1277,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions: ADataPubPermissions,
-        permissions_idx: u64,
+        permissions_index: u64,
     ) -> Box<CoreFuture<()>> {
         trace!("Add Permissions to AppendOnly Data {:?}", address.name());
 
@@ -1286,7 +1286,7 @@ pub trait Client: Clone + 'static {
             Request::AddPubADataPermissions {
                 address,
                 permissions,
-                permissions_idx,
+                permissions_index,
             },
         )
     }
@@ -1296,7 +1296,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         owner: ADataOwner,
-        owners_idx: u64,
+        owners_index: u64,
     ) -> Box<CoreFuture<()>> {
         trace!("Set Owners to AppendOnly Data {:?}", address.name());
 
@@ -1305,7 +1305,7 @@ pub trait Client: Clone + 'static {
             Request::SetADataOwner {
                 address,
                 owner,
-                owners_idx,
+                owners_index,
             },
         )
     }
@@ -1342,12 +1342,12 @@ pub trait Client: Clone + 'static {
     }
 
     /// Append to Published Seq AppendOnly Data
-    fn append_seq_adata(&self, append: ADataAppend, index: u64) -> Box<CoreFuture<()>> {
+    fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Box<CoreFuture<()>> {
         send_mutation_new(self, Request::AppendSeq { append, index })
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
-    fn append_unseq_adata(&self, append: ADataAppend) -> Box<CoreFuture<()>> {
+    fn append_unseq_adata(&self, append: ADataAppendOperation) -> Box<CoreFuture<()>> {
         send_mutation_new(self, Request::AppendUnseq(append))
     }
 
@@ -2854,7 +2854,7 @@ mod tests {
             let mut data = UnpubSeqAppendOnlyData::new(name, tag);
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
-            let idx = ADataIndex::FromStart(0);
+            let index = ADataIndex::FromStart(0);
             let _ = perms.insert(client.public_key(), set);
             let address = ADataAddress::UnpubSeq { name, tag };
 
@@ -2884,7 +2884,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client2
-                        .get_adata_shell(idx, address)
+                        .get_adata_shell(index, address)
                         .map(move |data| match data {
                             AData::UnpubSeq(adata) => {
                                 assert_eq!(*adata.name(), name);
@@ -2957,9 +2957,9 @@ mod tests {
                 0
             ));
 
-            let idx_start = ADataIndex::FromStart(0);
-            let idx_end = ADataIndex::FromEnd(2);
-            let perm_idx = ADataIndex::FromStart(1);
+            let index_start = ADataIndex::FromStart(0);
+            let index_end = ADataIndex::FromEnd(2);
+            let perm_index = ADataIndex::FromStart(1);
 
             let sim_client = PublicKey::Bls(SecretKey::random().public_key());
             let sim_client1 = sim_client;
@@ -3010,7 +3010,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client2
-                        .get_adata_range(adataref, (idx_start, idx_end))
+                        .get_adata_range(adataref, (index_start, index_end))
                         .map(move |data| {
                             assert_eq!(
                                 unwrap!(std::str::from_utf8(&unwrap!(data.last()).key)),
@@ -3055,7 +3055,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client7
-                        .get_unpub_adata_permissions_at_index(adataref, perm_idx)
+                        .get_unpub_adata_permissions_at_index(adataref, perm_index)
                         .map(move |data| {
                             let set = unwrap!(data.permissions.get(&sim_client1));
                             assert!(set.is_allowed(ADataAction::Append));
@@ -3063,7 +3063,11 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client8
-                        .get_unpub_adata_user_permissions(adataref, idx_start, client8.public_key())
+                        .get_unpub_adata_user_permissions(
+                            adataref,
+                            index_start,
+                            client8.public_key(),
+                        )
                         .map(move |set| {
                             assert!(set.is_allowed(ADataAction::Append));
                         })
@@ -3105,7 +3109,7 @@ mod tests {
 
             let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
 
-            let append = ADataAppend {
+            let append = ADataAppendOperation {
                 address: adataref,
                 values: tup,
             };
@@ -3171,7 +3175,7 @@ mod tests {
 
             let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
 
-            let append = ADataAppend {
+            let append = ADataAppendOperation {
                 address: adataref,
                 values: tup,
             };
