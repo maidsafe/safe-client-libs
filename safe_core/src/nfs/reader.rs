@@ -30,21 +30,16 @@ impl<C: Client> Reader<C> {
         file: &File,
         encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Self>> {
-        data_map::get(
-            &client,
-            file.data_map_name(),
-            file.published(),
-            encryption_key,
-        )
-        .and_then(move |data_map| {
-            let self_encryptor = SelfEncryptor::new(storage, data_map)?;
+        data_map::get(&client, file.data_address(), encryption_key)
+            .and_then(move |data_map| {
+                let self_encryptor = SelfEncryptor::new(storage, data_map)?;
 
-            Ok(Self {
-                client,
-                self_encryptor,
+                Ok(Self {
+                    client,
+                    self_encryptor,
+                })
             })
-        })
-        .into_box()
+            .into_box()
     }
 
     /// Returns the total size of the file/blob.

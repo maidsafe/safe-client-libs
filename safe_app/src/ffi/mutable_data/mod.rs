@@ -66,11 +66,7 @@ pub unsafe extern "C" fn mdata_put(
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |client, context| {
-            let owner_key = try_cb!(
-                client.owner_key().ok_or(AppError::UnregisteredClientAccess),
-                user_data,
-                o_cb
-            );
+            let owner_key = client.owner_key();
 
             let permissions = if permissions_h != PERMISSIONS_EMPTY {
                 try_cb!(

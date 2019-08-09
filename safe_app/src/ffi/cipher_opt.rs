@@ -184,9 +184,9 @@ mod tests {
         let app_1 = create_app();
 
         // Get encryption public key of App 1.
-        let enc_pk = unwrap!(run(&app_1, move |client, _| Ok(unwrap!(
+        let enc_pk = unwrap!(run(&app_1, move |client, _| Ok(
             client.public_encryption_key()
-        ))));
+        )));
 
         // Insert it into App 0's object cache.
         let enc_pk_h = unwrap!(run(&app_0, move |_, context| {

@@ -27,7 +27,6 @@ use safe_core::ffi::MDataKind;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
-use safe_nd::PublicKey;
 use std::sync::mpsc;
 
 // The usual test to insert, update, delete and list all permissions from the FFI point of view.
@@ -41,9 +40,7 @@ fn permissions_crud_ffi() {
         .allow(Action::ManagePermissions);
 
     let app_pk_handle = unwrap!(run(&app, move |client, context| {
-        Ok(context
-            .object_cache()
-            .insert_pub_key(PublicKey::from(unwrap!(client.public_bls_key()))))
+        Ok(context.object_cache().insert_pub_key(client.public_key()))
     }));
 
     // Create permissions
@@ -230,9 +227,7 @@ fn entries_crud_ffi() {
         unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
 
     let app_pk_handle = unwrap!(run(&app, move |client, context| {
-        Ok(context
-            .object_cache()
-            .insert_pub_key(PublicKey::from(unwrap!(client.public_bls_key()))))
+        Ok(context.object_cache().insert_pub_key(client.public_key()))
     }));
 
     unsafe {

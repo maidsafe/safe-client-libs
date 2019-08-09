@@ -181,9 +181,7 @@ fn files_stored_in_unpublished_idata() {
             let root2 = root.clone();
 
             create_dir(client, &root, btree_map![], btree_map![])
-                .then(move |res| {
-                    assert!(res.is_ok());
-
+                .and_then(move |()| {
                     file_helper::write(
                         c2.clone(),
                         File::new(Vec::new(), false),
@@ -191,30 +189,21 @@ fn files_stored_in_unpublished_idata() {
                         None,
                     )
                 })
-                .then(move |res| {
-                    let writer = unwrap!(res);
-
+                .and_then(move |writer| {
                     writer
                         .write(&[0u8; ORIG_SIZE])
                         .and_then(move |_| writer.close())
                 })
-                .then(move |res| {
-                    let file = unwrap!(res);
-
+                .and_then(move |file| {
                     file_helper::insert(c3, root2.clone(), "", &file).map(move |_| root2)
                 })
-                .then(move |res| {
-                    let dir = unwrap!(res);
-
+                .and_then(move |dir| {
                     file_helper::fetch(c4, dir.clone(), "").map(move |(_version, file)| (dir, file))
                 })
-                .then(move |res| {
-                    let (dir, file) = unwrap!(res);
-
+                .and_then(move |(dir, file)| {
                     file_helper::read(c5, &file, None).map(move |reader| (reader, dir))
                 })
-                .then(move |res| {
-                    let (reader, dir) = unwrap!(res);
+                .and_then(move |(reader, dir)| {
                     let size = reader.size();
                     println!("reading {} bytes", size);
                     reader.read(0, size).map(move |data| {
@@ -222,20 +211,15 @@ fn files_stored_in_unpublished_idata() {
                         dir
                     })
                 })
-                .then(move |res| {
-                    let dir = unwrap!(res);
-
+                .and_then(move |dir| {
+                    // Send the directory name for another client
                     unwrap!(client1_tx.send(dir.clone()));
 
-                    std::thread::sleep(std::time::Duration::new(3, 0));
+                    // Wait for the other client to finish it's attempt to read
                     unwrap!(client2_rx.recv());
                     file_helper::delete(c6, dir.clone(), "", false, Version::Custom(1)).map(|_| dir)
                 })
-                .then(move |res| {
-                    let dir = unwrap!(res);
-
-                    file_helper::fetch(c7, dir.clone(), "")
-                })
+                .and_then(move |dir| file_helper::fetch(c7, dir.clone(), ""))
                 .then(move |res| {
                     match res {
                         Err(NfsError::FileNotFound) => (),
@@ -248,6 +232,7 @@ fn files_stored_in_unpublished_idata() {
         });
     });
 
+    // Get the directory name and try to fetch a file from it
     let dir: MDataInfo = unwrap!(client1_rx.recv());
     random_client(move |client| {
         file_helper::fetch(client.clone(), dir.clone(), "").then(|res| {
@@ -261,6 +246,7 @@ fn files_stored_in_unpublished_idata() {
             Ok::<_, CoreError>(())
         })
     });
+    // Send a signal to the first client to continue
     unwrap!(client2_tx.send(()));
     unwrap!(finish_rx.recv());
 }

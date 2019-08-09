@@ -156,9 +156,7 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
             // return the app info from the config.
             match app_state {
                 AppState::NotAuthenticated => {
-                    let owner_key = fry!(c3
-                        .owner_key()
-                        .ok_or_else(|| AuthError::Unexpected("Owner key not found".to_string())));
+                    let owner_key = c3.owner_key();
                     let keys = AppKeys::random(owner_key);
                     let app = AppInfo {
                         info: auth_req.app,

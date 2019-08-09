@@ -35,7 +35,7 @@ fn md_created_by_app_1() {
         unsafe { unwrap!(call_1(|ud, cb| test_create_app(app_id.as_ptr(), ud, cb))) };
 
     unwrap!(run(unsafe { &*app }, |client: &AppClient, _app_context| {
-        let owners = btree_set![PublicKey::from(unwrap!(client.public_bls_key()))];
+        let owners = btree_set![client.public_key()];
         let name: XorName = new_rand::random();
         let mdata = unwrap!(MutableData::new(
             name,
@@ -54,7 +54,7 @@ fn md_created_by_app_1() {
                     Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
                 }
                 let mut owners = BTreeSet::new();
-                let _ = owners.insert(unwrap!(cl2.owner_key()));
+                let _ = owners.insert(cl2.owner_key());
                 let mdata = unwrap!(MutableData::new(
                     name,
                     DIR_TAG,
@@ -79,7 +79,7 @@ fn md_created_by_app_2() {
     let (tx, rx) = mpsc::channel();
     let (alt_client_tx, alt_client_rx) = mpsc::channel();
     unwrap!(app.send(move |client, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
@@ -87,7 +87,7 @@ fn md_created_by_app_2() {
             PermissionSet::new().allow(Action::ManagePermissions),
         );
 
-        let owners = btree_set![unwrap!(client.owner_key())];
+        let owners = btree_set![client.owner_key()];
 
         let name: XorName = new_rand::random();
         let mdata = unwrap!(MutableData::new(
@@ -138,7 +138,7 @@ fn md_created_by_app_3() {
     let (app_sign_pk_tx, app_sign_pk_rx) = mpsc::channel();
     let (name_tx, name_rx) = mpsc::channel();
     unwrap!(app.send(move |client, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
         unwrap!(app_sign_pk_tx.send(sign_pk));
         let name: XorName = unwrap!(name_rx.recv());
         let mut actions = BTreeMap::new();
@@ -199,7 +199,7 @@ fn md_created_by_app_3() {
             );
 
             let mut owners = BTreeSet::new();
-            let _ = owners.insert(unwrap!(client.owner_key()));
+            let _ = owners.insert(client.owner_key());
 
             let name: XorName = new_rand::random();
 
@@ -242,7 +242,7 @@ fn md_created_by_app_4() {
     let (app_sign_pk_tx, app_sign_pk_rx) = mpsc::channel();
     let (name_tx, name_rx) = mpsc::channel();
     unwrap!(app.send(move |client, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
         unwrap!(app_sign_pk_tx.send(sign_pk));
         let name: XorName = unwrap!(name_rx.recv());
         let mut actions = BTreeMap::new();
@@ -351,7 +351,7 @@ fn md_created_by_app_4() {
             );
 
             let mut owners = BTreeSet::new();
-            let _ = owners.insert(unwrap!(client.owner_key()));
+            let _ = owners.insert(client.owner_key());
 
             let name: XorName = new_rand::random();
 
@@ -393,12 +393,12 @@ fn multiple_apps() {
     let (mutate_again_tx, mutate_again_rx) = mpsc::channel();
     let (final_check_tx, final_check_rx) = mpsc::channel();
     unwrap!(app1.send(move |client, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
 
         let mut permissions = BTreeMap::new();
-        let app_2_pk: threshold_crypto::PublicKey = unwrap!(app2_key_rx.recv());
+        let app_2_pk: PublicKey = unwrap!(app2_key_rx.recv());
         let _ = permissions.insert(
-            User::Key(app_2_pk.into()),
+            User::Key(app_2_pk),
             PermissionSet::new().allow(Action::Insert),
         );
         let _ = permissions.insert(
@@ -407,7 +407,7 @@ fn multiple_apps() {
         );
 
         let mut owners = BTreeSet::new();
-        let _ = owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(client.owner_key());
 
         let name: XorName = new_rand::random();
         let mdata = unwrap!(MutableData::new(
@@ -440,7 +440,7 @@ fn multiple_apps() {
                         entry_version: 1,
                     }
                 );
-                cl3.del_mdata_user_permissions(name2, DIR_TAG, User::Key(app_2_pk.into()), 1)
+                cl3.del_mdata_user_permissions(name2, DIR_TAG, User::Key(app_2_pk), 1)
                     .map(move |()| entry_key)
             })
             .then(move |res| {
@@ -461,7 +461,7 @@ fn multiple_apps() {
             .into()
     }));
     unwrap!(app2.send(move |client, _app_context| {
-        unwrap!(app2_key_tx.send(unwrap!(client.public_bls_key())));
+        unwrap!(app2_key_tx.send(client.public_key()));
         let name = unwrap!(name_rx.recv());
         let entry_key = vec![1, 2, 3];
 
@@ -519,7 +519,7 @@ fn multiple_apps() {
 fn permissions_and_version() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
         let random_key = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
 
         let mut permissions = BTreeMap::new();
@@ -529,7 +529,7 @@ fn permissions_and_version() {
         );
 
         let mut owners = BTreeSet::new();
-        let _ = owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(client.owner_key());
 
         let name: XorName = new_rand::random();
         let mdata = unwrap!(MutableData::new(
@@ -644,7 +644,7 @@ fn permissions_and_version() {
 fn permissions_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
         let random_key_a = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
         let random_key_b = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
 
@@ -655,7 +655,7 @@ fn permissions_crud() {
         );
 
         let mut owners = BTreeSet::new();
-        let _ = owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(client.owner_key());
 
         let name: XorName = new_rand::random();
         let mdata = unwrap!(MutableData::new(
@@ -945,7 +945,7 @@ fn permissions_crud() {
 fn entries_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let sign_pk = PublicKey::from(unwrap!(client.public_bls_key()));
+        let sign_pk = client.public_key();
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
@@ -973,7 +973,7 @@ fn entries_crud() {
         );
 
         let mut owners = BTreeSet::new();
-        let _ = owners.insert(unwrap!(client.owner_key()));
+        let _ = owners.insert(client.owner_key());
 
         let name: XorName = new_rand::random();
         let mdata = unwrap!(MutableData::new(name, DIR_TAG, permissions, data, owners));

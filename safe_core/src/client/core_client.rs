@@ -223,36 +223,40 @@ impl Client for CoreClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> Option<box_::PublicKey> {
-        Some(self.keys.enc_pk)
+    fn public_encryption_key(&self) -> box_::PublicKey {
+        self.keys.enc_pk
     }
 
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey> {
-        Some(self.keys.enc_sk.clone())
+    fn secret_encryption_key(&self) -> shared_box::SecretKey {
+        self.keys.enc_sk.clone()
     }
 
-    fn public_signing_key(&self) -> Option<sign::PublicKey> {
-        Some(self.keys.sign_pk)
+    fn public_signing_key(&self) -> sign::PublicKey {
+        self.keys.sign_pk
     }
 
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey> {
-        Some(self.keys.sign_sk.clone())
+    fn secret_signing_key(&self) -> shared_sign::SecretKey {
+        self.keys.sign_sk.clone()
     }
 
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
-        Some(self.keys.enc_key.clone())
+    fn secret_symmetric_key(&self) -> shared_secretbox::Key {
+        self.keys.enc_key.clone()
     }
 
-    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey> {
-        Some(self.keys.bls_pk)
+    fn public_bls_key(&self) -> threshold_crypto::PublicKey {
+        self.keys.bls_pk
     }
 
-    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey> {
-        Some(self.keys.bls_sk.clone())
+    fn secret_bls_key(&self) -> threshold_crypto::SecretKey {
+        self.keys.bls_sk.clone()
     }
 
-    fn owner_key(&self) -> Option<PublicKey> {
-        Some(PublicKey::from(self.keys.bls_pk))
+    fn owner_key(&self) -> PublicKey {
+        PublicKey::from(self.keys.bls_pk)
+    }
+
+    fn public_key(&self) -> PublicKey {
+        self.keys.bls_pk.into()
     }
 
     fn compose_message(&self, request: Request, sign: bool) -> Message {

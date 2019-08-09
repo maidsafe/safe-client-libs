@@ -21,9 +21,7 @@ pub fn create_dir(
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
 ) -> Box<NfsFuture<()>> {
-    let pub_key = fry!(client
-        .owner_key()
-        .ok_or_else(|| NfsError::Unexpected("Owner key not found".to_string())));
+    let pub_key = client.owner_key();
 
     let dir_md =
         SeqMutableData::new_with_data(dir.name(), dir.type_tag(), contents, perms, pub_key);

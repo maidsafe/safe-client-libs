@@ -213,7 +213,7 @@ fn main() {
     let (tx, rx) = mpsc::channel();
 
     unwrap!(auth.send(move |client| {
-        let public_key = PublicKey::from(unwrap!(client.public_bls_key()));
+        let public_key = client.public_key();
 
         unwrap!(tx.send(public_key));
 

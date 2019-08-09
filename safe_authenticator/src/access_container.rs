@@ -65,9 +65,7 @@ pub fn fetch_authenticator_entry(
     let access_container = client.access_container();
 
     let key = {
-        let sk = fry!(client
-            .secret_symmetric_key()
-            .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string())));
+        let sk = client.secret_symmetric_key();
         fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk))
     };
 
@@ -75,9 +73,7 @@ pub fn fetch_authenticator_entry(
         .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
         .map_err(From::from)
         .and_then(move |value| {
-            let enc_key = c2.secret_symmetric_key().ok_or_else(|| {
-                AuthError::Unexpected("Secret symmetric key not found".to_string())
-            })?;
+            let enc_key = c2.secret_symmetric_key();
             decode_authenticator_entry(&value.data, &enc_key)
                 .map(|decoded| (value.version, decoded))
         })
@@ -92,9 +88,7 @@ pub fn put_authenticator_entry(
 ) -> Box<AuthFuture<()>> {
     let access_container = client.access_container();
     let (key, ciphertext) = {
-        let sk = fry!(client
-            .secret_symmetric_key()
-            .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string())));
+        let sk = client.secret_symmetric_key();
         let key = fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
         let ciphertext = fry!(encode_authenticator_entry(new_value, &sk));
 

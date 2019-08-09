@@ -15,19 +15,16 @@ use crate::nfs::NfsFuture;
 use crate::utils::FutureExt;
 use futures::{future, Future};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use safe_nd::{IDataAddress, IDataKind, XorName};
+use safe_nd::{IDataAddress, XorName};
 use self_encryption::DataMap;
 
 // Get `DataMap` from the network.
 // If the `DataMap` is encrypted, an `encryption_key` must be passed in to decrypt it.
 pub fn get(
     client: &impl Client,
-    name: &XorName,
-    published: bool,
+    address: IDataAddress,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<DataMap>> {
-    let kind = IDataKind::from_flag(published);
-    let address = IDataAddress::from_kind(kind, *name);
     immutable_data::get_value(client, address, encryption_key)
         .map_err(From::from)
         .and_then(move |content| deserialise(&content).map_err(From::from))

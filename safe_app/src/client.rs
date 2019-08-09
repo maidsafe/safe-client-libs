@@ -73,8 +73,8 @@ impl AppClient {
                 net_tx,
             ))),
             app_inner: Rc::new(RefCell::new(AppInner::new(
-                Some(client_keys),
-                Some(client_pk),
+                client_keys,
+                client_pk,
                 None,
                 config,
             ))),
@@ -163,8 +163,8 @@ impl AppClient {
                 net_tx,
             ))),
             app_inner: Rc::new(RefCell::new(AppInner::new(
-                Some(keys),
-                Some(owner),
+                keys,
+                owner,
                 Some(cm_addr),
                 Some(config),
             ))),
@@ -177,12 +177,12 @@ impl Client for AppClient {
 
     fn full_id(&self) -> Option<FullId> {
         let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().map(Into::into)
+        Some(app_inner.keys.clone()).map(Into::into)
     }
 
     fn public_id(&self) -> PublicId {
         PublicId::App(
-            AppFullId::with_keys(unwrap!(self.secret_bls_key()), unwrap!(self.owner_key()))
+            AppFullId::with_keys(self.secret_bls_key(), self.owner_key())
                 .public_id()
                 .clone(),
         )
@@ -202,51 +202,56 @@ impl Client for AppClient {
         self.inner.clone()
     }
 
-    fn public_signing_key(&self) -> Option<sign::PublicKey> {
+    fn public_signing_key(&self) -> sign::PublicKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.sign_pk)
+        app_inner.keys.clone().sign_pk
     }
 
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey> {
+    fn secret_signing_key(&self) -> shared_sign::SecretKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.sign_sk)
+        app_inner.keys.clone().sign_sk
     }
 
-    fn public_encryption_key(&self) -> Option<box_::PublicKey> {
+    fn public_encryption_key(&self) -> box_::PublicKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.enc_pk)
+        app_inner.keys.clone().enc_pk
     }
 
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey> {
+    fn secret_encryption_key(&self) -> shared_box::SecretKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.enc_sk)
+        app_inner.keys.clone().enc_sk
     }
 
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
+    fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.enc_key)
+        app_inner.keys.clone().enc_key
     }
 
-    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey> {
+    fn public_bls_key(&self) -> threshold_crypto::PublicKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.bls_pk)
+        app_inner.keys.clone().bls_pk
     }
 
-    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey> {
+    fn secret_bls_key(&self) -> threshold_crypto::SecretKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()?.bls_sk)
+        app_inner.keys.clone().bls_sk
     }
 
-    fn owner_key(&self) -> Option<PublicKey> {
+    fn owner_key(&self) -> PublicKey {
         let app_inner = self.app_inner.borrow();
         app_inner.owner_key
+    }
+
+    fn public_key(&self) -> PublicKey {
+        self.public_bls_key().into()
     }
 
     fn compose_message(&self, request: Request, sign: bool) -> Message {
         let message_id = MessageId::new();
 
         let signature = if sign {
-            let sig = unwrap!(self.secret_bls_key())
+            let sig = self
+                .secret_bls_key()
                 .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
             Some(Signature::from(sig))
         } else {
@@ -277,16 +282,16 @@ impl fmt::Debug for AppClient {
 }
 
 struct AppInner {
-    keys: Option<ClientKeys>,
-    owner_key: Option<PublicKey>,
+    keys: ClientKeys,
+    owner_key: PublicKey,
     cm_addr: Option<Authority<XorName>>,
     config: Option<BootstrapConfig>,
 }
 
 impl AppInner {
     pub fn new(
-        keys: Option<ClientKeys>,
-        owner_key: Option<PublicKey>,
+        keys: ClientKeys,
+        owner_key: PublicKey,
         cm_addr: Option<Authority<XorName>>,
         config: Option<BootstrapConfig>,
     ) -> AppInner {

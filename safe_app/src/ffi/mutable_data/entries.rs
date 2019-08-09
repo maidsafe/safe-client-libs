@@ -302,7 +302,7 @@ mod tests {
     use safe_core::ffi::MDataKind;
     use safe_core::ipc::resp::{MDataEntry, MDataKey, MDataValue};
     use safe_core::utils;
-    use safe_nd::{MDataSeqValue, PublicKey};
+    use safe_nd::MDataSeqValue;
     use std::os::raw::c_void;
     use std::sync::mpsc;
 
@@ -479,9 +479,7 @@ mod tests {
             unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
 
         let app_pk_handle = unwrap!(run(&app, move |client, context| {
-            Ok(context
-                .object_cache()
-                .insert_pub_key(PublicKey::from(unwrap!(client.public_bls_key()))))
+            Ok(context.object_cache().insert_pub_key(client.public_key()))
         }));
 
         unsafe {

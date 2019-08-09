@@ -99,9 +99,7 @@ fn create_access_container(
     access_container: &MDataInfo,
     default_entries: &HashMap<String, MDataInfo>,
 ) -> Box<AuthFuture<()>> {
-    let enc_key = fry!(client
-        .secret_symmetric_key()
-        .ok_or_else(|| AuthError::Unexpected("Secret symmetric key not found".to_string())));
+    let enc_key = client.secret_symmetric_key();
 
     // Create access container
     let authenticator_key = fry!(access_container_enc_key(

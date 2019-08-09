@@ -105,7 +105,7 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
     let data: IData = if published {
         PubImmutableData::new(value).into()
     } else {
-        UnpubImmutableData::new(value, unwrap!(client.public_bls_key()).into()).into()
+        UnpubImmutableData::new(value, client.public_key()).into()
     };
     let serialised_data = fry!(serialise(&data));
 

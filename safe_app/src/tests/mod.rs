@@ -295,7 +295,7 @@ fn unregistered_client() {
         let mut unpub_adata = unpub_adata.clone();
         random_client(|client| {
             let owner = ADataOwner {
-                public_key: unwrap!(client.owner_key()),
+                public_key: client.owner_key(),
                 entries_index: 0,
                 permissions_index: 0,
             };
@@ -356,7 +356,7 @@ fn published_data_access() {
         let mut pub_unseq_adata = pub_unseq_adata.clone();
         random_client(|client| {
             let owner = ADataOwner {
-                public_key: unwrap!(client.owner_key()),
+                public_key: client.owner_key(),
                 entries_index: 0,
                 permissions_index: 0,
             };

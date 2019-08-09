@@ -512,44 +512,48 @@ impl Client for AuthClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> Option<box_::PublicKey> {
+    fn public_encryption_key(&self) -> box_::PublicKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.enc_pk)
+        auth_inner.acc.maid_keys.enc_pk
     }
 
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey> {
+    fn secret_encryption_key(&self) -> shared_box::SecretKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.enc_sk.clone())
+        auth_inner.acc.maid_keys.enc_sk.clone()
     }
 
-    fn public_signing_key(&self) -> Option<sign::PublicKey> {
+    fn public_signing_key(&self) -> sign::PublicKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.sign_pk)
+        auth_inner.acc.maid_keys.sign_pk
     }
 
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey> {
+    fn secret_signing_key(&self) -> shared_sign::SecretKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.sign_sk.clone())
+        auth_inner.acc.maid_keys.sign_sk.clone()
     }
 
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
+    fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.enc_key.clone())
+        auth_inner.acc.maid_keys.enc_key.clone()
     }
 
-    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey> {
+    fn public_bls_key(&self) -> threshold_crypto::PublicKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.bls_pk)
+        auth_inner.acc.maid_keys.bls_pk
     }
 
-    fn secret_bls_key(&self) -> Option<BlsSecretKey> {
+    fn secret_bls_key(&self) -> BlsSecretKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.bls_sk.clone())
+        auth_inner.acc.maid_keys.bls_sk.clone()
     }
 
-    fn owner_key(&self) -> Option<PublicKey> {
+    fn owner_key(&self) -> PublicKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(PublicKey::from(auth_inner.acc.maid_keys.bls_pk))
+        PublicKey::from(auth_inner.acc.maid_keys.bls_pk)
+    }
+
+    fn public_key(&self) -> PublicKey {
+        self.public_bls_key().into()
     }
 
     fn compose_message(&self, request: Request, sign: bool) -> Message {

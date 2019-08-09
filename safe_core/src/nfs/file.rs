@@ -11,6 +11,7 @@ use crate::nfs::errors::NfsError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use routing::XorName;
+use safe_nd::{IDataAddress, IDataKind};
 use std::slice;
 
 /// Representation of a File to be put into the network. Could be any kind of
@@ -87,6 +88,12 @@ impl File {
     /// Get published status of a file
     pub fn published(&self) -> bool {
         self.published
+    }
+
+    /// Get the Immutable Data address of the file
+    pub fn data_address(&self) -> IDataAddress {
+        let kind = IDataKind::from_flag(self.published());
+        IDataAddress::from_kind(kind, *self.data_map_name())
     }
 
     /// Set the data-map name of the File

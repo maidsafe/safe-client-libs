@@ -43,14 +43,9 @@ impl<C: Client> Writer<C> {
         encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Writer<C>>> {
         let fut = match mode {
-            Mode::Append => data_map::get(
-                client,
-                file.data_map_name(),
-                file.published(),
-                encryption_key.clone(),
-            )
-            .map(Some)
-            .into_box(),
+            Mode::Append => data_map::get(client, file.data_address(), encryption_key.clone())
+                .map(Some)
+                .into_box(),
             Mode::Overwrite => ok!(None),
         };
         let client = client.clone();

@@ -118,42 +118,45 @@ pub trait Client: Clone + 'static {
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>>;
 
     /// Return the public encryption key.
-    fn public_encryption_key(&self) -> Option<box_::PublicKey>;
+    fn public_encryption_key(&self) -> box_::PublicKey;
 
     /// Return the secret encryption key.
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey>;
+    fn secret_encryption_key(&self) -> shared_box::SecretKey;
 
     /// Return the public and secret encryption keys.
-    fn encryption_keypair(&self) -> Option<(box_::PublicKey, shared_box::SecretKey)> {
-        Some((self.public_encryption_key()?, self.secret_encryption_key()?))
+    fn encryption_keypair(&self) -> (box_::PublicKey, shared_box::SecretKey) {
+        (self.public_encryption_key(), self.secret_encryption_key())
     }
 
     /// Return the symmetric encryption key.
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key>;
+    fn secret_symmetric_key(&self) -> shared_secretbox::Key;
 
     /// Return the public signing key.
-    fn public_signing_key(&self) -> Option<sign::PublicKey>;
+    fn public_signing_key(&self) -> sign::PublicKey;
 
     /// Return the secret signing key.
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey>;
+    fn secret_signing_key(&self) -> shared_sign::SecretKey;
 
     /// Return the public BLS key.
-    fn public_bls_key(&self) -> Option<threshold_crypto::PublicKey>;
+    fn public_bls_key(&self) -> threshold_crypto::PublicKey;
 
     /// Return the secret BLS key.
-    fn secret_bls_key(&self) -> Option<threshold_crypto::SecretKey>;
+    fn secret_bls_key(&self) -> threshold_crypto::SecretKey;
 
     /// Create a `Message` from the given request.
     /// This function adds the requester signature and message ID.
     fn compose_message(&self, req: Request, sign: bool) -> Message;
 
     /// Return the public and secret signing keys.
-    fn signing_keypair(&self) -> Option<(sign::PublicKey, shared_sign::SecretKey)> {
-        Some((self.public_signing_key()?, self.secret_signing_key()?))
+    fn signing_keypair(&self) -> (sign::PublicKey, shared_sign::SecretKey) {
+        (self.public_signing_key(), self.secret_signing_key())
     }
 
     /// Return the owner signing key.
-    fn owner_key(&self) -> Option<PublicKey>;
+    fn owner_key(&self) -> PublicKey;
+
+    /// Return the client's public key
+    fn public_key(&self) -> PublicKey;
 
     /// Set request timeout.
     fn set_timeout(&self, duration: Duration) {
@@ -351,7 +354,7 @@ pub trait Client: Clone + 'static {
         };
         trace!(
             "Get balance for {:?}",
-            requester.unwrap_or_else(|| unwrap!(self.owner_key()))
+            requester.unwrap_or_else(|| self.owner_key())
         );
         send(
             self,
@@ -2020,10 +2023,7 @@ mod tests {
             let client8 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = UnpubImmutableData::new(
-                value.clone(),
-                PublicKey::Bls(unwrap!(client.public_bls_key())),
-            );
+            let data = UnpubImmutableData::new(value.clone(), client.public_key());
             let data2 = data.clone();
             let data3 = data.clone();
             let address = *data.address();
@@ -2105,10 +2105,7 @@ mod tests {
             let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
             let mut permissions: BTreeMap<_, _> = Default::default();
             let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
-            let _ = permissions.insert(
-                PublicKey::Bls(unwrap!(client.public_bls_key())),
-                permission_set.clone(),
-            );
+            let _ = permissions.insert(client.public_key(), permission_set.clone());
             let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
             let entries_keys = entries.keys().cloned().collect();
             let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
@@ -2118,7 +2115,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
             client
                 .put_unseq_mutable_data(data.clone())
@@ -2185,16 +2182,13 @@ mod tests {
             let entries_values: Vec<MDataSeqValue> = entries.values().cloned().collect();
             let mut permissions: BTreeMap<_, _> = Default::default();
             let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
-            let _ = permissions.insert(
-                PublicKey::Bls(unwrap!(client.public_bls_key())),
-                permission_set.clone(),
-            );
+            let _ = permissions.insert(client.public_key(), permission_set.clone());
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
                 entries.clone(),
                 permissions,
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
 
             client
@@ -2254,7 +2248,7 @@ mod tests {
                 tag,
                 Default::default(),
                 Default::default(),
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
 
             client
@@ -2293,7 +2287,7 @@ mod tests {
                 tag,
                 Default::default(),
                 Default::default(),
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
 
             client
@@ -2326,11 +2320,8 @@ mod tests {
     #[test]
     fn coin_permissions() {
         let wallet_a_addr = random_client(move |client| {
-            let wallet_a_addr: XorName = unwrap!(client.owner_key()).into();
-            client.test_create_balance(
-                unwrap!(client.owner_key()),
-                unwrap!(Coins::from_str("10.0")),
-            );
+            let wallet_a_addr: XorName = client.owner_key().into();
+            client.test_create_balance(client.owner_key(), unwrap!(Coins::from_str("10.0")));
             client
                 .transfer_coins(
                     None,
@@ -2362,10 +2353,7 @@ mod tests {
                         Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    c2.test_create_balance(
-                        unwrap!(c3.owner_key()),
-                        unwrap!(Coins::from_str("50.0")),
-                    );
+                    c2.test_create_balance(c3.owner_key(), unwrap!(Coins::from_str("50.0")));
 
                     c3.transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
                 })
@@ -2403,12 +2391,9 @@ mod tests {
             let client5 = client.clone();
             let bls_sk = threshold_crypto::SecretKey::random();
             let bls_sk2 = bls_sk.clone();
-            let wallet1: XorName = unwrap!(client.owner_key()).into();
+            let wallet1: XorName = client.owner_key().into();
 
-            client.test_create_balance(
-                unwrap!(client.owner_key()),
-                unwrap!(Coins::from_str("500.0")),
-            );
+            client.test_create_balance(client.owner_key(), unwrap!(Coins::from_str("500.0")));
 
             client1
                 .create_balance(
@@ -2474,7 +2459,7 @@ mod tests {
         let wallet1: XorName = random_client(move |client| {
             let client1 = client.clone();
             let client2 = client.clone();
-            let owner_key = unwrap!(client.owner_key());
+            let owner_key = client.owner_key();
             let wallet1: XorName = owner_key.into();
 
             client.test_create_balance(owner_key, unwrap!(Coins::from_str("0.0")));
@@ -2488,7 +2473,7 @@ mod tests {
         });
 
         random_client(move |client| {
-            let owner_key = unwrap!(client.owner_key());
+            let owner_key = client.owner_key();
             client.test_create_balance(owner_key, unwrap!(Coins::from_str("100.0")));
 
             let c2 = client.clone();
@@ -2528,7 +2513,7 @@ mod tests {
                 tag,
                 Default::default(),
                 Default::default(),
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
 
             client.put_unseq_mutable_data(data.clone()).then(|res| res)
@@ -2564,7 +2549,7 @@ mod tests {
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
                 .allow(MDataAction::ManagePermissions);
-            let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
+            let user = client.public_key();
             let user2 = user;
             let random_user = PublicKey::Bls(threshold_crypto::SecretKey::random().public_key());
             let _ = permissions.insert(user, permission_set.clone());
@@ -2574,7 +2559,7 @@ mod tests {
                 tag,
                 Default::default(),
                 permissions.clone(),
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
             let test_data = SeqMutableData::new_with_data(
                 XorName(rand::random()),
@@ -2675,7 +2660,7 @@ mod tests {
                 .allow(MDataAction::Insert)
                 .allow(MDataAction::Update)
                 .allow(MDataAction::Delete);
-            let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
+            let user = client.public_key();
             let _ = permissions.insert(user, permission_set.clone());
             let mut entries: MDataSeqEntries = Default::default();
             let _ = entries.insert(
@@ -2697,7 +2682,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
             client
                 .put_seq_mutable_data(data.clone())
@@ -2787,7 +2772,7 @@ mod tests {
                 .allow(MDataAction::Insert)
                 .allow(MDataAction::Update)
                 .allow(MDataAction::Delete);
-            let user = PublicKey::Bls(unwrap!(client.public_bls_key()));
+            let user = client.public_key();
             let _ = permissions.insert(user, permission_set.clone());
             let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
             let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
@@ -2797,7 +2782,7 @@ mod tests {
                 tag,
                 entries.clone(),
                 permissions,
-                PublicKey::from(unwrap!(client.public_bls_key())),
+                client.public_key(),
             );
             client
                 .put_unseq_mutable_data(data.clone())
@@ -2870,7 +2855,7 @@ mod tests {
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
             let idx = ADataIndex::FromStart(0);
-            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+            let _ = perms.insert(client.public_key(), set);
             let address = ADataAddress::UnpubSeq { name, tag };
 
             unwrap!(data.append_permissions(
@@ -2883,7 +2868,7 @@ mod tests {
             ));
 
             let owner = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
+                public_key: client.public_key(),
                 entries_index: 0,
                 permissions_index: 1,
             };
@@ -2941,7 +2926,7 @@ mod tests {
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
 
-            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+            let _ = perms.insert(client.public_key(), set);
 
             let key1 = b"KEY1".to_vec();
             let key2 = b"KEY2".to_vec();
@@ -2991,7 +2976,7 @@ mod tests {
             };
 
             let owner = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
+                public_key: client.public_key(),
                 entries_index: 4,
                 permissions_index: 1,
             };
@@ -3078,11 +3063,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client8
-                        .get_unpub_adata_user_permissions(
-                            adataref,
-                            idx_start,
-                            PublicKey::Bls(unwrap!(client8.public_bls_key())),
-                        )
+                        .get_unpub_adata_user_permissions(adataref, idx_start, client8.public_key())
                         .map(move |set| {
                             assert!(set.is_allowed(ADataAction::Append));
                         })
@@ -3105,7 +3086,7 @@ mod tests {
             let mut perms = BTreeMap::<ADataUser, ADataPubPermissionSet>::new();
             let set = ADataPubPermissionSet::new(true, true);
 
-            let usr = ADataUser::Key(PublicKey::Bls(unwrap!(client.public_bls_key())));
+            let usr = ADataUser::Key(client.public_key());
             let _ = perms.insert(usr, set);
 
             unwrap!(data.append_permissions(
@@ -3130,7 +3111,7 @@ mod tests {
             };
 
             let owner = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
+                public_key: client.public_key(),
                 entries_index: 0,
                 permissions_index: 1,
             };
@@ -3172,7 +3153,7 @@ mod tests {
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
 
-            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+            let _ = perms.insert(client.public_key(), set);
 
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
@@ -3196,7 +3177,7 @@ mod tests {
             };
 
             let owner = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
+                public_key: client.public_key(),
                 entries_index: 0,
                 permissions_index: 1,
             };
@@ -3239,7 +3220,7 @@ mod tests {
             let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
             let set = ADataUnpubPermissionSet::new(true, true, true);
 
-            let _ = perms.insert(PublicKey::Bls(unwrap!(client.public_bls_key())), set);
+            let _ = perms.insert(client.public_key(), set);
 
             unwrap!(data.append_permissions(
                 ADataUnpubPermissions {
@@ -3261,7 +3242,7 @@ mod tests {
             unwrap!(data.append(kvdata));
 
             let owner = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client.public_bls_key())),
+                public_key: client.public_key(),
                 entries_index: 2,
                 permissions_index: 1,
             };
@@ -3269,13 +3250,13 @@ mod tests {
             unwrap!(data.append_owner(owner, 0));
 
             let owner2 = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client1.public_bls_key())),
+                public_key: client1.public_key(),
                 entries_index: 2,
                 permissions_index: 1,
             };
 
             let owner3 = ADataOwner {
-                public_key: PublicKey::Bls(unwrap!(client2.public_bls_key())),
+                public_key: client2.public_key(),
                 entries_index: 2,
                 permissions_index: 1,
             };

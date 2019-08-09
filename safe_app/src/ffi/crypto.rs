@@ -41,9 +41,7 @@ pub unsafe extern "C" fn app_pub_sign_key(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |client, context| {
-            let key = client
-                .public_signing_key()
-                .ok_or(AppError::UnregisteredClientAccess)?;
+            let key = client.public_signing_key();
             Ok(context.object_cache().insert_pub_sign_key(key))
         })
     })
@@ -193,9 +191,7 @@ pub unsafe extern "C" fn app_pub_enc_key(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |client, context| {
-            let key = client
-                .public_encryption_key()
-                .ok_or(AppError::UnregisteredClientAccess)?;
+            let key = client.public_encryption_key();
             Ok(context.object_cache().insert_encrypt_key(key))
         })
     })
@@ -363,15 +359,7 @@ pub unsafe extern "C" fn sign(
 
         (*app).send(move |client, context| {
             let sign_sk = if sign_sk_h == SIGN_WITH_APP {
-                try_cb!(
-                    client
-                        .secret_signing_key()
-                        .ok_or_else(|| AppError::Unexpected(
-                            "Secret signing key not found".to_string()
-                        )),
-                    user_data,
-                    o_cb
-                )
+                client.secret_signing_key()
             } else {
                 let sign_sk = try_cb!(
                     context.object_cache().get_sec_sign_key(sign_sk_h),
@@ -866,7 +854,7 @@ mod tests {
         let app_sign_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_sign_key(&app, ud, cb))) };
 
         let app_sign_key1 = unwrap!(run(&app, move |client, context| {
-            let app_sign_key1 = unwrap!(client.public_signing_key());
+            let app_sign_key1 = client.public_signing_key();
             let app_sign_key2 = unwrap!(context.object_cache().get_pub_sign_key(app_sign_key1_h));
             assert_eq!(app_sign_key1, *app_sign_key2);
 
@@ -924,7 +912,7 @@ mod tests {
         let app = create_app();
 
         let app_sign_key1 = unwrap!(run(&app, move |client, _| {
-            let app_sign_key1 = unwrap!(client.secret_signing_key());
+            let app_sign_key1 = client.secret_signing_key();
 
             Ok(app_sign_key1)
         }));
@@ -979,7 +967,7 @@ mod tests {
         let app_enc_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_enc_key(&app, ud, cb))) };
 
         let app_enc_key1 = unwrap!(run(&app, move |client, context| {
-            let app_enc_key1 = unwrap!(client.public_encryption_key());
+            let app_enc_key1 = client.public_encryption_key();
             let app_enc_key2 = unwrap!(context.object_cache().get_encrypt_key(app_enc_key1_h));
             assert_eq!(app_enc_key1, *app_enc_key2);
 

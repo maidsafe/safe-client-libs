@@ -161,9 +161,7 @@ pub fn decode_share_mdata_req(
     client: &AuthClient,
     req: &ShareMDataReq,
 ) -> Box<AuthFuture<Vec<Option<FfiUserMetadata>>>> {
-    let user = PublicKey::from(fry!(client
-        .public_bls_key()
-        .ok_or_else(|| AuthError::Unexpected("Public signing key not found".to_string()))));
+    let user = client.public_key();
     let num_mdata = req.mdata.len();
     let mut futures = Vec::with_capacity(num_mdata);
 

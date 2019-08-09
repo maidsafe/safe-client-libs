@@ -458,7 +458,7 @@ mod tests_with_mock_routing {
 
             let name = new_rand::random();
             let tag = 10_000;
-            let owners = PublicKey::Bls(unwrap!(client.public_bls_key()));
+            let owners = client.public_key();
 
             let entries = btree_map![
                  vec![0] => MDataSeqValue {
@@ -581,7 +581,7 @@ mod tests_with_mock_routing {
                     version: 0,
                 }
             ];
-            let owners = PublicKey::Bls(unwrap!(client.public_bls_key()));
+            let owners = client.public_key();
             let data =
                 SeqMutableData::new_with_data(name, tag, entries, Default::default(), owners);
 
@@ -666,7 +666,7 @@ mod tests_with_mock_routing {
 
             let name: XorName = new_rand::random();
             let tag = 10_000;
-            let owners = PublicKey::from(unwrap!(client.public_bls_key()));
+            let owners = client.public_key();
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
