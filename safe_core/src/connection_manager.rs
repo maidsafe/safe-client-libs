@@ -13,7 +13,7 @@ use bytes::Bytes;
 use connection_group::ConnectionGroup;
 use crossbeam_channel::{self, Receiver};
 use futures::{future, Future};
-use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, NodeInfo, QuicP2p};
+use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, NodeInfo, Peer, QuicP2p, Token};
 use safe_nd::{Message, PublicId, Response};
 use std::{
     mem,
@@ -75,7 +75,7 @@ impl ConnectionManager {
     }
 
     /// Connect to Client Handlers that manage the provided ID.
-    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<()>> {
+    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<Result<(), CoreError>>> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
         let elders = Default::default();
@@ -103,7 +103,7 @@ impl ConnectionManager {
             )
         } else {
             trace!("Group {} is already connected", full_id.public_id());
-            ok!(())
+            ok!(Ok(()))
         }
     }
 
@@ -187,22 +187,36 @@ impl Inner {
         // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
         // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.handle_response(sender, token, response)` should be called.
         match event {
-            BootstrapFailure => unimplemented!(),
+            BootstrapFailure => self.handle_bootstrap_failure(),
             BootstrappedTo { node } => self.handle_bootstrapped_to(node),
             ConnectionFailure { peer_addr, err } => self.handle_connection_failure(peer_addr, err),
             SentUserMessage {
                 peer_addr,
                 msg,
                 token,
-            } => (), // unimplemented!(),
+            } => self.handle_sent_user_message(peer_addr, msg, token),
             UnsentUserMessage {
                 peer_addr,
                 msg,
                 token,
-            } => unimplemented!(),
-            ConnectedTo { peer } => (),
+            } => self.handle_unsent_user_message(peer_addr, msg, token),
+            ConnectedTo { peer } => self.handle_connected_to(peer),
             NewMessage { peer_addr, msg } => self.handle_new_message(peer_addr, msg),
-            Finish => unimplemented!(),
+            Finish => {
+                info!("Received unexpected event: {}", event);
+            }
+        }
+    }
+
+    fn handle_bootstrap_failure(&mut self) {
+        if let Some(group) = self.groups.values_mut().next() {
+            group.handle_bootstrap_failure()
+        }
+    }
+
+    fn handle_bootstrapped_to(&mut self, node: NodeInfo) {
+        if let Some(group) = self.groups.values_mut().next() {
+            group.handle_bootstrapped_to(node)
         }
     }
 
@@ -225,10 +239,20 @@ impl Inner {
             });
     }
 
-    fn handle_bootstrapped_to(&mut self, node: NodeInfo) {
-        if let Some(group) = self.groups.values_mut().next() {
-            group.handle_bootstrapped_to(node)
-        }
+    fn handle_sent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
+        let _ = self
+            .connection_group_mut(&peer_addr)
+            .map(|group| group.handle_sent_user_message(peer_addr, msg, token));
+    }
+
+    fn handle_unsent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
+        let _ = self
+            .connection_group_mut(&peer_addr)
+            .map(|group| group.handle_unsent_user_message(peer_addr, msg, token));
+    }
+
+    fn handle_connected_to(&mut self, peer: Peer) {
+        // TODO
     }
 
     fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: Bytes) {
