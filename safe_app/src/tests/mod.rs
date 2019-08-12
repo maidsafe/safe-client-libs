@@ -7,6 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
+mod append_only_data;
 mod coins;
 mod mutable_data;
 mod unpublished_mutable_data;
