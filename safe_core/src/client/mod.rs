@@ -954,11 +954,6 @@ pub trait Client: Clone + 'static {
             .into_box()
     }
 
-    /// Delete AData from network.
-    fn delete_adata(&self, address: ADataAddress) -> Box<CoreFuture<()>> {
-        send_mutation_new(self, Request::DeleteAData(address))
-    }
-
     /// Get AppendOnly Data Shell from the Network
     fn get_adata_shell(
         &self,
@@ -1697,6 +1692,13 @@ pub trait AuthActions: Client + Clone + 'static {
         trace!("Delete entire Mutable Data at {:?}", address);
 
         send_mutation_new(self, Request::DeleteMData(address))
+    }
+
+    /// Delete AData from network.
+    fn delete_adata(&self, address: ADataAddress) -> Box<CoreFuture<()>> {
+        trace!("Delete entire Unpublished AppendOnly Data at {:?}", address);
+
+        send_mutation_new(self, Request::DeleteAData(address))
     }
 }
 

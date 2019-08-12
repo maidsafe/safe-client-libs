@@ -8,7 +8,7 @@
 // Software.
 
 use crate::test_utils::{create_app, create_random_auth_req};
-use crate::{run, App};
+use crate::{run, App, AppError};
 use futures::Future;
 use safe_authenticator::test_utils::{create_authenticator, register_app};
 use safe_authenticator::{run as auth_run, AuthError};
@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::sync::mpsc;
 use std::thread;
 
-// AD created by app. App lists it's own sign_pk in owners field. Put should fail - Rejected at the client handlers.
+// AD created by app. App lists its own sign_pk in owners field. Put should fail - Rejected at the client handlers.
 // Should pass when it lists the owner's sign_pk instead.
 #[test]
 fn ad_created_by_app() {
@@ -63,7 +63,7 @@ fn ad_created_by_app() {
                 }
                 client2.put_adata(valid_data.into())
             })
-            .map_err(|e| panic!("{:?}", e))
+            .map_err(AppError::from)
     }));
 }
 
@@ -224,16 +224,16 @@ fn managing_permissions_for_an_app() {
                     )
                 })
                 .map(move |()| unwrap!(app_allowed_tx.send(())))
-                .map_err(|e| panic!("{:?}", e))
+                .map_err(AppError::from)
         })
     });
     unwrap!(finish_rx.recv());
 }
 
 // AData created by a random client. A random application tries to read the data - should fail.
-// The client adds the app's key to it's list of apps and to the permissions list of the data
+// The client adds the app's key to its list of apps and to the permissions list of the data
 // giving it read and append permissions. The app should now be able read the data and append to it.
-// The client then revokes the app by removing it from it's list of authorised apps. The app should not
+// The client then revokes the app by removing it from its list of authorised apps. The app should not
 // be able to access the data anymore. The client then deletes the data from the network and tries to read it.
 // It should fail with a no such data error.
 #[test]

@@ -8,7 +8,7 @@
 // Software.
 
 use crate::test_utils::{create_app, create_random_auth_req};
-use crate::{run, App};
+use crate::{run, App, AppError};
 use futures::Future;
 use safe_authenticator::test_utils::{create_authenticator, register_app};
 use safe_authenticator::{run as auth_run, AuthError};
@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::sync::mpsc;
 use std::thread;
 
-// AD created by app. App lists it's own sign_pk in owners field. Put should fail - Rejected at the client handlers.
+// AD created by app. App lists its own sign_pk in owners field. Put should fail - Rejected at the client handlers.
 // Should pass when it lists the owner's sign_pk instead.
 #[test]
 fn ad_created_by_app() {
@@ -63,7 +63,7 @@ fn ad_created_by_app() {
                 }
                 client2.put_adata(valid_data.into())
             })
-            .map_err(|e| panic!("{:?}", e))
+            .map_err(AppError::from)
     }));
 }
 
@@ -237,16 +237,16 @@ fn managing_permissions_for_an_app() {
                     )
                 })
                 .map(move |()| unwrap!(app_allowed_tx.send(())))
-                .map_err(|e| panic!("{:?}", e))
+                .map_err(AppError::from)
         })
     });
     unwrap!(finish_rx.recv());
 }
 
 // AData created by a random client. A random application tries to read the data - should pass.
-// The client adds the app's key to it's list of apps and to the permissions list of the data
+// The client adds the app's key to its list of apps and to the permissions list of the data
 // giving it append permissions. The app should now be able and append to the data.
-// The client then revokes the app by removing it from it's list of authorised apps. The app should not
+// The client then revokes the app by removing it from its list of authorised apps. The app should not
 // be able to append to the data anymore. But it should still be able to read the data since it is published.
 // The client tries to delete the data. It should fail since it's an invalid operation
 #[test]
@@ -378,5 +378,210 @@ fn restricted_access_and_deletion() {
         }));
     });
     unwrap!(finish_rx.recv());
+    unwrap!(handle.join());
+}
+
+// A client publishes some data giving permissions for ANYONE to append to the data and an app to manage permissions.
+// The app should be able to append to the permissions and entries list. Random clients should be able to append and read the entries.
+// The client then specifically denies the application permission to append entries and permissions.
+// The app's attempts to append permissions and entries - should fail. App tries to read data - should pass.
+// Random clients should still be able to read and append entries.
+#[test]
+fn public_permissions_with_app_restrictions() {
+    let app = create_app();
+    let (app_key_tx, app_key_rx) = mpsc::channel();
+    let (address_tx, address_rx) = mpsc::channel();
+    let (remove_app_tx, remove_app_rx) = mpsc::channel();
+    let (app_removed_tx, app_removed_rx) = mpsc::channel();
+    let (finish_tx, finish_rx) = mpsc::channel();
+
+    unwrap!(app.send(move |client, _| {
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
+
+        let app_key = client.public_key();
+        unwrap!(app_key_tx.send(app_key));
+        let address: ADataAddress = unwrap!(address_rx.recv());
+        client
+            .get_adata(address)
+            .and_then(move |data| {
+                assert_eq!(*data.address(), address);
+                let values = vec![ADataEntry::new(vec![3], vec![1, 2, 3])];
+                client2.append_unseq_adata(ADataAppendOperation { address, values })
+            })
+            .and_then(move |()| {
+                let mut permissions = BTreeMap::new();
+                let random_app =
+                    PublicKey::from(threshold_crypto::SecretKey::random().public_key());
+                let _ = permissions.insert(
+                    ADataUser::Key(app_key),
+                    ADataPubPermissionSet::new(true, true),
+                );
+                let _ = permissions.insert(
+                    ADataUser::Key(random_app),
+                    ADataPubPermissionSet::new(true, true),
+                );
+                let _ =
+                    permissions.insert(ADataUser::Anyone, ADataPubPermissionSet::new(true, false));
+                client3.add_pub_adata_permissions(
+                    address,
+                    ADataPubPermissions {
+                        permissions,
+                        entries_index: 4,
+                        owners_index: 1,
+                    },
+                    1,
+                )
+            })
+            .and_then(move |()| {
+                random_app_access(address);
+                unwrap!(remove_app_tx.send(()));
+                unwrap!(app_removed_rx.recv());
+                let values = vec![ADataEntry::new(vec![6], vec![1, 2, 3])];
+                client4.append_unseq_adata(ADataAppendOperation { address, values })
+            })
+            .then(move |res| {
+                match res {
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
+                    res => panic!("Unexpected result: {:?}", res),
+                }
+                let permissions = BTreeMap::new();
+                client5.add_pub_adata_permissions(
+                    address,
+                    ADataPubPermissions {
+                        permissions,
+                        entries_index: 7,
+                        owners_index: 1,
+                    },
+                    3,
+                )
+            })
+            .then(move |res| {
+                match res {
+                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
+                    res => panic!("Unexpected result: {:?}", res),
+                }
+                client6.get_adata(address)
+            })
+            .then(move |res| {
+                let data = unwrap!(res);
+                assert_eq!(*data.address(), address);
+                random_app_access(address);
+                unwrap!(finish_tx.send(()));
+                Ok(())
+            })
+            .into_box()
+            .into()
+    }));
+
+    let handle = thread::spawn(move || {
+        random_client(move |client| {
+            let client2 = client.clone();
+
+            let app_pk: PublicKey = unwrap!(app_key_rx.recv());
+
+            let mut permissions = BTreeMap::new();
+            let _ = permissions.insert(
+                ADataUser::Key(app_pk),
+                ADataPubPermissionSet::new(None, true),
+            );
+            let _ = permissions.insert(ADataUser::Anyone, ADataPubPermissionSet::new(true, None));
+            let name: XorName = new_rand::random();
+            let tag = 15_002;
+            let mut data = PubUnseqAppendOnlyData::new(name, tag);
+
+            unwrap!(data.append_permissions(
+                ADataPubPermissions {
+                    permissions: permissions,
+                    entries_index: 0,
+                    owners_index: 0,
+                },
+                0
+            ));
+
+            unwrap!(data.append_owner(
+                ADataOwner {
+                    public_key: client.owner_key(),
+                    entries_index: 0,
+                    permissions_index: 1,
+                },
+                0
+            ));
+
+            let entries = vec![
+                ADataEntry::new(vec![0], vec![1, 2, 3]),
+                ADataEntry::new(vec![1], vec![1, 2, 3]),
+                ADataEntry::new(vec![2], vec![1, 2, 3]),
+            ];
+
+            unwrap!(data.append(entries));
+            let address = *data.address();
+            client
+                .put_adata(data.into())
+                .and_then(move |()| {
+                    unwrap!(address_tx.send(address));
+                    unwrap!(remove_app_rx.recv());
+                    let mut permissions = BTreeMap::new();
+                    let _ = permissions.insert(
+                        ADataUser::Key(app_pk),
+                        ADataPubPermissionSet::new(false, false),
+                    );
+                    let _ = permissions
+                        .insert(ADataUser::Anyone, ADataPubPermissionSet::new(true, false));
+                    client2.add_pub_adata_permissions(
+                        address,
+                        ADataPubPermissions {
+                            permissions,
+                            entries_index: 5,
+                            owners_index: 1,
+                        },
+                        2,
+                    )
+                })
+                .and_then(move |()| {
+                    unwrap!(app_removed_tx.send(()));
+                    Ok(())
+                })
+        })
+    });
+    unwrap!(handle.join());
+    unwrap!(finish_rx.recv());
+}
+
+fn random_app_access(address: ADataAddress) {
+    let handle = thread::spawn(move || {
+        let random_app = create_app();
+        unwrap!(run(&random_app, move |rand_client, _| {
+            let rand_client2 = rand_client.clone();
+            let rand_client3 = rand_client.clone();
+
+            rand_client
+                .get_adata(address)
+                .and_then(move |data| {
+                    assert_eq!(*data.address(), address);
+                    let key: [u8; 5] = new_rand::random();
+                    let values = vec![ADataEntry::new(key.to_vec(), vec![1, 2, 3])];
+                    rand_client2
+                        .append_unseq_adata(ADataAppendOperation { address, values })
+                        .map(move |()| data.entries_index() + 1)
+                })
+                .and_then(move |index| {
+                    rand_client3
+                        .get_adata_range(
+                            address,
+                            (ADataIndex::FromStart(0), ADataIndex::FromEnd(0)),
+                        )
+                        .map(move |entries| (entries, index))
+                })
+                .and_then(move |(entries, index)| {
+                    assert_eq!(entries.len() as u64, index);
+                    Ok(())
+                })
+                .map_err(AppError::from)
+        }));
+    });
     unwrap!(handle.join());
 }
