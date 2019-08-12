@@ -9,7 +9,7 @@
 use crate::CoreError;
 use directories::ProjectDirs;
 use quic_p2p::Config as QuicP2pConfig;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(test)]
 use std::path::PathBuf;
 use std::{
@@ -25,6 +25,9 @@ const CONFIG_DIR_QUALIFIER: &str = "net";
 const CONFIG_DIR_ORGANISATION: &str = "MaidSafe";
 const CONFIG_DIR_APPLICATION: &str = "safe_core";
 const CONFIG_FILE: &str = "safe_core.config";
+
+const VAULT_CONFIG_DIR_APPLICATION: &str = "safe_vault";
+const VAULT_CONNECTION_INFO_FILE: &str = "vault_connection_info.config";
 
 /// Configuration for safe-core.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -46,22 +49,10 @@ impl Config {
     }
 
     fn read_qp2p_from_file() -> Result<QuicP2pConfig, CoreError> {
-        let path = dirs()?.config_dir().join(CONFIG_FILE);
-        let file = match File::open(&path) {
-            Ok(file) => {
-                trace!("Reading settings from {}", path.display());
-                file
-            }
-            Err(error) => {
-                trace!("No config file at available at {}", path.display());
-                return Err(error.into());
-            }
-        };
-        let reader = BufReader::new(file);
-        let config = serde_json::from_reader(reader).map_err(|err| {
-            info!("Could not parse the config file: {} ({:?})", err, err);
-            err
-        })?;
+        let mut config: QuicP2pConfig = read_config_file(dirs()?, CONFIG_FILE)?;
+        if let Ok(node_info) = read_config_file(vault_dirs()?, VAULT_CONNECTION_INFO_FILE) {
+            let _ = config.hard_coded_contacts.insert(node_info);
+        }
         Ok(config)
     }
 }
@@ -89,6 +80,37 @@ fn dirs() -> Result<ProjectDirs, CoreError> {
         CONFIG_DIR_APPLICATION,
     )
     .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Home directory not found").into())
+}
+
+fn vault_dirs() -> Result<ProjectDirs, CoreError> {
+    ProjectDirs::from(
+        CONFIG_DIR_QUALIFIER,
+        CONFIG_DIR_ORGANISATION,
+        VAULT_CONFIG_DIR_APPLICATION,
+    )
+    .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Home directory not found").into())
+}
+
+fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, CoreError>
+where
+    T: DeserializeOwned,
+{
+    let path = dirs.config_dir().join(file);
+    let file = match File::open(&path) {
+        Ok(file) => {
+            trace!("Reading: {}", path.display());
+            file
+        }
+        Err(error) => {
+            trace!("Not available: {}", path.display());
+            return Err(error.into());
+        }
+    };
+    let reader = BufReader::new(file);
+    serde_json::from_reader(reader).map_err(|err| {
+        info!("Could not parse: {} ({:?})", err, err);
+        err.into()
+    })
 }
 
 /// Writes a `safe_core` config file **for use by tests and examples**.
