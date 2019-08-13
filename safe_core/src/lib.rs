@@ -113,7 +113,7 @@ mod connection_manager;
 mod errors;
 mod event;
 
-pub use self::client::{mdata_info, recovery, Client, ClientKeys, MDataInfo};
+pub use self::client::{mdata_info, recovery, AuthActions, Client, ClientKeys, MDataInfo};
 #[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockRouting};
 pub use self::errors::CoreError;

@@ -14,7 +14,7 @@ futures = "~0.1.17"
 safe_app = { path = "../safe_app", version = "~0.9.1", features = ["testing"] }
 safe_authenticator = { path = "../safe_authenticator", version = "~0.9.1", features = ["testing"] }
 safe_core = { path = "../safe_core", version = "~0.32.1", features = ["testing"] }
-safe-nd = "~0.2.0"
+safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
 serde = "~1.0.24"
 serde_derive = "~1.0.24"
 serde_json = "~1.0.2"
