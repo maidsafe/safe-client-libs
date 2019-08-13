@@ -67,7 +67,6 @@ pub struct AppExchangeInfo {
 }
 
 impl Drop for AppExchangeInfo {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
         unsafe {
             let _ = CString::from_raw(self.id as *mut _);
@@ -90,7 +89,6 @@ pub struct ContainerPermissions {
 }
 
 impl Drop for ContainerPermissions {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
         unsafe {
             let _ = CString::from_raw(self.cont_name as *mut _);
@@ -122,7 +120,6 @@ pub struct AuthReq {
 }
 
 impl Drop for AuthReq {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
         unsafe {
             let _ = Vec::from_raw_parts(
@@ -149,7 +146,6 @@ pub struct ContainersReq {
 }
 
 impl Drop for ContainersReq {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
         unsafe {
             let _ = Vec::from_raw_parts(
@@ -186,7 +182,6 @@ pub struct ShareMDataReq {
 }
 
 impl Drop for ShareMDataReq {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
         unsafe {
             let _ = Vec::from_raw_parts(

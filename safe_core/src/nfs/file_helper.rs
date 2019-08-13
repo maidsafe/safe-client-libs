@@ -53,7 +53,7 @@ where
         .into_box()
 }
 
-/// Get a file from the directory.
+/// Get a file and its version from the directory.
 pub fn fetch<S>(client: impl Client, parent: MDataInfo, name: S) -> Box<NfsFuture<(u64, File)>>
 where
     S: AsRef<str>,

@@ -34,7 +34,6 @@ pub struct File {
 }
 
 impl Drop for File {
-    #[allow(unsafe_code)]
     fn drop(&mut self) {
         let _ = unsafe {
             Vec::from_raw_parts(

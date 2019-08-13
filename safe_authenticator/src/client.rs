@@ -18,7 +18,7 @@ use futures::future;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
-use routing::{Authority, BootstrapConfig, FullId, XorName};
+use routing::{Authority, FullId, XorName};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
@@ -27,6 +27,7 @@ use safe_core::client::{
     REQUEST_TIMEOUT_SECS,
 };
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
+use safe_core::ipc::BootstrapConfig;
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::FutureExt;

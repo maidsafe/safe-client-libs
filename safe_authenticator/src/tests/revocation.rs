@@ -696,7 +696,7 @@ mod mock_routing {
 
 // The app revocation and re-authorisation workflow.
 #[test]
-fn app_revocation() {
+fn app_revocation_and_reauth() {
     let authenticator = create_account_and_login();
 
     // Create and authorise two apps.

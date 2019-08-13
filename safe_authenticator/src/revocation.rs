@@ -85,8 +85,8 @@ fn flush_app_revocation_queue_impl(
                                 .into_box()
                         }
                         Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
-                            // The app entry can't be decrypted. No way to revoke app, so just remove
-                            // it from the queue and return an error.
+                            // The app entry can't be decrypted. No way to revoke app, so just
+                            // remove it from the queue and return an error.
                             config::remove_from_app_revocation_queue(&c3, queue, version, &app_id)
                                 .and_then(|_| {
                                     err!(AuthError::CoreError(CoreError::SymmetricDecipherFailure))

@@ -336,7 +336,7 @@ pub unsafe extern "C" fn enc_secret_key_free(
     })
 }
 
-/// Signs arbitrary data using a given secret sign key.
+/// Sign arbitrary data using a given secret sign key.
 ///
 /// If `sign_sk_h` is `SIGN_WITH_APP`, then uses the app's own secret key to sign.
 #[no_mangle]
@@ -382,7 +382,8 @@ pub unsafe extern "C" fn sign(
     })
 }
 
-/// Verifies signed data using a given public sign key.
+/// Verify signed data using a given public sign key.
+///
 /// Returns an error if the message could not be verified.
 #[no_mangle]
 pub unsafe extern "C" fn verify(
@@ -426,7 +427,8 @@ pub unsafe extern "C" fn verify(
     })
 }
 
-/// Encrypts arbitrary data using a given key pair.
+/// Encrypt arbitrary data using a given key pair.
+///
 /// You should provide a recipient's public key and a sender's secret key.
 #[no_mangle]
 pub unsafe extern "C" fn encrypt(
@@ -475,7 +477,8 @@ pub unsafe extern "C" fn encrypt(
     })
 }
 
-/// Decrypts arbitrary data using a given key pair.
+/// Decrypt arbitrary data using a given key pair.
+///
 /// You should provide a sender's public key and a recipient's secret key.
 #[no_mangle]
 pub unsafe extern "C" fn decrypt(
@@ -533,7 +536,8 @@ pub unsafe extern "C" fn decrypt(
     })
 }
 
-/// Encrypts arbitrary data for a single recipient.
+/// Encrypt arbitrary data for a single recipient.
+///
 /// You should provide a recipient's public key.
 #[no_mangle]
 pub unsafe extern "C" fn encrypt_sealed_box(
@@ -573,7 +577,8 @@ pub unsafe extern "C" fn encrypt_sealed_box(
     })
 }
 
-/// Decrypts arbitrary data for a single recipient.
+/// Decrypt arbitrary data for a single recipient.
+///
 /// You should provide a recipients's private and public key.
 #[no_mangle]
 pub unsafe extern "C" fn decrypt_sealed_box(
@@ -623,7 +628,7 @@ pub unsafe extern "C" fn decrypt_sealed_box(
     })
 }
 
-/// Returns a sha3 hash for a given data.
+/// Return a sha3 hash for a given data.
 #[no_mangle]
 pub unsafe extern "C" fn sha3_hash(
     data: *const u8,
@@ -646,7 +651,7 @@ pub unsafe extern "C" fn sha3_hash(
     });
 }
 
-/// Generates a unique nonce and returns the result.
+/// Generate a unique nonce and returns the result.
 #[no_mangle]
 pub unsafe extern "C" fn generate_nonce(
     user_data: *mut c_void,

@@ -7,8 +7,6 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-#![allow(unsafe_code)]
-
 use crate::errors::AppError;
 use crate::test_utils::{create_app_by_req, create_auth_req};
 use crate::App;

@@ -61,10 +61,11 @@ fn network_status_callback() {
     use ffi_utils::test_utils::{call_0, call_1_with_custom, send_via_user_data_custom, UserData};
     use maidsafe_utilities::serialisation::serialise;
     use safe_core::ipc::BootstrapConfig;
-    use std::os::raw::c_void;
-    use std::sync::mpsc;
-    use std::sync::mpsc::{Receiver, Sender};
-    use std::time::Duration;
+    use std::{
+        os::raw::c_void,
+        sync::mpsc::{self, Receiver, Sender},
+        time::Duration,
+    };
 
     {
         let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();

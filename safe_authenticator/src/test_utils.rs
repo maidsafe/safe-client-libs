@@ -77,6 +77,7 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
     let password: String = rng.gen_ascii_chars().take(10).collect();
     let balance_sk = threshold_crypto::SecretKey::random();
     let balance_pk = balance_sk.public_key();
+
     random_client(move |client| {
         client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
         Ok::<_, AuthError>(())
@@ -95,6 +96,7 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
 /// Create a random authenticator and login using the same credentials.
 pub fn create_account_and_login() -> Authenticator {
     let (_, locator, password) = create_authenticator();
+
     unwrap!(Authenticator::login(locator, password, || ()))
 }
 
@@ -238,6 +240,7 @@ pub fn fetch_file<S: Into<String>>(
     name: S,
 ) -> Result<File, AuthError> {
     let name = name.into();
+
     run(authenticator, |client| {
         file_helper::fetch(client.clone(), container_info, name)
             .map(|(_, file)| file)
@@ -270,6 +273,7 @@ pub fn delete_file<S: Into<String>>(
     version: u64,
 ) -> Result<u64, AuthError> {
     let name = name.into();
+
     run(authenticator, move |client| {
         file_helper::delete(
             client.clone(),
@@ -410,10 +414,12 @@ where
         let acc_password = unwrap!(utils::generate_random_string(10));
         let balance_sk = threshold_crypto::SecretKey::random();
         let balance_pk = balance_sk.public_key();
+
         random_core_client(move |client| {
             client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
             Ok::<_, AuthError>(())
         });
+
         AuthClient::registered(
             &acc_locator,
             &acc_password,

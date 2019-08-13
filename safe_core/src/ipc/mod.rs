@@ -20,13 +20,13 @@ pub use self::req::{
 pub use self::resp::{
     access_container_enc_key, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, IpcResp,
 };
+pub use routing::BootstrapConfig;
 
 use data_encoding::BASE32_NOPAD;
 #[cfg(any(test, feature = "testing"))]
 use ffi_utils;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::{self, Rng};
-pub use routing::BootstrapConfig;
 use std::u32;
 
 /// IPC message.

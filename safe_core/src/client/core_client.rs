@@ -17,13 +17,14 @@ use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::event::NetworkTx;
 use crate::event_loop::CoreMsgTx;
+use crate::ipc::BootstrapConfig;
 use crate::utils;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
 #[cfg(not(feature = "mock-network"))]
 use routing::Client as Routing;
-use routing::{Authority, BootstrapConfig, FullId};
+use routing::{Authority, FullId};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{

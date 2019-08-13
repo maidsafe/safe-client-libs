@@ -8,7 +8,7 @@
 
 /// User Account information.
 pub mod account;
-/// Not exclusively for testing purposes but also for its wait_for_response macro
+/// Not exclusively for testing purposes but also for its wait_for_response macro.
 #[macro_use]
 pub mod core_client;
 /// `MDataInfo` utilities.

@@ -28,20 +28,20 @@ use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CString, NulError};
 use std::{ptr, slice};
 
-/// Permission enum - use for internal storage only
+/// Permission enum - use for internal storage only.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Permission {
-    /// Read
-    Read,
-    /// Insert
-    Insert,
-    /// Update
-    Update,
-    /// Delete
-    Delete,
-    /// Modify permissions
-    ManagePermissions,
+    /// Read.
+    Read = 1,
+    /// Insert.
+    Insert = 2,
+    /// Update.
+    Update = 4,
+    /// Delete.
+    Delete = 8,
+    /// Modify permissions.
+    ManagePermissions = 16,
 }
 
 /// Permissions stored internally in the access container.
@@ -166,7 +166,6 @@ where
 ///
 /// After calling this function, the raw pointer is owned by the resulting
 /// object.
-#[allow(unsafe_code)]
 pub unsafe fn containers_from_repr_c(
     raw: *const FfiContainerPermissions,
     len: usize,
@@ -329,7 +328,6 @@ impl ReprC for AppExchangeInfo {
 }
 
 #[cfg(test)]
-#[allow(unsafe_code)]
 mod tests {
     use super::*;
     use crate::ffi::ipc::req::PermissionSet as FfiPermissionSet;

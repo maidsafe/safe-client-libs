@@ -6,8 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#![allow(unsafe_code)]
-
 use crate::ffi::arrays::*;
 use crate::ffi::ipc::req::PermissionSet;
 use crate::ffi::MDataInfo;
