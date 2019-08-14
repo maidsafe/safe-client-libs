@@ -32,7 +32,7 @@ use tiny_keccak::sha3_256;
 #[no_mangle]
 pub static SIGN_WITH_APP: SignSecKeyHandle = NULL_OBJECT_HANDLE;
 
-/// Get the public signing key of the app.
+/// Gets the public signing key of the app.
 #[no_mangle]
 pub unsafe extern "C" fn app_pub_sign_key(
     app: *const App,
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn app_pub_sign_key(
     })
 }
 
-/// Generate a new sign key pair (public & private key).
+/// Generates a new sign key pair (public & private key).
 #[no_mangle]
 pub unsafe extern "C" fn sign_generate_key_pair(
     app: *const App,
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn sign_generate_key_pair(
     })
 }
 
-/// Create new public signing key from raw array.
+/// Creates new public signing key from raw array.
 #[no_mangle]
 pub unsafe extern "C" fn sign_pub_key_new(
     app: *const App,
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn sign_pub_key_new(
     })
 }
 
-/// Retrieve the public signing key as a raw array.
+/// Retrieves the public signing key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn sign_pub_key_get(
     app: *const App,
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn sign_pub_key_get(
     })
 }
 
-/// Free public signing key from memory.
+/// Frees public signing key from memory.
 #[no_mangle]
 pub unsafe extern "C" fn sign_pub_key_free(
     app: *const App,
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn sign_pub_key_free(
     })
 }
 
-/// Create new secret signing key from raw array.
+/// Creates new secret signing key from raw array.
 #[no_mangle]
 pub unsafe extern "C" fn sign_sec_key_new(
     app: *const App,
@@ -142,7 +142,7 @@ pub unsafe extern "C" fn sign_sec_key_new(
     })
 }
 
-/// Retrieve the secret signing key as a raw array.
+/// Retrieves the secret signing key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn sign_sec_key_get(
     app: *const App,
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn sign_sec_key_get(
     })
 }
 
-/// Free secret signing key from memory.
+/// Frees secret signing key from memory.
 #[no_mangle]
 pub unsafe extern "C" fn sign_sec_key_free(
     app: *const App,
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn sign_sec_key_free(
     })
 }
 
-/// Get the public encryption key of the app.
+/// Gets the public encryption key of the app.
 #[no_mangle]
 pub unsafe extern "C" fn app_pub_enc_key(
     app: *const App,
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn app_pub_enc_key(
     })
 }
 
-/// Generate a new encryption key pair (public & private key).
+/// Generates a new encryption key pair (public & private key).
 #[no_mangle]
 pub unsafe extern "C" fn enc_generate_key_pair(
     app: *const App,
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn enc_generate_key_pair(
     })
 }
 
-/// Create new public encryption key from raw array.
+/// Creates new public encryption key from raw array.
 #[no_mangle]
 pub unsafe extern "C" fn enc_pub_key_new(
     app: *const App,
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn enc_pub_key_new(
     })
 }
 
-/// Retrieve the public encryption key as a raw array.
+/// Retrieves the public encryption key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn enc_pub_key_get(
     app: *const App,
@@ -264,7 +264,7 @@ pub unsafe extern "C" fn enc_pub_key_get(
     })
 }
 
-/// Free encryption key from memory.
+/// Frees public encryption key from memory.
 #[no_mangle]
 pub unsafe extern "C" fn enc_pub_key_free(
     app: *const App,
@@ -280,7 +280,7 @@ pub unsafe extern "C" fn enc_pub_key_free(
     })
 }
 
-/// Create new private encryption key from raw array.
+/// Creates new private encryption key from raw array.
 #[no_mangle]
 pub unsafe extern "C" fn enc_secret_key_new(
     app: *const App,
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn enc_secret_key_new(
     })
 }
 
-/// Retrieve the private encryption key as a raw array.
+/// Retrieves the private encryption key as a raw array.
 #[no_mangle]
 pub unsafe extern "C" fn enc_secret_key_get(
     app: *const App,
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn enc_secret_key_get(
     })
 }
 
-/// Free private key from memory.
+/// Frees private encryption key from memory.
 #[no_mangle]
 pub unsafe extern "C" fn enc_secret_key_free(
     app: *const App,
@@ -336,7 +336,7 @@ pub unsafe extern "C" fn enc_secret_key_free(
     })
 }
 
-/// Sign arbitrary data using a given secret sign key.
+/// Signs arbitrary data using a given secret sign key.
 ///
 /// If `sign_sk_h` is `SIGN_WITH_APP`, then uses the app's own secret key to sign.
 #[no_mangle]
@@ -382,7 +382,7 @@ pub unsafe extern "C" fn sign(
     })
 }
 
-/// Verify signed data using a given public sign key.
+/// Verifies signed data using a given public sign key.
 ///
 /// Returns an error if the message could not be verified.
 #[no_mangle]
@@ -427,9 +427,9 @@ pub unsafe extern "C" fn verify(
     })
 }
 
-/// Encrypt arbitrary data using a given key pair.
+/// Encrypts arbitrary data using a given key pair.
 ///
-/// You should provide a recipient's public key and a sender's secret key.
+/// You should provide a sender's secret key and a recipient's public key.
 #[no_mangle]
 pub unsafe extern "C" fn encrypt(
     app: *const App,
@@ -477,7 +477,7 @@ pub unsafe extern "C" fn encrypt(
     })
 }
 
-/// Decrypt arbitrary data using a given key pair.
+/// Decrypts arbitrary data using a given key pair.
 ///
 /// You should provide a sender's public key and a recipient's secret key.
 #[no_mangle]
@@ -536,7 +536,7 @@ pub unsafe extern "C" fn decrypt(
     })
 }
 
-/// Encrypt arbitrary data for a single recipient.
+/// Encrypts arbitrary data for a single recipient.
 ///
 /// You should provide a recipient's public key.
 #[no_mangle]
@@ -577,7 +577,7 @@ pub unsafe extern "C" fn encrypt_sealed_box(
     })
 }
 
-/// Decrypt arbitrary data for a single recipient.
+/// Decrypts arbitrary data for a single recipient.
 ///
 /// You should provide a recipients's private and public key.
 #[no_mangle]
@@ -628,7 +628,7 @@ pub unsafe extern "C" fn decrypt_sealed_box(
     })
 }
 
-/// Return a sha3 hash for a given data.
+/// Returns a sha3 hash for a given data.
 #[no_mangle]
 pub unsafe extern "C" fn sha3_hash(
     data: *const u8,
@@ -651,7 +651,7 @@ pub unsafe extern "C" fn sha3_hash(
     });
 }
 
-/// Generate a unique nonce and returns the result.
+/// Generates a unique nonce and returns the result.
 #[no_mangle]
 pub unsafe extern "C" fn generate_nonce(
     user_data: *mut c_void,
