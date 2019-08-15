@@ -145,7 +145,7 @@ fn open_file() {
             &app,
             &container_info,
             std::ptr::null(),
-            OPEN_MODE_OVERWRITE,
+            OPEN_MODE_APPEND,
             ud,
             cb,
         )))

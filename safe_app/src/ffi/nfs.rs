@@ -39,7 +39,9 @@ pub const GET_NEXT_VERSION: u64 = 0;
 
 /// Replaces the entire content of the file when writing data.
 pub static OPEN_MODE_OVERWRITE: u64 = 1;
-/// Appends to existing data in the file.
+/// Appends to existing data in the file. Falls back to OPEN_MODE_OVERWRITE if it encounters an
+/// empty file. If it is known ahead of time that a file is empty, use OPEN_MODE_OVERWRITE instead
+/// to avoid incurring an unnecessary GET.
 pub static OPEN_MODE_APPEND: u64 = 2;
 /// Open file to read.
 pub static OPEN_MODE_READ: u64 = 4;
