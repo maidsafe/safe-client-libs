@@ -18,7 +18,6 @@ use crate::ffi::apps::*;
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };
-use crate::safe_core::client::AuthActions;
 use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use crate::safe_core::ipc::{
     self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
@@ -29,7 +28,7 @@ use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
-use safe_core::{app_container_name, mdata_info, Client};
+use safe_core::{app_container_name, mdata_info, AuthActions, Client};
 use safe_nd::PublicKey;
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -49,8 +48,8 @@ mod mock_routing {
     use routing::{ClientError, Request, Response};
     use safe_core::ipc::AuthReq;
     use safe_core::nfs::NfsError;
-    use safe_core::utils::{generate_random_string, test_utils::random_client};
-    use safe_core::{app_container_name, Client, CoreError, MockRouting};
+    use safe_core::utils::generate_random_string;
+    use safe_core::{app_container_name, test_create_balance, Client, CoreError, MockRouting};
     use safe_nd::{Coins, Error as SndError, PublicKey};
     use std::str::FromStr;
 
@@ -76,11 +75,10 @@ mod mock_routing {
         let locator = unwrap!(generate_random_string(10));
         let password = unwrap!(generate_random_string(10));
         let balance_sk = threshold_crypto::SecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         {
             let routing_hook = move |mut routing: MockRouting| -> MockRouting {
@@ -228,11 +226,10 @@ mod mock_routing {
         let locator = unwrap!(generate_random_string(10));
         let password = unwrap!(generate_random_string(10));
         let balance_sk = threshold_crypto::SecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         let routing_hook = move |mut routing: MockRouting| -> MockRouting {
             routing.set_request_hook(move |req| {

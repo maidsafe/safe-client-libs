@@ -287,16 +287,11 @@ impl Vault {
     }
 
     /// Instantly creates new balance.
-    pub fn mock_create_balance(
-        &mut self,
-        coin_balance_name: &XorName,
-        amount: Coins,
-        owner: PublicKey,
-    ) {
+    pub fn mock_create_balance(&mut self, owner: PublicKey, amount: Coins) {
         let _ = self
             .cache
             .coin_balances
-            .insert(*coin_balance_name, CoinBalance::new(amount, owner));
+            .insert(owner.into(), CoinBalance::new(amount, owner));
     }
 
     /// Increment coin balance for testing
@@ -625,22 +620,30 @@ impl Vault {
             } => {
                 let source = owner_pk.into();
                 let destination = new_balance_owner.into();
-
-                let result = if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
-                    Err(e)
+                if source == destination {
+                    self.mock_create_balance(new_balance_owner, amount);
+                    Response::Transaction(Ok(Transaction {
+                        id: transaction_id,
+                        amount,
+                    }))
                 } else {
-                    self.get_balance(&source)
-                        .and_then(|source_balance| {
-                            if source_balance.checked_sub(amount).is_none() {
-                                return Err(SndError::InsufficientBalance);
-                            }
-                            self.create_balance(destination, new_balance_owner)
-                        })
-                        .and_then(|_| {
-                            self.transfer_coins(source, destination, amount, transaction_id)
-                        })
-                };
-                Response::Transaction(result)
+                    let result =
+                        if let Err(e) = self.authorise_coin_operation(&source, requester_pk) {
+                            Err(e)
+                        } else {
+                            self.get_balance(&source)
+                                .and_then(|source_balance| {
+                                    if source_balance.checked_sub(amount).is_none() {
+                                        return Err(SndError::InsufficientBalance);
+                                    }
+                                    self.create_balance(destination, new_balance_owner)
+                                })
+                                .and_then(|_| {
+                                    self.transfer_coins(source, destination, amount, transaction_id)
+                                })
+                        };
+                    Response::Transaction(result)
+                }
             }
             Request::GetBalance => {
                 let coin_balance_id = owner_pk.into();

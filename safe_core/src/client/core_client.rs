@@ -153,11 +153,21 @@ impl CoreClient {
                 None,
             )?;
 
-            // Create a balance that is debited to insert the login packet
-            routing.create_balance(
-                *balance_client_id.public_id().public_key(),
-                unwrap!(Coins::from_str("10")),
+            // Create the balance for the client
+            let rpc_response = routing.req_as_client(
+                &routing_rx,
+                Request::CreateBalance {
+                    new_balance_owner: *balance_client_id.public_id().public_key(),
+                    amount: unwrap!(Coins::from_str("10")),
+                    transaction_id: new_rand::random(),
+                },
+                &balance_client_id,
             );
+
+            let _ = match rpc_response {
+                RpcResponse::Transaction(res) => res?,
+                _ => return Err(CoreError::from("Unexpected response")),
+            };
 
             let rpc_response = routing.req_as_client(
                 &routing_rx,

@@ -387,9 +387,7 @@ fn restricted_access_and_deletion() {
                             assert_eq!(*data.address(), address);
                             assert_eq!(data.entries_index(), 3);
                         }
-                        (Err(CoreError::NewRoutingClientError(SndError::AccessDenied)), false) => {
-                            ()
-                        }
+                        (Err(CoreError::NewRoutingClientError(SndError::AccessDenied)), false) => {}
                         (res, _) => panic!("{:?}: Unexpected result: {:?}", variant, res),
                     }
                     // Send the app's key so it can be authenticated and granted access to the data
@@ -434,9 +432,7 @@ fn restricted_access_and_deletion() {
                 .then(move |res| {
                     match (res, address.is_pub()) {
                         (Ok(data), true) => assert_eq!(*data.address(), address),
-                        (Err(CoreError::NewRoutingClientError(SndError::AccessDenied)), false) => {
-                            ()
-                        }
+                        (Err(CoreError::NewRoutingClientError(SndError::AccessDenied)), false) => {}
                         (res, _) => panic!("{:?}: Unexpected result: {:?}", variant, res),
                     }
                     unwrap!(finish_tx.send(()));

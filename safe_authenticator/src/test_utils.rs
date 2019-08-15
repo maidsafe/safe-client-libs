@@ -17,7 +17,7 @@ use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
 use rand::{self, Rng};
 use routing::XorName;
-use safe_core::client::Client;
+use safe_core::client::{test_create_balance, Client};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
     AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataReq as FfiShareMDataReq,
@@ -31,9 +31,7 @@ use safe_core::ipc::{
 };
 use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::{File, Mode};
-use safe_core::utils::test_utils::{
-    random_client as random_core_client, setup_client_with_net_obs,
-};
+use safe_core::utils::test_utils::setup_client_with_net_obs;
 #[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{utils, MDataInfo, NetworkEvent};
@@ -76,11 +74,10 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
     let locator: String = rng.gen_ascii_chars().take(10).collect();
     let password: String = rng.gen_ascii_chars().take(10).collect();
     let balance_sk = threshold_crypto::SecretKey::random();
-    let balance_pk = balance_sk.public_key();
-    random_client(move |client| {
-        client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-        Ok::<_, AuthError>(())
-    });
+    unwrap!(test_create_balance(
+        &balance_sk,
+        unwrap!(Coins::from_str("100"))
+    ));
 
     let auth = unwrap!(Authenticator::create_acc(
         locator.clone(),
@@ -409,11 +406,10 @@ where
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
         let balance_sk = threshold_crypto::SecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_core_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
         AuthClient::registered(
             &acc_locator,
             &acc_password,
