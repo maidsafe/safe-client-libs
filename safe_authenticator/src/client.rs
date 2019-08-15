@@ -624,6 +624,7 @@ mod tests {
     use super::*;
     use futures::sync::mpsc;
     use futures::Future;
+    use safe_core::client::test_create_balance;
     use safe_core::utils::test_utils::{finish, random_client, setup_client};
     use safe_core::{utils, CoreError, DIR_TAG};
     use safe_nd::{Coins, Error as SndError, IDataAddress, MDataKind};
@@ -642,11 +643,10 @@ mod tests {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let balance_sk = BlsSecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         // Account creation for the 1st time - should succeed
         let _ = unwrap!(AuthClient::registered(
@@ -672,11 +672,10 @@ mod tests {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let balance_sk = BlsSecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         setup_client(
             &(),
@@ -737,11 +736,10 @@ mod tests {
 
         let seed = unwrap!(utils::generate_random_string(30));
         let balance_sk = BlsSecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         setup_client(
             &(),
@@ -773,11 +771,10 @@ mod tests {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let balance_sk = BlsSecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
         let dir_clone = dir.clone();
@@ -810,11 +807,10 @@ mod tests {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
         let balance_sk = BlsSecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
         let dir_clone = dir.clone();

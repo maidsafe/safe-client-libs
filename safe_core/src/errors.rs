@@ -316,7 +316,7 @@ impl StdError for CoreError {
         }
     }
 
-    fn cause(&self) -> Option<&StdError> {
+    fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             CoreError::EncodeDecodeError(ref err) => Some(err),
             CoreError::MpidMessagingError(ref err) => Some(err),

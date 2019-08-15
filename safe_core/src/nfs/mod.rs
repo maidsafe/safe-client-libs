@@ -26,4 +26,4 @@ pub use self::writer::{Mode, Writer};
 use futures::Future;
 
 /// Helper type for futures that can result in `NfsError`.
-pub type NfsFuture<T> = Future<Item = T, Error = NfsError>;
+pub type NfsFuture<T> = dyn Future<Item = T, Error = NfsError>;

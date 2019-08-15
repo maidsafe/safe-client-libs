@@ -60,11 +60,12 @@ use safe_nd::{
     ClientPublicId, Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData,
     MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet as NewPermissionSet,
     MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
-    MDataValues, Message, MessageId, PublicId, PublicKey, Request, Response, SeqMutableData,
-    Signature, Transaction, UnseqMutableData, XorName,
+    MDataValues, Message, MessageId, PublicId, PublicKey, Request, Response, Result as SndResult,
+    SeqMutableData, Signature, Transaction, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::error::Error;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
@@ -1522,32 +1523,87 @@ pub trait Client: Clone + 'static {
         inner.borrow_mut().routing.set_simulate_timeout(enabled);
     }
 
-    /// Create a new mock balance at an arbitrary address.
+    /// Set the coin balance to a specific value for testing
     #[cfg(any(
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
     ))]
-    fn test_create_balance(&self, owner: PublicKey, amount: Coins) {
-        let inner = self.inner();
-        inner.borrow_mut().routing.create_balance(owner, amount);
-    }
-
-    /// Add coins to a coinbalance for testing
-    #[cfg(any(
-        all(test, feature = "mock-network"),
-        all(feature = "testing", feature = "mock-network")
-    ))]
-    fn allocate_test_coins(
+    fn test_set_balance(
         &self,
-        coin_balance_name: &XorName,
+        secret_key: Option<&threshold_crypto::SecretKey>,
         amount: Coins,
-    ) -> Result<(), SndError> {
-        let inner = self.inner();
-        let result = inner
-            .borrow_mut()
-            .routing
-            .allocate_test_coins(coin_balance_name, amount);
-        result.clone()
+    ) -> Box<CoreFuture<Transaction>> {
+        let new_balance_owner =
+            secret_key.map_or_else(|| self.public_key(), |sk| sk.public_key().into());
+        trace!(
+            "Set the coin balance of {:?} to {:?}",
+            new_balance_owner,
+            amount,
+        );
+
+        let transaction_id = new_rand::random();
+        let req = Request::CreateBalance {
+            new_balance_owner,
+            amount,
+            transaction_id,
+        };
+
+        let (message, requester) = match secret_key {
+            Some(key) => (
+                sign_request_with_key(req, key),
+                Some(PublicKey::from(key.public_key())),
+            ),
+            None => (self.compose_message(req, true), None),
+        };
+
+        send(
+            self,
+            fry!(message
+                .message_id()
+                .ok_or_else(|| CoreError::from("Logic error: no message ID found"))),
+            move |routing| routing.send(requester, &unwrap!(serialise(&message))),
+        )
+        .and_then(|event| {
+            let res = match event {
+                CoreEvent::RpcResponse(res) => res,
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            };
+            let result_buffer = unwrap!(res);
+            let res: Response = unwrap!(deserialise(&result_buffer));
+            match res {
+                Response::Transaction(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            }
+        })
+        .into_box()
+    }
+}
+
+/// Create a new mock balance at an arbitrary address.
+pub fn test_create_balance(owner: &threshold_crypto::SecretKey, amount: Coins) -> SndResult<()> {
+    let balance_client_id = ClientFullId::with_bls_key(owner.clone());
+
+    let (mut routing, routing_rx) = setup_routing(
+        None,
+        PublicId::Client(balance_client_id.public_id().clone()),
+        None,
+    )
+    .map_err(|e| SndError::from(e.description()))?;
+
+    // Create the balance for the client
+    let rpc_response = routing.req_as_client(
+        &routing_rx,
+        Request::CreateBalance {
+            new_balance_owner: *balance_client_id.public_id().public_key(),
+            amount,
+            transaction_id: new_rand::random(),
+        },
+        &balance_client_id,
+    );
+
+    match rpc_response {
+        Response::Transaction(res) => res.map(|_| Ok(()))?,
+        _ => Err(SndError::from("Unexpected response")),
     }
 }
 
@@ -2323,7 +2379,6 @@ mod tests {
     fn coin_permissions() {
         let wallet_a_addr = random_client(move |client| {
             let wallet_a_addr: XorName = client.owner_key().into();
-            client.test_create_balance(client.owner_key(), unwrap!(Coins::from_str("10.0")));
             client
                 .transfer_coins(
                     None,
@@ -2355,8 +2410,9 @@ mod tests {
                         Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    c2.test_create_balance(c3.owner_key(), unwrap!(Coins::from_str("50.0")));
-
+                    c2.test_set_balance(None, unwrap!(Coins::from_str("50.0")))
+                })
+                .and_then(move |_| {
                     c3.transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
                 })
                 .then(move |res| {
@@ -2391,20 +2447,22 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
-            let bls_sk = threshold_crypto::SecretKey::random();
-            let bls_sk2 = bls_sk.clone();
             let wallet1: XorName = client.owner_key().into();
 
-            client.test_create_balance(client.owner_key(), unwrap!(Coins::from_str("500.0")));
-
-            client1
-                .create_balance(
-                    None,
-                    PublicKey::from(bls_sk.public_key()),
-                    unwrap!(Coins::from_str("100.0")),
-                    None,
-                )
-                .and_then(move |transaction| {
+            client
+                .test_set_balance(None, unwrap!(Coins::from_str("500.0")))
+                .and_then(move |_| {
+                    let bls_sk = threshold_crypto::SecretKey::random();
+                    client1
+                        .create_balance(
+                            None,
+                            PublicKey::from(bls_sk.public_key()),
+                            unwrap!(Coins::from_str("100.0")),
+                            None,
+                        )
+                        .map(|txn| (txn, bls_sk))
+                })
+                .and_then(move |(transaction, bls_sk)| {
                     assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
                     client2
                         .transfer_coins(
@@ -2413,13 +2471,11 @@ mod tests {
                             unwrap!(Coins::from_str("5.0")),
                             None,
                         )
-                        .and_then(move |transaction| {
-                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
-                            Ok(())
-                        })
+                        .map(|txn| (txn, bls_sk))
                 })
-                .and_then(move |_| {
-                    client3.get_balance(Some(&bls_sk2)).and_then(|balance| {
+                .and_then(move |(transaction, bls_sk)| {
+                    assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
+                    client3.get_balance(Some(&bls_sk)).and_then(|balance| {
                         assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
                         Ok(())
                     })
@@ -2432,10 +2488,11 @@ mod tests {
                 })
                 .and_then(move |_| {
                     let random_key = threshold_crypto::SecretKey::random();
+                    let random_source = threshold_crypto::SecretKey::random();
                     let random_pk = PublicKey::from(random_key.public_key());
                     client5
                         .create_balance(
-                            Some(&random_key),
+                            Some(&random_source),
                             random_pk,
                             unwrap!(Coins::from_str("100.0")),
                             None,
@@ -2460,24 +2517,19 @@ mod tests {
     fn coin_balance_transfer() {
         let wallet1: XorName = random_client(move |client| {
             let client1 = client.clone();
-            let client2 = client.clone();
             let owner_key = client.owner_key();
             let wallet1: XorName = owner_key.into();
 
-            client.test_create_balance(owner_key, unwrap!(Coins::from_str("0.0")));
-
-            unwrap!(client1.allocate_test_coins(&wallet1, unwrap!(Coins::from_str("100.0"))));
-
-            client2.get_balance(None).and_then(move |balance| {
-                assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
-                Ok(wallet1)
-            })
+            client
+                .test_set_balance(None, unwrap!(Coins::from_str("100.0")))
+                .and_then(move |_| client1.get_balance(None))
+                .and_then(move |balance| {
+                    assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
+                    Ok(wallet1)
+                })
         });
 
         random_client(move |client| {
-            let owner_key = client.owner_key();
-            client.test_create_balance(owner_key, unwrap!(Coins::from_str("100.0")));
-
             let c2 = client.clone();
             let c3 = client.clone();
 
@@ -3299,12 +3351,8 @@ mod tests {
     #[test]
     pub fn wallet_transactions_without_client() {
         let bls_sk = threshold_crypto::SecretKey::random();
-        let client_pk = PublicKey::from(bls_sk.public_key());
 
-        random_client(move |client| {
-            client.test_create_balance(client_pk, unwrap!(Coins::from_str("50")));
-            Ok::<(), SndError>(())
-        });
+        unwrap!(test_create_balance(&bls_sk, unwrap!(Coins::from_str("50"))));
 
         let balance = unwrap!(wallet_get_balance(&bls_sk));
         let ten_coins = unwrap!(Coins::from_str("10"));

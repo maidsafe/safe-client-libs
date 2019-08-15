@@ -30,7 +30,7 @@ impl<C: Client> SelfEncryptionStorage<C> {
 impl<C: Client> Storage for SelfEncryptionStorage<C> {
     type Error = SelfEncryptionStorageError;
 
-    fn get(&self, name: &[u8]) -> Box<Future<Item = Vec<u8>, Error = Self::Error>> {
+    fn get(&self, name: &[u8]) -> Box<dyn Future<Item = Vec<u8>, Error = Self::Error>> {
         trace!("Self encrypt invoked GetIData.");
 
         if name.len() != XOR_NAME_LEN {
@@ -58,7 +58,7 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
             .into_box()
     }
 
-    fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<Future<Item = (), Error = Self::Error>> {
+    fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<dyn Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData.");
         let idata: IData = if self.published {
             PubImmutableData::new(data).into()
@@ -93,7 +93,7 @@ impl Error for SelfEncryptionStorageError {
         self.0.description()
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         self.0.source()
     }
 }

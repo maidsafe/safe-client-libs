@@ -17,8 +17,7 @@ use crate::errors::AuthError;
 use crate::Authenticator;
 use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
-use safe_core::utils::test_utils::random_client;
-use safe_core::Client;
+use safe_core::{test_create_balance, Client};
 use safe_nd::Coins;
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
@@ -49,11 +48,10 @@ pub unsafe extern "C" fn create_acc(
         let acc_password = from_c_str(account_password)?;
         // FIXME: Send secret key via FFI API too
         let balance_sk = threshold_crypto::SecretKey::random();
-        let balance_pk = balance_sk.public_key();
-        random_client(move |client| {
-            client.test_create_balance(balance_pk.into(), unwrap!(Coins::from_str("10")));
-            Ok::<_, AuthError>(())
-        });
+        unwrap!(test_create_balance(
+            &balance_sk,
+            unwrap!(Coins::from_str("10"))
+        ));
 
         let authenticator =
             Authenticator::create_acc(acc_locator, acc_password, balance_sk, move || {

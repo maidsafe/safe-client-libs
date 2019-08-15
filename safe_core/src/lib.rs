@@ -115,7 +115,7 @@ mod event;
 
 pub use self::client::{mdata_info, recovery, AuthActions, Client, ClientKeys, MDataInfo};
 #[cfg(feature = "mock-network")]
-pub use self::client::{mock_vault_path, MockRouting};
+pub use self::client::{mock_vault_path, test_create_balance, MockRouting};
 pub use self::errors::CoreError;
 pub use self::event::{CoreEvent, NetworkEvent, NetworkRx, NetworkTx};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};

@@ -15,9 +15,8 @@ use routing::{
     Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, InterfaceError,
     MutableData, PermissionSet, Request, Response, RoutingError, User, TYPE_TAG_SESSION_PACKET,
 };
-use safe_nd::Coins;
 use safe_nd::{
-    AppFullId, ClientFullId, ClientPublicId, IData, IDataAddress, Message, MessageId,
+    AppFullId, ClientFullId, ClientPublicId, Coins, IData, IDataAddress, Message, MessageId,
     PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
     Signature, XorName,
 };
@@ -1059,7 +1058,7 @@ impl Routing {
     /// Create coin balance in the mock network arbitrarily.
     pub fn create_balance(&self, owner: PublicKey, amount: Coins) {
         let mut vault = self.lock_vault(true);
-        vault.mock_create_balance(&owner.into(), amount, owner);
+        vault.mock_create_balance(owner, amount);
     }
 }
 
@@ -1102,16 +1101,6 @@ impl Routing {
     /// Simulates network timeouts
     pub fn set_simulate_timeout(&mut self, enable: bool) {
         self.timeout_simulation = enable;
-    }
-
-    /// Add some coins to a wallet's PublicKey
-    pub fn allocate_test_coins(
-        &self,
-        coin_balance_name: &XorName,
-        amount: Coins,
-    ) -> Result<(), safe_nd::Error> {
-        let mut vault = self.lock_vault(true);
-        vault.mock_increment_balance(coin_balance_name, amount)
     }
 }
 
