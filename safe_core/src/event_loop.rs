@@ -20,7 +20,7 @@ pub type CoreMsgRx<C, T> = mpsc::UnboundedReceiver<CoreMsg<C, T>>;
 
 /// The final future which the event loop will run.
 pub type TailFuture = Box<dyn Future<Item = (), Error = ()>>;
-type TailFutureFn<C, T> = FnMut(&C, &T) -> Option<TailFuture> + Send + 'static;
+type TailFutureFn<C, T> = dyn FnMut(&C, &T) -> Option<TailFuture> + Send + 'static;
 
 /// The message format that core event loop understands.
 pub struct CoreMsg<C: Client, T>(Option<Box<TailFutureFn<C, T>>>);

@@ -114,7 +114,7 @@ use std::sync::Mutex;
 use tokio::runtime::current_thread::{Handle, Runtime};
 
 /// Future type specialised with `AuthError` as an error type.
-pub type AuthFuture<T> = Future<Item = T, Error = AuthError>;
+pub type AuthFuture<T> = dyn Future<Item = T, Error = AuthError>;
 /// Transmitter of AuthClient messages.
 pub type AuthMsgTx = CoreMsgTx<AuthClient, ()>;
 
@@ -140,7 +140,7 @@ impl Authenticator {
     /// Send a message to the authenticator event loop.
     pub fn send<F>(&self, f: F) -> Result<(), AuthError>
     where
-        F: FnOnce(&AuthClient) -> Option<Box<Future<Item = (), Error = ()>>> + Send + 'static,
+        F: FnOnce(&AuthClient) -> Option<Box<dyn Future<Item = (), Error = ()>>> + Send + 'static,
     {
         let msg = CoreMsg::new(|client, _| f(client));
         let core_tx = unwrap!(self.core_tx.lock());

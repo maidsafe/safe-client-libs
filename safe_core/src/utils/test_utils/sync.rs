@@ -25,7 +25,7 @@ impl Synchronizer {
     /// generator. The generator can be initialized with a seed to guarantee
     /// repeatable, deterministic runs.
     pub fn new(rng: SeededRng) -> Self {
-        Synchronizer {
+        Self {
             inner: Arc::new(Inner {
                 state: Mutex::new(State::new(rng)),
                 condvar: Condvar::new(),
@@ -52,7 +52,7 @@ struct Hook {
 impl Hook {
     fn new(inner: Arc<Inner>) -> Self {
         let id = inner.register_id();
-        Hook { id, inner }
+        Self { id, inner }
     }
 
     // Invoke request hook.
@@ -114,7 +114,7 @@ struct State {
 
 impl State {
     fn new(rng: SeededRng) -> Self {
-        State {
+        Self {
             rng,
             all: Vec::new(),
             next: 0,

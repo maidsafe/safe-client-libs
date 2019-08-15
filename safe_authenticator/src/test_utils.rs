@@ -519,7 +519,7 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
         );
     };
 
-    let ret = match rx.recv_timeout(Duration::from_secs(15)) {
+    let ret = match rx.recv_timeout(Duration::from_secs(30)) {
         Ok(r) => r,
         Err(_) => Err((-1, None)),
     };

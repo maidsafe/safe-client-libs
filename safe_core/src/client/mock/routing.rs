@@ -29,10 +29,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Function that is used to tap into routing requests and return preconditioned responses.
-pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
+pub type RequestHookFn = dyn FnMut(&Request) -> Option<Response> + 'static;
 
 /// Function that is used to modify responses before they are sent.
-pub type ResponseHookFn = FnMut(Response) -> Response + 'static;
+pub type ResponseHookFn = dyn FnMut(Response) -> Response + 'static;
 
 const CONNECT_THREAD_NAME: &str = "Mock network connect";
 const DELAY_THREAD_NAME: &str = "Mock network delay";

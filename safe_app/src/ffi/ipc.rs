@@ -832,7 +832,7 @@ mod tests {
             extern "C" fn share_mdata_cb(ctx: *mut c_void, _req_id: u32) {
                 unsafe {
                     let ctx = ctx as *mut Context;
-                    (*ctx).unexpected_cb = true;;
+                    (*ctx).unexpected_cb = true;
                 }
             }
 

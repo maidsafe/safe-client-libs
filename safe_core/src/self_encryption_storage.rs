@@ -23,7 +23,7 @@ pub struct SelfEncryptionStorage<C: Client> {
 impl<C: Client> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {
-        SelfEncryptionStorage { client, published }
+        Self { client, published }
     }
 }
 
@@ -58,7 +58,11 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
             .into_box()
     }
 
-    fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<dyn Future<Item = (), Error = Self::Error>> {
+    fn put(
+        &mut self,
+        _: Vec<u8>,
+        data: Vec<u8>,
+    ) -> Box<dyn Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData.");
         let idata: IData = if self.published {
             PubImmutableData::new(data).into()

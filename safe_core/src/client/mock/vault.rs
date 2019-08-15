@@ -46,7 +46,7 @@ lazy_static! {
 pub struct Vault {
     cache: Cache,
     config: Config,
-    store: Box<Store>,
+    store: Box<dyn Store>,
 }
 
 // Initializes mock-vault path with the following precedence:
@@ -67,7 +67,7 @@ fn init_vault_path(devconfig: Option<&DevConfig>) -> PathBuf {
 // 1. "SAFE_MOCK_IN_MEMORY_STORAGE" env var => in-memory storage
 // 2. DevConfig `mock_in_memory_storage` option => in-memory storage
 // 3. Else => file storage, use path from `init_vault_path`
-fn init_vault_store(config: &Config) -> Box<Store> {
+fn init_vault_store(config: &Config) -> Box<dyn Store> {
     match env::var("SAFE_MOCK_IN_MEMORY_STORAGE") {
         Ok(_) => {
             // If the env var is set, override config file option.
@@ -1515,7 +1515,7 @@ struct FileStore {
 
 impl FileStore {
     fn new(path: &PathBuf) -> Self {
-        FileStore {
+        Self {
             file: None,
             sync_time: None,
             path: path.join(FILE_NAME),

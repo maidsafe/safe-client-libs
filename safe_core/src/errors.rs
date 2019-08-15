@@ -72,92 +72,92 @@ pub enum CoreError {
 }
 
 impl<'a> From<&'a str> for CoreError {
-    fn from(error: &'a str) -> CoreError {
-        CoreError::Unexpected(error.to_string())
+    fn from(error: &'a str) -> Self {
+        Self::Unexpected(error.to_string())
     }
 }
 
 impl From<String> for CoreError {
-    fn from(error: String) -> CoreError {
-        CoreError::Unexpected(error)
+    fn from(error: String) -> Self {
+        Self::Unexpected(error)
     }
 }
 
 impl<T> From<SendError<T>> for CoreError {
-    fn from(error: SendError<T>) -> CoreError {
-        CoreError::from(format!("Couldn't send message to the channel: {}", error))
+    fn from(error: SendError<T>) -> Self {
+        Self::from(format!("Couldn't send message to the channel: {}", error))
     }
 }
 
 impl From<SerialisationError> for CoreError {
-    fn from(error: SerialisationError) -> CoreError {
-        CoreError::EncodeDecodeError(error)
+    fn from(error: SerialisationError) -> Self {
+        Self::EncodeDecodeError(error)
     }
 }
 
 impl From<RoutingError> for CoreError {
-    fn from(error: RoutingError) -> CoreError {
-        CoreError::RoutingError(error)
+    fn from(error: RoutingError) -> Self {
+        Self::RoutingError(error)
     }
 }
 
 impl From<InterfaceError> for CoreError {
-    fn from(error: InterfaceError) -> CoreError {
-        CoreError::RoutingInterfaceError(error)
+    fn from(error: InterfaceError) -> Self {
+        Self::RoutingInterfaceError(error)
     }
 }
 
 impl From<ClientError> for CoreError {
-    fn from(error: ClientError) -> CoreError {
-        CoreError::RoutingClientError(error)
+    fn from(error: ClientError) -> Self {
+        Self::RoutingClientError(error)
     }
 }
 
 impl From<SndError> for CoreError {
-    fn from(error: SndError) -> CoreError {
-        CoreError::NewRoutingClientError(error)
+    fn from(error: SndError) -> Self {
+        Self::NewRoutingClientError(error)
     }
 }
 
 impl From<mpsc::RecvError> for CoreError {
-    fn from(_: mpsc::RecvError) -> CoreError {
-        CoreError::OperationAborted
+    fn from(_: mpsc::RecvError) -> Self {
+        Self::OperationAborted
     }
 }
 
 impl From<messaging::Error> for CoreError {
-    fn from(error: messaging::Error) -> CoreError {
-        CoreError::MpidMessagingError(error)
+    fn from(error: messaging::Error) -> Self {
+        Self::MpidMessagingError(error)
     }
 }
 
 impl From<SelfEncryptionError<SelfEncryptionStorageError>> for CoreError {
-    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> CoreError {
-        CoreError::SelfEncryption(error)
+    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
+        Self::SelfEncryption(error)
     }
 }
 
 impl From<config_file_handler::Error> for CoreError {
-    fn from(error: config_file_handler::Error) -> CoreError {
-        CoreError::ConfigError(error)
+    fn from(error: config_file_handler::Error) -> Self {
+        Self::ConfigError(error)
     }
 }
 
 impl From<io::Error> for CoreError {
     fn from(error: io::Error) -> Self {
-        CoreError::IoError(error)
+        Self::IoError(error)
     }
 }
 
 impl From<quic_p2p::Error> for CoreError {
     fn from(error: quic_p2p::Error) -> Self {
-        CoreError::QuicP2p(error)
+        Self::QuicP2p(error)
     }
 }
 
 impl From<serde_json::error::Error> for CoreError {
     fn from(error: serde_json::error::Error) -> Self {
-        CoreError::Unexpected(format!("{}", error))
+        Self::Unexpected(format!("{}", error))
     }
 }
 
@@ -165,59 +165,57 @@ impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         write!(formatter, "{} - ", self.description())?;
         match *self {
-            CoreError::EncodeDecodeError(ref error) => {
+            Self::EncodeDecodeError(ref error) => {
                 write!(formatter, "CoreError::EncodeDecodeError -> {:?}", error)
             }
-            CoreError::AsymmetricDecipherFailure => {
+            Self::AsymmetricDecipherFailure => {
                 write!(formatter, "CoreError::AsymmetricDecipherFailure")
             }
-            CoreError::SymmetricDecipherFailure => {
+            Self::SymmetricDecipherFailure => {
                 write!(formatter, "CoreError::SymmetricDecipherFailure")
             }
-            CoreError::ReceivedUnexpectedData => {
-                write!(formatter, "CoreError::ReceivedUnexpectedData")
-            }
-            CoreError::ReceivedUnexpectedEvent => {
+            Self::ReceivedUnexpectedData => write!(formatter, "CoreError::ReceivedUnexpectedData"),
+            Self::ReceivedUnexpectedEvent => {
                 write!(formatter, "CoreError::ReceivedUnexpectedEvent")
             }
-            CoreError::VersionCacheMiss => write!(formatter, "CoreError::VersionCacheMiss"),
-            CoreError::RootDirectoryExists => write!(formatter, "CoreError::RootDirectoryExists"),
-            CoreError::RandomDataGenerationFailure => {
+            Self::VersionCacheMiss => write!(formatter, "CoreError::VersionCacheMiss"),
+            Self::RootDirectoryExists => write!(formatter, "CoreError::RootDirectoryExists"),
+            Self::RandomDataGenerationFailure => {
                 write!(formatter, "CoreError::RandomDataGenerationFailure")
             }
-            CoreError::OperationForbidden => write!(formatter, "CoreError::OperationForbidden"),
-            CoreError::Unexpected(ref error) => {
+            Self::OperationForbidden => write!(formatter, "CoreError::OperationForbidden"),
+            Self::Unexpected(ref error) => {
                 write!(formatter, "CoreError::Unexpected::{{{:?}}}", error)
             }
-            CoreError::RoutingError(ref error) => {
+            Self::RoutingError(ref error) => {
                 write!(formatter, "CoreError::RoutingError -> {:?}", error)
             }
-            CoreError::RoutingInterfaceError(ref error) => {
+            Self::RoutingInterfaceError(ref error) => {
                 write!(formatter, "CoreError::RoutingInterfaceError -> {:?}", error)
             }
-            CoreError::RoutingClientError(ref error) => {
+            Self::RoutingClientError(ref error) => {
                 write!(formatter, "CoreError::RoutingClientError -> {:?}", error)
             }
-            CoreError::NewRoutingClientError(ref error) => {
+            Self::NewRoutingClientError(ref error) => {
                 write!(formatter, "CoreError::NewRoutingClientError -> {:?}", error)
             }
-            CoreError::UnsupportedSaltSizeForPwHash => {
+            Self::UnsupportedSaltSizeForPwHash => {
                 write!(formatter, "CoreError::UnsupportedSaltSizeForPwHash")
             }
-            CoreError::UnsuccessfulPwHash => write!(formatter, "CoreError::UnsuccessfulPwHash"),
-            CoreError::OperationAborted => write!(formatter, "CoreError::OperationAborted"),
-            CoreError::MpidMessagingError(ref error) => {
+            Self::UnsuccessfulPwHash => write!(formatter, "CoreError::UnsuccessfulPwHash"),
+            Self::OperationAborted => write!(formatter, "CoreError::OperationAborted"),
+            Self::MpidMessagingError(ref error) => {
                 write!(formatter, "CoreError::MpidMessagingError -> {:?}", error)
             }
-            CoreError::SelfEncryption(ref error) => {
+            Self::SelfEncryption(ref error) => {
                 write!(formatter, "CoreError::SelfEncryption -> {:?}", error)
             }
-            CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
-            CoreError::ConfigError(ref error) => {
+            Self::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
+            Self::ConfigError(ref error) => {
                 write!(formatter, "CoreError::ConfigError -> {:?}", error)
             }
-            CoreError::IoError(ref error) => write!(formatter, "CoreError::IoError -> {:?}", error),
-            CoreError::QuicP2p(ref error) => write!(formatter, "CoreError::QuicP2p -> {:?}", error),
+            Self::IoError(ref error) => write!(formatter, "CoreError::IoError -> {:?}", error),
+            Self::QuicP2p(ref error) => write!(formatter, "CoreError::QuicP2p -> {:?}", error),
         }
     }
 }
@@ -225,62 +223,60 @@ impl Debug for CoreError {
 impl Display for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match *self {
-            CoreError::EncodeDecodeError(ref error) => write!(
+            Self::EncodeDecodeError(ref error) => write!(
                 formatter,
                 "Error while serialising/deserialising: {}",
                 error
             ),
-            CoreError::AsymmetricDecipherFailure => {
-                write!(formatter, "Asymmetric decryption failed")
-            }
-            CoreError::SymmetricDecipherFailure => write!(formatter, "Symmetric decryption failed"),
-            CoreError::ReceivedUnexpectedData => write!(formatter, "Received unexpected data"),
-            CoreError::ReceivedUnexpectedEvent => write!(formatter, "Received unexpected event"),
-            CoreError::VersionCacheMiss => {
+            Self::AsymmetricDecipherFailure => write!(formatter, "Asymmetric decryption failed"),
+            Self::SymmetricDecipherFailure => write!(formatter, "Symmetric decryption failed"),
+            Self::ReceivedUnexpectedData => write!(formatter, "Received unexpected data"),
+            Self::ReceivedUnexpectedEvent => write!(formatter, "Received unexpected event"),
+            Self::VersionCacheMiss => {
                 write!(formatter, "No such data found in local version cache")
             }
-            CoreError::RootDirectoryExists => write!(
+            Self::RootDirectoryExists => write!(
                 formatter,
                 "Cannot overwrite a root directory if it already exists"
             ),
-            CoreError::RandomDataGenerationFailure => {
+            Self::RandomDataGenerationFailure => {
                 write!(formatter, "Unable to obtain generator for random data")
             }
-            CoreError::OperationForbidden => write!(formatter, "Forbidden operation requested"),
-            CoreError::Unexpected(ref error) => write!(formatter, "Unexpected: {}", error),
-            CoreError::RoutingError(ref error) => {
+            Self::OperationForbidden => write!(formatter, "Forbidden operation requested"),
+            Self::Unexpected(ref error) => write!(formatter, "Unexpected: {}", error),
+            Self::RoutingError(ref error) => {
                 // TODO - use `{}` once `RoutingError` implements `std::error::Error`.
                 write!(formatter, "Routing internal error: {:?}", error)
             }
-            CoreError::RoutingInterfaceError(ref error) => {
+            Self::RoutingInterfaceError(ref error) => {
                 // TODO - use `{}` once `InterfaceError` implements `std::error::Error`.
                 write!(formatter, "Routing interface error -> {:?}", error)
             }
-            CoreError::RoutingClientError(ref error) => {
+            Self::RoutingClientError(ref error) => {
                 write!(formatter, "Routing client error -> {}", error)
             }
-            CoreError::NewRoutingClientError(ref error) => {
+            Self::NewRoutingClientError(ref error) => {
                 write!(formatter, "New Routing client error -> {}", error)
             }
-            CoreError::UnsupportedSaltSizeForPwHash => write!(
+            Self::UnsupportedSaltSizeForPwHash => write!(
                 formatter,
                 "Unable to pack into or operate with size of Salt"
             ),
-            CoreError::UnsuccessfulPwHash => write!(
+            Self::UnsuccessfulPwHash => write!(
                 formatter,
                 "Unable to complete computation for password hashing"
             ),
-            CoreError::OperationAborted => write!(formatter, "Blocking operation was cancelled"),
-            CoreError::MpidMessagingError(ref error) => {
+            Self::OperationAborted => write!(formatter, "Blocking operation was cancelled"),
+            Self::MpidMessagingError(ref error) => {
                 write!(formatter, "Mpid messaging error: {}", error)
             }
-            CoreError::SelfEncryption(ref error) => {
+            Self::SelfEncryption(ref error) => {
                 write!(formatter, "Self-encryption error: {}", error)
             }
-            CoreError::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
-            CoreError::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
-            CoreError::IoError(ref error) => write!(formatter, "Io error: {}", error),
-            CoreError::QuicP2p(ref error) => write!(formatter, "QuicP2P error: {}", error),
+            Self::RequestTimeout => write!(formatter, "RequestTimeout"),
+            Self::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
+            Self::IoError(ref error) => write!(formatter, "Io error: {}", error),
+            Self::QuicP2p(ref error) => write!(formatter, "QuicP2P error: {}", error),
         }
     }
 }
@@ -288,43 +284,43 @@ impl Display for CoreError {
 impl StdError for CoreError {
     fn description(&self) -> &str {
         match *self {
-            CoreError::EncodeDecodeError(_) => "Serialisation error",
-            CoreError::AsymmetricDecipherFailure => "Asymmetric decryption failure",
-            CoreError::SymmetricDecipherFailure => "Symmetric decryption failure",
-            CoreError::ReceivedUnexpectedData => "Received unexpected data",
-            CoreError::ReceivedUnexpectedEvent => "Received unexpected event",
-            CoreError::VersionCacheMiss => "Version cache miss",
-            CoreError::RootDirectoryExists => "Root directory already exists",
-            CoreError::RandomDataGenerationFailure => "Cannot obtain RNG",
-            CoreError::OperationForbidden => "Operation forbidden",
-            CoreError::Unexpected(_) => "Unexpected error",
+            Self::EncodeDecodeError(_) => "Serialisation error",
+            Self::AsymmetricDecipherFailure => "Asymmetric decryption failure",
+            Self::SymmetricDecipherFailure => "Symmetric decryption failure",
+            Self::ReceivedUnexpectedData => "Received unexpected data",
+            Self::ReceivedUnexpectedEvent => "Received unexpected event",
+            Self::VersionCacheMiss => "Version cache miss",
+            Self::RootDirectoryExists => "Root directory already exists",
+            Self::RandomDataGenerationFailure => "Cannot obtain RNG",
+            Self::OperationForbidden => "Operation forbidden",
+            Self::Unexpected(_) => "Unexpected error",
             // TODO - use `error.description()` once `RoutingError` implements `std::error::Error`.
-            CoreError::RoutingError(_) => "Routing internal error",
+            Self::RoutingError(_) => "Routing internal error",
             // TODO - use `error.description()` once `InterfaceError` implements `std::error::Error`
-            CoreError::RoutingClientError(ref error) => error.description(),
-            CoreError::NewRoutingClientError(ref error) => error.description(),
-            CoreError::RoutingInterfaceError(_) => "Routing interface error",
-            CoreError::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
-            CoreError::UnsuccessfulPwHash => "Failed while password hashing",
-            CoreError::OperationAborted => "Operation aborted",
-            CoreError::MpidMessagingError(_) => "Mpid messaging error",
-            CoreError::SelfEncryption(ref error) => error.description(),
-            CoreError::RequestTimeout => "Request has timed out",
-            CoreError::ConfigError(ref error) => error.description(),
-            CoreError::IoError(ref error) => error.description(),
-            CoreError::QuicP2p(ref error) => error.description(),
+            Self::RoutingClientError(ref error) => error.description(),
+            Self::NewRoutingClientError(ref error) => error.description(),
+            Self::RoutingInterfaceError(_) => "Routing interface error",
+            Self::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
+            Self::UnsuccessfulPwHash => "Failed while password hashing",
+            Self::OperationAborted => "Operation aborted",
+            Self::MpidMessagingError(_) => "Mpid messaging error",
+            Self::SelfEncryption(ref error) => error.description(),
+            Self::RequestTimeout => "Request has timed out",
+            Self::ConfigError(ref error) => error.description(),
+            Self::IoError(ref error) => error.description(),
+            Self::QuicP2p(ref error) => error.description(),
         }
     }
 
     fn cause(&self) -> Option<&dyn StdError> {
         match *self {
-            CoreError::EncodeDecodeError(ref err) => Some(err),
-            CoreError::MpidMessagingError(ref err) => Some(err),
-            // CoreError::RoutingError(ref err) => Some(err),
-            // CoreError::RoutingInterfaceError(ref err) => Some(err),
-            CoreError::RoutingClientError(ref err) => Some(err),
-            CoreError::SelfEncryption(ref err) => Some(err),
-            CoreError::QuicP2p(ref err) => Some(err),
+            Self::EncodeDecodeError(ref err) => Some(err),
+            Self::MpidMessagingError(ref err) => Some(err),
+            // Self::RoutingError(ref err) => Some(err),
+            // Self::RoutingInterfaceError(ref err) => Some(err),
+            Self::RoutingClientError(ref err) => Some(err),
+            Self::SelfEncryption(ref err) => Some(err),
+            Self::QuicP2p(ref err) => Some(err),
             _ => None,
         }
     }

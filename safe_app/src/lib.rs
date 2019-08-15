@@ -154,7 +154,7 @@ macro_rules! try_tx {
     };
 }
 
-type AppFuture<T> = Future<Item = T, Error = AppError>;
+type AppFuture<T> = dyn Future<Item = T, Error = AppError>;
 type AppMsgTx = CoreMsgTx<AppClient, AppContext>;
 
 /// Handle to an application instance.
@@ -167,7 +167,7 @@ impl App {
     /// Send a message to app's event loop.
     pub fn send<F>(&self, f: F) -> Result<(), AppError>
     where
-        F: FnOnce(&AppClient, &AppContext) -> Option<Box<Future<Item = (), Error = ()>>>
+        F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Item = (), Error = ()>>>
             + Send
             + 'static,
     {

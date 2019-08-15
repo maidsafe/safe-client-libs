@@ -21,7 +21,7 @@ use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
 use std::collections::HashMap;
 
 /// Default directories to be created at registration.
-pub static DEFAULT_PRIVATE_DIRS: [&'static str; 6] = [
+pub static DEFAULT_PRIVATE_DIRS: [&str; 6] = [
     "_documents",
     "_downloads",
     "_music",
@@ -31,7 +31,7 @@ pub static DEFAULT_PRIVATE_DIRS: [&'static str; 6] = [
 ];
 
 /// Publicly accessible default directories to be created upon registration.
-pub static DEFAULT_PUBLIC_DIRS: [&'static str; 1] = ["_public"];
+pub static DEFAULT_PUBLIC_DIRS: [&str; 1] = ["_public"];
 
 /// Create the root directories and the standard directories for the access container.
 pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {

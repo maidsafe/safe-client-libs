@@ -50,13 +50,13 @@ macro_rules! err {
 pub trait FutureExt: Future + Sized {
     /// Box this future. Similar to `boxed` combinator, but does not require
     /// the future to implement `Send`.
-    fn into_box(self) -> Box<Future<Item = Self::Item, Error = Self::Error>>;
+    fn into_box(self) -> Box<dyn Future<Item = Self::Item, Error = Self::Error>>;
 }
 
 impl<F: Future + 'static> FutureExt for F {
     // TODO: when trait/impl specialization lands, try to implement this so that
     // it's a no-op when called on already boxed futures.
-    fn into_box(self) -> Box<Future<Item = Self::Item, Error = Self::Error>> {
+    fn into_box(self) -> Box<dyn Future<Item = Self::Item, Error = Self::Error>> {
         Box::new(self)
     }
 }

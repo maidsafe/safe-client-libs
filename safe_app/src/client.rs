@@ -268,7 +268,7 @@ impl Client for AppClient {
 
 impl Clone for AppClient {
     fn clone(&self) -> Self {
-        AppClient {
+        Self {
             inner: Rc::clone(&self.inner),
             app_inner: Rc::clone(&self.app_inner),
         }
@@ -294,8 +294,8 @@ impl AppInner {
         owner_key: PublicKey,
         cm_addr: Option<Authority<XorName>>,
         config: Option<BootstrapConfig>,
-    ) -> AppInner {
-        AppInner {
+    ) -> Self {
+        Self {
             keys,
             owner_key,
             cm_addr,

@@ -145,21 +145,21 @@ pub enum AuthError {
 impl Display for AuthError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match *self {
-            AuthError::Unexpected(ref error) => {
+            Self::Unexpected(ref error) => {
                 write!(formatter, "Unexpected (probably a logic error): {}", error)
             }
-            AuthError::CoreError(ref error) => write!(formatter, "Core error: {}", error),
-            AuthError::SndError(ref error) => write!(formatter, "Safe ND error: {}", error),
-            AuthError::IoError(ref error) => write!(formatter, "I/O error: {}", error),
-            AuthError::NfsError(ref error) => write!(formatter, "NFS error: {:?}", error),
-            AuthError::EncodeDecodeError => write!(formatter, "Serialisation error"),
-            AuthError::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
-            AuthError::AccountContainersCreation(ref reason) => write!(
+            Self::CoreError(ref error) => write!(formatter, "Core error: {}", error),
+            Self::SndError(ref error) => write!(formatter, "Safe ND error: {}", error),
+            Self::IoError(ref error) => write!(formatter, "I/O error: {}", error),
+            Self::NfsError(ref error) => write!(formatter, "NFS error: {:?}", error),
+            Self::EncodeDecodeError => write!(formatter, "Serialisation error"),
+            Self::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
+            Self::AccountContainersCreation(ref reason) => write!(
                 formatter,
                 "Account containers creation error: {}. Login to attempt recovery.",
                 reason
             ),
-            AuthError::NoSuchContainer(ref name) => {
+            Self::NoSuchContainer(ref name) => {
                 write!(formatter, "'{}' not found in the access container", name)
             }
         }
@@ -169,109 +169,109 @@ impl Display for AuthError {
 impl Into<IpcError> for AuthError {
     fn into(self) -> IpcError {
         match self {
-            AuthError::Unexpected(desc) => IpcError::Unexpected(desc),
-            AuthError::IpcError(err) => err,
+            Self::Unexpected(desc) => IpcError::Unexpected(desc),
+            Self::IpcError(err) => err,
             err => IpcError::Unexpected(format!("{:?}", err)),
         }
     }
 }
 
 impl<T: 'static> From<SendError<T>> for AuthError {
-    fn from(error: SendError<T>) -> AuthError {
-        AuthError::Unexpected(error.description().to_owned())
+    fn from(error: SendError<T>) -> Self {
+        Self::Unexpected(error.description().to_owned())
     }
 }
 
 impl From<ConfigFileHandlerError> for AuthError {
-    fn from(error: ConfigFileHandlerError) -> AuthError {
-        AuthError::from(error.to_string())
+    fn from(error: ConfigFileHandlerError) -> Self {
+        Self::from(error.to_string())
     }
 }
 
 impl From<CoreError> for AuthError {
-    fn from(error: CoreError) -> AuthError {
-        AuthError::CoreError(error)
+    fn from(error: CoreError) -> Self {
+        Self::CoreError(error)
     }
 }
 
 impl From<IpcError> for AuthError {
-    fn from(error: IpcError) -> AuthError {
-        AuthError::IpcError(error)
+    fn from(error: IpcError) -> Self {
+        Self::IpcError(error)
     }
 }
 
 impl From<RecvError> for AuthError {
-    fn from(error: RecvError) -> AuthError {
-        AuthError::from(error.description())
+    fn from(error: RecvError) -> Self {
+        Self::from(error.description())
     }
 }
 
 impl From<NulError> for AuthError {
-    fn from(error: NulError) -> AuthError {
-        AuthError::from(error.description())
+    fn from(error: NulError) -> Self {
+        Self::from(error.description())
     }
 }
 
 impl From<IoError> for AuthError {
-    fn from(error: IoError) -> AuthError {
-        AuthError::IoError(error)
+    fn from(error: IoError) -> Self {
+        Self::IoError(error)
     }
 }
 
 impl From<SndError> for AuthError {
-    fn from(error: SndError) -> AuthError {
-        AuthError::SndError(error)
+    fn from(error: SndError) -> Self {
+        Self::SndError(error)
     }
 }
 
 impl<'a> From<&'a str> for AuthError {
-    fn from(error: &'a str) -> AuthError {
-        AuthError::Unexpected(error.to_owned())
+    fn from(error: &'a str) -> Self {
+        Self::Unexpected(error.to_owned())
     }
 }
 
 impl From<String> for AuthError {
-    fn from(error: String) -> AuthError {
-        AuthError::Unexpected(error)
+    fn from(error: String) -> Self {
+        Self::Unexpected(error)
     }
 }
 
 impl From<NfsError> for AuthError {
-    fn from(error: NfsError) -> AuthError {
-        AuthError::NfsError(error)
+    fn from(error: NfsError) -> Self {
+        Self::NfsError(error)
     }
 }
 
 impl From<SerialisationError> for AuthError {
-    fn from(_err: SerialisationError) -> AuthError {
-        AuthError::EncodeDecodeError
+    fn from(_err: SerialisationError) -> Self {
+        Self::EncodeDecodeError
     }
 }
 
 impl From<Utf8Error> for AuthError {
     fn from(_err: Utf8Error) -> Self {
-        AuthError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<FromUtf8Error> for AuthError {
     fn from(_err: FromUtf8Error) -> Self {
-        AuthError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<StringError> for AuthError {
     fn from(_err: StringError) -> Self {
-        AuthError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl ErrorCode for AuthError {
     fn error_code(&self) -> i32 {
         match *self {
-            AuthError::CoreError(ref err) => core_error_code(err),
-            AuthError::SndError(ref err) => safe_nd_error_core(err),
-            AuthError::IpcError(ref err) => match *err {
+            Self::CoreError(ref err) => core_error_code(err),
+            Self::SndError(ref err) => safe_nd_error_core(err),
+            Self::IpcError(ref err) => match *err {
                 IpcError::AuthDenied => ERR_AUTH_DENIED,
                 IpcError::ContainersDenied => ERR_CONTAINERS_DENIED,
                 IpcError::InvalidMsg => ERR_INVALID_MSG,
@@ -284,7 +284,7 @@ impl ErrorCode for AuthError {
                 IpcError::InvalidOwner(..) => ERR_INVALID_OWNER,
                 IpcError::IncompatibleMockStatus => ERR_INCOMPATIBLE_MOCK_STATUS,
             },
-            AuthError::NfsError(ref err) => match *err {
+            Self::NfsError(ref err) => match *err {
                 NfsError::CoreError(ref err) => core_error_code(err),
                 NfsError::FileExists => ERR_FILE_EXISTS,
                 NfsError::FileNotFound => ERR_FILE_NOT_FOUND,
@@ -293,11 +293,11 @@ impl ErrorCode for AuthError {
                 NfsError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
                 NfsError::Unexpected(_) => ERR_UNEXPECTED,
             },
-            AuthError::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
-            AuthError::IoError(_) => ERR_IO_ERROR,
-            AuthError::AccountContainersCreation(_) => ERR_ACCOUNT_CONTAINERS_CREATION,
-            AuthError::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
-            AuthError::Unexpected(_) => ERR_UNEXPECTED,
+            Self::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
+            Self::IoError(_) => ERR_IO_ERROR,
+            Self::AccountContainersCreation(_) => ERR_ACCOUNT_CONTAINERS_CREATION,
+            Self::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
+            Self::Unexpected(_) => ERR_UNEXPECTED,
         }
     }
 }

@@ -192,16 +192,16 @@ pub enum AppError {
 impl Display for AppError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match *self {
-            AppError::CoreError(ref error) => write!(formatter, "Core error: {}", error),
-            AppError::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
-            AppError::NfsError(ref error) => write!(formatter, "NFS error: {}", error),
-            AppError::EncodeDecodeError => write!(formatter, "Serialisation error"),
-            AppError::OperationForbidden => write!(formatter, "Forbidden operation"),
-            AppError::NoSuchContainer(ref name) => {
+            Self::CoreError(ref error) => write!(formatter, "Core error: {}", error),
+            Self::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
+            Self::NfsError(ref error) => write!(formatter, "NFS error: {}", error),
+            Self::EncodeDecodeError => write!(formatter, "Serialisation error"),
+            Self::OperationForbidden => write!(formatter, "Forbidden operation"),
+            Self::NoSuchContainer(ref name) => {
                 write!(formatter, "'{}' not found in the access container", name)
             }
-            AppError::InvalidCipherOptHandle => write!(formatter, "Invalid CipherOpt handle"),
-            AppError::InvalidFileMode => write!(
+            Self::InvalidCipherOptHandle => write!(formatter, "Invalid CipherOpt handle"),
+            Self::InvalidFileMode => write!(
                 formatter,
                 "Invalid file mode (e.g. trying to write when file is opened for reading only)"
             ),
@@ -209,42 +209,36 @@ impl Display for AppError {
                 formatter,
                 "Tried to access a client key from an unregistered client",
             ),
-            AppError::InvalidEncryptPubKeyHandle => {
+            Self::InvalidEncryptPubKeyHandle => {
                 write!(formatter, "Invalid encrypt (box_) key handle")
             }
-            AppError::InvalidMDataEntriesHandle => {
+            Self::InvalidMDataEntriesHandle => {
                 write!(formatter, "Invalid MutableData entries handle")
             }
-            AppError::InvalidMDataEntryActionsHandle => {
+            Self::InvalidMDataEntryActionsHandle => {
                 write!(formatter, "Invalid MutableData entry actions handle")
             }
-            AppError::InvalidMDataPermissionsHandle => {
+            Self::InvalidMDataPermissionsHandle => {
                 write!(formatter, "Invalid MutableData permissions handle")
             }
-            AppError::InvalidSelfEncryptorHandle => {
-                write!(formatter, "Invalid Self Encryptor handle")
-            }
-            AppError::InvalidSignPubKeyHandle => {
-                write!(formatter, "Invalid sign public key handle")
-            }
-            AppError::InvalidSignSecKeyHandle => {
-                write!(formatter, "Invalid sign secret key handle")
-            }
-            AppError::InvalidPubKeyHandle => write!(formatter, "Invalid public key handle"),
-            AppError::InvalidEncryptSecKeyHandle => write!(formatter, "Invalid secret key handle"),
-            AppError::InvalidFileContextHandle => write!(formatter, "Invalid file context handle"),
-            AppError::SelfEncryption(ref error) => {
+            Self::InvalidSelfEncryptorHandle => write!(formatter, "Invalid Self Encryptor handle"),
+            Self::InvalidSignPubKeyHandle => write!(formatter, "Invalid sign public key handle"),
+            Self::InvalidSignSecKeyHandle => write!(formatter, "Invalid sign secret key handle"),
+            Self::InvalidPubKeyHandle => write!(formatter, "Invalid public key handle"),
+            Self::InvalidEncryptSecKeyHandle => write!(formatter, "Invalid secret key handle"),
+            Self::InvalidFileContextHandle => write!(formatter, "Invalid file context handle"),
+            Self::SelfEncryption(ref error) => {
                 write!(formatter, "Self-encryption error: {}", error)
             }
-            AppError::InvalidSelfEncryptorReadOffsets => write!(
+            Self::InvalidSelfEncryptorReadOffsets => write!(
                 formatter,
                 "Invalid offsets (from-position \
                  and length combination) provided for \
                  reading form SelfEncryptor. Would have \
                  probably caused an overflow."
             ),
-            AppError::IoError(ref error) => write!(formatter, "I/O error: {}", error),
-            AppError::Unexpected(ref error) => {
+            Self::IoError(ref error) => write!(formatter, "I/O error: {}", error),
+            Self::Unexpected(ref error) => {
                 write!(formatter, "Unexpected (probably a logic error): {}", error)
             }
         }
@@ -254,8 +248,8 @@ impl Display for AppError {
 impl From<CoreError> for AppError {
     fn from(err: CoreError) -> Self {
         match err {
-            CoreError::Unexpected(reason) => AppError::Unexpected(reason),
-            _ => AppError::CoreError(err),
+            CoreError::Unexpected(reason) => Self::Unexpected(reason),
+            _ => Self::CoreError(err),
         }
     }
 }
@@ -263,103 +257,103 @@ impl From<CoreError> for AppError {
 impl From<IpcError> for AppError {
     fn from(err: IpcError) -> Self {
         match err {
-            IpcError::EncodeDecodeError => AppError::EncodeDecodeError,
-            IpcError::Unexpected(reason) => AppError::Unexpected(reason),
-            _ => AppError::IpcError(err),
+            IpcError::EncodeDecodeError => Self::EncodeDecodeError,
+            IpcError::Unexpected(reason) => Self::Unexpected(reason),
+            _ => Self::IpcError(err),
         }
     }
 }
 
 impl From<ConfigFileHandlerError> for AppError {
     fn from(err: ConfigFileHandlerError) -> Self {
-        AppError::Unexpected(err.to_string())
+        Self::Unexpected(err.to_string())
     }
 }
 
 impl From<NfsError> for AppError {
     fn from(err: NfsError) -> Self {
         match err {
-            NfsError::CoreError(err) => AppError::CoreError(err),
-            NfsError::EncodeDecodeError(_) => AppError::EncodeDecodeError,
-            NfsError::SelfEncryption(err) => AppError::SelfEncryption(err),
-            NfsError::Unexpected(reason) => AppError::Unexpected(reason),
-            _ => AppError::NfsError(err),
+            NfsError::CoreError(err) => Self::CoreError(err),
+            NfsError::EncodeDecodeError(_) => Self::EncodeDecodeError,
+            NfsError::SelfEncryption(err) => Self::SelfEncryption(err),
+            NfsError::Unexpected(reason) => Self::Unexpected(reason),
+            _ => Self::NfsError(err),
         }
     }
 }
 
 impl From<SerialisationError> for AppError {
     fn from(_err: SerialisationError) -> Self {
-        AppError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<Utf8Error> for AppError {
     fn from(_err: Utf8Error) -> Self {
-        AppError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<StringError> for AppError {
     fn from(_err: StringError) -> Self {
-        AppError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<SelfEncryptionError<SelfEncryptionStorageError>> for AppError {
     fn from(err: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
-        AppError::SelfEncryption(err)
+        Self::SelfEncryption(err)
     }
 }
 
 impl From<IoError> for AppError {
     fn from(err: IoError) -> Self {
-        AppError::IoError(err)
+        Self::IoError(err)
     }
 }
 
 impl<'a> From<&'a str> for AppError {
     fn from(s: &'a str) -> Self {
-        AppError::Unexpected(s.to_string())
+        Self::Unexpected(s.to_string())
     }
 }
 
 impl From<String> for AppError {
     fn from(s: String) -> Self {
-        AppError::Unexpected(s)
+        Self::Unexpected(s)
     }
 }
 
 impl<T: 'static> From<SendError<T>> for AppError {
     fn from(err: SendError<T>) -> Self {
-        AppError::from(err.description())
+        Self::from(err.description())
     }
 }
 
 impl From<NulError> for AppError {
     fn from(err: NulError) -> Self {
-        AppError::from(err.description())
+        Self::from(err.description())
     }
 }
 
 impl From<RecvError> for AppError {
     fn from(err: RecvError) -> Self {
-        AppError::from(err.description())
+        Self::from(err.description())
     }
 }
 
 impl From<RecvTimeoutError> for AppError {
     fn from(_err: RecvTimeoutError) -> Self {
         // TODO: change this to err.description() once that lands in stable.
-        AppError::from("mpsc receive error")
+        Self::from("mpsc receive error")
     }
 }
 
 impl ErrorCode for AppError {
     fn error_code(&self) -> i32 {
         match *self {
-            AppError::CoreError(ref err) => core_error_code(err),
-            AppError::IpcError(ref err) => match *err {
+            Self::CoreError(ref err) => core_error_code(err),
+            Self::IpcError(ref err) => match *err {
                 IpcError::AuthDenied => ERR_AUTH_DENIED,
                 IpcError::ContainersDenied => ERR_CONTAINERS_DENIED,
                 IpcError::InvalidMsg => ERR_INVALID_MSG,
@@ -372,7 +366,7 @@ impl ErrorCode for AppError {
                 IpcError::InvalidOwner(..) => ERR_INVALID_OWNER,
                 IpcError::IncompatibleMockStatus => ERR_INCOMPATIBLE_MOCK_STATUS,
             },
-            AppError::NfsError(ref err) => match *err {
+            Self::NfsError(ref err) => match *err {
                 NfsError::CoreError(ref err) => core_error_code(err),
                 NfsError::FileExists => ERR_FILE_EXISTS,
                 NfsError::FileNotFound => ERR_FILE_NOT_FOUND,
@@ -381,26 +375,26 @@ impl ErrorCode for AppError {
                 NfsError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
                 NfsError::Unexpected(_) => ERR_UNEXPECTED,
             },
-            AppError::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
-            AppError::OperationForbidden => ERR_OPERATION_FORBIDDEN,
-            AppError::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
-            AppError::InvalidCipherOptHandle => ERR_INVALID_CIPHER_OPT_HANDLE,
-            AppError::InvalidEncryptPubKeyHandle => ERR_INVALID_ENCRYPT_PUB_KEY_HANDLE,
-            AppError::InvalidMDataEntriesHandle => ERR_INVALID_MDATA_ENTRIES_HANDLE,
-            AppError::InvalidMDataEntryActionsHandle => ERR_INVALID_MDATA_ENTRY_ACTIONS_HANDLE,
-            AppError::InvalidMDataPermissionsHandle => ERR_INVALID_MDATA_PERMISSIONS_HANDLE,
-            AppError::InvalidSelfEncryptorHandle => ERR_INVALID_SELF_ENCRYPTOR_HANDLE,
-            AppError::InvalidSignPubKeyHandle => ERR_INVALID_SIGN_PUB_KEY_HANDLE,
-            AppError::InvalidSignSecKeyHandle => ERR_INVALID_SIGN_SEC_KEY_HANDLE,
-            AppError::InvalidEncryptSecKeyHandle => ERR_INVALID_ENCRYPT_SEC_KEY_HANDLE,
-            AppError::InvalidPubKeyHandle => ERR_INVALID_PUB_KEY_HANDLE,
-            AppError::InvalidFileContextHandle => ERR_INVALID_FILE_CONTEXT_HANDLE,
-            AppError::InvalidFileMode => ERR_INVALID_FILE_MODE,
-            AppError::UnregisteredClientAccess => ERR_UNREGISTERED_CLIENT_ACCESS,
-            AppError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
-            AppError::InvalidSelfEncryptorReadOffsets => ERR_INVALID_SELF_ENCRYPTOR_READ_OFFSETS,
-            AppError::IoError(_) => ERR_IO_ERROR,
-            AppError::Unexpected(_) => ERR_UNEXPECTED,
+            Self::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
+            Self::OperationForbidden => ERR_OPERATION_FORBIDDEN,
+            Self::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
+            Self::InvalidCipherOptHandle => ERR_INVALID_CIPHER_OPT_HANDLE,
+            Self::InvalidEncryptPubKeyHandle => ERR_INVALID_ENCRYPT_PUB_KEY_HANDLE,
+            Self::InvalidMDataEntriesHandle => ERR_INVALID_MDATA_ENTRIES_HANDLE,
+            Self::InvalidMDataEntryActionsHandle => ERR_INVALID_MDATA_ENTRY_ACTIONS_HANDLE,
+            Self::InvalidMDataPermissionsHandle => ERR_INVALID_MDATA_PERMISSIONS_HANDLE,
+            Self::InvalidSelfEncryptorHandle => ERR_INVALID_SELF_ENCRYPTOR_HANDLE,
+            Self::InvalidSignPubKeyHandle => ERR_INVALID_SIGN_PUB_KEY_HANDLE,
+            Self::InvalidSignSecKeyHandle => ERR_INVALID_SIGN_SEC_KEY_HANDLE,
+            Self::InvalidEncryptSecKeyHandle => ERR_INVALID_ENCRYPT_SEC_KEY_HANDLE,
+            Self::InvalidPubKeyHandle => ERR_INVALID_PUB_KEY_HANDLE,
+            Self::InvalidFileContextHandle => ERR_INVALID_FILE_CONTEXT_HANDLE,
+            Self::InvalidFileMode => ERR_INVALID_FILE_MODE,
+            Self::UnregisteredClientAccess => ERR_UNREGISTERED_CLIENT_ACCESS,
+            Self::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
+            Self::InvalidSelfEncryptorReadOffsets => ERR_INVALID_SELF_ENCRYPTOR_READ_OFFSETS,
+            Self::IoError(_) => ERR_IO_ERROR,
+            Self::Unexpected(_) => ERR_UNEXPECTED,
         }
     }
 }
