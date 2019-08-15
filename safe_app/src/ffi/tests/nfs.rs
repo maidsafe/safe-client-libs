@@ -150,7 +150,7 @@ fn open_file() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OPEN_MODE_APPEND,
             ud,
             cb,
         )))

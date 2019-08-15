@@ -8,12 +8,14 @@
 
 use crate::client::Client;
 use crate::crypto::shared_secretbox;
-use crate::nfs::{data_map, File, NfsFuture};
+use crate::errors::CoreError;
+use crate::nfs::{data_map, File, NfsError, NfsFuture};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use chrono::Utc;
 use futures::Future;
-use self_encryption::SequentialEncryptor;
+use safe_nd::Error as SndError;
+use self_encryption::{DataMap, SequentialEncryptor};
 
 /// Mode of the writer.
 #[derive(Clone, Copy, Debug)]
@@ -49,9 +51,15 @@ impl<C: Client> Writer<C> {
             Mode::Overwrite => ok!(None),
         };
         let client = client.clone();
-        fut.and_then(move |data_map| {
-            SequentialEncryptor::new(storage, data_map).map_err(From::from)
+        fut.or_else(|err| -> Box<NfsFuture<Option<DataMap>>> {
+            // If the returned error is NoSuchData, fallback to OverWrite mode by returning
+            // None, otherwise pass error through.
+            match err {
+                NfsError::CoreError(CoreError::DataError(SndError::NoSuchData)) => ok!(None),
+                _ => err!(err),
+            }
         })
+        .and_then(move |data_map| SequentialEncryptor::new(storage, data_map).map_err(From::from))
         .map(move |self_encryptor| Writer {
             client,
             file,
