@@ -430,7 +430,7 @@ where {
             &account_packet_id
         ));
 
-        let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
+        let (_net_tx, _net_rx) = mpsc::unbounded::<NetworkEvent>();
 
         let mut client_inner = self.inner.borrow_mut();
 
@@ -465,8 +465,8 @@ where {
                     Response::Mutation(res) => res.map_err(CoreError::from),
                     _ => Err(CoreError::from("Unexpected response")),
                 })
-                .and_then(move |resp| cm4.disconnect(&account_pub_id2))
-                .and_then(move |resp| cm5.bootstrap(client_full_id))
+                .and_then(move |_| cm4.disconnect(&account_pub_id2))
+                .and_then(move |_| cm5.bootstrap(client_full_id))
                 .map_err(AuthError::from),
         )
     }
