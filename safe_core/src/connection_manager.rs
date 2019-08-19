@@ -75,7 +75,7 @@ impl ConnectionManager {
     }
 
     /// Connect to Client Handlers that manage the provided ID.
-    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<Result<(), CoreError>>> {
+    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<()>> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
         let elders = Default::default();
@@ -98,12 +98,13 @@ impl ConnectionManager {
             Box::new(
                 connected_rx
                     .map_err(|err| CoreError::from(format!("{}", err)))
+                    .and_then(|res| res)
                     .timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS))
                     .map_err(|_e| CoreError::RequestTimeout),
             )
         } else {
             trace!("Group {} is already connected", full_id.public_id());
-            ok!(Ok(()))
+            ok!(())
         }
     }
 
