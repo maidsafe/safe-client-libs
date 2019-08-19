@@ -150,7 +150,7 @@ impl ConnectionGroup {
         );
     }
 
-    pub fn handle_sent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
+    pub fn handle_sent_user_message(&mut self, _peer_addr: SocketAddr, _msg: Bytes, _token: Token) {
         // TODO: check if we have handled the challenge?
         trace!("{}: Sent user message", self.id);
     }
@@ -162,7 +162,7 @@ impl ConnectionGroup {
             Ok(Message::Request {
                 request,
                 message_id,
-                signature,
+                signature: _,
             }) => self.handle_unsent_request(peer_addr, request, message_id, token),
             Ok(_) => println!("Unexpected message type"),
             Err(e) => println!("Unexpected error {:?}", e),
@@ -171,10 +171,10 @@ impl ConnectionGroup {
 
     fn handle_unsent_request(
         &mut self,
-        peer_addr: SocketAddr,
-        request: Request,
-        message_id: MessageId,
-        token: Token,
+        _peer_addr: SocketAddr,
+        _request: Request,
+        _message_id: MessageId,
+        _token: Token,
     ) {
         trace!("{}: Not sent user message", self.id);
         // TODO: unimplemented

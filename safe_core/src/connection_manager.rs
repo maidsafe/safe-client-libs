@@ -38,7 +38,7 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager.
-    pub fn new(config: QuicP2pConfig, net_tx: &NetworkTx) -> Result<Self, CoreError> {
+    pub fn new(config: QuicP2pConfig, _net_tx: &NetworkTx) -> Result<Self, CoreError> {
         // config.idle_timeout_msec = Some(0);
 
         let (event_tx, event_rx) = crossbeam_channel::unbounded();
@@ -160,7 +160,6 @@ impl Drop for Inner {
         trace!("Dropped ConnectionManager - terminating gracefully");
 
         let groups = mem::replace(&mut self.groups, Default::default());
-        let groups_num = groups.len();
         for (_pub_id, mut group) in groups.into_iter() {
             group.terminate();
         }
@@ -252,7 +251,7 @@ impl Inner {
             .map(|group| group.handle_unsent_user_message(peer_addr, msg, token));
     }
 
-    fn handle_connected_to(&mut self, peer: Peer) {
+    fn handle_connected_to(&mut self, _peer: Peer) {
         // TODO
     }
 
