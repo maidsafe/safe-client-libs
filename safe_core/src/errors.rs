@@ -7,7 +7,6 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::self_encryption_storage::SelfEncryptionStorageError;
-use config_file_handler;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
 use routing::messaging;
@@ -64,7 +63,7 @@ pub enum CoreError {
     /// The request has timed out.
     RequestTimeout,
     /// Configuration file error.
-    ConfigError(config_file_handler::Error),
+    ConfigError(serde_json::Error),
     /// Io error.
     IoError(io::Error),
     /// QuicP2p error.
@@ -137,12 +136,6 @@ impl From<SelfEncryptionError<SelfEncryptionStorageError>> for CoreError {
     }
 }
 
-impl From<config_file_handler::Error> for CoreError {
-    fn from(error: config_file_handler::Error) -> Self {
-        Self::ConfigError(error)
-    }
-}
-
 impl From<io::Error> for CoreError {
     fn from(error: io::Error) -> Self {
         Self::IoError(error)
@@ -157,7 +150,15 @@ impl From<quic_p2p::Error> for CoreError {
 
 impl From<serde_json::error::Error> for CoreError {
     fn from(error: serde_json::error::Error) -> Self {
-        Self::Unexpected(format!("{}", error))
+        use serde_json::error::Category;
+        match error.classify() {
+            Category::Io => {
+                CoreError::IoError(error.into())
+            }
+            Category::Syntax | Category::Data | Category::Eof => {
+                CoreError::ConfigError(error)
+            }
+        }
     }
 }
 

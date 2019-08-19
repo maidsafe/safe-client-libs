@@ -14,7 +14,6 @@ version = "0.32.1"
 bincode = "~1.1.4"
 bytes = { version = "~0.4.12", features = ["serde"] }
 chrono = { version = "~0.4.0", features = ["serde"] }
-config_file_handler = "~0.11.0"
 crossbeam-channel = "~0.3.9"
 data-encoding = "~2.1.1"
 directories = "~2.0.2"
