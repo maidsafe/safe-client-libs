@@ -151,31 +151,12 @@ impl ConnectionGroup {
     }
 
     pub fn handle_sent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
-        // TODO: check if we have handled the challenage?
-
-        match deserialize(&msg) {
-            Ok(Message::Request {
-                request,
-                message_id,
-                signature,
-            }) => self.handle_sent_request(peer_addr, request, message_id, token),
-            Ok(_) => println!("Unexpected message type"),
-            Err(e) => println!("Unexpected error {:?}", e),
-        }
-    }
-
-    fn handle_sent_request(
-        &mut self,
-        peer_addr: SocketAddr,
-        request: Request,
-        message_id: MessageId,
-        token: Token,
-    ) {
-        // TODO: unimplemented
+        // TODO: check if we have handled the challenge?
+        trace!("{}: Sent user message", self.id);
     }
 
     pub fn handle_unsent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
-        // TODO: check if we have handled the challenage?
+        // TODO: check if we have handled the challenge?
 
         match deserialize(&msg) {
             Ok(Message::Request {
@@ -195,6 +176,7 @@ impl ConnectionGroup {
         message_id: MessageId,
         token: Token,
     ) {
+        trace!("{}: Not sent user message", self.id);
         // TODO: unimplemented
     }
 
