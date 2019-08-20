@@ -1662,13 +1662,14 @@ mod tests {
                     client2.put_idata(data.clone())
                 })
                 .and_then(move |_| {
-                    // Test putting unpub idata with the same value. Should not conflict because of deduplication.
+                    // Test putting unpub idata with the same value.
+                    // Should conflict because duplication does not apply to unpublished data.
                     client3.put_idata(data2.clone())
                 })
                 .then(|res| -> Result<(), CoreError> {
                     match res {
-                        Ok(()) => Ok(()),
-                        Err(e) => panic!("Unexpected: {:?}", e),
+                        Err(CoreError::NewRoutingClientError(SndError::DataExists)) => Ok(()),
+                        res => panic!("Unexpected: {:?}", res),
                     }
                 })
                 .and_then(move |_| {
