@@ -1,4 +1,4 @@
-FROM rust:1.34.1
+FROM rust:latest
 
 RUN addgroup --gid 1001 maidsafe && \
     adduser --uid 1001 --ingroup maidsafe --home /home/maidsafe --shell /bin/sh --disabled-password --gecos "" maidsafe && \

@@ -13,7 +13,7 @@ UUID := $(shell uuidgen | sed 's/-//g')
 build-container:
 	rm -rf target/
 	docker rmi -f maidsafe/safe-client-libs-build:build
-	docker build -f scripts/Dockerfile.build -t maidsafe/safe-client-libs-build:build
+	docker build -f scripts/Dockerfile.build -t maidsafe/safe-client-libs-build:build .
 
 push-container:
 	docker push maidsafe/safe-client-libs-build:build
