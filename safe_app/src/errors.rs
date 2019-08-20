@@ -432,7 +432,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
         },
-        CoreError::NewRoutingClientError(ref err) => match *err {
+        CoreError::DataError(ref err) => match *err {
             SndError::AccessDenied => ERR_ACCESS_DENIED,
             SndError::NoSuchLoginPacket => ERR_NO_SUCH_LOGIN_PACKET,
             SndError::LoginPacketExists => ERR_LOGIN_PACKET_EXISTS,

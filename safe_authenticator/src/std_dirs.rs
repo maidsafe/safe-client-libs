@@ -51,9 +51,7 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
                     // Make sure that all default dirs have been created
                     create_std_dirs(&c3, &default_containers)
                 }
-                Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                    SndError::NoSuchData,
-                ))) => {
+                Err(AuthError::CoreError(CoreError::DataError(SndError::NoSuchData))) => {
                     // Access container hasn't been created yet
                     let access_cont_value = fry!(random_std_dirs())
                         .into_iter()

@@ -211,9 +211,7 @@ where
             Ok((Some(value.version), decoded))
         })
         .or_else(|error| match error {
-            CoreError::NewRoutingClientError(SndError::NoSuchEntry) => {
-                Ok((None, Default::default()))
-            }
+            CoreError::DataError(SndError::NoSuchEntry) => Ok((None, Default::default())),
             _ => Err(AuthError::from(error)),
         })
         .into_box()
@@ -245,16 +243,14 @@ where
         .or_else(move |error| {
             // As we are mutating only one entry, let's make the common errors
             // more convenient to handle.
-            if let CoreError::NewRoutingClientError(SndError::InvalidEntryActions(ref errors)) =
-                error
-            {
+            if let CoreError::DataError(SndError::InvalidEntryActions(ref errors)) = error {
                 if let Some(error) = errors.get(&key) {
                     match *error {
                         EntryError::InvalidSuccessor(version)
                         | EntryError::EntryExists(version) => {
-                            return Err(CoreError::NewRoutingClientError(
-                                SndError::InvalidSuccessor(version.into()),
-                            ));
+                            return Err(CoreError::DataError(SndError::InvalidSuccessor(
+                                version.into(),
+                            )));
                         }
                         _ => (),
                     }
@@ -292,9 +288,9 @@ where
                 let f = update_entry(&c2, &key, &item, new_version)
                     .map(move |_| Loop::Break((new_version, item)))
                     .or_else(move |error| match error {
-                        AuthError::CoreError(CoreError::NewRoutingClientError(
-                            SndError::InvalidSuccessor(_),
-                        )) => {
+                        AuthError::CoreError(CoreError::DataError(SndError::InvalidSuccessor(
+                            _,
+                        ))) => {
                             let f = get_entry(&c3, &key).map(move |(version, item)| {
                                 Loop::Continue((key, next_version(version), item))
                             });

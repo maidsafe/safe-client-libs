@@ -33,7 +33,7 @@ pub fn create_dir(
             trace!("Error: {:?}", err);
             match err {
                 // This dir has been already created
-                CoreError::NewRoutingClientError(SndError::DataExists) => Ok(()),
+                CoreError::DataError(SndError::DataExists) => Ok(()),
                 e => Err(e),
             }
         })

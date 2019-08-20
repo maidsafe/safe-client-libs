@@ -18,7 +18,7 @@ use routing::{FullId, XorName};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
-use safe_core::client::{req, AuthActions, ClientInner, NewFullId, IMMUT_DATA_CACHE_SIZE};
+use safe_core::client::{req, AuthActions, ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
@@ -159,8 +159,8 @@ where {
         let transient_pk = transient_id.public_id().public_key();
         let new_login_packet = LoginPacket::new(acc_locator, *transient_pk, acc_ciphertext, sig)?;
 
-        let balance_full_id = NewFullId::client(ClientFullId::with_bls_key(balance_sk));
-        let client_full_id = NewFullId::client(maid_keys.into());
+        let balance_full_id = SafeKey::client(ClientFullId::with_bls_key(balance_sk));
+        let client_full_id = SafeKey::client(maid_keys.into());
 
         // Create the connection manager
         let mut connection_manager =
@@ -282,7 +282,7 @@ where {
 
         let client_full_id = create_client_id(&acc_locator.0);
         let client_pk = *client_full_id.public_id().public_key();
-        let client_full_id = NewFullId::client(client_full_id);
+        let client_full_id = SafeKey::client(client_full_id);
 
         let user_cred = UserCred::new(password, pin);
 
@@ -317,7 +317,7 @@ where {
             &user_cred.pin,
         )?;
 
-        let id_packet = NewFullId::client(acc.maid_keys.clone().into());
+        let id_packet = SafeKey::client(acc.maid_keys.clone().into());
 
         trace!("Creating an actual client...");
 
@@ -397,7 +397,7 @@ where {
         acc_loc: XorName,
         account: &Account,
         keys: &UserCred,
-        full_id: &NewFullId,
+        full_id: &SafeKey,
     ) -> Result<LoginPacket, AuthError> {
         let encrypted_account = account.encrypt(&keys.password, &keys.pin)?;
 
@@ -418,7 +418,7 @@ where {
         let keys = &auth_inner.user_cred;
         let client_full_id = auth_inner.full_id.clone();
         let acc_loc = &auth_inner.acc_loc;
-        let account_packet_id = NewFullId::client(create_client_id(&acc_loc.0));
+        let account_packet_id = SafeKey::client(create_client_id(&acc_loc.0));
         let account_pub_id = account_packet_id.public_id().clone();
         let updated_packet = fry!(Self::prepare_account_packet_update(
             *acc_loc,
@@ -596,7 +596,7 @@ struct AuthInner {
     acc: Account,
     acc_loc: XorName,
     user_cred: UserCred,
-    full_id: NewFullId,
+    full_id: SafeKey,
 }
 
 // ------------------------------------------------------------

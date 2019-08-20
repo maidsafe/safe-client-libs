@@ -141,7 +141,7 @@ pub fn fetch_entry(
     client
         .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
         .then(move |result| match result {
-            Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => Ok((0, None)),
+            Err(CoreError::DataError(SndError::NoSuchEntry)) => Ok((0, None)),
             Err(err) => Err(AuthError::from(err)),
             Ok(value) => {
                 let decoded = Some(decode_app_entry(&value.data, &app_keys.enc_key)?);

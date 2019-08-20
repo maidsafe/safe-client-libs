@@ -69,10 +69,7 @@ fn verify_app_is_revoked(
                 // Verify the app has no permissions in the containers.
                 c1.list_mdata_user_permissions_new(*mdata_info.address(), app_key)
                     .then(|res| {
-                        assert_match!(
-                            res,
-                            Err(CoreError::NewRoutingClientError(SndError::NoSuchKey))
-                        );
+                        assert_match!(res, Err(CoreError::DataError(SndError::NoSuchKey)));
                         Ok(())
                     })
             });

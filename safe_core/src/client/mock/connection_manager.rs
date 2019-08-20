@@ -9,7 +9,7 @@
 use super::vault::{self, Vault};
 use crate::config_handler::{get_config, Config};
 use crate::{
-    client::NewFullId,
+    client::SafeKey,
     event::{NetworkEvent, NetworkTx},
     CoreError, CoreFuture,
 };
@@ -78,7 +78,7 @@ impl ConnectionManager {
     }
 
     /// Bootstrap to any known contact.
-    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<()>> {
+    pub fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
         let _ = unwrap!(self.groups.lock()).insert(full_id.public_id());
         ok!(())
     }

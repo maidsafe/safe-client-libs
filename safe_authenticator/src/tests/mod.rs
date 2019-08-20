@@ -276,9 +276,7 @@ mod mock_routing {
         // `Revoked` state (as it is listed in the config root, but not in the access
         // container)
         match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                SndError::InsufficientBalance,
-            ))) => (),
+            Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 
@@ -316,9 +314,7 @@ mod mock_routing {
             cm_hook,
         ));
         match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                SndError::InsufficientBalance,
-            ))) => (),
+            Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 
@@ -347,7 +343,7 @@ mod mock_routing {
             cm_hook,
         ));
         match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::NewRoutingClientError(
+            Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
                 SndError::InsufficientBalance,
             )))) => (),
             x => panic!("Unexpected {:?}", x),
@@ -380,9 +376,7 @@ mod mock_routing {
             cm_hook,
         ));
         match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::CoreError(CoreError::NewRoutingClientError(
-                SndError::InsufficientBalance,
-            ))) => (),
+            Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 

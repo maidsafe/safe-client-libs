@@ -369,7 +369,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
         },
-        CoreError::NewRoutingClientError(ref err) => safe_nd_error_core(err),
+        CoreError::DataError(ref err) => safe_nd_error_core(err),
         CoreError::QuicP2p(ref _err) => ERR_QUIC_P2P, // FIXME: use proper error codes
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,

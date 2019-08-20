@@ -9,7 +9,7 @@
 // TODO - remove this.
 #![allow(dead_code)]
 
-use crate::{client::NewFullId, utils, CoreError, CoreFuture};
+use crate::{client::SafeKey, utils, CoreError, CoreFuture};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
@@ -60,7 +60,7 @@ impl Elder {
 /// Encapsulates multiple QUIC connections with a group of Client Handlers.
 /// Accumulates responses. During Phase 1 connects only to a single vault.
 pub(super) struct ConnectionGroup {
-    full_id: NewFullId,
+    full_id: SafeKey,
     elders: HashMap<SocketAddr, Elder>,
     hooks: HashMap<MessageId, Sender<Response>>, // to be replaced with Accumulator for multiple vaults.
     quic_p2p: Arc<Mutex<QuicP2p>>,
@@ -71,7 +71,7 @@ pub(super) struct ConnectionGroup {
 
 impl ConnectionGroup {
     pub fn new(
-        full_id: NewFullId,
+        full_id: SafeKey,
         mut elders: HashSet<NodeInfo>,
         quic_p2p: Arc<Mutex<QuicP2p>>,
         connection_hook: Sender<Result<(), CoreError>>,

@@ -9,7 +9,7 @@
 use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::ConnectionManager;
-use crate::client::{req, AuthActions, Client, ClientInner, NewFullId, IMMUT_DATA_CACHE_SIZE};
+use crate::client::{req, AuthActions, Client, ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
@@ -105,7 +105,7 @@ impl CoreClient {
             let client_full_id = ClientFullId::new_bls(&mut rng);
             (
                 *client_full_id.public_id().public_key(),
-                NewFullId::client(client_full_id),
+                SafeKey::client(client_full_id),
             )
         };
 
@@ -115,7 +115,7 @@ impl CoreClient {
         let balance_client_id = ClientFullId::with_bls_key(balance_sk);
         let new_balance_owner = *balance_client_id.public_id().public_key();
 
-        let balance_client_id = NewFullId::client(balance_client_id);
+        let balance_client_id = SafeKey::client(balance_client_id);
         let balance_pub_id = balance_client_id.public_id();
 
         // Create the connection manager
@@ -156,7 +156,7 @@ impl CoreClient {
             block_on_all(connection_manager.disconnect(&balance_pub_id))?;
         }
 
-        block_on_all(connection_manager.bootstrap(NewFullId::client(maid_keys.clone().into())))?;
+        block_on_all(connection_manager.bootstrap(SafeKey::client(maid_keys.clone().into())))?;
 
         Ok(Self {
             inner: Rc::new(RefCell::new(ClientInner {

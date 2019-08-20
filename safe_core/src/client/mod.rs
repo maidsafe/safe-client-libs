@@ -21,7 +21,7 @@ mod id;
 mod mock;
 
 pub use self::account::ClientKeys;
-pub use self::id::NewFullId;
+pub use self::id::SafeKey;
 pub use self::mdata_info::MDataInfo;
 #[cfg(feature = "mock-network")]
 pub use self::mock::vault::mock_vault_path;
@@ -51,7 +51,7 @@ use safe_nd::{
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
     ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, Coins,
     IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
-    MDataPermissionSet as NewPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue,
+    MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue,
     MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
     Request, Response, SeqMutableData, Signature, Transaction, UnseqMutableData, XorName,
 };
@@ -657,7 +657,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: MDataAddress,
         user: PublicKey,
-    ) -> Box<CoreFuture<NewPermissionSet>> {
+    ) -> Box<CoreFuture<MDataPermissionSet>> {
         trace!("GetMDataUserPermissions for {:?}", address);
 
         send(
@@ -1054,7 +1054,7 @@ pub trait Client: Clone + 'static {
     fn list_mdata_permissions_new(
         &self,
         address: MDataAddress,
-    ) -> Box<CoreFuture<BTreeMap<PublicKey, NewPermissionSet>>> {
+    ) -> Box<CoreFuture<BTreeMap<PublicKey, MDataPermissionSet>>> {
         trace!("List MDataPermissions for {:?}", address);
 
         send(self, Request::ListMDataPermissions(address), true)
@@ -1107,7 +1107,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: MDataAddress,
         user: PublicKey,
-        permissions: NewPermissionSet,
+        permissions: MDataPermissionSet,
         version: u64,
     ) -> Box<CoreFuture<()>> {
         trace!("SetMDataUserPermissions for {:?}", address);
@@ -1245,9 +1245,9 @@ pub trait Client: Clone + 'static {
 /// This function is blocking.
 fn temp_client<F, R>(identity: &BlsSecretKey, mut func: F) -> Result<R, CoreError>
 where
-    F: FnMut(&mut ConnectionManager, &NewFullId) -> Result<R, CoreError>,
+    F: FnMut(&mut ConnectionManager, &SafeKey) -> Result<R, CoreError>,
 {
-    let full_id = NewFullId::client(ClientFullId::with_bls_key(identity.clone()));
+    let full_id = SafeKey::client(ClientFullId::with_bls_key(identity.clone()));
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
@@ -1519,7 +1519,7 @@ fn send_mutation(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
 pub fn req(
     cm: &mut ConnectionManager,
     request: Request,
-    full_id_new: &NewFullId,
+    full_id_new: &SafeKey,
 ) -> Result<Response, CoreError> {
     let message_id = MessageId::new();
     let signature = full_id_new.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
@@ -1570,7 +1570,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(data) => panic!("Pub idata should not exist yet: {:?}", data),
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1581,7 +1581,7 @@ mod tests {
                 .and_then(move |_| {
                     client3.put_idata(test_data.clone()).then(|res| match res {
                         Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                        Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => Ok(()),
+                        Err(CoreError::DataError(SndError::InvalidOwners)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     })
                 })
@@ -1621,7 +1621,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata should not exist yet"),
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1661,7 +1661,7 @@ mod tests {
                 .then(|res| -> Result<(), CoreError> {
                     match res {
                         Ok(_) => panic!("Unpub idata still exists after deletion"),
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected: {:?}", e),
                     }
                 })
@@ -1688,7 +1688,7 @@ mod tests {
             let tag = 15001;
             let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
+            let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
             let _ = permissions.insert(client.public_key(), permission_set.clone());
             let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
             let entries_keys = entries.keys().cloned().collect();
@@ -1765,7 +1765,7 @@ mod tests {
             let entries_keys = entries.keys().cloned().collect();
             let entries_values: Vec<MDataSeqValue> = entries.values().cloned().collect();
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new().allow(MDataAction::Read);
+            let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
             let _ = permissions.insert(client.public_key(), permission_set.clone());
             let data = SeqMutableData::new_with_data(
                 name,
@@ -1847,7 +1847,7 @@ mod tests {
                         .get_unseq_mdata(*data.name(), data.tag())
                         .then(move |res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => (),
+                                Err(CoreError::DataError(SndError::NoSuchData)) => (),
                                 _ => panic!("Unexpected success"),
                             }
                             Ok::<_, SndError>(())
@@ -1887,7 +1887,7 @@ mod tests {
                         .get_unseq_mdata(*data.name(), data.tag())
                         .then(move |res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => (),
+                                Err(CoreError::DataError(SndError::NoSuchData)) => (),
                                 _ => panic!("Unexpected success"),
                             }
                             Ok::<_, SndError>(())
@@ -1914,7 +1914,7 @@ mod tests {
                 )
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchBalance)) => (),
+                        Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
                     Ok::<_, SndError>(wallet_a_addr)
@@ -2025,7 +2025,7 @@ mod tests {
                         )
                         .then(|res| {
                             match res {
-                                Err(CoreError::NewRoutingClientError(SndError::NoSuchBalance)) => {}
+                                Err(CoreError::DataError(SndError::NoSuchBalance)) => {}
                                 res => panic!("Unexpected result: {:?}", res),
                             }
                             Ok(())
@@ -2102,7 +2102,7 @@ mod tests {
         random_client(move |client| {
             client.delete_mdata(mdataref).then(|res| {
                 match res {
-                    Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
+                    Err(CoreError::DataError(SndError::AccessDenied)) => (),
                     res => panic!("Unexpected result: {:?}", res),
                 }
                 Ok::<_, SndError>(())
@@ -2125,7 +2125,7 @@ mod tests {
             let name = XorName(rand::random());
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new()
+            let permission_set = MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
                 .allow(MDataAction::ManagePermissions);
@@ -2159,14 +2159,12 @@ mod tests {
                         .put_seq_mutable_data(test_data.clone())
                         .then(|res| match res {
                             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
-                                Ok(())
-                            }
+                            Err(CoreError::DataError(SndError::InvalidOwners)) => Ok(()),
                             Err(e) => panic!("Unexpected: {:?}", e),
                         })
                 })
                 .and_then(move |_| {
-                    let new_perm_set = NewPermissionSet::new()
+                    let new_perm_set = MDataPermissionSet::new()
                         .allow(MDataAction::ManagePermissions)
                         .allow(MDataAction::Read);
                     client2
@@ -2235,7 +2233,7 @@ mod tests {
             let name = XorName(rand::random());
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new()
+            let permission_set = MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
                 .allow(MDataAction::Update)
@@ -2330,7 +2328,7 @@ mod tests {
                         .then(|res| {
                             match res {
                                 Ok(_) => panic!("Unexpected: Entry should not exist"),
-                                Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => (),
+                                Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
                                 Err(err) => panic!("Unexpected error: {:?}", err),
                             }
                             Ok::<_, SndError>(())
@@ -2347,7 +2345,7 @@ mod tests {
             let name = XorName(rand::random());
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = NewPermissionSet::new()
+            let permission_set = MDataPermissionSet::new()
                 .allow(MDataAction::Read)
                 .allow(MDataAction::Insert)
                 .allow(MDataAction::Update)
@@ -2412,7 +2410,7 @@ mod tests {
                         .then(|res| {
                             match res {
                                 Ok(_) => panic!("Unexpected: Entry should not exist"),
-                                Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => (),
+                                Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
                                 Err(err) => panic!("Unexpected error: {:?}", err),
                             }
                             Ok::<_, SndError>(())
@@ -2479,7 +2477,7 @@ mod tests {
                 .and_then(move |_| {
                     client4.get_adata(address).then(|res| match res {
                         Ok(_) => panic!("AData was not deleted"),
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchData)) => Ok(()),
+                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
                         Err(e) => panic!("Unexpected error: {:?}", e),
                     })
                 })
@@ -2582,9 +2580,7 @@ mod tests {
                         .put_adata(AData::UnpubSeq(test_data.clone()))
                         .then(|res| match res {
                             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                            Err(CoreError::NewRoutingClientError(SndError::InvalidOwners)) => {
-                                Ok(())
-                            }
+                            Err(CoreError::DataError(SndError::InvalidOwners)) => Ok(()),
                             Err(e) => panic!("Unexpected: {:?}", e),
                         })
                 })

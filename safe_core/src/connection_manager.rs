@@ -9,7 +9,7 @@
 mod connection_group;
 
 use crate::{
-    client::NewFullId,
+    client::SafeKey,
     event::{NetworkEvent, NetworkTx},
     CoreError, CoreFuture,
 };
@@ -85,7 +85,7 @@ impl ConnectionManager {
     }
 
     /// Connect to Client Handlers that manage the provided ID.
-    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<()>> {
+    pub fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
         let elders = Default::default();

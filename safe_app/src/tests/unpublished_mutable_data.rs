@@ -55,7 +55,7 @@ fn md_created_by_app_1() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 let user = bls_pk;
@@ -73,7 +73,7 @@ fn md_created_by_app_1() {
             .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 unwrap!(tx.send(()));
@@ -159,7 +159,7 @@ fn md_created_by_app_2() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 let entry_actions =
@@ -169,7 +169,7 @@ fn md_created_by_app_2() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 let user = app_bls_key;
@@ -201,7 +201,7 @@ fn md_created_by_app_2() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 let entry_actions = MDataUnseqEntryActions::new().del(vec![1, 2, 3, 4]);
@@ -273,7 +273,7 @@ fn md_created_by_app_3() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("Put should be rejected by MaidManagers"),
-                    Err(CoreError::NewRoutingClientError(Error::InvalidOwners)) => (),
+                    Err(CoreError::DataError(Error::InvalidOwners)) => (),
                     Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
                 }
                 let owners = c2.owner_key();
@@ -399,7 +399,7 @@ fn multiple_apps() {
             .then(move |res| -> Result<_, ()> {
                 match res {
                     Ok(()) => panic!("It should fail"),
-                    Err(CoreError::NewRoutingClientError(Error::AccessDenied)) => (),
+                    Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
                 unwrap!(final_check_tx.send(()));
@@ -467,7 +467,7 @@ fn permissions_and_version() {
             .then(move |res| {
                 match res {
                     Ok(()) => panic!("It should fail with invalid successor"),
-                    Err(CoreError::NewRoutingClientError(Error::InvalidSuccessor(..))) => (),
+                    Err(CoreError::DataError(Error::InvalidSuccessor(..))) => (),
                     Err(x) => panic!("Expected Error::InvalidSuccessor. Got {:?}", x),
                 }
                 c4.list_mdata_permissions_new(MDataAddress::Unseq { name, tag: DIR_TAG })

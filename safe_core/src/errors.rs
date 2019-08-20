@@ -48,7 +48,7 @@ pub enum CoreError {
     /// Routing Client Error.
     RoutingClientError(ClientError),
     /// Routing Client Error.
-    NewRoutingClientError(SndError),
+    DataError(SndError),
     /// Unable to pack into or operate with size of Salt.
     UnsupportedSaltSizeForPwHash,
     /// Unable to complete computation for password hashing - usually because OS
@@ -114,7 +114,7 @@ impl From<ClientError> for CoreError {
 
 impl From<SndError> for CoreError {
     fn from(error: SndError) -> Self {
-        Self::NewRoutingClientError(error)
+        Self::DataError(error)
     }
 }
 
@@ -193,9 +193,7 @@ impl Debug for CoreError {
             Self::RoutingClientError(ref error) => {
                 write!(formatter, "CoreError::RoutingClientError -> {:?}", error)
             }
-            Self::NewRoutingClientError(ref error) => {
-                write!(formatter, "CoreError::NewRoutingClientError -> {:?}", error)
-            }
+            Self::DataError(ref error) => write!(formatter, "CoreError::DataError -> {:?}", error),
             Self::UnsupportedSaltSizeForPwHash => {
                 write!(formatter, "CoreError::UnsupportedSaltSizeForPwHash")
             }
@@ -252,9 +250,7 @@ impl Display for CoreError {
             Self::RoutingClientError(ref error) => {
                 write!(formatter, "Routing client error -> {}", error)
             }
-            Self::NewRoutingClientError(ref error) => {
-                write!(formatter, "New Routing client error -> {}", error)
-            }
+            Self::DataError(ref error) => write!(formatter, "Data error -> {}", error),
             Self::UnsupportedSaltSizeForPwHash => write!(
                 formatter,
                 "Unable to pack into or operate with size of Salt"
@@ -295,7 +291,7 @@ impl StdError for CoreError {
             Self::RoutingError(_) => "Routing internal error",
             // TODO - use `error.description()` once `InterfaceError` implements `std::error::Error`
             Self::RoutingClientError(ref error) => error.description(),
-            Self::NewRoutingClientError(ref error) => error.description(),
+            Self::DataError(ref error) => error.description(),
             Self::RoutingInterfaceError(_) => "Routing interface error",
             Self::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
             Self::UnsuccessfulPwHash => "Failed while password hashing",

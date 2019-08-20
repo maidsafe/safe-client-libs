@@ -227,7 +227,7 @@ pub fn write<C: Client>(
 // TODO:  consider performing such conversion directly in the mentioned `impl From`.
 fn convert_error(err: CoreError) -> NfsError {
     match err {
-        CoreError::NewRoutingClientError(SndError::NoSuchEntry) => NfsError::FileNotFound,
+        CoreError::DataError(SndError::NoSuchEntry) => NfsError::FileNotFound,
         _ => NfsError::from(err),
     }
 }

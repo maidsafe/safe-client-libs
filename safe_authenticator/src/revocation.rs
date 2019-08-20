@@ -176,7 +176,7 @@ fn delete_app_auth_key(client: &AuthClient, key: PublicKey) -> Box<AuthFuture<()
             }
         })
         .or_else(|error| match error {
-            CoreError::NewRoutingClientError(SndError::NoSuchKey) => Ok(()),
+            CoreError::DataError(SndError::NoSuchKey) => Ok(()),
             error => Err(AuthError::from(error)),
         })
         .into_box()

@@ -11,7 +11,7 @@
 
 use super::routing::Routing;
 use crate::client::mock::vault::Vault;
-use crate::client::NewFullId;
+use crate::client::SafeKey;
 use crate::config_handler::{Config, DevConfig};
 use crate::utils;
 
@@ -1780,14 +1780,14 @@ fn request_hooks() {
 }
 
 // Setup routing with a shared, global vault.
-fn setup() -> (Routing, Receiver<Event>, FullId, NewFullId) {
+fn setup() -> (Routing, Receiver<Event>, FullId, SafeKey) {
     let (routing, routing_rx, full_id, full_id_new) = setup_impl();
 
     (routing, routing_rx, full_id, full_id_new)
 }
 
 // Setup routing with a new, non-shared vault.
-fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, NewFullId) {
+fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, SafeKey) {
     let (mut routing, routing_rx, full_id, full_id_new) = setup_impl();
 
     routing.set_vault(&Arc::new(Mutex::new(Vault::new(config))));
@@ -1795,7 +1795,7 @@ fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, NewFu
     (routing, routing_rx, full_id, full_id_new)
 }
 
-fn setup_impl() -> (Routing, Receiver<Event>, FullId, NewFullId) {
+fn setup_impl() -> (Routing, Receiver<Event>, FullId, SafeKey) {
     let full_id = FullId::new();
     let owner_pk = PublicKey::from(SecretKey::random().public_key());
     let app_full_id = AppFullId::with_keys(full_id.bls_key().clone(), owner_pk);
@@ -1814,7 +1814,7 @@ fn setup_impl() -> (Routing, Receiver<Event>, FullId, NewFullId) {
         e => panic!("Unexpected event {:?}", e),
     }
 
-    (routing, routing_rx, full_id, NewFullId::App(app_full_id))
+    (routing, routing_rx, full_id, SafeKey::App(app_full_id))
 }
 
 // Create a wallet for an account, and change the `PublicId` in routing to a Client variant
@@ -1823,7 +1823,7 @@ fn create_account(
     routing: &mut Routing,
     coins: Coins,
     owner_sk: &SecretKey,
-) -> (Authority<XorName>, NewFullId) {
+) -> (Authority<XorName>, SafeKey) {
     let owner_key: PublicKey = owner_sk.public_key().into();
     let account_name = XorName::from(owner_key);
     routing.create_balance(owner_key, coins);
@@ -1832,6 +1832,6 @@ fn create_account(
 
     (
         Authority::ClientManager(account_name),
-        NewFullId::Client(ClientFullId::with_bls_key(owner_sk.clone())),
+        SafeKey::Client(ClientFullId::with_bls_key(owner_sk.clone())),
     )
 }

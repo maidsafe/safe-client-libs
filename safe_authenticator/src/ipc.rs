@@ -186,7 +186,7 @@ pub fn decode_share_mdata_req(
                                         Err(_) => Err(ShareMDataError::InvalidMetadata),
                                     }
                                 })),
-                            Err(CoreError::NewRoutingClientError(SndError::NoSuchEntry)) => {
+                            Err(CoreError::DataError(SndError::NoSuchEntry)) => {
                                 // Allow requesting shared access to arbitrary Mutable Data objects even
                                 // if they don't have metadata.
                                 let user_metadata = UserMetadata {

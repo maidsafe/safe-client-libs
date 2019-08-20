@@ -335,7 +335,7 @@ fn unregistered_client() {
                     .get_adata(ADataAddress::UnpubUnseq { name: addr, tag })
                     .then(|res| {
                         match res {
-                            Err(CoreError::NewRoutingClientError(SndError::AccessDenied)) => (),
+                            Err(CoreError::DataError(SndError::AccessDenied)) => (),
                             res => panic!("Unexpected result {:?}", res),
                         }
                         Ok(())

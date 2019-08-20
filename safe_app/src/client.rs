@@ -12,7 +12,7 @@ use crate::{AppContext, AppMsgTx};
 use lru_cache::LruCache;
 use routing::FullId;
 use rust_sodium::crypto::{box_, sign};
-use safe_core::client::{ClientInner, NewFullId, IMMUT_DATA_CACHE_SIZE}; //, REQUEST_TIMEOUT_SECS};
+use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE}; //, REQUEST_TIMEOUT_SECS};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
@@ -47,7 +47,7 @@ impl AppClient {
 
         let mut connection_manager =
             ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
-        block_on_all(connection_manager.bootstrap(NewFullId::app(
+        block_on_all(connection_manager.bootstrap(SafeKey::app(
             client_keys.clone().into_app_full_id(client_pk),
         )))?;
 
@@ -131,7 +131,7 @@ impl AppClient {
         let mut connection_manager =
             ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
         let _ = block_on_all(
-            connection_manager.bootstrap(NewFullId::app(keys.clone().into_app_full_id(owner))),
+            connection_manager.bootstrap(SafeKey::app(keys.clone().into_app_full_id(owner))),
         );
 
         // let (mut routing, routing_rx) = setup_routing(

@@ -33,9 +33,7 @@ pub fn put_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<(
     client
         .put_seq_mutable_data(data.clone())
         .or_else(move |error| match error {
-            CoreError::NewRoutingClientError(SndError::DataExists) => {
-                Either::A(update_mdata(&client2, data))
-            }
+            CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
             error => Either::B(future::err(error)),
         })
         .into_box()
@@ -55,14 +53,12 @@ pub fn mutate_mdata_entries(
             .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone())
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::InvalidEntryActions(errors)) => {
+                CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
                     if attempts < MAX_ATTEMPTS {
                         let actions = fix_entry_actions(actions, &errors);
                         Ok(Loop::Continue((attempts + 1, actions.into())))
                     } else {
-                        Err(CoreError::NewRoutingClientError(
-                            SndError::InvalidEntryActions(errors),
-                        ))
+                        Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
                     }
                 }
                 CoreError::RequestTimeout => {
@@ -94,7 +90,7 @@ pub fn set_mdata_user_permissions(
             .set_mdata_user_permissions_new(address, user, permissions.clone(), version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
+                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -129,8 +125,8 @@ pub fn del_mdata_user_permissions(
             .del_mdata_user_permissions_new(address, user, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::NoSuchKey) => Ok(Loop::Break(())),
-                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
+                CoreError::DataError(SndError::NoSuchKey) => Ok(Loop::Break(())),
+                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -315,7 +311,7 @@ pub fn ins_auth_key(
             .ins_auth_key(key, permissions, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::NewRoutingClientError(SndError::InvalidSuccessor(current_version)) => {
+                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
                     if attempts < MAX_ATTEMPTS {
                         Ok(Loop::Continue((attempts + 1, current_version + 1)))
                     } else {
@@ -714,7 +710,7 @@ mod tests_with_mock_routing {
                 })
                 .then(move |res| {
                     match res {
-                        Err(CoreError::NewRoutingClientError(SndError::NoSuchKey)) => (),
+                        Err(CoreError::DataError(SndError::NoSuchKey)) => (),
                         x => panic!("Unexpected {:?}", x),
                     }
 
