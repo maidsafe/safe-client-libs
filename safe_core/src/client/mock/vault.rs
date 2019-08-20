@@ -678,9 +678,16 @@ impl Vault {
                             self.transfer_coins(source, new_balance_dest, amount, transaction_id)
                         })
                         // Store the login packet
-                        .map(|_| self.insert_login_packet(new_login_packet))
+                        .map(|_| {
+                            self.insert_login_packet(new_login_packet);
+
+                            Transaction {
+                                id: transaction_id,
+                                amount,
+                            }
+                        })
                 };
-                Response::Mutation(result)
+                Response::Transaction(result)
             }
             Request::CreateLoginPacket(account_data) => {
                 let source = owner_pk.into();

@@ -235,24 +235,26 @@ pub trait Client: Clone + 'static {
         amount: Coins,
         transaction_id: Option<u64>,
         new_login_packet: LoginPacket,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Box<CoreFuture<Transaction>> {
         trace!(
             "Insert a login packet for {:?} preloading the wallet with {} coins.",
             new_owner,
             amount
         );
+
+        let transaction_id = transaction_id.unwrap_or_else(rand::random);
         send_as(
             self,
             Request::CreateLoginPacketFor {
                 new_owner,
                 amount,
-                transaction_id: transaction_id.unwrap_or_else(rand::random),
+                transaction_id,
                 new_login_packet,
             },
             secret_key,
         )
         .and_then(|res| match res {
-            Response::Mutation(res) => res.map_err(CoreError::from),
+            Response::Transaction(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         })
         .into_box()
