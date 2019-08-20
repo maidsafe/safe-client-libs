@@ -12,11 +12,11 @@ UUID := $(shell uuidgen | sed 's/-//g')
 
 build-container:
 	rm -rf target/
-	docker rmi -f maidsafe/safe-client-libs-build:${SAFE_APP_VERSION}
-	docker build -f scripts/Dockerfile.build -t maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} .
+	docker rmi -f maidsafe/safe-client-libs-build:build
+	docker build -f scripts/Dockerfile.build -t maidsafe/safe-client-libs-build:build
 
 push-container:
-	docker push maidsafe/safe-client-libs-build:${SAFE_APP_VERSION}
+	docker push maidsafe/safe-client-libs-build:build
 
 clean:
 	@if docker ps -a | grep safe_app_build &> /dev/null; then \
@@ -26,7 +26,7 @@ clean:
 build:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
-	./scripts/build-with-container "real" "${SAFE_APP_VERSION}"
+	./scripts/build-with-container "real"
 else
 	./scripts/build-real
 endif
@@ -36,7 +36,7 @@ endif
 build-mock:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
-	./scripts/build-with-container "mock" "${SAFE_APP_VERSION}"
+	./scripts/build-with-container "mock"
 else
 	./scripts/build-mock
 endif
@@ -86,7 +86,7 @@ package-deploy-artifacts:
 	@rm -rf deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		maidsafe/safe-client-libs-build:build \
 		scripts/package-runner-container
 
 retrieve-cache:
@@ -202,7 +202,7 @@ endif
 		-e CARGO_TARGET_DIR=/target \
 		-e COMPAT_TESTS=/bct/tests \
 		-e SCL_TEST_SUITE=binary \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		maidsafe/safe-client-libs-build:build \
 		scripts/test-runner-container
 
 tests: clean
@@ -213,7 +213,7 @@ ifeq ($(UNAME_S),Linux)
 		-v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		maidsafe/safe-client-libs-build:build \
 		scripts/test-mock
 	docker cp "safe_app_tests-${UUID}":/target .
 	docker rm -f "safe_app_tests-${UUID}"
@@ -228,8 +228,8 @@ tests-integration: clean
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} \
+		maidsafe/safe-client-libs-build:build \
 		scripts/test-integration
 
 debug:
-	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:${SAFE_APP_VERSION} /bin/bash
+	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:build /bin/bash

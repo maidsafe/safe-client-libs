@@ -8,7 +8,7 @@ properties([
 
 stage('build & test') {
     parallel mock_linux: {
-        node('docker') {
+        node('safe_client_libs') {
             checkout(scm)
             clean()
             run_tests('mock')
@@ -37,7 +37,7 @@ stage('build & test') {
         }
     },
     integration_tests: {
-        node('docker') {
+        node('safe_client_libs') {
             checkout(scm)
             run_tests('integration')
         }
@@ -45,7 +45,7 @@ stage('build & test') {
 }
 
 stage('deployment') {
-    node('docker') {
+    node('safe_client_libs') {
         if (env.BRANCH_NAME == "master") {
             checkout(scm)
             package_deploy_artifacts()
@@ -70,7 +70,7 @@ stage('deployment') {
 }
 
 stage('clean') {
-    node('docker') {
+    node('safe_client_libs') {
         clean()
     }
 }
