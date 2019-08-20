@@ -31,11 +31,14 @@ fn md_created_by_app_1() {
     let (tx, rx) = mpsc::channel();
     let (app_keys_tx, app_keys_rx) = mpsc::channel();
     let (name_tx, name_rx) = mpsc::channel();
+
     unwrap!(app.send(move |client, _app_context| {
         let sign_pk = client.public_signing_key();
-        let bls_pk = client.owner_key();
         let app_bls_key = client.public_key();
+
         unwrap!(app_keys_tx.send((sign_pk, app_bls_key)));
+
+        let bls_pk = client.owner_key();
         let name: XorName = unwrap!(name_rx.recv());
         let entry_actions = MDataSeqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5], 0);
         let cl2 = client.clone();
@@ -132,10 +135,13 @@ fn md_created_by_app_2() {
     let (tx, rx) = mpsc::channel();
     let (app_keys_tx, app_keys_rx) = mpsc::channel();
     let (name_tx, name_rx) = mpsc::channel();
+
     unwrap!(app.send(move |client, _app_context| {
         let sign_pk = client.public_signing_key();
         let app_bls_key = client.public_key();
+
         unwrap!(app_keys_tx.send((sign_pk, app_bls_key)));
+
         let name: XorName = unwrap!(name_rx.recv());
         let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
         let cl2 = client.clone();
@@ -147,6 +153,7 @@ fn md_created_by_app_2() {
         let name3 = name;
         let name4 = name;
         let name5 = name;
+
         client
             .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             .then(move |res| {

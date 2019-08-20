@@ -152,12 +152,8 @@ impl From<serde_json::error::Error> for CoreError {
     fn from(error: serde_json::error::Error) -> Self {
         use serde_json::error::Category;
         match error.classify() {
-            Category::Io => {
-                CoreError::IoError(error.into())
-            }
-            Category::Syntax | Category::Data | Category::Eof => {
-                CoreError::ConfigError(error)
-            }
+            Category::Io => CoreError::IoError(error.into()),
+            Category::Syntax | Category::Data | Category::Eof => CoreError::ConfigError(error),
         }
     }
 }

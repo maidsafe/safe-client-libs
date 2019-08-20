@@ -270,11 +270,7 @@ struct AppInner {
 }
 
 impl AppInner {
-    pub fn new(
-        keys: ClientKeys,
-        owner_key: PublicKey,
-        config: Option<BootstrapConfig>,
-    ) -> Self {
+    pub fn new(keys: ClientKeys, owner_key: PublicKey, config: Option<BootstrapConfig>) -> Self {
         Self {
             keys,
             owner_key,
