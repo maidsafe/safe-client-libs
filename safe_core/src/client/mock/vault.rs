@@ -351,20 +351,25 @@ impl Vault {
             Err(_) => return Err(ClientError::AccessDenied),
         };
 
-        match account {
-            None => {
-                if owner_name != dst_name {
-                    debug!("No apps authorised");
+        if owner_name != dst_name {
+            match account {
+                None => {
+                    trace!("No apps authorised");
                     return Err(ClientError::AccessDenied);
                 }
-            }
-            Some(account) => {
-                if owner_name != dst_name && !account.auth_keys().contains_key(sign_pk) {
-                    debug!("Mutation not authorised");
-                    return Err(ClientError::AccessDenied);
+                Some(account) => {
+                    if let Some(app_entry) = account.auth_keys().get(sign_pk) {
+                        if !app_entry.transfer_coins {
+                            trace!("App does not have permission to spend coin");
+                            return Err(ClientError::AccessDenied);
+                        }
+                    } else {
+                        trace!("App not authorised");
+                        return Err(ClientError::AccessDenied);
+                    }
                 }
             }
-        };
+        }
 
         let unlimited_mut = unlimited_muts(&self.config);
 
@@ -1370,17 +1375,12 @@ impl Vault {
                     client_public_id.public_key(),
                 )
                 .map_err(|_| SndError::AccessDenied)?,
-            PublicId::App(app_public_id) => match self.get_account(app_public_id.owner_name()) {
-                None => {
-                    debug!("Account does not exist");
-                    return Err(SndError::AccessDenied);
-                }
-                Some(account) => {
-                    if !account.auth_keys().contains_key(app_public_id.public_key()) {
-                        return Err(SndError::AccessDenied);
-                    }
-                }
-            },
+            PublicId::App(app_public_id) => self
+                .authorise_mutation(
+                    &Authority::ClientManager(*app_public_id.owner_name()),
+                    app_public_id.public_key(),
+                )
+                .map_err(|_| SndError::AccessDenied)?,
             _ => return Err(SndError::AccessDenied),
         }
         if self.contains_data(&data_name) {
