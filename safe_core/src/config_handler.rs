@@ -45,7 +45,21 @@ impl Config {
     }
 
     fn read_qp2p_from_file() -> Result<QuicP2pConfig, CoreError> {
-        let mut config: QuicP2pConfig = read_config_file(dirs()?, CONFIG_FILE)?;
+        // Firs we read the default configuration file, and use a slightly modified default config
+        // if there is none.
+        let mut config: QuicP2pConfig = {
+            match read_config_file(dirs()?, CONFIG_FILE) {
+                Err(CoreError::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
+                    // If there is no config file, assume we are a client
+                    QuicP2pConfig {
+                        our_type: quic_p2p::OurType::Client,
+                        ..Default::default()
+                    }
+                }
+                result => result?,
+            }
+        };
+        // Then if there is a locally running Vault we add it to the list of know contacts.
         if let Ok(node_info) = read_config_file(vault_dirs()?, VAULT_CONNECTION_INFO_FILE) {
             let _ = config.hard_coded_contacts.insert(node_info);
         }
