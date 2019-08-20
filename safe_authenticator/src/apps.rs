@@ -194,7 +194,7 @@ pub fn apps_accessing_mutable_data(
     let c2 = client.clone();
 
     client
-        .list_mdata_permissions_new(MDataAddress::Seq {
+        .list_mdata_permissions(MDataAddress::Seq {
             name,
             tag: type_tag,
         })

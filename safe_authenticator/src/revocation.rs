@@ -212,7 +212,7 @@ fn revoke_container_perms(
 
             client
                 .clone()
-                .get_mdata_version_new(*mdata_info.address())
+                .get_mdata_version(*mdata_info.address())
                 .and_then(move |version| {
                     recovery::del_mdata_user_permissions(
                         &c2,

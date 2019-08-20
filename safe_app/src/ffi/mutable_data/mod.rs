@@ -123,7 +123,7 @@ pub unsafe extern "C" fn mdata_get_version(
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         send(app, user_data, o_cb, move |client, _| {
-            client.get_mdata_version_new(*info.address())
+            client.get_mdata_version(*info.address())
         })
     })
 }
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn mdata_list_keys(
 
         (*app).send(move |client, _context| {
             client
-                .list_mdata_keys_new(*info.address())
+                .list_mdata_keys(*info.address())
                 .map_err(AppError::from)
                 .then(move |result| {
                     match result {
@@ -378,7 +378,7 @@ pub unsafe extern "C" fn mdata_list_permissions(
             let context = context.clone();
 
             client
-                .list_mdata_permissions_new(*info.address())
+                .list_mdata_permissions(*info.address())
                 .map(move |perms| helper::insert_permissions(context.object_cache(), perms))
         })
     })
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn mdata_list_user_permissions(
             );
 
             client
-                .list_mdata_user_permissions_new(*info.address(), user)
+                .list_mdata_user_permissions(*info.address(), user)
                 .map(move |set| {
                     let perm_set = permission_set_into_repr_c(set);
                     o_cb(user_data.0, FFI_RESULT_OK, &perm_set);
@@ -453,7 +453,7 @@ pub unsafe extern "C" fn mdata_set_user_permissions(
             let permission_set = unwrap!(permission_set_clone_from_repr_c(permission_set));
 
             client
-                .set_mdata_user_permissions_new(*info.address(), user, permission_set, version)
+                .set_mdata_user_permissions(*info.address(), user, permission_set, version)
                 .map_err(AppError::from)
                 .then(move |result| {
                     call_result_cb!(result, user_data, o_cb);
@@ -489,7 +489,7 @@ pub unsafe extern "C" fn mdata_del_user_permissions(
             );
 
             client
-                .del_mdata_user_permissions_new(*info.address(), user, version)
+                .del_mdata_user_permissions(*info.address(), user, version)
                 .map_err(AppError::from)
                 .then(move |result| {
                     call_result_cb!(result, user_data, o_cb);

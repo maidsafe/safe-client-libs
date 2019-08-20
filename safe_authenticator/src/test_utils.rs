@@ -394,7 +394,7 @@ pub fn compare_access_container_entries(
             assert_eq!(perms, expected_perms);
 
             let fut = client
-                .list_mdata_user_permissions_new(*md_info.address(), user)
+                .list_mdata_user_permissions(*md_info.address(), user)
                 .map(move |perms| (perms, expected_perm_set));
 
             reqs.push(fut);

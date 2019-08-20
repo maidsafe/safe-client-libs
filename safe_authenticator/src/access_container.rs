@@ -177,11 +177,11 @@ pub fn put_entry(
     let app_pk: PublicKey = app_keys.bls_pk.into();
 
     client
-        .get_mdata_version_new(*access_container.address())
+        .get_mdata_version(*access_container.address())
         .map_err(AuthError::from)
         .and_then(move |shell_version| {
             client2
-                .set_mdata_user_permissions_new(
+                .set_mdata_user_permissions(
                     *acc_cont_info.address(),
                     app_pk,
                     MDataPermissionSet::new().allow(MDataAction::Read),
@@ -214,11 +214,11 @@ pub fn delete_entry(
     let app_pk: PublicKey = app_keys.bls_pk.into();
 
     client
-        .get_mdata_version_new(*access_container.address())
+        .get_mdata_version(*access_container.address())
         .map_err(AuthError::from)
         .and_then(move |shell_version| {
             client2
-                .del_mdata_user_permissions_new(*acc_cont_info.address(), app_pk, shell_version + 1)
+                .del_mdata_user_permissions(*acc_cont_info.address(), app_pk, shell_version + 1)
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {

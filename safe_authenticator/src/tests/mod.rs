@@ -406,13 +406,13 @@ mod mock_routing {
             let c2 = client.clone();
 
             client
-                .get_mdata_version_new(*app_container.address())
+                .get_mdata_version(*app_container.address())
                 .then(move |res| {
                     let version = unwrap!(res);
                     assert_eq!(version, 0);
 
                     // Check that the app's container has required permissions.
-                    c2.list_mdata_permissions_new(*app_container.address())
+                    c2.list_mdata_permissions(*app_container.address())
                 })
                 .then(move |res| {
                     let perms = unwrap!(res);
@@ -450,7 +450,7 @@ fn test_access_container() {
             .into_iter()
             .map(|(_, dir)| {
                 let f1 = client.list_seq_mdata_entries(dir.name(), dir.type_tag());
-                let f2 = client.list_mdata_permissions_new(*dir.address());
+                let f2 = client.list_mdata_permissions(*dir.address());
 
                 f1.join(f2).map_err(AuthError::from)
             })

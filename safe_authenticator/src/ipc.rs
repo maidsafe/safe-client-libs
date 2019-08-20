@@ -120,7 +120,7 @@ pub fn update_container_perms(
                 let perm_set = container_perms_into_permission_set(&access);
 
                 let fut = client
-                    .get_mdata_version_new(*mdata_info.address())
+                    .get_mdata_version(*mdata_info.address())
                     .and_then(move |version| {
                         recovery::set_mdata_user_permissions(
                             &c2,

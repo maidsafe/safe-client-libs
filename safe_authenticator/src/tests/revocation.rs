@@ -67,7 +67,7 @@ fn verify_app_is_revoked(
         .and_then(move |app_key| {
             let futures = prev_ac_entry.into_iter().map(move |(_, (mdata_info, _))| {
                 // Verify the app has no permissions in the containers.
-                c1.list_mdata_user_permissions_new(*mdata_info.address(), app_key)
+                c1.list_mdata_user_permissions(*mdata_info.address(), app_key)
                     .then(|res| {
                         assert_match!(res, Err(CoreError::DataError(SndError::NoSuchKey)));
                         Ok(())
@@ -117,7 +117,7 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
                     // Verify the app has the permissions set according to the access container.
                     let expected_perms = container_perms_into_permission_set(&permissions);
                     let perms = c2
-                        .list_mdata_user_permissions_new(*mdata_info.address(), user)
+                        .list_mdata_user_permissions(*mdata_info.address(), user)
                         .then(move |res| {
                             let perms = unwrap!(res);
                             assert_eq!(perms, expected_perms);
@@ -771,7 +771,7 @@ fn app_revocation_and_reauth() {
     let (name, tag) = (videos_md2.name(), videos_md2.type_tag());
     let perms = unwrap!(run(&authenticator, move |client| {
         client
-            .list_mdata_permissions_new(MDataAddress::Seq { name, tag })
+            .list_mdata_permissions(MDataAddress::Seq { name, tag })
             .map_err(From::from)
     }));
     assert!(!perms.contains_key(&PublicKey::from(auth_granted1.app_keys.bls_pk)));

@@ -67,26 +67,27 @@ extern crate unwrap;
 use clap::{App, Arg};
 use futures::Future;
 use rand::{Rng, SeedableRng};
-use safe_app::{Client, CoreError, CoreFuture, FutureExt, MutableData, PubImmutableData};
+use safe_app::{Client, CoreError, CoreFuture, FutureExt, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
-use safe_nd::{IData, PublicKey, XorName};
+use safe_nd::{IData, PublicKey, SeqMutableData, XorName};
 use std::sync::mpsc;
 
-fn random_mutable_data<R: Rng>(type_tag: u64, public_key: &PublicKey, rng: &mut R) -> MutableData {
-    let permissions = btree_map![];
-    let data = btree_map![];
-
-    unwrap!(MutableData::new(
+fn random_mutable_data<R: Rng>(
+    type_tag: u64,
+    public_key: &PublicKey,
+    rng: &mut R,
+) -> SeqMutableData {
+    SeqMutableData::new_with_data(
         XorName(rng.gen()),
         type_tag,
-        permissions,
-        data,
-        btree_set![*public_key],
-    ))
+        btree_map![],
+        btree_map![],
+        *public_key,
+    )
 }
 
 enum Data {
-    Mutable(MutableData),
+    Mutable(SeqMutableData),
     Immutable(IData),
 }
 
@@ -275,12 +276,13 @@ fn main() {
                     // TODO(nbaksalyar): stress test mutate_mdata and get_mdata_value here
                     fut.and_then(move |data| {
                         // Get all the chunks again.
-                        c3.get_mdata_shell(*data.name(), data.tag())
-                            .map(move |retrieved_data| {
+                        c3.get_seq_mdata_shell(*data.name(), data.tag()).map(
+                            move |retrieved_data| {
                                 assert_eq!(data, retrieved_data);
                                 println!("Retrieved chunk #{}: {:?}", i, data.name());
                                 Ok(())
-                            })
+                            },
+                        )
                     })
                     .into_box()
                 }
@@ -322,16 +324,20 @@ fn put_idata(client: &AuthClient, data: IData, i: usize) -> Box<CoreFuture<IData
         .into_box()
 }
 
-fn put_mdata(client: &AuthClient, data: MutableData, i: usize) -> Box<CoreFuture<MutableData>> {
+fn put_mdata(
+    client: &AuthClient,
+    data: SeqMutableData,
+    i: usize,
+) -> Box<CoreFuture<SeqMutableData>> {
     let c2 = client.clone();
 
     client
-        .put_mdata(data.clone())
+        .put_seq_mutable_data(data.clone())
         .and_then(move |_| {
             println!("Put MutableData chunk #{}: {:?}", i, data.name());
 
             // Get the data.
-            c2.get_mdata_shell(*data.name(), data.tag())
+            c2.get_seq_mdata_shell(*data.name(), data.tag())
                 .map(move |retrieved_data| {
                     assert_eq!(data, retrieved_data);
                     retrieved_data

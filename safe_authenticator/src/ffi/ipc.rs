@@ -471,7 +471,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
                             })
                             .buffer_unordered(num_mdata)
                             .map(move |(version, mdata)| {
-                                client_cloned1.set_mdata_user_permissions_new(
+                                client_cloned1.set_mdata_user_permissions(
                                     MDataAddress::Seq {
                                         name: mdata.name,
                                         tag: mdata.type_tag,

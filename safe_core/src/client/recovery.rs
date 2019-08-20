@@ -87,7 +87,7 @@ pub fn set_mdata_user_permissions(
 
     future::loop_fn(state, move |(attempts, version)| {
         client
-            .set_mdata_user_permissions_new(address, user, permissions.clone(), version)
+            .set_mdata_user_permissions(address, user, permissions.clone(), version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
                 CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
@@ -122,7 +122,7 @@ pub fn del_mdata_user_permissions(
 
     future::loop_fn(state, move |(attempts, version)| {
         client
-            .del_mdata_user_permissions_new(address, user, version)
+            .del_mdata_user_permissions(address, user, version)
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
                 CoreError::DataError(SndError::NoSuchKey) => Ok(Loop::Break(())),
@@ -152,8 +152,8 @@ fn update_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()
 
     let address = *data.address();
     let f0 = client.list_seq_mdata_entries(*data.name(), data.tag());
-    let f1 = client.list_mdata_permissions_new(address);
-    let f2 = client.get_mdata_version_new(address);
+    let f1 = client.list_mdata_permissions(address);
+    let f2 = client.get_mdata_version(address);
 
     f0.join3(f1, f2)
         .and_then(move |(entries, permissions, version)| {
@@ -531,7 +531,7 @@ mod tests_with_mock_routing {
                         }
                     );
 
-                    client4.list_mdata_permissions_new(MDataAddress::Seq { name, tag })
+                    client4.list_mdata_permissions(MDataAddress::Seq { name, tag })
                 })
                 .then(move |res| {
                     let permissions = unwrap!(res);
@@ -692,7 +692,7 @@ mod tests_with_mock_routing {
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    client3.list_mdata_user_permissions_new(address, user0)
+                    client3.list_mdata_user_permissions(address, user0)
                 })
                 .then(move |res| {
                     let retrieved_permissions = unwrap!(res);
@@ -706,7 +706,7 @@ mod tests_with_mock_routing {
                 })
                 .then(move |res| {
                     unwrap!(res);
-                    client5.list_mdata_user_permissions_new(address, user0)
+                    client5.list_mdata_user_permissions(address, user0)
                 })
                 .then(move |res| {
                     match res {

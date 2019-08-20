@@ -50,9 +50,9 @@ pub fn fetch_or_create(
                         .allow(MDataAction::Delete)
                         .allow(MDataAction::ManagePermissions);
 
-                    c2.get_mdata_version_new(*mdata_info.address())
+                    c2.get_mdata_version(*mdata_info.address())
                         .and_then(move |version| {
-                            c2.set_mdata_user_permissions_new(
+                            c2.set_mdata_user_permissions(
                                 *mdata_info.address(),
                                 app_pk,
                                 ps,
