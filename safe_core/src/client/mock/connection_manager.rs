@@ -16,6 +16,7 @@ use crate::{
 use maidsafe_utilities::serialisation::serialise;
 use quic_p2p::{self, Config as QuicP2pConfig};
 use safe_nd::{Coins, Message, PublicId, PublicKey, Request, Response, XorName};
+use std::collections::HashSet;
 use std::env;
 use std::sync::{Arc, Mutex};
 
@@ -37,6 +38,7 @@ pub struct ConnectionManager {
     vault: Arc<Mutex<Vault>>,
     request_hook: Option<Arc<RequestHookFn>>,
     response_hook: Option<Arc<ResponseHookFn>>,
+    groups: Arc<Mutex<HashSet<PublicId>>>,
     net_tx: NetworkTx,
 }
 
@@ -47,8 +49,15 @@ impl ConnectionManager {
             vault: clone_vault(),
             request_hook: None,
             response_hook: None,
+            groups: Arc::new(Mutex::new(HashSet::default())),
             net_tx: net_tx.clone(),
         })
+    }
+
+    /// Returns `true` if this connection manager is already connected to a Client Handlers
+    /// group serving the provided public ID.
+    pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {
+        unwrap!(self.groups.lock()).contains(&pub_id)
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
@@ -69,14 +78,24 @@ impl ConnectionManager {
     }
 
     /// Bootstrap to any known contact.
-    pub fn bootstrap(&mut self, _full_id: NewFullId) -> Box<CoreFuture<()>> {
-        // do nothing
+    pub fn bootstrap(&mut self, full_id: NewFullId) -> Box<CoreFuture<()>> {
+        let _ = unwrap!(self.groups.lock()).insert(full_id.public_id());
         ok!(())
     }
 
+    /// Restart the connection to the groups.
+    pub fn restart_network(&mut self) {
+        // Do nothing
+    }
+
     /// Disconnect from a group.
-    pub fn disconnect(&mut self, _pub_id: &PublicId) -> Box<CoreFuture<()>> {
-        // do nothing
+    pub fn disconnect(&mut self, pub_id: &PublicId) -> Box<CoreFuture<()>> {
+        let mut groups = unwrap!(self.groups.lock());
+        let _ = groups.remove(pub_id);
+        if groups.is_empty() {
+            trace!("Disconnected from the network; sending the notification.");
+            let _ = self.net_tx.unbounded_send(NetworkEvent::Disconnected);
+        }
         ok!(())
     }
 
@@ -98,7 +117,14 @@ impl ConnectionManager {
 
     /// Simulates network disconnect
     pub fn simulate_disconnect(&self) {
-        let _ = self.net_tx.unbounded_send(NetworkEvent::Disconnected);
+        let mut groups = unwrap!(self.groups.lock());
+        trace!("Simulating disconnect. Connected groups: {:?}", groups);
+
+        if !groups.is_empty() {
+            trace!("Disconnecting everyone");
+            groups.clear();
+            let _ = self.net_tx.unbounded_send(NetworkEvent::Disconnected);
+        }
     }
 
     /// Simulates network timeouts

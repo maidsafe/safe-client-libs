@@ -51,7 +51,7 @@ mod mock_routing {
     use safe_core::{
         app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
     };
-    use safe_nd::{Coins, Error as SndError, PublicKey, Request, Response};
+    use safe_nd::{Coins, Error as SndError, PublicKey};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -68,7 +68,7 @@ mod mock_routing {
     #[test]
     #[ignore]
     fn std_dirs_recovery() {
-        use safe_core::DIR_TAG;
+        // use safe_core::DIR_TAG;
 
         // Add a request hook to forbid root dir modification. In this case
         // account creation operation will be failed, but login still should
@@ -83,9 +83,9 @@ mod mock_routing {
 
         {
             let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-                let mut put_mdata_counter = 0;
+                let mut _put_mdata_counter = 0;
 
-                cm.set_request_hook(move |req| {
+                cm.set_request_hook(move |_req| {
                     // FIXME
                     // match *req {
                     //     Request::PutMData {
@@ -153,7 +153,7 @@ mod mock_routing {
     fn login_with_low_balance() {
         // Register a hook prohibiting mutations and login
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-            cm.set_request_hook(move |req| {
+            cm.set_request_hook(move |_req| {
                 None
                 // FIXME
                 // match *req {
@@ -285,7 +285,7 @@ mod mock_routing {
         // Simulate a network failure for the `update_container_perms` step -
         // it should fail at the second container (`_videos`)
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-            let mut reqs_counter = 0;
+            let mut _reqs_counter = 0;
 
             cm.set_request_hook(move |req| {
                 // FIXME

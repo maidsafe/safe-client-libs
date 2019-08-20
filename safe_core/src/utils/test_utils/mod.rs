@@ -71,7 +71,9 @@ where
     T: Send + 'static,
     E: Debug,
 {
-    let n = |net_event| panic!("Unexpected NetworkEvent occurred: {:?}", net_event);
+    // FIXME: in stage 1 disconnection is a natural event, so instead of panicking we
+    // just print it out.
+    let n = |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
     let c = |el_h, core_tx, net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
@@ -95,7 +97,9 @@ where
     E: Debug,
     F: Debug,
 {
-    let n = |net_event| panic!("Unexpected NetworkEvent occurred: {:?}", net_event);
+    // FIXME: in stage 1 disconnection is a natural event, so instead of panicking we
+    // just print it out.
+    let n = |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
     setup_client_with_net_obs(context, c, n, r)
 }
 

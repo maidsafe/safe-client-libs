@@ -27,7 +27,6 @@ use safe_core::{
     ipc::req::container_perms_into_permission_set,
     ipc::resp::AccessContainerEntry,
     ipc::{AuthReq, Permission},
-    nfs::NfsError,
     Client, CoreError, FutureExt, MDataInfo,
 };
 use safe_nd::{Error as SndError, MDataAddress, MDataSeqEntryActions, PublicKey};
@@ -651,7 +650,7 @@ mod mock_routing {
     {
         // First, log in normally to obtain the access contained info.
         let auth = unwrap!(Authenticator::login(locator, password, || ()));
-        let ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
+        let _ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
 
         // Then, log in with a request hook that makes mutation of the access container
         // fail.
@@ -659,7 +658,7 @@ mod mock_routing {
             locator,
             password,
             || (),
-            move |mut cm| {
+            move |cm| {
                 // FIXME: hooks system
                 /*
                 let ac_info = ac_info.clone();

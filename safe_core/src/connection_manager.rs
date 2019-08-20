@@ -8,7 +8,11 @@
 
 mod connection_group;
 
-use crate::{client::NewFullId, event::NetworkTx, CoreError, CoreFuture};
+use crate::{
+    client::NewFullId,
+    event::{NetworkEvent, NetworkTx},
+    CoreError, CoreFuture,
+};
 use bytes::Bytes;
 use connection_group::ConnectionGroup;
 use crossbeam_channel::{self, Receiver};
@@ -38,7 +42,7 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager.
-    pub fn new(config: QuicP2pConfig, _net_tx: &NetworkTx) -> Result<Self, CoreError> {
+    pub fn new(config: QuicP2pConfig, net_tx: &NetworkTx) -> Result<Self, CoreError> {
         // config.idle_timeout_msec = Some(0);
 
         let (event_tx, event_rx) = crossbeam_channel::unbounded();
@@ -48,12 +52,18 @@ impl ConnectionManager {
 
         let inner = Arc::new(Mutex::new(Inner {
             quic_p2p,
-            event_rx: event_rx.clone(),
             groups: HashMap::default(),
+            net_tx: net_tx.clone(),
         }));
         let _ = setup_quic_p2p_event_loop(inner.clone(), event_rx);
 
         Ok(Self { inner })
+    }
+
+    /// Returns `true` if this connection manager is already connected to a Client Handlers
+    /// group serving the provided public ID.
+    pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {
+        unwrap!(self.inner.lock()).groups.contains_key(&pub_id)
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
@@ -106,6 +116,11 @@ impl ConnectionManager {
             trace!("Group {} is already connected", full_id.public_id());
             ok!(())
         }
+    }
+
+    /// Reconnect to the network.
+    pub fn restart_network(&mut self) {
+        unimplemented!();
     }
 
     /// Disconnect from all groups.
@@ -164,20 +179,16 @@ impl Drop for Inner {
             group.terminate();
         }
 
-        // Drain remaining events
-        while let Ok(event) = self
-            .event_rx
-            .recv_timeout(std::time::Duration::from_millis(50))
-        {
-            trace!("Drop - received event {:?}", event);
-        }
+        let _ = self.net_tx.unbounded_send(NetworkEvent::Disconnected);
+
+        thread::sleep(Duration::from_millis(50));
     }
 }
 
 struct Inner {
     quic_p2p: Arc<Mutex<QuicP2p>>,
-    event_rx: Receiver<Event>,
     groups: HashMap<PublicId, ConnectionGroup>,
+    net_tx: NetworkTx,
 }
 
 impl Inner {
@@ -252,7 +263,7 @@ impl Inner {
     }
 
     fn handle_connected_to(&mut self, _peer: Peer) {
-        // TODO
+        // Do nothing
     }
 
     fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: Bytes) {

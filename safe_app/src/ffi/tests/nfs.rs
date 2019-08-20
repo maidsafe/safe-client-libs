@@ -10,7 +10,7 @@
 use crate::errors::AppError;
 use crate::ffi::nfs::*;
 use crate::ffi::object_cache::FileContextHandle;
-use crate::test_utils::{self, create_app_by_req, create_auth_req_with_access};
+use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
 use crate::{run, App};
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
 use ffi_utils::ErrorCode;
@@ -25,8 +25,6 @@ use std::collections::HashMap;
 use std::ffi::CString;
 
 fn setup() -> (App, MDataInfo) {
-    test_utils::init_log();
-
     let mut container_permissions = HashMap::new();
     let _ = container_permissions.insert(
         "_videos".to_string(),
