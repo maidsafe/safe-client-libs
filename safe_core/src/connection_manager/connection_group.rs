@@ -162,7 +162,7 @@ impl ConnectionGroup {
             Ok(Message::Request {
                 request,
                 message_id,
-                signature: _,
+                ..
             }) => self.handle_unsent_request(peer_addr, request, message_id, token),
             Ok(_) => println!("Unexpected message type"),
             Err(e) => println!("Unexpected error {:?}", e),

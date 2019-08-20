@@ -128,7 +128,7 @@ fn file_fetch_public_md() {
             .then(move |res| {
                 let (reader, dir) = unwrap!(res);
                 let size = reader.size();
-                println!("reading {} bytes", size);
+                trace!("reading {} bytes", size);
                 reader.read(0, size).map(move |data| {
                     assert_eq!(data, vec![0u8; ORIG_SIZE]);
                     dir
@@ -150,7 +150,7 @@ fn file_fetch_public_md() {
             .then(move |res| {
                 let (reader, _dir) = unwrap!(res);
                 let size = reader.size();
-                println!("reading {} bytes", size);
+                trace!("reading {} bytes", size);
                 reader.read(0, size).map(move |data| {
                     assert_eq!(data, vec![0u8; ORIG_SIZE]);
                 })
@@ -205,7 +205,7 @@ fn files_stored_in_unpublished_idata() {
                 })
                 .and_then(move |(reader, dir)| {
                     let size = reader.size();
-                    println!("reading {} bytes", size);
+                    trace!("reading {} bytes", size);
                     reader.read(0, size).map(move |data| {
                         assert_eq!(data, vec![0u8; ORIG_SIZE]);
                         dir
@@ -269,7 +269,7 @@ fn file_read() {
             .then(|res| {
                 let (reader, file, creation_time) = unwrap!(res);
                 let size = reader.size();
-                println!("reading {} bytes", size);
+                trace!("reading {} bytes", size);
                 let result = reader.read(0, size);
 
                 assert_eq!(creation_time, *file.created_time());
@@ -314,7 +314,7 @@ fn file_read_chunks() {
                         } else {
                             CHUNK_SIZE
                         };
-                        println!("reading {} bytes", to_read);
+                        trace!("reading {} bytes", to_read);
                         reader.read(size_read, to_read).then(move |res| {
                             let mut data = unwrap!(res);
 
@@ -337,7 +337,7 @@ fn file_read_chunks() {
                         assert_eq!(result, vec![0u8; ORIG_SIZE]);
 
                         // Read 0 bytes, should succeed
-                        println!("reading 0 bytes");
+                        trace!("reading 0 bytes");
                         reader.read(size, 0).map(move |data| (reader, size, data))
                     },
                 )
@@ -391,7 +391,7 @@ fn file_write_chunks() {
                     } else {
                         CHUNK_SIZE
                     };
-                    println!("writing {} bytes", to_write);
+                    trace!("writing {} bytes", to_write);
 
                     writer
                         .write(&content[size_written..size_written + to_write])
@@ -438,7 +438,7 @@ fn file_write_chunks() {
                     } else {
                         CHUNK_SIZE
                     };
-                    println!("writing {} bytes", to_write);
+                    trace!("writing {} bytes", to_write);
 
                     writer
                         .write(&content[size_written..size_written + to_write])
@@ -534,7 +534,7 @@ fn file_update_overwrite() {
             .then(move |res| {
                 let reader = unwrap!(res);
                 let size = reader.size();
-                println!("reading {} bytes", size);
+                trace!("reading {} bytes", size);
                 reader.read(0, size)
             })
             .map(move |data| {
@@ -553,7 +553,7 @@ fn file_update_append() {
             let c3 = client.clone();
 
             let size = i * MIN_CHUNK_SIZE as usize;
-            println!("Testing with size {}", size);
+            trace!("Testing with size {}", size);
 
             futures.push(
                 create_test_file_with_size(client, true, size)
@@ -578,7 +578,7 @@ fn file_update_append() {
                     .then(move |res| {
                         let reader = unwrap!(res);
                         let size = reader.size();
-                        println!("reading {} bytes", size);
+                        trace!("reading {} bytes", size);
                         reader.read(0, size)
                     })
                     .map(move |data| {
@@ -701,7 +701,7 @@ fn file_delete_then_add() {
             .then(move |res| {
                 let reader = unwrap!(res);
                 let size = reader.size();
-                println!("reading {} bytes", size);
+                trace!("reading {} bytes", size);
                 reader.read(0, size)
             })
             .map(move |data| {

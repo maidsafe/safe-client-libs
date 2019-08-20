@@ -149,16 +149,12 @@ pub trait Client: Clone + 'static {
 
     /// Restart the client and reconnect to the network.
     fn restart_network(&self) -> Result<(), CoreError> {
-        // let opt_id = self.full_id();
+        trace!("Restarting the network connection");
+
         let inner = self.inner();
-        let inner = inner.borrow_mut();
+        let mut inner = inner.borrow_mut();
 
-        // let (routing, routing_rx) = setup_routing(opt_id, self.public_id(), self.config())?;
-
-        // let joiner = spawn_routing_thread(routing_rx, inner.core_tx.clone(), inner.net_tx.clone());
-
-        // inner.routing = routing;
-        // inner.joiner = joiner;
+        inner.connection_manager.restart_network();
 
         inner.net_tx.unbounded_send(NetworkEvent::Connected)?;
 
@@ -186,30 +182,20 @@ pub trait Client: Clone + 'static {
         transaction_id: Option<u64>,
     ) -> Box<CoreFuture<Transaction>> {
         trace!("Transfer {} coins to {:?}", amount, destination);
-
-        let transaction_id = transaction_id.unwrap_or_else(rand::random);
-        let req = Request::TransferCoins {
-            destination,
-            amount,
-            transaction_id,
-        };
-        let (message, requester) = match secret_key {
-            Some(key) => (
-                sign_request_with_key(req, key),
-                PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
-            ),
-            None => (self.compose_message(req, true), self.public_id()),
-        };
-
-        let inner = self.inner();
-        let cm = &mut inner.borrow_mut().connection_manager;
-
-        cm.send(&requester, &message)
-            .and_then(|res| match res {
-                Response::Transaction(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .into_box()
+        send_as(
+            self,
+            Request::TransferCoins {
+                destination,
+                amount,
+                transaction_id: transaction_id.unwrap_or_else(rand::random),
+            },
+            secret_key,
+        )
+        .and_then(|res| match res {
+            Response::Transaction(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        })
+        .into_box()
     }
 
     /// Creates a new balance on the network.
@@ -225,30 +211,20 @@ pub trait Client: Clone + 'static {
             new_balance_owner,
             amount
         );
-
-        let transaction_id = transaction_id.unwrap_or_else(rand::random);
-        let req = Request::CreateBalance {
-            new_balance_owner,
-            amount,
-            transaction_id,
-        };
-        let (message, requester) = match secret_key {
-            Some(key) => (
-                sign_request_with_key(req, key),
-                PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
-            ),
-            None => (self.compose_message(req, true), self.public_id()),
-        };
-
-        let inner = self.inner();
-        let cm = &mut inner.borrow_mut().connection_manager;
-
-        cm.send(&requester, &message)
-            .and_then(|res| match res {
-                Response::Transaction(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .into_box()
+        send_as(
+            self,
+            Request::CreateBalance {
+                new_balance_owner,
+                amount,
+                transaction_id: transaction_id.unwrap_or_else(rand::random),
+            },
+            secret_key,
+        )
+        .and_then(|res| match res {
+            Response::Transaction(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        })
+        .into_box()
     }
 
     /// Insert a given login packet at the specified destination
@@ -265,31 +241,21 @@ pub trait Client: Clone + 'static {
             new_owner,
             amount
         );
-
-        let transaction_id = transaction_id.unwrap_or_else(rand::random);
-        let req = Request::CreateLoginPacketFor {
-            new_owner,
-            amount,
-            transaction_id,
-            new_login_packet,
-        };
-        let (message, requester) = match secret_key {
-            Some(key) => (
-                sign_request_with_key(req, key),
-                PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
-            ),
-            None => (self.compose_message(req, true), self.public_id()),
-        };
-
-        let inner = self.inner();
-        let cm = &mut inner.borrow_mut().connection_manager;
-
-        cm.send(&requester, &message)
-            .and_then(|res| match res {
-                Response::Mutation(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .into_box()
+        send_as(
+            self,
+            Request::CreateLoginPacketFor {
+                new_owner,
+                amount,
+                transaction_id: transaction_id.unwrap_or_else(rand::random),
+                new_login_packet,
+            },
+            secret_key,
+        )
+        .and_then(|res| match res {
+            Response::Mutation(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        })
+        .into_box()
     }
 
     /// Get the current coin balance.
@@ -297,20 +263,9 @@ pub trait Client: Clone + 'static {
         &self,
         secret_key: Option<&BlsSecretKey>, // TODO: replace with secret_id
     ) -> Box<CoreFuture<Coins>> {
-        let req = Request::GetBalance;
-        let (request, requester) = match secret_key {
-            Some(key) => (
-                sign_request_with_key(req, key),
-                PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
-            ),
-            None => (self.compose_message(req, true), self.public_id()),
-        };
-        trace!("Get balance for {:?}", requester);
+        trace!("Get balance for {:?}", secret_key);
 
-        let inner = self.inner();
-        let cm = &mut inner.borrow_mut().connection_manager;
-
-        cm.send(&requester, &request)
+        send_as(self, Request::GetBalance, secret_key)
             .and_then(|res| match res {
                 Response::GetBalance(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1267,30 +1222,20 @@ pub trait Client: Clone + 'static {
             amount,
         );
 
-        let transaction_id = new_rand::random();
-        let req = Request::CreateBalance {
-            new_balance_owner,
-            amount,
-            transaction_id,
-        };
-
-        let (message, requester) = match secret_key {
-            Some(key) => (
-                sign_request_with_key(req, key),
-                PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
-            ),
-            None => (self.compose_message(req, true), self.public_id()),
-        };
-
-        let inner = self.inner();
-        let cm = &mut inner.borrow_mut().connection_manager;
-
-        cm.send(&requester, &message)
-            .and_then(|res| match res {
-                Response::Transaction(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .into_box()
+        send_as(
+            self,
+            Request::CreateBalance {
+                new_balance_owner,
+                amount,
+                transaction_id: new_rand::random(),
+            },
+            secret_key,
+        )
+        .and_then(|res| match res {
+            Response::Transaction(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        })
+        .into_box()
     }
 }
 
@@ -1525,6 +1470,27 @@ impl<C: Client, T> ClientInner<C, T> {
     pub fn cm(&mut self) -> &mut ConnectionManager {
         &mut self.connection_manager
     }
+}
+
+/// Sends a request either using a default user's identity, or reconnects to another group
+/// to use another identity.
+fn send_as(
+    client: &impl Client,
+    request: Request,
+    secret_key: Option<&BlsSecretKey>,
+) -> Box<CoreFuture<Response>> {
+    let (message, requester) = match secret_key {
+        Some(key) => (
+            sign_request_with_key(request, key),
+            PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
+        ),
+        None => (client.compose_message(request, true), client.public_id()),
+    };
+
+    let inner = client.inner();
+    let cm = &mut inner.borrow_mut().connection_manager;
+
+    cm.send(&requester, &message)
 }
 
 // `sign` should be false for GETs on published data, true otherwise.
