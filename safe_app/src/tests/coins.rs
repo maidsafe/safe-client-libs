@@ -26,7 +26,12 @@ use std::str::FromStr;
 // 5. Try to get an existing transaction from the app. This request must fail.
 #[test]
 fn coin_app_deny_permissions() {
-    let app = create_app();
+    let mut app_auth_req = create_random_auth_req();
+    app_auth_req.app_permissions = AppPermissions {
+        transfer_coins: false,
+    };
+
+    let app = unwrap!(create_app_by_req(&app_auth_req));
 
     unwrap!(run(&app, |client, _app_context| {
         let c2 = client.clone();

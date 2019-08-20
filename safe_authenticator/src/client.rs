@@ -875,7 +875,7 @@ mod tests {
     #[test]
     fn timeout() {
         use crate::test_utils::random_client;
-        use safe_nd::PubImmutableData;
+        use safe_nd::{IDataAddress, PubImmutableData};
         use std::time::Duration;
 
         // Get
@@ -948,7 +948,7 @@ mod tests {
                 )
                 // Make sure no error occurred.
                 .then(|result| match result {
-                    Ok(()) => Ok::<_, CoreError>(()),
+                    Ok(_transaction) => Ok::<_, CoreError>(()),
                     res => panic!("Unexpected {:?}", res),
                 })
         });

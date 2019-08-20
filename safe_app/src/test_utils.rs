@@ -15,6 +15,7 @@ use safe_authenticator::AuthError;
 use safe_core::ipc::req::{AuthReq as NativeAuthReq, ContainerPermissions};
 use safe_core::ipc::AppExchangeInfo;
 use safe_core::utils;
+use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use std::io::Write;
 
@@ -84,7 +85,9 @@ pub fn create_auth_req(
     NativeAuthReq {
         app: app_info,
         app_container,
-        app_permissions: Default::default(),
+        app_permissions: AppPermissions {
+            transfer_coins: true,
+        },
         containers,
     }
 }

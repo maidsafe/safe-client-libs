@@ -8,7 +8,6 @@
 // Software.
 
 mod append_only_data;
-#[cfg(feature = "mock-network")]
 mod coins;
 mod unpublished_mutable_data;
 
@@ -195,7 +194,9 @@ fn authorise_app(
         &AuthReq {
             app: app_info.clone(),
             app_container,
-            app_permissions: Default::default(),
+            app_permissions: AppPermissions {
+                transfer_coins: true
+            },
             containers: HashMap::new(),
         },
     ));

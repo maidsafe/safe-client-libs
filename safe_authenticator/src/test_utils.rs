@@ -37,7 +37,7 @@ use safe_core::utils::test_utils::setup_client_with_net_obs;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{Coins, PublicKey};
+use safe_nd::{AppPermissions, Coins, PublicKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
@@ -205,7 +205,9 @@ pub fn register_rand_app(
     let auth_req = AuthReq {
         app: rand_app(),
         app_container,
-        app_permissions: Default::default(),
+        app_permissions: AppPermissions {
+            transfer_coins: true,
+        },
         containers: containers_req,
     };
 

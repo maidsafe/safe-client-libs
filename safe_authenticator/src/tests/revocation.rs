@@ -164,6 +164,7 @@ mod mock_routing {
     use maidsafe_utilities::SeededRng;
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
+    use safe_core::nfs::NfsError;
     use safe_core::utils::test_utils::Synchronizer;
     use std::{
         collections::HashMap,
