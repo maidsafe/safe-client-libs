@@ -163,10 +163,7 @@ fn managing_permissions_for_an_app() {
                 })
                 .then(move |res| {
                     match res {
-                        // FIXME: we should expect only `AccessDenied` here, but due to
-                        // a discrepancy in the way it's handled by mock/non-mock vaults we cover both errors
-                        Err(CoreError::DataError(SndError::AccessDenied))
-                        | Err(CoreError::DataError(SndError::InvalidPermissions)) => (),
+                        Err(CoreError::DataError(SndError::AccessDenied)) => (),
                         res => panic!("{:?}: Unexpected result: {:?}", variant, res),
                     }
                     // Signal the client to allow access to the data

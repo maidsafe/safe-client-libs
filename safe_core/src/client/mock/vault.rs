@@ -116,16 +116,16 @@ fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> S
         | Request::GetUnpubADataUserPermissions { .. }
         | Request::GetADataOwners { .. } => match data {
             AData::PubUnseq(_) | AData::PubSeq(_) => Ok(()),
-            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => data
-                .check_permission(ADataAction::Read, requester)
-                .map_err(|_| SndError::AccessDenied),
+            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => {
+                data.check_permission(ADataAction::Read, requester)
+            }
         },
-        Request::AppendSeq { .. } | Request::AppendUnseq { .. } => data
-            .check_permission(ADataAction::Append, requester)
-            .map_err(|_| SndError::AccessDenied),
-        Request::AddPubADataPermissions { .. } | Request::AddUnpubADataPermissions { .. } => data
-            .check_permission(ADataAction::ManagePermissions, requester)
-            .map_err(|_| SndError::AccessDenied),
+        Request::AppendSeq { .. } | Request::AppendUnseq { .. } => {
+            data.check_permission(ADataAction::Append, requester)
+        }
+        Request::AddPubADataPermissions { .. } | Request::AddUnpubADataPermissions { .. } => {
+            data.check_permission(ADataAction::ManagePermissions, requester)
+        }
         Request::SetADataOwner { .. } => check_is_owner_adata(data, requester),
         Request::DeleteAData(_) => match data {
             AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),

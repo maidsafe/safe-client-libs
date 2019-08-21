@@ -98,7 +98,6 @@ mod codes {
     pub const ERR_INVALID_PERMISSIONS_SUCCESSOR: i32 = -3002;
     pub const ERR_SIGN_KEYTYPE_MISMATCH: i32 = -3003;
     pub const ERR_INVALID_SIGNATURE: i32 = -3004;
-    pub const ERR_INVALID_PERMISSIONS: i32 = -3005;
 
     // Coin errors.
     pub const ERR_LOSS_OF_PRECISION: i32 = -4000;
@@ -332,7 +331,6 @@ fn safe_nd_error_core(err: &SndError) -> i32 {
         SndError::TransactionIdExists => ERR_TRANSACTION_ID_EXISTS,
         SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
         SndError::ExceededSize => ERR_EXCEEDED_SIZE,
-        SndError::InvalidPermissions => ERR_INVALID_PERMISSIONS,
     }
 }
 
