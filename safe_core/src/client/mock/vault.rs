@@ -16,9 +16,9 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::{Authority, ClientError};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
-    Coins, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction, MDataAddress,
-    MDataKind, Message, PublicId, PublicKey, Request, Response, Result as SndResult, SeqAppendOnly,
-    Transaction, UnseqAppendOnly, XorName,
+    Coins, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
+    MDataAddress, MDataKind, Message, PublicId, PublicKey, Request, Response, Result as SndResult,
+    SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -34,14 +34,6 @@ use std::time::Duration;
 use std::time::SystemTime;
 #[cfg(test)]
 use tempfile::tempfile;
-
-// TODO: Replace this with `Data` from safe-nd
-#[derive(Clone, Deserialize, Serialize)]
-pub enum Data {
-    Immutable(IData),
-    Mutable(MData),
-    AppendOnly(AData),
-}
 
 const FILE_NAME: &str = "SCL-Mock";
 

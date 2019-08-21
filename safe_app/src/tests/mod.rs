@@ -206,6 +206,8 @@ fn authorise_app(
 
 // Get the number of containers for `app`
 fn num_containers(app: &App) -> usize {
+    trace!("Getting the number of containers.");
+
     unwrap!(run(app, move |client, context| {
         context.get_access_info(client).then(move |res| {
             let info = unwrap!(res);
@@ -224,9 +226,8 @@ fn num_containers(app: &App) -> usize {
 // 4. Make sure that the app's own container is also created when it's re-authorised
 // with `app_container` set to `true` after it's been revoked.
 #[test]
-#[allow(unsafe_code)]
 fn app_container_creation() {
-    // Authorise an app for the first time with `app_container` set to `true`.
+    trace!("Authorising an app for the first time with `app_container` set to `true`.");
     let auth = authenticator::create_account_and_login();
 
     let app_info = gen_app_exchange_info();
@@ -235,7 +236,7 @@ fn app_container_creation() {
 
     assert_eq!(num_containers(&app), 1); // should only contain app container
 
-    // Authorise a new app with `app_container` set to `false`.
+    trace!("Authorising a new app with `app_container` set to `false`.");
     let auth = authenticator::create_account_and_login();
 
     let app_info = gen_app_exchange_info();
@@ -244,12 +245,12 @@ fn app_container_creation() {
 
     assert_eq!(num_containers(&app), 0); // should be empty
 
-    // Re-authorise the app with `app_container` set to `true`.
+    trace!("Re-authorising the app with `app_container` set to `true`.");
     app = authorise_app(&auth, &app_info, &app_id, true);
 
     assert_eq!(num_containers(&app), 1); // should only contain app container
 
-    // Make sure no mutations are done when re-authorising the app now.
+    trace!("Making sure no mutations are done when re-authorising the app now.");
     let orig_balance: Coins = unwrap!(auth_run(&auth, |client| {
         client.get_balance(None).map_err(AuthError::from)
     }));
@@ -262,7 +263,7 @@ fn app_container_creation() {
 
     assert_eq!(orig_balance, new_balance);
 
-    // Authorise a new app with `app_container` set to `false`.
+    trace!("Authorising a new app with `app_container` set to `false`.");
     let auth = authenticator::create_account_and_login();
 
     let app_info = gen_app_exchange_info();
@@ -271,10 +272,10 @@ fn app_container_creation() {
 
     assert_eq!(num_containers(&app), 0); // should be empty
 
-    // Revoke the app
+    trace!("Revoking the app.");
     revoke(&auth, &app_id);
 
-    // Re-authorise the app with `app_container` set to `true`.
+    trace!("Re-authorising the app with `app_container` set to `true`.");
     let app = authorise_app(&auth, &app_info, &app_id, true);
 
     assert_eq!(num_containers(&app), 1); // should only contain app container

@@ -22,12 +22,10 @@ use crate::utils;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
-use routing::FullId;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
-    ClientFullId, ClientPublicId, Coins, LoginPacket, Message, MessageId, PublicId, PublicKey,
-    Request, Response, Signature,
+    ClientFullId, ClientPublicId, Coins, LoginPacket, PublicId, PublicKey, Request, Response,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -156,7 +154,7 @@ impl CoreClient {
             block_on_all(connection_manager.disconnect(&balance_pub_id))?;
         }
 
-        block_on_all(connection_manager.bootstrap(SafeKey::client(maid_keys.clone().into())))?;
+        block_on_all(connection_manager.bootstrap(maid_keys.client_safe_key()))?;
 
         Ok(Self {
             inner: Rc::new(RefCell::new(ClientInner {
@@ -175,12 +173,12 @@ impl CoreClient {
 impl Client for CoreClient {
     type MsgType = ();
 
-    fn full_id(&self) -> Option<FullId> {
-        Some(ClientKeys::into(self.keys.clone()))
+    fn full_id(&self) -> SafeKey {
+        self.keys.client_safe_key()
     }
 
     fn public_id(&self) -> PublicId {
-        let client_pk = PublicKey::from(self.keys.bls_pk);
+        let client_pk = PublicKey::from(self.public_bls_key());
         PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk))
     }
 
@@ -226,26 +224,6 @@ impl Client for CoreClient {
 
     fn public_key(&self) -> PublicKey {
         self.keys.bls_pk.into()
-    }
-
-    fn compose_message(&self, request: Request, sign: bool) -> Message {
-        let message_id = MessageId::new();
-
-        let signature = if sign {
-            Some(Signature::from(
-                self.keys
-                    .bls_sk
-                    .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
-            ))
-        } else {
-            None
-        };
-
-        Message::Request {
-            request,
-            message_id,
-            signature,
-        }
     }
 }
 

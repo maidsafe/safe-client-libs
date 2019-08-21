@@ -41,7 +41,6 @@ use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use lazy_static::lazy_static;
 use lru_cache::LruCache;
-use routing::FullId;
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
@@ -85,7 +84,7 @@ pub trait Client: Clone + 'static {
     type MsgType;
 
     /// Return the client's ID.
-    fn full_id(&self) -> Option<FullId>;
+    fn full_id(&self) -> SafeKey;
 
     /// Return the client's public ID.
     fn public_id(&self) -> PublicId;
@@ -125,7 +124,24 @@ pub trait Client: Clone + 'static {
 
     /// Create a `Message` from the given request.
     /// This function adds the requester signature and message ID.
-    fn compose_message(&self, req: Request, sign: bool) -> Message;
+    fn compose_message(&self, request: Request, sign: bool) -> Message {
+        let message_id = MessageId::new();
+
+        let signature = if sign {
+            Some(Signature::from(
+                self.secret_bls_key()
+                    .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
+            ))
+        } else {
+            None
+        };
+
+        Message::Request {
+            request,
+            message_id,
+            signature,
+        }
+    }
 
     /// Return the public and secret signing keys.
     fn signing_keypair(&self) -> (sign::PublicKey, shared_sign::SecretKey) {
@@ -1112,7 +1128,7 @@ fn temp_client<F, R>(identity: &BlsSecretKey, mut func: F) -> Result<R, CoreErro
 where
     F: FnMut(&mut ConnectionManager, &SafeKey) -> Result<R, CoreError>,
 {
-    let full_id = SafeKey::client(ClientFullId::with_bls_key(identity.clone()));
+    let full_id = SafeKey::client_from_bls_key(identity.clone());
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;

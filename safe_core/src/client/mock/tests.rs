@@ -1832,6 +1832,6 @@ fn create_account(
 
     (
         Authority::ClientManager(account_name),
-        SafeKey::Client(ClientFullId::with_bls_key(owner_sk.clone())),
+        SafeKey::client_from_bls_key(owner_sk.clone()),
     )
 }

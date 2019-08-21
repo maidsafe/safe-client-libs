@@ -14,7 +14,7 @@ use futures::Future;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
-use routing::{FullId, XorName};
+use routing::XorName;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
@@ -27,7 +27,7 @@ use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
     ClientFullId, ClientPublicId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request,
-    Response, Signature,
+    Response,
 };
 use std::cell::RefCell;
 use std::fmt;
@@ -150,7 +150,10 @@ where {
         maid_keys.bls_sk = balance_sk.clone();
         maid_keys.bls_pk = balance_sk.public_key();
 
-        let acc = Account::new(maid_keys.clone())?;
+        let balance_full_id = SafeKey::client_from_bls_key(balance_sk);
+        let client_full_id = maid_keys.client_safe_key();
+
+        let acc = Account::new(maid_keys)?;
         let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
 
         let transient_id = create_client_id(&acc_locator.0);
@@ -158,9 +161,6 @@ where {
         let sig = transient_id.sign(&acc_ciphertext);
         let transient_pk = transient_id.public_id().public_key();
         let new_login_packet = LoginPacket::new(acc_locator, *transient_pk, acc_ciphertext, sig)?;
-
-        let balance_full_id = SafeKey::client(ClientFullId::with_bls_key(balance_sk));
-        let client_full_id = SafeKey::client(maid_keys.into());
 
         // Create the connection manager
         let mut connection_manager =
@@ -171,7 +171,7 @@ where {
         {
             trace!("Using throw-away connection group to insert a login packet.");
 
-            let _ = block_on_all(connection_manager.bootstrap(balance_full_id.clone()))?;
+            block_on_all(connection_manager.bootstrap(balance_full_id.clone()))?;
 
             let response = req(
                 &mut connection_manager,
@@ -184,10 +184,10 @@ where {
                 _ => return Err(AuthError::from("Unexpected response")),
             };
 
-            let _ = block_on_all(connection_manager.disconnect(&balance_full_id.public_id()))?;
+            block_on_all(connection_manager.disconnect(&balance_full_id.public_id()))?;
         }
 
-        let _ = block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
+        block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
@@ -294,7 +294,7 @@ where {
         let (account_buffer, signature) = {
             trace!("Using throw-away connection group to get a login packet.");
 
-            let _ = block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
+            block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
 
             let response = req(
                 &mut connection_manager,
@@ -302,7 +302,7 @@ where {
                 &client_full_id,
             )?;
 
-            let _ = block_on_all(connection_manager.disconnect(&client_full_id.public_id()))?;
+            block_on_all(connection_manager.disconnect(&client_full_id.public_id()))?;
 
             match response {
                 Response::GetLoginPacket(res) => res?,
@@ -317,11 +317,11 @@ where {
             &user_cred.pin,
         )?;
 
-        let id_packet = SafeKey::client(acc.maid_keys.clone().into());
+        let id_packet = acc.maid_keys.client_safe_key();
 
         trace!("Creating an actual client...");
 
-        let _ = block_on_all(connection_manager.bootstrap(id_packet.clone()))?;
+        block_on_all(connection_manager.bootstrap(id_packet.clone()))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
@@ -491,14 +491,13 @@ impl AuthActions for AuthClient {}
 impl Client for AuthClient {
     type MsgType = ();
 
-    fn full_id(&self) -> Option<FullId> {
+    fn full_id(&self) -> SafeKey {
         let auth_inner = self.auth_inner.borrow();
-        Some(auth_inner.acc.maid_keys.clone().into())
+        auth_inner.acc.maid_keys.client_safe_key()
     }
 
     fn public_id(&self) -> PublicId {
-        let auth_inner = self.auth_inner.borrow();
-        let client_pk = PublicKey::from(auth_inner.acc.maid_keys.bls_pk);
+        let client_pk = PublicKey::from(self.public_bls_key());
         PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk))
     }
 
@@ -552,28 +551,6 @@ impl Client for AuthClient {
 
     fn public_key(&self) -> PublicKey {
         self.public_bls_key().into()
-    }
-
-    fn compose_message(&self, request: Request, sign: bool) -> Message {
-        let auth_inner = self.auth_inner.borrow();
-        let message_id = MessageId::new();
-
-        let signature = if sign {
-            let sig = auth_inner
-                .acc
-                .maid_keys
-                .bls_sk
-                .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
-            Some(Signature::from(sig))
-        } else {
-            None
-        };
-
-        Message::Request {
-            request,
-            message_id,
-            signature,
-        }
     }
 }
 

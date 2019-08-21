@@ -10,14 +10,13 @@
 use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
 use lru_cache::LruCache;
-use routing::FullId;
 use rust_sodium::crypto::{box_, sign};
-use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE}; //, REQUEST_TIMEOUT_SECS};
+use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, ConnectionManager, NetworkTx};
-use safe_nd::{AppFullId, Message, MessageId, PublicId, PublicKey, Request, Signature};
+use safe_nd::{AppFullId, PublicId, PublicKey};
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -47,9 +46,7 @@ impl AppClient {
 
         let mut connection_manager =
             ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
-        block_on_all(connection_manager.bootstrap(SafeKey::app(
-            client_keys.clone().into_app_full_id(client_pk),
-        )))?;
+        block_on_all(connection_manager.bootstrap(client_keys.app_safe_key(client_pk)))?;
 
         // let (routing, routing_rx) = setup_routing(
         //     None,
@@ -130,9 +127,7 @@ impl AppClient {
 
         let mut connection_manager =
             ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
-        let _ = block_on_all(
-            connection_manager.bootstrap(SafeKey::app(keys.clone().into_app_full_id(owner))),
-        );
+        let _ = block_on_all(connection_manager.bootstrap(keys.clone().app_safe_key(owner)));
 
         // let (mut routing, routing_rx) = setup_routing(
         //     Some(keys.clone().into()),
@@ -162,9 +157,9 @@ impl AppClient {
 impl Client for AppClient {
     type MsgType = AppContext;
 
-    fn full_id(&self) -> Option<FullId> {
+    fn full_id(&self) -> SafeKey {
         let app_inner = self.app_inner.borrow();
-        Some(app_inner.keys.clone()).map(Into::into)
+        app_inner.keys.app_safe_key(self.owner_key())
     }
 
     fn public_id(&self) -> PublicId {
@@ -226,25 +221,6 @@ impl Client for AppClient {
 
     fn public_key(&self) -> PublicKey {
         self.public_bls_key().into()
-    }
-
-    fn compose_message(&self, request: Request, sign: bool) -> Message {
-        let message_id = MessageId::new();
-
-        let signature = if sign {
-            let sig = self
-                .secret_bls_key()
-                .sign(&unwrap!(bincode::serialize(&(&request, message_id))));
-            Some(Signature::from(sig))
-        } else {
-            None
-        };
-
-        Message::Request {
-            request,
-            message_id,
-            signature,
-        }
     }
 }
 

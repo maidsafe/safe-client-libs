@@ -6,12 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::client::id::SafeKey;
 use crate::client::MDataInfo;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::DIR_TAG;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::FullId;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
 use safe_nd::{AppFullId, ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
@@ -176,34 +176,34 @@ impl ClientKeys {
         }
     }
 
+    /// Convert `ClientKeys` into a full client identity.
+    fn client_full_id(&self) -> ClientFullId {
+        let bls_sk = (self.bls_sk).clone();
+
+        ClientFullId::with_bls_key(bls_sk)
+    }
+
     /// Convert `ClientKeys` into a full app identity.
-    pub fn into_app_full_id(self, owner_key: PublicKey) -> AppFullId {
+    pub fn app_full_id(&self, owner_key: PublicKey) -> AppFullId {
         let bls_sk = (self.bls_sk).clone();
 
         AppFullId::with_keys(bls_sk, owner_key)
+    }
+
+    /// Convert `ClientKeys` into a Client `SafeKey`.
+    pub fn client_safe_key(&self) -> SafeKey {
+        SafeKey::client(self.client_full_id())
+    }
+
+    /// Convert `ClientKeys` into an App `SafeKey`.
+    pub fn app_safe_key(&self, owner_key: PublicKey) -> SafeKey {
+        SafeKey::app(self.app_full_id(owner_key))
     }
 }
 
 impl Default for ClientKeys {
     fn default() -> Self {
         Self::new(None)
-    }
-}
-
-impl Into<FullId> for ClientKeys {
-    fn into(self) -> FullId {
-        let enc_sk = (*self.enc_sk).clone();
-        let sign_sk = (*self.sign_sk).clone();
-
-        FullId::with_keys((self.enc_pk, enc_sk), (self.sign_pk, sign_sk), self.bls_sk)
-    }
-}
-
-impl Into<ClientFullId> for ClientKeys {
-    fn into(self) -> ClientFullId {
-        let bls_sk = (self.bls_sk).clone();
-
-        ClientFullId::with_bls_key(bls_sk)
     }
 }
 
