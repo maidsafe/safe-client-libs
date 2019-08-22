@@ -62,6 +62,15 @@ impl ConnectionManager {
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
     pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
+        #[cfg(any(feature = "testing", test))]
+        {
+            if self.request_hook.is_some() {
+                if let Some(resp) = self.intercept_request(msg.clone()) {
+                    return ok!(resp);
+                }
+            }
+        }
+
         let msg: Message = {
             let writing = match msg {
                 Message::Request { request, .. } => request.get_type() == RequestType::Mutation,
@@ -146,35 +155,16 @@ impl ConnectionManager {
 
 #[cfg(any(feature = "testing", test))]
 impl ConnectionManager {
-    /*
-        fn intercept_request<F>(
-            &mut self,
-            delay_ms: u64,
-            src: Authority<XorName>,
-            dst: Authority<XorName>,
-            request: F,
-        ) -> bool
-        where
-            F: FnOnce() -> Request,
-        {
-            let response = if let Some(ref mut hook) = self.request_hook {
-                hook(&request())
-            } else {
-                None
-            };
-
-            if let Some(response) = response {
-                self.send_response(delay_ms, src, dst, response);
-                return true;
+    fn intercept_request(&mut self, message: Message) -> Option<Response> {
+        if let Message::Request { request, .. } = message {
+            if let Some(hook) = Arc::get_mut(self.request_hook.as_mut()?) {
+                if let Some(response) = hook(&request) {
+                    return Some(response);
+                }
             }
-
-            if self.timeout_simulation {
-                return true;
-            }
-
-            false
         }
-    */
+        None
+    }
 
     /// Set hook function to override response before request is processed, for test purposes.
     pub fn set_request_hook<F>(&mut self, hook: F)
