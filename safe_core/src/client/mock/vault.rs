@@ -163,14 +163,14 @@ fn check_perms_mdata(data: &MData, request: &Request, requester: PublicKey) -> S
     }
 }
 
-enum RequestType {
+pub enum RequestType {
     GetForPub,
     GetForUnpub,
     Mutation,
 }
 
 // Is the request a GET and if so, is it for pub or unpub data?
-fn request_is_get(request: &Request) -> RequestType {
+pub fn request_is_get(request: &Request) -> RequestType {
     match *request {
         Request::GetIData(address) => {
             if address.is_pub() {
