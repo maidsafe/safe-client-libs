@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e -x
+
+cargo test --verbose --release --features=mock-network --manifest-path=safe_core/Cargo.toml
+cargo test --verbose --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml
+cargo test --verbose --release --features=mock-network --manifest-path=safe_app/Cargo.toml
+cargo test --verbose --release --features=mock-network --manifest-path=tests/Cargo.toml
