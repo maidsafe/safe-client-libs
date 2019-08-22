@@ -220,8 +220,17 @@ ifeq ($(UNAME_S),Linux)
 else
 	./scripts/test-mock
 endif
-	mkdir artifacts
-	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+	make copy-artifacts
+
+test-with-mock-vault-file: clean
+ifeq ($(UNAME_S),Darwin)
+	rm -rf artifacts
+	./scripts/test-with-mock-vault-file
+	make copy-artifacts
+else
+	@echo "Tests against the mock vault file are run only on OS X."
+	@exit 1
+endif
 
 tests-integration: clean
 	rm -rf target/
@@ -233,3 +242,7 @@ tests-integration: clean
 
 debug:
 	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:build /bin/bash
+
+copy-artifacts:
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
