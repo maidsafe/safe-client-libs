@@ -248,7 +248,7 @@ where {
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
-        routing_wrapper_fn: F,
+        connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
         F: Fn(ConnectionManager) -> ConnectionManager,
@@ -259,7 +259,7 @@ where {
             el_handle,
             core_tx,
             net_tx,
-            routing_wrapper_fn,
+            connection_manager_wrapper_fn,
         )
     }
 

@@ -29,8 +29,8 @@ use safe_core::ConnectionManager;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
-    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
-    XorName,
+    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, Request, Response,
+    UnpubUnseqAppendOnlyData, XorName,
 };
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -108,52 +108,31 @@ fn get_access_info() {
 #[test]
 pub fn login_registered_with_low_balance() {
     // Register a hook prohibiting mutations and login
-    let cm_hook = move |cm: ConnectionManager| -> ConnectionManager {
-        /* FIXME - hooks
-
+    let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
         cm.set_request_hook(move |req| {
             match *req {
-                Request::PutIData { msg_id, .. } => Some(Response::PutIData {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                Request::PutMData { msg_id, .. } => Some(Response::PutMData {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                Request::MutateMDataEntries { msg_id, .. } => Some(Response::MutateMDataEntries {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                Request::SetMDataUserPermissions { msg_id, .. } => {
-                    Some(Response::SetMDataUserPermissions {
-                        res: Err(SndError::LowBalance),
-                        msg_id,
-                    })
-                }
-                Request::DelMDataUserPermissions { msg_id, .. } => {
-                    Some(Response::DelMDataUserPermissions {
-                        res: Err(SndError::LowBalance),
-                        msg_id,
-                    })
-                }
-                Request::ChangeMDataOwner { msg_id, .. } => Some(Response::ChangeMDataOwner {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                // Request::InsAuthKey { msg_id, .. } => Some(Response::InsAuthKey {
-                //     res: Err(ClientError::LowBalance),
-                //     msg_id,
-                // }),
-                // Request::DelAuthKey { msg_id, .. } => Some(Response::DelAuthKey {
-                //     res: Err(ClientError::LowBalance),
-                //     msg_id,
-                // }),
+                // Immutable Data
+                Request::PutIData { .. }
+                | Request::DeleteUnpubIData(..)
+                // Mutable Data
+                | Request::PutMData { .. }
+                | Request::MutateMDataEntries { .. }
+                | Request::SetMDataUserPermissions { .. }
+                | Request::DelMDataUserPermissions { .. }
+                | Request::DeleteMData(..)
+                // AppendOnly Data
+                | Request::PutAData(..)
+                | Request::DeleteAData(..)
+                | Request::AddPubADataPermissions{..}
+                | Request::AddUnpubADataPermissions {..}
+                | Request::SetADataOwner {..}
+                | Request::AppendSeq {..}
+                | Request::AppendUnseq(..)
+                => Some(Response::Mutation(Err(SndError::InsufficientBalance))),
                 // Pass-through
                 _ => None,
             }
         });
-         */
         cm
     };
 
