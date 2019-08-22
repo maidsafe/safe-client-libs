@@ -30,7 +30,7 @@ stage('build & test') {
     mock_osx: {
         node('osx') {
             checkout(scm)
-            run_tests('mock')
+            run_tests('mock-file')
             strip_build_artifacts()
             package_build_artifacts('mock', 'osx')
             upload_build_artifacts()
@@ -181,6 +181,8 @@ def run_binary_compatibility_tests() {
 def run_tests(mode, bct_test_path='') {
     if (mode == 'mock') {
         sh("make tests")
+    } else if (mode == 'mock-file') {
+        sh("make tests-mock-file")
     } else if (mode == 'binary') {
         command = "SCL_BCT_PATH=${bct_test_path} "
         command += "make test-artifacts-binary"

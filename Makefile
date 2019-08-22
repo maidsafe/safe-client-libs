@@ -220,8 +220,15 @@ ifeq ($(UNAME_S),Linux)
 else
 	./scripts/test-mock
 endif
-	mkdir artifacts
-	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+	make copy-artifacts
+
+tests-mock-file: clean
+	rm -rf artifacts
+	cargo test --verbose --release --features=mock-network --manifest-path=safe_core/Cargo.toml
+	cargo test --verbose --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml
+	cargo test --verbose --release --features=mock-network --manifest-path=safe_app/Cargo.toml
+	cargo test --verbose --release --features=mock-network --manifest-path=tests/Cargo.toml
+	make copy-artifacts
 
 tests-integration: clean
 	rm -rf target/
@@ -233,3 +240,7 @@ tests-integration: clean
 
 debug:
 	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:build /bin/bash
+
+copy-artifacts:
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
