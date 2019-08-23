@@ -10,7 +10,7 @@ use data_encoding::DecodeError;
 use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
-use routing::XorName;
+use safe_nd::XorName;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::ffi::NulError;

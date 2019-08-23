@@ -9,8 +9,6 @@
 use crate::self_encryption_storage::SelfEncryptionStorageError;
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
-use routing::messaging;
-use routing::{ClientError, InterfaceError, RoutingError};
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error as StdError;
@@ -41,13 +39,7 @@ pub enum CoreError {
     OperationForbidden,
     /// Unexpected - Probably a Logic error.
     Unexpected(String),
-    /// Routing Error.
-    RoutingError(RoutingError),
-    /// Interface Error.
-    RoutingInterfaceError(InterfaceError),
-    /// Routing Client Error.
-    RoutingClientError(ClientError),
-    /// Routing Client Error.
+    /// Error related to the data types.
     DataError(SndError),
     /// Unable to pack into or operate with size of Salt.
     UnsupportedSaltSizeForPwHash,
@@ -56,8 +48,6 @@ pub enum CoreError {
     UnsuccessfulPwHash,
     /// Blocking operation was cancelled.
     OperationAborted,
-    /// MpidMessaging Error.
-    MpidMessagingError(messaging::Error),
     /// Error while self-encrypting data.
     SelfEncryption(SelfEncryptionError<SelfEncryptionStorageError>),
     /// The request has timed out.
@@ -94,24 +84,6 @@ impl From<SerialisationError> for CoreError {
     }
 }
 
-impl From<RoutingError> for CoreError {
-    fn from(error: RoutingError) -> Self {
-        Self::RoutingError(error)
-    }
-}
-
-impl From<InterfaceError> for CoreError {
-    fn from(error: InterfaceError) -> Self {
-        Self::RoutingInterfaceError(error)
-    }
-}
-
-impl From<ClientError> for CoreError {
-    fn from(error: ClientError) -> Self {
-        Self::RoutingClientError(error)
-    }
-}
-
 impl From<SndError> for CoreError {
     fn from(error: SndError) -> Self {
         Self::DataError(error)
@@ -121,12 +93,6 @@ impl From<SndError> for CoreError {
 impl From<mpsc::RecvError> for CoreError {
     fn from(_: mpsc::RecvError) -> Self {
         Self::OperationAborted
-    }
-}
-
-impl From<messaging::Error> for CoreError {
-    fn from(error: messaging::Error) -> Self {
-        Self::MpidMessagingError(error)
     }
 }
 
@@ -184,24 +150,12 @@ impl Debug for CoreError {
             Self::Unexpected(ref error) => {
                 write!(formatter, "CoreError::Unexpected::{{{:?}}}", error)
             }
-            Self::RoutingError(ref error) => {
-                write!(formatter, "CoreError::RoutingError -> {:?}", error)
-            }
-            Self::RoutingInterfaceError(ref error) => {
-                write!(formatter, "CoreError::RoutingInterfaceError -> {:?}", error)
-            }
-            Self::RoutingClientError(ref error) => {
-                write!(formatter, "CoreError::RoutingClientError -> {:?}", error)
-            }
             Self::DataError(ref error) => write!(formatter, "CoreError::DataError -> {:?}", error),
             Self::UnsupportedSaltSizeForPwHash => {
                 write!(formatter, "CoreError::UnsupportedSaltSizeForPwHash")
             }
             Self::UnsuccessfulPwHash => write!(formatter, "CoreError::UnsuccessfulPwHash"),
             Self::OperationAborted => write!(formatter, "CoreError::OperationAborted"),
-            Self::MpidMessagingError(ref error) => {
-                write!(formatter, "CoreError::MpidMessagingError -> {:?}", error)
-            }
             Self::SelfEncryption(ref error) => {
                 write!(formatter, "CoreError::SelfEncryption -> {:?}", error)
             }
@@ -239,17 +193,6 @@ impl Display for CoreError {
             }
             Self::OperationForbidden => write!(formatter, "Forbidden operation requested"),
             Self::Unexpected(ref error) => write!(formatter, "Unexpected: {}", error),
-            Self::RoutingError(ref error) => {
-                // TODO - use `{}` once `RoutingError` implements `std::error::Error`.
-                write!(formatter, "Routing internal error: {:?}", error)
-            }
-            Self::RoutingInterfaceError(ref error) => {
-                // TODO - use `{}` once `InterfaceError` implements `std::error::Error`.
-                write!(formatter, "Routing interface error -> {:?}", error)
-            }
-            Self::RoutingClientError(ref error) => {
-                write!(formatter, "Routing client error -> {}", error)
-            }
             Self::DataError(ref error) => write!(formatter, "Data error -> {}", error),
             Self::UnsupportedSaltSizeForPwHash => write!(
                 formatter,
@@ -260,9 +203,6 @@ impl Display for CoreError {
                 "Unable to complete computation for password hashing"
             ),
             Self::OperationAborted => write!(formatter, "Blocking operation was cancelled"),
-            Self::MpidMessagingError(ref error) => {
-                write!(formatter, "Mpid messaging error: {}", error)
-            }
             Self::SelfEncryption(ref error) => {
                 write!(formatter, "Self-encryption error: {}", error)
             }
@@ -287,16 +227,10 @@ impl StdError for CoreError {
             Self::RandomDataGenerationFailure => "Cannot obtain RNG",
             Self::OperationForbidden => "Operation forbidden",
             Self::Unexpected(_) => "Unexpected error",
-            // TODO - use `error.description()` once `RoutingError` implements `std::error::Error`.
-            Self::RoutingError(_) => "Routing internal error",
-            // TODO - use `error.description()` once `InterfaceError` implements `std::error::Error`
-            Self::RoutingClientError(ref error) => error.description(),
             Self::DataError(ref error) => error.description(),
-            Self::RoutingInterfaceError(_) => "Routing interface error",
             Self::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
             Self::UnsuccessfulPwHash => "Failed while password hashing",
             Self::OperationAborted => "Operation aborted",
-            Self::MpidMessagingError(_) => "Mpid messaging error",
             Self::SelfEncryption(ref error) => error.description(),
             Self::RequestTimeout => "Request has timed out",
             Self::ConfigError(ref error) => error.description(),
@@ -308,11 +242,8 @@ impl StdError for CoreError {
     fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             Self::EncodeDecodeError(ref err) => Some(err),
-            Self::MpidMessagingError(ref err) => Some(err),
-            // Self::RoutingError(ref err) => Some(err),
-            // Self::RoutingInterfaceError(ref err) => Some(err),
-            Self::RoutingClientError(ref err) => Some(err),
             Self::SelfEncryption(ref err) => Some(err),
+            Self::DataError(ref err) => Some(err),
             Self::QuicP2p(ref err) => Some(err),
             _ => None,
         }

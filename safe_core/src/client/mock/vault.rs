@@ -13,7 +13,6 @@ use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::{Authority, ClientError};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
     Coins, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
@@ -333,42 +332,35 @@ impl Vault {
     }
 
     // Authorise mutation operation.
+    // dst_name is the ClientHandler name
     pub fn authorise_mutation(
         &self,
-        dst: &Authority<XorName>,
+        dst_name: &XorName,
         sign_pk: &PublicKey,
-    ) -> Result<(), ClientError> {
-        let dst_name = match *dst {
-            Authority::ClientManager(name) => name,
-            x => {
-                debug!("Unexpected authority for mutation: {:?}", x);
-                return Err(ClientError::InvalidOperation);
-            }
-        };
-
+    ) -> Result<(), SndError> {
         let account = self.get_account(&dst_name);
 
         let owner_name = XorName::from(*sign_pk);
         let balance = match self.get_balance(&dst_name) {
             Ok(coins) => coins,
-            Err(_) => return Err(ClientError::AccessDenied),
+            Err(_) => return Err(SndError::AccessDenied),
         };
 
-        if owner_name != dst_name {
+        if owner_name != *dst_name {
             match account {
                 None => {
                     trace!("No apps authorised");
-                    return Err(ClientError::AccessDenied);
+                    return Err(SndError::AccessDenied);
                 }
                 Some(account) => {
                     if let Some(app_entry) = account.auth_keys().get(sign_pk) {
                         if !app_entry.transfer_coins {
                             trace!("App does not have permission to spend coin");
-                            return Err(ClientError::AccessDenied);
+                            return Err(SndError::AccessDenied);
                         }
                     } else {
                         trace!("App not authorised");
-                        return Err(ClientError::AccessDenied);
+                        return Err(SndError::AccessDenied);
                     }
                 }
             }
@@ -377,8 +369,9 @@ impl Vault {
         let unlimited_mut = unlimited_muts(&self.config);
 
         if !unlimited_mut && balance.checked_sub(*COST_OF_PUT).is_none() {
-            return Err(ClientError::LowBalance);
+            return Err(SndError::InsufficientBalance);
         }
+
         Ok(())
     }
 
@@ -1373,16 +1366,10 @@ impl Vault {
     ) -> SndResult<()> {
         match requester.clone() {
             PublicId::Client(client_public_id) => self
-                .authorise_mutation(
-                    &Authority::ClientManager(*client_public_id.name()),
-                    client_public_id.public_key(),
-                )
+                .authorise_mutation(client_public_id.name(), client_public_id.public_key())
                 .map_err(|_| SndError::AccessDenied)?,
             PublicId::App(app_public_id) => self
-                .authorise_mutation(
-                    &Authority::ClientManager(*app_public_id.owner_name()),
-                    app_public_id.public_key(),
-                )
+                .authorise_mutation(app_public_id.owner_name(), app_public_id.public_key())
                 .map_err(|_| SndError::AccessDenied)?,
             _ => return Err(SndError::AccessDenied),
         }

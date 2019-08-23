@@ -12,7 +12,7 @@
 use crate::ConnectionManager;
 use maidsafe_utilities::SeededRng;
 use rand::Rng;
-use routing::{Request, Response};
+use safe_nd::{Request, Response};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 

@@ -13,13 +13,13 @@ use crate::apps::{
 use crate::{AuthError, Authenticator};
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
 use futures::Future;
-use routing::XorName;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
 use safe_core::ffi::ipc::resp::AppAccess;
 use safe_core::ipc::req::AppExchangeInfo as NativeAppExchangeInfo;
 use safe_core::ipc::resp::AppAccess as NativeAppAccess;
 use safe_core::FutureExt;
+use safe_nd::XorName;
 use std::os::raw::{c_char, c_void};
 
 /// Application registered in the authenticator

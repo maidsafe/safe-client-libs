@@ -118,7 +118,7 @@ pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManag
 #[cfg(not(feature = "mock-network"))]
 pub use self::connection_manager::ConnectionManager;
 pub use self::errors::CoreError;
-pub use self::event::{CoreEvent, NetworkEvent, NetworkRx, NetworkTx};
+pub use self::event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::self_encryption_storage::{SelfEncryptionStorage, SelfEncryptionStorageError};
 pub use self::utils::FutureExt;

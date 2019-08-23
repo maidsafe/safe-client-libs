@@ -20,15 +20,18 @@ pub use self::req::{
 pub use self::resp::{
     access_container_enc_key, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, IpcResp,
 };
-pub use routing::BootstrapConfig;
 
 use data_encoding::BASE32_NOPAD;
 #[cfg(any(test, feature = "testing"))]
 use ffi_utils;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
+use quic_p2p::NodeInfo;
 use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
 use std::u32;
+
+/// QuicP2P bootstrap info, shared from Authenticator to apps.
+pub type BootstrapConfig = Vec<NodeInfo>;
 
 /// IPC message.
 #[allow(clippy::large_enum_variant)]

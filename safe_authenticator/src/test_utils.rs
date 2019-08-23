@@ -18,7 +18,6 @@ use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
 use log::Record;
 use rand::{self, Rng};
-use routing::XorName;
 use safe_core::client::{test_create_balance, Client};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
@@ -37,7 +36,7 @@ use safe_core::utils::test_utils::setup_client_with_net_obs;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{AppPermissions, Coins, PublicKey};
+use safe_nd::{AppPermissions, Coins, PublicKey, XorName};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;

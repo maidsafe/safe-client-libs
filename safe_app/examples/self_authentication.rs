@@ -60,8 +60,9 @@
 #[macro_use]
 extern crate unwrap;
 
-use safe_app::{ClientError, CoreError};
+use safe_app::CoreError;
 use safe_authenticator::{AuthError, Authenticator};
+use safe_nd::Error as SndError;
 
 fn main() {
     unwrap!(maidsafe_utilities::log::init(true));
@@ -95,9 +96,7 @@ fn main() {
 
         match Authenticator::create_acc(secret_0.as_str(), secret_1.as_str(), bls_sk, || ()) {
             Ok(_) => (),
-            Err(AuthError::CoreError(CoreError::RoutingClientError(
-                ClientError::AccountExists,
-            ))) => {
+            Err(AuthError::CoreError(CoreError::DataError(SndError::LoginPacketExists))) => {
                 println!(
                     "ERROR: This domain is already taken. Please retry with different \
                      locator and/or password"

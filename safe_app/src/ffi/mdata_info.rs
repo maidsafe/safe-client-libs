@@ -10,13 +10,12 @@
 use crate::errors::AppError;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, SafePtr, FFI_RESULT_OK};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::XorName;
 use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
 use safe_core::ffi::{md_kind_clone_from_repr_c, MDataInfo, MDataKind};
 use safe_core::MDataInfo as NativeMDataInfo;
-use safe_nd::MDataAddress;
+use safe_nd::{MDataAddress, XorName};
 use std::os::raw::c_void;
 use std::slice;
 
@@ -236,12 +235,11 @@ mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_1, call_vec_u8};
     use rand;
-    use routing::XOR_NAME_LEN;
     use rust_sodium::crypto::secretbox;
     use safe_core::crypto::shared_secretbox;
     use safe_core::ffi::MDataKind;
     use safe_core::MDataInfo;
-    use safe_nd::MDataKind as NativeMDataKind;
+    use safe_nd::{MDataKind as NativeMDataKind, XOR_NAME_LEN};
 
     // Test creating non-encrypted mdata info.
     #[test]

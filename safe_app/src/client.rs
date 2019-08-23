@@ -163,7 +163,7 @@ impl Client for AppClient {
 
     fn config(&self) -> Option<BootstrapConfig> {
         let app_inner = self.app_inner.borrow();
-        app_inner.config
+        app_inner.config.clone()
     }
 
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {

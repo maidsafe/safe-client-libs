@@ -10,8 +10,7 @@ use crate::ffi::nfs::File as FfiFile;
 use crate::nfs::errors::NfsError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use ffi_utils::{vec_into_raw_parts, ReprC};
-use routing::XorName;
-use safe_nd::{IDataAddress, IDataKind};
+use safe_nd::{IDataAddress, IDataKind, XorName};
 use serde::{Deserialize, Serialize};
 use std::slice;
 

@@ -12,7 +12,6 @@ use config_file_handler::Error as ConfigFileHandlerError;
 use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
-use routing::ClientError;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::{CoreError, SelfEncryptionStorageError};
@@ -37,18 +36,15 @@ mod codes {
     pub const ERR_ROOT_DIRECTORY_EXISTS: i32 = -7;
     pub const ERR_RANDOM_DATA_GENERATION_FAILURE: i32 = -8;
     pub const ERR_OPERATION_FORBIDDEN: i32 = -9;
-    pub const ERR_ROUTING_ERROR: i32 = -10;
-    pub const ERR_ROUTING_INTERFACE_ERROR: i32 = -11;
-    pub const ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH: i32 = -12;
-    pub const ERR_UNSUCCESSFUL_PW_HASH: i32 = -13;
-    pub const ERR_OPERATION_ABORTED: i32 = -14;
-    pub const ERR_MPID_MESSAGING_ERROR: i32 = -15;
-    pub const ERR_SELF_ENCRYPTION: i32 = -16;
-    pub const ERR_REQUEST_TIMEOUT: i32 = -17;
-    pub const ERR_CONFIG_FILE: i32 = -18;
-    pub const ERR_IO: i32 = -19;
+    pub const ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH: i32 = -10;
+    pub const ERR_UNSUCCESSFUL_PW_HASH: i32 = -11;
+    pub const ERR_OPERATION_ABORTED: i32 = -12;
+    pub const ERR_SELF_ENCRYPTION: i32 = -13;
+    pub const ERR_REQUEST_TIMEOUT: i32 = -14;
+    pub const ERR_CONFIG_FILE: i32 = -15;
+    pub const ERR_IO: i32 = -16;
 
-    // routing Client errors
+    // Data type errors
     pub const ERR_ACCESS_DENIED: i32 = -100;
     pub const ERR_NO_SUCH_ACCOUNT: i32 = -101;
     pub const ERR_ACCOUNT_EXISTS: i32 = -102;
@@ -409,28 +405,6 @@ fn core_error_code(err: &CoreError) -> i32 {
         CoreError::RootDirectoryExists => ERR_ROOT_DIRECTORY_EXISTS,
         CoreError::RandomDataGenerationFailure => ERR_RANDOM_DATA_GENERATION_FAILURE,
         CoreError::OperationForbidden => ERR_OPERATION_FORBIDDEN,
-        CoreError::RoutingError(_) => ERR_ROUTING_ERROR,
-        CoreError::RoutingInterfaceError(_) => ERR_ROUTING_INTERFACE_ERROR,
-        CoreError::RoutingClientError(ref err) => match *err {
-            ClientError::AccessDenied => ERR_ACCESS_DENIED,
-            ClientError::NoSuchAccount => ERR_NO_SUCH_ACCOUNT,
-            ClientError::AccountExists => ERR_ACCOUNT_EXISTS,
-            ClientError::NoSuchData => ERR_NO_SUCH_DATA,
-            ClientError::DataExists => ERR_DATA_EXISTS,
-            ClientError::DataTooLarge => ERR_DATA_TOO_LARGE,
-            ClientError::NoSuchEntry => ERR_NO_SUCH_ENTRY,
-            ClientError::InvalidEntryActions(..) => ERR_INVALID_ENTRY_ACTIONS,
-            ClientError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
-            ClientError::NoSuchKey => ERR_NO_SUCH_KEY,
-            ClientError::InvalidOwners => ERR_INVALID_OWNERS,
-            ClientError::InvalidSuccessor(..) => ERR_INVALID_SUCCESSOR,
-            ClientError::InvalidOperation => ERR_INVALID_OPERATION,
-            ClientError::LowBalance => ERR_LOW_BALANCE,
-            ClientError::NetworkFull => ERR_NETWORK_FULL,
-            ClientError::NetworkOther(_) => ERR_NETWORK_OTHER,
-            ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
-            ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
-        },
         CoreError::DataError(ref err) => match *err {
             SndError::AccessDenied => ERR_ACCESS_DENIED,
             SndError::NoSuchLoginPacket => ERR_NO_SUCH_LOGIN_PACKET,
@@ -465,7 +439,6 @@ fn core_error_code(err: &CoreError) -> i32 {
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,
-        CoreError::MpidMessagingError(_) => ERR_MPID_MESSAGING_ERROR,
         CoreError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
         CoreError::RequestTimeout => ERR_REQUEST_TIMEOUT,
         CoreError::ConfigError(_) => ERR_CONFIG_FILE,

@@ -17,14 +17,13 @@ use crate::{app_container, AuthError};
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use futures::future::Future;
 use maidsafe_utilities::serialisation::deserialise;
-use routing::XorName;
 use safe_core::client::Client;
 use safe_core::ipc::req::{containers_from_repr_c, containers_into_vec, ContainerPermissions};
 use safe_core::ipc::resp::{AccessContainerEntry, AppAccess};
 use safe_core::ipc::{access_container_enc_key, AppExchangeInfo, IpcError};
 use safe_core::utils::symmetric_decrypt;
 use safe_core::FutureExt;
-use safe_nd::{MDataAddress, PublicKey};
+use safe_nd::{MDataAddress, PublicKey, XorName};
 use std::collections::HashMap;
 
 /// Represents an application that is registered with the Authenticator.

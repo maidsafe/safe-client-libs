@@ -16,10 +16,9 @@ use crate::App;
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::XorName;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::{immutable_data, Client, FutureExt, SelfEncryptionStorage};
-use safe_nd::{IDataAddress, IDataKind};
+use safe_nd::{IDataAddress, IDataKind, XorName};
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::os::raw::c_void;
 

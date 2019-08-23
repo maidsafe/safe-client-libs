@@ -28,7 +28,6 @@ maidsafe_utilities = "~0.18.0"
 new_rand = { package = "rand", version = "0.6" }
 quic-p2p = "~0.2.1"
 rand = "~0.3.18"
-routing = { package = "mock_routing", path = "../mock_routing" }
 rust_sodium = "~0.10.2"
 safe-nd = "~0.3.0"
 self_encryption = { git = "https://github.com/maidsafe/self_encryption" }

@@ -611,8 +611,8 @@ impl ReprC for MDataEntry {
 mod tests {
     use super::*;
     use ffi_utils::ReprC;
-    use routing::{XorName, XOR_NAME_LEN};
     use rust_sodium::crypto::secretbox;
+    use safe_nd::{XorName, XOR_NAME_LEN};
     use threshold_crypto::SecretKey;
 
     // // Test converting an `AuthGranted` object to its FFI representation and then back again.

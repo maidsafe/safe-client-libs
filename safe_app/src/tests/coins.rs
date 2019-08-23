@@ -12,9 +12,8 @@
 use crate::test_utils::{create_app, create_app_by_req, create_random_auth_req};
 use crate::{run, AppError};
 use futures::Future;
-use routing::XorName;
 use safe_core::{Client, CoreError};
-use safe_nd::{AppPermissions, Coins, Error};
+use safe_nd::{AppPermissions, Coins, Error, XorName};
 use std::str::FromStr;
 
 // Apps should not be able to request the coin balance if they don't have
