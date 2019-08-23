@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::vault::{self, Vault, RequestType, request_is_get};
+use super::vault::{self, Vault};
 use crate::config_handler::{get_config, Config};
 use crate::{
     client::SafeKey,
@@ -15,7 +15,7 @@ use crate::{
 };
 use maidsafe_utilities::serialisation::serialise;
 use quic_p2p::{self, Config as QuicP2pConfig};
-use safe_nd::{Coins, Message, PublicId, PublicKey, Request, Response, XorName};
+use safe_nd::{Coins, Message, PublicId, PublicKey, Request, RequestType, Response, XorName};
 use std::collections::HashSet;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -65,7 +65,7 @@ impl ConnectionManager {
         let msg: Message = {
             let writing = {
                 if let Message::Request { request, .. } = msg {
-                    if let RequestType::Mutation = request_is_get(&request) {
+                    if let RequestType::Mutation = request.get_type() {
                         true
                     } else {
                         false
