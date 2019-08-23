@@ -228,27 +228,32 @@ fn num_containers(app: &App) -> usize {
 #[test]
 fn app_container_creation() {
     trace!("Authorising an app for the first time with `app_container` set to `true`.");
-    let auth = authenticator::create_account_and_login();
 
-    let app_info = gen_app_exchange_info();
-    let app_id = app_info.id.clone();
-    let app = authorise_app(&auth, &app_info, &app_id, true);
+    {
+        let auth = authenticator::create_account_and_login();
 
-    assert_eq!(num_containers(&app), 1); // should only contain app container
+        let app_info = gen_app_exchange_info();
+        let app_id = app_info.id.clone();
+        let app = authorise_app(&auth, &app_info, &app_id, true);
+
+        assert_eq!(num_containers(&app), 1); // should only contain app container
+    }
 
     trace!("Authorising a new app with `app_container` set to `false`.");
     let auth = authenticator::create_account_and_login();
-
     let app_info = gen_app_exchange_info();
     let app_id = app_info.id.clone();
-    let mut app = authorise_app(&auth, &app_info, &app_id, false);
 
-    assert_eq!(num_containers(&app), 0); // should be empty
+    {
+        let app = authorise_app(&auth, &app_info, &app_id, false);
+        assert_eq!(num_containers(&app), 0); // should be empty
+    }
 
     trace!("Re-authorising the app with `app_container` set to `true`.");
-    app = authorise_app(&auth, &app_info, &app_id, true);
-
-    assert_eq!(num_containers(&app), 1); // should only contain app container
+    {
+        let app = authorise_app(&auth, &app_info, &app_id, true);
+        assert_eq!(num_containers(&app), 1); // should only contain app container
+    }
 
     trace!("Making sure no mutations are done when re-authorising the app now.");
     let orig_balance: Coins = unwrap!(auth_run(&auth, |client| {
@@ -268,17 +273,20 @@ fn app_container_creation() {
 
     let app_info = gen_app_exchange_info();
     let app_id = app_info.id.clone();
-    let app = authorise_app(&auth, &app_info, &app_id, false);
 
-    assert_eq!(num_containers(&app), 0); // should be empty
+    {
+        let app = authorise_app(&auth, &app_info, &app_id, false);
+        assert_eq!(num_containers(&app), 0); // should be empty
+    }
 
     trace!("Revoking the app.");
     revoke(&auth, &app_id);
 
     trace!("Re-authorising the app with `app_container` set to `true`.");
-    let app = authorise_app(&auth, &app_info, &app_id, true);
-
-    assert_eq!(num_containers(&app), 1); // should only contain app container
+    {
+        let app = authorise_app(&auth, &app_info, &app_id, true);
+        assert_eq!(num_containers(&app), 1); // should only contain app container
+    }
 }
 
 // Test unregistered clients.

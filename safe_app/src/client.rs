@@ -129,15 +129,6 @@ impl AppClient {
             ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
         let _ = block_on_all(connection_manager.bootstrap(keys.clone().app_safe_key(owner)));
 
-        // let (mut routing, routing_rx) = setup_routing(
-        //     Some(keys.clone().into()),
-        //     PublicId::App(
-        //         AppFullId::with_keys(keys.bls_sk.clone(), owner)
-        //             .public_id()
-        //             .clone(),
-        //     ),
-        //     Some(config),
-        // )?;
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         Ok(Self {

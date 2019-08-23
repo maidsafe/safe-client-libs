@@ -17,8 +17,8 @@ use safe_core::{AuthActions, Client, CoreError, FutureExt};
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntry, ADataIndex, ADataOwner,
     ADataPubPermissionSet, ADataPubPermissions, ADataUnpubPermissionSet, ADataUnpubPermissions,
-    ADataUser, Error as SndError, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, PublicKey,
-    UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, XorName,
+    ADataUser, AppPermissions, Error as SndError, PubSeqAppendOnlyData, PubUnseqAppendOnlyData,
+    PublicKey, UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, XorName,
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc;
@@ -349,7 +349,6 @@ fn managing_permissions_for_an_app() {
 // be able to append to the data anymore. But it should still be able to read the data since if it is published.
 // The client tries to delete the data. It should pass if the data is unpublished. Deleting published data should fail.
 #[test]
-#[ignore]
 fn restricted_access_and_deletion() {
     let name: XorName = new_rand::random();
     let tag = 15_002;
@@ -383,6 +382,7 @@ fn restricted_access_and_deletion() {
             client
                 .get_adata(address)
                 .then(move |res| {
+                    trace!("Got AData: {:?}", res);
                     match (res, address.is_pub()) {
                         (Ok(data), true) => {
                             assert_eq!(*data.address(), address);
@@ -393,11 +393,16 @@ fn restricted_access_and_deletion() {
                     }
                     // Send the app's key so it can be authenticated and granted access to the data
                     // and wait for the signal that the operations are complete
+                    trace!("Authenticating app's key");
                     unwrap!(app_key_tx.send(client2.public_key()));
                     unwrap!(app_authed_rx.recv());
+                    trace!("App authenticated");
+
                     client2.get_adata(address)
                 })
                 .and_then(move |data| {
+                    trace!("Got AData: {:?}", data);
+
                     assert_eq!(*data.address(), address);
                     assert_eq!(data.entries_index(), 3);
                     Ok(data.entries_index())
@@ -480,7 +485,13 @@ fn restricted_access_and_deletion() {
                     .and_then(move |(_, version)| {
                         let app_key: PublicKey = unwrap!(app_key_rx.recv());
                         client3
-                            .ins_auth_key(app_key, Default::default(), version + 1)
+                            .ins_auth_key(
+                                app_key,
+                                AppPermissions {
+                                    transfer_coins: true,
+                                },
+                                version + 1,
+                            )
                             .map(move |()| (app_key, version + 1))
                     })
                     .and_then(move |(key, version)| {
