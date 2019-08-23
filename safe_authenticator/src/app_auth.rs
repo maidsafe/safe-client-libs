@@ -320,9 +320,7 @@ fn check_revocation(client: &AuthClient, app_id: String) -> Box<AuthFuture<()>> 
     config::get_app_revocation_queue(client)
         .and_then(move |(_, queue)| {
             if queue.contains(&app_id) {
-                Err(AuthError::from(
-                    "Couldn't authenticate app that is pending revocation",
-                ))
+                Err(AuthError::PendingRevocation)
             } else {
                 Ok(())
             }

@@ -64,10 +64,8 @@ impl ConnectionManager {
     pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
         #[cfg(any(feature = "testing", test))]
         {
-            if self.request_hook.is_some() {
-                if let Some(resp) = self.intercept_request(msg.clone()) {
-                    return ok!(resp);
-                }
+            if let Some(resp) = self.intercept_request(msg.clone()) {
+                return ok!(resp);
             }
         }
 

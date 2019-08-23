@@ -51,7 +51,7 @@ mod mock_routing {
     use safe_core::{
         app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
     };
-    use safe_nd::{Coins, Error as SndError, PublicKey, Request, Response};
+    use safe_nd::{Coins, Error as SndError, PublicKey, Request, RequestType, Response};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -144,16 +144,11 @@ mod mock_routing {
         // Register a hook prohibiting mutations and login
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
-                match *req {
-                    Request::PutIData { .. }
-                    | Request::PutMData { .. }
-                    | Request::MutateMDataEntries { .. }
-                    | Request::SetMDataUserPermissions { .. }
-                    | Request::DelMDataUserPermissions { .. } => {
-                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-                    }
+                if req.get_type() == RequestType::Mutation {
+                    Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                } else {
                     // Pass-through
-                    _ => None,
+                    None
                 }
             });
             cm

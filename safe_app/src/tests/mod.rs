@@ -29,7 +29,7 @@ use safe_core::ConnectionManager;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
-    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, Request, Response,
+    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, RequestType, Response,
     UnpubUnseqAppendOnlyData, XorName,
 };
 use std::collections::HashMap;
@@ -110,27 +110,11 @@ pub fn login_registered_with_low_balance() {
     // Register a hook prohibiting mutations and login
     let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
         cm.set_request_hook(move |req| {
-            match *req {
-                // Immutable Data
-                Request::PutIData { .. }
-                | Request::DeleteUnpubIData(..)
-                // Mutable Data
-                | Request::PutMData { .. }
-                | Request::MutateMDataEntries { .. }
-                | Request::SetMDataUserPermissions { .. }
-                | Request::DelMDataUserPermissions { .. }
-                | Request::DeleteMData(..)
-                // AppendOnly Data
-                | Request::PutAData(..)
-                | Request::DeleteAData(..)
-                | Request::AddPubADataPermissions{..}
-                | Request::AddUnpubADataPermissions {..}
-                | Request::SetADataOwner {..}
-                | Request::AppendSeq {..}
-                | Request::AppendUnseq(..)
-                => Some(Response::Mutation(Err(SndError::InsufficientBalance))),
+            if req.get_type() == RequestType::Mutation {
+                Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+            } else {
                 // Pass-through
-                _ => None,
+                None
             }
         });
         cm
