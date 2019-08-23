@@ -6,25 +6,27 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-// TODO - remove this.
-#![allow(dead_code)]
-
 use crate::{client::SafeKey, utils, CoreError, CoreFuture};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
+use crossbeam_channel::{self, Receiver};
 use futures::{
     sync::oneshot::{self, Sender},
     Future,
 };
 use lazy_static::lazy_static;
 use new_rand::Rng;
-use quic_p2p::{self, Error as QuicP2pError, NodeInfo, Peer, QuicP2p, Token};
+use quic_p2p::{
+    self, Builder, Config as QuicP2pConfig, Error as QuicP2pError, Event, NodeInfo, Peer, QuicP2p,
+    Token,
+};
 use safe_nd::{Challenge, Message, MessageId, NodePublicId, PublicId, Request, Response};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
     sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
     time::Duration,
 };
 use tokio::prelude::FutureExt;
@@ -60,51 +62,87 @@ impl Elder {
 /// Encapsulates multiple QUIC connections with a group of Client Handlers.
 /// Accumulates responses. During Phase 1 connects only to a single vault.
 pub(super) struct ConnectionGroup {
-    full_id: SafeKey,
-    elders: HashMap<SocketAddr, Elder>,
-    hooks: HashMap<MessageId, Sender<Response>>, // to be replaced with Accumulator for multiple vaults.
-    quic_p2p: Arc<Mutex<QuicP2p>>,
-    connection_hook: Option<Sender<Result<(), CoreError>>>,
-    disconnect_tx: Option<Sender<()>>,
-    pub(super) id: u64,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl ConnectionGroup {
     pub fn new(
+        config: QuicP2pConfig,
         full_id: SafeKey,
         mut elders: HashSet<NodeInfo>,
-        quic_p2p: Arc<Mutex<QuicP2p>>,
         connection_hook: Sender<Result<(), CoreError>>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, CoreError> {
+        let (event_tx, event_rx) = crossbeam_channel::unbounded();
+
+        let mut quic_p2p = Builder::new(event_tx).with_config(config).build()?;
+        quic_p2p.bootstrap();
+
+        let inner = Arc::new(Mutex::new(Inner {
+            quic_p2p,
             full_id,
+            hooks: Default::default(),
+            connection_hook: Some(connection_hook),
+            disconnect_tx: None,
             elders: elders
                 .drain()
                 .map(|node_info| (node_info.peer_addr, Elder::new(node_info)))
                 .collect(),
-            hooks: Default::default(),
-            quic_p2p,
-            connection_hook: Some(connection_hook),
-            disconnect_tx: None,
             id: GROUP_COUNTER.fetch_add(1, Ordering::SeqCst),
-        }
+        }));
+
+        let _ = setup_quic_p2p_event_loop(inner.clone(), event_rx);
+
+        Ok(Self { inner })
     }
 
     pub fn send(&mut self, msg_id: MessageId, msg: &Message) -> Box<CoreFuture<Response>> {
-        let mut rng = new_rand::thread_rng();
+        unwrap!(self.inner.lock()).send(msg_id, msg)
+    }
 
+    /// Terminate the QUIC connections gracefully.
+    pub fn close(&mut self) -> Box<CoreFuture<()>> {
+        unwrap!(self.inner.lock()).close()
+    }
+}
+
+struct Inner {
+    quic_p2p: QuicP2p,
+    full_id: SafeKey,
+    elders: HashMap<SocketAddr, Elder>,
+    hooks: HashMap<MessageId, Sender<Response>>, // to be replaced with Accumulator for multiple vaults.
+    connection_hook: Option<Sender<Result<(), CoreError>>>,
+    disconnect_tx: Option<Sender<()>>,
+    id: u64,
+}
+
+impl Drop for Inner {
+    fn drop(&mut self) {
+        for peer in self.elders.values().map(Elder::peer) {
+            self.quic_p2p.disconnect_from(peer.peer_addr());
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+impl Inner {
+    fn terminate(&mut self) {
+        for peer in self.elders.values().map(Elder::peer) {
+            self.quic_p2p.disconnect_from(peer.peer_addr());
+        }
+    }
+
+    fn send(&mut self, msg_id: MessageId, msg: &Message) -> Box<CoreFuture<Response>> {
         trace!("Sending message {:?}", msg_id);
+        let mut rng = new_rand::thread_rng();
 
         let (future_tx, future_rx) = oneshot::channel();
         let _ = self.hooks.insert(msg_id, future_tx);
 
         let bytes = Bytes::from(unwrap!(serialize(msg)));
         {
-            let mut qp2p = unwrap!(self.quic_p2p.lock());
-
             for peer in self.elders.values().map(Elder::peer) {
                 let token = rng.gen();
-                qp2p.send(peer, bytes.clone(), token);
+                self.quic_p2p.send(peer, bytes.clone(), token);
             }
         }
 
@@ -120,42 +158,64 @@ impl ConnectionGroup {
         )
     }
 
-    pub fn handle_bootstrap_failure(&mut self) {
-        let _ = self
-            .connection_hook
-            .take()
-            .map(|hook| hook.send(Err(CoreError::from(format!("Bootstrap failure")))));
+    /// Terminate the QUIC connections gracefully.
+    fn close(&mut self) -> Box<CoreFuture<()>> {
+        trace!("{}: Terminating connection", self.id);
+
+        let (disconnect_tx, disconnect_rx) = futures::oneshot();
+        self.terminate();
+        self.disconnect_tx = Some(disconnect_tx);
+
+        Box::new(disconnect_rx.map_err(|e| CoreError::Unexpected(format!("{}", e))))
     }
 
-    pub fn handle_bootstrapped_to(&mut self, node_info: NodeInfo) {
+    fn handle_quic_p2p_event(&mut self, event: Event) {
+        use Event::*;
+        // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
+        // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.handle_response(sender, token, response)` should be called.
+        match event {
+            BootstrapFailure => self.handle_bootstrap_failure(),
+            BootstrappedTo { node } => self.handle_bootstrapped_to(node),
+            SentUserMessage {
+                peer_addr,
+                msg,
+                token,
+            } => self.handle_sent_user_message(peer_addr, msg, token),
+            UnsentUserMessage {
+                peer_addr,
+                msg,
+                token,
+            } => self.handle_unsent_user_message(peer_addr, msg, token),
+            NewMessage { peer_addr, msg } => self.handle_new_message(peer_addr, msg),
+            Finish => {
+                info!("Received unexpected event: {}", event);
+            }
+            ConnectionFailure { peer_addr, err } => self.handle_connection_failure(peer_addr, err),
+            // We don't connect to peers yet, so we ignore this event.
+            ConnectedTo { peer: _peer } => (),
+        }
+    }
+
+    fn handle_bootstrapped_to(&mut self, node_info: NodeInfo) {
         trace!("{}: Bootstrapped", self.id);
         let _ = self
             .elders
             .insert(node_info.peer_addr, Elder::new(node_info));
     }
 
-    pub fn handle_connection_failure(&mut self, peer_addr: SocketAddr, err: QuicP2pError) {
-        if let QuicP2pError::ConnectionCancelled = err {
-            if let Some(tx) = self.disconnect_tx.take() {
-                trace!("{}: Successfully disconnected", self.id);
-                let _ = tx.send(());
-                return;
-            }
-        }
-        trace!(
-            "{}: Recvd connection failure for {}, {}",
-            self.id,
-            peer_addr,
-            err
-        );
+    fn handle_bootstrap_failure(&mut self) {
+        let _ = self
+            .connection_hook
+            .take()
+            .map(|hook| hook.send(Err(CoreError::from("Bootstrap failure".to_string()))));
     }
 
-    pub fn handle_sent_user_message(&mut self, _peer_addr: SocketAddr, _msg: Bytes, _token: Token) {
+    fn handle_sent_user_message(&mut self, _peer_addr: SocketAddr, _msg: Bytes, _token: Token) {
         // TODO: check if we have handled the challenge?
         trace!("{}: Sent user message", self.id);
     }
 
-    pub fn handle_unsent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
+    fn handle_unsent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
         // TODO: check if we have handled the challenge?
 
         match deserialize(&msg) {
@@ -180,7 +240,7 @@ impl ConnectionGroup {
         // TODO: unimplemented
     }
 
-    pub fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: Bytes) {
+    fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: Bytes) {
         let have_handled_challenge = self
             .elders
             .get(&peer_addr)
@@ -188,7 +248,7 @@ impl ConnectionGroup {
             .unwrap_or(false);
 
         trace!(
-            "{}: Message from {:?}: {}. We have handled challenge? {:?}",
+            "{}: Message from {:?}: {}. Have we handled challenge? {:?}",
             self.id,
             peer_addr,
             utils::bin_data_format(&msg),
@@ -263,32 +323,49 @@ impl ConnectionGroup {
         let token = new_rand::thread_rng().gen();
         let response = Challenge::Response(self.full_id.public_id(), self.full_id.sign(&challenge));
         let msg = Bytes::from(unwrap!(serialize(&response)));
-        unwrap!(self.quic_p2p.lock()).send(elder.peer.clone(), msg, token);
+        self.quic_p2p.send(elder.peer.clone(), msg, token);
         // trigger the connection future
         let _ = self.connection_hook.take().map(|hook| hook.send(Ok(())));
     }
 
-    /// Terminate the QUIC connections gracefully.
-    pub fn close(&mut self) -> Box<CoreFuture<()>> {
-        trace!("{}: Terminating connection", self.id);
-
-        let (disconnect_tx, disconnect_rx) = futures::oneshot();
-        self.terminate();
-        self.disconnect_tx = Some(disconnect_tx);
-
-        Box::new(disconnect_rx.map_err(|e| CoreError::Unexpected(format!("{}", e))))
-    }
-
-    /// Ask quic-p2p to disconnect this group without waiting on it.
-    /// Use for `ConnectionManager::drop` only!
-    pub(super) fn terminate(&mut self) {
-        let mut qp2p = unwrap!(self.quic_p2p.lock());
-        for peer in self.elders.values().map(Elder::peer) {
-            qp2p.disconnect_from(peer.peer_addr());
+    fn handle_connection_failure(&mut self, peer_addr: SocketAddr, err: quic_p2p::Error) {
+        if let QuicP2pError::ConnectionCancelled = err {
+            if let Some(tx) = self.disconnect_tx.take() {
+                trace!("{}: Successfully disconnected", self.id);
+                let _ = tx.send(());
+                return;
+            }
         }
+        trace!(
+            "{}: Recvd connection failure for {}, {}",
+            self.id,
+            peer_addr,
+            err
+        );
     }
+}
 
-    pub fn has_peer(&self, peer_addr: &SocketAddr) -> bool {
-        self.elders.contains_key(peer_addr)
-    }
+fn setup_quic_p2p_event_loop(
+    inner: Arc<Mutex<Inner>>,
+    event_rx: Receiver<Event>,
+) -> JoinHandle<()> {
+    let inner_weak = Arc::downgrade(&inner);
+
+    thread::spawn(move || {
+        while let Ok(event) = event_rx.recv() {
+            match event {
+                Event::Finish => break, // Graceful shutdown
+                event => {
+                    if let Some(inner) = inner_weak.upgrade() {
+                        let mut inner = unwrap!(inner.lock());
+                        inner.handle_quic_p2p_event(event);
+                    } else {
+                        // Event loop got dropped
+                        trace!("Gracefully terminating quic-p2p event loop");
+                        break;
+                    }
+                }
+            }
+        }
+    })
 }

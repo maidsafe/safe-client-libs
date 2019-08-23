@@ -45,8 +45,8 @@ use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
-    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, Coins,
-    IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
+    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, Coins, IData,
+    IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
     MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue,
     MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
     Request, Response, SeqMutableData, Signature, Transaction, UnseqMutableData, XorName,
@@ -1091,7 +1091,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Set the coin balance to a specific value for testing
-    #[cfg(any(test, all(feature = "testing", feature = "mock-network")))]
+    #[cfg(any(test, feature = "testing"))]
     fn test_set_balance(
         &self,
         secret_key: Option<&BlsSecretKey>,
@@ -1362,18 +1362,25 @@ fn send_as(
     request: Request,
     secret_key: Option<&BlsSecretKey>,
 ) -> Box<CoreFuture<Response>> {
-    let (message, requester) = match secret_key {
+    let (message, identity) = match secret_key {
         Some(key) => (
             sign_request_with_key(request, key),
-            PublicId::Client(ClientFullId::with_bls_key(key.clone()).public_id().clone()),
+            SafeKey::client_from_bls_key(key.clone()),
         ),
-        None => (client.compose_message(request, true), client.public_id()),
+        None => (client.compose_message(request, true), client.full_id()),
     };
 
-    let inner = client.inner();
-    let cm = &mut inner.borrow_mut().connection_manager;
+    let pub_id = identity.public_id();
 
-    cm.send(&requester, &message)
+    let inner = client.inner();
+
+    let cm = &mut inner.borrow_mut().connection_manager;
+    let mut cm2 = cm.clone();
+
+    Box::new(
+        cm.bootstrap(identity.clone())
+            .and_then(move |_| cm2.send(&pub_id, &message)),
+    )
 }
 
 // `sign` should be false for GETs on published data, true otherwise.

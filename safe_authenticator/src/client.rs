@@ -14,7 +14,6 @@ use futures::Future;
 use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
-use routing::XorName;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
@@ -27,7 +26,7 @@ use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
     ClientFullId, ClientPublicId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request,
-    Response,
+    Response, XorName,
 };
 use std::cell::RefCell;
 use std::fmt;
@@ -202,7 +201,6 @@ where {
                 acc,
                 acc_loc: acc_locator,
                 user_cred,
-                full_id: client_full_id,
             })),
         })
     }
@@ -336,7 +334,6 @@ where {
                 acc,
                 acc_loc: acc_locator,
                 user_cred,
-                full_id: id_packet,
             })),
         })
     }
@@ -416,7 +413,6 @@ where {
         let auth_inner = self.auth_inner.borrow();
         let account = &auth_inner.acc;
         let keys = &auth_inner.user_cred;
-        let client_full_id = auth_inner.full_id.clone();
         let acc_loc = &auth_inner.acc_loc;
         let account_packet_id = SafeKey::client(create_client_id(&acc_loc.0));
         let account_pub_id = account_packet_id.public_id().clone();
@@ -431,9 +427,7 @@ where {
 
         let mut cm = client_inner.cm().clone();
         let mut cm2 = cm.clone();
-        let mut cm3 = cm.clone();
         let mut cm4 = cm.clone();
-        let mut cm5 = cm.clone();
 
         let message_id = MessageId::new();
         let request = Request::UpdateLoginPacket(updated_packet);
@@ -441,13 +435,11 @@ where {
             account_packet_id.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
 
         let account_pub_id2 = account_pub_id.clone();
-        let client_pub_id = client_full_id.public_id().clone();
 
         Box::new(
-            future::lazy(move || cm.disconnect(&client_pub_id))
-                .and_then(move |_| cm2.bootstrap(account_packet_id))
+            future::lazy(move || cm.bootstrap(account_packet_id))
                 .and_then(move |_| {
-                    cm3.send(
+                    cm2.send(
                         &account_pub_id,
                         &Message::Request {
                             request,
@@ -461,7 +453,6 @@ where {
                     _ => Err(CoreError::from("Unexpected response")),
                 })
                 .and_then(move |_resp| cm4.disconnect(&account_pub_id2))
-                .and_then(move |_resp| cm5.bootstrap(client_full_id))
                 .map_err(AuthError::from),
         )
     }
@@ -573,7 +564,6 @@ struct AuthInner {
     acc: Account,
     acc_loc: XorName,
     user_cred: UserCred,
-    full_id: SafeKey,
 }
 
 // ------------------------------------------------------------
