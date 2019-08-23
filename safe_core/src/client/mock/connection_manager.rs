@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::vault::{self, Vault, RequestType, request_is_get};
+use super::vault::{self, Vault};
 use crate::config_handler::{get_config, Config};
 use crate::{
     client::SafeKey,
@@ -15,7 +15,7 @@ use crate::{
 };
 use maidsafe_utilities::serialisation::serialise;
 use quic_p2p::{self, Config as QuicP2pConfig};
-use safe_nd::{Coins, Message, PublicId, PublicKey, Request, Response, XorName};
+use safe_nd::{Coins, Message, PublicId, PublicKey, Request, RequestType, Response, XorName};
 use std::collections::HashSet;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -63,16 +63,9 @@ impl ConnectionManager {
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
     pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
         let msg: Message = {
-            let writing = {
-                if let Message::Request { request, .. } = msg {
-                    if let RequestType::Mutation = request_is_get(&request) {
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
+            let writing = match msg {
+                Message::Request { request, .. } => request.get_type() == RequestType::Mutation,
+                _ => false,
             };
             let mut vault = vault::lock(&self.vault, writing);
             unwrap!(vault.process_request(pub_id.clone(), &unwrap!(serialise(&msg))))

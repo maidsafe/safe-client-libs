@@ -30,7 +30,7 @@ stage('build & test') {
     mock_osx: {
         node('osx') {
             checkout(scm)
-            run_tests('mock-file')
+            run_tests('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'osx')
             upload_build_artifacts()

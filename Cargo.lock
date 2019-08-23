@@ -1868,7 +1868,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "safe-nd"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1900,7 +1900,7 @@ dependencies = [
  "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "safe-nd 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_authenticator 0.9.1",
  "safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_core 0.32.1",
@@ -1943,7 +1943,7 @@ dependencies = [
  "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "safe-nd 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_core 0.32.1",
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2005,7 +2005,7 @@ dependencies = [
  "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "safe-nd 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "self_encryption 0.14.0 (git+https://github.com/maidsafe/self_encryption)",
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2351,7 +2351,7 @@ version = "0.1.0"
 dependencies = [
  "ffi_utils 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.28 (registry+https://github.com/rust-lang/crates.io-index)",
- "safe-nd 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_app 0.9.1",
  "safe_authenticator 0.9.1",
  "safe_core 0.32.1",
@@ -3062,7 +3062,7 @@ dependencies = [
 "checksum rustfmt 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ec940eed814db0fb7ab928c5f5025f97dc55d1c0e345e39dda2ce9f945557500"
 "checksum rustls 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f271e3552cd835fa28c541c34a7e8fdd8cdff09d77fe4eb8f6c42e87a11b096e"
 "checksum ryu 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c92464b447c0ee8c4fb3824ecc8383b81717b9f1e74ba2e72540aef7b9f82997"
-"checksum safe-nd 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0d0a69e37aa926cfad59c06dd90ba1f4b7bcceb738ef577aa24f83e6d8da6217"
+"checksum safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c978fa3c89fada1890d4128bebeca88d9bf5644800c0782a2ebf23447f883aa2"
 "checksum safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "399b14d048a9a9ff0c60efb6cf56fd5e57e8840af43c561e01a490abfb6ea753"
 "checksum safemem 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e133ccc4f4d1cd4f89cc8a7ff618287d56dc7f638b8e38fc32c5fdcadc339dd5"
 "checksum same-file 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "585e8ddcedc187886a30fa705c47985c3fa88d06624095856b36ca0b82ff4421"

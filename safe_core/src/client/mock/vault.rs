@@ -16,8 +16,8 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
     Coins, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
-    MDataAddress, MDataKind, Message, PublicId, PublicKey, Request, Response, Result as SndResult,
-    SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
+    MDataAddress, MDataKind, Message, PublicId, PublicKey, Request, RequestType, Response,
+    Result as SndResult, SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -91,20 +91,6 @@ fn init_vault_store(config: &Config) -> Box<dyn Store> {
     }
 }
 
-// NOTE: This most probably should be in safe-nd::AData
-fn check_is_owner_adata(data: &AData, requester: PublicKey) -> SndResult<()> {
-    data.owner(data.owners_index() - 1).map_or_else(
-        || Err(SndError::InvalidOwners),
-        move |owner| {
-            if owner.public_key == requester {
-                Ok(())
-            } else {
-                Err(SndError::AccessDenied)
-            }
-        },
-    )
-}
-
 fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> SndResult<()> {
     match request {
         Request::GetAData(..)
@@ -128,10 +114,10 @@ fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> S
         Request::AddPubADataPermissions { .. } | Request::AddUnpubADataPermissions { .. } => {
             data.check_permission(ADataAction::ManagePermissions, requester)
         }
-        Request::SetADataOwner { .. } => check_is_owner_adata(data, requester),
+        Request::SetADataOwner { .. } => data.check_is_last_owner(requester),
         Request::DeleteAData(_) => match data {
             AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
-            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => check_is_owner_adata(data, requester),
+            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => data.check_is_last_owner(requester),
         },
         _ => Err(SndError::InvalidOperation),
     }
@@ -160,54 +146,6 @@ fn check_perms_mdata(data: &MData, request: &Request, requester: PublicKey) -> S
         Request::DeleteMData { .. } => data.check_is_owner(requester),
 
         _ => Err(SndError::InvalidOperation),
-    }
-}
-
-pub enum RequestType {
-    GetForPub,
-    GetForUnpub,
-    Mutation,
-}
-
-// Is the request a GET and if so, is it for pub or unpub data?
-pub fn request_is_get(request: &Request) -> RequestType {
-    match *request {
-        Request::GetIData(address) => {
-            if address.is_pub() {
-                RequestType::GetForPub
-            } else {
-                RequestType::GetForUnpub
-            }
-        }
-
-        Request::GetAData(address)
-        | Request::GetADataShell { address, .. }
-        | Request::GetADataRange { address, .. }
-        | Request::GetADataValue { address, .. }
-        | Request::GetADataIndices(address)
-        | Request::GetADataLastEntry(address)
-        | Request::GetADataPermissions { address, .. }
-        | Request::GetPubADataUserPermissions { address, .. }
-        | Request::GetUnpubADataUserPermissions { address, .. }
-        | Request::GetADataOwners { address, .. } => {
-            if address.is_pub() {
-                RequestType::GetForPub
-            } else {
-                RequestType::GetForUnpub
-            }
-        }
-
-        Request::GetMData(_)
-        | Request::GetMDataValue { .. }
-        | Request::GetMDataShell(_)
-        | Request::GetMDataVersion(_)
-        | Request::ListMDataEntries(_)
-        | Request::ListMDataKeys(_)
-        | Request::ListMDataValues(_)
-        | Request::ListMDataPermissions(_)
-        | Request::ListMDataUserPermissions { .. } => RequestType::GetForUnpub,
-
-        _ => RequestType::Mutation,
     }
 }
 
@@ -465,10 +403,10 @@ impl Vault {
             PublicId::Node(_) => Err(SndError::AccessDenied),
         }
         .and_then(|(is_app, requester_pk, owner_pk)| {
-            let request_type = request_is_get(&request);
+            let request_type = request.get_type();
 
             match request_type {
-                RequestType::GetForUnpub | RequestType::Mutation => {
+                RequestType::PrivateGet | RequestType::Mutation | RequestType::Transaction => {
                     // For apps, check if its public key is listed as an auth key.
                     if is_app {
                         let auth_keys = self
@@ -487,7 +425,7 @@ impl Vault {
                         None => return Err(SndError::InvalidSignature),
                     }
                 }
-                RequestType::GetForPub => (),
+                RequestType::PublicGet => (),
             }
 
             Ok((requester_pk, owner_pk))
