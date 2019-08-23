@@ -14,10 +14,10 @@ use crate::config_handler::{Config, DevConfig};
 use fs2::FileExt;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{
-    verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
-    Coins, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
-    MDataAddress, MDataKind, Message, PublicId, PublicKey, Request, Response, Result as SndResult,
-    SeqAppendOnly, Transaction, UnseqAppendOnly, XorName,
+    verify_signature, AData, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData, Coins, Data,
+    Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataKind, Message,
+    PublicId, PublicKey, Request, RequestType, Response, Result as SndResult, SeqAppendOnly,
+    Transaction, UnseqAppendOnly, XorName,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -88,126 +88,6 @@ fn init_vault_store(config: &Config) -> Box<dyn Store> {
                 Box::new(FileStore::new_with_temp())
             }
         },
-    }
-}
-
-// NOTE: This most probably should be in safe-nd::AData
-fn check_is_owner_adata(data: &AData, requester: PublicKey) -> SndResult<()> {
-    data.owner(data.owners_index() - 1).map_or_else(
-        || Err(SndError::InvalidOwners),
-        move |owner| {
-            if owner.public_key == requester {
-                Ok(())
-            } else {
-                Err(SndError::AccessDenied)
-            }
-        },
-    )
-}
-
-fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> SndResult<()> {
-    match request {
-        Request::GetAData(..)
-        | Request::GetADataShell { .. }
-        | Request::GetADataValue { .. }
-        | Request::GetADataRange { .. }
-        | Request::GetADataIndices(..)
-        | Request::GetADataLastEntry(..)
-        | Request::GetADataPermissions { .. }
-        | Request::GetPubADataUserPermissions { .. }
-        | Request::GetUnpubADataUserPermissions { .. }
-        | Request::GetADataOwners { .. } => match data {
-            AData::PubUnseq(_) | AData::PubSeq(_) => Ok(()),
-            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => {
-                data.check_permission(ADataAction::Read, requester)
-            }
-        },
-        Request::AppendSeq { .. } | Request::AppendUnseq { .. } => {
-            data.check_permission(ADataAction::Append, requester)
-        }
-        Request::AddPubADataPermissions { .. } | Request::AddUnpubADataPermissions { .. } => {
-            data.check_permission(ADataAction::ManagePermissions, requester)
-        }
-        Request::SetADataOwner { .. } => check_is_owner_adata(data, requester),
-        Request::DeleteAData(_) => match data {
-            AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
-            AData::UnpubSeq(_) | AData::UnpubUnseq(_) => check_is_owner_adata(data, requester),
-        },
-        _ => Err(SndError::InvalidOperation),
-    }
-}
-
-fn check_perms_mdata(data: &MData, request: &Request, requester: PublicKey) -> SndResult<()> {
-    match request {
-        Request::GetMData { .. }
-        | Request::GetMDataShell { .. }
-        | Request::GetMDataVersion { .. }
-        | Request::ListMDataKeys { .. }
-        | Request::ListMDataEntries { .. }
-        | Request::ListMDataValues { .. }
-        | Request::GetMDataValue { .. }
-        | Request::ListMDataPermissions { .. }
-        | Request::ListMDataUserPermissions { .. } => {
-            data.check_permissions(MDataAction::Read, requester)
-        }
-
-        Request::SetMDataUserPermissions { .. } | Request::DelMDataUserPermissions { .. } => {
-            data.check_permissions(MDataAction::ManagePermissions, requester)
-        }
-
-        Request::MutateMDataEntries { .. } => Ok(()),
-
-        Request::DeleteMData { .. } => data.check_is_owner(requester),
-
-        _ => Err(SndError::InvalidOperation),
-    }
-}
-
-pub enum RequestType {
-    GetForPub,
-    GetForUnpub,
-    Mutation,
-}
-
-// Is the request a GET and if so, is it for pub or unpub data?
-pub fn request_is_get(request: &Request) -> RequestType {
-    match *request {
-        Request::GetIData(address) => {
-            if address.is_pub() {
-                RequestType::GetForPub
-            } else {
-                RequestType::GetForUnpub
-            }
-        }
-
-        Request::GetAData(address)
-        | Request::GetADataShell { address, .. }
-        | Request::GetADataRange { address, .. }
-        | Request::GetADataValue { address, .. }
-        | Request::GetADataIndices(address)
-        | Request::GetADataLastEntry(address)
-        | Request::GetADataPermissions { address, .. }
-        | Request::GetPubADataUserPermissions { address, .. }
-        | Request::GetUnpubADataUserPermissions { address, .. }
-        | Request::GetADataOwners { address, .. } => {
-            if address.is_pub() {
-                RequestType::GetForPub
-            } else {
-                RequestType::GetForUnpub
-            }
-        }
-
-        Request::GetMData(_)
-        | Request::GetMDataValue { .. }
-        | Request::GetMDataShell(_)
-        | Request::GetMDataVersion(_)
-        | Request::ListMDataEntries(_)
-        | Request::ListMDataKeys(_)
-        | Request::ListMDataValues(_)
-        | Request::ListMDataPermissions(_)
-        | Request::ListMDataUserPermissions { .. } => RequestType::GetForUnpub,
-
-        _ => RequestType::Mutation,
     }
 }
 
@@ -465,10 +345,10 @@ impl Vault {
             PublicId::Node(_) => Err(SndError::AccessDenied),
         }
         .and_then(|(is_app, requester_pk, owner_pk)| {
-            let request_type = request_is_get(&request);
+            let request_type = request.get_type();
 
             match request_type {
-                RequestType::GetForUnpub | RequestType::Mutation => {
+                RequestType::GetForUnpub | RequestType::Mutation | RequestType::Transaction => {
                     // For apps, check if its public key is listed as an auth key.
                     if is_app {
                         let auth_keys = self
@@ -1331,9 +1211,9 @@ impl Vault {
     ) -> SndResult<MData> {
         match self.get_data(&DataId::Mutable(address)) {
             Some(data_type) => match data_type {
-                Data::Mutable(data) => {
-                    check_perms_mdata(&data, &request, requester_pk).map(move |_| data)
-                }
+                Data::Mutable(data) => data
+                    .check_request_permissions(&request, requester_pk)
+                    .map(move |_| data),
                 _ => Err(SndError::NoSuchData),
             },
             None => Err(SndError::NoSuchData),
@@ -1349,9 +1229,9 @@ impl Vault {
         let data_id = DataId::AppendOnly(address);
         match self.get_data(&data_id) {
             Some(data_type) => match data_type {
-                Data::AppendOnly(data) => {
-                    check_perms_adata(&data, &request, requester_pk).map(move |_| data)
-                }
+                Data::AppendOnly(data) => data
+                    .check_request_permissions(&request, requester_pk)
+                    .map(move |_| data),
                 _ => Err(SndError::NoSuchData),
             },
             None => Err(SndError::NoSuchData),
