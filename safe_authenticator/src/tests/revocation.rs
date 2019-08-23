@@ -161,7 +161,6 @@ mod mock_routing {
     use maidsafe_utilities::SeededRng;
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
-    use safe_core::nfs::NfsError;
     use safe_core::utils::test_utils::Synchronizer;
     use safe_core::ConnectionManager;
     use safe_nd::{Request, Response};
@@ -179,21 +178,13 @@ mod mock_routing {
     // 3. Put several files with a known content in both containers (e.g. `_videos/video.mp4` and
     //    `_documents/test.doc`).
     // 4. Revoke the app access from the authenticator.
-    // 5. Simulate network failure during the re-encryption of the `_document` container.
-    // 6. Verify that the `_documents` container is still accessible using the previous `MDataInfo`.
-    // 7. Verify that the `_videos` container is accessible using the new `MDataInfo`
-    //    (it might or might not be still accessible using the old info, depending on whether
-    //    its re-encryption managed to run to completion before the re-encryption of
-    //    `_documents` failed).
-    // 8. Check that the app key is not listed in MaidManagers.
-    // 9. Repeat step 1.4 (restart the revoke operation for the app) and don't interfere with the
-    //    re-encryption process this time. It should pass.
-    // 10. Verify that both the second and first containers aren't accessible using previous
-    //     `MDataInfo`.
-    // 11. Verify that both the second and first containers are accessible using the new
-    //     `MDataInfo`.
+    // 5. Verify that the `_documents` and `_videos` containers are still accessible using the
+    //    previous `MDataInfo`.
+    // 7. Check that the app key is not listed in MaidManagers.
+    // 8. Repeat step 1.4 (the revoke operation for the app). It should pass.
+    // 9. Verify that the app is still revoked.
     #[test]
-    fn app_revocation_recovery() {
+    fn app_revocation() {
         let (auth, locator, password) = create_authenticator();
 
         // Create a test app and authenticate it.
@@ -234,27 +225,16 @@ mod mock_routing {
         ));
 
         // Revoke the app.
-        match try_revoke(&auth, &app_id) {
-            Ok(()) => (),
-            x => panic!("Unexpected {:?}", x),
-        }
+        unwrap!(try_revoke(&auth, &app_id));
 
-        // Verify that the `_documents` container is still accessible using the previous info.
+        // Verify that the `_documents` and `_videos` containers are still accessible.
         let _ = unwrap!(fetch_file(&auth, docs_md.clone(), "test.doc"));
 
         let new_videos_md = unwrap!(get_container_from_authenticator_entry(&auth, "_videos"));
-        let success = match fetch_file(&auth, new_videos_md, "video.mp4") {
-            Ok(_) => true,
-            Err(AuthError::NfsError(NfsError::FileNotFound)) => false,
-            x => panic!("Unexpected {:?}", x),
-        };
+        let _ = unwrap!(fetch_file(&auth, new_videos_md, "video.mp4"));
 
-        // If it failed, it means the `_videos` container re-encryption has not
-        // been successfully completed. Verify that we can still access the file
-        // using the old info.
-        if !success {
-            let _ = unwrap!(fetch_file(&auth, videos_md.clone(), "video.mp4"));
-        }
+        // Verify that we can still access the file using the old info.
+        let _ = unwrap!(fetch_file(&auth, videos_md.clone(), "video.mp4"));
 
         // Ensure that the app key has been removed from MaidManagers
         let auth_keys = unwrap!(run(&auth, move |client| {
@@ -265,7 +245,7 @@ mod mock_routing {
         }));
         assert!(!auth_keys.contains_key(&PublicKey::from(auth_granted.app_keys.bls_pk)));
 
-        // Login and try to revoke the app again, now without interfering with responses
+        // Login and revoke the app again.
         let auth = unwrap!(Authenticator::login(
             locator.clone(),
             password.clone(),
@@ -312,8 +292,8 @@ mod mock_routing {
 
         // Attempt to re-authenticate the app fails, because revocation is pending.
         match register_app(&auth, &auth_req) {
-            Err(_) => (),
-            x => panic!("Unexpected Success: {:?}", x),
+            Err(AuthError::PendingRevocation) => (),
+            x => panic!("Unexpected: {:?}", x),
         }
 
         // Retry the app revocation. This time it succeeds.

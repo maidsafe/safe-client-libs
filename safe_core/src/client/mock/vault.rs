@@ -348,7 +348,7 @@ impl Vault {
             let request_type = request.get_type();
 
             match request_type {
-                RequestType::GetForUnpub | RequestType::Mutation | RequestType::Transaction => {
+                RequestType::PrivateGet | RequestType::Mutation | RequestType::Transaction => {
                     // For apps, check if its public key is listed as an auth key.
                     if is_app {
                         let auth_keys = self
@@ -367,7 +367,7 @@ impl Vault {
                         None => return Err(SndError::InvalidSignature),
                     }
                 }
-                RequestType::GetForPub => (),
+                RequestType::PublicGet => (),
             }
 
             Ok((requester_pk, owner_pk))
