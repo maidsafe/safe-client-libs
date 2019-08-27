@@ -1946,6 +1946,7 @@ mod tests {
         random_client(move |client| {
             let c2 = client.clone();
             let c3 = client.clone();
+            let c4 = client.clone();
 
             client
                 .get_balance(None)
@@ -1962,7 +1963,13 @@ mod tests {
                         new_balance,
                         unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
                     );
-                    Ok(())
+                    c4.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
+                }).then(|res| {
+                    match res {
+                        Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+                        res => panic!("Unexpected result: {:?}", res)
+                    }
+                    Ok::<_, SndError>(())
                 })
         });
     }
