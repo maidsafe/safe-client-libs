@@ -92,16 +92,16 @@ impl Drop for AccessContainerEntry {
 pub struct AuthGranted {
     /// The access keys.
     pub app_keys: AppKeys,
-    /// Access container info
+    /// Access container info.
     pub access_container_info: AccessContInfo,
-    /// Access container entry
+    /// Access container entry.
     pub access_container_entry: AccessContainerEntry,
 
-    /// Crust's bootstrap config
+    /// QuicP2P bootstrap config.
     pub bootstrap_config: *const u8,
-    /// `bootstrap_config`'s length
+    /// `bootstrap_config`'s length.
     pub bootstrap_config_len: usize,
-    /// Used by Rust memory allocator
+    /// Used by Rust memory allocator.
     pub bootstrap_config_cap: usize,
 }
 
