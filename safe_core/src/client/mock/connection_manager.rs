@@ -13,7 +13,6 @@ use crate::{
     event::{NetworkEvent, NetworkTx},
     CoreError, CoreFuture,
 };
-use maidsafe_utilities::serialisation::serialise;
 use quic_p2p::{self, Config as QuicP2pConfig};
 use safe_nd::{Coins, Message, PublicId, PublicKey, Request, RequestType, Response, XorName};
 use std::collections::HashSet;
@@ -75,7 +74,7 @@ impl ConnectionManager {
                 _ => false,
             };
             let mut vault = vault::lock(&self.vault, writing);
-            unwrap!(vault.process_request(pub_id.clone(), &unwrap!(serialise(&msg))))
+            unwrap!(vault.process_request(pub_id.clone(), &msg))
         };
 
         // Send response back to a client

@@ -36,7 +36,7 @@ impl CoinBalance {
             self.add_transaction(amount, transaction_id);
             Ok(())
         } else {
-            Err(Error::InsufficientBalance)
+            Err(Error::ExcessiveValue)
         }
     }
 
@@ -45,7 +45,7 @@ impl CoinBalance {
             self.value = new_balance;
             Ok(())
         } else {
-            Err(Error::ExcessiveValue)
+            Err(Error::InsufficientBalance)
         }
     }
 

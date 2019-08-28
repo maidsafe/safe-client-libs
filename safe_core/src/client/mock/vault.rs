@@ -382,16 +382,18 @@ impl Vault {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub fn process_request(&mut self, requester: PublicId, payload: &[u8]) -> SndResult<Message> {
-        // Deserialise the request, returning an early error on failure.
+    pub fn process_request(
+        &mut self,
+        requester: PublicId,
+        message: &Message,
+    ) -> SndResult<Message> {
         let (request, message_id, signature) = if let Message::Request {
             request,
             message_id,
             signature,
-        } =
-            deserialise(payload).map_err(|_| SndError::from("Error deserialising message"))?
+        } = message
         {
-            (request, message_id, signature)
+            (request, *message_id, signature)
         } else {
             return Err(SndError::from("Unexpected Message type"));
         };
@@ -481,7 +483,7 @@ impl Vault {
                 Response::Mutation(result)
             }
             Request::DeleteUnpubIData(address) => {
-                let result = self.delete_idata(address, requester, requester_pk);
+                let result = self.delete_idata(address, requester_pk);
                 Response::Mutation(result)
             }
             // ===== Client (Owner) to SrcElders =====
@@ -523,11 +525,14 @@ impl Vault {
             } => {
                 let source: XorName = owner_pk.into();
 
-                let result = self
-                    .authorise_coin_operation(&source, requester_pk)
-                    .and_then(|()| {
-                        self.transfer_coins(source, destination, amount, transaction_id)
-                    });
+                let result = if amount.as_nano() == 0 {
+                    Err(SndError::InvalidOperation)
+                } else {
+                    self.authorise_coin_operation(&source, requester_pk)
+                        .and_then(|()| {
+                            self.transfer_coins(source, destination, amount, transaction_id)
+                        })
+                };
                 Response::Transaction(result)
             }
             Request::CreateBalance {
@@ -549,6 +554,9 @@ impl Vault {
                         .and_then(|()| {
                             self.get_balance(&source)
                                 .and_then(|source_balance| {
+                                    if amount.as_nano() == 0 {
+                                        return Err(SndError::InvalidOperation);
+                                    }
                                     if source_balance.checked_sub(amount).is_none() {
                                         return Err(SndError::InsufficientBalance);
                                     }
@@ -712,7 +720,7 @@ impl Vault {
                 Response::Mutation(result)
             }
             Request::GetMDataValue { address, ref key } => {
-                let data = self.get_mdata(address, requester_pk, request.clone());
+                let data = self.get_mdata(address, requester_pk, request);
 
                 match (address.kind(), data) {
                     (MDataKind::Seq, Ok(MData::Seq(mdata))) => {
@@ -808,7 +816,6 @@ impl Vault {
                         if let PublicId::Client(client_id) = requester.clone() {
                             if *client_id.public_key() == data.owner() {
                                 self.delete_data(DataId::Mutable(address));
-                                self.commit_mutation(requester.name());
                                 Ok(())
                             } else {
                                 Err(SndError::InvalidOwners)
@@ -829,7 +836,7 @@ impl Vault {
                 let user = *user;
 
                 let result = self
-                    .get_mdata(address, requester_pk, request.clone())
+                    .get_mdata(address, requester_pk, request)
                     .and_then(|mut data| {
                         if address != *data.address() {
                             return Err(SndError::NoSuchData);
@@ -949,7 +956,6 @@ impl Vault {
                         AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
                         AData::UnpubSeq(_) | AData::UnpubUnseq(_) => {
                             self.delete_data(id);
-                            self.commit_mutation(requester.name());
                             Ok(())
                         }
                     });
@@ -1234,7 +1240,6 @@ impl Vault {
     pub fn delete_idata(
         &mut self,
         address: IDataAddress,
-        requester: PublicId,
         requester_pk: PublicKey,
     ) -> SndResult<()> {
         let data_id = DataId::Immutable(address);
@@ -1245,7 +1250,6 @@ impl Vault {
                     if let IData::Unpub(unpub_idata) = data {
                         if *unpub_idata.owner() == requester_pk {
                             self.delete_data(data_id);
-                            self.commit_mutation(requester.name());
                             Ok(())
                         } else {
                             Err(SndError::AccessDenied)
@@ -1265,12 +1269,12 @@ impl Vault {
         &mut self,
         address: MDataAddress,
         requester_pk: PublicKey,
-        request: Request,
+        request: &Request,
     ) -> SndResult<MData> {
         match self.get_data(&DataId::Mutable(address)) {
             Some(data_type) => match data_type {
                 Data::Mutable(data) => {
-                    check_perms_mdata(&data, &request, requester_pk).map(move |_| data)
+                    check_perms_mdata(&data, request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),
             },
@@ -1282,13 +1286,13 @@ impl Vault {
         &mut self,
         address: ADataAddress,
         requester_pk: PublicKey,
-        request: Request,
+        request: &Request,
     ) -> SndResult<AData> {
         let data_id = DataId::AppendOnly(address);
         match self.get_data(&data_id) {
             Some(data_type) => match data_type {
                 Data::AppendOnly(data) => {
-                    check_perms_adata(&data, &request, requester_pk).map(move |_| data)
+                    check_perms_adata(&data, request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),
             },
@@ -1303,12 +1307,12 @@ impl Vault {
         requester: PublicId,
     ) -> SndResult<()> {
         match requester.clone() {
-            PublicId::Client(client_public_id) => self
-                .authorise_mutation(client_public_id.name(), client_public_id.public_key())
-                .map_err(|_| SndError::AccessDenied)?,
-            PublicId::App(app_public_id) => self
-                .authorise_mutation(app_public_id.owner_name(), app_public_id.public_key())
-                .map_err(|_| SndError::AccessDenied)?,
+            PublicId::Client(client_public_id) => {
+                self.authorise_mutation(client_public_id.name(), client_public_id.public_key())?
+            }
+            PublicId::App(app_public_id) => {
+                self.authorise_mutation(app_public_id.owner_name(), app_public_id.public_key())?
+            }
             _ => return Err(SndError::AccessDenied),
         }
         if self.contains_data(&data_name) {
