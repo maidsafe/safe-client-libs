@@ -1852,7 +1852,8 @@ mod tests {
     // 1. Create a client with a wallet. Create an anonymous wallet preloading it from the client's wallet.
     // 2. Transfer some safecoin from the anonymous wallet to the client.
     // 3. Fetch the balances of both the wallets and verify them.
-    // 4. Try to create a balance using an inexistent wallet. This should fail.
+    // 4. Try to create a balance with the amount set to 0. This should fail.
+    // 5. Try to create a balance using an inexistent wallet. This should fail.
     #[test]
     fn anonymous_wallet() {
         random_client(move |client| {
@@ -1861,6 +1862,7 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
+            let client6 = client.clone();
             let wallet1: XorName = client.owner_key().into();
 
             client
@@ -1901,10 +1903,24 @@ mod tests {
                     })
                 })
                 .and_then(move |_| {
+                    let random_key = BlsSecretKey::random().public_key();
+                    client5
+                        .create_balance(
+                            None,
+                            random_key.into(),
+                            unwrap!(Coins::from_str("0")),
+                            None,
+                        )
+                        .then(|res| match res {
+                            Err(CoreError::DataError(SndError::InvalidOperation)) => Ok(()),
+                            res => panic!("Unexpected result: {:?}", res),
+                        })
+                })
+                .and_then(move |_| {
                     let random_key = BlsSecretKey::random();
                     let random_source = BlsSecretKey::random();
                     let random_pk = PublicKey::from(random_key.public_key());
-                    client5
+                    client6
                         .create_balance(
                             Some(&random_source),
                             random_pk,
@@ -1927,6 +1943,9 @@ mod tests {
     // 3. Create another client B with a wallet holding some safecoin.
     // 4. Transfer some coins from client B to client A and verify the new balance.
     // 5. Fetch the transaction using the transaction ID and verify the amount.
+    // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
+    // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
+    // 8. Set the client's balance to zero and try to put data. It should fail.
     #[test]
     fn coin_balance_transfer() {
         let wallet1: XorName = random_client(move |client| {
@@ -1947,6 +1966,9 @@ mod tests {
             let c2 = client.clone();
             let c3 = client.clone();
             let c4 = client.clone();
+            let c5 = client.clone();
+            let c6 = client.clone();
+            let c7 = client.clone();
 
             client
                 .get_balance(None)
@@ -1965,7 +1987,25 @@ mod tests {
                     );
                     c4.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
                 })
-                .then(|res| {
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+                        res => panic!("Unexpected result: {:?}", res),
+                    }
+                    c5.transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
+                })
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::DataError(SndError::InvalidOperation)) => (),
+                        res => panic!("Unexpected result: {:?}", res),
+                    }
+                    c6.test_set_balance(None, unwrap!(Coins::from_str("0")))
+                })
+                .and_then(move |_| {
+                    let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
+                    c7.put_idata(data)
+                })
+                .then(move |res| {
                     match res {
                         Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
                         res => panic!("Unexpected result: {:?}", res),

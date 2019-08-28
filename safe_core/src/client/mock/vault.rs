@@ -523,11 +523,14 @@ impl Vault {
             } => {
                 let source: XorName = owner_pk.into();
 
-                let result = self
-                    .authorise_coin_operation(&source, requester_pk)
-                    .and_then(|()| {
-                        self.transfer_coins(source, destination, amount, transaction_id)
-                    });
+                let result = if amount.as_nano() == 0 {
+                    Err(SndError::InvalidOperation)
+                } else {
+                    self.authorise_coin_operation(&source, requester_pk)
+                        .and_then(|()| {
+                            self.transfer_coins(source, destination, amount, transaction_id)
+                        })
+                };
                 Response::Transaction(result)
             }
             Request::CreateBalance {
@@ -549,6 +552,9 @@ impl Vault {
                         .and_then(|()| {
                             self.get_balance(&source)
                                 .and_then(|source_balance| {
+                                    if amount.as_nano() == 0 {
+                                        return Err(SndError::InvalidOperation);
+                                    }
                                     if source_balance.checked_sub(amount).is_none() {
                                         return Err(SndError::InsufficientBalance);
                                     }
@@ -1299,12 +1305,12 @@ impl Vault {
         requester: PublicId,
     ) -> SndResult<()> {
         match requester.clone() {
-            PublicId::Client(client_public_id) => self
-                .authorise_mutation(client_public_id.name(), client_public_id.public_key())
-                .map_err(|_| SndError::AccessDenied)?,
-            PublicId::App(app_public_id) => self
-                .authorise_mutation(app_public_id.owner_name(), app_public_id.public_key())
-                .map_err(|_| SndError::AccessDenied)?,
+            PublicId::Client(client_public_id) => {
+                self.authorise_mutation(client_public_id.name(), client_public_id.public_key())?
+            }
+            PublicId::App(app_public_id) => {
+                self.authorise_mutation(app_public_id.owner_name(), app_public_id.public_key())?
+            }
             _ => return Err(SndError::AccessDenied),
         }
         if self.contains_data(&data_name) {
