@@ -382,16 +382,18 @@ impl Vault {
     }
 
     #[allow(clippy::cognitive_complexity)]
-    pub fn process_request(&mut self, requester: PublicId, payload: &[u8]) -> SndResult<Message> {
-        // Deserialise the request, returning an early error on failure.
+    pub fn process_request(
+        &mut self,
+        requester: PublicId,
+        message: &Message,
+    ) -> SndResult<Message> {
         let (request, message_id, signature) = if let Message::Request {
             request,
             message_id,
             signature,
-        } =
-            deserialise(payload).map_err(|_| SndError::from("Error deserialising message"))?
+        } = message
         {
-            (request, message_id, signature)
+            (request, *message_id, signature)
         } else {
             return Err(SndError::from("Unexpected Message type"));
         };
@@ -718,7 +720,7 @@ impl Vault {
                 Response::Mutation(result)
             }
             Request::GetMDataValue { address, ref key } => {
-                let data = self.get_mdata(address, requester_pk, request.clone());
+                let data = self.get_mdata(address, requester_pk, request);
 
                 match (address.kind(), data) {
                     (MDataKind::Seq, Ok(MData::Seq(mdata))) => {
@@ -834,7 +836,7 @@ impl Vault {
                 let user = *user;
 
                 let result = self
-                    .get_mdata(address, requester_pk, request.clone())
+                    .get_mdata(address, requester_pk, request)
                     .and_then(|mut data| {
                         if address != *data.address() {
                             return Err(SndError::NoSuchData);
@@ -1267,12 +1269,12 @@ impl Vault {
         &mut self,
         address: MDataAddress,
         requester_pk: PublicKey,
-        request: Request,
+        request: &Request,
     ) -> SndResult<MData> {
         match self.get_data(&DataId::Mutable(address)) {
             Some(data_type) => match data_type {
                 Data::Mutable(data) => {
-                    check_perms_mdata(&data, &request, requester_pk).map(move |_| data)
+                    check_perms_mdata(&data, request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),
             },
@@ -1284,13 +1286,13 @@ impl Vault {
         &mut self,
         address: ADataAddress,
         requester_pk: PublicKey,
-        request: Request,
+        request: &Request,
     ) -> SndResult<AData> {
         let data_id = DataId::AppendOnly(address);
         match self.get_data(&data_id) {
             Some(data_type) => match data_type {
                 Data::AppendOnly(data) => {
-                    check_perms_adata(&data, &request, requester_pk).map(move |_| data)
+                    check_perms_adata(&data, request, requester_pk).map(move |_| data)
                 }
                 _ => Err(SndError::NoSuchData),
             },
