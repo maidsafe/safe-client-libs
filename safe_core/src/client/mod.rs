@@ -1851,7 +1851,6 @@ mod tests {
     // 1. Create a client with a wallet. Create an anonymous wallet preloading it from the client's wallet.
     // 2. Transfer some safecoin from the anonymous wallet to the client.
     // 3. Fetch the balances of both the wallets and verify them.
-    // 4. Try to create a balance with the amount set to 0. This should fail.
     // 5. Try to create a balance using an inexistent wallet. This should fail.
     #[test]
     fn anonymous_wallet() {
@@ -1861,7 +1860,6 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
-            let client6 = client.clone();
             let wallet1: XorName = client.owner_key().into();
 
             client
@@ -1897,29 +1895,17 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client4.get_balance(None).and_then(|balance| {
-                        assert_eq!(balance, unwrap!(Coins::from_str("405.0")));
+                        let mut expected = unwrap!(Coins::from_str("405.0"));
+                        expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+                        assert_eq!(balance, expected);
                         Ok(())
                     })
-                })
-                .and_then(move |_| {
-                    let random_key = BlsSecretKey::random().public_key();
-                    client5
-                        .create_balance(
-                            None,
-                            random_key.into(),
-                            unwrap!(Coins::from_str("0")),
-                            None,
-                        )
-                        .then(|res| match res {
-                            Err(CoreError::DataError(SndError::InvalidOperation)) => Ok(()),
-                            res => panic!("Unexpected result: {:?}", res),
-                        })
                 })
                 .and_then(move |_| {
                     let random_key = BlsSecretKey::random();
                     let random_source = BlsSecretKey::random();
                     let random_pk = PublicKey::from(random_key.public_key());
-                    client6
+                    client5
                         .create_balance(
                             Some(&random_source),
                             random_pk,
@@ -2825,7 +2811,9 @@ mod tests {
         assert_eq!(txn2.amount, ten_coins);
 
         let client_balance = unwrap!(wallet_get_balance(&bls_sk));
-        assert_eq!(client_balance, unwrap!(Coins::from_str("30")));
+        let mut expected = unwrap!(Coins::from_str("30"));
+        expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+        assert_eq!(client_balance, expected);
 
         let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
         assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));

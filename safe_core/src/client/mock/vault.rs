@@ -554,15 +554,16 @@ impl Vault {
                         .and_then(|()| {
                             self.get_balance(&source)
                                 .and_then(|source_balance| {
-                                    if amount.as_nano() == 0 {
-                                        return Err(SndError::InvalidOperation);
-                                    }
-                                    if source_balance.checked_sub(amount).is_none() {
+                                    let total_amount = amount
+                                        .checked_add(*COST_OF_PUT)
+                                        .ok_or(SndError::ExcessiveValue)?;
+                                    if source_balance.checked_sub(total_amount).is_none() {
                                         return Err(SndError::InsufficientBalance);
                                     }
                                     self.create_balance(destination, new_balance_owner)
                                 })
                                 .and_then(|()| {
+                                    self.commit_mutation(&source);
                                     self.transfer_coins(source, destination, amount, transaction_id)
                                 })
                         })
