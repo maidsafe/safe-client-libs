@@ -28,10 +28,11 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use quic_p2p::NodeInfo;
 use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::u32;
 
 /// QuicP2P bootstrap info, shared from Authenticator to apps.
-pub type BootstrapConfig = Vec<NodeInfo>;
+pub type BootstrapConfig = HashSet<NodeInfo>;
 
 /// IPC message.
 #[allow(clippy::large_enum_variant)]

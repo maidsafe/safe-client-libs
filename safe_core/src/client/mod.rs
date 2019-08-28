@@ -71,8 +71,7 @@ lazy_static! {
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
-    // Ok(Routing::bootstrap_config()?)
-    Ok(Default::default())
+    Ok(Config::new().quic_p2p.hard_coded_contacts)
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can

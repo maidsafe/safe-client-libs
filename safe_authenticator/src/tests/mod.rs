@@ -20,7 +20,7 @@ use crate::ffi::ipc::{
 };
 use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use crate::safe_core::ipc::{
-    self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
+    self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
@@ -28,6 +28,7 @@ use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
+use safe_core::config_handler::Config;
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
 use safe_nd::PublicKey;
 use std::collections::HashMap;
@@ -687,7 +688,7 @@ fn unregistered_authentication() {
         x => panic!("Unexpected {:?}", x),
     };
 
-    assert_eq!(bootstrap_cfg, BootstrapConfig::default());
+    assert_eq!(bootstrap_cfg, Config::new().quic_p2p.hard_coded_contacts);
 
     // Try to send IpcReq::Unregistered to logged in authenticator
     let authenticator = test_utils::create_account_and_login();
