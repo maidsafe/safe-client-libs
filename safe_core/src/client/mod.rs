@@ -1428,10 +1428,10 @@ mod tests {
     use crate::utils::generate_random_vector;
     use crate::utils::test_utils::random_client;
     use safe_nd::{
-        ADataAction, ADataEntry, ADataOwner, ADataUnpubPermissionSet, ADataUnpubPermissions,
-        AppendOnlyData, Coins, Error as SndError, MDataAction, PubImmutableData,
-        PubSeqAppendOnlyData, SeqAppendOnly, UnpubImmutableData, UnpubSeqAppendOnlyData,
-        UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
+        ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
+        ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
+        PubImmutableData, PubSeqAppendOnlyData, SeqAppendOnly, UnpubImmutableData,
+        UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
     };
     use std::str::FromStr;
     use BlsSecretKey;
@@ -1964,10 +1964,11 @@ mod tests {
                         unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
                     );
                     c4.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
-                }).then(|res| {
+                })
+                .then(|res| {
                     match res {
                         Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-                        res => panic!("Unexpected result: {:?}", res)
+                        res => panic!("Unexpected result: {:?}", res),
                     }
                     Ok::<_, SndError>(())
                 })
@@ -2789,5 +2790,60 @@ mod tests {
 
         let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
         assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
+    }
+
+    // 1. Store different variants of unpublished data on the network.
+    // 2. Get the balance of the client.
+    // 3. Delete data from the network.
+    // 4. Verify that the balance has not changed since deletions are free.
+    #[test]
+    pub fn deletions_should_be_free() {
+        let name = XorName(rand::random());
+        let tag = 10;
+        random_client(move |client| {
+            let c2 = client.clone();
+            let c3 = client.clone();
+            let c4 = client.clone();
+            let c5 = client.clone();
+            let c6 = client.clone();
+            let c7 = client.clone();
+            let c8 = client.clone();
+
+            let idata = UnpubImmutableData::new(
+                unwrap!(generate_random_vector::<u8>(10)),
+                client.public_key(),
+            );
+            let address = *idata.name();
+            client
+                .put_idata(idata)
+                .and_then(move |_| {
+                    let mut adata = UnpubSeqAppendOnlyData::new(name, tag);
+                    let owner = ADataOwner {
+                        public_key: c2.public_key(),
+                        entries_index: 0,
+                        permissions_index: 0,
+                    };
+                    unwrap!(adata.append_owner(owner, 0));
+                    c2.put_adata(adata.into())
+                })
+                .and_then(move |_| {
+                    let mdata = UnseqMutableData::new(name, tag, c3.public_key());
+                    c3.put_unseq_mutable_data(mdata)
+                })
+                .and_then(move |_| c4.get_balance(None))
+                .and_then(move |balance| {
+                    c5.delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
+                        .map(move |_| balance)
+                })
+                .and_then(move |balance| {
+                    c6.delete_mdata(MDataAddress::from_kind(MDataKind::Unseq, name, tag))
+                        .map(move |_| balance)
+                })
+                .and_then(move |balance| c7.del_unpub_idata(address).map(move |_| balance))
+                .and_then(move |balance| {
+                    c8.get_balance(None)
+                        .map(move |bal| assert_eq!(bal, balance))
+                })
+        });
     }
 }

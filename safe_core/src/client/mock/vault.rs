@@ -481,7 +481,7 @@ impl Vault {
                 Response::Mutation(result)
             }
             Request::DeleteUnpubIData(address) => {
-                let result = self.delete_idata(address, requester, requester_pk);
+                let result = self.delete_idata(address, requester_pk);
                 Response::Mutation(result)
             }
             // ===== Client (Owner) to SrcElders =====
@@ -808,7 +808,6 @@ impl Vault {
                         if let PublicId::Client(client_id) = requester.clone() {
                             if *client_id.public_key() == data.owner() {
                                 self.delete_data(DataId::Mutable(address));
-                                self.commit_mutation(requester.name());
                                 Ok(())
                             } else {
                                 Err(SndError::InvalidOwners)
@@ -949,7 +948,6 @@ impl Vault {
                         AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
                         AData::UnpubSeq(_) | AData::UnpubUnseq(_) => {
                             self.delete_data(id);
-                            self.commit_mutation(requester.name());
                             Ok(())
                         }
                     });
@@ -1234,7 +1232,6 @@ impl Vault {
     pub fn delete_idata(
         &mut self,
         address: IDataAddress,
-        requester: PublicId,
         requester_pk: PublicKey,
     ) -> SndResult<()> {
         let data_id = DataId::Immutable(address);
@@ -1245,7 +1242,6 @@ impl Vault {
                     if let IData::Unpub(unpub_idata) = data {
                         if *unpub_idata.owner() == requester_pk {
                             self.delete_data(data_id);
-                            self.commit_mutation(requester.name());
                             Ok(())
                         } else {
                             Err(SndError::AccessDenied)
