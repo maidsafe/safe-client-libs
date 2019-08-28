@@ -19,9 +19,7 @@ push-container:
 	docker push maidsafe/safe-client-libs-build:build
 
 clean:
-	@if docker ps -a | grep safe_app_build &> /dev/null; then \
-		docker rm -f safe_app_build; \
-	fi
+	@echo "This is deprecated."
 
 build:
 	rm -rf artifacts
