@@ -127,7 +127,11 @@ impl AppClient {
         trace!("Attempting to log into an acc using client keys.");
 
         let mut qp2p_config = Config::new().quic_p2p;
-        qp2p_config.hard_coded_contacts = qp2p_config.hard_coded_contacts.union(&config).cloned().collect();
+        qp2p_config.hard_coded_contacts = qp2p_config
+            .hard_coded_contacts
+            .union(&config)
+            .cloned()
+            .collect();
 
         let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
         let _ = block_on_all(connection_manager.bootstrap(keys.clone().app_safe_key(owner)));

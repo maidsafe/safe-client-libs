@@ -70,7 +70,10 @@ impl ConnectionManager {
 
         let msg: Message = {
             let writing = match msg {
-                Message::Request { request, .. } => request.get_type() == RequestType::Mutation,
+                Message::Request { request, .. } => {
+                    let req_type = request.get_type();
+                    req_type == RequestType::Mutation || req_type == RequestType::Transaction
+                }
                 _ => false,
             };
             let mut vault = vault::lock(&self.vault, writing);
