@@ -26,7 +26,7 @@
     bad_style,
     deprecated,
     improper_ctypes,
-    missing_docs,
+    // missing_docs, FIXME: Write docs
     non_shorthand_field_patterns,
     overflowing_literals,
     plugin_as_library,
@@ -71,9 +71,15 @@ extern crate unwrap;
 #[cfg(any(test, feature = "testing"))]
 extern crate rand;
 
+pub mod access_container;
+pub mod app_auth;
+pub mod app_container;
 pub mod apps;
+pub mod config;
+pub mod errors;
 /// FFI routines.
 pub mod ffi;
+pub mod ipc;
 pub mod revocation;
 /// Provides utilities to test the authenticator functionality.
 #[cfg(any(test, feature = "testing"))]
@@ -85,13 +91,7 @@ pub use ffi::ipc::*;
 pub use ffi::logging::*;
 pub use ffi::*;
 
-mod access_container;
-mod app_auth;
-mod app_container;
 mod client;
-mod config;
-mod errors;
-mod ipc;
 mod std_dirs;
 #[cfg(test)]
 mod tests;
