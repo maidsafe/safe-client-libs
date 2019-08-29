@@ -9,10 +9,6 @@
 
 //! Build script for generating C header files from FFI modules.
 
-#[cfg(feature = "bindings")]
-#[macro_use]
-extern crate unwrap;
-
 fn main() {
     #[cfg(feature = "bindings")]
     bindings::main();
@@ -20,22 +16,17 @@ fn main() {
 
 #[cfg(feature = "bindings")]
 mod bindings {
-    extern crate ffi_utils;
-    extern crate jni;
-    extern crate routing;
-    extern crate rust_sodium;
-    extern crate safe_bindgen;
-
     use jni::signature::{JavaType, Primitive};
-    use routing::XOR_NAME_LEN;
     use rust_sodium::crypto::{box_, secretbox, sign};
     use safe_bindgen::{Bindgen, FilterMode, LangC, LangCSharp, LangJava};
+    use safe_nd::XOR_NAME_LEN;
     use std::collections::HashMap;
     use std::env;
     use std::path::Path;
+    use unwrap::unwrap;
 
     const BSD_MIT_LICENSE: &str =
-        "// Copyright 2018 MaidSafe.net limited.\n\
+        "// Copyright 2019 MaidSafe.net limited.\n\
          //\n\
          // This SAFE Network Software is licensed to you under the MIT license\n\
          // <LICENSE-MIT or https://opensource.org/licenses/MIT> or the Modified\n\
@@ -46,8 +37,8 @@ mod bindings {
          // of the SAFE Network Software.";
 
     // As currently we have no easy way to pull code for external dependencies for bindgen parsing,
-    // we use this workaround to cater for structures defined in the `ffi_utils` package. At present,
-    // it's only `FfiResult`.
+    // we use this workaround to cater for structures defined in the `ffi_utils` package. At
+    // present, it's only `FfiResult`.
     const FFI_UTILS_CODE: &str =
         "#[repr(C)] pub struct FfiResult { error_code: i32, description: *const c_char }";
 

@@ -156,16 +156,16 @@ impl MDataInfo {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> FfiMDataInfo {
         let (name, type_tag, kind) = (self.name().0, self.type_tag(), self.kind());
-        let kind = md_kind_into_repr_c(kind);
+        let seq = md_kind_into_repr_c(kind);
 
         let (has_enc_info, enc_key, enc_nonce) = enc_info_into_repr_c(self.enc_info);
         let (has_new_enc_info, new_enc_key, new_enc_nonce) =
             enc_info_into_repr_c(self.new_enc_info);
 
         FfiMDataInfo {
+            seq,
             name,
             type_tag,
-            kind,
 
             has_enc_info,
             enc_key,
@@ -302,9 +302,9 @@ impl ReprC for MDataInfo {
     #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let FfiMDataInfo {
+            seq,
             name,
             type_tag,
-            kind,
 
             has_enc_info,
             enc_key,
@@ -316,7 +316,7 @@ impl ReprC for MDataInfo {
         } = *repr_c;
 
         let name = XorName(name);
-        let kind = md_kind_clone_from_repr_c(kind);
+        let kind = md_kind_clone_from_repr_c(seq);
 
         Ok(Self {
             address: MDataAddress::from_kind(kind, name, type_tag),

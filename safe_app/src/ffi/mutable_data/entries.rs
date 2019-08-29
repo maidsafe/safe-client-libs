@@ -233,7 +233,6 @@ mod tests {
         call_0, call_1, call_vec, send_via_user_data, sender_as_user_data,
     };
     use ffi_utils::vec_clone_from_raw_parts;
-    use safe_core::ffi::MDataKind;
     use safe_core::ipc::resp::{MDataEntry, MDataKey, MDataValue};
     use safe_core::utils;
     use safe_nd::{MDataAction, MDataPermissionSet, MDataSeqValue};
@@ -432,10 +431,7 @@ mod tests {
         // Create an empty public mdata
         let md_info: NativeMDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_random_public(
-                MDataKind::Seq,
-                10_000,
-                ud,
-                cb
+                true, 10_000, ud, cb
             )))
         };
         let md_info = md_info.into_repr_c();

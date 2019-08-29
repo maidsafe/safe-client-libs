@@ -22,7 +22,7 @@ use ffi_utils::test_utils::{
 };
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult};
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
-use safe_core::ffi::{MDataInfo, MDataKind};
+use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
@@ -102,10 +102,7 @@ fn permissions_crud_ffi() {
     // Try to create an empty public MD
     let md_info_pub: NativeMDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_public(
-            MDataKind::Seq,
-            10_000,
-            ud,
-            cb
+            true, 10_000, ud, cb
         )))
     };
     let md_info_pub = md_info_pub.into_repr_c();
@@ -244,10 +241,7 @@ fn entries_crud_ffi() {
     // Try to create an empty public MD
     let md_info_pub: NativeMDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_public(
-            MDataKind::Seq,
-            10_000,
-            ud,
-            cb
+            true, 10_000, ud, cb
         )))
     };
     let md_info_pub = md_info_pub.into_repr_c();
@@ -274,7 +268,7 @@ fn entries_crud_ffi() {
     // Try to create a MD instance using the same name & a different type tag - it should pass.
     let xor_name = md_info_pub.name;
     let md_info_pub_2 = MDataInfo {
-        kind: MDataKind::Seq,
+        seq: true,
         name: xor_name,
         type_tag: 10_001,
         has_enc_info: false,
@@ -372,10 +366,7 @@ fn entries_crud_ffi() {
     // Try to create a private MD
     let md_info_priv: NativeMDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_private(
-            MDataKind::Seq,
-            10_001,
-            ud,
-            cb
+            true, 10_001, ud, cb
         )))
     };
     let md_info_priv = md_info_priv.into_repr_c();

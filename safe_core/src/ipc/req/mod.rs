@@ -29,19 +29,18 @@ use std::ffi::{CString, NulError};
 use std::{ptr, slice};
 
 /// Permission enum - use for internal storage only.
-#[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub enum Permission {
     /// Read.
-    Read = 1,
+    Read,
     /// Insert.
-    Insert = 2,
+    Insert,
     /// Update.
-    Update = 4,
+    Update,
     /// Delete.
-    Delete = 8,
+    Delete,
     /// Modify permissions.
-    ManagePermissions = 16,
+    ManagePermissions,
 }
 
 /// Permissions stored internally in the access container.

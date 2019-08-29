@@ -18,38 +18,15 @@ pub mod ipc;
 pub mod nfs;
 
 use self::arrays::*;
-use crate::errors::CoreError;
-use ffi_utils::ReprC;
 use safe_nd::MDataKind as NativeMDataKind;
-
-/// Represents the FFI-safe account info.
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct AccountInfo {
-    /// Number of used mutations.
-    pub mutations_done: u64,
-    /// Number of available mutations.
-    pub mutations_available: u64,
-}
-
-impl ReprC for AccountInfo {
-    type C = *const AccountInfo;
-    type Error = CoreError;
-
-    /// Constructs the object from a raw pointer.
-    ///
-    /// After calling this function, the raw pointer is owned by the resulting object.
-    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(*repr_c)
-    }
-}
 
 /// FFI wrapper for `MDataInfo`.
 #[repr(C)]
 #[derive(Clone)]
 pub struct MDataInfo {
+    // NOTE: `repr[C]` enums don't seem to be supported by JNI right now, so we use a bool.
     /// The kind of the mutable data.
-    pub kind: MDataKind,
+    pub seq: bool,
     /// Name of the mutable data.
     pub name: XorNameArray,
     /// Type tag of the mutable data.
@@ -73,32 +50,22 @@ pub struct MDataInfo {
     pub new_enc_nonce: SymNonce,
 }
 
-// TODO: Need to discuss whether to put this in an ffi module in safe_core or in safe-nd itself.
-/// FFI version of MDataKind.
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub enum MDataKind {
-    /// Sequenced mutable data.
-    Seq,
-    /// Unsequenced mutable data.
-    Unseq,
-}
-
 // TODO: Implement `into_repr_c` for MDataKind once we move FfiMDataKind to safe-nd.
 /// Convert from native to FFI representation for MDataKind.
-pub fn md_kind_into_repr_c(kind: NativeMDataKind) -> MDataKind {
+pub fn md_kind_into_repr_c(kind: NativeMDataKind) -> bool {
     match kind {
-        NativeMDataKind::Seq => MDataKind::Seq,
-        NativeMDataKind::Unseq => MDataKind::Unseq,
+        NativeMDataKind::Seq => true,
+        NativeMDataKind::Unseq => false,
     }
 }
 
 // TODO: Implement `clone_from_repr_c` for `MDataKind` once we move
 // `FfiMDataKind` to safe-nd.
 /// Convert from FFI to native representation for MDataKind.
-pub fn md_kind_clone_from_repr_c(kind: MDataKind) -> NativeMDataKind {
-    match kind {
-        MDataKind::Seq => NativeMDataKind::Seq,
-        MDataKind::Unseq => NativeMDataKind::Unseq,
+pub fn md_kind_clone_from_repr_c(kind: bool) -> NativeMDataKind {
+    if kind {
+        NativeMDataKind::Seq
+    } else {
+        NativeMDataKind::Unseq
     }
 }

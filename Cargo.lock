@@ -1902,7 +1902,7 @@ dependencies = [
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_authenticator 0.10.0",
- "safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe_bindgen 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_core 0.33.0",
  "self_encryption 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1944,7 +1944,7 @@ dependencies = [
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "safe_bindgen 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "safe_core 0.33.0",
  "serde 1.0.98 (registry+https://github.com/rust-lang/crates.io-index)",
  "threshold_crypto 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1968,7 +1968,7 @@ dependencies = [
 
 [[package]]
 name = "safe_bindgen"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "Inflector 0.11.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3063,7 +3063,7 @@ dependencies = [
 "checksum rustls 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f271e3552cd835fa28c541c34a7e8fdd8cdff09d77fe4eb8f6c42e87a11b096e"
 "checksum ryu 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c92464b447c0ee8c4fb3824ecc8383b81717b9f1e74ba2e72540aef7b9f82997"
 "checksum safe-nd 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c978fa3c89fada1890d4128bebeca88d9bf5644800c0782a2ebf23447f883aa2"
-"checksum safe_bindgen 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "399b14d048a9a9ff0c60efb6cf56fd5e57e8840af43c561e01a490abfb6ea753"
+"checksum safe_bindgen 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e6e85de5ed32661702ad780caa5be7d229dd0fc84efef17de045a41d7969cfdd"
 "checksum safemem 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e133ccc4f4d1cd4f89cc8a7ff618287d56dc7f638b8e38fc32c5fdcadc339dd5"
 "checksum same-file 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "585e8ddcedc187886a30fa705c47985c3fa88d06624095856b36ca0b82ff4421"
 "checksum schannel 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)" = "f2f6abf258d99c3c1c5c2131d99d064e94b7b3dd5f416483057f308fea253339"

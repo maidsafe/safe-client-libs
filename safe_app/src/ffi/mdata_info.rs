@@ -13,7 +13,7 @@ use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
-use safe_core::ffi::{md_kind_clone_from_repr_c, MDataInfo, MDataKind};
+use safe_core::ffi::{md_kind_clone_from_repr_c, MDataInfo};
 use safe_core::MDataInfo as NativeMDataInfo;
 use safe_nd::{MDataAddress, XorName};
 use std::os::raw::c_void;
@@ -23,7 +23,7 @@ use std::slice;
 /// provided private key.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_new_private(
-    md_kind: MDataKind,
+    md_seq: bool,
     name: *const XorNameArray,
     type_tag: u64,
     secret_key: *const SymSecretKey,
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn mdata_info_new_private(
         let sk = shared_secretbox::Key::from_raw(&*secret_key);
         let nonce = secretbox::Nonce(*nonce);
 
-        let md_kind = md_kind_clone_from_repr_c(md_kind);
+        let md_kind = md_kind_clone_from_repr_c(md_seq);
         let address = MDataAddress::from_kind(md_kind, name, type_tag);
 
         let info = NativeMDataInfo::new_private(address, (sk, nonce));
@@ -54,7 +54,7 @@ pub unsafe extern "C" fn mdata_info_new_private(
 /// Create random, non-encrypted mdata info.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_random_public(
-    md_kind: MDataKind,
+    md_seq: bool,
     type_tag: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn mdata_info_random_public(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let md_kind = md_kind_clone_from_repr_c(md_kind);
+        let md_kind = md_kind_clone_from_repr_c(md_seq);
         let info = NativeMDataInfo::random_public(md_kind, type_tag)?;
         let info = info.into_repr_c();
 
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn mdata_info_random_public(
 /// Create random, encrypted mdata info.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_info_random_private(
-    md_kind: MDataKind,
+    md_seq: bool,
     type_tag: u64,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn mdata_info_random_private(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let md_kind = md_kind_clone_from_repr_c(md_kind);
+        let md_kind = md_kind_clone_from_repr_c(md_seq);
         let info = NativeMDataInfo::random_private(md_kind, type_tag)?;
         let info = info.into_repr_c();
 
@@ -237,20 +237,19 @@ mod tests {
     use rand;
     use rust_sodium::crypto::secretbox;
     use safe_core::crypto::shared_secretbox;
-    use safe_core::ffi::MDataKind;
     use safe_core::MDataInfo;
     use safe_nd::{MDataKind as NativeMDataKind, XOR_NAME_LEN};
 
     // Test creating non-encrypted mdata info.
     #[test]
     fn create_public() {
-        let kind = MDataKind::Seq;
+        let seq = true;
         let native_kind = NativeMDataKind::Seq;
         let type_tag: u64 = rand::random();
 
         let info: MDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_random_public(
-                kind, type_tag, ud, cb
+                seq, type_tag, ud, cb
             )))
         };
 
@@ -262,13 +261,13 @@ mod tests {
     // Test creating encrypted mdata info.
     #[test]
     fn create_private() {
-        let kind = MDataKind::Unseq;
+        let seq = true;
         let native_kind = NativeMDataKind::Unseq;
         let type_tag: u64 = rand::random();
 
         let rand_info: MDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_random_private(
-                kind, type_tag, ud, cb
+                seq, type_tag, ud, cb
             )))
         };
 
@@ -276,7 +275,7 @@ mod tests {
         let nonce = secretbox::gen_nonce();
         let new_info: MDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_new_private(
-                MDataKind::Unseq,
+                false,
                 &[2; XOR_NAME_LEN],
                 type_tag,
                 &key.0,

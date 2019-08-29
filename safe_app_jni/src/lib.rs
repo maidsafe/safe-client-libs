@@ -191,6 +191,7 @@ gen_primitive_type_converter!(u64, jlong);
 gen_byte_array_converter!(i8, 8);
 gen_byte_array_converter!(u8, 24);
 gen_byte_array_converter!(u8, 32);
+gen_byte_array_converter!(u8, 48);
 gen_byte_array_converter!(u8, 64);
 
 impl<'a> ToJava<'a, bool> for bool {

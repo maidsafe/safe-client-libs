@@ -30,7 +30,6 @@ use safe_authenticator::test_utils::*;
 use safe_authenticator::{AuthError, Authenticator};
 use safe_core::btree_set;
 use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
-use safe_core::ffi::MDataKind;
 use safe_core::ipc::req::{
     permission_set_into_repr_c, AppExchangeInfo, AuthReq, ContainerPermissions,
 };
@@ -295,10 +294,7 @@ fn mdata_operations() {
     let type_tag = 15_000;
     let mdata_info: MDataInfo = unsafe {
         unwrap!(call_1(|ud, cb| mdata_info_random_public(
-            MDataKind::Unseq,
-            type_tag,
-            ud,
-            cb
+            false, type_tag, ud, cb
         )))
     };
     let mdata_info = mdata_info.into_repr_c();

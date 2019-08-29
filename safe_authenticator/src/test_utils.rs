@@ -60,8 +60,8 @@ macro_rules! assert_match {
     };
 }
 
-#[derive(Debug)]
 /// Payload.
+#[derive(Debug)]
 pub enum Payload {
     /// Metadata.
     Metadata(Vec<(Option<UserMetadata>, XorName, u64)>),
