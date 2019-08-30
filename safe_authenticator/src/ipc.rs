@@ -6,6 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+//! Inter-Process Communication utilities.
+
 use super::{AuthError, AuthFuture};
 use crate::access_container;
 use crate::app_auth::{app_state, AppState};
@@ -100,6 +102,7 @@ pub fn decode_ipc_msg(
 }
 
 /// Updates containers permissions (adds a given key to the permissions set)
+#[allow(clippy::implicit_hasher)]
 pub fn update_container_perms(
     client: &AuthClient,
     permissions: HashMap<String, ContainerPermissions>,
@@ -148,6 +151,7 @@ pub fn update_container_perms(
         .into_box()
 }
 
+/// Encode `IpcMsg` into a `CString`, using base32 encoding.
 pub fn encode_response(msg: &IpcMsg) -> Result<CString, IpcError> {
     let resp = ipc::encode_msg(msg)?;
     Ok(CString::new(resp).map_err(StringError::from)?)
@@ -158,6 +162,7 @@ enum ShareMDataError {
     InvalidMetadata,
 }
 
+/// Decodes the `ShareMData` IPC request, returning a list of `UserMetadata`.
 pub fn decode_share_mdata_req(
     client: &AuthClient,
     req: &ShareMDataReq,

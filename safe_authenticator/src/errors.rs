@@ -25,6 +25,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::mpsc::RecvError;
 
+#[allow(missing_docs)]
 mod codes {
     // Core errors
     pub const ERR_ENCODE_DECODE_ERROR: i32 = -1;

@@ -49,6 +49,7 @@ pub fn decode_authenticator_entry(
 }
 
 /// Encodes authenticator entry into raw mdata content.
+#[allow(clippy::implicit_hasher)]
 pub fn encode_authenticator_entry(
     decoded: &HashMap<String, MDataInfo>,
     enc_key: &secretbox::Key,
@@ -81,6 +82,7 @@ pub fn fetch_authenticator_entry(
 }
 
 /// Updates the authenticator entry.
+#[allow(clippy::implicit_hasher)]
 pub fn put_authenticator_entry(
     client: &AuthClient,
     new_value: &HashMap<String, MDataInfo>,

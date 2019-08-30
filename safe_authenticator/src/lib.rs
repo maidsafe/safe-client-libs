@@ -26,7 +26,7 @@
     bad_style,
     deprecated,
     improper_ctypes,
-    // missing_docs, FIXME: Write docs
+    missing_docs,
     non_shorthand_field_patterns,
     overflowing_literals,
     plugin_as_library,
@@ -77,11 +77,9 @@ pub mod app_container;
 pub mod apps;
 pub mod config;
 pub mod errors;
-/// FFI routines.
 pub mod ffi;
 pub mod ipc;
 pub mod revocation;
-/// Provides utilities to test the authenticator functionality.
 #[cfg(any(test, feature = "testing"))]
 #[macro_use]
 pub mod test_utils;
