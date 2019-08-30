@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+if [[ -z "$build_type" ]]; then
+    echo "build_type must be set to dev or non-dev"
+    exit 1
+fi
+
+if [[ "$build_type" == "mock" ]]; then
+    source ./scripts/build-mock
+else
+    source ./scripts/build-real
+fi
+
+./scripts/package.rs --help

@@ -44,16 +44,17 @@ impl AppClient {
         let client_keys = ClientKeys::new(None);
         let client_pk = PublicKey::from(client_keys.bls_pk);
 
-        let mut connection_manager =
-            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
-        block_on_all(connection_manager.bootstrap(client_keys.app_safe_key(client_pk)))?;
+        let mut qp2p_config = Config::new().quic_p2p;
+        if let Some(additional_contacts) = config.clone() {
+            qp2p_config.hard_coded_contacts = qp2p_config
+                .hard_coded_contacts
+                .union(&additional_contacts)
+                .cloned()
+                .collect();
+        }
 
-        // let (routing, routing_rx) = setup_routing(
-        //     None,
-        //     PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk)),
-        //     config,
-        // )?;
-        // let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
+        let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
+        block_on_all(connection_manager.bootstrap(client_keys.app_safe_key(client_pk)))?;
 
         Ok(Self {
             inner: Rc::new(RefCell::new(ClientInner::new(
@@ -125,8 +126,14 @@ impl AppClient {
     {
         trace!("Attempting to log into an acc using client keys.");
 
-        let mut connection_manager =
-            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+        let mut qp2p_config = Config::new().quic_p2p;
+        qp2p_config.hard_coded_contacts = qp2p_config
+            .hard_coded_contacts
+            .union(&config)
+            .cloned()
+            .collect();
+
+        let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
         let _ = block_on_all(connection_manager.bootstrap(keys.clone().app_safe_key(owner)));
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);

@@ -25,6 +25,7 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::mpsc::RecvError;
 
+#[allow(missing_docs)]
 mod codes {
     // Core errors
     pub const ERR_ENCODE_DECODE_ERROR: i32 = -1;
@@ -80,6 +81,7 @@ mod codes {
     pub const ERR_IO_ERROR: i32 = -1013;
     pub const ERR_ACCOUNT_CONTAINERS_CREATION: i32 = -1014;
     pub const ERR_NO_SUCH_CONTAINER: i32 = -1015;
+    pub const ERR_PENDING_REVOCATION: i32 = -1016;
     pub const ERR_UNEXPECTED: i32 = -2000;
 
     // Identity & permission errors.
@@ -124,10 +126,13 @@ pub enum AuthError {
     EncodeDecodeError,
     /// IPC error.
     IpcError(IpcError),
+
     /// Failure during the creation of standard account containers.
     AccountContainersCreation(String),
     /// Failure due to the attempted creation of an invalid container.
     NoSuchContainer(String),
+    /// Couldn't authenticate app that is pending revocation.
+    PendingRevocation,
 }
 
 impl Display for AuthError {
@@ -142,6 +147,7 @@ impl Display for AuthError {
             Self::NfsError(ref error) => write!(formatter, "NFS error: {:?}", error),
             Self::EncodeDecodeError => write!(formatter, "Serialisation error"),
             Self::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
+
             Self::AccountContainersCreation(ref reason) => write!(
                 formatter,
                 "Account containers creation error: {}. Login to attempt recovery.",
@@ -150,6 +156,10 @@ impl Display for AuthError {
             Self::NoSuchContainer(ref name) => {
                 write!(formatter, "'{}' not found in the access container", name)
             }
+            Self::PendingRevocation => write!(
+                formatter,
+                "Couldn't authenticate app that is pending revocation"
+            ),
         }
     }
 }
@@ -283,8 +293,10 @@ impl ErrorCode for AuthError {
             },
             Self::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
             Self::IoError(_) => ERR_IO_ERROR,
+
             Self::AccountContainersCreation(_) => ERR_ACCOUNT_CONTAINERS_CREATION,
             Self::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
+            Self::PendingRevocation => ERR_PENDING_REVOCATION,
             Self::Unexpected(_) => ERR_UNEXPECTED,
         }
     }

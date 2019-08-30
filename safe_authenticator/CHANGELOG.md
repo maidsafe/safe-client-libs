@@ -1,5 +1,12 @@
 # SAFE Authenticator - Change Log
 
+## [0.10.0]
+- Use safe_core 0.33.0.
+- Use the new network data types internally.
+- Refactor the revocation process: we don't do the re-encryption for unpublished MutableData.
+- Use the `stable` branch of the Rust compiler and Rust edition 2018.
+- Expose all Rust modules and APIs which correspond to the FFI functions.
+
 ## [0.9.1]
 - Make general documentation fixes and improvements.
 - Fix some compiler errors.

@@ -10,33 +10,73 @@
 
 set -e -x
 
+is_versioned=$1
+if [[ -z "$is_versioned" ]]; then
+    echo "A true/false argument must be passed indicating to package for a versioned deployment."
+    exit 1
+fi
+
 if [[ ! -d "artifacts" ]]; then
     echo "This script is intended to be used with a docker container and a set of pre-built artifacts."
     echo "Place these artifacts in an 'artifacts' folder at the root of the repository and perform the 'docker run' command again."
     exit 1
 fi
 
-commit_message=$(git log -1 --pretty=%B | head -n 1)
-is_versioned="false"
-if [[ "$commit_message" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) || \
-      "$commit_message" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
-    is_versioned="true"
-fi
-
 export RUST_BACKTRACE=1
-[[ ! -d "deploy" ]] && mkdir deploy
+[[ ! -d "deploy" ]] && mkdir -p deploy/real deploy/mock
 
-cd artifacts
-for os in *; do
+declare -a operating_systems=("linux" "win" "osx")
+for os in "${operating_systems[@]}"; do
+    pwd
     if [[ $is_versioned == "true" ]]; then
-        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock
-        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/real"
-        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock
-        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/real"
+        ./scripts/package.rs --lib \
+            --name safe_app \
+            --dest deploy/mock \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/mock" \
+            --mock
+        ./scripts/package.rs --lib \
+            --name safe_app \
+            --dest deploy/real \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/real"
+        ./scripts/package.rs --lib \
+            --name safe_authenticator \
+            --dest deploy/mock \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/mock" \
+            --mock
+        ./scripts/package.rs --lib \
+            --name safe_authenticator \
+            --dest deploy/real \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/real"
     else
-        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock --commit
-        ../scripts/package.rs --lib --name safe_app --dest ../deploy --arch "$os-x64" --artifacts "$os/real" --commit
-        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/mock" --mock --commit
-        ../scripts/package.rs --lib --name safe_authenticator --dest ../deploy --arch "$os-x64" --artifacts "$os/real" --commit
+        ./scripts/package.rs --lib \
+            --name safe_app \
+            --dest deploy/mock \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/mock" \
+            --mock \
+            --commit
+        ./scripts/package.rs --lib \
+            --name safe_app \
+            --dest deploy/real \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/real" \
+            --commit
+        ./scripts/package.rs --lib \
+            --name safe_authenticator \
+            --dest deploy/mock \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/mock" \
+            --mock \
+            --commit
+        ./scripts/package.rs --lib \
+            --name safe_authenticator \
+            --dest deploy/real \
+            --arch "$os-x64" \
+            --artifacts "artifacts/$os/real" \
+            --commit
     fi
 done

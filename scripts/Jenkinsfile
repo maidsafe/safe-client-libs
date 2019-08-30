@@ -1,7 +1,7 @@
 properties([
     parameters([
         string(name: 'ARTIFACTS_BUCKET', defaultValue: 'safe-jenkins-build-artifacts'),
-        string(name: 'CACHE_BRANCH', defaultValue: 'experimental'),
+        string(name: 'CACHE_BRANCH', defaultValue: 'master'),
         string(name: 'DEPLOY_BUCKET', defaultValue: 'safe-client-libs')
     ])
 ])
@@ -10,7 +10,6 @@ stage('build & test') {
     parallel mock_linux: {
         node('safe_client_libs') {
             checkout(scm)
-            clean()
             run_tests('mock')
             strip_build_artifacts()
             package_build_artifacts('mock', 'linux')
@@ -36,42 +35,104 @@ stage('build & test') {
             upload_build_artifacts()
         }
     },
+    real_linux: {
+        node('safe_client_libs') {
+            checkout(scm)
+            sh("make build")
+            strip_build_artifacts()
+            package_build_artifacts('real', 'linux')
+            upload_build_artifacts()
+        }
+    },
+    real_windows: {
+        node('windows') {
+            checkout(scm)
+            sh("make build")
+            strip_build_artifacts()
+            package_build_artifacts('real', 'windows')
+            upload_build_artifacts()
+        }
+    },
+    real_macos: {
+        node('osx') {
+            checkout(scm)
+            sh("make build")
+            strip_build_artifacts()
+            package_build_artifacts('real', 'osx')
+            upload_build_artifacts()
+        }
+    },
     integration_tests: {
         node('safe_client_libs') {
             checkout(scm)
             run_tests('integration')
         }
+    },
+    clippy_and_rustfmt: {
+        node("safe_client_libs") {
+            checkout(scm)
+            sh("make clippy")
+            sh("make rustfmt")
+        }
     }
 }
 
 stage('deployment') {
-    node('safe_client_libs') {
-        if (env.BRANCH_NAME == "master") {
-            checkout(scm)
-            package_deploy_artifacts()
-            withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
-                def artifacts = sh(returnStdout: true, script: 'ls -1 deploy').trim().split("\\r?\\n")
-                for (artifact in artifacts) {
-                    s3Upload(
-                        bucket: "${params.DEPLOY_BUCKET}",
-                        file: artifact,
-                        workingDir: "${env.WORKSPACE}/deploy",
-                        acl: 'PublicRead')
+    parallel deploy_artifacts: {
+        node('safe_client_libs') {
+            if (env.BRANCH_NAME == "master") {
+                checkout(scm)
+                sh("git fetch --tags --force")
+                retrieve_build_artifacts()
+                if (is_version_change_commit()) {
+                    version = get_version()
+                    package_deploy_artifacts(true)
+                    create_tag(version)
+                    create_github_release(version)
+                    upload_deploy_artifacts("mock")
+                } else {
+                    package_deploy_artifacts(false)
+                    upload_deploy_artifacts("mock")
+                    upload_deploy_artifacts("real")
                 }
+            } else {
+                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
             }
-        } else {
-            echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+        }
+    },
+    publish_safe_core_crate: {
+        node('safe_client_libs') {
+            if (env.BRANCH_NAME == "master") {
+                checkout(scm)
+                publish_crate("safe_core")
+            } else {
+                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+            }
+        }
+    },
+    publish_safe_app_crate: {
+        node('safe_client_libs') {
+            if (env.BRANCH_NAME == "master") {
+                checkout(scm)
+                publish_crate("safe_app")
+            } else {
+                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+            }
+        }
+    },
+    publish_safe_auth_crate: {
+        node('safe_client_libs') {
+            if (env.BRANCH_NAME == "master") {
+                checkout(scm)
+                publish_crate("safe_auth")
+            } else {
+                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+            }
         }
     }
-    if (env.BRANCH_NAME == "experimental") {
+    if (env.BRANCH_NAME == "master") {
         build(job: '../rust_cache_build-safe_client_libs-windows', wait: false)
         build(job: '../docker_build-safe_client_libs_build_container', wait: false)
-    }
-}
-
-stage('clean') {
-    node('safe_client_libs') {
-        clean()
     }
 }
 
@@ -81,18 +142,14 @@ def retrieve_cache() {
     }
 }
 
-def clean() {
-    for (mode in ['mock', 'real']) {
-        def container_name = get_container_name(mode, 'build')
-        sh("docker rm ${container_name} || true")
-    }
-}
-
-def get_container_name(mode, type, app='') {
-    if (app?.trim()) {
-        return "safe_client_libs_${app}_${mode}_${type}_${env.BUILD_NUMBER}"
-    }
-    return "safe_client_libs_${mode}_${type}_${env.BUILD_NUMBER}"
+def is_version_change_commit() {
+    short_commit_hash = sh(
+        returnStdout: true,
+        script: "git log -n 1 --no-merges --pretty=format:'%h'").trim()
+    message = sh(
+        returnStdout: true,
+        script: "git log --format=%B -n 1 ${short_commit_hash}").trim()
+    return message.startsWith("Version change")
 }
 
 def package_build_artifacts(mode, os) {
@@ -113,17 +170,20 @@ def package_build_artifacts(mode, os) {
     sh(command)
 }
 
-def package_deploy_artifacts() {
-    command = ""
-    if (env.CHANGE_ID?.trim()) {
-        command += "SCL_BRANCH=${env.CHANGE_ID} "
-    } else {
-        command += "SCL_BRANCH=${env.BRANCH_NAME} "
+def retrieve_build_artifacts() {
+    branch = env.CHANGE_ID?.trim() ?: env.BRANCH_NAME
+    withEnv(["SCL_BRANCH=${branch}",
+             "SCL_BUILD_NUMBER=${env.BUILD_NUMBER}"]) {
+        sh("make retrieve-all-build-artifacts")
     }
-    command += "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
-    command += "make retrieve-all-build-artifacts"
-    sh(command)
-    sh("make package-deploy-artifacts")
+}
+
+def package_deploy_artifacts(is_version_change_commit) {
+    if (is_version_change_commit) {
+        sh("make package-versioned-deploy-artifacts")
+    } else {
+        sh("make package-commit_hash-deploy-artifacts")
+    }
 }
 
 def strip_build_artifacts() {
@@ -143,6 +203,61 @@ def upload_build_artifacts() {
     }
 }
 
+def get_version() {
+    // For now we're just taking the version from either safe auth or safe app.
+    // We may change this eventually to deploy each component separately, or possibly
+    // even refactor into separate repos.
+    return sh(
+        returnStdout: true,
+        script: "grep '^version' < safe_app/Cargo.toml | head -n 1 | awk '{ print \$3 }' | sed 's/\"//g'").trim()
+}
+
+def upload_deploy_artifacts(type) {
+    withAWS(credentials: 'aws_jenkins_user_credentials', region: 'eu-west-2') {
+        def artifacts = sh(
+            returnStdout: true, script: "ls -1 deploy/${type}").trim().split("\\r?\\n")
+        for (artifact in artifacts) {
+            s3Upload(
+                bucket: "${params.DEPLOY_BUCKET}",
+                file: artifact,
+                workingDir: "${env.WORKSPACE}/deploy/${type}",
+                acl: 'PublicRead')
+        }
+    }
+}
+
+def create_tag(version) {
+    withCredentials(
+        [usernamePassword(
+            credentialsId: "github_maidsafe_qa_user_credentials",
+            usernameVariable: "GIT_USER",
+            passwordVariable: "GIT_PASSWORD")]) {
+        sh("git config --global user.name \$GIT_USER")
+        sh("git config --global user.email qa@maidsafe.net")
+        sh("git config credential.username \$GIT_USER")
+        sh("git config credential.helper '!f() { echo password=\$GIT_PASSWORD; }; f'")
+        sh("git tag -a ${version} -m 'Creating tag for ${version}'")
+        sh("GIT_ASKPASS=true git push origin --tags")
+    }
+}
+
+def create_github_release(version) {
+    withCredentials(
+        [usernamePassword(
+            credentialsId: "github_maidsafe_token_credentials",
+            usernameVariable: "GITHUB_USER",
+            passwordVariable: "GITHUB_TOKEN")]) {
+        sh("make deploy-github-release")
+    }
+}
+
+def publish_crate(name) {
+    withCredentials([string(
+        credentialsId: 'crates_io_token', variable: 'CRATES_IO_TOKEN')]) {
+        sh("make publish-${name}")
+    }
+}
+
 def upload_binary_compatibility_test() {
     sh("mkdir -p ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}")
     def test_executable = sh(
@@ -159,6 +274,19 @@ def upload_binary_compatibility_test() {
             acl: 'PublicRead')
     }
 }
+
+def retrieve_build_artifacts(mode, os) {
+    command = "SCL_BUILD_NUMBER=${env.BUILD_NUMBER} "
+    command += "SCL_BUILD_OS=${os} "
+    if (mode == 'mock') {
+        command += "SCL_BUILD_MOCK=true "
+    } else {
+        command += "SCL_BUILD_MOCK=false "
+    }
+    command += "make retrieve-build-artifacts"
+    sh(command)
+}
+
 
 def run_binary_compatibility_tests() {
     build_number = get_last_successful_build_number(currentBuild)
@@ -184,9 +312,9 @@ def run_tests(mode, bct_test_path='') {
     } else if (mode == 'mock-file') {
         sh("make test-with-mock-vault-file")
     } else if (mode == 'binary') {
-        command = "SCL_BCT_PATH=${bct_test_path} "
-        command += "make test-artifacts-binary"
-        sh(command)
+        withEnv(["SCL_BCT_PATH=${bct_test_path}"]) {
+            sh("make test-artifacts-binary")
+        }
     } else {
         sh("make tests-integration")
     }

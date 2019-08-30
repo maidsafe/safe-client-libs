@@ -161,8 +161,9 @@ mod mock_routing {
     use maidsafe_utilities::SeededRng;
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
-    use safe_core::nfs::NfsError;
     use safe_core::utils::test_utils::Synchronizer;
+    use safe_core::ConnectionManager;
+    use safe_nd::{Request, Response};
     use std::{
         collections::HashMap,
         iter,
@@ -177,21 +178,13 @@ mod mock_routing {
     // 3. Put several files with a known content in both containers (e.g. `_videos/video.mp4` and
     //    `_documents/test.doc`).
     // 4. Revoke the app access from the authenticator.
-    // 5. Simulate network failure during the re-encryption of the `_document` container.
-    // 6. Verify that the `_documents` container is still accessible using the previous `MDataInfo`.
-    // 7. Verify that the `_videos` container is accessible using the new `MDataInfo`
-    //    (it might or might not be still accessible using the old info, depending on whether
-    //    its re-encryption managed to run to completion before the re-encryption of
-    //    `_documents` failed).
-    // 8. Check that the app key is not listed in MaidManagers.
-    // 9. Repeat step 1.4 (restart the revoke operation for the app) and don't interfere with the
-    //    re-encryption process this time. It should pass.
-    // 10. Verify that both the second and first containers aren't accessible using previous
-    //     `MDataInfo`.
-    // 11. Verify that both the second and first containers are accessible using the new
-    //     `MDataInfo`.
+    // 5. Verify that the `_documents` and `_videos` containers are still accessible using the
+    //    previous `MDataInfo`.
+    // 7. Check that the app key is not listed in MaidManagers.
+    // 8. Repeat step 1.4 (the revoke operation for the app). It should pass.
+    // 9. Verify that the app is still revoked.
     #[test]
-    fn app_revocation_recovery() {
+    fn app_revocation() {
         let (auth, locator, password) = create_authenticator();
 
         // Create a test app and authenticate it.
@@ -225,59 +218,23 @@ mod mock_routing {
             true
         ));
 
-        // After re-encryption of the first container (`_video`) is done, simulate a network failure
-        // let docs_name = docs_md.name();
-
-        // Hooks are disabled
-
-        //        let routing_hook = move |mut routing: MockRouting| -> MockRouting {
-        //            routing.set_request_hook_new(move |req| {
-        //                match *req {
-        //                    // Simulate a network failure for the request to re-encrypt
-        //                    // the `_documents` container, so it remains untouched.
-        //                    SndRequest::MutateSeqMDataEntries { address, .. }
-        //                        if *address.name() == docs_name =>
-        //                    {
-        //                        Some(SndResponse::Mutation(Err(Error::InsufficientBalance)))
-        //                    }
-        //                    // Pass-through
-        //                    _ => None,
-        //                }
-        //            });
-        //            routing
-        //        };
-        //        let auth = unwrap!(Authenticator::login_with_hook(
-        //            locator.clone(),
-        //            password.clone(),
-        //            || (),
-        //            routing_hook,
-        //        ));
+        let auth = unwrap!(Authenticator::login(
+            locator.clone(),
+            password.clone(),
+            || (),
+        ));
 
         // Revoke the app.
-        match try_revoke(&auth, &app_id) {
-            // This will succeed since there are no hooks
-            Ok(()) => (),
-            x => panic!("Unexpected {:?}", x),
-        }
+        unwrap!(try_revoke(&auth, &app_id));
 
-        // Verify that the `_documents` container is still accessible using the previous info.
+        // Verify that the `_documents` and `_videos` containers are still accessible.
         let _ = unwrap!(fetch_file(&auth, docs_md.clone(), "test.doc"));
 
-        // The re-encryption of `_videos` may or might not have successfully run
-        // to completion. Try to fetch a file from it using the new info first.
         let new_videos_md = unwrap!(get_container_from_authenticator_entry(&auth, "_videos"));
-        let success = match fetch_file(&auth, new_videos_md, "video.mp4") {
-            Ok(_) => true,
-            Err(AuthError::NfsError(NfsError::FileNotFound)) => false,
-            x => panic!("Unexpected {:?}", x),
-        };
+        let _ = unwrap!(fetch_file(&auth, new_videos_md, "video.mp4"));
 
-        // If it failed, it means the `_videos` container re-encryption has not
-        // been successfully completed. Verify that we can still access the file
-        // using the old info.
-        if !success {
-            let _ = unwrap!(fetch_file(&auth, videos_md.clone(), "video.mp4"));
-        }
+        // Verify that we can still access the file using the old info.
+        let _ = unwrap!(fetch_file(&auth, videos_md.clone(), "video.mp4"));
 
         // Ensure that the app key has been removed from MaidManagers
         let auth_keys = unwrap!(run(&auth, move |client| {
@@ -288,7 +245,7 @@ mod mock_routing {
         }));
         assert!(!auth_keys.contains_key(&PublicKey::from(auth_granted.app_keys.bls_pk)));
 
-        // Login and try to revoke the app again, now without interfering with responses
+        // Login and revoke the app again.
         let auth = unwrap!(Authenticator::login(
             locator.clone(),
             password.clone(),
@@ -335,9 +292,8 @@ mod mock_routing {
 
         // Attempt to re-authenticate the app fails, because revocation is pending.
         match register_app(&auth, &auth_req) {
-            // Hooks are disabled
-            Ok(_) => (), // TODO: assert expected error variant
-            x => panic!("Unexpected {:?}", x),
+            Err(AuthError::PendingRevocation) => (),
+            x => panic!("Unexpected: {:?}", x),
         }
 
         // Retry the app revocation. This time it succeeds.
@@ -384,32 +340,31 @@ mod mock_routing {
         // Simulate failed revocations of both apps.
         simulate_revocation_failure(&locator, &password, &[&app_id_0, &app_id_1]);
 
-        // Hooks are disabled
-        // // Verify the apps are not revoked yet.
-        // {
-        //     let app_id_0 = app_id_0.clone();
-        //     let app_id_1 = app_id_1.clone();
+        // Verify the apps are not revoked yet.
+        {
+            let app_id_0 = app_id_0.clone();
+            let app_id_1 = app_id_1.clone();
 
-        //     unwrap!(run(&auth, |client| {
-        //         let client = client.clone();
+            unwrap!(run(&auth, |client| {
+                let client = client.clone();
 
-        //         config::list_apps(&client)
-        //             .then(move |res| {
-        //                 let (_, apps) = unwrap!(res);
-        //                 let f_0 = app_state(&client, &apps, &app_id_0);
-        //                 let f_1 = app_state(&client, &apps, &app_id_1);
+                config::list_apps(&client)
+                    .then(move |res| {
+                        let (_, apps) = unwrap!(res);
+                        let f_0 = app_state(&client, &apps, &app_id_0);
+                        let f_1 = app_state(&client, &apps, &app_id_1);
 
-        //                 f_0.join(f_1)
-        //             })
-        //             .then(|res| {
-        //                 let (state_0, state_1) = unwrap!(res);
-        //                 assert_eq!(state_0, AppState::Authenticated);
-        //                 assert_eq!(state_1, AppState::Authenticated);
+                        f_0.join(f_1)
+                    })
+                    .then(|res| {
+                        let (state_0, state_1) = unwrap!(res);
+                        assert_eq!(state_0, AppState::Authenticated);
+                        assert_eq!(state_1, AppState::Authenticated);
 
-        //                 Ok(())
-        //             })
-        //     }))
-        // }
+                        Ok(())
+                    })
+            }))
+        }
 
         // Login again without simulated failures.
         let auth = unwrap!(Authenticator::login(locator, password, || ()));
@@ -648,7 +603,7 @@ mod mock_routing {
     {
         // First, log in normally to obtain the access contained info.
         let auth = unwrap!(Authenticator::login(locator, password, || ()));
-        let _ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
+        let ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
 
         // Then, log in with a request hook that makes mutation of the access container
         // fail.
@@ -656,27 +611,20 @@ mod mock_routing {
             locator,
             password,
             || (),
-            move |cm| {
-                // FIXME: hooks system
-                /*
+            move |mut cm| -> ConnectionManager {
                 let ac_info = ac_info.clone();
 
                 cm.set_request_hook(move |request| match *request {
-                    Request::MutateMDataEntries {
-                        name, tag, msg_id, ..
-                    } => {
-                        if name == ac_info.name() && tag == ac_info.type_tag() {
-                            Some(Response::MutateMDataEntries {
-                                res: Err(ClientError::LowBalance),
-                                msg_id,
-                            })
+                    Request::DelMDataUserPermissions { address, .. } => {
+                        if *address.name() == ac_info.name() && address.tag() == ac_info.type_tag()
+                        {
+                            Some(Response::Mutation(Err(SndError::InsufficientBalance)))
                         } else {
                             None
                         }
                     }
                     _ => None,
                 });
-                */
                 cm
             },
         ));
@@ -684,8 +632,7 @@ mod mock_routing {
         // Then attempt to revoke each app from the iterator.
         for app_id in app_ids {
             match try_revoke(&auth, app_id.as_ref()) {
-                // Hooks are disabled
-                Ok(()) => (),
+                Err(_) => (),
                 x => panic!("Unexpected {:?}", x),
             }
         }

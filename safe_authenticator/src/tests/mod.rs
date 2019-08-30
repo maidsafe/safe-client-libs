@@ -20,7 +20,7 @@ use crate::ffi::ipc::{
 };
 use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use crate::safe_core::ipc::{
-    self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
+    self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
@@ -28,6 +28,7 @@ use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
+use safe_core::config_handler::Config;
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
 use safe_nd::PublicKey;
 use std::collections::HashMap;
@@ -51,7 +52,7 @@ mod mock_routing {
     use safe_core::{
         app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
     };
-    use safe_nd::{Coins, Error as SndError, PublicKey};
+    use safe_nd::{Coins, Error as SndError, PublicKey, Request, RequestType, Response};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -66,10 +67,7 @@ mod mock_routing {
     //    (= operation recovery worked after log in)
     // 5. Check the access container entry in the user's config root - it must be accessible
     #[test]
-    #[ignore]
     fn std_dirs_recovery() {
-        // use safe_core::DIR_TAG;
-
         // Add a request hook to forbid root dir modification. In this case
         // account creation operation will be failed, but login still should
         // be possible afterwards.
@@ -83,29 +81,22 @@ mod mock_routing {
 
         {
             let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-                let mut _put_mdata_counter = 0;
+                let mut put_mdata_counter = 0;
 
-                cm.set_request_hook(move |_req| {
-                    // FIXME
-                    // match *req {
-                    //     Request::PutMData {
-                    //         ref data, msg_id, ..
-                    //     } if data.tag() == DIR_TAG => {
-                    //         put_mdata_counter += 1;
+                cm.set_request_hook(move |req| {
+                    match req {
+                        Request::PutMData(data) if data.tag() == safe_core::DIR_TAG => {
+                            put_mdata_counter += 1;
 
-                    //         if put_mdata_counter > 4 {
-                    //             Some(Response::PutMData {
-                    //                 msg_id,
-                    //                 res: Err(SndError::InsufficientBalance),
-                    //             })
-                    //         } else {
-                    //             None
-                    //         }
-                    //     }
-                    //     // Pass-through
-                    //     _ => None,
-                    // }
-                    None
+                            if put_mdata_counter > 4 {
+                                Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                            } else {
+                                None
+                            }
+                        }
+                        // Pass-through
+                        _ => None,
+                    }
                 });
                 cm
             };
@@ -153,43 +144,13 @@ mod mock_routing {
     fn login_with_low_balance() {
         // Register a hook prohibiting mutations and login
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-            cm.set_request_hook(move |_req| {
-                None
-                // FIXME
-                // match *req {
-                //     Request::PutIData { msg_id, .. } => Some(Response::PutIData {
-                //         res: Err(SndError::InsufficientBalance),
-                //         msg_id,
-                //     }),
-                //     Request::PutMData { msg_id, .. } => Some(Response::PutMData {
-                //         res: Err(SndError::InsufficientBalance),
-                //         msg_id,
-                //     }),
-                //     Request::MutateMDataEntries { msg_id, .. } => {
-                //         Some(Response::MutateMDataEntries {
-                //             res: Err(SndError::InsufficientBalance),
-                //             msg_id,
-                //         })
-                //     }
-                //     Request::SetMDataUserPermissions { msg_id, .. } => {
-                //         Some(Response::SetMDataUserPermissions {
-                //             res: Err(SndError::InsufficientBalance),
-                //             msg_id,
-                //         })
-                //     }
-                //     Request::DelMDataUserPermissions { msg_id, .. } => {
-                //         Some(Response::DelMDataUserPermissions {
-                //             res: Err(SndError::InsufficientBalance),
-                //             msg_id,
-                //         })
-                //     }
-                //     Request::ChangeMDataOwner { msg_id, .. } => Some(Response::ChangeMDataOwner {
-                //         res: Err(SndError::InsufficientBalance),
-                //         msg_id,
-                //     }),
-                //     // Pass-through
-                //     _ => None,
-                // }
+            cm.set_request_hook(move |req| {
+                if req.get_type() == RequestType::Mutation {
+                    Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                } else {
+                    // Pass-through
+                    None
+                }
             });
             cm
         };
@@ -225,7 +186,6 @@ mod mock_routing {
     // 11. Check that the app's container has required permissions.
     // 12. Check that the app's container is listed in the access container entry for
     //     the app.
-    #[ignore]
     #[test]
     fn app_authentication_recovery() {
         let locator = unwrap!(generate_random_string(10));
@@ -242,13 +202,9 @@ mod mock_routing {
                     // Simulate a network failure after
                     // the `mutate_mdata_entries` operation (relating to
                     // the addition of the app to the user's config dir)
-
-                    // TODO: fix this test
-                    // Request::InsAuthKey { msg_id, .. } => Some(Response::InsAuthKey {
-                    //     res: Err(SndError::InsufficientBalance),
-                    //     msg_id,
-                    // }),
-
+                    Request::InsAuthKey { .. } => {
+                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                    }
                     // Pass-through
                     _ => None,
                 }
@@ -283,24 +239,19 @@ mod mock_routing {
         // Simulate a network failure for the `update_container_perms` step -
         // it should fail at the second container (`_videos`)
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-            let mut _reqs_counter = 0;
+            let mut reqs_counter = 0;
 
             cm.set_request_hook(move |req| {
-                // FIXME
-
                 match *req {
-                    // Request::SetMDataUserPermissions { msg_id, .. } => {
-                    //     reqs_counter += 1;
+                    Request::SetMDataUserPermissions { .. } => {
+                        reqs_counter += 1;
 
-                    //     if reqs_counter == 2 {
-                    //         Some(Response::SetMDataUserPermissions {
-                    //             res: Err(SndError::InsufficientBalance),
-                    //             msg_id,
-                    //         })
-                    //     } else {
-                    //         None
-                    //     }
-                    // }
+                        if reqs_counter == 2 {
+                            Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                        } else {
+                            None
+                        }
+                    }
                     // Pass-through
                     _ => None,
                 }
@@ -323,12 +274,10 @@ mod mock_routing {
         // setting permissions for 2 requested containers, `_video` and `_documents`)
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
-                // FIXME
                 match *req {
-                    // Request::PutMData { msg_id, .. } => Some(Response::PutMData {
-                    //     res: Err(SndError::InsufficientBalance),
-                    //     msg_id,
-                    // }),
+                    Request::PutMData { .. } => {
+                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                    }
 
                     // Pass-through
                     _ => None,
@@ -353,15 +302,10 @@ mod mock_routing {
         // is supposed to setup the access container entry for the app
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
-                // FIXME
                 match *req {
-                    // Request::MutateMDataEntries { msg_id, .. } => {
-                    //     // None
-                    //     Some(Response::SetMDataUserPermissions {
-                    //         res: Err(SndError::InsufficientBalance),
-                    //         msg_id,
-                    //     })
-                    // }
+                    Request::MutateMDataEntries { .. } => {
+                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                    }
 
                     // Pass-through
                     _ => None,
@@ -744,7 +688,7 @@ fn unregistered_authentication() {
         x => panic!("Unexpected {:?}", x),
     };
 
-    assert_eq!(bootstrap_cfg, BootstrapConfig::default());
+    assert_eq!(bootstrap_cfg, Config::new().quic_p2p.hard_coded_contacts);
 
     // Try to send IpcReq::Unregistered to logged in authenticator
     let authenticator = test_utils::create_account_and_login();

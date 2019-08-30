@@ -21,6 +21,9 @@ if [[ -z "$build_mode" ]]; then
     exit 1
 fi
 
+container_tag="build"
+[[ "$build_mode" == "mock" ]] && container_tag="build-mock"
+
 user_id=$(id -u)
 group_id=$(id -g)
 
@@ -37,7 +40,7 @@ docker run --name "$container_name" \
     -v "${PWD}":/usr/src/safe_client_libs:Z \
     -u "$user_id":"$group_id" \
     -e CARGO_TARGET_DIR=/target \
-    maidsafe/safe-client-libs-build:build \
+    maidsafe/safe-client-libs-build:"$container_tag" \
     scripts/build-"$build_mode"
 docker cp "$container_name":/target .
 docker rm -f "$container_name"

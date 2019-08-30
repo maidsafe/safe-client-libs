@@ -1,5 +1,10 @@
 # SAFE App
 
+## [0.10.0]
+- Use safe_core 0.33.0.
+- Use the new network data types.
+- Use the `stable` branch of the Rust compiler and Rust edition 2018.
+
 ## [0.9.1]
 - Improve docstrings for public functions.
 - Make general documentation fixes and improvements.

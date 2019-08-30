@@ -38,3 +38,4 @@ deploy/
 cargo-all.sh
 bindings
 tmp
+*.orig

@@ -32,6 +32,8 @@ use safe_nd::{
     PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
     XorName,
 };
+#[cfg(feature = "mock-network")]
+use safe_nd::{RequestType, Response};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -108,52 +110,15 @@ fn get_access_info() {
 #[test]
 pub fn login_registered_with_low_balance() {
     // Register a hook prohibiting mutations and login
-    let cm_hook = move |cm: ConnectionManager| -> ConnectionManager {
-        /* FIXME - hooks
-
+    let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
         cm.set_request_hook(move |req| {
-            match *req {
-                Request::PutIData { msg_id, .. } => Some(Response::PutIData {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                Request::PutMData { msg_id, .. } => Some(Response::PutMData {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                Request::MutateMDataEntries { msg_id, .. } => Some(Response::MutateMDataEntries {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                Request::SetMDataUserPermissions { msg_id, .. } => {
-                    Some(Response::SetMDataUserPermissions {
-                        res: Err(SndError::LowBalance),
-                        msg_id,
-                    })
-                }
-                Request::DelMDataUserPermissions { msg_id, .. } => {
-                    Some(Response::DelMDataUserPermissions {
-                        res: Err(SndError::LowBalance),
-                        msg_id,
-                    })
-                }
-                Request::ChangeMDataOwner { msg_id, .. } => Some(Response::ChangeMDataOwner {
-                    res: Err(SndError::LowBalance),
-                    msg_id,
-                }),
-                // Request::InsAuthKey { msg_id, .. } => Some(Response::InsAuthKey {
-                //     res: Err(ClientError::LowBalance),
-                //     msg_id,
-                // }),
-                // Request::DelAuthKey { msg_id, .. } => Some(Response::DelAuthKey {
-                //     res: Err(ClientError::LowBalance),
-                //     msg_id,
-                // }),
+            if req.get_type() == RequestType::Mutation {
+                Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+            } else {
                 // Pass-through
-                _ => None,
+                None
             }
         });
-         */
         cm
     };
 

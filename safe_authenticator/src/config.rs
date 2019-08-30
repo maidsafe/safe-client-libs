@@ -6,6 +6,9 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+//! Functionality relating to the Authenticator configuration, including things related to app info
+//! and the revocation queue.
+
 use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use futures::future::{self, Either, Loop};

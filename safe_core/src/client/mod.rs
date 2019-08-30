@@ -71,8 +71,7 @@ lazy_static! {
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
-    // Ok(Routing::bootstrap_config()?)
-    Ok(Default::default())
+    Ok(Config::new().quic_p2p.hard_coded_contacts)
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
@@ -1428,10 +1427,10 @@ mod tests {
     use crate::utils::generate_random_vector;
     use crate::utils::test_utils::random_client;
     use safe_nd::{
-        ADataAction, ADataEntry, ADataOwner, ADataUnpubPermissionSet, ADataUnpubPermissions,
-        AppendOnlyData, Coins, Error as SndError, MDataAction, PubImmutableData,
-        PubSeqAppendOnlyData, SeqAppendOnly, UnpubImmutableData, UnpubSeqAppendOnlyData,
-        UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
+        ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
+        ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
+        PubImmutableData, PubSeqAppendOnlyData, SeqAppendOnly, UnpubImmutableData,
+        UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
     };
     use std::str::FromStr;
     use BlsSecretKey;
@@ -1852,7 +1851,7 @@ mod tests {
     // 1. Create a client with a wallet. Create an anonymous wallet preloading it from the client's wallet.
     // 2. Transfer some safecoin from the anonymous wallet to the client.
     // 3. Fetch the balances of both the wallets and verify them.
-    // 4. Try to create a balance using an inexistent wallet. This should fail.
+    // 5. Try to create a balance using an inexistent wallet. This should fail.
     #[test]
     fn anonymous_wallet() {
         random_client(move |client| {
@@ -1896,7 +1895,9 @@ mod tests {
                 })
                 .and_then(move |_| {
                     client4.get_balance(None).and_then(|balance| {
-                        assert_eq!(balance, unwrap!(Coins::from_str("405.0")));
+                        let mut expected = unwrap!(Coins::from_str("405.0"));
+                        expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+                        assert_eq!(balance, expected);
                         Ok(())
                     })
                 })
@@ -1927,6 +1928,9 @@ mod tests {
     // 3. Create another client B with a wallet holding some safecoin.
     // 4. Transfer some coins from client B to client A and verify the new balance.
     // 5. Fetch the transaction using the transaction ID and verify the amount.
+    // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
+    // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
+    // 8. Set the client's balance to zero and try to put data. It should fail.
     #[test]
     fn coin_balance_transfer() {
         let wallet1: XorName = random_client(move |client| {
@@ -1946,6 +1950,10 @@ mod tests {
         random_client(move |client| {
             let c2 = client.clone();
             let c3 = client.clone();
+            let c4 = client.clone();
+            let c5 = client.clone();
+            let c6 = client.clone();
+            let c7 = client.clone();
 
             client
                 .get_balance(None)
@@ -1962,7 +1970,32 @@ mod tests {
                         new_balance,
                         unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
                     );
-                    Ok(())
+                    c4.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
+                })
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+                        res => panic!("Unexpected result: {:?}", res),
+                    }
+                    c5.transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
+                })
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::DataError(SndError::InvalidOperation)) => (),
+                        res => panic!("Unexpected result: {:?}", res),
+                    }
+                    c6.test_set_balance(None, unwrap!(Coins::from_str("0")))
+                })
+                .and_then(move |_| {
+                    let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
+                    c7.put_idata(data)
+                })
+                .then(move |res| {
+                    match res {
+                        Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+                        res => panic!("Unexpected result: {:?}", res),
+                    }
+                    Ok::<_, SndError>(())
                 })
         });
     }
@@ -2778,9 +2811,66 @@ mod tests {
         assert_eq!(txn2.amount, ten_coins);
 
         let client_balance = unwrap!(wallet_get_balance(&bls_sk));
-        assert_eq!(client_balance, unwrap!(Coins::from_str("30")));
+        let mut expected = unwrap!(Coins::from_str("30"));
+        expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+        assert_eq!(client_balance, expected);
 
         let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
         assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
+    }
+
+    // 1. Store different variants of unpublished data on the network.
+    // 2. Get the balance of the client.
+    // 3. Delete data from the network.
+    // 4. Verify that the balance has not changed since deletions are free.
+    #[test]
+    pub fn deletions_should_be_free() {
+        let name = XorName(rand::random());
+        let tag = 10;
+        random_client(move |client| {
+            let c2 = client.clone();
+            let c3 = client.clone();
+            let c4 = client.clone();
+            let c5 = client.clone();
+            let c6 = client.clone();
+            let c7 = client.clone();
+            let c8 = client.clone();
+
+            let idata = UnpubImmutableData::new(
+                unwrap!(generate_random_vector::<u8>(10)),
+                client.public_key(),
+            );
+            let address = *idata.name();
+            client
+                .put_idata(idata)
+                .and_then(move |_| {
+                    let mut adata = UnpubSeqAppendOnlyData::new(name, tag);
+                    let owner = ADataOwner {
+                        public_key: c2.public_key(),
+                        entries_index: 0,
+                        permissions_index: 0,
+                    };
+                    unwrap!(adata.append_owner(owner, 0));
+                    c2.put_adata(adata.into())
+                })
+                .and_then(move |_| {
+                    let mdata = UnseqMutableData::new(name, tag, c3.public_key());
+                    c3.put_unseq_mutable_data(mdata)
+                })
+                .and_then(move |_| c4.get_balance(None))
+                .and_then(move |balance| {
+                    c5.delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
+                        .map(move |_| balance)
+                })
+                .and_then(move |balance| {
+                    c6.delete_mdata(MDataAddress::from_kind(MDataKind::Unseq, name, tag))
+                        .map(move |_| balance)
+                })
+                .and_then(move |balance| c7.del_unpub_idata(address).map(move |_| balance))
+                .and_then(move |balance| {
+                    c8.get_balance(None)
+                        .map(move |bal| assert_eq!(bal, balance))
+                })
+        });
     }
 }

@@ -1,5 +1,12 @@
 # Safe Core - Change Log
 
+## [0.33.0]
+- Remove Routing dependency from safe_core.
+- Use quic-p2p for communication with Vaults.
+- Use new data types from safe-nd (AppendOnlyData and unpublished ImmutableData).
+- Add Safecoin-related tests and features.
+- Use the `stable` branch of the Rust compiler and Rust edition 2018.
+
 ## [0.32.1]
 - Move module-level documentation to wiki, replace with link.
 - Make general documentation fixes and improvements.

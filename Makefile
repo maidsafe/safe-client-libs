@@ -1,27 +1,57 @@
-.PHONY: build
+.PHONY: build tests
 .DEFAULT_GOAL: build
 
 SHELL := /bin/bash
+UUID := $(shell uuidgen | sed 's/-//g')
 SAFE_APP_VERSION := $(shell grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $$3 }' | sed 's/\"//g')
+SAFE_AUTH_VERSION := $(shell grep "^version" < safe_authenticator/Cargo.toml | head -n 1 | awk '{ print $$3 }' | sed 's/\"//g')
 PWD := $(shell echo $$PWD)
 USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
 UNAME_S := $(shell uname -s)
 S3_BUCKET := safe-jenkins-build-artifacts
-UUID := $(shell uuidgen | sed 's/-//g')
+S3_SAFE_APP_LINUX_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_app-mock-${SAFE_APP_VERSION}-linux-x64.tar.gz
+S3_SAFE_APP_WIN_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_app-mock-${SAFE_APP_VERSION}-win-x64.tar.gz
+S3_SAFE_APP_MACOS_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_app-mock-${SAFE_APP_VERSION}-osx-x64.tar.gz
+S3_SAFE_AUTH_LINUX_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_authenticator-mock-${SAFE_AUTH_VERSION}-linux-x64.tar.gz
+S3_SAFE_AUTH_WIN_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_authenticator-mock-${SAFE_AUTH_VERSION}-win-x64.tar.gz
+S3_SAFE_AUTH_MACOS_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_authenticator-mock-${SAFE_AUTH_VERSION}-osx-x64.tar.gz
+GITHUB_REPO_OWNER := maidsafe
+GITHUB_REPO_NAME := safe_client_libs
+define GITHUB_RELEASE_DESCRIPTION
+SAFE Network client side Rust module(s)
+
+There are also development versions of this release:
+[Safe App Linux](${S3_SAFE_APP_LINUX_DEPLOY_URL})
+[Safe App macOS](${S3_SAFE_APP_MACOS_DEPLOY_URL})
+[Safe App Windows](${S3_SAFE_APP_WIN_DEPLOY_URL})
+[Safe Auth Linux](${S3_SAFE_AUTH_LINUX_DEPLOY_URL})
+[Safe Auth macOS](${S3_SAFE_AUTH_MACOS_DEPLOY_URL})
+[Safe Auth Windows](${S3_SAFE_AUTH_WIN_DEPLOY_URL})
+
+The development version uses a mocked SAFE network, which allows you to work against a file that mimics the network, where SafeCoins are created for local use.
+endef
+export GITHUB_RELEASE_DESCRIPTION
 
 build-container:
 	rm -rf target/
 	docker rmi -f maidsafe/safe-client-libs-build:build
-	docker build -f scripts/Dockerfile.build -t maidsafe/safe-client-libs-build:build .
+	docker build -f scripts/Dockerfile.build \
+		-t maidsafe/safe-client-libs-build:build \
+		--build-arg build_type="real" .
+
+build-mock-container:
+	rm -rf target/
+	docker rmi -f maidsafe/safe-client-libs-build:build-mock
+	docker build -f scripts/Dockerfile.build \
+		-t maidsafe/safe-client-libs-build:build-mock \
+		--build-arg build_type="mock" .
 
 push-container:
 	docker push maidsafe/safe-client-libs-build:build
 
-clean:
-	@if docker ps -a | grep safe_app_build &> /dev/null; then \
-		docker rm -f safe_app_build; \
-	fi
+push-mock-container:
+	docker push maidsafe/safe-client-libs-build:build-mock
 
 build:
 	rm -rf artifacts
@@ -42,6 +72,28 @@ else
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+clippy:
+ifeq ($(UNAME_S),Linux)
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		maidsafe/safe-client-libs-build:build-mock \
+		scripts/clippy-all
+else
+	./scripts/clippy-all
+endif
+
+rustfmt:
+ifeq ($(UNAME_S),Linux)
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		-e CARGO_TARGET_DIR=/target \
+		maidsafe/safe-client-libs-build:build-mock \
+		scripts/rustfmt
+else
+	./scripts/rustfmt
+endif
 
 strip-artifacts:
 ifeq ($(OS),Windows_NT)
@@ -82,12 +134,19 @@ endif
 	rm artifacts/**
 	mv ${ARCHIVE_NAME} artifacts
 
-package-deploy-artifacts:
+package-versioned-deploy-artifacts:
 	@rm -rf deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
 		maidsafe/safe-client-libs-build:build \
-		scripts/package-runner-container
+		scripts/package-runner-container "true"
+
+package-commit_hash-deploy-artifacts:
+	@rm -rf deploy
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:build \
+		scripts/package-runner-container "false"
 
 retrieve-cache:
 ifndef SCL_BRANCH
@@ -205,7 +264,7 @@ endif
 		maidsafe/safe-client-libs-build:build \
 		scripts/test-runner-container
 
-tests: clean
+tests:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
 	rm -rf target/
@@ -213,8 +272,8 @@ ifeq ($(UNAME_S),Linux)
 		-v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:build \
-		scripts/test-mock
+		maidsafe/safe-client-libs-build:build-mock \
+		scripts/build-and-test-mock
 	docker cp "safe_app_tests-${UUID}":/target .
 	docker rm -f "safe_app_tests-${UUID}"
 else
@@ -222,7 +281,7 @@ else
 endif
 	make copy-artifacts
 
-test-with-mock-vault-file: clean
+test-with-mock-vault-file:
 ifeq ($(UNAME_S),Darwin)
 	rm -rf artifacts
 	./scripts/test-with-mock-vault-file
@@ -232,12 +291,12 @@ else
 	@exit 1
 endif
 
-tests-integration: clean
+tests-integration:
 	rm -rf target/
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:build \
+		maidsafe/safe-client-libs-build:build-mock \
 		scripts/test-integration
 
 debug:
@@ -246,3 +305,82 @@ debug:
 copy-artifacts:
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+deploy-github-release:
+ifndef GITHUB_TOKEN
+	@echo "Please set GITHUB_TOKEN to the API token for a user who can create releases."
+	@exit 1
+endif
+	github-release release \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_client_libs" \
+		--description "$$GITHUB_RELEASE_DESCRIPTION"
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_app-${SAFE_APP_VERSION}-linux-x64.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-linux-x64.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_app-${SAFE_APP_VERSION}-osx-x64.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-osx-x64.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_app-${SAFE_APP_VERSION}-win-x64.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-win-x64.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_AUTH_VERSION} \
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-linux-x64.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-linux-x64.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_AUTH_VERSION} \
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-osx-x64.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-osx-x64.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_AUTH_VERSION} \
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-win-x64.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-win-x64.tar.gz
+
+publish-safe_core:
+ifndef CRATES_IO_TOKEN
+	@echo "A login token for crates.io must be provided."
+	@exit 1
+endif
+	rm -rf artifacts deploy
+	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:build-mock \
+		/bin/bash -c "cd safe_core && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
+
+publish-safe_auth:
+ifndef CRATES_IO_TOKEN
+	@echo "A login token for crates.io must be provided."
+	@exit 1
+endif
+	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:build-mock \
+		/bin/bash -c "cd safe_authenticator && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
+
+publish-safe_app:
+ifndef CRATES_IO_TOKEN
+	@echo "A login token for crates.io must be provided."
+	@exit 1
+endif
+	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:build-mock \
+		/bin/bash -c "cd safe_app && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
