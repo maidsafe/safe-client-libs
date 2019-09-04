@@ -9,7 +9,7 @@
 use crate::client::{Client, MDataInfo};
 use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
-use crate::nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
+use crate::nfs::{File, NfsError, NfsFuture, Reader, Writer, WriterMode};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use futures::{Future, IntoFuture};
@@ -208,7 +208,7 @@ where
 pub fn write<C: Client>(
     client: C,
     file: File,
-    mode: Mode,
+    mode: WriterMode,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<Writer<C>>> {
     trace!("Creating a writer for a file");

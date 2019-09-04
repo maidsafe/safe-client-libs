@@ -35,7 +35,7 @@ use safe_core::ipc::req::{
 };
 use safe_core::ipc::resp::{MDataEntry, MDataKey, MDataValue};
 use safe_core::ipc::{AuthGranted, Permission};
-use safe_core::nfs::{Mode, NfsError};
+use safe_core::nfs::{NfsError, WriterMode};
 use safe_core::MDataInfo;
 use safe_core::{utils, CoreError};
 use safe_nd::{AppPermissions, MDataAction, MDataPermissionSet};
@@ -179,7 +179,7 @@ fn write_data() {
                 unwrap!(write_file(
                     &*auth_h,
                     file,
-                    Mode::Overwrite,
+                    WriterMode::Overwrite,
                     videos_md.enc_key().cloned(),
                     vec![1; 10],
                 ));

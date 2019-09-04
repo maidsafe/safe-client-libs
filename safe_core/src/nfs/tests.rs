@@ -13,7 +13,7 @@ use crate::errors::CoreError;
 use crate::nfs::file_helper::{self, Version};
 use crate::nfs::reader::Reader;
 use crate::nfs::writer::Writer;
-use crate::nfs::{create_dir, File, Mode, NfsError, NfsFuture};
+use crate::nfs::{create_dir, File, NfsError, NfsFuture, WriterMode};
 use crate::utils::test_utils::random_client;
 use crate::utils::FutureExt;
 use crate::DIR_TAG;
@@ -48,7 +48,7 @@ fn create_test_file_with_size(
             file_helper::write(
                 c2.clone(),
                 File::new(Vec::new(), published),
-                Mode::Overwrite,
+                WriterMode::Overwrite,
                 root.enc_key().cloned(),
             )
         })
@@ -98,7 +98,7 @@ fn file_fetch_public_md() {
                 file_helper::write(
                     c2.clone(),
                     File::new(Vec::new(), true),
-                    Mode::Overwrite,
+                    WriterMode::Overwrite,
                     root.enc_key().cloned(),
                 )
             })
@@ -185,7 +185,7 @@ fn files_stored_in_unpublished_idata() {
                     file_helper::write(
                         c2.clone(),
                         File::new(Vec::new(), false),
-                        Mode::Overwrite,
+                        WriterMode::Overwrite,
                         None,
                     )
                 })
@@ -376,7 +376,7 @@ fn file_write_chunks() {
                 // Updating file - overwrite
                 let (dir, file) = unwrap!(res);
 
-                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c2, file, WriterMode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -423,7 +423,7 @@ fn file_write_chunks() {
                 // Updating file - append
                 let (file, dir) = unwrap!(res);
 
-                file_helper::write(c3, file, Mode::Append, dir.enc_key().cloned())
+                file_helper::write(c3, file, WriterMode::Append, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -500,7 +500,7 @@ fn file_update_overwrite() {
                 let (dir, file) = unwrap!(res);
                 let creation_time = *file.created_time();
 
-                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c2, file, WriterMode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir, creation_time))
             })
             .then(move |res| {
@@ -559,7 +559,7 @@ fn file_update_append() {
                         let (dir, file) = unwrap!(res);
 
                         // Updating file - append
-                        file_helper::write(c2, file, Mode::Append, dir.enc_key().cloned())
+                        file_helper::write(c2, file, WriterMode::Append, dir.enc_key().cloned())
                             .map(move |writer| (dir, writer))
                     })
                     .then(move |res| {
@@ -671,7 +671,7 @@ fn file_delete_then_add() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c3, file, WriterMode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -728,15 +728,20 @@ fn file_open_close() {
                 // The reader should get dropped implicitly
                 let (_reader, file, dir) = unwrap!(res);
                 // Open the file for writing
-                file_helper::write(c3, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
-                    .map(move |writer| (writer, file, dir))
+                file_helper::write(
+                    c3,
+                    file.clone(),
+                    WriterMode::Overwrite,
+                    dir.enc_key().cloned(),
+                )
+                .map(move |writer| (writer, file, dir))
             })
             .then(move |res| {
                 let (writer, file, dir) = unwrap!(res);
                 // Close the file
                 let _ = writer.close();
                 // Open the file for appending
-                file_helper::write(c4, file.clone(), Mode::Append, dir.enc_key().cloned())
+                file_helper::write(c4, file.clone(), WriterMode::Append, dir.enc_key().cloned())
                     .map(move |writer| (writer, file, dir))
             })
             .then(move |res| {
@@ -772,15 +777,25 @@ fn file_open_concurrent() {
                 let (dir, file) = unwrap!(res);
 
                 // Open the first writer.
-                file_helper::write(c2, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
-                    .map(move |writer1| (writer1, file, dir))
+                file_helper::write(
+                    c2,
+                    file.clone(),
+                    WriterMode::Overwrite,
+                    dir.enc_key().cloned(),
+                )
+                .map(move |writer1| (writer1, file, dir))
             })
             .then(move |res| {
                 let (writer1, file, dir) = unwrap!(res);
 
                 // Open the second writer concurrently.
-                file_helper::write(c3, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
-                    .map(move |writer2| (writer1, writer2, file, dir))
+                file_helper::write(
+                    c3,
+                    file.clone(),
+                    WriterMode::Overwrite,
+                    dir.enc_key().cloned(),
+                )
+                .map(move |writer2| (writer1, writer2, file, dir))
             })
             .then(move |res| {
                 let (writer1, writer2, file, dir) = unwrap!(res);
@@ -870,7 +885,7 @@ fn encryption() {
         file_helper::write(
             client.clone(),
             File::new(Vec::new(), true),
-            Mode::Overwrite,
+            WriterMode::Overwrite,
             Some(key.clone()),
         )
         .then(move |res| {

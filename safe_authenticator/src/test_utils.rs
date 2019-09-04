@@ -33,7 +33,7 @@ use safe_core::ipc::{
     self, AppExchangeInfo, AuthGranted, AuthReq, ContainersReq, IpcMsg, IpcReq, ShareMDataReq,
 };
 use safe_core::nfs::file_helper::{self, Version};
-use safe_core::nfs::{File, Mode};
+use safe_core::nfs::{File, WriterMode};
 use safe_core::utils::test_utils::setup_client_with_net_obs;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
@@ -245,7 +245,7 @@ pub fn create_file<S: Into<String>>(
         file_helper::write(
             client.clone(),
             File::new(vec![], published),
-            Mode::Overwrite,
+            WriterMode::Overwrite,
             container_info.enc_key().cloned(),
         )
         .then(move |res| {
@@ -314,7 +314,7 @@ pub fn delete_file<S: Into<String>>(
 pub fn write_file(
     authenticator: &Authenticator,
     file: File,
-    mode: Mode,
+    mode: WriterMode,
     encryption_key: Option<shared_secretbox::Key>,
     content: Vec<u8>,
 ) -> Result<(), AuthError> {

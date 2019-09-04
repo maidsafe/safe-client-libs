@@ -19,7 +19,7 @@ use self_encryption::{DataMap, SequentialEncryptor};
 
 /// Mode of the writer.
 #[derive(Clone, Copy, Debug)]
-pub enum Mode {
+pub enum WriterMode {
     /// Will create new data.
     Overwrite,
     /// Will append content to the existing data.
@@ -41,14 +41,16 @@ impl<C: Client> Writer<C> {
         client: &C,
         storage: SelfEncryptionStorage<C>,
         file: File,
-        mode: Mode,
+        mode: WriterMode,
         encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Writer<C>>> {
         let fut = match mode {
-            Mode::Append => data_map::get(client, file.data_address(), encryption_key.clone())
-                .map(Some)
-                .into_box(),
-            Mode::Overwrite => ok!(None),
+            WriterMode::Append => {
+                data_map::get(client, file.data_address(), encryption_key.clone())
+                    .map(Some)
+                    .into_box()
+            }
+            WriterMode::Overwrite => ok!(None),
         };
         let client = client.clone();
         fut.or_else(|err| -> Box<NfsFuture<Option<DataMap>>> {

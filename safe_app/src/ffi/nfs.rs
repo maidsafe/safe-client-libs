@@ -22,7 +22,7 @@ use safe_core::ffi::nfs::File;
 use safe_core::ffi::MDataInfo;
 use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::File as NativeFile;
-use safe_core::nfs::{Mode, Reader, Writer};
+use safe_core::nfs::{Reader, Writer, WriterMode};
 use safe_core::{FutureExt, MDataInfo as NativeMDataInfo};
 use std::os::raw::{c_char, c_void};
 
@@ -36,17 +36,23 @@ pub struct FileContext {
 /// Constant to pass to `dir_update_file()` or `dir_delete_file()` when the next version should be
 /// retrieved and used automatically.
 pub const GET_NEXT_VERSION: u64 = 0;
-
-/// Replaces the entire content of the file when writing data.
-pub static OPEN_MODE_OVERWRITE: u64 = 1;
-/// Appends to existing data in the file. Falls back to OPEN_MODE_OVERWRITE if it encounters an
-/// empty file. If it is known ahead of time that a file is empty, use OPEN_MODE_OVERWRITE instead
-/// to avoid incurring an unnecessary GET.
-pub static OPEN_MODE_APPEND: u64 = 2;
-/// Open file to read.
-pub static OPEN_MODE_READ: u64 = 4;
 /// Read entire contents of a file.
-pub static FILE_READ_TO_END: u64 = 0;
+pub const FILE_READ_TO_END: u64 = 0;
+
+/// File open mode.
+#[repr(u64)]
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum OpenMode {
+    /// Replaces the entire content of the file when writing data.
+    #[allow(clippy::identity_op)]
+    Overwrite = 1 << 0,
+    /// Appends to existing data in the file. Falls back to `Overwrite` if it encounters an empty
+    /// file. If it is known ahead of time that a file is empty, use `Overwrite` instead to avoid
+    /// incurring an unnecessary GET.
+    Append = 1 << 1,
+    /// Open file to read.
+    Read = 1 << 2,
+}
 
 /// Retrieve file with the given name, and its version, from the directory.
 #[no_mangle]
@@ -185,8 +191,8 @@ pub unsafe extern "C" fn file_open(
             let context = context.clone();
             let original_file = file.clone();
 
-            // Initialise the reader if OPEN_MODE_READ is requested.
-            let reader = if open_mode & OPEN_MODE_READ != 0 {
+            // Initialise the reader if `OpenMode::Read` is requested.
+            let reader = if open_mode & OpenMode::Read as u64 != 0 {
                 let fut = file_helper::read(client.clone(), &file, parent_info.enc_key().cloned())
                     .map(Some);
                 Either::A(fut)
@@ -195,11 +201,12 @@ pub unsafe extern "C" fn file_open(
             };
 
             // Initialise the writer if one of write modes is requested.
-            let writer = if open_mode & (OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND) != 0 {
-                let writer_mode = if open_mode & OPEN_MODE_APPEND != 0 {
-                    Mode::Append
+            let writer = if open_mode & (OpenMode::Overwrite as u64 | OpenMode::Append as u64) != 0
+            {
+                let writer_mode = if open_mode & OpenMode::Append as u64 != 0 {
+                    WriterMode::Append
                 } else {
-                    Mode::Overwrite
+                    WriterMode::Overwrite
                 };
                 let fut = file_helper::write(
                     client.clone(),

@@ -126,7 +126,7 @@ fn basics() {
 // 4. Open the file again, now in a combined append + read mode.
 // 5. Read the file contents; it should be the same as we have written it.
 // Check that the file's created and modified timestamps are correct.
-// 6. Append a string to a file contents (by using `OPEN_MODE_APPEND`, _not_
+// 6. Append a string to a file contents (by using `OpenMode::Append`, _not_
 // by rewriting the existing data with an appended string).
 // 7. Update the file in the directory.
 // 8. Fetch the updated file version again and ensure that it contains
@@ -150,7 +150,7 @@ fn open_file() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_APPEND,
+            OpenMode::Append as u64,
             ud,
             cb,
         )))
@@ -211,7 +211,7 @@ fn open_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ | OPEN_MODE_APPEND,
+            OpenMode::Read as u64 | OpenMode::Append as u64,
             ud,
             cb,
         )))
@@ -303,7 +303,7 @@ fn open_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ,
+            OpenMode::Read as u64,
             ud,
             cb,
         )))
@@ -357,7 +357,7 @@ fn fetch_file() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -409,7 +409,7 @@ fn fetch_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ | OPEN_MODE_APPEND,
+            OpenMode::Read as u64 | OpenMode::Append as u64,
             ud,
             cb,
         )))
@@ -454,7 +454,7 @@ fn fetch_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ | OPEN_MODE_APPEND,
+            OpenMode::Read as u64 | OpenMode::Append as u64,
             ud,
             cb,
         )))
@@ -502,7 +502,7 @@ fn delete_then_open_file() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -557,7 +557,7 @@ fn delete_then_open_file() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -607,7 +607,7 @@ fn delete_then_open_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ | OPEN_MODE_APPEND,
+            OpenMode::Read as u64 | OpenMode::Append as u64,
             ud,
             cb,
         )))
@@ -650,7 +650,7 @@ fn open_close_file() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -699,7 +699,7 @@ fn open_close_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ,
+            OpenMode::Read as u64,
             ud,
             cb,
         )))
@@ -726,7 +726,7 @@ fn open_close_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -753,7 +753,7 @@ fn open_close_file() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_APPEND,
+            OpenMode::Append as u64,
             ud,
             cb,
         )))
@@ -780,7 +780,7 @@ fn file_open_read_write() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -804,7 +804,7 @@ fn file_open_read_write() {
             &app,
             &container_info,
             &written_file.into_repr_c(),
-            OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
+            OpenMode::Overwrite as u64 | OpenMode::Append as u64 | OpenMode::Read as u64,
             ud,
             cb,
         )))
@@ -852,7 +852,7 @@ fn file_open_read_write() {
             &app,
             &container_info,
             &written_file.into_repr_c(),
-            OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND | OPEN_MODE_READ,
+            OpenMode::Overwrite as u64 | OpenMode::Append as u64 | OpenMode::Read as u64,
             ud,
             cb,
         )))
@@ -897,7 +897,7 @@ fn file_read_chunks() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -945,7 +945,7 @@ fn file_read_chunks() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ,
+            OpenMode::Read as u64,
             ud,
             cb,
         )))
@@ -1019,7 +1019,7 @@ fn file_write_chunks() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_OVERWRITE,
+            OpenMode::Overwrite as u64,
             ud,
             cb,
         )))
@@ -1059,7 +1059,7 @@ fn file_write_chunks() {
             &app,
             &container_info,
             &file.into_repr_c(),
-            OPEN_MODE_READ,
+            OpenMode::Read as u64,
             ud,
             cb,
         )))
@@ -1097,7 +1097,7 @@ fn file_write_chunks() {
             &app,
             &container_info,
             &ffi_file,
-            OPEN_MODE_APPEND,
+            OpenMode::Append as u64,
             ud,
             cb
         )))
@@ -1111,7 +1111,7 @@ fn file_write_chunks() {
             &app,
             &container_info,
             &written_file.into_repr_c(),
-            OPEN_MODE_READ,
+            OpenMode::Read as u64,
             ud,
             cb,
         )))
