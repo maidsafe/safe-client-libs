@@ -7,6 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 //! These tests ensure binary compatibility between different versions of `safe_client_libs`.
+//!
+//! First, `scripts/build-binary` must be run with the reference version. Then, run
+//! `scripts/test-binary` with the updated version you wish to test.
 
 #![cfg(feature = "mock-network")]
 
@@ -31,12 +34,20 @@ use std::str::FromStr;
 #[test]
 #[ignore]
 fn serialisation_write_data() {
-    let (stash, vault_path) = setup();
+    let vault_path = get_vault_path();
+    println!("vault_path: {:?}", vault_path);
 
-    // Clear the vault store.
     if vault_path.exists() {
-        unwrap!(fs::remove_file(vault_path));
+        // Clear the vault store.
+        unwrap!(fs::remove_file(vault_path.clone()));
+
+        if vault_path.exists() {
+            panic!("Vault file {:?} was not removed successfully!", vault_path);
+        }
     }
+
+    // Set up a fresh mock vault.
+    let stash = setup();
 
     let auth = unwrap!(Authenticator::create_acc(
         stash.locator.clone(),
@@ -78,7 +89,18 @@ fn serialisation_write_data() {
 #[test]
 #[ignore]
 fn serialisation_read_data() {
-    let (stash, _) = setup();
+    let vault_path = get_vault_path();
+    println!("vault_path: {:?}", vault_path);
+
+    if !vault_path.exists() {
+        panic!(
+            "Vault file {:?} does not exist! Have you run `serialisation_write_data`?",
+            vault_path
+        );
+    }
+
+    // Set up the mock vault, assuming the previous mock vault file still exists.
+    let stash = setup();
 
     let auth = unwrap!(Authenticator::login(
         stash.locator.clone(),
@@ -174,9 +196,12 @@ struct Stash {
     auth_req0: AuthReq,
 }
 
-fn setup() -> (Stash, PathBuf) {
+fn get_vault_path() -> PathBuf {
     let config = config_handler::get_config();
+    mock_vault_path(&config)
+}
 
+fn setup() -> Stash {
     // IMPORTANT: Use constant seed for repeatability.
     let mut rng = XorShiftRng::from_seed([0, 1, 2, 3]);
 
@@ -228,15 +253,13 @@ fn setup() -> (Stash, PathBuf) {
         unwrap!(Coins::from_str("10"))
     ));
 
-    let stash = Stash {
+    Stash {
         locator: random_string(&mut rng, 16),
         password: random_string(&mut rng, 16),
         balance_sk,
         auth_req0,
         auth_req1,
-    };
-
-    (stash, mock_vault_path(&config))
+    }
 }
 
 fn random_string<R: Rng>(rng: &mut R, len: usize) -> String {
