@@ -49,7 +49,8 @@ use safe_nd::{
     IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
     MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue,
     MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
-    Request, Response, SeqMutableData, Signature, Transaction, UnseqMutableData, XorName,
+    Request, RequestType, Response, SeqMutableData, Signature, Transaction, UnseqMutableData,
+    XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -72,6 +73,65 @@ lazy_static! {
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
     Ok(Config::new().quic_p2p.hard_coded_contacts)
+}
+
+fn send(client: &impl Client, request: Request) -> Box<CoreFuture<Response>> {
+    // `sign` should be false for GETs on published data, true otherwise.
+    let sign = request.get_type() != RequestType::PublicGet;
+    let request = client.compose_message(request, sign);
+    let inner = client.inner();
+    let cm = &mut inner.borrow_mut().connection_manager;
+    cm.send(&client.public_id(), &request)
+}
+
+// Sends a mutation request to a new routing.
+fn send_mutation(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
+    Box::new(send(client, req).and_then(move |res| {
+        trace!("mutation res: {:?}", res);
+        match res {
+            Response::Mutation(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+    }))
+}
+
+// Sends a request either using a default user's identity, or reconnects to another group
+// to use another identity.
+macro_rules! send_as {
+    ($client:expr, $request:expr, $response:path, $secret_key:expr) => {
+        send_as_helper($client, $request, $secret_key)
+            .and_then(|res| match res {
+                $response(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
+    };
+}
+
+fn send_as_helper(
+    client: &impl Client,
+    request: Request,
+    secret_key: Option<&BlsSecretKey>,
+) -> Box<CoreFuture<Response>> {
+    let (message, identity) = match secret_key {
+        Some(key) => (
+            sign_request_with_key(request, key),
+            SafeKey::client_from_bls_key(key.clone()),
+        ),
+        None => (client.compose_message(request, true), client.full_id()),
+    };
+
+    let pub_id = identity.public_id();
+
+    let inner = client.inner();
+
+    let cm = &mut inner.borrow_mut().connection_manager;
+    let mut cm2 = cm.clone();
+
+    Box::new(
+        cm.bootstrap(identity.clone())
+            .and_then(move |_| cm2.send(&pub_id, &message)),
+    )
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
@@ -188,20 +248,16 @@ pub trait Client: Clone + 'static {
         transaction_id: Option<u64>,
     ) -> Box<CoreFuture<Transaction>> {
         trace!("Transfer {} coins to {:?}", amount, destination);
-        send_as(
+        send_as!(
             self,
             Request::TransferCoins {
                 destination,
                 amount,
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
-            secret_key,
+            Response::Transaction,
+            secret_key
         )
-        .and_then(|res| match res {
-            Response::Transaction(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
     }
 
     /// Creates a new balance on the network.
@@ -217,20 +273,17 @@ pub trait Client: Clone + 'static {
             new_balance_owner,
             amount
         );
-        send_as(
+
+        send_as!(
             self,
             Request::CreateBalance {
                 new_balance_owner,
                 amount,
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
-            secret_key,
+            Response::Transaction,
+            secret_key
         )
-        .and_then(|res| match res {
-            Response::Transaction(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
     }
 
     /// Insert a given login packet at the specified destination
@@ -249,7 +302,7 @@ pub trait Client: Clone + 'static {
         );
 
         let transaction_id = transaction_id.unwrap_or_else(rand::random);
-        send_as(
+        send_as!(
             self,
             Request::CreateLoginPacketFor {
                 new_owner,
@@ -257,13 +310,9 @@ pub trait Client: Clone + 'static {
                 transaction_id,
                 new_login_packet,
             },
-            secret_key,
+            Response::Transaction,
+            secret_key
         )
-        .and_then(|res| match res {
-            Response::Transaction(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
     }
 
     /// Get the current coin balance.
@@ -273,12 +322,7 @@ pub trait Client: Clone + 'static {
     ) -> Box<CoreFuture<Coins>> {
         trace!("Get balance for {:?}", secret_key);
 
-        send_as(self, Request::GetBalance, secret_key)
-            .and_then(|res| match res {
-                Response::GetBalance(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .into_box()
+        send_as!(self, Request::GetBalance, Response::GetBalance, secret_key)
     }
 
     /// Put immutable data to the network.
@@ -300,7 +344,7 @@ pub trait Client: Clone + 'static {
         }
 
         let inner = Rc::downgrade(&self.inner());
-        send(self, Request::GetIData(address), address.is_unpub())
+        send(self, Request::GetIData(address))
             .and_then(|res| match res {
                 Response::GetIData(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -345,19 +389,17 @@ pub trait Client: Clone + 'static {
     fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
         trace!("Fetch Unsequenced Mutable Data");
 
-        send(
-            self,
-            Request::GetMData(MDataAddress::Unseq { name, tag }),
-            true,
-        )
-        .and_then(|res| match res {
-            Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
-                MData::Unseq(data) => Ok(data),
-                MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
-            }),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+        send(self, Request::GetMData(MDataAddress::Unseq { name, tag }))
+            .and_then(|res| match res {
+                Response::GetMData(res) => {
+                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                        MData::Unseq(data) => Ok(data),
+                        MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
@@ -375,7 +417,6 @@ pub trait Client: Clone + 'static {
                 address: MDataAddress::Seq { name, tag },
                 key,
             },
-            true,
         )
         .and_then(|res| match res {
             Response::GetMDataValue(res) => {
@@ -404,7 +445,6 @@ pub trait Client: Clone + 'static {
                 address: MDataAddress::Unseq { name, tag },
                 key,
             },
-            true,
         )
         .and_then(|res| match res {
             Response::GetMDataValue(res) => {
@@ -422,19 +462,17 @@ pub trait Client: Clone + 'static {
     fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
         trace!("Fetch Sequenced Mutable Data");
 
-        send(
-            self,
-            Request::GetMData(MDataAddress::Seq { name, tag }),
-            true,
-        )
-        .and_then(|res| match res {
-            Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
-                MData::Seq(data) => Ok(data),
-                MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
-            }),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+        send(self, Request::GetMData(MDataAddress::Seq { name, tag }))
+            .and_then(|res| match res {
+                Response::GetMData(res) => {
+                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                        MData::Seq(data) => Ok(data),
+                        MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+                    })
+                }
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
     }
 
     /// Mutates sequenced `MutableData` entries in bulk
@@ -480,7 +518,6 @@ pub trait Client: Clone + 'static {
         send(
             self,
             Request::GetMDataShell(MDataAddress::Seq { name, tag }),
-            true,
         )
         .and_then(|res| match res {
             Response::GetMDataShell(res) => {
@@ -501,7 +538,6 @@ pub trait Client: Clone + 'static {
         send(
             self,
             Request::GetMDataShell(MDataAddress::Unseq { name, tag }),
-            true,
         )
         .and_then(|res| match res {
             Response::GetMDataShell(res) => {
@@ -519,7 +555,7 @@ pub trait Client: Clone + 'static {
     fn get_mdata_version(&self, address: MDataAddress) -> Box<CoreFuture<u64>> {
         trace!("GetMDataVersion for {:?}", address);
 
-        send(self, Request::GetMDataVersion(address), true)
+        send(self, Request::GetMDataVersion(address))
             .and_then(|res| match res {
                 Response::GetMDataVersion(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -538,7 +574,6 @@ pub trait Client: Clone + 'static {
         send(
             self,
             Request::ListMDataEntries(MDataAddress::Unseq { name, tag }),
-            true,
         )
         .and_then(|res| match res {
             Response::ListMDataEntries(res) => {
@@ -560,7 +595,6 @@ pub trait Client: Clone + 'static {
         send(
             self,
             Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
-            true,
         )
         .and_then(|res| match res {
             Response::ListMDataEntries(res) => {
@@ -579,7 +613,7 @@ pub trait Client: Clone + 'static {
     fn list_mdata_keys(&self, address: MDataAddress) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
         trace!("ListMDataKeys for {:?}", address);
 
-        send(self, Request::ListMDataKeys(address), true)
+        send(self, Request::ListMDataKeys(address))
             .and_then(|res| match res {
                 Response::ListMDataKeys(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -598,7 +632,6 @@ pub trait Client: Clone + 'static {
         send(
             self,
             Request::ListMDataValues(MDataAddress::Seq { name, tag }),
-            true,
         )
         .and_then(|res| match res {
             Response::ListMDataValues(res) => {
@@ -621,16 +654,12 @@ pub trait Client: Clone + 'static {
     ) -> Box<CoreFuture<MDataPermissionSet>> {
         trace!("GetMDataUserPermissions for {:?}", address);
 
-        send(
-            self,
-            Request::ListMDataUserPermissions { address, user },
-            true,
-        )
-        .and_then(|res| match res {
-            Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+        send(self, Request::ListMDataUserPermissions { address, user })
+            .and_then(|res| match res {
+                Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
     }
 
     /// Returns a list of values in an Unsequenced Mutable Data
@@ -640,7 +669,6 @@ pub trait Client: Clone + 'static {
         send(
             self,
             Request::ListMDataValues(MDataAddress::Unseq { name, tag }),
-            true,
         )
         .and_then(|res| match res {
             Response::ListMDataValues(res) => {
@@ -666,7 +694,7 @@ pub trait Client: Clone + 'static {
     fn get_adata(&self, address: ADataAddress) -> Box<CoreFuture<AData>> {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
-        send(self, Request::GetAData(address), address.is_unpub())
+        send(self, Request::GetAData(address))
             .and_then(|res| match res {
                 Response::GetAData(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -688,7 +716,6 @@ pub trait Client: Clone + 'static {
                 address,
                 data_index,
             },
-            address.is_unpub(),
         )
         .and_then(|res| match res {
             Response::GetADataShell(res) => res.map_err(CoreError::from),
@@ -704,16 +731,12 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        send(
-            self,
-            Request::GetADataValue { address, key },
-            address.is_unpub(),
-        )
-        .and_then(|res| match res {
-            Response::GetADataValue(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+        send(self, Request::GetADataValue { address, key })
+            .and_then(|res| match res {
+                Response::GetADataValue(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
     }
 
     /// Get a Set of Entries for the requested range from an AData.
@@ -727,16 +750,12 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        send(
-            self,
-            Request::GetADataRange { address, range },
-            address.is_unpub(),
-        )
-        .and_then(|res| match res {
-            Response::GetADataRange(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+        send(self, Request::GetADataRange { address, range })
+            .and_then(|res| match res {
+                Response::GetADataRange(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
     }
 
     /// Get latest indices from an AppendOnly Data.
@@ -746,7 +765,7 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        send(self, Request::GetADataIndices(address), address.is_unpub())
+        send(self, Request::GetADataIndices(address))
             .and_then(|res| match res {
                 Response::GetADataIndices(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -761,16 +780,12 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        send(
-            self,
-            Request::GetADataLastEntry(address),
-            address.is_unpub(),
-        )
-        .and_then(|res| match res {
-            Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+        send(self, Request::GetADataLastEntry(address))
+            .and_then(|res| match res {
+                Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
+            })
+            .into_box()
     }
 
     /// Get permissions at the provided index.
@@ -790,7 +805,6 @@ pub trait Client: Clone + 'static {
                 address,
                 permissions_index,
             },
-            true,
         )
         .and_then(|res| match res {
             Response::GetADataPermissions(res) => {
@@ -822,7 +836,6 @@ pub trait Client: Clone + 'static {
                 address,
                 permissions_index,
             },
-            false,
         )
         .and_then(|res| match res {
             Response::GetADataPermissions(res) => {
@@ -856,7 +869,6 @@ pub trait Client: Clone + 'static {
                 permissions_index,
                 user,
             },
-            false,
         )
         .and_then(|res| match res {
             Response::GetPubADataUserPermissions(res) => res.map_err(CoreError::from),
@@ -884,7 +896,6 @@ pub trait Client: Clone + 'static {
                 permissions_index,
                 public_key,
             },
-            true,
         )
         .and_then(|res| match res {
             Response::GetUnpubADataUserPermissions(res) => res.map_err(CoreError::from),
@@ -967,7 +978,6 @@ pub trait Client: Clone + 'static {
                 address,
                 owners_index,
             },
-            address.is_unpub(),
         )
         .and_then(|res| match res {
             Response::GetADataOwners(res) => res.map_err(CoreError::from),
@@ -993,7 +1003,7 @@ pub trait Client: Clone + 'static {
     ) -> Box<CoreFuture<BTreeMap<PublicKey, MDataPermissionSet>>> {
         trace!("List MDataPermissions for {:?}", address);
 
-        send(self, Request::ListMDataPermissions(address), true)
+        send(self, Request::ListMDataPermissions(address))
             .and_then(|res| match res {
                 Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1104,20 +1114,16 @@ pub trait Client: Clone + 'static {
             amount,
         );
 
-        send_as(
+        send_as!(
             self,
             Request::CreateBalance {
                 new_balance_owner,
                 amount,
                 transaction_id: new_rand::random(),
             },
-            secret_key,
+            Response::Transaction,
+            secret_key
         )
-        .and_then(|res| match res {
-            Response::Transaction(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
     }
 }
 
@@ -1250,7 +1256,7 @@ pub trait AuthActions: Client + Clone + 'static {
     ) -> Box<CoreFuture<(BTreeMap<PublicKey, AppPermissions>, u64)>> {
         trace!("ListAuthKeysAndVersion");
 
-        send(self, Request::ListAuthKeysAndVersion, true)
+        send(self, Request::ListAuthKeysAndVersion)
             .and_then(|res| match res {
                 Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1352,53 +1358,6 @@ impl<C: Client, T> ClientInner<C, T> {
     pub fn cm(&mut self) -> &mut ConnectionManager {
         &mut self.connection_manager
     }
-}
-
-/// Sends a request either using a default user's identity, or reconnects to another group
-/// to use another identity.
-fn send_as(
-    client: &impl Client,
-    request: Request,
-    secret_key: Option<&BlsSecretKey>,
-) -> Box<CoreFuture<Response>> {
-    let (message, identity) = match secret_key {
-        Some(key) => (
-            sign_request_with_key(request, key),
-            SafeKey::client_from_bls_key(key.clone()),
-        ),
-        None => (client.compose_message(request, true), client.full_id()),
-    };
-
-    let pub_id = identity.public_id();
-
-    let inner = client.inner();
-
-    let cm = &mut inner.borrow_mut().connection_manager;
-    let mut cm2 = cm.clone();
-
-    Box::new(
-        cm.bootstrap(identity.clone())
-            .and_then(move |_| cm2.send(&pub_id, &message)),
-    )
-}
-
-// `sign` should be false for GETs on published data, true otherwise.
-fn send(client: &impl Client, request: Request, sign: bool) -> Box<CoreFuture<Response>> {
-    let request = client.compose_message(request, sign);
-    let inner = client.inner();
-    let cm = &mut inner.borrow_mut().connection_manager;
-    cm.send(&client.public_id(), &request)
-}
-
-/// Sends a mutation request to a new routing.
-fn send_mutation(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
-    Box::new(send(client, req, true).and_then(move |res| {
-        trace!("mutation res: {:?}", res);
-        match res {
-            Response::Mutation(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }))
 }
 
 /// Send a request and wait for a response.
