@@ -63,10 +63,6 @@ impl CoinBalance {
         };
         self.credits.push_front(credit);
     }
-
-    pub fn owner(&self) -> &PublicKey {
-        &self.owner
-    }
 }
 
 #[derive(Deserialize, Serialize)]

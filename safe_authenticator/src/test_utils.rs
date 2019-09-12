@@ -208,6 +208,8 @@ pub fn register_rand_app(
         app_container,
         app_permissions: AppPermissions {
             transfer_coins: true,
+            perform_mutations: true,
+            get_balance: true,
         },
         containers: containers_req,
     };
