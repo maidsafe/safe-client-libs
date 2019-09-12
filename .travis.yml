@@ -13,11 +13,11 @@ stages:
   - deploy
 jobs:
   include:
-    # # Warm up the cache dependencies
+    # Warm up the cache dependencies
     - stage: warmup
       script: set -x; scripts/build-real-core
       os: linux
-    # # Warm up the cache for a real build
+    # Warm up the cache for a real build
     - stage: warmup
       script: set -x; scripts/build-real
       os: linux
