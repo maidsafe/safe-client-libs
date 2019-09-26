@@ -109,6 +109,12 @@ pub struct AuthReq {
     /// App has permission to transfer coins on behalf of the user.
     pub app_permission_transfer_coins: bool,
 
+    /// App has permission to perform mutations on behalf of the user.
+    pub app_permission_perform_mutations: bool,
+
+    /// App has permission to read balance on behalf of the user.
+    pub app_permission_get_balance: bool,
+
     /// Array of `ContainerPermissions`
     pub containers: *const ContainerPermissions,
 

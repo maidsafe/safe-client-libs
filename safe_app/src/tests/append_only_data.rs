@@ -489,6 +489,8 @@ fn restricted_access_and_deletion() {
                                 app_key,
                                 AppPermissions {
                                     transfer_coins: true,
+                                    perform_mutations: true,
+                                    get_balance: true,
                                 },
                                 version + 1,
                             )

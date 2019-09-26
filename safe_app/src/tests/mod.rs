@@ -160,7 +160,9 @@ fn authorise_app(
             app: app_info.clone(),
             app_container,
             app_permissions: AppPermissions {
-                transfer_coins: true
+                transfer_coins: true,
+                perform_mutations: true,
+                get_balance: true,
             },
             containers: HashMap::new(),
         },
@@ -318,6 +320,24 @@ fn unregistered_client() {
     }));
 }
 
+// Test PUTs by unregistered clients.
+// 1. Have a unregistered client put published immutable. This should fail by returning Error
+// as they are not allowed to PUT data into the network.
+#[test]
+fn unregistered_client_put() {
+    let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
+
+    let app = unwrap!(App::unregistered(|| (), None));
+    // Unregistered Client should not be able to PUT data.
+    unwrap!(run(&app, move |client, _context| {
+        client.put_idata(pub_idata).then(move |res| match res {
+            Err(CoreError::DataError(SndError::AccessDenied)) => Ok(()),
+            Ok(()) => panic!("Unexpected Success"),
+            Err(e) => panic!("Unexpected Error: {}", e),
+        })
+    }));
+}
+
 // Verify that published data can be accessed by both unregistered clients and clients that are not in the permission set
 #[test]
 fn published_data_access() {
@@ -414,10 +434,12 @@ fn published_data_access() {
 // Test account usage statistics before and after a mutation.
 #[test]
 fn account_info() {
-    // Create an app that can access the owner's coin balance.
+    // Create an app that can access the owner's coin balance and mutate data on behalf of user.
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
-        transfer_coins: true,
+        transfer_coins: false,
+        perform_mutations: true,
+        get_balance: true,
     };
 
     let app = unwrap!(create_app_by_req(&app_auth_req));

@@ -28,6 +28,8 @@ fn coin_app_deny_permissions() {
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_coins: false,
+        perform_mutations: false,
+        get_balance: false,
     };
 
     let app = unwrap!(create_app_by_req(&app_auth_req));
@@ -73,10 +75,12 @@ fn coin_app_allow_permissions() {
         Ok(XorName::from(owner_key))
     }));
 
-    // Create an app that can access the owner's coin balance.
+    // Create an app that can access and transfer coins from the owner's coin balance.
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_coins: true,
+        perform_mutations: false,
+        get_balance: true,
     };
 
     let app = unwrap!(create_app_by_req(&app_auth_req));

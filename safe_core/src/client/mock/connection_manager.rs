@@ -195,11 +195,11 @@ pub fn clone_vault() -> Arc<Mutex<Vault>> {
     VAULT.clone()
 }
 
-pub fn unlimited_muts(config: &Config) -> bool {
-    match env::var("SAFE_MOCK_UNLIMITED_MUTATIONS") {
+pub fn unlimited_coins(config: &Config) -> bool {
+    match env::var("SAFE_MOCK_UNLIMITED_COINS") {
         Ok(_) => true,
         Err(_) => match config.dev {
-            Some(ref dev) => dev.mock_unlimited_mutations,
+            Some(ref dev) => dev.mock_unlimited_coins,
             None => false,
         },
     }

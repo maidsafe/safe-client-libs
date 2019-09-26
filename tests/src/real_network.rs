@@ -631,6 +631,8 @@ fn ffi_authorise_app(auth_h: *mut Authenticator, app_info: &AppExchangeInfo) -> 
         app_container: false,
         app_permissions: AppPermissions {
             transfer_coins: true,
+            perform_mutations: true,
+            get_balance: true,
         },
         containers: create_containers_req(),
     };
