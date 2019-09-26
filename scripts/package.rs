@@ -44,85 +44,85 @@ const TARGET_WINDOWS_X86: &str = "i686-pc-windows-gnu";
 const TARGET_WINDOWS_X64: &str = "x86_64-pc-windows-gnu";
 const TARGET_IOS_X64: &str = "x86_64-apple-ios";
 const TARGET_IOS_ARM64: &str = "aarch64-apple-ios";
+const TARGET_IOS_UNIVERSAL: &str = "apple-ios";
 const TARGET_ANDROID_X86: &str = "i686-linux-android";
+const TARGET_ANDROID_X64: &str = "x86_64-linux-android";
 const TARGET_ANDROID_ARMEABIV7A: &str = "armv7-linux-androideabi";
 
 const CRATES: &[&str] = &["safe_app", "safe_authenticator"];
 
-const ARCHS: &[Arch] = &[
-    Arch {
-        name: "linux-x86",
-        target: TARGET_LINUX_X86,
+const TARGET_TRIPLES: &[TargetTriple] = &[
+    TargetTriple {
+        name: TARGET_LINUX_X86,
         toolchain: "",
     },
-    Arch {
-        name: "linux-x64",
-        target: TARGET_LINUX_X64,
+    TargetTriple {
+        name: TARGET_LINUX_X64,
         toolchain: "",
     },
-    Arch {
-        name: "osx-x86",
-        target: TARGET_OSX_X86,
+    TargetTriple {
+        name: TARGET_OSX_X86,
         toolchain: "",
     },
-    Arch {
-        name: "osx-x64",
-        target: TARGET_OSX_X64,
+    TargetTriple {
+        name: TARGET_OSX_X64,
         toolchain: "",
     },
-    Arch {
-        name: "win-x86",
-        target: TARGET_WINDOWS_X86,
+    TargetTriple {
+        name: TARGET_WINDOWS_X86,
         toolchain: "",
     },
-    Arch {
-        name: "win-x64",
-        target: TARGET_WINDOWS_X64,
+    TargetTriple {
+        name: TARGET_WINDOWS_X64,
         toolchain: "",
     },
-    Arch {
-        name: "android-armeabiv7a",
-        target: TARGET_ANDROID_ARMEABIV7A,
+    TargetTriple {
+        name: TARGET_ANDROID_ARMEABIV7A,
         toolchain: "arm-linux-androideabi-",
     },
-    Arch {
-        name: "android-x86",
-        target: TARGET_ANDROID_X86,
+    TargetTriple {
+        name: TARGET_ANDROID_X86,
         toolchain: "i686-linux-android-",
     },
-    Arch {
-        name: "ios-arm64",
-        target: TARGET_IOS_ARM64,
+    TargetTriple {
+        name: TARGET_ANDROID_X64,
+        toolchain: "x86_64-linux-android-",
+    },
+    TargetTriple {
+        name: TARGET_IOS_ARM64,
         toolchain: "",
     },
-    Arch {
-        name: "ios-x86_64",
-        target: TARGET_IOS_X64,
+    TargetTriple {
+        name: TARGET_IOS_X64,
+        toolchain: "",
+    },
+    TargetTriple {
+        name: TARGET_IOS_UNIVERSAL,
         toolchain: "",
     },
 ];
 
 #[cfg(all(target_os = "linux", target_arch = "x86"))]
-const HOST_ARCH_NAME: &str = "linux-x86";
+const HOST_TARGET_TRIPLE: &str = "x86-unknown-linux-gnu";
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-const HOST_ARCH_NAME: &str = "linux-x64";
+const HOST_TARGET_TRIPLE: &str = "x86_64-unknown-linux-gnu";
 #[cfg(all(target_os = "macos", target_arch = "x86"))]
-const HOST_ARCH_NAME: &str = "osx-x86";
+const HOST_TARGET_TRIPLE: &str = "x86-apple-darwin";
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-const HOST_ARCH_NAME: &str = "osx-x64";
+const HOST_TARGET_TRIPLE: &str = "x86_64-apple-darwin";
 #[cfg(all(target_os = "windows", target_arch = "x86"))]
-const HOST_ARCH_NAME: &str = "win-x86";
+const HOST_TARGET_TRIPLE: &str = "x86-pc-windows-gnu";
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-const HOST_ARCH_NAME: &str = "win-x64";
+const HOST_TARGET_TRIPLE: &str = "x86_64-pc-windows-gnu";
 
 const BINDINGS_LANGS: &[&str] = &["csharp"];
 
 const COMMIT_HASH_LEN: usize = 7;
 
 fn main() {
-    let arch_names: Vec<_> = ARCHS
+    let target_names: Vec<_> = TARGET_TRIPLES
         .into_iter()
-        .map(|args| args.name)
+        .map(|target| target.name)
         .chain(iter::once("ios"))
         .collect();
 
@@ -146,15 +146,14 @@ fn main() {
                 .long("rebuild")
                 .takes_value(false)
                 .required(false)
-                .help("If true a cargo build will run and output the artifacts to target/<arch>")
+                .help("If true a cargo build will run and output the artifacts to target/<arch>."),
         )
         .arg(
-            Arg::with_name("ARCH")
-                .short("a")
-                .long("arch")
+            Arg::with_name("TARGET_TRIPLE")
+                .long("target")
                 .takes_value(true)
-                .possible_values(&arch_names)
-                .help("Target platform and architecture"),
+                .possible_values(&target_names)
+                .help("Specifies the target triple to package or build."),
         )
         .arg(Arg::with_name("LIB").short("l").long("lib").help(
             "Generates library package",
@@ -196,7 +195,8 @@ fn main() {
                 .takes_value(true)
                 .help("Directory containing the artifacts to package. If not specified, the CARGO_TARGET_DIR
                       variable will be queried for its value, and if that's not set, we will assume the 'target'
-                      directory in the current directory."),
+                      directory in the current directory. The artifacts directory should be structured as
+                      <target triple>/release, e.g. x86_64-unknown-linux-gnu/release."),
         )
         .get_matches();
 
@@ -204,8 +204,8 @@ fn main() {
     let rebuild = matches.is_present("REBUILD");
     let version_string = get_version_string(krate, matches.is_present("COMMIT"));
 
-    let arch_name = matches.value_of("ARCH").unwrap_or(HOST_ARCH_NAME);
-    let arch = find_arch(arch_name);
+    let target_name = matches.value_of("TARGET_TRIPLE").unwrap_or(HOST_TARGET_TRIPLE);
+    let target = find_target(target_name);
 
     let dest_dir = matches.value_of("DEST").unwrap_or(".");
     let bindings = matches.is_present("BINDINGS");
@@ -222,7 +222,7 @@ fn main() {
 
     let file_options = FileOptions::default();
 
-    setup_env(toolchain_path, arch);
+    setup_env(toolchain_path, target);
 
     // Gather features.
     let mut features = vec![];
@@ -234,18 +234,14 @@ fn main() {
         features.push("bindings");
     }
 
-    // Run the build.
     let mut libs = Vec::new();
-    if arch_name == "ios" {
-        // iOS fat library.
-        let mut arch_libs = ["ios-arm64", "ios-x86_64"]
+    if target_name.contains("ios") && HOST_TARGET_TRIPLE == TARGET_OSX_X64 {
+        let mut arch_libs = [TARGET_IOS_ARM64, TARGET_IOS_X64]
             .into_iter()
-            .flat_map(|arch_name| {
-                let arch = find_arch(arch_name).unwrap();
-                let target = &arch.target;
-
+            .flat_map(|target_name| {
+                let target = find_target(target_name);
                 if rebuild {
-                    if !build(krate, &features, Some(target)) {
+                    if !build(krate, &features, Some(target_name)) {
                         return Vec::new();
                     }
                 }
@@ -254,13 +250,9 @@ fn main() {
                     return Vec::new();
                 }
 
-                let libs = if rebuild {
-                    find_libs(krate, Some(target), &target_dir)
-                } else {
-                    find_libs(krate, None, &target_dir)
-                };
+                let libs = find_libs(krate, Some(target_name), &target_dir);
                 if strip {
-                    strip_libs(toolchain_path, Some(arch), &libs);
+                    strip_libs(toolchain_path, target, &libs);
                 }
                 libs
             }).peekable();
@@ -272,21 +264,17 @@ fn main() {
         }
     } else {
         // Normal library
-        let target = arch.map(|arch| arch.target);
+        let target_name = target.map(|target| target.name);
         if rebuild {
-            if !build(krate, &features, target) {
+            if !build(krate, &features, target_name) {
                 return;
             }
         }
 
         if lib {
-            let arch_libs = if rebuild {
-                find_libs(krate, target, &target_dir)
-            } else {
-                find_libs(krate, None, &target_dir)
-            };
+            let arch_libs = find_libs(krate, target_name, &target_dir);
             if strip {
-                strip_libs(toolchain_path, arch, &arch_libs);
+                strip_libs(toolchain_path, target, &arch_libs);
             }
             libs.extend_from_slice(&arch_libs)
         }
@@ -294,7 +282,7 @@ fn main() {
 
     if !libs.is_empty() {
         package_artifacts_as_zip(
-            &arch_name,
+            &target_name,
             &krate,
             &dest_dir,
             &libs,
@@ -302,7 +290,7 @@ fn main() {
             mock,
             file_options,
         );
-        package_artifacts_as_tar_gz(&arch_name, &krate, &dest_dir, &libs, &version_string, mock);
+        package_artifacts_as_tar_gz(&target_name, &krate, &dest_dir, &libs, &version_string, mock);
     }
 
     // Create bindings archive.
@@ -336,14 +324,13 @@ fn main() {
     }
 }
 
-struct Arch {
+struct TargetTriple {
     name: &'static str,
-    target: &'static str,
     toolchain: &'static str,
 }
 
 fn package_artifacts_as_zip(
-    arch_name: &str,
+    target_name: &str,
     krate: &str,
     dest_dir: &str,
     libs: &[PathBuf],
@@ -351,7 +338,7 @@ fn package_artifacts_as_zip(
     mock: bool,
     file_options: FileOptions,
 ) {
-    let archive_name = get_archive_name(&arch_name, &krate, "zip", &version_string, mock);
+    let archive_name = get_archive_name(&target_name, &krate, "zip", &version_string, mock);
     let path: PathBuf = [dest_dir, &archive_name].iter().collect();
     let file = File::create(path).unwrap();
     let mut archive = ZipWriter::new(file);
@@ -366,14 +353,14 @@ fn package_artifacts_as_zip(
 }
 
 fn package_artifacts_as_tar_gz(
-    arch_name: &str,
+    target_name: &str,
     krate: &str,
     dest_dir: &str,
     libs: &[PathBuf],
     version_string: &str,
     mock: bool,
 ) {
-    let archive_name = get_archive_name(&arch_name, &krate, "tar.gz", &version_string, mock);
+    let archive_name = get_archive_name(&target_name, &krate, "tar.gz", &version_string, mock);
     let path: PathBuf = [dest_dir, &archive_name].iter().collect();
     let file = File::create(path).unwrap();
     let enc = GzEncoder::new(file, Compression::default());
@@ -387,7 +374,7 @@ fn package_artifacts_as_tar_gz(
 }
 
 fn get_archive_name(
-    arch_name: &str,
+    target_name: &str,
     krate: &str,
     archive_type: &str,
     version_string: &str,
@@ -396,7 +383,7 @@ fn get_archive_name(
     let mock = if mock { "-mock" } else { "" };
     format!(
         "{}{}-{}-{}.{}",
-        krate, mock, version_string, arch_name, archive_type
+        krate, mock, version_string, target_name, archive_type
     )
 }
 
@@ -430,7 +417,7 @@ fn get_version_string(krate: &str, commit: bool) -> String {
     }
 }
 
-fn get_toolchain_bin(toolchain_path: Option<&str>, arch: Option<&Arch>, bin: &str) -> String {
+fn get_toolchain_bin(toolchain_path: Option<&str>, target: Option<&TargetTriple>, bin: &str) -> String {
     let mut result = PathBuf::new();
 
     if let Some(path) = toolchain_path {
@@ -438,23 +425,23 @@ fn get_toolchain_bin(toolchain_path: Option<&str>, arch: Option<&Arch>, bin: &st
         result.push("bin");
     }
 
-    let prefix = arch.map(|arch| arch.toolchain).unwrap_or("");
+    let prefix = target.map(|target| target.toolchain).unwrap_or("");
 
     result.push(format!("{}{}", prefix, bin));
     result.into_os_string().into_string().unwrap()
 }
 
-fn find_arch(name: &str) -> Option<&Arch> {
-    ARCHS.into_iter().find(|arch| arch.name == name)
+fn find_target(name: &str) -> Option<&TargetTriple> {
+    TARGET_TRIPLES.into_iter().find(|target| target.name == name)
 }
 
-fn setup_env(toolchain_path: Option<&str>, arch: Option<&Arch>) {
-    let arch = if let Some(arch) = arch { arch } else { return };
+fn setup_env(toolchain_path: Option<&str>, target: Option<&TargetTriple>) {
+    let target = if let Some(target) = target { target } else { return };
 
-    let name = format!("CARGO_TARGET_{}_LINKER", arch.target.to_shouty_snake_case());
+    let name = format!("CARGO_TARGET_{}_LINKER", target.name.to_shouty_snake_case());
 
     let value = if let Some(toolchain_path) = toolchain_path {
-        let value = get_toolchain_bin(Some(toolchain_path), Some(arch), "gcc");
+        let value = get_toolchain_bin(Some(toolchain_path), Some(target), "gcc");
 
         println!(
             "{}: setting environment variable {} to {}",
@@ -515,7 +502,6 @@ fn find_libs(krate: &str, target: Option<&str>, target_dir: &str) -> Vec<PathBuf
         prefix = prefix.join(target);
     }
     prefix = prefix.join("release");
-
     let mut result = Vec::with_capacity(1);
 
     // linux,osx - static
@@ -549,8 +535,8 @@ fn find_libs(krate: &str, target: Option<&str>, target_dir: &str) -> Vec<PathBuf
     result
 }
 
-fn strip_libs(toolchain_path: Option<&str>, arch: Option<&Arch>, libs: &[PathBuf]) {
-    let strip_bin = get_toolchain_bin(toolchain_path, arch, "strip");
+fn strip_libs(toolchain_path: Option<&str>, target: Option<&TargetTriple>, libs: &[PathBuf]) {
+    let strip_bin = get_toolchain_bin(toolchain_path, target, "strip");
 
     for path in libs {
         strip_lib(&strip_bin, path);
@@ -600,7 +586,7 @@ fn path_into_string(path: PathBuf) -> String {
 
 fn is_static_lib_required(target: Option<&str>) -> bool {
     match target {
-        Some(TARGET_IOS_ARM64) | Some(TARGET_IOS_X64) => true,
+        Some(TARGET_IOS_UNIVERSAL) | Some(TARGET_IOS_ARM64) | Some(TARGET_IOS_X64) => true,
         Some(_) | None => false,
     }
 }

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -e
+
+if [[ -z "$SCL_BUILD_NUMBER" ]]; then
+	echo "Please set SCL_BUILD_NUMBER to a valid build number."
+    exit 1
+fi
+
+if [[ -z "$SCL_BUILD_BRANCH" ]]; then
+	echo "Please set SCL_BUILD_BRANCH to a valid branch or PR reference."
+    exit 1
+fi
+
+S3_BUCKET=safe-jenkins-build-artifacts
+declare -a types=("mock" "real")
+
+rm -rf artifacts
+for target in "$@"; do
+    echo "Getting artifacts for $target"
+    for type in "${types[@]}"; do
+        mkdir -p "artifacts/$type/$target/release"
+        (
+            cd "artifacts/$type/$target/release"
+            if [[ "$type" == "mock" ]]; then
+                aws s3 cp \
+                    --no-sign-request \
+                    --region eu-west-2 \
+                    "s3://$S3_BUCKET/$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-mock-$target.tar.gz" .
+                tar -xvf "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-mock-$target.tar.gz"
+                rm "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-mock-$target.tar.gz"
+            else
+                aws s3 cp \
+                    --no-sign-request \
+                    --region eu-west-2 \
+                    "s3://$S3_BUCKET/$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$target.tar.gz" .
+                tar -xvf "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$target.tar.gz"
+                rm "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$target.tar.gz"
+            fi
+        )
+    done
+done

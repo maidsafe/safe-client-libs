@@ -197,7 +197,8 @@ impl AppKeys {
 
         let owner_pk = match owner_key {
             PublicKey::Bls(pk) => pk.to_bytes(),
-            _ => panic!("unexpected owner key type"), // TODO and FIXME: use proper ReprC for PublicKey
+            // TODO and FIXME: use proper ReprC for PublicKey
+            _ => panic!("unexpected owner key type"),
         };
 
         ffi::AppKeys {
@@ -217,6 +218,7 @@ impl ReprC for AppKeys {
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let bls_sk = threshold_crypto::SecretKey::random();
+
         Ok(Self {
             owner_key: PublicKey::from(
                 threshold_crypto::PublicKey::from_bytes(repr_c.owner_key)
@@ -297,7 +299,8 @@ pub struct AccessContInfo {
 impl AccessContInfo {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> ffi::AccessContInfo {
-        let AccessContInfo { id, tag, nonce } = self;
+        let Self { id, tag, nonce } = self;
+
         ffi::AccessContInfo {
             id: id.0,
             tag,
@@ -317,9 +320,9 @@ impl AccessContInfo {
     }
 
     /// Creates an `AccessContInfo` from a given `MDataInfo`
-    pub fn from_mdata_info(md: &MDataInfo) -> Result<AccessContInfo, IpcError> {
+    pub fn from_mdata_info(md: &MDataInfo) -> Result<Self, IpcError> {
         if let Some((_, nonce)) = md.enc_info {
-            Ok(AccessContInfo {
+            Ok(Self {
                 id: md.name(),
                 tag: md.type_tag(),
                 nonce,
@@ -641,62 +644,82 @@ mod tests {
         assert_eq!(ag.access_container_info.tag, 681);
     }
 
-    // // Testing converting an `AppKeys` object to its FFI representation and back again.
-    // #[test]
-    // fn app_keys() {
-    //     let (ok, _) = shared_sign::gen_keypair();
-    //     let (pk, sk) = shared_sign::gen_keypair();
-    //     let key = shared_secretbox::gen_key();
-    //     let (ourpk, oursk) = shared_box::gen_keypair();
-    //     let ak = AppKeys {
-    //         owner_key: ok,
-    //         enc_key: key.clone(),
-    //         sign_pk: pk,
-    //         sign_sk: sk.clone(),
-    //         enc_pk: ourpk,
-    //         enc_sk: oursk.clone(),
-    //     };
-
-    //     let ffi_ak = ak.into_repr_c();
-
-    //     assert_eq!(
-    //         ffi_ak.owner_key.iter().collect::<Vec<_>>(),
-    //         ok.0.iter().collect::<Vec<_>>()
-    //     );
-    //     assert_eq!(
-    //         ffi_ak.enc_key.iter().collect::<Vec<_>>(),
-    //         key.0.iter().collect::<Vec<_>>()
-    //     );
-    //     assert_eq!(
-    //         ffi_ak.sign_pk.iter().collect::<Vec<_>>(),
-    //         pk.0.iter().collect::<Vec<_>>()
-    //     );
-    //     assert_eq!(
-    //         ffi_ak.sign_sk.iter().collect::<Vec<_>>(),
-    //         sk.0.iter().collect::<Vec<_>>()
-    //     );
-    //     assert_eq!(
-    //         ffi_ak.enc_pk.iter().collect::<Vec<_>>(),
-    //         ourpk.0.iter().collect::<Vec<_>>()
-    //     );
-    //     assert_eq!(
-    //         ffi_ak.enc_sk.iter().collect::<Vec<_>>(),
-    //         oursk.0.iter().collect::<Vec<_>>()
-    //     );
-
-    //     let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(ffi_ak)) };
-
-    //     assert_eq!(ak.owner_key, ok);
-    //     assert_eq!(ak.enc_key, key);
-    //     assert_eq!(ak.sign_pk, pk);
-    //     assert_eq!(ak.sign_sk, sk);
-    //     assert_eq!(ak.enc_pk, ourpk);
-    //     assert_eq!(ak.enc_sk, oursk);
-    // }
-
-    // Test converting an `AccessContInfo` struct to its FFI representation and back again.
+    // Testing converting an `AppKeys` object to its FFI representation and back again.
     #[test]
-    fn access_container() {
+    fn app_keys() {
+        let pk = SecretKey::random().public_key();
+        let owner_key = PublicKey::Bls(pk);
+        let ak = AppKeys::random(owner_key);
+        let AppKeys {
+            owner_key,
+            enc_key,
+            sign_pk,
+            sign_sk,
+            enc_pk,
+            enc_sk,
+            // TODO: check bls_pk and bls_sk also.
+            ..
+        } = ak.clone();
+
+        let ffi_ak = ak.into_repr_c();
+
+        assert_eq!(
+            ffi_ak.owner_key.iter().collect::<Vec<_>>(),
+            pk.to_bytes().iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            ffi_ak.enc_key.iter().collect::<Vec<_>>(),
+            enc_key.0.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            ffi_ak.sign_pk.iter().collect::<Vec<_>>(),
+            sign_pk.0.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            ffi_ak.sign_sk.iter().collect::<Vec<_>>(),
+            sign_sk.0.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            ffi_ak.enc_pk.iter().collect::<Vec<_>>(),
+            enc_pk.0.iter().collect::<Vec<_>>()
+        );
+        assert_eq!(
+            ffi_ak.enc_sk.iter().collect::<Vec<_>>(),
+            enc_sk.0.iter().collect::<Vec<_>>()
+        );
+
+        let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(ffi_ak)) };
+
+        assert_eq!(ak.owner_key, owner_key);
+        assert_eq!(ak.enc_key, enc_key);
+        assert_eq!(ak.sign_pk, sign_pk);
+        assert_eq!(ak.sign_sk, sign_sk);
+        assert_eq!(ak.enc_pk, enc_pk);
+        assert_eq!(ak.enc_sk, enc_sk);
+    }
+
+    // Test converting an `AccessContInfo` to `MDataInfo` and back again.
+    #[test]
+    fn access_container_mdata_info() {
+        let (key, nonce) = (shared_secretbox::gen_key(), secretbox::gen_nonce());
+        let a = AccessContInfo {
+            id: XorName([2; XOR_NAME_LEN]),
+            tag: 681,
+            nonce,
+        };
+
+        let md = a.clone().into_mdata_info(key.clone());
+
+        let a2 = AccessContInfo::from_mdata_info(&md).unwrap();
+        assert_eq!(a, a2);
+
+        let md2 = a.into_mdata_info(key);
+        assert_eq!(md, md2);
+    }
+
+    // Test converting an `AccessContInfo` to its FFI representation and back again.
+    #[test]
+    fn access_container_ffi() {
         let nonce = secretbox::gen_nonce();
         let a = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),

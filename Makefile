@@ -10,53 +10,77 @@ USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
 UNAME_S := $(shell uname -s)
 S3_BUCKET := safe-jenkins-build-artifacts
-S3_SAFE_APP_LINUX_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_app-mock-${SAFE_APP_VERSION}-linux-x64.tar.gz
-S3_SAFE_APP_WIN_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_app-mock-${SAFE_APP_VERSION}-win-x64.tar.gz
-S3_SAFE_APP_MACOS_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_app-mock-${SAFE_APP_VERSION}-osx-x64.tar.gz
-S3_SAFE_AUTH_LINUX_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_authenticator-mock-${SAFE_AUTH_VERSION}-linux-x64.tar.gz
-S3_SAFE_AUTH_WIN_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_authenticator-mock-${SAFE_AUTH_VERSION}-win-x64.tar.gz
-S3_SAFE_AUTH_MACOS_DEPLOY_URL := https://safe-client-libs.s3.amazonaws.com/safe_authenticator-mock-${SAFE_AUTH_VERSION}-osx-x64.tar.gz
 GITHUB_REPO_OWNER := maidsafe
 GITHUB_REPO_NAME := safe_client_libs
-define GITHUB_RELEASE_DESCRIPTION
-SAFE Network client side Rust module(s)
-
-There are also development versions of this release:
-[Safe App Linux](${S3_SAFE_APP_LINUX_DEPLOY_URL})
-[Safe App macOS](${S3_SAFE_APP_MACOS_DEPLOY_URL})
-[Safe App Windows](${S3_SAFE_APP_WIN_DEPLOY_URL})
-[Safe Auth Linux](${S3_SAFE_AUTH_LINUX_DEPLOY_URL})
-[Safe Auth macOS](${S3_SAFE_AUTH_MACOS_DEPLOY_URL})
-[Safe Auth Windows](${S3_SAFE_AUTH_WIN_DEPLOY_URL})
-
-The development version uses a mocked SAFE network, which allows you to work against a file that mimics the network, where SafeCoins are created for local use.
-endef
-export GITHUB_RELEASE_DESCRIPTION
 
 build-container:
 	rm -rf target/
-	docker rmi -f maidsafe/safe-client-libs-build:build
+	docker rmi -f maidsafe/safe-client-libs-build:x86_64
 	docker build -f scripts/Dockerfile.build \
-		-t maidsafe/safe-client-libs-build:build \
+		-t maidsafe/safe-client-libs-build:x86_64 \
 		--build-arg build_type="real" .
 
 build-mock-container:
 	rm -rf target/
-	docker rmi -f maidsafe/safe-client-libs-build:build-mock
+	docker rmi -f maidsafe/safe-client-libs-build:x86_64-mock
 	docker build -f scripts/Dockerfile.build \
-		-t maidsafe/safe-client-libs-build:build-mock \
+		-t maidsafe/safe-client-libs-build:x86_64-mock \
 		--build-arg build_type="mock" .
 
+build-android-armv7-container:
+	rm -rf target/
+	docker rmi -f maidsafe/safe-client-libs-build:android-armv7
+	docker build -f scripts/Dockerfile.android.armv7.build \
+		-t maidsafe/safe-client-libs-build:android-armv7 \
+		--build-arg build_type="real" \
+		--build-arg target="armv7-linux-androideabi" .
+
+build-android-armv7-mock-container:
+	rm -rf target/
+	docker rmi -f maidsafe/safe-client-libs-build:android-armv7-mock
+	docker build -f scripts/Dockerfile.android.armv7.build \
+		-t maidsafe/safe-client-libs-build:android-armv7-mock \
+		--build-arg build_type="mock" \
+		--build-arg target="armv7-linux-androideabi" .
+
+build-android-x86_64-container:
+	rm -rf target/
+	docker rmi -f maidsafe/safe-client-libs-build:android-x86_64
+	docker build -f scripts/Dockerfile.android.x86_64.build \
+		-t maidsafe/safe-client-libs-build:android-x86_64 \
+		--build-arg build_type="real" \
+		--build-arg target="x86_64-linux-android" .
+
+build-android-x86_64-mock-container:
+	rm -rf target/
+	docker rmi -f maidsafe/safe-client-libs-build:android-x86_64-mock
+	docker build -f scripts/Dockerfile.android.x86_64.build \
+		-t maidsafe/safe-client-libs-build:android-x86_64-mock \
+		--build-arg build_type="mock" \
+		--build-arg target="x86_64-linux-android" .
+
 push-container:
-	docker push maidsafe/safe-client-libs-build:build
+	docker push maidsafe/safe-client-libs-build:x86_64
 
 push-mock-container:
-	docker push maidsafe/safe-client-libs-build:build-mock
+	docker push maidsafe/safe-client-libs-build:x86_64-mock
+
+push-android-armv7-container:
+	docker push maidsafe/safe-client-libs-build:android-armv7
+
+push-android-armv7-mock-container:
+	docker push maidsafe/safe-client-libs-build:android-armv7-mock
+
+push-android-x86_64-container:
+	docker push maidsafe/safe-client-libs-build:android-x86_64
+
+push-android-x86_64-mock-container:
+	docker push maidsafe/safe-client-libs-build:android-x86_64-mock
 
 build:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
-	./scripts/build-with-container "real"
+	./scripts/build-with-container "real" "x86_64"
 else
 	./scripts/build-real
 endif
@@ -66,19 +90,111 @@ endif
 build-mock:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
-	./scripts/build-with-container "mock"
+	./scripts/build-with-container "mock" "x86_64-mock"
 else
 	./scripts/build-mock
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
+build-ios-aarch64:
+	( \
+		cd safe_app; \
+		cargo build --release --target=aarch64-apple-ios; \
+	)
+	( \
+		cd safe_authenticator; \
+		cargo build --release --target=aarch64-apple-ios; \
+	)
+	rm -rf artifacts
+	mkdir artifacts
+	find target/aarch64-apple-ios/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+build-ios-mock-aarch64:
+	( \
+		cd safe_app; \
+		cargo build --release --target=aarch64-apple-ios --features="mock-network"; \
+	)
+	( \
+		cd safe_authenticator; \
+		cargo build --release --target=aarch64-apple-ios --features="mock-network"; \
+	)
+	rm -rf artifacts
+	mkdir artifacts
+	find target/aarch64-apple-ios/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+build-ios-x86_64:
+	( \
+		cd safe_app; \
+		cargo build --release --target=x86_64-apple-ios; \
+	)
+	( \
+		cd safe_authenticator; \
+		cargo build --release --target=x86_64-apple-ios; \
+	)
+	rm -rf artifacts
+	mkdir artifacts
+	find target/x86_64-apple-ios/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+build-ios-mock-x86_64:
+	( \
+		cd safe_app; \
+		cargo build --release --target=x86_64-apple-ios --features="mock-network"; \
+	)
+	( \
+		cd safe_authenticator; \
+		cargo build --release --target=x86_64-apple-ios --features="mock-network"; \
+	)
+	rm -rf artifacts
+	mkdir artifacts
+	find target/x86_64-apple-ios/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
+build-android-armv7:
+ifeq ($(UNAME_S),Linux)
+	rm -rf artifacts
+	./scripts/build-with-container "real" "android-armv7"
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+else
+	echo "Only Linux is supported for this target."
+endif
+
+build-android-mock-armv7:
+ifeq ($(UNAME_S),Linux)
+	rm -rf artifacts
+	./scripts/build-with-container "mock" "android-armv7-mock"
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+else
+	echo "Only Linux is supported for this target."
+endif
+
+build-android-x86_64:
+ifeq ($(UNAME_S),Linux)
+	rm -rf artifacts
+	./scripts/build-with-container "real" "android-x86_64"
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+else
+	echo "Only Linux is supported for this target."
+endif
+
+build-android-mock-x86_64:
+ifeq ($(UNAME_S),Linux)
+	rm -rf artifacts
+	./scripts/build-with-container "mock" "android-x86_64-mock"
+	mkdir artifacts
+	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
+else
+	echo "Only Linux is supported for this target."
+endif
+
 clippy:
 ifeq ($(UNAME_S),Linux)
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		scripts/clippy-all
 else
 	./scripts/clippy-all
@@ -89,7 +205,7 @@ ifeq ($(UNAME_S),Linux)
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		scripts/rustfmt
 else
 	./scripts/rustfmt
@@ -105,9 +221,9 @@ else
 endif
 
 package-build-artifacts:
-ifndef SCL_BRANCH
+ifndef SCL_BUILD_BRANCH
 	@echo "A branch or PR reference must be provided."
-	@echo "Please set SCL_BRANCH to a valid branch or PR reference."
+	@echo "Please set SCL_BUILD_BRANCH to a valid branch or PR reference."
 	@exit 1
 endif
 ifndef SCL_BUILD_NUMBER
@@ -120,15 +236,14 @@ ifndef SCL_BUILD_MOCK
 	@echo "Please set SCL_BUILD_MOCK to true or false."
 	@exit 1
 endif
-ifndef SCL_BUILD_OS
-	@echo "A value must be supplied for SCL_BUILD_OS."
-	@echo "Valid values are 'linux' or 'windows'."
+ifndef SCL_BUILD_TARGET
+	@echo "A value must be supplied for SCL_BUILD_TARGET."
 	@exit 1
 endif
 ifeq ($(SCL_BUILD_MOCK),true)
-	$(eval ARCHIVE_NAME := ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-${SCL_BUILD_OS}-x86_64.tar.gz)
+	$(eval ARCHIVE_NAME := ${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-${SCL_BUILD_TARGET}.tar.gz)
 else
-	$(eval ARCHIVE_NAME := ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_OS}-x86_64.tar.gz)
+	$(eval ARCHIVE_NAME := ${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_TARGET}.tar.gz)
 endif
 	tar -C artifacts -zcvf ${ARCHIVE_NAME} .
 	rm artifacts/**
@@ -138,36 +253,40 @@ package-versioned-deploy-artifacts:
 	@rm -rf deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:build \
+		maidsafe/safe-client-libs-build:x86_64 \
 		scripts/package-runner-container "true"
 
 package-commit_hash-deploy-artifacts:
 	@rm -rf deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:build \
+		maidsafe/safe-client-libs-build:x86_64 \
 		scripts/package-runner-container "false"
 
 retrieve-cache:
-ifndef SCL_BRANCH
+ifndef SCL_BUILD_BRANCH
 	@echo "A branch reference must be provided."
-	@echo "Please set SCL_BRANCH to a valid branch reference."
+	@echo "Please set SCL_BUILD_BRANCH to a valid branch reference."
 	@exit 1
 endif
 ifeq ($(OS),Windows_NT)
 	aws s3 cp \
 		--no-sign-request \
 		--region eu-west-2 \
-		s3://${S3_BUCKET}/scl-${SCL_BRANCH}-windows-cache.tar.gz .
+		s3://${S3_BUCKET}/scl-${SCL_BUILD_BRANCH}-windows-cache.tar.gz .
 endif
 	mkdir target
-	tar -C target -xvf scl-${SCL_BRANCH}-windows-cache.tar.gz
-	rm scl-${SCL_BRANCH}-windows-cache.tar.gz
+	tar -C target -xvf scl-${SCL_BUILD_BRANCH}-windows-cache.tar.gz
+	rm scl-${SCL_BUILD_BRANCH}-windows-cache.tar.gz
 
-retrieve-build-artifacts:
-ifndef SCL_BRANCH
+universal-ios-lib: retrieve-ios-build-artifacts
+ifneq ($(UNAME_S),Darwin)
+	@echo "This target can only be run on macOS"
+	@exit 1
+endif
+ifndef SCL_BUILD_BRANCH
 	@echo "A branch or PR reference must be provided."
-	@echo "Please set SCL_BRANCH to a valid branch or PR reference."
+	@echo "Please set SCL_BUILD_BRANCH to a valid branch or PR reference."
 	@exit 1
 endif
 ifndef SCL_BUILD_NUMBER
@@ -175,45 +294,51 @@ ifndef SCL_BUILD_NUMBER
 	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
 	@exit 1
 endif
-ifndef SCL_BUILD_MOCK
-	@echo "A true or false value must be supplied indicating whether the build uses mocking."
-	@echo "Please set SCL_BUILD_MOCK to true or false."
+	mkdir -p artifacts/real/universal
+	mkdir -p artifacts/mock/universal
+	mkdir -p artifacts/real/universal
+	mkdir -p artifacts/mock/universal
+	lipo -create -output artifacts/real/universal/libsafe_app.a \
+		artifacts/real/x86_64-apple-ios/release/libsafe_app.a \
+		artifacts/real/aarch64-apple-ios/release/libsafe_app.a
+	lipo -create -output artifacts/real/universal/libsafe_authenticator.a \
+		artifacts/real/x86_64-apple-ios/release/libsafe_authenticator.a \
+		artifacts/real/aarch64-apple-ios/release/libsafe_authenticator.a
+	lipo -create -output artifacts/mock/universal/libsafe_app.a \
+		artifacts/mock/x86_64-apple-ios/release/libsafe_app.a \
+		artifacts/mock/aarch64-apple-ios/release/libsafe_app.a
+	lipo -create -output artifacts/mock/universal/libsafe_authenticator.a \
+		artifacts/mock/x86_64-apple-ios/release/libsafe_authenticator.a \
+		artifacts/mock/aarch64-apple-ios/release/libsafe_authenticator.a
+
+package-universal-ios-lib:
+ifndef SCL_BUILD_BRANCH
+	@echo "A branch or PR reference must be provided."
+	@echo "Please set SCL_BUILD_BRANCH to a valid branch or PR reference."
 	@exit 1
 endif
-ifndef SCL_BUILD_OS
-	@echo "A value must be supplied for SCL_BUILD_OS."
-	@echo "Valid values are 'linux' or 'windows'."
+ifndef SCL_BUILD_NUMBER
+	@echo "A valid build number must be supplied for the artifacts to be retrieved."
+	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
 	@exit 1
 endif
-ifeq ($(SCL_BUILD_MOCK),true)
-	$(eval ARCHIVE_NAME := ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-${SCL_BUILD_OS}-x86_64.tar.gz)
-else
-	$(eval ARCHIVE_NAME := ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_OS}-x86_64.tar.gz)
-endif
-	aws s3 cp \
-		--no-sign-request \
-		--region eu-west-2 \
-		s3://${S3_BUCKET}/${ARCHIVE_NAME} .
-ifeq ($(UNAME_S),Linux)
-	rm -rf artifacts && mkdir artifacts
-	tar -C artifacts -xvf ${ARCHIVE_NAME}
-else
-	# The first case would apply for running on a 'fresh' slave in a distributed setup.
-	# All the dependencies would of course need to be rebuilt here.
-	# This scenario should be very rare.
-	if [[ ! -d "target"  ]]; then \
-		mkdir -p target/release; \
-	else \
-		find target/release -maxdepth 1 -type f -exec rm '{}' \; ;\
-	fi
-	tar -C target/release -xvf ${ARCHIVE_NAME}
-endif
-	rm ${ARCHIVE_NAME}
+	( \
+		cd artifacts; \
+		tar -C real/universal -zcvf \
+			${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-apple-ios.tar.gz .; \
+	)
+	( \
+		cd artifacts; \
+		tar -C mock/universal -zcvf \
+			${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-apple-ios.tar.gz .; \
+	)
+	rm -rf artifacts/real
+	rm -rf artifacts/mock
 
 retrieve-all-build-artifacts:
-ifndef SCL_BRANCH
+ifndef SCL_BUILD_BRANCH
 	@echo "A branch or PR reference must be provided."
-	@echo "Please set SCL_BRANCH to a valid branch or PR reference."
+	@echo "Please set SCL_BUILD_BRANCH to a valid branch or PR reference."
 	@exit 1
 endif
 ifndef SCL_BUILD_NUMBER
@@ -221,31 +346,23 @@ ifndef SCL_BUILD_NUMBER
 	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
 	@exit 1
 endif
-	rm -rf artifacts
-	mkdir -p artifacts/linux/real/release
-	mkdir -p artifacts/linux/mock/release
-	mkdir -p artifacts/win/real/release
-	mkdir -p artifacts/win/mock/release
-	mkdir -p artifacts/osx/real/release
-	mkdir -p artifacts/osx/mock/release
-	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz .
-	aws s3 cp --no-sign-request --region eu-west-2 s3://${S3_BUCKET}/${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz .
-	tar -C artifacts/linux/real/release -xvf ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
-	tar -C artifacts/linux/mock/release -xvf ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
-	tar -C artifacts/win/real/release -xvf ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
-	tar -C artifacts/win/mock/release -xvf ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
-	tar -C artifacts/osx/real/release -xvf ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
-	tar -C artifacts/osx/mock/release -xvf ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
-	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-linux-x86_64.tar.gz
-	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-linux-x86_64.tar.gz
-	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-windows-x86_64.tar.gz
-	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-windows-x86_64.tar.gz
-	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-osx-x86_64.tar.gz
-	rm ${SCL_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-osx-x86_64.tar.gz
+	./scripts/retrieve-build-artifacts \
+		"x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
+		"armv7-linux-androideabi" "x86_64-linux-android" "x86_64-apple-ios" \
+		"aarch64-apple-ios" "apple-ios"
+
+retrieve-ios-build-artifacts:
+ifndef SCL_BUILD_BRANCH
+	@echo "A branch or PR reference must be provided."
+	@echo "Please set SCL_BUILD_BRANCH to a valid branch or PR reference."
+	@exit 1
+endif
+ifndef SCL_BUILD_NUMBER
+	@echo "A valid build number must be supplied for the artifacts to be retrieved."
+	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
+	@exit 1
+endif
+	./scripts/retrieve-build-artifacts "x86_64-apple-ios" "aarch64-apple-ios"
 
 test-artifacts-binary:
 ifndef SCL_BCT_PATH
@@ -261,7 +378,7 @@ endif
 		-e CARGO_TARGET_DIR=/target \
 		-e COMPAT_TESTS=/bct/tests \
 		-e SCL_TEST_SUITE=binary \
-		maidsafe/safe-client-libs-build:build \
+		maidsafe/safe-client-libs-build:x86_64 \
 		scripts/test-runner-container
 
 tests:
@@ -272,7 +389,7 @@ ifeq ($(UNAME_S),Linux)
 		-v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		scripts/build-and-test-mock
 	docker cp "safe_app_tests-${UUID}":/target .
 	docker rm -f "safe_app_tests-${UUID}"
@@ -296,13 +413,14 @@ tests-integration:
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
 		-u ${USER_ID}:${GROUP_ID} \
 		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		scripts/test-integration
 
 debug:
-	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:build /bin/bash
+	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:x86_64 /bin/bash
 
 copy-artifacts:
+	rm -rf artifacts
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
@@ -316,43 +434,80 @@ endif
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
 		--name "safe_client_libs" \
-		--description "$$GITHUB_RELEASE_DESCRIPTION"
+		--description "$$(./scripts/get-release-description ${SAFE_APP_VERSION})"
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
-		--name "safe_app-${SAFE_APP_VERSION}-linux-x64.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-linux-x64.tar.gz
+		--name "safe_app-${SAFE_APP_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-unknown-linux-gnu.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
-		--name "safe_app-${SAFE_APP_VERSION}-osx-x64.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-osx-x64.tar.gz
+		--name "safe_app-${SAFE_APP_VERSION}-x86_64-apple-darwin.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-apple-darwin.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
-		--name "safe_app-${SAFE_APP_VERSION}-win-x64.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-win-x64.tar.gz
+		--name "safe_app-${SAFE_APP_VERSION}-x86_64-pc-windows-gnu.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-pc-windows-gnu.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_app-${SAFE_APP_VERSION}-apple-ios.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-apple-ios.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_app-${SAFE_APP_VERSION}-armv7-linux-androideabi.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-armv7-linux-androideabi.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_APP_VERSION} \
+		--name "safe_app-${SAFE_APP_VERSION}-x86_64-linux-android.tar.gz" \
+		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-linux-android.tar.gz
+
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
-		--name "safe_authenticator-${SAFE_AUTH_VERSION}-linux-x64.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-linux-x64.tar.gz
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-unknown-linux-gnu.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
-		--name "safe_authenticator-${SAFE_AUTH_VERSION}-osx-x64.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-osx-x64.tar.gz
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-apple-darwin.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-apple-darwin.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
-		--name "safe_authenticator-${SAFE_AUTH_VERSION}-win-x64.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-win-x64.tar.gz
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-pc-windows-gnu.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-pc-windows-gnu.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_AUTH_VERSION} \
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-apple-ios.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-apple-ios.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_AUTH_VERSION} \
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-armv7-linux-androideabi.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-armv7-linux-androideabi.tar.gz
+	github-release upload \
+		--user ${GITHUB_REPO_OWNER} \
+		--repo ${GITHUB_REPO_NAME} \
+		--tag ${SAFE_AUTH_VERSION} \
+		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-linux-android.tar.gz" \
+		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-linux-android.tar.gz
 
 publish-safe_core:
 ifndef CRATES_IO_TOKEN
@@ -362,7 +517,7 @@ endif
 	rm -rf artifacts deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		/bin/bash -c "cd safe_core && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
 
 publish-safe_auth:
@@ -372,7 +527,7 @@ ifndef CRATES_IO_TOKEN
 endif
 	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		/bin/bash -c "cd safe_authenticator && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
 
 publish-safe_app:
@@ -382,5 +537,5 @@ ifndef CRATES_IO_TOKEN
 endif
 	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
 		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:build-mock \
+		maidsafe/safe-client-libs-build:x86_64-mock \
 		/bin/bash -c "cd safe_app && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"

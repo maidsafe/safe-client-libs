@@ -1,0 +1,51 @@
+FROM rust:latest
+
+# These is only referenced in the build-android-cache script.
+ARG build_type
+ARG target
+
+RUN addgroup --gid 1001 maidsafe && \
+    adduser --uid 1001 --ingroup maidsafe --home /home/maidsafe --shell /bin/sh --disabled-password --gecos "" maidsafe && \
+    # The parent container sets this to the 'staff' group, which causes problems
+    # with reading code stored in Cargo's registry.
+    chgrp -R maidsafe /usr/local
+
+# Install fixuid for dealing with permissions issues with mounted volumes.
+# We could perhaps put this into a base container at a later stage.
+RUN USER=maidsafe && \
+    GROUP=maidsafe && \
+    curl -SsL https://github.com/boxboat/fixuid/releases/download/v0.4/fixuid-0.4-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf - && \
+    chown root:root /usr/local/bin/fixuid && \
+    chmod 4755 /usr/local/bin/fixuid && \
+    mkdir -p /etc/fixuid && \
+    printf "user: $USER\ngroup: $GROUP\n" > /etc/fixuid/config.yml
+
+RUN apt-get update -y && \
+    apt-get install -y gcc gcc-multilib libssl-dev unzip && \
+    mkdir /target && \
+    chown maidsafe:maidsafe /target && \
+    mkdir /usr/src/safe_client_libs && \
+    chown maidsafe:maidsafe /usr/src/safe_client_libs && \
+    curl -L -O https://dl.google.com/android/repository/android-ndk-r20-linux-x86_64.zip && \
+    unzip android-ndk-r20-linux-x86_64.zip -d /usr/local/lib && \
+    mkdir /usr/local/bin/android-toolchains && \
+    /usr/local/lib/android-ndk-r20/build/tools/make_standalone_toolchain.py \
+        --arch x86_64 \
+        --api 21 \
+        --install-dir /usr/local/bin/android-toolchains \
+        --force && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/safe_client_libs
+COPY . .
+
+USER maidsafe:maidsafe
+ENV CARGO_TARGET_DIR=/target \
+    OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu \
+    OPENSSL_INCLUDE_DIR=/usr/include/openssl \
+    CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=x86_64-linux-android-gcc \
+    PATH=$PATH:/usr/local/bin/android-toolchains/bin
+RUN rustup target add x86_64-linux-android && \
+    ./scripts/build-android-cache
+ENTRYPOINT ["fixuid"]
