@@ -3,7 +3,7 @@
 # This script is a wrapper for running the packaging in the context of a container.
 #
 # It is assuming there will be an 'artifacts' directory that contains all of the
-# pre-built versions of safe_authenticator and safe_app for Linux and OSX, and
+# pre-built versions of safe_authenticator and safe_app for Linux and targetX, and
 # hopefully Windows in the future.
 #
 # With all the artifacts available it will package everything into zip files.
@@ -18,65 +18,68 @@ fi
 
 if [[ ! -d "artifacts" ]]; then
     echo "This script is intended to be used with a docker container and a set of pre-built artifacts."
-    echo "Place these artifacts in an 'artifacts' folder at the root of the repository and perform the 'docker run' command again."
+    echo "Place these artifacts in an 'artifacts' folder at the root of the reptargetitory and perform the 'docker run' command again."
     exit 1
 fi
 
 export RUST_BACKTRACE=1
 [[ ! -d "deploy" ]] && mkdir -p deploy/real deploy/mock
 
-declare -a operating_systems=("linux" "win" "osx")
-for os in "${operating_systems[@]}"; do
+declare -a targets=(\
+    "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
+    "armv7-linux-androideabi" "x86_64-linux-android" "x86_64-apple-ios" \
+    "aarch64-apple-ios" "apple-ios")
+for target in "${targets[@]}"; do
     pwd
     if [[ $is_versioned == "true" ]]; then
         ./scripts/package.rs --lib \
             --name safe_app \
             --dest deploy/mock \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/mock" \
+            --target "$target" \
+            --artifacts "artifacts/mock" \
             --mock
         ./scripts/package.rs --lib \
             --name safe_app \
             --dest deploy/real \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/real"
+            --target "$target" \
+            --artifacts "artifacts/real"
         ./scripts/package.rs --lib \
             --name safe_authenticator \
             --dest deploy/mock \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/mock" \
+            --target "$target" \
+            --artifacts "artifacts/mock" \
             --mock
         ./scripts/package.rs --lib \
             --name safe_authenticator \
             --dest deploy/real \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/real"
+            --target "$target" \
+            --artifacts "artifacts/real"
     else
         ./scripts/package.rs --lib \
             --name safe_app \
             --dest deploy/mock \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/mock" \
+            --target "$target" \
+            --artifacts "artifacts/mock" \
             --mock \
             --commit
         ./scripts/package.rs --lib \
             --name safe_app \
             --dest deploy/real \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/real" \
+            --target "$target" \
+            --artifacts "artifacts/real" \
             --commit
         ./scripts/package.rs --lib \
             --name safe_authenticator \
             --dest deploy/mock \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/mock" \
+            --target "$target" \
+            --artifacts "artifacts/mock" \
             --mock \
             --commit
         ./scripts/package.rs --lib \
             --name safe_authenticator \
             --dest deploy/real \
-            --arch "$os-x64" \
-            --artifacts "artifacts/$os/real" \
+            --target "$target" \
+            --artifacts "artifacts/real" \
             --commit
     fi
 done

@@ -2,6 +2,8 @@ properties([
     parameters([
         string(name: "ARTIFACTS_BUCKET", defaultValue: "safe-jenkins-build-artifacts"),
         string(name: "CACHE_BRANCH", defaultValue: "master"),
+        string(name: "DEPLOY_BRANCH", defaultValue: "master"),
+        string(name: "PUBLISH_BRANCH", defaultValue: "master"),
         string(name: "DEPLOY_BUCKET", defaultValue: "safe-client-libs")
     ])
 ])
@@ -12,7 +14,7 @@ stage("build & test") {
             checkout(scm)
             runTests("mock")
             stripBuildArtifacts()
-            packageBuildArtifacts("mock", "linux")
+            packageBuildArtifacts("mock", "x86_64-unknown-linux-gnu")
             uploadBuildArtifacts()
         }
     },
@@ -22,7 +24,7 @@ stage("build & test") {
             retrieveCache()
             runTests("mock")
             stripBuildArtifacts()
-            packageBuildArtifacts("mock", "windows")
+            packageBuildArtifacts("mock", "x86_64-pc-windows-gnu")
             uploadBuildArtifacts()
         }
     },
@@ -31,7 +33,39 @@ stage("build & test") {
             checkout(scm)
             runTests("mock")
             stripBuildArtifacts()
-            packageBuildArtifacts("mock", "osx")
+            packageBuildArtifacts("mock", "x86_64-apple-darwin")
+            uploadBuildArtifacts()
+        }
+    },
+    mock_ios_aarch64: {
+        node("osx") {
+            checkout(scm)
+            sh("make build-ios-mock-aarch64")
+            packageBuildArtifacts("mock", "aarch64-apple-ios")
+            uploadBuildArtifacts()
+        }
+    },
+    mock_ios_x86_64: {
+        node("osx") {
+            checkout(scm)
+            sh("make build-ios-mock-x86_64")
+            packageBuildArtifacts("mock", "x86_64-apple-ios")
+            uploadBuildArtifacts()
+        }
+    },
+    mock_android_armv7: {
+        node("safe_client_libs") {
+            checkout(scm)
+            sh("make build-android-mock-armv7")
+            packageBuildArtifacts("mock", "armv7-linux-androideabi")
+            uploadBuildArtifacts()
+        }
+    },
+    mock_android_x86_64: {
+        node("safe_client_libs") {
+            checkout(scm)
+            sh("make build-android-mock-x86_64")
+            packageBuildArtifacts("mock", "x86_64-linux-android")
             uploadBuildArtifacts()
         }
     },
@@ -40,7 +74,7 @@ stage("build & test") {
             checkout(scm)
             sh("make build")
             stripBuildArtifacts()
-            packageBuildArtifacts("real", "linux")
+            packageBuildArtifacts("real", "x86_64-unknown-linux-gnu")
             uploadBuildArtifacts()
         }
     },
@@ -49,7 +83,7 @@ stage("build & test") {
             checkout(scm)
             sh("make build")
             stripBuildArtifacts()
-            packageBuildArtifacts("real", "windows")
+            packageBuildArtifacts("real", "x86_64-pc-windows-gnu")
             uploadBuildArtifacts()
         }
     },
@@ -58,7 +92,39 @@ stage("build & test") {
             checkout(scm)
             sh("make build")
             stripBuildArtifacts()
-            packageBuildArtifacts("real", "osx")
+            packageBuildArtifacts("real", "x86_64-apple-darwin")
+            uploadBuildArtifacts()
+        }
+    },
+    real_ios_aarch64: {
+        node("osx") {
+            checkout(scm)
+            sh("make build-ios-aarch64")
+            packageBuildArtifacts("real", "aarch64-apple-ios")
+            uploadBuildArtifacts()
+        }
+    },
+    real_ios_x86_64: {
+        node("osx") {
+            checkout(scm)
+            sh("make build-ios-x86_64")
+            packageBuildArtifacts("real", "x86_64-apple-ios")
+            uploadBuildArtifacts()
+        }
+    },
+    real_android_armv7: {
+        node("safe_client_libs") {
+            checkout(scm)
+            sh("make build-android-armv7")
+            packageBuildArtifacts("real", "armv7-linux-androideabi")
+            uploadBuildArtifacts()
+        }
+    },
+    real_android_x86_64: {
+        node("safe_client_libs") {
+            checkout(scm)
+            sh("make build-android-x86_64")
+            packageBuildArtifacts("real", "x86_64-linux-android")
             uploadBuildArtifacts()
         }
     },
@@ -77,10 +143,23 @@ stage("build & test") {
     }
 }
 
+stage("build universal iOS lib") {
+    node("osx") {
+        checkout(scm)
+        def branch = env.CHANGE_ID?.trim() ?: env.BRANCH_NAME
+        withEnv(["SCL_BUILD_BRANCH=${branch}",
+                 "SCL_BUILD_NUMBER=${env.BUILD_NUMBER}"]) {
+            sh("make universal-ios-lib")
+            sh("make package-universal-ios-lib")
+            uploadBuildArtifacts()
+        }
+    }
+}
+
 stage("deployment") {
     parallel deploy_artifacts: {
         node("safe_client_libs") {
-            if (env.BRANCH_NAME == "master") {
+            if (env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
                 checkout(scm)
                 sh("git fetch --tags --force")
                 retrieveBuildArtifacts()
@@ -102,35 +181,35 @@ stage("deployment") {
     },
     publish_safe_core_crate: {
         node("safe_client_libs") {
-            if (env.BRANCH_NAME == "master") {
+            if (env.BRANCH_NAME == "${params.PUBLISH_BRANCH}") {
                 checkout(scm)
                 publishCrate("safe_core")
             } else {
-                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+                echo("${env.BRANCH_NAME} does not match the publish branch. Nothing to do.")
             }
         }
     },
     publish_safe_app_crate: {
         node("safe_client_libs") {
-            if (env.BRANCH_NAME == "master") {
+            if (env.BRANCH_NAME == "${params.PUBLISH_BRANCH}") {
                 checkout(scm)
                 publishCrate("safe_app")
             } else {
-                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+                echo("${env.BRANCH_NAME} does not match the publish branch. Nothing to do.")
             }
         }
     },
     publish_safe_auth_crate: {
         node("safe_client_libs") {
-            if (env.BRANCH_NAME == "master") {
+            if (env.BRANCH_NAME == "${params.PUBLISH_BRANCH}") {
                 checkout(scm)
                 publishCrate("safe_auth")
             } else {
-                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+                echo("${env.BRANCH_NAME} does not match the publish branch. Nothing to do.")
             }
         }
     }
-    if (env.BRANCH_NAME == "master") {
+    if (env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
         build(job: "../rust_cache_build-safe_client_libs-windows", wait: false)
         build(job: "../docker_build-safe_client_libs_build_container", wait: false)
     }
@@ -148,16 +227,16 @@ def isVersionChangeCommit() {
         script: "git log -n 1 --no-merges --pretty=format:'%h'").trim()
     def message = sh(
         returnStdout: true,
-        script: "git log --format=%B -n 1 ${short_commit_hash}").trim()
+        script: "git log --format=%B -n 1 ${shortCommitHash}").trim()
     return message.startsWith("Version change")
 }
 
-def packageBuildArtifacts(mode, os) {
+def packageBuildArtifacts(mode, target) {
     def isMock = mode == "mock" ? "true" : "false"
     def branch = env.CHANGE_ID?.trim() ?: env.BRANCH_NAME
     withEnv(["SCL_BUILD_NUMBER=${env.BUILD_NUMBER}",
              "SCL_BUILD_BRANCH=${branch}",
-             "SCL_BUILD_OS=${os}",
+             "SCL_BUILD_TARGET=${target}",
              "SCL_BUILD_MOCK=${isMock}"]) {
         sh("make package-build-artifacts")
     }
@@ -268,16 +347,6 @@ def uploadBinaryCompatibilityTests() {
             acl: "PublicRead")
     }
 }
-
-def retrieveBuildArtifacts(mode, os) {
-    def isMock = mode == "mock" ? "true" : "false"
-    withEnv(["SCL_BUILD_NUMBER=${env.BUILD_NUMBER}",
-             "SCL_BUILD_OS=${os}",
-             "SCL_BUILD_MOCK=${isMock}"]) {
-        sh("make retrieve-build-artifacts")
-    }
-}
-
 
 def runBinaryCompatibilityTests() {
     def buildNumber = getLastSuccessfulBuildNumber(currentBuild)

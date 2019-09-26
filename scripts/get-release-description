@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+
+version=$1
+if [[ -z "$version" ]]; then
+    echo "You must supply a version number."
+    exit 1
+fi
+
+# The single quotes around EOF is to stop attempted variable and backtick expansion.
+read -r -d '' release_description << 'EOF'
+SAFE Network client side Rust module(s)
+
+## Development Builds
+
+There are also development versions of this release:
+[Safe App Linux](S3_SAFE_APP_LINUX_DEPLOY_URL)
+[Safe App macOS](S3_SAFE_APP_MACOS_DEPLOY_URL)
+[Safe App Windows](S3_SAFE_APP_WIN_DEPLOY_URL)
+[Safe App Android ARMv7](S3_SAFE_APP_ANDROID_ARMV7_DEPLOY_URL)
+[Safe App Android x86_64](S3_SAFE_APP_ANDROID_X86_64_DEPLOY_URL)
+[Safe App iOS](S3_SAFE_APP_IOS_DEPLOY_URL)
+[Safe Auth Linux](S3_SAFE_AUTH_LINUX_DEPLOY_URL)
+[Safe Auth macOS](S3_SAFE_AUTH_MACOS_DEPLOY_URL)
+[Safe Auth Windows](S3_SAFE_AUTH_WIN_DEPLOY_URL)
+[Safe Auth Android ARMv7](S3_SAFE_AUTH_ANDROID_ARMV7_DEPLOY_URL)
+[Safe Auth Android x86_64](S3_SAFE_AUTH_ANDROID_X86_64_DEPLOY_URL)
+[Safe Auth iOS](S3_SAFE_AUTH_IOS_DEPLOY_URL)
+
+The development version uses a mocked SAFE network, which allows you to work against a file that mimics the network, where SafeCoins are created for local use.
+
+## SHA-256 checksums for release versions:
+```
+Linux
+Safe App: TAR_SAFE_APP_LINUX_CHECKSUM
+Safe Auth: TAR_SAFE_AUTH_LINUX_CHECKSUM
+
+macOS
+Safe App: TAR_SAFE_APP_LINUX_CHECKSUM
+Safe Auth: TAR_SAFE_AUTH_LINUX_CHECKSUM
+
+Windows
+Safe App: TAR_SAFE_APP_WINDOWS_CHECKSUM
+Safe Auth: TAR_SAFE_AUTH_WINDOWS_CHECKSUM
+
+iOS
+Safe App: TAR_SAFE_APP_IOS_CHECKSUM
+Safe Auth: TAR_SAFE_AUTH_IOS_CHECKSUM
+
+Android ARMv7
+Safe App: TAR_SAFE_APP_ANDROID_ARMV7_CHECKSUM
+Safe Auth: TAR_SAFE_AUTH_ANDROID_ARMV7_CHECKSUM
+
+Android x86_64
+Safe App: TAR_SAFE_APP_ANDROID_X86_64_CHECKSUM
+Safe Auth: TAR_SAFE_AUTH_ANDROID_X86_64_CHECKSUM
+```
+EOF
+
+s3_safe_app_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-unknown-linux-gnu.tar.gz"
+s3_safe_app_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-pc-windows-gnu.tar.gz"
+s3_safe_app_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-apple-darwin.tar.gz"
+s3_safe_app_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-apple-ios.tar.gz"
+s3_safe_app_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-armv7-linux-androideabi.tar.gz"
+s3_safe_app_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-linux-android.tar.gz"
+
+s3_safe_auth_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-unknown-linux-gnu.tar.gz"
+s3_safe_auth_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-pc-windows-gnu.tar.gz"
+s3_safe_auth_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-apple-darwin.tar.gz"
+s3_safe_auth_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-apple-ios.tar.gz"
+s3_safe_auth_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-armv7-linux-androideabi.tar.gz"
+s3_safe_auth_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-linux-android.tar.gz"
+
+tar_safe_app_linux_checksum=$(sha256sum \
+    "./deploy/real/safe_app-$version-x86_64-unknown-linux-gnu.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_app_macos_checksum=$(sha256sum \
+    "./deploy/real/safe_app-$version-x86_64-apple-darwin.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_app_win_checksum=$(sha256sum \
+    "./deploy/real/safe_app-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_app_ios_checksum=$(sha256sum \
+    "./deploy/real/safe_app-$version-apple-ios.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_app_android_armv7_checksum=$(sha256sum \
+    "./deploy/real/safe_app-$version-armv7-linux-androideabi.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_app_android_x86_64_checksum=$(sha256sum \
+    "./deploy/real/safe_app-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    awk '{ print $1 }')
+
+tar_safe_auth_linux_checksum=$(sha256sum \
+    "./deploy/real/safe_authenticator-$version-x86_64-unknown-linux-gnu.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_auth_macos_checksum=$(sha256sum \
+    "./deploy/real/safe_authenticator-$version-x86_64-apple-darwin.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_auth_win_checksum=$(sha256sum \
+    "./deploy/real/safe_authenticator-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_auth_ios_checksum=$(sha256sum \
+    "./deploy/real/safe_authenticator-$version-apple-ios.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_auth_android_armv7_checksum=$(sha256sum \
+    "./deploy/real/safe_authenticator-$version-armv7-linux-androideabi.tar.gz" | \
+    awk '{ print $1 }')
+tar_safe_auth_android_x86_64_checksum=$(sha256sum \
+    "./deploy/real/safe_authenticator-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    awk '{ print $1 }')
+
+release_description=$(sed "s/S3_SAFE_APP_LINUX_DEPLOY_URL/$s3_safe_app_linux_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_APP_MACOS_DEPLOY_URL/$s3_safe_app_macos_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_APP_WIN_DEPLOY_URL/$s3_safe_app_win_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_APP_IOS_DEPLOY_URL/$s3_safe_app_ios_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_APP_ANDROID_ARMV7_DEPLOY_URL/$s3_safe_app_android_armv7_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_APP_ANDROID_X86_64_DEPLOY_URL/$s3_safe_app_android_x86_64_deploy_url/g" <<< "$release_description")
+
+release_description=$(sed "s/S3_SAFE_AUTH_LINUX_DEPLOY_URL/$s3_safe_auth_linux_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_AUTH_MACOS_DEPLOY_URL/$s3_safe_auth_macos_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_AUTH_WIN_DEPLOY_URL/$s3_safe_auth_win_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_AUTH_IOS_DEPLOY_URL/$s3_safe_auth_ios_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_AUTH_ANDROID_ARMV7_DEPLOY_URL/$s3_safe_auth_android_armv7_deploy_url/g" <<< "$release_description")
+release_description=$(sed "s/S3_SAFE_AUTH_ANDROID_X86_64_DEPLOY_URL/$s3_safe_auth_android_x86_64_deploy_url/g" <<< "$release_description")
+
+release_description=$(sed "s/TAR_SAFE_APP_LINUX_CHECKSUM/$tar_safe_app_linux_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_APP_WINDOWS_CHECKSUM/$tar_safe_app_win_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_APP_MACOS_CHECKSUM/$tar_safe_app_macos_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_APP_IOS_CHECKSUM/$tar_safe_app_ios_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_APP_ANDROID_ARMV7_CHECKSUM/$tar_safe_app_android_armv7_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_APP_ANDROID_X86_64_CHECKSUM/$tar_safe_app_android_x86_64_checksum/g" <<< "$release_description")
+
+release_description=$(sed "s/TAR_SAFE_AUTH_LINUX_CHECKSUM/$tar_safe_auth_linux_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_AUTH_WINDOWS_CHECKSUM/$tar_safe_auth_win_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_AUTH_MACOS_CHECKSUM/$tar_safe_auth_macos_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_AUTH_IOS_CHECKSUM/$tar_safe_auth_ios_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_AUTH_ANDROID_ARMV7_CHECKSUM/$tar_safe_auth_android_armv7_checksum/g" <<< "$release_description")
+release_description=$(sed "s/TAR_SAFE_AUTH_ANDROID_X86_64_CHECKSUM/$tar_safe_auth_android_x86_64_checksum/g" <<< "$release_description")
+echo "$release_description"

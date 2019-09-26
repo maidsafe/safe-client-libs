@@ -16,23 +16,26 @@ set -e -x
 
 build_mode=$1
 if [[ -z "$build_mode" ]]; then
-    echo "This script must be invoked with a build mode argument."
+    echo "This script must be invoked with a build_mode argument."
     echo "Valid values are 'mock' and 'real'."
     exit 1
 fi
 
-container_tag="build"
-[[ "$build_mode" == "mock" ]] && container_tag="build-mock"
+container_tag=$2
+if [[ -z "$container_tag" ]]; then
+    echo "This script must be invoked with a container_tag argument."
+    exit 1
+fi
 
 user_id=$(id -u)
 group_id=$(id -g)
 
 if [[ -z "$BUILD_NUMBER" ]]; then
     uid=$(uuidgen | sed 's/-//g')
-    container_name="safe_app_build_$build_mode$uid"
+    container_name="safe_app_build_$container_tag$build_mode$uid"
 else
     # BUILD_NUMBER will be defined in the context of a Jenkins build.
-    container_name="safe_app_build_$build_mode$BUILD_NUMBER"
+    container_name="safe_app_build_$container_tag$build_mode$BUILD_NUMBER"
 fi
 
 rm -rf target
