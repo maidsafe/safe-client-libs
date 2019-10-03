@@ -140,6 +140,9 @@ fn main() {
         .arg(Arg::with_name("COMMIT").short("c").long("commit").help(
             "Uses commit hash instead of version string in the package name",
         ))
+        .arg(Arg::with_name("NIGHTLY").short("c").long("nightly").help(
+            "Uses nightly instead of version string in the package name",
+        ))
         .arg(
             Arg::with_name("REBUILD")
                 .short("r")
@@ -202,7 +205,8 @@ fn main() {
 
     let krate = matches.value_of("NAME").unwrap();
     let rebuild = matches.is_present("REBUILD");
-    let version_string = get_version_string(krate, matches.is_present("COMMIT"));
+    let version_string = get_version_string(
+        krate, matches.is_present("COMMIT"), matches.is_present("NIGHTLY"));
 
     let target_name = matches.value_of("TARGET_TRIPLE").unwrap_or(HOST_TARGET_TRIPLE);
     let target = find_target(target_name);
@@ -387,18 +391,20 @@ fn get_archive_name(
     )
 }
 
-fn get_version_string(krate: &str, commit: bool) -> String {
-    if commit {
-        // Get the current commit hash.
+fn get_version_string(krate: &str, commit: bool, nightly: bool) -> String {
+    if commit && nightly {
+        panic!("The --commit and --nightly flags are mutually exclusive.")
+    }
+    if nightly {
+        "nightly".to_string()
+    } else if commit {
         let output = Command::new("git")
             .arg("rev-parse")
             .arg("HEAD")
             .output()
             .expect("failed to run git");
-
         str::from_utf8(&output.stdout).unwrap().trim()[0..COMMIT_HASH_LEN].to_string()
     } else {
-        // Extract the version string from Cargo.toml
         use toml::Value;
 
         let mut file =

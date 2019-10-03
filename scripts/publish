@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -e
+
+crate_name=$1
+if [[ -z "$crate_name" ]]; then
+    echo "A crate name must be provided for publishing."
+    echo "Please set SCL_CRATE_NAME to 'safe_app', 'safe_authenticator', or 'safe_core'"
+    exit 1
+fi
+
+if [[ -z "$CRATES_IO_TOKEN" ]]; then
+    echo "A login token for crates.io must be provided. Please set CRATES_IO_TOKEN to a valid token."
+    exit 1
+fi
+
+if [[ -z "$SCL_PUBLISH_DRY_RUN" ]]; then
+    echo "Please set SCL_PUBLISH_DRY_RUN to 'true'or 'false'"
+    exit 1
+fi
+
+publish_command="cd $crate_name && cargo login $CRATES_IO_TOKEN && cargo package && cargo publish"
+if [[ "$SCL_PUBLISH_DRY_RUN" == "true" ]]; then
+    echo "Running publish with --dry-run"
+    publish_command="$publish_command --dry-run"
+fi
+
+rm -rf artifacts deploy
+docker run --rm -v "$(pwd)":/usr/src/safe_client_libs:Z \
+    -u "$(id -u)":"$(id -g)" \
+    maidsafe/safe-client-libs-build:x86_64 \
+    /bin/bash -c "$publish_command"

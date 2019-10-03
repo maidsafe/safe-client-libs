@@ -24,9 +24,8 @@ rand = "~0.3.18"
 new_rand = { package = "rand", version = "0.6" }
 quic-p2p = "~0.2.1"
 rust_sodium = "~0.10.2"
-safe_core = { path = "../safe_core", version = "~0.33.0" }
-#safe-nd = "~0.3.0"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe_core = { path = "../safe_core", version = "~0.34.0" }
+safe-nd = "~0.4.0"
 serde = { version = "~1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
@@ -36,15 +35,14 @@ env_logger = { version = "~0.6.2", optional = true }
 
 [dev-dependencies]
 env_logger = "~0.6.2"
-safe_core = { path = "../safe_core", version = "~0.33.0", features = ["testing"] }
+safe_core = { path = "../safe_core", version = "~0.34.0", features = ["testing"] }
 
 [build-dependencies]
 ffi_utils = "~0.12.0"
 jni = "~0.12.0"
 rust_sodium = "~0.10.2"
 safe_bindgen = { version = "~0.13.1", optional = true }
-#safe-nd = "~0.3.0"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd" }
+safe-nd = "~0.4.0"
 unwrap = "~1.2.0"
 
 [features]

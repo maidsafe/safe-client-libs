@@ -254,14 +254,22 @@ package-versioned-deploy-artifacts:
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
 		maidsafe/safe-client-libs-build:x86_64 \
-		scripts/package-runner-container "true"
+		scripts/package-runner-container "versioned"
 
 package-commit_hash-deploy-artifacts:
 	@rm -rf deploy
 	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
 		-u ${USER_ID}:${GROUP_ID} \
 		maidsafe/safe-client-libs-build:x86_64 \
-		scripts/package-runner-container "false"
+		scripts/package-runner-container "commit_hash"
+
+package-nightly-deploy-artifacts:
+	@rm -rf deploy
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:x86_64 \
+		scripts/package-runner-container "nightly"
+	find . -name "*.zip" -exec rm "{}" \;
 
 retrieve-cache:
 ifndef SCL_BUILD_BRANCH
@@ -394,6 +402,7 @@ ifeq ($(UNAME_S),Linux)
 	docker cp "safe_app_tests-${UUID}":/target .
 	docker rm -f "safe_app_tests-${UUID}"
 else
+	./scripts/build-mock
 	./scripts/test-mock
 endif
 	make copy-artifacts
@@ -510,32 +519,10 @@ endif
 		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-linux-android.tar.gz
 
 publish-safe_core:
-ifndef CRATES_IO_TOKEN
-	@echo "A login token for crates.io must be provided."
-	@exit 1
-endif
-	rm -rf artifacts deploy
-	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:x86_64-mock \
-		/bin/bash -c "cd safe_core && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
+	./scripts/publish "safe_core"
 
-publish-safe_auth:
-ifndef CRATES_IO_TOKEN
-	@echo "A login token for crates.io must be provided."
-	@exit 1
-endif
-	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:x86_64-mock \
-		/bin/bash -c "cd safe_authenticator && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
+publish-safe_authenticator:
+	./scripts/publish "safe_authenticator"
 
 publish-safe_app:
-ifndef CRATES_IO_TOKEN
-	@echo "A login token for crates.io must be provided."
-	@exit 1
-endif
-	docker run --rm -v "${PWD}":/usr/src/safe_vault:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		maidsafe/safe-client-libs-build:x86_64-mock \
-		/bin/bash -c "cd safe_app && cargo login ${CRATES_IO_TOKEN} && cargo package && cargo publish"
+	./scripts/publish "safe_app"

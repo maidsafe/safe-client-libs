@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.34.0]
+- Technical release to solve some issues in our automated publishing process
+
 ## [0.33.0]
 - Remove Routing dependency from safe_core.
 - Use quic-p2p for communication with Vaults.

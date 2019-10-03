@@ -1,11 +1,15 @@
+import hudson.triggers.TimerTrigger.TimerTriggerCause
+
 properties([
     parameters([
         string(name: "ARTIFACTS_BUCKET", defaultValue: "safe-jenkins-build-artifacts"),
         string(name: "CACHE_BRANCH", defaultValue: "master"),
         string(name: "DEPLOY_BRANCH", defaultValue: "master"),
         string(name: "PUBLISH_BRANCH", defaultValue: "master"),
-        string(name: "DEPLOY_BUCKET", defaultValue: "safe-client-libs")
-    ])
+        string(name: "DEPLOY_BUCKET", defaultValue: "safe-client-libs"),
+        string(name: "DEPLOY_NIGHTLY", defaultValue: "false")
+    ]),
+    pipelineTriggers([cron(env.BRANCH_NAME == "master" ? "0 2 * * *" : "")])
 ])
 
 stage("build & test") {
@@ -157,62 +161,69 @@ stage("build universal iOS lib") {
 }
 
 stage("deployment") {
-    parallel deploy_artifacts: {
-        node("safe_client_libs") {
-            if (env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
-                checkout(scm)
-                sh("git fetch --tags --force")
-                retrieveBuildArtifacts()
-                if (isVersionChangeCommit()) {
-                    def version = getVersion()
-                    packageDeployArtifacts(true)
-                    createTag(version)
-                    createGitHubRelease(version)
-                    uploadDeployArtifacts("mock")
-                } else {
-                    packageDeployArtifacts(false)
-                    uploadDeployArtifacts("mock")
-                    uploadDeployArtifacts("real")
-                }
+    node("safe_client_libs") {
+        if (env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
+            checkout(scm)
+            sh("git fetch --tags --force")
+            retrieveBuildArtifacts()
+            if (isNightlyBuild()) {
+                packageDeployArtifacts("nightly")
+                deletePreviousNightly()
+                uploadDeployArtifacts("mock")
+                uploadDeployArtifacts("real")
+            } else if (isVersionChangeCommit()) {
+                packageDeployArtifacts("versioned")
+                createTags()
+                createGitHubRelease()
+                uploadDeployArtifacts("mock")
+                uploadDeployArtifacts("real")
             } else {
-                echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
+                packageDeployArtifacts("commit_hash")
+                uploadDeployArtifacts("mock")
+                uploadDeployArtifacts("real")
             }
-        }
-    },
-    publish_safe_core_crate: {
-        node("safe_client_libs") {
-            if (env.BRANCH_NAME == "${params.PUBLISH_BRANCH}") {
-                checkout(scm)
-                publishCrate("safe_core")
-            } else {
-                echo("${env.BRANCH_NAME} does not match the publish branch. Nothing to do.")
-            }
-        }
-    },
-    publish_safe_app_crate: {
-        node("safe_client_libs") {
-            if (env.BRANCH_NAME == "${params.PUBLISH_BRANCH}") {
-                checkout(scm)
-                publishCrate("safe_app")
-            } else {
-                echo("${env.BRANCH_NAME} does not match the publish branch. Nothing to do.")
-            }
-        }
-    },
-    publish_safe_auth_crate: {
-        node("safe_client_libs") {
-            if (env.BRANCH_NAME == "${params.PUBLISH_BRANCH}") {
-                checkout(scm)
-                publishCrate("safe_auth")
-            } else {
-                echo("${env.BRANCH_NAME} does not match the publish branch. Nothing to do.")
-            }
+        } else {
+            echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
         }
     }
-    if (env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
+    if (isNightlyBuild() && env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
         build(job: "../rust_cache_build-safe_client_libs-windows", wait: false)
         build(job: "../docker_build-safe_client_libs_build_container", wait: false)
     }
+}
+
+stage("publishing") {
+    node("safe_client_libs") {
+        checkout(scm)
+        if (shouldPublish()) {
+            def components = getComponentsWithVersionChanges()
+            def dryRun = isNightlyBuild() ? "true" : "false"
+            withEnv(["SCL_PUBLISH_DRY_RUN=${dryRun}"]) {
+                components.each({
+                    publishCrate(it)
+                    // The next crate may have references to the one that was just published,
+                    // and sometimes it's possible the next publishing process will complain
+                    // that the one that was just published doesn't exist. We can sleep for a
+                    // few seconds to give it a chance to register on crates.io.
+                    sh("sleep 10")
+                })
+            }
+        } else {
+            echo("Not publishing.")
+            echo("Not a version change commit or the publish branch doesn't match.")
+        }
+    }
+}
+
+@NonCPS
+def isNightlyBuild() {
+    return "${params.DEPLOY_NIGHTLY}" == "true" ||
+        null != currentBuild.getRawBuild().getCause(TimerTriggerCause.class)
+}
+
+def shouldPublish() {
+    return (isNightlyBuild() || isVersionChangeCommit()) &&
+        env.BRANCH_NAME == "${params.PUBLISH_BRANCH}"
 }
 
 def retrieveCache() {
@@ -222,13 +233,18 @@ def retrieveCache() {
 }
 
 def isVersionChangeCommit() {
+    def message = getLatestCommitMessage()
+    return message.startsWith("Version change")
+}
+
+def getLatestCommitMessage() {
     def shortCommitHash = sh(
         returnStdout: true,
         script: "git log -n 1 --no-merges --pretty=format:'%h'").trim()
     def message = sh(
         returnStdout: true,
         script: "git log --format=%B -n 1 ${shortCommitHash}").trim()
-    return message.startsWith("Version change")
+    return message
 }
 
 def packageBuildArtifacts(mode, target) {
@@ -250,11 +266,19 @@ def retrieveBuildArtifacts() {
     }
 }
 
-def packageDeployArtifacts(isVersionChangeCommit) {
-    if (isVersionChangeCommit) {
-        sh("make package-versioned-deploy-artifacts")
-    } else {
-        sh("make package-commit_hash-deploy-artifacts")
+def packageDeployArtifacts(type) {
+    switch (type) {
+        case "versioned":
+            sh("make package-versioned-deploy-artifacts")
+            break
+        case "commit_hash":
+            sh("make package-commit_hash-deploy-artifacts")
+            break
+        case "nightly":
+            sh("make package-nightly-deploy-artifacts")
+            break
+        default:
+            error("The deployment type ${type} is not supported. Please extend for support.")
     }
 }
 
@@ -275,13 +299,25 @@ def uploadBuildArtifacts() {
     }
 }
 
-def getVersion() {
-    // For now we"re just taking the version from either safe auth or safe app.
-    // We may change this eventually to deploy each component separately, or possibly
-    // even refactor into separate repos.
+def getVersion(crate) {
     return sh(
         returnStdout: true,
-        script: "grep '^version' < safe_app/Cargo.toml | head -n 1 | awk '{ print \$3 }' | sed 's/\"//g'").trim()
+        script: "grep '^version' < ${crate}/Cargo.toml | head -n 1 | awk '{ print \$3 }' | sed 's/\"//g'").trim()
+}
+
+def deletePreviousNightly() {
+    withAWS(credentials: "aws_jenkins_user_credentials", region: "eu-west-2") {
+        ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-gnu", "x86_64-apple-darwin",
+         "armv7-linux-androideabi", "x86_64-linux-android", "x86_64-apple-ios",
+         "aarch64-apple-ios", "apple-ios"].each({
+            s3Delete(
+                bucket: "${params.DEPLOY_BUCKET}",
+                path: "safe_app-nightly-${it}.tar.gz")
+            s3Delete(
+                bucket: "${params.DEPLOY_BUCKET}",
+                path: "safe_authenticator-nightly-${it}.tar.gz")
+        })
+    }
 }
 
 def uploadDeployArtifacts(type) {
@@ -298,28 +334,57 @@ def uploadDeployArtifacts(type) {
     }
 }
 
-def createTag(version) {
+def createTags() {
+    def components = getComponentsWithVersionChanges()
     withCredentials(
         [usernamePassword(
             credentialsId: "github_maidsafe_qa_user_credentials",
             usernameVariable: "GIT_USER",
             passwordVariable: "GIT_PASSWORD")]) {
-        sh("git config --global user.name \$GIT_USER")
-        sh("git config --global user.email qa@maidsafe.net")
-        sh("git config credential.username \$GIT_USER")
-        sh("git config credential.helper '!f() { echo password=\$GIT_PASSWORD; }; f'")
-        sh("git tag -a ${version} -m 'Creating tag for ${version}'")
-        sh("GIT_ASKPASS=true git push origin --tags")
+        components.each({
+            def version = getVersion(it)
+            def tag_name = "${it}-${version}"
+            sh("git config --global user.name \$GIT_USER")
+            sh("git config --global user.email qa@maidsafe.net")
+            sh("git config credential.username \$GIT_USER")
+            sh("git config credential.helper '!f() { echo password=\$GIT_PASSWORD; }; f'")
+            sh("git tag -a ${tag_name} -m 'Creating tag for ${tag_name}'")
+            sh("GIT_ASKPASS=true git push origin --tags")
+        })
     }
 }
 
-def createGitHubRelease(version) {
-    withCredentials(
-        [usernamePassword(
-            credentialsId: "github_maidsafe_token_credentials",
-            usernameVariable: "GITHUB_USER",
-            passwordVariable: "GITHUB_TOKEN")]) {
-        sh("make deploy-github-release")
+def getComponentsWithVersionChanges() {
+    if (isNightlyBuild()) {
+        // For a nightly we want to run a dry run publish on all components.
+        return ["safe_core", "safe_authenticator", "safe_app"]
+    }
+    def components = []
+    def message = getLatestCommitMessage()
+    if (message.contains("safe_core")) {
+        components.add("safe_core")
+    }
+    if (message.contains("safe_authenticator")) {
+        components.add("safe_authenticator")
+    }
+    if (message.contains("safe_app")) {
+        components.add("safe_app")
+    }
+    return components
+}
+
+def createGitHubRelease() {
+    def components = getComponentsWithVersionChanges()
+    if (components.contains("safe_authenticator") || components.contains("safe_app")) {
+        withCredentials(
+            [usernamePassword(
+                credentialsId: "github_maidsafe_token_credentials",
+                usernameVariable: "GITHUB_USER",
+                passwordVariable: "GITHUB_TOKEN")]) {
+            sh("make deploy-github-release")
+        }
+    } else {
+        echo("No changes to safe_auth or safe_app - no GitHub release will be performed.")
     }
 }
 

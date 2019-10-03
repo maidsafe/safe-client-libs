@@ -10,9 +10,10 @@
 
 set -e -x
 
-is_versioned=$1
-if [[ -z "$is_versioned" ]]; then
-    echo "A true/false argument must be passed indicating to package for a versioned deployment."
+deployment_type=$1
+if [[ -z "$deployment_type" ]]; then
+    echo "An argument indicating the type of the deployment must be supplied."
+    echo "Valid values are 'versioned', 'commit_hash' or 'nightly'."
     exit 1
 fi
 
@@ -29,57 +30,26 @@ declare -a targets=(\
     "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
     "armv7-linux-androideabi" "x86_64-linux-android" "x86_64-apple-ios" \
     "aarch64-apple-ios" "apple-ios")
+
+function run_packaging() {
+    local name=$1
+    local deployment_type=$2
+    local target=$3
+    local build_type=$4
+
+    local package_args="--lib --name $name --dest deploy/$build_type"
+    package_args="$package_args --target $target --artifacts artifacts/$build_type"
+    [[ "$deployment_type" == "nightly" ]] && package_args="$package_args --nightly"
+    [[ "$deployment_type" == "commit_hash" ]] && package_args="$package_args --commit"
+    [[ "$build_type" == "mock" ]] && package_args="$package_args --mock"
+
+    package_command=(./scripts/package.rs $package_args)
+    "${package_command[@]}"
+}
+
 for target in "${targets[@]}"; do
-    pwd
-    if [[ $is_versioned == "true" ]]; then
-        ./scripts/package.rs --lib \
-            --name safe_app \
-            --dest deploy/mock \
-            --target "$target" \
-            --artifacts "artifacts/mock" \
-            --mock
-        ./scripts/package.rs --lib \
-            --name safe_app \
-            --dest deploy/real \
-            --target "$target" \
-            --artifacts "artifacts/real"
-        ./scripts/package.rs --lib \
-            --name safe_authenticator \
-            --dest deploy/mock \
-            --target "$target" \
-            --artifacts "artifacts/mock" \
-            --mock
-        ./scripts/package.rs --lib \
-            --name safe_authenticator \
-            --dest deploy/real \
-            --target "$target" \
-            --artifacts "artifacts/real"
-    else
-        ./scripts/package.rs --lib \
-            --name safe_app \
-            --dest deploy/mock \
-            --target "$target" \
-            --artifacts "artifacts/mock" \
-            --mock \
-            --commit
-        ./scripts/package.rs --lib \
-            --name safe_app \
-            --dest deploy/real \
-            --target "$target" \
-            --artifacts "artifacts/real" \
-            --commit
-        ./scripts/package.rs --lib \
-            --name safe_authenticator \
-            --dest deploy/mock \
-            --target "$target" \
-            --artifacts "artifacts/mock" \
-            --mock \
-            --commit
-        ./scripts/package.rs --lib \
-            --name safe_authenticator \
-            --dest deploy/real \
-            --target "$target" \
-            --artifacts "artifacts/real" \
-            --commit
-    fi
+    run_packaging "safe_app" "$deployment_type" "$target" "mock"
+    run_packaging "safe_app" "$deployment_type" "$target" "real"
+    run_packaging "safe_authenticator" "$deployment_type" "$target" "mock"
+    run_packaging "safe_authenticator" "$deployment_type" "$target" "real"
 done
