@@ -9,10 +9,9 @@
 use crate::ffi::nfs::File as FfiFile;
 use crate::nfs::errors::NfsError;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use ffi_utils::{vec_into_raw_parts, ReprC};
+use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC};
 use safe_nd::{IDataAddress, IDataKind, XorName};
 use serde::{Deserialize, Serialize};
-use std::slice;
 
 /// Representation of a File to be put into the network. Could be any kind of
 /// file: text, music, video, etc.
@@ -129,7 +128,7 @@ impl ReprC for File {
     #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let user_metadata =
-            slice::from_raw_parts((*repr_c).user_metadata, (*repr_c).user_metadata_len).to_vec();
+            vec_clone_from_raw_parts((*repr_c).user_metadata, (*repr_c).user_metadata_len);
 
         let created = convert_date_time((*repr_c).created_sec, (*repr_c).created_nsec)?;
         let modified = convert_date_time((*repr_c).modified_sec, (*repr_c).modified_nsec)?;

@@ -16,7 +16,7 @@ use crate::ipc::req::{
     permission_set_into_repr_c, ContainerPermissions,
 };
 use crate::ipc::{BootstrapConfig, IpcError};
-use ffi_utils::{vec_into_raw_parts, ReprC, StringError};
+use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
@@ -500,6 +500,7 @@ impl ReprC for UserMetadata {
 
 /// Mutable data key.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
+// TODO: Move to safe-nd, or remove this and use Vec<u8> directly.
 pub struct MDataKey(
     /// Key value.
     pub Vec<u8>,
@@ -529,13 +530,13 @@ impl ReprC for MDataKey {
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let ffi::MDataKey { key, key_len, .. } = *repr_c;
-        let key = slice::from_raw_parts(key, key_len).to_vec();
+        let key = vec_clone_from_raw_parts(key, key_len);
 
         Ok(MDataKey(key))
     }
 }
 
-/// Redefine the Value from routing so that we can `impl ReprC`.
+/// Redefine the Value from safe-nd so that we can `impl ReprC`.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
 pub struct MDataValue {
     /// Content of the entry.
@@ -544,6 +545,7 @@ pub struct MDataValue {
     pub entry_version: u64,
 }
 
+// TODO: Remove this and use SeqMDataValue in safe-nd instead.
 impl MDataValue {
     /// Convert routing representation to `MDataValue`.
     pub fn from_routing(value: MDataSeqValue) -> Self {
@@ -577,7 +579,7 @@ impl ReprC for MDataValue {
             entry_version,
             ..
         } = *repr_c;
-        let content = slice::from_raw_parts(content, content_len).to_vec();
+        let content = vec_clone_from_raw_parts(content, content_len);
 
         Ok(Self {
             content,
@@ -587,6 +589,7 @@ impl ReprC for MDataValue {
 }
 
 /// Mutable data entry.
+// TODO: Remove this and use SeqMDataEntry in safe-nd instead.
 #[derive(Hash, Eq, PartialEq, PartialOrd, Ord, Clone, Serialize, Deserialize, Debug)]
 pub struct MDataEntry {
     /// Key.
