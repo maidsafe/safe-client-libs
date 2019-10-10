@@ -22,17 +22,16 @@ use safe_core::FutureExt;
 use safe_nd::XorName;
 use std::os::raw::{c_char, c_void};
 
-/// Application registered in the authenticator
+/// Application registered in the authenticator.
 #[repr(C)]
 pub struct RegisteredApp {
-    /// Unique application identifier
+    /// Unique application identifier.
     pub app_info: AppExchangeInfo,
-    /// List of containers that this application has access to
+    /// List of containers that this application has access to.
     pub containers: *const ContainerPermissions,
-    /// Length of the containers array
+    /// Length of the containers array.
     pub containers_len: usize,
-    /// Capacity of the containers array. Internal data required
-    /// for the Rust allocator.
+    /// Capacity of the containers array. Internal data required for the Rust allocator.
     pub containers_cap: usize,
 }
 

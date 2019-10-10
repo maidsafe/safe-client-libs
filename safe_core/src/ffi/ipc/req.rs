@@ -97,13 +97,12 @@ impl Drop for ContainerPermissions {
     }
 }
 
-/// Represents an authorisation request
+/// Represents an authorisation request.
 #[repr(C)]
 pub struct AuthReq {
-    /// The application identifier for this request
+    /// The application identifier for this request.
     pub app: AppExchangeInfo,
-    /// `true` if the app wants dedicated container for itself. `false`
-    /// otherwise.
+    /// `true` if the app wants dedicated container for itself. `false` otherwise.
     pub app_container: bool,
 
     /// App has permission to transfer coins on behalf of the user.
@@ -115,14 +114,13 @@ pub struct AuthReq {
     /// App has permission to read balance on behalf of the user.
     pub app_permission_get_balance: bool,
 
-    /// Array of `ContainerPermissions`
+    /// Array of `ContainerPermissions`.
     pub containers: *const ContainerPermissions,
 
-    /// Size of container permissions array
+    /// Size of container permissions array.
     pub containers_len: usize,
 
-    /// Capacity of container permissions array. Internal field
-    /// required for the Rust allocator.
+    /// Capacity of container permissions array. Internal field required for the Rust allocator.
     pub containers_cap: usize,
 }
 
@@ -141,14 +139,13 @@ impl Drop for AuthReq {
 /// Containers request.
 #[repr(C)]
 pub struct ContainersReq {
-    /// Exchange info
+    /// Exchange info.
     pub app: AppExchangeInfo,
-    /// Requested containers
+    /// Requested containers.
     pub containers: *const ContainerPermissions,
-    /// Size of requested containers array
+    /// Size of requested containers array.
     pub containers_len: usize,
-    /// Capacity of requested containers array. Internal field
-    /// required for the Rust allocator.
+    /// Capacity of requested containers array. Internal field required for the Rust allocator.
     pub containers_cap: usize,
 }
 

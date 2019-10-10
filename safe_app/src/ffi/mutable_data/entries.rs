@@ -17,7 +17,10 @@ use ffi_utils::callback::Callback;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
 };
-use safe_core::ffi::ipc::resp::{MDataEntry, MDataKey, MDataValue};
+use safe_core::ffi::ipc::resp::MDataEntry;
+use safe_core::ipc::resp::{
+    MDataEntry as NativeMDataEntry, MDataKey as NativeMDataKey, MDataValue as NativeMDataValue,
+};
 use safe_core::CoreError;
 use safe_nd::{Error, MDataSeqValue};
 use std::collections::BTreeMap;
@@ -159,16 +162,12 @@ pub unsafe extern "C" fn seq_mdata_list_entries(
 
             let entries_vec: Vec<MDataEntry> = entries
                 .iter()
-                .map(|(key, value)| MDataEntry {
-                    key: MDataKey {
-                        key: key.as_safe_ptr(),
-                        key_len: key.len(),
-                    },
-                    value: MDataValue {
-                        content: value.data.as_safe_ptr(),
-                        content_len: value.data.len(),
-                        entry_version: value.version,
-                    },
+                .map(|(key, value)| {
+                    NativeMDataEntry {
+                        key: NativeMDataKey(key.clone()),
+                        value: NativeMDataValue::from_routing(value.clone()),
+                    }
+                    .into_repr_c()
                 })
                 .collect();
 

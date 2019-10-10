@@ -32,8 +32,7 @@ pub struct MDataInfo {
     /// Type tag of the mutable data.
     pub type_tag: u64,
 
-    /// Flag indicating whether the encryption info (`enc_key` and `enc_nonce`).
-    /// is set.
+    /// Flag indicating whether the encryption info (`enc_key` and `enc_nonce`) is set.
     pub has_enc_info: bool,
     /// Encryption key. Meaningful only if `has_enc_info` is `true`.
     pub enc_key: SymSecretKey,
