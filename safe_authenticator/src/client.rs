@@ -480,7 +480,7 @@ fn create_client_id(seeder: &[u8]) -> ClientFullId {
 impl AuthActions for AuthClient {}
 
 impl Client for AuthClient {
-    type MsgType = ();
+    type Context = ();
 
     fn full_id(&self) -> SafeKey {
         let auth_inner = self.auth_inner.borrow();
@@ -496,7 +496,7 @@ impl Client for AuthClient {
         None
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
+    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
         self.inner.clone()
     }
 
