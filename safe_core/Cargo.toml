@@ -32,14 +32,14 @@ rust_sodium = "~0.10.2"
 safe-nd = "~0.4.0"
 self_encryption = "~0.15.0"
 serde = { version = "~1.0.97", features = ["derive"] }
-serde_json = "~1.0.40"
+serde_json = "~1.0.41"
 tiny-keccak = "~1.5.0"
 threshold_crypto = "~0.3.2"
 tokio = "~0.1.22"
 unwrap = "~1.2.0"
 
 [dev-dependencies]
-serde_json = "~1.0.9"
+serde_json = "~1.0.41"
 tempfile = "3.1.0"
 
 [features]
