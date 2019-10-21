@@ -19,7 +19,7 @@ use crate::errors::AuthError;
 use crate::Authenticator;
 use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
-use safe_core::{test_create_balance, Client};
+use safe_core::{config_handler, test_create_balance, Client};
 use safe_nd::Coins;
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
@@ -148,6 +148,21 @@ pub unsafe extern "C" fn auth_exe_file_stem(
                 o_cb
             );
         }
+        Ok(())
+    });
+}
+
+/// Sets the path from which the `safe_core.config` file will be read.
+#[no_mangle]
+pub unsafe extern "C" fn auth_set_config_dir_path(
+    new_path: *const c_char,
+    user_data: *mut c_void,
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
+) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+        let new_path = CStr::from_ptr(new_path).to_str()?;
+        config_handler::set_config_dir_path(OsStr::new(new_path));
+        o_cb(user_data, FFI_RESULT_OK);
         Ok(())
     });
 }

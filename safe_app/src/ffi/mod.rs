@@ -46,7 +46,7 @@ use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, FFI_RE
 use maidsafe_utilities::serialisation::deserialise;
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};
-use safe_core::{self, Client};
+use safe_core::{self, config_handler, Client};
 use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::slice;
@@ -146,6 +146,21 @@ pub unsafe extern "C" fn app_exe_file_stem(
                 o_cb
             );
         }
+        Ok(())
+    });
+}
+
+/// Sets the path from which the `safe_core.config` file will be read.
+#[no_mangle]
+pub unsafe extern "C" fn app_set_config_dir_path(
+    new_path: *const c_char,
+    user_data: *mut c_void,
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
+) {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+        let new_path = CStr::from_ptr(new_path).to_str()?;
+        config_handler::set_config_dir_path(OsStr::new(new_path));
+        o_cb(user_data, FFI_RESULT_OK);
         Ok(())
     });
 }

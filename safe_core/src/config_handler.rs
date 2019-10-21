@@ -11,10 +11,13 @@ use directories::ProjectDirs;
 use quic_p2p::Config as QuicP2pConfig;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(test)]
-use std::{fs, path::PathBuf};
+use std::fs;
 use std::{
+    ffi::OsStr,
     fs::File,
     io::{self, BufReader},
+    path::PathBuf,
+    sync::Mutex,
 };
 
 const CONFIG_DIR_QUALIFIER: &str = "net";
@@ -25,6 +28,26 @@ const CONFIG_FILE: &str = "safe_core.config";
 const VAULT_CONFIG_DIR_APPLICATION: &str = "safe_vault";
 const VAULT_CONNECTION_INFO_FILE: &str = "vault_connection_info.config";
 
+lazy_static! {
+    static ref CONFIG_DIR_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+    static ref DEFAULT_SAFE_CORE_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
+        CONFIG_DIR_QUALIFIER,
+        CONFIG_DIR_ORGANISATION,
+        CONFIG_DIR_APPLICATION,
+    );
+    static ref DEFAULT_VAULT_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
+        CONFIG_DIR_QUALIFIER,
+        CONFIG_DIR_ORGANISATION,
+        VAULT_CONFIG_DIR_APPLICATION,
+    );
+}
+
+/// Set a custom path for the config files.
+// `OsStr` is platform-native.
+pub fn set_config_dir_path<P: AsRef<OsStr> + ?Sized>(path: &P) {
+    *unwrap!(CONFIG_DIR_PATH.lock()) = Some(From::from(path));
+}
+
 /// Configuration for safe-core.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
@@ -32,6 +55,17 @@ pub struct Config {
     pub quic_p2p: QuicP2pConfig,
     /// Developer options.
     pub dev: Option<DevConfig>,
+}
+
+#[cfg(any(target_os = "android", target_os = "androideabi", target_os = "ios"))]
+fn check_config_path_set() -> Result<(), CoreError> {
+    if unwrap!(CONFIG_DIR_PATH.lock()).is_none() {
+        Err(CoreError::QuicP2p(quic_p2p::Error::Configuration(
+            "Boostrap cache directory not set".to_string(),
+        )))
+    } else {
+        Ok(())
+    }
 }
 
 impl Config {
@@ -50,9 +84,27 @@ impl Config {
         let mut config: QuicP2pConfig = {
             match read_config_file(dirs()?, CONFIG_FILE) {
                 Err(CoreError::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
+                    // Bootstrap cache dir must be set on mobile platforms
+                    // using set_config_dir_path
+                    #[cfg(any(
+                        target_os = "android",
+                        target_os = "androideabi",
+                        target_os = "ios"
+                    ))]
+                    check_config_path_set()?;
+
+                    let custom_dir =
+                        if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
+                            Some(custom_path.into_os_string().into_string().map_err(|_| {
+                                CoreError::from("Config path is not a valid UTF-8 string")
+                            })?)
+                        } else {
+                            None
+                        };
                     // If there is no config file, assume we are a client
                     QuicP2pConfig {
                         our_type: quic_p2p::OurType::Client,
+                        bootstrap_cache_dir: custom_dir,
                         ..Default::default()
                     }
                 }
@@ -84,21 +136,21 @@ pub fn get_config() -> Config {
 }
 
 fn dirs() -> Result<ProjectDirs, CoreError> {
-    ProjectDirs::from(
-        CONFIG_DIR_QUALIFIER,
-        CONFIG_DIR_ORGANISATION,
-        CONFIG_DIR_APPLICATION,
-    )
-    .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Home directory not found").into())
+    let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
+        ProjectDirs::from_path(custom_path)
+    } else {
+        DEFAULT_SAFE_CORE_PROJECT_DIRS.clone()
+    };
+    project_dirs.ok_or_else(|| CoreError::from("Cannot determine project directory paths"))
 }
 
 fn vault_dirs() -> Result<ProjectDirs, CoreError> {
-    ProjectDirs::from(
-        CONFIG_DIR_QUALIFIER,
-        CONFIG_DIR_ORGANISATION,
-        VAULT_CONFIG_DIR_APPLICATION,
-    )
-    .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Home directory not found").into())
+    let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
+        ProjectDirs::from_path(custom_path)
+    } else {
+        DEFAULT_VAULT_PROJECT_DIRS.clone()
+    };
+    project_dirs.ok_or_else(|| CoreError::from("Cannot determine vault directory paths"))
 }
 
 fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, CoreError>

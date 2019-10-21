@@ -26,7 +26,7 @@ log = "~0.4.1"
 lru-cache = "~0.1.1"
 maidsafe_utilities = "~0.18.0"
 new_rand = { package = "rand", version = "0.6" }
-quic-p2p = "~0.2.1"
+quic-p2p = "~0.3.0"
 rand = "~0.3.18"
 rust_sodium = "~0.10.2"
 safe-nd = "~0.4.0"

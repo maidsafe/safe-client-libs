@@ -1418,7 +1418,7 @@ dependencies = [
 
 [[package]]
 name = "quic-p2p"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1939,7 +1939,7 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lru-cache 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "maidsafe_utilities 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "quic-p2p 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quic-p2p 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2001,7 +2001,7 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "lru-cache 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "maidsafe_utilities 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "quic-p2p 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quic-p2p 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust_sodium 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3020,7 +3020,7 @@ dependencies = [
 "checksum podio 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "780fb4b6698bbf9cf2444ea5d22411cef2953f0824b98f33cf454ec5615645bd"
 "checksum ppv-lite86 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "e3cbf9f658cdb5000fcf6f362b8ea2ba154b9f146a61c7a20d647034c6b6561b"
 "checksum proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)" = "cf3d2011ab5c909338f7887f4fc896d35932e29146c12c8d01da6b22a80ba759"
-"checksum quic-p2p 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9d018cb8cabf5fd8537626b0478babdca52c22d659cb5370fbdeac25e3464896"
+"checksum quic-p2p 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b61c385be2b310e1707e7d6b2be496388799e7b9ef32d5764e404a44c2c72628"
 "checksum quick-error 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9274b940887ce9addde99c4eee6b5c44cc494b182b97e73dc8ffdcb3397fd3f0"
 "checksum quinn 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9f79b799f97a3f97a69ab888bc92124fcdac3c6654ee5d46952f94fadd6a06d9"
 "checksum quinn-proto 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a5aeb6dc5d670066a6c90a666139f92d95f73b4ca8883d80e33b0693ef103f65"

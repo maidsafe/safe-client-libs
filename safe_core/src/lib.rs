@@ -68,7 +68,6 @@
     variant_size_differences
 )]
 
-#[cfg(feature = "mock-network")]
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
