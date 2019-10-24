@@ -12,7 +12,7 @@ mod sync;
 #[cfg(feature = "mock-network")]
 pub use self::sync::Synchronizer;
 use crate::client::core_client::CoreClient;
-use crate::client::Client;
+use crate::client::{Client, COST_OF_PUT};
 use crate::event::{NetworkEvent, NetworkTx};
 use crate::event_loop::{self, CoreMsg, CoreMsgTx};
 use crate::utils::{self, FutureExt};
@@ -20,6 +20,7 @@ use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
 use rust_sodium::crypto::sign;
+use safe_nd::Coins;
 use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use std::{iter, u8};
@@ -160,4 +161,21 @@ where
     event_loop::run(el, &client, context, core_rx);
 
     unwrap!(result_rx.recv())
+}
+
+/// Helper function to calculate the total cost of expenditure by adding number of mutations and
+/// amount of transferred coins if any.
+pub fn calculate_new_balance(
+    mut balance: Coins,
+    mutation_count: Option<u64>,
+    transferred_coins: Option<Coins>,
+) -> Coins {
+    if let Some(x) = mutation_count {
+        balance =
+            unwrap!(balance.checked_sub(unwrap!(Coins::from_nano(x * COST_OF_PUT.as_nano()))));
+    }
+    if let Some(coins) = transferred_coins {
+        balance = unwrap!(balance.checked_sub(coins));
+    }
+    balance
 }

@@ -588,7 +588,9 @@ mod tests {
     use futures::sync::mpsc;
     use futures::Future;
     use safe_core::client::test_create_balance;
-    use safe_core::utils::test_utils::{finish, random_client, setup_client};
+    use safe_core::utils::test_utils::{
+        calculate_new_balance, finish, random_client, setup_client,
+    };
     use safe_core::{utils, CoreError, DIR_TAG};
     use safe_nd::{Coins, Error as SndError, MDataKind};
     use std::str::FromStr;
@@ -902,21 +904,49 @@ mod tests {
         let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
         let five_coins = unwrap!(Coins::from_str("5"));
 
+        // The `random_client()` initializes the client with 10 coins.
+        let start_bal = unwrap!(Coins::from_str("10"));
         // Create a client which has a pre-loaded balance and use it to store the login packet on
         // the network.
         random_client(move |client| {
+            let c1 = client.clone();
+            let c2 = client.clone();
             client
                 .insert_login_packet_for(
                     None,
                     maid_keys.bls_pk.into(),
                     five_coins,
                     None,
-                    new_login_packet,
+                    new_login_packet.clone(),
                 )
                 // Make sure no error occurred.
                 .then(|result| match result {
                     Ok(_transaction) => Ok::<_, CoreError>(()),
                     res => panic!("Unexpected {:?}", res),
+                })
+                .and_then(move |_| {
+                    c1.insert_login_packet_for(
+                        None,
+                        maid_keys.bls_pk.into(),
+                        unwrap!(Coins::from_str("3")),
+                        None,
+                        new_login_packet,
+                    )
+                })
+                // Re-insert to check for refunds for a failed insert_login_packet_for operation
+                .then(|result| match result {
+                    Err(CoreError::DataError(SndError::LoginPacketExists)) => Ok::<_, CoreError>(()),
+                    res => panic!("Unexpected {:?}", res),
+                })
+                // Check if coins are refunded
+                .and_then(move |_| c2.get_balance(None))
+                .and_then(move |balance| {
+                    let expected = calculate_new_balance(start_bal, Some(2), Some(five_coins));
+                    assert_eq!(
+                        balance,
+                        expected
+                    );
+                    Ok(())
                 })
         });
 

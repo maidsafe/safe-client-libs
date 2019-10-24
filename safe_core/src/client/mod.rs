@@ -1384,7 +1384,7 @@ pub fn req(
 mod tests {
     use super::*;
     use crate::utils::generate_random_vector;
-    use crate::utils::test_utils::random_client;
+    use crate::utils::test_utils::{calculate_new_balance, random_client};
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
         ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
@@ -1401,6 +1401,9 @@ mod tests {
             let client2 = client.clone();
             let client3 = client.clone();
             let client4 = client.clone();
+            let client5 = client.clone();
+            // The `random_client()` initializes the client with 10 coins.
+            let start_bal = unwrap!(Coins::from_str("10"));
 
             let value = unwrap!(generate_random_vector::<u8>(10));
             let data = PubImmutableData::new(value.clone());
@@ -1431,9 +1434,15 @@ mod tests {
                         Err(e) => panic!("Unexpected: {:?}", e),
                     })
                 })
+                .and_then(move |_| client4.get_balance(None))
+                .and_then(move |balance| {
+                    let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+                    assert_eq!(balance, expected_bal);
+                    Ok(())
+                })
                 .and_then(move |_| {
                     // Fetch idata
-                    client4.get_idata(address).map(move |fetched_data| {
+                    client5.get_idata(address).map(move |fetched_data| {
                         assert_eq!(*fetched_data.address(), address);
                     })
                 })
@@ -1443,6 +1452,9 @@ mod tests {
     // Test putting, getting, and deleting unpub idata.
     #[test]
     fn unpub_idata_test() {
+        // The `random_client()` initializes the client with 10 coins.
+        let start_bal = unwrap!(Coins::from_str("10"));
+
         random_client(move |client| {
             let client2 = client.clone();
             let client3 = client.clone();
@@ -1451,6 +1463,7 @@ mod tests {
             let client6 = client.clone();
             let client7 = client.clone();
             let client8 = client.clone();
+            let client9 = client.clone();
 
             let value = unwrap!(generate_random_vector::<u8>(10));
             let data = UnpubImmutableData::new(value.clone(), client.public_key());
@@ -1486,23 +1499,29 @@ mod tests {
                         res => panic!("Unexpected: {:?}", res),
                     }
                 })
+                .and_then(move |_| client4.get_balance(None))
+                .and_then(move |balance| {
+                    let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+                    assert_eq!(balance, expected_bal);
+                    Ok(())
+                })
                 .and_then(move |_| {
                     // Test putting published idata with the same value. Should not conflict.
-                    client4.put_idata(pub_data)
+                    client5.put_idata(pub_data)
                 })
                 .and_then(move |_| {
                     // Fetch idata
-                    client5.get_idata(address).map(move |fetched_data| {
+                    client6.get_idata(address).map(move |fetched_data| {
                         assert_eq!(*fetched_data.address(), address);
                     })
                 })
                 .and_then(move |()| {
                     // Delete idata
-                    client6.del_unpub_idata(*address.name())
+                    client7.del_unpub_idata(*address.name())
                 })
                 .and_then(move |()| {
                     // Make sure idata was deleted
-                    client7.get_idata(address)
+                    client8.get_idata(address)
                 })
                 .then(|res| -> Result<(), CoreError> {
                     match res {
@@ -1513,7 +1532,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     // Test putting unpub idata with the same value again. Should not conflict.
-                    client8.put_idata(data3.clone())
+                    client9.put_idata(data3.clone())
                 })
         });
     }
@@ -1820,9 +1839,9 @@ mod tests {
             let client4 = client.clone();
             let client5 = client.clone();
             let wallet1: XorName = client.owner_key().into();
-
+            let init_bal = unwrap!(Coins::from_str("500.0"));
             client
-                .test_set_balance(None, unwrap!(Coins::from_str("500.0")))
+                .test_set_balance(None, init_bal)
                 .and_then(move |_| {
                     let bls_sk = BlsSecretKey::random();
                     client1
@@ -1853,9 +1872,12 @@ mod tests {
                     })
                 })
                 .and_then(move |_| {
-                    client4.get_balance(None).and_then(|balance| {
-                        let mut expected = unwrap!(Coins::from_str("405.0"));
-                        expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+                    client4.get_balance(None).and_then(move |balance| {
+                        let expected = calculate_new_balance(
+                            init_bal,
+                            Some(1),
+                            Some(unwrap!(Coins::from_str("95"))),
+                        );
                         assert_eq!(balance, expected);
                         Ok(())
                     })
@@ -1913,7 +1935,8 @@ mod tests {
             let c5 = client.clone();
             let c6 = client.clone();
             let c7 = client.clone();
-
+            let c8 = client.clone();
+            let init_bal = unwrap!(Coins::from_str("10"));
             client
                 .get_balance(None)
                 .and_then(move |orig_balance| {
@@ -1936,18 +1959,29 @@ mod tests {
                         Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    c5.transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
+                    Ok(())
+                })
+                // Check if coins are refunded
+                .and_then(move |_| c5.get_balance(None))
+                .and_then(move |balance| {
+                    let expected = calculate_new_balance(
+                        init_bal,
+                        Some(1),
+                        Some(unwrap!(Coins::from_str("5"))),
+                    );
+                    assert_eq!(balance, expected);
+                    c6.transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
                 })
                 .then(move |res| {
                     match res {
                         Err(CoreError::DataError(SndError::InvalidOperation)) => (),
                         res => panic!("Unexpected result: {:?}", res),
                     }
-                    c6.test_set_balance(None, unwrap!(Coins::from_str("0")))
+                    c7.test_set_balance(None, unwrap!(Coins::from_str("0")))
                 })
                 .and_then(move |_| {
                     let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
-                    c7.put_idata(data)
+                    c8.put_idata(data)
                 })
                 .then(move |res| {
                     match res {
@@ -2002,6 +2036,9 @@ mod tests {
             let client3 = client.clone();
             let client4 = client.clone();
             let client5 = client.clone();
+            let client6 = client.clone();
+            // The `random_client()` initializes the client with 10 coins.
+            let start_bal = unwrap!(Coins::from_str("10"));
             let name = XorName(rand::random());
             let tag = 15001;
             let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2043,11 +2080,18 @@ mod tests {
                             Err(e) => panic!("Unexpected: {:?}", e),
                         })
                 })
+                // Check if coins are refunded
+                .and_then(move |_| client2.get_balance(None))
+                .and_then(move |balance| {
+                    let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+                    assert_eq!(balance, expected_bal);
+                    Ok(())
+                })
                 .and_then(move |_| {
                     let new_perm_set = MDataPermissionSet::new()
                         .allow(MDataAction::ManagePermissions)
                         .allow(MDataAction::Read);
-                    client2
+                    client3
                         .set_mdata_user_permissions(
                             MDataAddress::Seq { name, tag },
                             user,
@@ -2062,7 +2106,7 @@ mod tests {
                 .and_then(move |_| {
                     println!("Modified user permissions");
 
-                    client3
+                    client4
                         .list_mdata_user_permissions(MDataAddress::Seq { name, tag }, user2)
                         .and_then(|permissions| {
                             assert!(!permissions.is_allowed(MDataAction::Insert));
@@ -2074,7 +2118,7 @@ mod tests {
                         })
                 })
                 .and_then(move |_| {
-                    client4
+                    client5
                         .del_mdata_user_permissions(MDataAddress::Seq { name, tag }, random_user, 2)
                         .then(move |res| {
                             assert_eq!(unwrap!(res), ());
@@ -2083,7 +2127,7 @@ mod tests {
                 })
                 .and_then(move |_| {
                     println!("Deleted permissions");
-                    client5
+                    client6
                         .list_mdata_permissions(MDataAddress::Seq { name, tag })
                         .and_then(|permissions| {
                             assert_eq!(permissions.len(), 1);
@@ -2770,8 +2814,8 @@ mod tests {
         assert_eq!(txn2.amount, ten_coins);
 
         let client_balance = unwrap!(wallet_get_balance(&bls_sk));
-        let mut expected = unwrap!(Coins::from_str("30"));
-        expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+        let expected = unwrap!(Coins::from_str("30"));
+        let expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
         assert_eq!(client_balance, expected);
 
         let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
