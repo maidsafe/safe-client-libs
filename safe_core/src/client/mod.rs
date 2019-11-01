@@ -45,18 +45,16 @@ use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
-    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, Coins, IData,
-    IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
+    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, Coins,
+    IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
     MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue,
     MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
-    Request, RequestType, Response, SeqMutableData, Signature, Transaction, UnseqMutableData,
-    XorName,
+    Request, RequestType, Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
-use threshold_crypto::SecretKey as BlsSecretKey;
 use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Capacity of the immutable data cache.
@@ -111,13 +109,10 @@ macro_rules! send_as {
 fn send_as_helper(
     client: &impl Client,
     request: Request,
-    secret_key: Option<&BlsSecretKey>,
+    client_id: Option<&ClientFullId>,
 ) -> Box<CoreFuture<Response>> {
-    let (message, identity) = match secret_key {
-        Some(key) => (
-            sign_request_with_key(request, key),
-            SafeKey::client_from_bls_key(key.clone()),
-        ),
+    let (message, identity) = match client_id {
+        Some(id) => (sign_request(request, id), SafeKey::client(id.clone())),
         None => (client.compose_message(request, true), client.full_id()),
     };
 
@@ -146,7 +141,17 @@ pub trait Client: Clone + 'static {
     fn full_id(&self) -> SafeKey;
 
     /// Return the client's public ID.
-    fn public_id(&self) -> PublicId;
+    fn public_id(&self) -> PublicId {
+        self.full_id().public_id()
+    }
+
+    /// Returns the client's public key.
+    fn public_key(&self) -> PublicKey {
+        self.full_id().public_key()
+    }
+
+    /// Returns the client's owner key.
+    fn owner_key(&self) -> PublicKey;
 
     /// Return a `crust::Config` if the `Client` was initialized with one.
     fn config(&self) -> Option<BootstrapConfig>;
@@ -175,22 +180,16 @@ pub trait Client: Clone + 'static {
     /// Return the secret signing key.
     fn secret_signing_key(&self) -> shared_sign::SecretKey;
 
-    /// Return the public BLS key.
-    fn public_bls_key(&self) -> threshold_crypto::PublicKey;
-
-    /// Return the secret BLS key.
-    fn secret_bls_key(&self) -> BlsSecretKey;
-
     /// Create a `Message` from the given request.
     /// This function adds the requester signature and message ID.
     fn compose_message(&self, request: Request, sign: bool) -> Message {
         let message_id = MessageId::new();
 
         let signature = if sign {
-            Some(Signature::from(
-                self.secret_bls_key()
+            Some(
+                self.full_id()
                     .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
-            ))
+            )
         } else {
             None
         };
@@ -206,12 +205,6 @@ pub trait Client: Clone + 'static {
     fn signing_keypair(&self) -> (sign::PublicKey, shared_sign::SecretKey) {
         (self.public_signing_key(), self.secret_signing_key())
     }
-
-    /// Return the owner signing key.
-    fn owner_key(&self) -> PublicKey;
-
-    /// Return the client's public key
-    fn public_key(&self) -> PublicKey;
 
     /// Set request timeout.
     fn set_timeout(&self, duration: Duration) {
@@ -242,7 +235,7 @@ pub trait Client: Clone + 'static {
     /// Transfer coin balance
     fn transfer_coins(
         &self,
-        secret_key: Option<&BlsSecretKey>,
+        client_id: Option<&ClientFullId>,
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
@@ -256,14 +249,14 @@ pub trait Client: Clone + 'static {
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
             Response::Transaction,
-            secret_key
+            client_id
         )
     }
 
     /// Creates a new balance on the network.
     fn create_balance(
         &self,
-        secret_key: Option<&BlsSecretKey>,
+        client_id: Option<&ClientFullId>,
         new_balance_owner: PublicKey,
         amount: Coins,
         transaction_id: Option<u64>,
@@ -282,14 +275,14 @@ pub trait Client: Clone + 'static {
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
             Response::Transaction,
-            secret_key
+            client_id
         )
     }
 
     /// Insert a given login packet at the specified destination
     fn insert_login_packet_for(
         &self,
-        secret_key: Option<&BlsSecretKey>,
+        client_id: Option<&ClientFullId>,
         new_owner: PublicKey,
         amount: Coins,
         transaction_id: Option<u64>,
@@ -311,18 +304,15 @@ pub trait Client: Clone + 'static {
                 new_login_packet,
             },
             Response::Transaction,
-            secret_key
+            client_id
         )
     }
 
     /// Get the current coin balance.
-    fn get_balance(
-        &self,
-        secret_key: Option<&BlsSecretKey>, // TODO: replace with secret_id
-    ) -> Box<CoreFuture<Coins>> {
-        trace!("Get balance for {:?}", secret_key);
+    fn get_balance(&self, client_id: Option<&ClientFullId>) -> Box<CoreFuture<Coins>> {
+        trace!("Get balance for {:?}", client_id);
 
-        send_as!(self, Request::GetBalance, Response::GetBalance, secret_key)
+        send_as!(self, Request::GetBalance, Response::GetBalance, client_id)
     }
 
     /// Put immutable data to the network.
@@ -1103,11 +1093,13 @@ pub trait Client: Clone + 'static {
     #[cfg(any(test, feature = "testing"))]
     fn test_set_balance(
         &self,
-        secret_key: Option<&BlsSecretKey>,
+        client_id: Option<&ClientFullId>,
         amount: Coins,
     ) -> Box<CoreFuture<Transaction>> {
-        let new_balance_owner =
-            secret_key.map_or_else(|| self.public_key(), |sk| sk.public_key().into());
+        let new_balance_owner = client_id.map_or_else(
+            || self.public_key(),
+            |client_id| *client_id.public_id().public_key(),
+        );
         trace!(
             "Set the coin balance of {:?} to {:?}",
             new_balance_owner,
@@ -1119,21 +1111,21 @@ pub trait Client: Clone + 'static {
             Request::CreateBalance {
                 new_balance_owner,
                 amount,
-                transaction_id: new_rand::random(),
+                transaction_id: rand::random(),
             },
             Response::Transaction,
-            secret_key
+            client_id
         )
     }
 }
 
 /// Creates a throw-away client to execute requests sequentially.
 /// This function is blocking.
-fn temp_client<F, R>(identity: &BlsSecretKey, mut func: F) -> Result<R, CoreError>
+fn temp_client<F, R>(identity: &ClientFullId, mut func: F) -> Result<R, CoreError>
 where
     F: FnMut(&mut ConnectionManager, &SafeKey) -> Result<R, CoreError>,
 {
-    let full_id = SafeKey::client_from_bls_key(identity.clone());
+    let full_id = SafeKey::client(identity.clone());
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
@@ -1147,7 +1139,7 @@ where
 }
 
 /// Create a new mock balance at an arbitrary address.
-pub fn test_create_balance(owner: &BlsSecretKey, amount: Coins) -> Result<(), CoreError> {
+pub fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<(), CoreError> {
     trace!("Create test balance of {} for {:?}", amount, owner);
 
     temp_client(owner, move |mut cm, full_id| {
@@ -1162,7 +1154,7 @@ pub fn test_create_balance(owner: &BlsSecretKey, amount: Coins) -> Result<(), Co
             Request::CreateBalance {
                 new_balance_owner,
                 amount,
-                transaction_id: new_rand::random(),
+                transaction_id: rand::random(),
             },
             &full_id,
         )?;
@@ -1175,7 +1167,7 @@ pub fn test_create_balance(owner: &BlsSecretKey, amount: Coins) -> Result<(), Co
 }
 
 /// Get the balance at the given key's location
-pub fn wallet_get_balance(wallet_sk: &BlsSecretKey) -> Result<Coins, CoreError> {
+pub fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreError> {
     trace!("Get balance for {:?}", wallet_sk);
 
     temp_client(wallet_sk, move |mut cm, full_id| {
@@ -1188,7 +1180,7 @@ pub fn wallet_get_balance(wallet_sk: &BlsSecretKey) -> Result<Coins, CoreError> 
 
 /// Creates a new coin balance on the network.
 pub fn wallet_create_balance(
-    secret_key: &BlsSecretKey,
+    client_id: &ClientFullId,
     new_balance_owner: PublicKey,
     amount: Coins,
     transaction_id: Option<u64>,
@@ -1201,7 +1193,7 @@ pub fn wallet_create_balance(
 
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
 
-    temp_client(secret_key, move |mut cm, full_id| {
+    temp_client(client_id, move |mut cm, full_id| {
         let response = req(
             &mut cm,
             Request::CreateBalance {
@@ -1220,7 +1212,7 @@ pub fn wallet_create_balance(
 
 /// Transfer coins
 pub fn wallet_transfer_coins(
-    secret_key: &BlsSecretKey,
+    client_id: &ClientFullId,
     destination: XorName,
     amount: Coins,
     transaction_id: Option<u64>,
@@ -1229,7 +1221,7 @@ pub fn wallet_transfer_coins(
 
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
 
-    temp_client(secret_key, move |mut cm, full_id| {
+    temp_client(client_id, move |mut cm, full_id| {
         let response = req(
             &mut cm,
             Request::TransferCoins {
@@ -1305,12 +1297,10 @@ pub trait AuthActions: Client + Clone + 'static {
     }
 }
 
-fn sign_request_with_key(request: Request, key: &BlsSecretKey) -> Message {
+fn sign_request(request: Request, client_id: &ClientFullId) -> Message {
     let message_id = MessageId::new();
 
-    let signature = Some(Signature::from(
-        key.sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
-    ));
+    let signature = Some(client_id.sign(&unwrap!(bincode::serialize(&(&request, message_id)))));
 
     Message::Request {
         request,
@@ -1384,7 +1374,9 @@ pub fn req(
 mod tests {
     use super::*;
     use crate::utils::generate_random_vector;
-    use crate::utils::test_utils::{calculate_new_balance, random_client};
+    use crate::utils::test_utils::{
+        calculate_new_balance, gen_bls_keypair, gen_client_id, random_client,
+    };
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
         ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
@@ -1392,7 +1384,6 @@ mod tests {
         UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
     };
     use std::str::FromStr;
-    use BlsSecretKey;
 
     // Test putting and getting pub idata.
     #[test]
@@ -1408,11 +1399,9 @@ mod tests {
             let value = unwrap!(generate_random_vector::<u8>(10));
             let data = PubImmutableData::new(value.clone());
             let address = *data.address();
+            let pk = gen_bls_keypair().public_key();
 
-            let test_data = UnpubImmutableData::new(
-                value.clone(),
-                PublicKey::Bls(BlsSecretKey::random().public_key()),
-            );
+            let test_data = UnpubImmutableData::new(value.clone(), pk);
             client
                 // Get inexistent idata
                 .get_idata(address)
@@ -1765,18 +1754,14 @@ mod tests {
     // 2. Try to transfer coins from A to inexistent wallet. This request should fail.
     // 3. Try to request balance of wallet B. This request should fail.
     // 4. Now create a wallet for account B and transfer some coins to A. This should pass.
-    // 5. Try to request transaction from wallet A using account B. This request should succeed (because transactions are always open).
+    // 5. Try to request transaction from wallet A using account B. This request should succeed
+    // (because transactions are always open).
     #[test]
     fn coin_permissions() {
         let wallet_a_addr = random_client(move |client| {
-            let wallet_a_addr: XorName = client.owner_key().into();
+            let wallet_a_addr: XorName = client.public_key().into();
             client
-                .transfer_coins(
-                    None,
-                    new_rand::random(),
-                    unwrap!(Coins::from_str("5.0")),
-                    None,
-                )
+                .transfer_coins(None, rand::random(), unwrap!(Coins::from_str("5.0")), None)
                 .then(move |res| {
                     match res {
                         Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
@@ -1840,36 +1825,34 @@ mod tests {
             let client5 = client.clone();
             let wallet1: XorName = client.owner_key().into();
             let init_bal = unwrap!(Coins::from_str("500.0"));
+
+            let client_id = gen_client_id();
+            let bls_pk = *client_id.public_id().public_key();
+
             client
                 .test_set_balance(None, init_bal)
                 .and_then(move |_| {
-                    let bls_sk = BlsSecretKey::random();
-                    client1
-                        .create_balance(
-                            None,
-                            PublicKey::from(bls_sk.public_key()),
-                            unwrap!(Coins::from_str("100.0")),
-                            None,
-                        )
-                        .map(|txn| (txn, bls_sk))
+                    client1.create_balance(None, bls_pk, unwrap!(Coins::from_str("100.0")), None)
                 })
-                .and_then(move |(transaction, bls_sk)| {
+                .and_then(move |transaction| {
                     assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
                     client2
                         .transfer_coins(
-                            Some(&bls_sk),
+                            Some(&client_id.clone()),
                             wallet1,
                             unwrap!(Coins::from_str("5.0")),
                             None,
                         )
-                        .map(|txn| (txn, bls_sk))
+                        .map(|transaction| (transaction, client_id))
                 })
-                .and_then(move |(transaction, bls_sk)| {
+                .and_then(move |(transaction, client_id)| {
                     assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
-                    client3.get_balance(Some(&bls_sk)).and_then(|balance| {
-                        assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
-                        Ok(())
-                    })
+                    client3
+                        .get_balance(Some(&client_id.clone()))
+                        .and_then(|balance| {
+                            assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     client4.get_balance(None).and_then(move |balance| {
@@ -1883,9 +1866,9 @@ mod tests {
                     })
                 })
                 .and_then(move |_| {
-                    let random_key = BlsSecretKey::random();
-                    let random_source = BlsSecretKey::random();
-                    let random_pk = PublicKey::from(random_key.public_key());
+                    let random_pk = gen_bls_keypair().public_key();
+                    let random_source = gen_client_id();
+
                     client5
                         .create_balance(
                             Some(&random_source),
@@ -2048,9 +2031,12 @@ mod tests {
                 .allow(MDataAction::ManagePermissions);
             let user = client.public_key();
             let user2 = user;
-            let random_user = PublicKey::Bls(BlsSecretKey::random().public_key());
+            let random_user = gen_bls_keypair().public_key();
+            let random_pk = gen_bls_keypair().public_key();
+
             let _ = permissions.insert(user, permission_set.clone());
             let _ = permissions.insert(random_user, permission_set.clone());
+
             let data = SeqMutableData::new_with_data(
                 name,
                 tag,
@@ -2063,8 +2049,9 @@ mod tests {
                 15000,
                 Default::default(),
                 permissions,
-                PublicKey::Bls(BlsSecretKey::random().public_key()),
+                random_pk,
             );
+
             client
                 .put_seq_mutable_data(data.clone())
                 .and_then(move |res| {
@@ -2459,7 +2446,7 @@ mod tests {
             let index_end = ADataIndex::FromEnd(2);
             let perm_index = ADataIndex::FromStart(1);
 
-            let sim_client = PublicKey::Bls(BlsSecretKey::random().public_key());
+            let sim_client = gen_bls_keypair().public_key();
             let sim_client1 = sim_client;
 
             let mut perms2 = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
@@ -2483,7 +2470,7 @@ mod tests {
 
             let mut test_data = UnpubSeqAppendOnlyData::new(XorName(rand::random()), 15000);
             let test_owner = ADataOwner {
-                public_key: PublicKey::Bls(BlsSecretKey::random().public_key()),
+                public_key: gen_bls_keypair().public_key(),
                 entries_index: 0,
                 permissions_index: 0,
             };
@@ -2792,33 +2779,38 @@ mod tests {
     // 2. Without a client object, try to get the balance, create new wallets and transfer safecoin.
     #[test]
     pub fn wallet_transactions_without_client() {
-        let bls_sk = BlsSecretKey::random();
+        let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(&bls_sk, unwrap!(Coins::from_str("50"))));
+        unwrap!(test_create_balance(
+            &client_id,
+            unwrap!(Coins::from_str("50"))
+        ));
 
-        let balance = unwrap!(wallet_get_balance(&bls_sk));
+        let balance = unwrap!(wallet_get_balance(&client_id));
         let ten_coins = unwrap!(Coins::from_str("10"));
         assert_eq!(balance, unwrap!(Coins::from_str("50")));
 
-        let new_bls_sk = BlsSecretKey::random();
-        let new_client_pk = PublicKey::from(new_bls_sk.public_key());
-        let new_wallet: XorName = new_client_pk.into();
+        let new_client_id = gen_client_id();
+        let new_client_pk = new_client_id.public_id().public_key();
+        let new_wallet: XorName = *new_client_id.public_id().name();
         let txn = unwrap!(wallet_create_balance(
-            &bls_sk,
-            new_client_pk,
+            &client_id,
+            *new_client_pk,
             ten_coins,
             None
         ));
         assert_eq!(txn.amount, ten_coins);
-        let txn2 = unwrap!(wallet_transfer_coins(&bls_sk, new_wallet, ten_coins, None));
+        let txn2 = unwrap!(wallet_transfer_coins(
+            &client_id, new_wallet, ten_coins, None
+        ));
         assert_eq!(txn2.amount, ten_coins);
 
-        let client_balance = unwrap!(wallet_get_balance(&bls_sk));
+        let client_balance = unwrap!(wallet_get_balance(&client_id));
         let expected = unwrap!(Coins::from_str("30"));
         let expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
         assert_eq!(client_balance, expected);
 
-        let new_client_balance = unwrap!(wallet_get_balance(&new_bls_sk));
+        let new_client_balance = unwrap!(wallet_get_balance(&new_client_id));
         assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
     }
 

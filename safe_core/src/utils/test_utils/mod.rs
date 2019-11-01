@@ -19,39 +19,50 @@ use crate::utils::{self, FutureExt};
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
+use rand;
 use rust_sodium::crypto::sign;
-use safe_nd::Coins;
+use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use std::{iter, u8};
-use threshold_crypto::{PublicKey, SecretKey};
 use tokio::runtime::current_thread::{Handle, Runtime};
 
 /// Generates a random BLS secret and public keypair.
-pub fn gen_bls_keys() -> (SecretKey, PublicKey) {
-    let sk = SecretKey::random();
-    let pk = sk.public_key();
-    (sk, pk)
+pub fn gen_bls_keypair() -> Keypair {
+    let mut rng = rand::thread_rng();
+    Keypair::new_bls(&mut rng)
 }
 
-/// Generates random public keys
+/// Generates a random client full ID.
+pub fn gen_client_id() -> ClientFullId {
+    let mut rng = rand::thread_rng();
+    ClientFullId::new_bls(&mut rng)
+}
+
+/// Generates a random app full ID.
+pub fn gen_app_id(client_public_id: ClientPublicId) -> AppFullId {
+    let mut rng = rand::thread_rng();
+    AppFullId::new_bls(&mut rng, client_public_id)
+}
+
+/// Generates random public keys.
 pub fn generate_public_keys(len: usize) -> Vec<sign::PublicKey> {
     (0..len).map(|_| sign::gen_keypair().0).collect()
 }
 
-/// Generates random secret keys
+/// Generates random secret keys.
 pub fn generate_secret_keys(len: usize) -> Vec<sign::SecretKey> {
     (0..len).map(|_| sign::gen_keypair().1).collect()
 }
 
-/// Generates public keys of maximum size
+/// Generates public keys of maximum size.
 pub fn get_max_sized_public_keys(len: usize) -> Vec<sign::PublicKey> {
     iter::repeat(sign::PublicKey([u8::MAX; sign::PUBLICKEYBYTES]))
         .take(len)
         .collect()
 }
 
-/// Generates secret keys of maximum size
+/// Generates secret keys of maximum size.
 pub fn get_max_sized_secret_keys(len: usize) -> Vec<sign::SecretKey> {
     iter::repeat(sign::SecretKey([u8::MAX; sign::SECRETKEYBYTES]))
         .take(len)

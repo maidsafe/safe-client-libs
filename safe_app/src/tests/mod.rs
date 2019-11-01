@@ -261,7 +261,7 @@ fn app_container_creation() {
 // 2. Try to read them as unregistered.
 #[test]
 fn unregistered_client() {
-    let addr: XorName = new_rand::random();
+    let addr: XorName = rand::random();
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
     let pub_adata = PubUnseqAppendOnlyData::new(addr, tag);
@@ -341,7 +341,7 @@ fn unregistered_client_put() {
 // Verify that published data can be accessed by both unregistered clients and clients that are not in the permission set
 #[test]
 fn published_data_access() {
-    let name: XorName = new_rand::random();
+    let name: XorName = rand::random();
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
     let pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);

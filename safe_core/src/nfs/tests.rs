@@ -15,11 +15,10 @@ use crate::nfs::reader::Reader;
 use crate::nfs::writer::Writer;
 use crate::nfs::{create_dir, File, Mode, NfsError, NfsFuture};
 use crate::utils::test_utils::random_client;
-use crate::utils::FutureExt;
+use crate::utils::{generate_random_vector, FutureExt};
 use crate::DIR_TAG;
 use futures::future::{self, Loop};
 use futures::Future;
-use rand::{self, Rng};
 use rust_sodium::crypto::secretbox;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
@@ -859,9 +858,7 @@ fn encryption() {
         let c3 = client.clone();
         let c4 = client.clone();
 
-        let mut rng = rand::thread_rng();
-
-        let content: Vec<u8> = rng.gen_iter().take(ORIG_SIZE).collect();
+        let content: Vec<u8> = unwrap!(generate_random_vector(ORIG_SIZE));
         let content2 = content.clone();
 
         let key = shared_secretbox::gen_key();

@@ -396,8 +396,7 @@ mod tests {
                 cb,
             )));
 
-            let name: XorNameArray;
-            name = unwrap!(call_1(|ud, cb| idata_close_self_encryptor(
+            let name: XorNameArray = unwrap!(call_1(|ud, cb| idata_close_self_encryptor(
                 &app,
                 se_writer_h,
                 cipher_opt_h,

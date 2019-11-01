@@ -15,11 +15,11 @@ use futures::{
     Future,
 };
 use lazy_static::lazy_static;
-use new_rand::Rng;
 use quic_p2p::{
     self, Builder, Config as QuicP2pConfig, Error as QuicP2pError, Event, NodeInfo, Peer, QuicP2p,
     Token,
 };
+use rand::Rng;
 use safe_nd::{Challenge, Message, MessageId, NodePublicId, PublicId, Request, Response};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
@@ -133,7 +133,7 @@ impl Inner {
 
     fn send(&mut self, msg_id: MessageId, msg: &Message) -> Box<CoreFuture<Response>> {
         trace!("Sending message {:?}", msg_id);
-        let mut rng = new_rand::thread_rng();
+        let mut rng = rand::thread_rng();
 
         let (future_tx, future_rx) = oneshot::channel();
         let _ = self.hooks.insert(msg_id, future_tx);
@@ -320,8 +320,12 @@ impl Inner {
         // safe to unwrap as we just found this elder before calling this method.
         let mut elder = unwrap!(self.elders.get_mut(&sender_addr));
         elder.public_id = Some(sender_id);
-        let token = new_rand::thread_rng().gen();
-        let response = Challenge::Response(self.full_id.public_id(), self.full_id.sign(&challenge));
+        let token = rand::thread_rng().gen();
+        let response = Challenge::Response {
+            client_id: self.full_id.public_id(),
+            signature: self.full_id.sign(&challenge),
+            request_section_info: false,
+        };
         let msg = Bytes::from(unwrap!(serialize(&response)));
         self.quic_p2p.send(elder.peer.clone(), msg, token);
         // trigger the connection future

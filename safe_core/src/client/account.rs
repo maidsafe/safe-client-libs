@@ -12,17 +12,14 @@ use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::DIR_TAG;
 use bincode::{deserialize, serialize};
+use rand::thread_rng;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
-use safe_nd::{AppFullId, ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
-use serde::{
-    ser::{SerializeStruct, Serializer},
-    Deserialize, Serialize,
-};
-use threshold_crypto::serde_impl::SerdeSecret;
+use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
+use serde::{Deserialize, Serialize};
 use tiny_keccak::sha3_256;
 
-/// Representing the User Account information on the network.
+/// Object representing the User Account information on the network.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct Account {
     /// The User Account Keys.
@@ -38,7 +35,7 @@ pub struct Account {
 }
 
 impl Account {
-    /// Create new Account with a provided set of keys.
+    /// Creates new Account with a provided set of keys.
     pub fn new(maid_keys: ClientKeys) -> Result<Self, CoreError> {
         Ok(Account {
             maid_keys,
@@ -48,8 +45,9 @@ impl Account {
         })
     }
 
-    /// Symmetric encryption of Account using User's credentials.
-    /// Credentials are passed through key-derivation-function first
+    /// Symmetrically encrypts Account using User's credentials.
+    ///
+    /// Credentials are passed through key-derivation-function first.
     pub fn encrypt(&self, password: &[u8], pin: &[u8]) -> Result<Vec<u8>, CoreError> {
         let serialised_self = serialize(self)?;
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
@@ -57,8 +55,9 @@ impl Account {
         Ok(secretbox::seal(&serialised_self, &nonce, &key))
     }
 
-    /// Symmetric decryption of Account using User's credentials.
-    /// Credentials are passed through key-derivation-function first
+    /// Symmetrically decrypts Account using User's credentials.
+    ///
+    /// Credentials are passed through key-derivation-function first.
     pub fn decrypt(encrypted_self: &[u8], password: &[u8], pin: &[u8]) -> Result<Self, CoreError> {
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
         let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
@@ -67,7 +66,7 @@ impl Account {
         Ok(deserialize(&decrypted_self)?)
     }
 
-    /// Generate User's Identity for the network using supplied credentials in
+    /// Generates User's Identity for the network using supplied credentials in
     /// a deterministic way.  This is similar to the username in various places.
     pub fn generate_network_id(keyword: &[u8], pin: &[u8]) -> Result<XorName, CoreError> {
         let mut id = XorName([0; XOR_NAME_LEN]);
@@ -116,88 +115,57 @@ impl Account {
     }
 }
 
-/// Client signing and encryption keypairs
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+/// Client signing and encryption keypairs.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ClientKeys {
-    /// Signing public key
-    pub sign_pk: sign::PublicKey,
-    /// Signing secret key
-    pub sign_sk: shared_sign::SecretKey,
-    /// Encryption public key
-    pub enc_pk: box_::PublicKey,
-    /// Encryption private key
-    pub enc_sk: shared_box::SecretKey,
-    /// Symmetric encryption key
+    /// This is the identity of the Client in the Network.
+    pub client_id: ClientFullId,
+    /// Symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
-    /// BLS public key
-    pub bls_pk: threshold_crypto::PublicKey,
-    /// BLS private key
-    pub bls_sk: threshold_crypto::SecretKey,
-}
-
-// threshold_crypto::SecretKey cannot be serialised directly,
-// hence this trait is implemented
-impl Serialize for ClientKeys {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("ClientKeys", 7)?;
-        state.serialize_field("sign_pk", &self.sign_pk)?;
-        state.serialize_field("sign_sk", &self.sign_sk)?;
-        state.serialize_field("enc_pk", &self.enc_pk)?;
-        state.serialize_field("enc_sk", &self.enc_sk)?;
-        state.serialize_field("enc_key", &self.enc_key)?;
-        state.serialize_field("bls_pk", &self.bls_pk)?;
-        state.serialize_field("bls_sk", &SerdeSecret(&self.bls_sk))?;
-        state.end()
-    }
+    /// Signing public key.
+    pub sign_pk: sign::PublicKey,
+    /// Signing secret key.
+    pub sign_sk: shared_sign::SecretKey,
+    /// Encryption public key.
+    pub enc_pk: box_::PublicKey,
+    /// Encryption private key.
+    pub enc_sk: shared_box::SecretKey,
 }
 
 impl ClientKeys {
-    /// Construct new `ClientKeys`
+    /// Generates random client keys, with an optional seed.
+    ///
+    /// Only signing keys are generated from the seed.
+    // TODO: Remove usage of rust_sodium::Seed.
+    // TODO: Allow providing an rng?
     pub fn new(seed: Option<&Seed>) -> Self {
-        let sign = match seed {
+        let (sign_pk, sign_sk) = match seed {
             Some(s) => shared_sign::keypair_from_seed(s),
             None => shared_sign::gen_keypair(),
         };
-        let enc = shared_box::gen_keypair();
+        let (enc_pk, enc_sk) = shared_box::gen_keypair();
         let enc_key = shared_secretbox::gen_key();
-        let bls_sk = threshold_crypto::SecretKey::random();
+        // TODO: generate based on provided seed/rng.
+        let client_id = ClientFullId::new_bls(&mut thread_rng());
 
         ClientKeys {
-            sign_pk: sign.0,
-            sign_sk: sign.1,
-            enc_pk: enc.0,
-            enc_sk: enc.1,
+            sign_pk,
+            sign_sk,
+            enc_pk,
+            enc_sk,
             enc_key,
-            bls_pk: bls_sk.public_key(),
-            bls_sk,
+            client_id,
         }
     }
 
-    /// Convert `ClientKeys` into a full client identity.
-    fn client_full_id(&self) -> ClientFullId {
-        let bls_sk = (self.bls_sk).clone();
-
-        ClientFullId::with_bls_key(bls_sk)
-    }
-
-    /// Convert `ClientKeys` into a full app identity.
-    pub fn app_full_id(&self, owner_key: PublicKey) -> AppFullId {
-        let bls_sk = (self.bls_sk).clone();
-
-        AppFullId::with_keys(bls_sk, owner_key)
-    }
-
-    /// Convert `ClientKeys` into a Client `SafeKey`.
+    /// Converts `ClientKeys` into a Client `SafeKey`.
     pub fn client_safe_key(&self) -> SafeKey {
-        SafeKey::client(self.client_full_id())
+        SafeKey::client(self.client_id.clone())
     }
 
-    /// Convert `ClientKeys` into an App `SafeKey`.
-    pub fn app_safe_key(&self, owner_key: PublicKey) -> SafeKey {
-        SafeKey::app(self.app_full_id(owner_key))
+    /// Returns the associated public key.
+    pub fn public_key(&self) -> PublicKey {
+        *self.client_id.public_id().public_key()
     }
 }
 

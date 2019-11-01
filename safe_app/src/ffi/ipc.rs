@@ -348,7 +348,8 @@ mod tests {
         ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData, ShareMDataReq,
     };
     use safe_core::utils;
-    use safe_nd::{MDataAction, MDataPermissionSet, PublicKey};
+    use safe_core::utils::test_utils::{gen_app_id, gen_client_id};
+    use safe_nd::{MDataAction, MDataPermissionSet};
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
@@ -581,8 +582,8 @@ mod tests {
         let req = ShareMDataReq {
             app: test_utils::gen_app_exchange_info(),
             mdata: vec![ShareMData {
-                type_tag: new_rand::random(),
-                name: new_rand::random(),
+                type_tag: rand::random(),
+                name: rand::random(),
                 perms: MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Update),
@@ -616,8 +617,8 @@ mod tests {
         let req_id = ipc::gen_req_id();
 
         let access_container_info = AccessContInfo {
-            id: new_rand::random(),
-            tag: new_rand::random(),
+            id: rand::random(),
+            tag: rand::random(),
             nonce: secretbox::gen_nonce(),
         };
 
@@ -954,22 +955,19 @@ mod tests {
     }
 
     fn gen_app_keys() -> AppKeys {
-        let owner_key = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
+        let client_id = gen_client_id();
+        let app_full_id = gen_app_id(client_id.public_id().clone());
         let enc_key = shared_secretbox::gen_key();
         let (sign_pk, sign_sk) = shared_sign::gen_keypair();
         let (enc_pk, enc_sk) = shared_box::gen_keypair();
-        let bls_sk = threshold_crypto::SecretKey::random();
-        let bls_pk = bls_sk.public_key();
 
         AppKeys {
-            owner_key,
+            app_full_id,
             enc_key,
             sign_pk,
             sign_sk,
             enc_pk,
             enc_sk,
-            bls_pk,
-            bls_sk,
         }
     }
 

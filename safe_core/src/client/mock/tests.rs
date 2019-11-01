@@ -117,7 +117,7 @@ fn mutable_data_basics() {
     let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
 
     let data = unwrap!(OldMutableData::new(
@@ -323,7 +323,7 @@ fn mutable_data_reclaim() {
     let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
 
     let data = unwrap!(OldMutableData::new(
@@ -414,7 +414,7 @@ fn mutable_data_entry_versioning() {
     let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
 
     let data = unwrap!(OldMutableData::new(
@@ -522,7 +522,7 @@ fn mutable_data_permissions() {
     let (client_mgr, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
     // Construct MutableData with some entries and empty permissions.
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
 
     let key0 = b"key0";
@@ -960,7 +960,7 @@ fn mutable_data_ownership() {
     }
 
     // Attempt to put MutableData using the app sign key as owner key should fail.
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
     let data = unwrap!(OldMutableData::new(
         name,
@@ -1180,7 +1180,7 @@ fn unpub_md() {
     let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
     let bls_key = full_id.bls_key().public_key();
 
-    let name = XorName(new_rand::random());
+    let name = XorName(rand::random());
     let tag = 15001;
 
     let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1387,7 +1387,7 @@ fn auth_actions_from_app() {
     let owner_sk = full_id.bls_key();
     let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
 
-    let name = XorName(new_rand::random());
+    let name = XorName(rand::random());
     let tag = 15002;
 
     let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1500,7 +1500,7 @@ fn low_balance_check() {
 
         // Put MutableData so we can test getting it later.
         // Do this before exhausting the balance (below).
-        let name = new_rand::random();
+        let name = rand::random();
         let tag = 1000u64;
 
         let data = unwrap!(OldMutableData::new(
@@ -1596,7 +1596,7 @@ fn invalid_config_mock_vault_path() {
     let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
 
     // `put_mdata` should fail.
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
 
     let data = unwrap!(OldMutableData::new(
@@ -1643,7 +1643,7 @@ fn config_mock_vault_path() {
     let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
 
     // Put MutableData. Should succeed.
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 1000u64;
 
     let data = unwrap!(OldMutableData::new(
@@ -1703,7 +1703,7 @@ fn request_hooks() {
 
     // Construct MutableData (but hook won't allow to store it on the network
     // if the tag is 10000)
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 10_000u64;
 
     let data = unwrap!(OldMutableData::new(
@@ -1729,7 +1729,7 @@ fn request_hooks() {
     );
 
     // Put an MData with a different tag, this should be stored now
-    let name = new_rand::random();
+    let name = rand::random();
     let tag = 12_345u64;
 
     let data = unwrap!(OldMutableData::new(

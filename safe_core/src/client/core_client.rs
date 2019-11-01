@@ -20,18 +20,15 @@ use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
 use crate::utils;
 use lru_cache::LruCache;
-use new_rand::rngs::StdRng;
-use new_rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
-use safe_nd::{
-    ClientFullId, ClientPublicId, Coins, LoginPacket, PublicId, PublicKey, Request, Response,
-};
+use safe_nd::{ClientFullId, Coins, LoginPacket, PublicKey, Request, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
-use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
 use tokio::runtime::current_thread::{block_on_all, Handle};
 
@@ -78,18 +75,8 @@ impl CoreClient {
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
         let acc_loc = ClientAccount::generate_network_id(&keyword, &pin)?;
-
-        let balance_sk = BlsSecretKey::random();
-
-        let maid_keys = {
-            let mut maid_keys = ClientKeys::new(id_seed);
-            maid_keys.bls_sk = balance_sk.clone();
-            maid_keys.bls_pk = balance_sk.public_key();
-            maid_keys
-        };
-
+        let maid_keys = ClientKeys::new(id_seed);
         let acc = ClientAccount::new(maid_keys.clone())?;
-
         let acc_ciphertext = acc.encrypt(&password, &pin)?;
 
         let (client_pk, client_full_id) = {
@@ -110,7 +97,7 @@ impl CoreClient {
         let sig = client_full_id.sign(&acc_ciphertext);
         let new_login_packet = LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig)?;
 
-        let balance_client_id = ClientFullId::with_bls_key(balance_sk);
+        let balance_client_id = maid_keys.client_id.clone();
         let new_balance_owner = *balance_client_id.public_id().public_key();
 
         let balance_client_id = SafeKey::client(balance_client_id);
@@ -131,7 +118,7 @@ impl CoreClient {
                 Request::CreateBalance {
                     new_balance_owner,
                     amount: unwrap!(Coins::from_str("10")),
-                    transaction_id: new_rand::random(),
+                    transaction_id: rand::random(),
                 },
                 &balance_client_id,
             )?;
@@ -177,9 +164,8 @@ impl Client for CoreClient {
         self.keys.client_safe_key()
     }
 
-    fn public_id(&self) -> PublicId {
-        let client_pk = PublicKey::from(self.public_bls_key());
-        PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk))
+    fn owner_key(&self) -> PublicKey {
+        self.public_key()
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
@@ -208,22 +194,6 @@ impl Client for CoreClient {
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         self.keys.enc_key.clone()
-    }
-
-    fn public_bls_key(&self) -> threshold_crypto::PublicKey {
-        self.keys.bls_pk
-    }
-
-    fn secret_bls_key(&self) -> threshold_crypto::SecretKey {
-        self.keys.bls_sk.clone()
-    }
-
-    fn owner_key(&self) -> PublicKey {
-        PublicKey::from(self.keys.bls_pk)
-    }
-
-    fn public_key(&self) -> PublicKey {
-        self.keys.bls_pk.into()
     }
 }
 

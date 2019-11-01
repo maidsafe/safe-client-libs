@@ -36,8 +36,6 @@ extern crate log;
 extern crate safe_core;
 #[macro_use]
 extern crate unwrap;
-#[cfg(any(test, feature = "testing"))]
-extern crate rand;
 
 pub mod access_container;
 pub mod app_auth;
@@ -68,9 +66,12 @@ pub use client::AuthClient;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
+#[cfg(any(test, feature = "testing"))]
+use safe_core::utils::test_utils::gen_client_id;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
+use safe_nd::ClientFullId;
 use std::sync::mpsc as std_mpsc;
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
@@ -115,7 +116,7 @@ impl Authenticator {
     pub fn create_acc<S, N>(
         locator: S,
         password: S,
-        balance_sk: threshold_crypto::SecretKey,
+        client_id: ClientFullId,
         disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
@@ -127,7 +128,7 @@ impl Authenticator {
 
         Self::create_acc_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::registered(&locator, &password, balance_sk, el_h, core_tx, net_tx)
+                AuthClient::registered(&locator, &password, client_id, el_h, core_tx, net_tx)
             },
             disconnect_notifier,
         )
@@ -331,10 +332,10 @@ impl Authenticator {
         N: FnMut() + Send + 'static,
     {
         let seed = seed.into();
-        let balance_sk = threshold_crypto::SecretKey::random();
+        let client_id = gen_client_id();
         Self::login_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::registered_with_seed(&seed, balance_sk, el_h, core_tx, net_tx)
+                AuthClient::registered_with_seed(&seed, client_id, el_h, core_tx, net_tx)
             },
             disconnect_notifier,
         )
@@ -360,7 +361,7 @@ impl Authenticator {
     fn create_acc_with_hook<F, S, N>(
         locator: S,
         password: S,
-        balance_sk: threshold_crypto::SecretKey,
+        client_id: ClientFullId,
         disconnect_notifier: N,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
@@ -377,7 +378,7 @@ impl Authenticator {
                 AuthClient::registered_with_hook(
                     &locator,
                     &password,
-                    balance_sk,
+                    client_id,
                     el_h,
                     core_tx_clone,
                     net_tx,

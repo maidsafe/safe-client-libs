@@ -24,9 +24,10 @@
 #[macro_use]
 extern crate unwrap;
 
+use rand::thread_rng;
 use safe_app::CoreError;
 use safe_authenticator::{AuthError, Authenticator};
-use safe_nd::Error as SndError;
+use safe_nd::{ClientFullId, Error as SndError};
 
 fn main() {
     unwrap!(safe_core::utils::logging::init(true));
@@ -53,12 +54,12 @@ fn main() {
         secret_1 = secret_1.trim().to_string();
 
         // FIXME - pass secret key of the wallet as an argument
-        let bls_sk = threshold_crypto::SecretKey::random();
+        let client_id = ClientFullId::new_bls(&mut thread_rng());
 
         // Account Creation
         println!("\nTrying to create an account...");
 
-        match Authenticator::create_acc(secret_0.as_str(), secret_1.as_str(), bls_sk, || ()) {
+        match Authenticator::create_acc(secret_0.as_str(), secret_1.as_str(), client_id, || ()) {
             Ok(_) => (),
             Err(AuthError::CoreError(CoreError::DataError(SndError::LoginPacketExists))) => {
                 println!(

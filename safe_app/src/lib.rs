@@ -45,6 +45,7 @@ extern crate unwrap;
 
 // Re-export functions used in FFI so that they are accessible through the Rust API.
 
+pub use safe_core::ipc::AppKeys;
 pub use safe_core::{
     app_container_name, immutable_data, ipc, mdata_info, nfs, utils, Client, ClientKeys, CoreError,
     CoreFuture, FutureExt, MDataInfo, DIR_TAG, MAIDSAFE_TAG,
@@ -96,7 +97,7 @@ use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future, IntoFuture};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
-use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig};
+use safe_core::ipc::{AccessContInfo, AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
@@ -175,41 +176,17 @@ impl App {
         N: FnMut() + Send + 'static,
     {
         let AuthGranted {
-            app_keys:
-                AppKeys {
-                    owner_key,
-                    enc_key,
-                    enc_pk,
-                    enc_sk,
-                    sign_pk,
-                    sign_sk,
-                    bls_sk,
-                    bls_pk,
-                },
+            app_keys,
             access_container_info,
             bootstrap_config,
             ..
         } = auth_granted;
-
-        let client_keys = ClientKeys {
-            sign_pk,
-            sign_sk,
-            enc_pk,
-            enc_sk,
-            enc_key: enc_key.clone(),
-            bls_pk,
-            bls_sk,
-        };
+        let enc_key = app_keys.enc_key.clone();
+        let owner_key = *app_keys.app_full_id.public_id().owner().public_key();
 
         Self::new(disconnect_notifier, move |el_h, core_tx, net_tx| {
-            let client = AppClient::from_keys(
-                client_keys,
-                owner_key,
-                el_h,
-                core_tx,
-                net_tx,
-                bootstrap_config,
-            )?;
+            let client =
+                AppClient::from_keys(app_keys, owner_key, el_h, core_tx, net_tx, bootstrap_config)?;
             let context = AppContext::registered(app_id, enc_key, access_container_info);
             Ok((client, context))
         })
@@ -228,35 +205,17 @@ impl App {
         F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
     {
         let AuthGranted {
-            app_keys:
-                AppKeys {
-                    owner_key,
-                    enc_key,
-                    enc_pk,
-                    enc_sk,
-                    sign_pk,
-                    sign_sk,
-                    bls_pk,
-                    bls_sk,
-                },
+            app_keys,
             access_container_info,
             bootstrap_config,
             ..
         } = auth_granted;
-
-        let client_keys = ClientKeys {
-            sign_pk,
-            sign_sk,
-            enc_pk,
-            enc_sk,
-            enc_key: enc_key.clone(),
-            bls_pk,
-            bls_sk,
-        };
+        let enc_key = app_keys.enc_key.clone();
+        let owner_key = *app_keys.app_full_id.public_id().owner().public_key();
 
         Self::new(disconnect_notifier, move |el_h, core_tx, net_tx| {
             let client = AppClient::from_keys_with_hook(
-                client_keys,
+                app_keys,
                 owner_key,
                 el_h,
                 core_tx,

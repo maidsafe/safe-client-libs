@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::ffi::arrays::*;
+use crate::ffi::arrays;
 use crate::ffi::ipc::req::PermissionSet;
 use crate::ffi::MDataInfo;
 use std::ffi::CString;
@@ -17,20 +17,21 @@ use std::ptr;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AppKeys {
-    /// Owner signing public key
-    pub owner_key: BlsPublicKey,
-    /// Data symmetric encryption key
-    pub enc_key: SymSecretKey,
+    // TODO: Handle the full app ID.
+    /// Owner signing public key.
+    pub bls_pk: arrays::BlsPublicKey,
+    /// Data symmetric encryption key.
+    pub enc_key: arrays::SymSecretKey,
     /// Asymmetric sign public key.
     ///
     /// This is the identity of the App in the Network.
-    pub sign_pk: SignPublicKey,
+    pub sign_pk: arrays::SignPublicKey,
     /// Asymmetric sign private key.
-    pub sign_sk: SignSecretKey,
+    pub sign_sk: arrays::SignSecretKey,
     /// Asymmetric enc public key.
-    pub enc_pk: AsymPublicKey,
+    pub enc_pk: arrays::AsymPublicKey,
     /// Asymmetric enc private key.
-    pub enc_sk: AsymSecretKey,
+    pub enc_sk: arrays::AsymSecretKey,
 }
 
 /// Access container info.
@@ -38,19 +39,19 @@ pub struct AppKeys {
 #[derive(Clone, Copy)]
 pub struct AccessContInfo {
     /// ID
-    pub id: XorNameArray,
+    pub id: arrays::XorNameArray,
     /// Type tag
     pub tag: u64,
     /// Nonce
-    pub nonce: SymNonce,
+    pub nonce: arrays::SymNonce,
 }
 
-/// Information about a container (name, `MDataInfo` and permissions)
+/// Information about a container (name, `MDataInfo` and permissions).
 #[repr(C)]
 pub struct ContainerInfo {
     /// Container name as UTF-8 encoded null-terminated string.
     pub name: *const c_char,
-    /// Container's `MDataInfo`
+    /// Container's `MDataInfo`.
     pub mdata_info: MDataInfo,
     /// App's permissions in the container.
     pub permissions: PermissionSet,
@@ -121,7 +122,7 @@ impl Drop for AuthGranted {
 #[repr(C)]
 pub struct AppAccess {
     /// App's or user's public key.
-    pub sign_key: BlsPublicKey,
+    pub sign_key: arrays::BlsPublicKey,
     /// A list of permissions.
     pub permissions: PermissionSet,
     /// App's user-facing name.
@@ -160,7 +161,7 @@ pub struct MetadataResponse {
     /// null if not present.
     pub description: *const c_char,
     /// Xor name of this struct's corresponding MData object.
-    pub xor_name: XorNameArray,
+    pub xor_name: arrays::XorNameArray,
     /// Type tag of this struct's corresponding MData object.
     pub type_tag: u64,
 }

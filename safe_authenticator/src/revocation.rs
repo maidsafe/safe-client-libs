@@ -135,9 +135,7 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
     //    attempt has failed)
     // 4. Remove the revoked app from the access container
     config::get_app(client, app_id)
-        .and_then(move |app| {
-            delete_app_auth_key(&c2, PublicKey::from(app.keys.bls_pk)).map(move |_| app)
-        })
+        .and_then(move |app| delete_app_auth_key(&c2, app.keys.public_key()).map(move |_| app))
         .and_then(move |app| {
             access_container::fetch_entry(&c3, &app.info.id, app.keys.clone()).and_then(
                 move |(version, ac_entry)| {
@@ -190,7 +188,7 @@ fn clear_from_access_container_entry(
 ) -> Box<AuthFuture<()>> {
     let c2 = client.clone();
 
-    revoke_container_perms(client, &containers, PublicKey::from(app.keys.bls_pk))
+    revoke_container_perms(client, &containers, app.keys.public_key())
         .map(move |_| (app, ac_entry_version))
         .and_then(move |(app, version)| {
             access_container::delete_entry(&c2, &app.info.id, &app.keys, version + 1)

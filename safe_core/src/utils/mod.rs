@@ -22,6 +22,8 @@ pub mod test_utils;
 pub use self::futures::FutureExt;
 use crate::errors::CoreError;
 use bincode::{deserialize, serialize};
+use rand::distributions::{Alphanumeric, Distribution, Standard};
+use rand::rngs::OsRng;
 use rand::Rng;
 use rust_sodium::crypto::hash::sha512::{self, Digest, DIGESTBYTES};
 use rust_sodium::crypto::secretbox;
@@ -104,36 +106,63 @@ pub fn symmetric_decrypt(
 /// returned `String` will likely be around `4 * length` as most of the randomly-generated `char`s
 /// will consume 4 elements of the `String`.
 pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = OsRng::new().map_err(|error| {
         error!("{:?}", error);
         CoreError::RandomDataGenerationFailure
     })?;
-    Ok(os_rng
-        .gen_iter::<char>()
+
+    Ok(generate_random_string_rng(&mut os_rng, length))
+}
+
+/// Generates a random `String` using provided `length` and `rng`.
+pub fn generate_random_string_rng<T: Rng>(rng: &mut T, length: usize) -> String {
+    ::std::iter::repeat(())
+        .map(|()| rng.gen::<char>())
         .filter(|c| *c != '\u{0}')
         .take(length)
-        .collect())
+        .collect()
 }
 
 /// Generates a readable `String` using only ASCII characters.
 pub fn generate_readable_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = OsRng::new().map_err(|error| {
         error!("{:?}", error);
         CoreError::RandomDataGenerationFailure
     })?;
-    Ok(os_rng.gen_ascii_chars().take(length).collect())
+
+    Ok(generate_readable_string_rng(&mut os_rng, length))
+}
+
+/// Generates a readable `String` using provided `length` and `rng.
+pub fn generate_readable_string_rng<T: Rng>(rng: &mut T, length: usize) -> String {
+    ::std::iter::repeat(())
+        .map(|()| rng.sample(Alphanumeric))
+        .take(length)
+        .collect()
 }
 
 /// Generate a random vector of given length.
 pub fn generate_random_vector<T>(length: usize) -> Result<Vec<T>, CoreError>
 where
-    T: ::rand::Rand,
+    Standard: Distribution<T>,
 {
-    let mut os_rng = ::rand::OsRng::new().map_err(|error| {
+    let mut os_rng = OsRng::new().map_err(|error| {
         error!("{:?}", error);
         CoreError::RandomDataGenerationFailure
     })?;
-    Ok(os_rng.gen_iter().take(length).collect())
+
+    Ok(generate_random_vector_rng(&mut os_rng, length))
+}
+
+/// Generates a random vector using provided `length` and `rng`.
+pub fn generate_random_vector_rng<T, R: Rng>(rng: &mut R, length: usize) -> Vec<T>
+where
+    Standard: Distribution<T>,
+{
+    ::std::iter::repeat(())
+        .map(|()| rng.gen::<T>())
+        .take(length)
+        .collect()
 }
 
 /// Derive Password, Keyword and PIN (in order).

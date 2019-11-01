@@ -45,12 +45,7 @@ fn coin_app_deny_permissions() {
                     res => panic!("Unexpected result: {:?}", res),
                 }
 
-                c2.transfer_coins(
-                    None,
-                    new_rand::random(),
-                    unwrap!(Coins::from_str("1.0")),
-                    None,
-                )
+                c2.transfer_coins(None, rand::random(), unwrap!(Coins::from_str("1.0")), None)
             })
             .then(move |res| {
                 match res {

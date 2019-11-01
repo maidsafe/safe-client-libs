@@ -29,7 +29,7 @@ use safe_core::{
     ipc::{AuthReq, Permission},
     Client, CoreError, FutureExt, MDataInfo,
 };
-use safe_nd::{Error as SndError, MDataAddress, MDataSeqEntryActions, PublicKey};
+use safe_nd::{Error as SndError, MDataAddress, MDataSeqEntryActions};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 
@@ -47,7 +47,7 @@ fn verify_app_is_revoked(
             let state = app_state(&c0, &apps, &app_id);
 
             let app_hash = sha3_256(app_id.as_bytes());
-            let app_key = PublicKey::from(unwrap!(apps.get(&app_hash)).keys.bls_pk);
+            let app_key = unwrap!(apps.get(&app_hash)).keys.public_key();
 
             auth_keys
                 .join(state)
@@ -97,7 +97,7 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
         })
         .then(move |res| {
             let (auth_keys, app_id, app_keys) = unwrap!(res);
-            let app_key = PublicKey::from(app_keys.bls_pk);
+            let app_key = app_keys.public_key();
 
             // Verify the app is authenticated.
             assert!(auth_keys.contains_key(&app_key));
@@ -158,7 +158,8 @@ mod mock_routing {
     };
     use config;
     use ffi_utils::test_utils::call_0;
-    use rand::XorShiftRng;
+    use rand::rngs::StdRng;
+    use rand::FromEntropy;
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
     use safe_core::utils::test_utils::Synchronizer;
@@ -243,7 +244,7 @@ mod mock_routing {
                 .map(move |(auth_keys, _version)| auth_keys)
                 .map_err(AuthError::from)
         }));
-        assert!(!auth_keys.contains_key(&PublicKey::from(auth_granted.app_keys.bls_pk)));
+        assert!(!auth_keys.contains_key(&auth_granted.app_keys.public_key()));
 
         // Login and revoke the app again.
         let auth = unwrap!(Authenticator::login(
@@ -400,7 +401,7 @@ mod mock_routing {
     // Test one app being revoked by multiple authenticator concurrently.
     #[test]
     fn concurrent_revocation_of_single_app() {
-        let rng = XorShiftRng::new_unseeded();
+        let mut rng = StdRng::from_entropy();
 
         // Number of concurrent operations.
         let concurrency = 2;
@@ -445,7 +446,7 @@ mod mock_routing {
         // This barrier makes sure the revocations are started only after all
         // the authenticators are fully initialized.
         let barrier = Arc::new(Barrier::new(concurrency));
-        let sync = Synchronizer::new(rng);
+        let sync = Synchronizer::new(&mut rng);
 
         let join_handles: Vec<_> = (0..concurrency)
             .map(|_| {
@@ -499,7 +500,7 @@ mod mock_routing {
     // Test multiple apps being revoked concurrently.
     #[test]
     fn concurrent_revocation_of_multiple_apps() {
-        let rng = XorShiftRng::new_unseeded();
+        let mut rng = StdRng::from_entropy();
 
         // Create account.
         let (auth, locator, password) = create_authenticator();
@@ -544,7 +545,7 @@ mod mock_routing {
         // This barrier makes sure the revocations are started only after all
         // the authenticators are fully initialized.
         let barrier = Arc::new(Barrier::new(apps_to_revoke.len()));
-        let sync = Synchronizer::new(rng);
+        let sync = Synchronizer::new(&mut rng);
 
         let join_handles: Vec<_> = apps_to_revoke
             .iter()
@@ -721,8 +722,8 @@ fn app_revocation_and_reauth() {
             .list_mdata_permissions(MDataAddress::Seq { name, tag })
             .map_err(From::from)
     }));
-    assert!(!perms.contains_key(&PublicKey::from(auth_granted1.app_keys.bls_pk)));
-    assert!(perms.contains_key(&PublicKey::from(auth_granted2.app_keys.bls_pk)));
+    assert!(!perms.contains_key(&auth_granted1.app_keys.public_key()));
+    assert!(perms.contains_key(&auth_granted2.app_keys.public_key()));
 
     // Check that the first app is now revoked, but the second app is not.
     let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());

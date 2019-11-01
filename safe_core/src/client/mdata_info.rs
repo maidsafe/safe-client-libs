@@ -57,7 +57,7 @@ impl MDataInfo {
 
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
-        let address = MDataAddress::from_kind(kind, new_rand::random(), type_tag);
+        let address = MDataAddress::from_kind(kind, rand::random(), type_tag);
         let enc_info = (shared_secretbox::gen_key(), secretbox::gen_nonce());
 
         Ok(Self::new_private(address, enc_info))
@@ -65,7 +65,7 @@ impl MDataInfo {
 
     /// Generate random `MDataInfo` for public mutable data.
     pub fn random_public(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
-        let address = MDataAddress::from_kind(kind, new_rand::random(), type_tag);
+        let address = MDataAddress::from_kind(kind, rand::random(), type_tag);
 
         Ok(Self::new_public(address))
     }

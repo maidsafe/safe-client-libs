@@ -19,7 +19,6 @@ use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
 use log::Record;
-use rand::{self, Rng};
 use safe_core::client::{test_create_balance, Client};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
@@ -34,7 +33,7 @@ use safe_core::ipc::{
 };
 use safe_core::nfs::file_helper::{self, Version};
 use safe_core::nfs::{File, Mode};
-use safe_core::utils::test_utils::setup_client_with_net_obs;
+use safe_core::utils::test_utils::{gen_client_id, setup_client_with_net_obs};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
@@ -93,20 +92,19 @@ pub fn init_log() {
 /// Creates a new random account for authenticator. Returns the `Authenticator`
 /// instance and the locator and password strings.
 pub fn create_authenticator() -> (Authenticator, String, String) {
-    let mut rng = rand::thread_rng();
+    let locator: String = unwrap!(utils::generate_readable_string(10));
+    let password: String = unwrap!(utils::generate_readable_string(10));
+    let client_id = gen_client_id();
 
-    let locator: String = rng.gen_ascii_chars().take(10).collect();
-    let password: String = rng.gen_ascii_chars().take(10).collect();
-    let balance_sk = threshold_crypto::SecretKey::random();
     unwrap!(test_create_balance(
-        &balance_sk,
+        &client_id,
         unwrap!(Coins::from_str("100"))
     ));
 
     let auth = unwrap!(Authenticator::create_acc(
         locator.clone(),
         password.clone(),
-        balance_sk,
+        client_id,
         || (),
     ));
 
@@ -222,13 +220,11 @@ pub fn register_rand_app(
 
 /// Creates a random `AppExchangeInfo`
 pub fn rand_app() -> AppExchangeInfo {
-    let mut rng = rand::thread_rng();
-
     AppExchangeInfo {
-        id: rng.gen_ascii_chars().take(10).collect(),
+        id: unwrap!(utils::generate_readable_string(10)),
         scope: None,
-        name: rng.gen_ascii_chars().take(10).collect(),
-        vendor: rng.gen_ascii_chars().take(10).collect(),
+        name: unwrap!(utils::generate_readable_string(10)),
+        vendor: unwrap!(utils::generate_readable_string(10)),
     }
 }
 
@@ -438,15 +434,17 @@ where
     let c = |el_h, core_tx, net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
-        let balance_sk = threshold_crypto::SecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
+
         AuthClient::registered(
             &acc_locator,
             &acc_password,
-            balance_sk,
+            client_id,
             el_h,
             core_tx,
             net_tx,

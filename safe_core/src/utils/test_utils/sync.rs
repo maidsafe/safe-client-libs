@@ -10,8 +10,8 @@
 #![allow(unused)]
 
 use crate::ConnectionManager;
+use rand::seq::SliceRandom;
 use rand::Rng;
-use rand::XorShiftRng;
 use safe_nd::{Request, Response};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
@@ -19,15 +19,15 @@ use std::sync::{Arc, Condvar, Mutex};
 /// Helper for running multiple clients in parallel while keeping the runs
 /// deterministic.
 #[derive(Clone)]
-pub struct Synchronizer {
-    inner: Arc<Inner>,
+pub struct Synchronizer<T: Rng> {
+    inner: Arc<Inner<T>>,
 }
 
-impl Synchronizer {
+impl<T: Clone + Rng> Synchronizer<T> {
     /// Create new instance of `Synchronizer` using the given random number
     /// generator. The generator can be initialized with a seed to guarantee
     /// repeatable, deterministic runs.
-    pub fn new(rng: XorShiftRng) -> Self {
+    pub fn new(rng: &mut T) -> Self {
         Self {
             inner: Arc::new(Inner {
                 state: Mutex::new(State::new(rng)),
@@ -48,13 +48,13 @@ impl Synchronizer {
     }
 }
 
-struct Hook {
+struct Hook<T: Clone + Rng> {
     id: usize,
-    inner: Arc<Inner>,
+    inner: Arc<Inner<T>>,
 }
 
-impl Hook {
-    fn new(inner: Arc<Inner>) -> Self {
+impl<T: Clone + Rng> Hook<T> {
+    fn new(inner: Arc<Inner<T>>) -> Self {
         let id = inner.register_id();
         Self { id, inner }
     }
@@ -72,18 +72,18 @@ impl Hook {
     }
 }
 
-impl Drop for Hook {
+impl<T: Clone + Rng> Drop for Hook<T> {
     fn drop(&mut self) {
         self.inner.unregister_id(self.id);
     }
 }
 
-struct Inner {
-    state: Mutex<State>,
+struct Inner<T> {
+    state: Mutex<State<T>>,
     condvar: Condvar,
 }
 
-impl Inner {
+impl<T: Clone + Rng> Inner<T> {
     fn register_id(&self) -> usize {
         let mut state = unwrap!(self.state.lock());
         state.register_id()
@@ -109,17 +109,17 @@ impl Inner {
     }
 }
 
-struct State {
-    rng: XorShiftRng,
+struct State<T> {
+    rng: T,
     all: Vec<usize>,
     next: usize,
     awake: usize,
 }
 
-impl State {
-    fn new(rng: XorShiftRng) -> Self {
+impl<T: Clone + Rng> State<T> {
+    fn new(rng: &mut T) -> Self {
         Self {
-            rng,
+            rng: rng.clone(),
             all: Vec::new(),
             next: 0,
             awake: 0,
@@ -148,7 +148,7 @@ impl State {
 
     fn wake_next(&mut self) {
         if !self.all.is_empty() {
-            self.awake = *unwrap!(self.rng.choose(&self.all));
+            self.awake = *unwrap!(self.all.choose(&mut self.rng));
         }
     }
 }
