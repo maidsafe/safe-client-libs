@@ -157,7 +157,7 @@ fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, CoreError>
 where
     T: DeserializeOwned,
 {
-    let path = dirs.config_dir().join(file);
+    let path = dirs.project_path().join(file);
     let file = match File::open(&path) {
         Ok(file) => {
             trace!("Reading: {}", path.display());
@@ -185,7 +185,7 @@ where
 #[allow(unused)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     let dirs = dirs()?;
-    let dir = dirs.config_dir();
+    let dir = dirs.project_path();
     fs::create_dir_all(dir)?;
 
     let path = dir.join(CONFIG_FILE);
@@ -200,6 +200,8 @@ pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::env::temp_dir;
+    use std::fs::File;
 
     // Write a default config file for use as reference. This will overwrite any existing
     // configurations so use with care.
@@ -208,5 +210,22 @@ mod test {
     fn write_default_config_file() {
         let config = Config::default();
         unwrap!(write_config_file(&config));
+    }
+
+    // 1. Write a sample Quic-P2P config file to temp directory
+    // 2. Set the same path temp path as custom config directory path
+    // 3. Check if the config path is not altered by `ProjectDirs`, and also fetch and assert the config.
+    #[test]
+    fn test_custom_config_path() {
+        let mut path = temp_dir();
+        set_config_dir_path(&path);
+        path.push("safe_core.config");
+        let config = QuicP2pConfig::default();
+
+        let mut file = unwrap!(File::create(&path));
+        unwrap!(serde_json::to_writer_pretty(&mut file, &config));
+
+        let read_cfg: QuicP2pConfig = unwrap!(Config::read_qp2p_from_file());
+        assert_eq!(config, read_cfg)
     }
 }
