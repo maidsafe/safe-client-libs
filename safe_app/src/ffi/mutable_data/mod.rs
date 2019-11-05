@@ -22,11 +22,11 @@ use crate::ffi::object_cache::{
     NULL_OBJECT_HANDLE,
 };
 use crate::App;
+use bincode::serialized_size;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::Future;
-use maidsafe_utilities::serialisation::serialised_size;
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ffi::ipc::resp::MDataKey;
 use safe_core::ffi::ipc::resp::MDataValue;
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn mdata_serialised_size(
             client
                 .get_seq_mdata(info.name(), info.type_tag())
                 .map_err(AppError::from)
-                .and_then(move |mdata| Ok(serialised_size(&mdata)))
+                .and_then(move |mdata| serialized_size(&mdata).map_err(AppError::from))
         })
     })
 }

@@ -11,8 +11,9 @@ use crate::crypto::shared_secretbox;
 use crate::event_loop::CoreFuture;
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::{self, FutureExt};
+use bincode::{deserialize, serialize};
 use futures::Future;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
+
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
 use self_encryption::{DataMap, SelfEncryptor};
 use serde::{Deserialize, Serialize};
@@ -42,13 +43,13 @@ pub fn create(
         .and_then(move |_| self_encryptor.close())
         .map_err(From::from)
         .and_then(move |(data_map, _)| {
-            let serialised_data_map = fry!(serialise(&data_map));
+            let serialised_data_map = fry!(serialize(&data_map));
 
             let value = if let Some(key) = encryption_key {
                 let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
-                fry!(serialise(&DataTypeEncoding::Serialised(cipher_text)))
+                fry!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
             } else {
-                fry!(serialise(&DataTypeEncoding::Serialised(
+                fry!(serialize(&DataTypeEncoding::Serialised(
                     serialised_data_map
                 ),))
             };
@@ -70,9 +71,9 @@ pub fn extract_value(
         .and_then(move |value| {
             let data_map = if let Some(key) = decryption_key {
                 let plain_text = utils::symmetric_decrypt(&value, &key)?;
-                deserialise(&plain_text)?
+                deserialize(&plain_text)?
             } else {
-                deserialise(&value)?
+                deserialize(&value)?
             };
 
             let storage = SelfEncryptionStorage::new(client, published);
@@ -108,7 +109,7 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
     } else {
         UnpubImmutableData::new(value, client.public_key()).into()
     };
-    let serialised_data = fry!(serialise(&data));
+    let serialised_data = fry!(serialize(&data));
 
     if !data.validate_size() {
         let storage = SelfEncryptionStorage::new(client.clone(), published);
@@ -118,7 +119,7 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
             .and_then(move |_| self_encryptor.close())
             .map_err(From::from)
             .and_then(move |(data_map, _)| {
-                let value = fry!(serialise(&DataTypeEncoding::DataMap(data_map)));
+                let value = fry!(serialize(&DataTypeEncoding::DataMap(data_map)));
                 pack(client, value, published)
             })
             .into_box()
@@ -129,7 +130,7 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
 
 fn unpack(client: impl Client, data: &IData) -> Box<CoreFuture<Vec<u8>>> {
     let published = data.is_pub();
-    match fry!(deserialise(data.value())) {
+    match fry!(deserialize(data.value())) {
         DataTypeEncoding::Serialised(value) => ok!(value),
         DataTypeEncoding::DataMap(data_map) => {
             let storage = SelfEncryptionStorage::new(client.clone(), published);
@@ -139,7 +140,7 @@ fn unpack(client: impl Client, data: &IData) -> Box<CoreFuture<Vec<u8>>> {
                 .read(0, length)
                 .map_err(From::from)
                 .and_then(move |serialised_data| {
-                    let data = fry!(deserialise(&serialised_data));
+                    let data = fry!(deserialize(&serialised_data));
                     unpack(client, &data)
                 })
                 .into_box()

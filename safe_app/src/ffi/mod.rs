@@ -41,9 +41,9 @@ mod tests;
 
 use super::errors::AppError;
 use super::App;
+use bincode::deserialize;
 use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
-use maidsafe_utilities::serialisation::deserialise;
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};
 use safe_core::{self, config_handler, Client};
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn app_unregistered(
             None
         } else {
             let config_serialised = slice::from_raw_parts(bootstrap_config, bootstrap_config_len);
-            Some(deserialise::<BootstrapConfig>(config_serialised)?)
+            Some(deserialize::<BootstrapConfig>(config_serialised)?)
         };
 
         let app = App::unregistered(move || o_disconnect_notifier_cb(user_data.0), config)?;

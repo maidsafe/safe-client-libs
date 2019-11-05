@@ -6,10 +6,10 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use bincode::Error as SerialisationError;
 use data_encoding::DecodeError;
 use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
-use maidsafe_utilities::serialisation::SerialisationError;
 use safe_nd::XorName;
 use serde::{Deserialize, Serialize};
 use std::error::Error;

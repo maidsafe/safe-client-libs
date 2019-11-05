@@ -12,8 +12,8 @@
 
 use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
+use bincode::{deserialize, serialize};
 use futures::Future;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
@@ -45,7 +45,7 @@ pub fn decode_authenticator_entry(
     enc_key: &secretbox::Key,
 ) -> Result<HashMap<String, MDataInfo>, AuthError> {
     let plaintext = symmetric_decrypt(encoded, enc_key)?;
-    Ok(deserialise(&plaintext)?)
+    Ok(deserialize(&plaintext)?)
 }
 
 /// Encodes authenticator entry into raw mdata content.
@@ -54,7 +54,7 @@ pub fn encode_authenticator_entry(
     decoded: &HashMap<String, MDataInfo>,
     enc_key: &secretbox::Key,
 ) -> Result<Vec<u8>, AuthError> {
-    let plaintext = serialise(decoded)?;
+    let plaintext = serialize(decoded)?;
     Ok(symmetric_encrypt(&plaintext, enc_key, None)?)
 }
 
@@ -114,7 +114,7 @@ pub fn decode_app_entry(
     enc_key: &secretbox::Key,
 ) -> Result<AccessContainerEntry, AuthError> {
     let plaintext = symmetric_decrypt(encoded, enc_key)?;
-    Ok(deserialise(&plaintext)?)
+    Ok(deserialize(&plaintext)?)
 }
 
 /// Encodes app entry into raw mdata content.
@@ -122,7 +122,7 @@ pub fn encode_app_entry(
     decoded: &AccessContainerEntry,
     enc_key: &secretbox::Key,
 ) -> Result<Vec<u8>, AuthError> {
-    let plaintext = serialise(decoded)?;
+    let plaintext = serialize(decoded)?;
     Ok(symmetric_encrypt(&plaintext, enc_key, None)?)
 }
 

@@ -158,7 +158,7 @@ mod mock_routing {
     };
     use config;
     use ffi_utils::test_utils::call_0;
-    use maidsafe_utilities::SeededRng;
+    use rand::XorShiftRng;
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
     use safe_core::utils::test_utils::Synchronizer;
@@ -400,7 +400,7 @@ mod mock_routing {
     // Test one app being revoked by multiple authenticator concurrently.
     #[test]
     fn concurrent_revocation_of_single_app() {
-        let rng = SeededRng::new();
+        let rng = XorShiftRng::new_unseeded();
 
         // Number of concurrent operations.
         let concurrency = 2;
@@ -499,7 +499,7 @@ mod mock_routing {
     // Test multiple apps being revoked concurrently.
     #[test]
     fn concurrent_revocation_of_multiple_apps() {
-        let rng = SeededRng::new();
+        let rng = XorShiftRng::new_unseeded();
 
         // Create account.
         let (auth, locator, password) = create_authenticator();

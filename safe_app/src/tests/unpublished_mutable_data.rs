@@ -9,7 +9,6 @@
 
 use crate::{client::AppClient, errors::AppError, run, test_utils::create_app};
 use futures::Future;
-use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
 use safe_core::utils::test_utils::random_client;
 use safe_core::{client::AuthActions, Client, CoreError, FutureExt, DIR_TAG};
@@ -20,6 +19,7 @@ use safe_nd::{
 };
 use std::collections::BTreeMap;
 use std::sync::mpsc;
+use std::thread;
 use threshold_crypto::SecretKey;
 
 // MD created by owner and given to a permitted App. Owner has listed that app is allowed to insert
@@ -82,45 +82,47 @@ fn md_created_by_app_1() {
             .into_box()
             .into()
     }));
-    let _joiner = thread::named("Alt client", || {
-        random_client(move |client| {
-            let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
-            let mut rng = unwrap!(OsRng::new());
+    let _joiner = unwrap!(thread::Builder::new()
+        .name(String::from("Alt client"))
+        .spawn(|| {
+            random_client(move |client| {
+                let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
+                let mut rng = unwrap!(OsRng::new());
 
-            let mut permissions = BTreeMap::new();
-            let _ = permissions.insert(
-                app_bls_pk,
-                MDataPermissionSet::new()
-                    .allow(MDataAction::Insert)
-                    .allow(MDataAction::Read),
-            );
+                let mut permissions = BTreeMap::new();
+                let _ = permissions.insert(
+                    app_bls_pk,
+                    MDataPermissionSet::new()
+                        .allow(MDataAction::Insert)
+                        .allow(MDataAction::Read),
+                );
 
-            let name: XorName = XorName(rng.gen());
+                let name: XorName = XorName(rng.gen());
 
-            let mdata = SeqMutableData::new_with_data(
-                name,
-                DIR_TAG,
-                BTreeMap::new(),
-                permissions,
-                client.owner_key(),
-            );
-            let cl2 = client.clone();
-            let c3 = client.clone();
+                let mdata = SeqMutableData::new_with_data(
+                    name,
+                    DIR_TAG,
+                    BTreeMap::new(),
+                    permissions,
+                    client.owner_key(),
+                );
+                let cl2 = client.clone();
+                let c3 = client.clone();
 
-            client
-                .list_auth_keys_and_version()
-                .then(move |res| {
-                    let (_, version) = unwrap!(res);
-                    cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    c3.put_seq_mutable_data(mdata)
-                })
-                .map(move |()| unwrap!(name_tx.send(name)))
-                .map_err(|e| panic!("{:?}", e))
-        });
-    });
+                client
+                    .list_auth_keys_and_version()
+                    .then(move |res| {
+                        let (_, version) = unwrap!(res);
+                        cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
+                    })
+                    .then(move |res| {
+                        unwrap!(res);
+                        c3.put_seq_mutable_data(mdata)
+                    })
+                    .map(move |()| unwrap!(name_tx.send(name)))
+                    .map_err(|e| panic!("{:?}", e))
+            });
+        }));
     unwrap!(rx.recv());
 }
 
@@ -212,46 +214,48 @@ fn md_created_by_app_2() {
             .into_box()
             .into()
     }));
-    let _joiner = thread::named("Alt client", || {
-        random_client(move |client| {
-            let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
-            let mut rng = unwrap!(OsRng::new());
+    let _joiner = unwrap!(thread::Builder::new()
+        .name(String::from("Alt client"))
+        .spawn(|| {
+            random_client(move |client| {
+                let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
+                let mut rng = unwrap!(OsRng::new());
 
-            let mut permissions = BTreeMap::new();
-            let _ = permissions.insert(
-                app_bls_pk,
-                MDataPermissionSet::new().allow(MDataAction::ManagePermissions),
-            );
+                let mut permissions = BTreeMap::new();
+                let _ = permissions.insert(
+                    app_bls_pk,
+                    MDataPermissionSet::new().allow(MDataAction::ManagePermissions),
+                );
 
-            let mut data = BTreeMap::new();
-            let _ = data.insert(vec![1, 8, 3, 4], vec![1]);
+                let mut data = BTreeMap::new();
+                let _ = data.insert(vec![1, 8, 3, 4], vec![1]);
 
-            let name: XorName = XorName(rng.gen());
+                let name: XorName = XorName(rng.gen());
 
-            let mdata = UnseqMutableData::new_with_data(
-                name,
-                DIR_TAG,
-                data,
-                permissions,
-                client.owner_key(),
-            );
-            let cl2 = client.clone();
-            let c3 = client.clone();
+                let mdata = UnseqMutableData::new_with_data(
+                    name,
+                    DIR_TAG,
+                    data,
+                    permissions,
+                    client.owner_key(),
+                );
+                let cl2 = client.clone();
+                let c3 = client.clone();
 
-            client
-                .list_auth_keys_and_version()
-                .then(move |res| {
-                    let (_, version) = unwrap!(res);
-                    cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    c3.put_unseq_mutable_data(mdata)
-                })
-                .map(move |()| unwrap!(name_tx.send(name)))
-                .map_err(|e| panic!("{:?}", e))
-        });
-    });
+                client
+                    .list_auth_keys_and_version()
+                    .then(move |res| {
+                        let (_, version) = unwrap!(res);
+                        cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
+                    })
+                    .then(move |res| {
+                        unwrap!(res);
+                        c3.put_unseq_mutable_data(mdata)
+                    })
+                    .map(move |()| unwrap!(name_tx.send(name)))
+                    .map_err(|e| panic!("{:?}", e))
+            });
+        }));
     unwrap!(rx.recv());
 }
 

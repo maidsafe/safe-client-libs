@@ -12,8 +12,8 @@ use crate::errors::CoreError;
 use crate::nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
+use bincode::{deserialize, serialize};
 use futures::{Future, IntoFuture};
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{Error as SndError, MDataSeqEntryActions};
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +34,7 @@ where
     let name = name.as_ref();
     trace!("Inserting file with name '{}'", name);
 
-    serialise(&file)
+    serialize(&file)
         .map_err(From::from)
         .and_then(|encoded| {
             let key = parent.enc_entry_key(name.as_bytes())?;
@@ -69,7 +69,7 @@ where
         })
         .and_then(move |(value, parent)| {
             let plaintext = parent.decrypt(&value.data)?;
-            let file = deserialise(&plaintext)?;
+            let file = deserialize(&plaintext)?;
             Ok((value.version, file))
         })
         .map_err(convert_error)
@@ -172,7 +172,7 @@ where
 
     let client2 = client.clone();
 
-    serialise(&file)
+    serialize(&file)
         .map_err(From::from)
         .and_then(|encoded| {
             let key = parent.enc_entry_key(name.as_bytes())?;

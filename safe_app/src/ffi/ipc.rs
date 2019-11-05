@@ -10,11 +10,11 @@
 //! App-related IPC utilities.
 
 use crate::errors::AppError;
+use bincode::serialize;
 use ffi_utils::{
     catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC,
     FFI_RESULT_OK,
 };
-use maidsafe_utilities::serialisation::serialise;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{
@@ -288,7 +288,7 @@ fn decode_ipc_msg_impl(
             req_id,
         } => match res {
             Ok(bootstrap_cfg) => {
-                let serialised_cfg = serialise(&bootstrap_cfg)?;
+                let serialised_cfg = serialize(&bootstrap_cfg)?;
                 o_unregistered(
                     user_data,
                     req_id,

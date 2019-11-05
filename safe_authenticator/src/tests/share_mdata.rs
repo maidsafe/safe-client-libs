@@ -11,9 +11,9 @@ use crate::ffi::apps::*;
 use crate::ffi::ipc::encode_share_mdata_resp;
 use crate::run;
 use crate::test_utils::{self, Payload};
+use bincode::serialize;
 use ffi_utils::test_utils::{call_1, call_vec};
 use futures::Future;
-use maidsafe_utilities::serialisation::serialise;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::{AppAccess, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, AuthReq, IpcError, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
@@ -188,7 +188,7 @@ fn share_some_mdatas_with_valid_metadata() {
         let tag = 10_000;
         let mdata = {
             let value = MDataSeqValue {
-                data: unwrap!(serialise(&metadata)),
+                data: unwrap!(serialize(&metadata)),
                 version: 0,
             };
             let entries = btree_map![METADATA_KEY.to_vec() => value];
@@ -381,7 +381,7 @@ fn auth_apps_accessing_mdatas() {
             let entries = match metadata {
                 Some(ref meta) => {
                     let value = MDataSeqValue {
-                        data: unwrap!(serialise(&meta)),
+                        data: unwrap!(serialize(&meta)),
                         version: 0,
                     };
                     btree_map![METADATA_KEY.to_vec() => value]

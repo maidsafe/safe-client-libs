@@ -14,10 +14,10 @@ use crate::ffi::object_cache::{
     NULL_OBJECT_HANDLE,
 };
 use crate::App;
+use bincode::{deserialize, serialize};
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
 };
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::{box_, sealedbox, sign};
 use safe_core::crypto::{shared_box, shared_sign};
 use safe_core::ffi::arrays::{
@@ -465,7 +465,7 @@ pub unsafe extern "C" fn encrypt(
 
             let ciphertext = box_::seal(&plaintext, &nonce, &pk, &sk);
 
-            match serialise(&(nonce, ciphertext)) {
+            match serialize(&(nonce, ciphertext)) {
                 Ok(result) => o_cb(user_data.0, FFI_RESULT_OK, result.as_ptr(), result.len()),
                 res @ Err(..) => {
                     call_result_cb!(res.map_err(AppError::from), user_data, o_cb);
@@ -511,7 +511,7 @@ pub unsafe extern "C" fn decrypt(
                 o_cb
             );
 
-            match deserialise::<(box_::Nonce, Vec<u8>)>(&encrypted_text) {
+            match deserialize::<(box_::Nonce, Vec<u8>)>(&encrypted_text) {
                 Ok((nonce, ciphertext)) => {
                     let plaintext = try_cb!(
                         box_::open(&ciphertext, &nonce, &pk, &sk)

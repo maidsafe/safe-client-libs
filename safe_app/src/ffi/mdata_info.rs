@@ -8,8 +8,8 @@
 // Software.
 
 use crate::errors::AppError;
+use bincode::{deserialize, serialize};
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, SafePtr, FFI_RESULT_OK};
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
@@ -196,7 +196,7 @@ pub unsafe extern "C" fn mdata_info_serialise(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
-        let encoded = serialise(&info).map_err(AppError::from)?;
+        let encoded = serialize(&info).map_err(AppError::from)?;
 
         o_cb(
             user_data,
@@ -222,7 +222,7 @@ pub unsafe extern "C" fn mdata_info_deserialise(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let encoded = slice::from_raw_parts(encoded_ptr, encoded_len);
-        let info: NativeMDataInfo = deserialise(encoded)?;
+        let info: NativeMDataInfo = deserialize(encoded)?;
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);

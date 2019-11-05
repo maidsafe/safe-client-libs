@@ -14,9 +14,9 @@ use crate::client::AuthClient;
 use crate::ffi::apps as ffi;
 use crate::ffi::apps::RegisteredApp as FfiRegisteredApp;
 use crate::{app_container, AuthError};
+use bincode::deserialize;
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use futures::future::Future;
-use maidsafe_utilities::serialisation::deserialise;
 use safe_core::client::Client;
 use safe_core::ipc::req::{containers_from_repr_c, containers_into_vec, ContainerPermissions};
 use safe_core::ipc::resp::{AccessContainerEntry, AppAccess};
@@ -164,7 +164,7 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
 
                 if let Some(entry) = entry {
                     let plaintext = symmetric_decrypt(&entry.data, &app.keys.enc_key)?;
-                    let app_access = deserialise::<AccessContainerEntry>(&plaintext)?;
+                    let app_access = deserialize::<AccessContainerEntry>(&plaintext)?;
 
                     let mut containers = HashMap::new();
 

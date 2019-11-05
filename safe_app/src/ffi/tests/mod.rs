@@ -58,8 +58,8 @@ fn test_not_mock_build() {
 #[ignore] // FIXME: ignoring this test for now until we figure out the disconnection semantics for Phase 1
 #[test]
 fn network_status_callback() {
+    use bincode::serialize;
     use ffi_utils::test_utils::{call_0, call_1_with_custom, send_via_user_data_custom, UserData};
-    use maidsafe_utilities::serialisation::serialise;
     use safe_core::ipc::BootstrapConfig;
     use std::{
         os::raw::c_void,
@@ -70,7 +70,7 @@ fn network_status_callback() {
     {
         let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();
 
-        let bootstrap_cfg = unwrap!(serialise(&BootstrapConfig::default()));
+        let bootstrap_cfg = unwrap!(serialize(&BootstrapConfig::default()));
         let mut custom_ud: UserData = Default::default();
         let ptr: *const _ = &tx;
         custom_ud.custom = ptr as *mut c_void;
