@@ -100,13 +100,13 @@ pub use client::AuthClient;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
-use maidsafe_utilities::thread::{self, Joiner};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
 use std::sync::mpsc as std_mpsc;
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
+use std::thread::JoinHandle;
 use tokio::runtime::current_thread::{Handle, Runtime};
 
 /// Future type specialised with `AuthError` as an error type.
@@ -129,7 +129,7 @@ macro_rules! try_tx {
 pub struct Authenticator {
     /// Channel to communicate with the core event loop.
     pub core_tx: Mutex<AuthMsgTx>,
-    _core_joiner: Joiner,
+    _core_joiner: JoinHandle<()>,
 }
 
 impl Authenticator {
@@ -176,28 +176,32 @@ impl Authenticator {
     {
         let (tx, rx) = sync_channel(0);
 
-        let joiner = thread::named("Core Event Loop", move || {
-            let mut el = try_tx!(Runtime::new(), tx);
-            let el_h = el.handle();
+        let joiner = std::thread::Builder::new()
+            .name(String::from("Core Event Loop"))
+            .spawn(move || {
+                let mut el = try_tx!(Runtime::new(), tx);
+                let el_h = el.handle();
 
-            let (core_tx, core_rx) = mpsc::unbounded();
-            let core_tx2 = core_tx.clone();
-            let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
+                let (core_tx, core_rx) = mpsc::unbounded();
+                let core_tx2 = core_tx.clone();
+                let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-            let net_obs_fut = net_rx
-                .then(move |net_event| {
-                    if let Ok(NetworkEvent::Disconnected) = net_event {
-                        disconnect_notifier();
-                    }
-                    ok!(())
-                })
-                .for_each(|_| Ok(()));
-            let _ = el.spawn(net_obs_fut);
+                let net_obs_fut = net_rx
+                    .then(move |net_event| {
+                        if let Ok(NetworkEvent::Disconnected) = net_event {
+                            disconnect_notifier();
+                        }
+                        ok!(())
+                    })
+                    .for_each(|_| Ok(()));
+                let _ = el.spawn(net_obs_fut);
 
-            let client = try_tx!(create_client_fn(el_h, core_tx.clone(), net_tx), tx);
+                let client = try_tx!(create_client_fn(el_h, core_tx.clone(), net_tx), tx);
 
-            unwrap!(
-                core_tx.unbounded_send(CoreMsg::new(move |client, &()| std_dirs::create(client)
+                unwrap!(
+                    core_tx.unbounded_send(CoreMsg::new(move |client, &()| std_dirs::create(
+                        client
+                    )
                     .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))
                     .then(move |res| {
                         match res {
@@ -209,10 +213,11 @@ impl Authenticator {
                     })
                     .into_box()
                     .into()))
-            );
+                );
 
-            event_loop::run(el, &client, &(), core_rx);
-        });
+                event_loop::run(el, &client, &(), core_rx);
+            })
+            .map_err(AuthError::from)?;
 
         let core_tx = match rx.recv()? {
             Ok(core_tx) => core_tx,
@@ -258,50 +263,53 @@ impl Authenticator {
     {
         let (tx, rx) = sync_channel(0);
 
-        let joiner = thread::named("Core Event Loop", move || {
-            let mut el = try_tx!(Runtime::new(), tx);
-            let el_h = el.handle();
+        let joiner = std::thread::Builder::new()
+            .name(String::from("Core Event Loop"))
+            .spawn(move || {
+                let mut el = try_tx!(Runtime::new(), tx);
+                let el_h = el.handle();
 
-            let (core_tx, core_rx) = mpsc::unbounded();
-            let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
-            let core_tx_clone = core_tx.clone();
+                let (core_tx, core_rx) = mpsc::unbounded();
+                let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
+                let core_tx_clone = core_tx.clone();
 
-            let net_obs_fut = net_rx
-                .then(move |net_event| {
-                    if let Ok(NetworkEvent::Disconnected) = net_event {
-                        disconnect_notifier();
-                    }
-                    ok!(())
-                })
-                .for_each(|_| Ok(()));
-            let _ = el.spawn(net_obs_fut);
+                let net_obs_fut = net_rx
+                    .then(move |net_event| {
+                        if let Ok(NetworkEvent::Disconnected) = net_event {
+                            disconnect_notifier();
+                        }
+                        ok!(())
+                    })
+                    .for_each(|_| Ok(()));
+                let _ = el.spawn(net_obs_fut);
 
-            let client = try_tx!(create_client_fn(el_h, core_tx_clone, net_tx), tx);
+                let client = try_tx!(create_client_fn(el_h, core_tx_clone, net_tx), tx);
 
-            if !client.std_dirs_created() {
-                // Standard directories haven't been created during
-                // the user account registration - retry it again.
-                let tx2 = tx.clone();
-                let core_tx2 = core_tx.clone();
-                let core_tx3 = core_tx.clone();
+                if !client.std_dirs_created() {
+                    // Standard directories haven't been created during
+                    // the user account registration - retry it again.
+                    let tx2 = tx.clone();
+                    let core_tx2 = core_tx.clone();
+                    let core_tx3 = core_tx.clone();
 
-                unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
-                    std_dirs::create(client)
-                        .map(move |()| {
-                            unwrap!(tx.send(Ok(core_tx2)));
-                        })
-                        .map_err(move |e| {
-                            unwrap!(tx2.send(Err((Some(core_tx3), e))));
-                        })
-                        .into_box()
-                        .into()
-                })));
-            } else {
-                unwrap!(tx.send(Ok(core_tx)));
-            }
+                    unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
+                        std_dirs::create(client)
+                            .map(move |()| {
+                                unwrap!(tx.send(Ok(core_tx2)));
+                            })
+                            .map_err(move |e| {
+                                unwrap!(tx2.send(Err((Some(core_tx3), e))));
+                            })
+                            .into_box()
+                            .into()
+                    })));
+                } else {
+                    unwrap!(tx.send(Ok(core_tx)));
+                }
 
-            event_loop::run(el, &client, &(), core_rx);
-        });
+                event_loop::run(el, &client, &(), core_rx);
+            })
+            .map_err(AuthError::from)?;
 
         let core_tx = match rx.recv()? {
             Ok(core_tx) => core_tx,

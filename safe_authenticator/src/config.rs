@@ -11,9 +11,9 @@
 
 use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
+use bincode::{deserialize, serialize};
 use futures::future::{self, Either, Loop};
 use futures::Future;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::AppKeys;
 use safe_core::ipc::IpcError;
@@ -206,7 +206,7 @@ where
         .and_then(move |value| {
             let decoded = parent.decrypt(&value.data)?;
             let decoded = if !decoded.is_empty() {
-                deserialise(&decoded)?
+                deserialize(&decoded)?
             } else {
                 Default::default()
             };
@@ -232,7 +232,7 @@ where
     let parent = client.config_root_dir();
 
     let key = fry!(parent.enc_entry_key(key));
-    let encoded = fry!(serialise(content));
+    let encoded = fry!(serialize(content));
     let encoded = fry!(parent.enc_entry_value(&encoded));
 
     let actions = if new_version == 0 {

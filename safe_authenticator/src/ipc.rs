@@ -13,10 +13,10 @@ use crate::access_container;
 use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::config;
+use bincode::deserialize;
 use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;
-use maidsafe_utilities::serialisation::deserialise;
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{
     container_perms_into_permission_set, ContainerPermissions, IpcReq, ShareMDataReq,
@@ -183,7 +183,7 @@ pub fn decode_share_mdata_req(
                     let future_metadata = client
                         .get_seq_mdata_value(name, type_tag, METADATA_KEY.into())
                         .then(move |res| match res {
-                            Ok(value) => Ok(deserialise::<UserMetadata>(&value.data)
+                            Ok(value) => Ok(deserialize::<UserMetadata>(&value.data)
                                 .map_err(|_| ShareMDataError::InvalidMetadata)
                                 .and_then(move |metadata| {
                                     match metadata.into_md_response(name, type_tag) {

@@ -9,10 +9,10 @@
 //! Errors thrown by Authenticator routines.
 
 pub use self::codes::*;
+use bincode::Error as SerialisationError;
 use config_file_handler::Error as ConfigFileHandlerError;
 use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
-use maidsafe_utilities::serialisation::SerialisationError;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::CoreError;

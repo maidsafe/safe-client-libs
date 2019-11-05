@@ -7,8 +7,8 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::self_encryption_storage::SelfEncryptionStorageError;
+use bincode::Error as SerialisationError;
 use futures::sync::mpsc::SendError;
-use maidsafe_utilities::serialisation::SerialisationError;
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error as StdError;

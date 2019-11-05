@@ -809,24 +809,26 @@ mod tests {
     fn restart_network() {
         use crate::test_utils::random_client_with_net_obs;
         use futures;
-        use maidsafe_utilities::thread;
         use safe_core::NetworkEvent;
         use std::sync::mpsc;
+        use std::thread;
 
         let (tx, rx) = mpsc::channel();
         let (hook, keep_alive) = futures::oneshot();
 
-        let _joiner = thread::named("Network Observer", move || {
-            match unwrap!(rx.recv()) {
-                NetworkEvent::Disconnected => (),
-                x => panic!("Unexpected network event: {:?}", x),
-            }
-            match unwrap!(rx.recv()) {
-                NetworkEvent::Connected => (),
-                x => panic!("Unexpected network event: {:?}", x),
-            }
-            let _ = hook.send(());
-        });
+        let _x = unwrap!(thread::Builder::new()
+            .name(String::from("Network Observer"))
+            .spawn(move || {
+                match unwrap!(rx.recv()) {
+                    NetworkEvent::Disconnected => (),
+                    x => panic!("Unexpected network event: {:?}", x),
+                }
+                match unwrap!(rx.recv()) {
+                    NetworkEvent::Connected => (),
+                    x => panic!("Unexpected network event: {:?}", x),
+                }
+                let _ = hook.send(());
+            }));
 
         random_client_with_net_obs(
             move |net_event| unwrap!(tx.send(net_event)),

@@ -153,14 +153,14 @@ fn convert_date_time(sec: i64, nsec: u32) -> Result<DateTime<Utc>, NfsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maidsafe_utilities::serialisation::{deserialise, serialise};
+    use bincode::{deserialize, serialize};
 
     // Test that serialising and deserialising a file restores the original file.
     #[test]
     fn serialise_deserialise() {
         let obj_before = File::new("{mime:\"application/json\"}".to_string().into_bytes(), true);
-        let serialised_data = unwrap!(serialise(&obj_before));
-        let obj_after = unwrap!(deserialise(&serialised_data));
+        let serialised_data = unwrap!(serialize(&obj_before));
+        let obj_after = unwrap!(deserialize(&serialised_data));
         assert_eq!(obj_before, obj_after);
     }
 }

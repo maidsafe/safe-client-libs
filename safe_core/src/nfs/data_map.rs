@@ -13,8 +13,8 @@ use crate::crypto::shared_secretbox;
 use crate::immutable_data;
 use crate::nfs::NfsFuture;
 use crate::utils::FutureExt;
+use bincode::{deserialize, serialize};
 use futures::{future, Future};
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{IDataAddress, XorName};
 use self_encryption::DataMap;
 
@@ -27,7 +27,7 @@ pub fn get(
 ) -> Box<NfsFuture<DataMap>> {
     immutable_data::get_value(client, address, encryption_key)
         .map_err(From::from)
-        .and_then(move |content| deserialise(&content).map_err(From::from))
+        .and_then(move |content| deserialize(&content).map_err(From::from))
         .into_box()
 }
 
@@ -42,7 +42,7 @@ pub fn put(
     let client = client.clone();
     let client2 = client.clone();
 
-    future::result(serialise(&data_map))
+    future::result(serialize(&data_map))
         .map_err(From::from)
         .and_then(move |encoded| {
             immutable_data::create(&client, &encoded, published, encryption_key)

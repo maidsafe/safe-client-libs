@@ -12,7 +12,7 @@
 use crate::client::AppClient;
 use crate::errors::AppError;
 use crate::AppContext;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
+use bincode::{deserialize, serialize};
 use rust_sodium::crypto::{box_, sealedbox, secretbox};
 use safe_core::{Client, CoreError};
 
@@ -44,19 +44,19 @@ impl CipherOpt {
     /// Encrypt plain text
     pub fn encrypt(&self, plain_text: &[u8], app_ctx: &AppContext) -> Result<Vec<u8>, AppError> {
         match *self {
-            CipherOpt::PlainText => Ok(serialise(&WireFormat::Plain(plain_text.to_owned()))?),
+            CipherOpt::PlainText => Ok(serialize(&WireFormat::Plain(plain_text.to_owned()))?),
             CipherOpt::Symmetric => {
                 let nonce = secretbox::gen_nonce();
                 let cipher_text = secretbox::seal(plain_text, &nonce, app_ctx.sym_enc_key()?);
                 let wire_format = WireFormat::Symmetric { nonce, cipher_text };
 
-                Ok(serialise(&wire_format)?)
+                Ok(serialize(&wire_format)?)
             }
             CipherOpt::Asymmetric {
                 ref peer_encrypt_key,
             } => {
                 let cipher_text = sealedbox::seal(plain_text, peer_encrypt_key);
-                Ok(serialise(&WireFormat::Asymmetric(cipher_text))?)
+                Ok(serialize(&WireFormat::Asymmetric(cipher_text))?)
             }
         }
     }
@@ -71,7 +71,7 @@ impl CipherOpt {
             return Ok(Vec::new());
         }
 
-        match deserialise::<WireFormat>(cipher_text)? {
+        match deserialize::<WireFormat>(cipher_text)? {
             WireFormat::Plain(plain_text) => Ok(plain_text),
             WireFormat::Symmetric { nonce, cipher_text } => {
                 Ok(

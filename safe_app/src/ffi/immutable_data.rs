@@ -13,9 +13,9 @@ use crate::ffi::object_cache::{
     CipherOptHandle, SelfEncryptorReaderHandle, SelfEncryptorWriterHandle,
 };
 use crate::App;
+use bincode::{deserialize, serialize};
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use futures::Future;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::{immutable_data, Client, FutureExt, SelfEncryptionStorage};
 use safe_nd::{IDataAddress, IDataKind, XorName};
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn idata_close_self_encryptor(
                 .close()
                 .map_err(AppError::from)
                 .and_then(move |(data_map, _)| {
-                    let ser_data_map = serialise(&data_map)?;
+                    let ser_data_map = serialize(&data_map)?;
                     let enc_data_map = {
                         let cipher_opt = context2.object_cache().get_cipher_opt(cipher_opt_h)?;
                         cipher_opt.encrypt(&ser_data_map, &context2)?
@@ -186,7 +186,7 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(
                 .map_err(AppError::from)
                 .and_then(move |enc_data_map| {
                     let ser_data_map = CipherOpt::decrypt(&enc_data_map, &context2, &client2)?;
-                    let data_map = deserialise(&ser_data_map)?;
+                    let data_map = deserialize(&ser_data_map)?;
 
                     Ok(data_map)
                 })

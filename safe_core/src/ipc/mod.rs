@@ -21,10 +21,10 @@ pub use self::resp::{
     access_container_enc_key, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, IpcResp,
 };
 
+use bincode::{deserialize, serialize};
 use data_encoding::BASE32_NOPAD;
 #[cfg(any(test, feature = "testing"))]
 use ffi_utils;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use quic_p2p::NodeInfo;
 use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
@@ -66,7 +66,7 @@ pub fn encode_msg(msg: &IpcMsg) -> Result<String, IpcError> {
     // We also add a multicodec compatible prefix. For more details please follow
     // https://github.com/multiformats/multicodec/blob/master/table.csv
     let msg = (msg, cfg!(feature = "mock-network"));
-    Ok(format!("b{}", BASE32_NOPAD.encode(&serialise(&msg)?)))
+    Ok(format!("b{}", BASE32_NOPAD.encode(&serialize(&msg)?)))
 }
 
 /// Encode `IpcMsg` into string, using base64 encoding.
@@ -74,7 +74,7 @@ pub fn encode_msg(msg: &IpcMsg) -> Result<String, IpcError> {
 /// For testing purposes only.
 #[cfg(any(test, feature = "testing"))]
 pub fn encode_msg_64(msg: &IpcMsg) -> Result<String, IpcError> {
-    Ok(ffi_utils::base64_encode(&serialise(msg)?))
+    Ok(ffi_utils::base64_encode(&serialize(msg)?))
 }
 
 /// Decode `IpcMsg` encoded with base32 encoding.
@@ -87,7 +87,7 @@ pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
         _ => return Err(IpcError::EncodeDecodeError),
     };
 
-    let (msg, mock): (IpcMsg, bool) = deserialise(&decoded)?;
+    let (msg, mock): (IpcMsg, bool) = deserialize(&decoded)?;
     if mock ^ cfg!(feature = "mock-network") {
         return Err(IpcError::IncompatibleMockStatus);
     }
@@ -100,7 +100,7 @@ pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
 /// For testing purposes only.
 #[cfg(any(test, feature = "testing"))]
 pub fn decode_msg_64(encoded: &str) -> Result<IpcMsg, IpcError> {
-    Ok(deserialise(
+    Ok(deserialize(
         &ffi_utils::base64_decode(encoded).map_err(|_| IpcError::EncodeDecodeError)?,
     )?)
 }

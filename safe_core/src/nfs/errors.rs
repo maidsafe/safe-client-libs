@@ -8,7 +8,7 @@
 
 use crate::errors::CoreError;
 use crate::self_encryption_storage::SelfEncryptionStorageError;
-use maidsafe_utilities::serialisation::SerialisationError;
+use bincode::Error as SerialisationError;
 use self_encryption::SelfEncryptionError;
 use std::fmt;
 

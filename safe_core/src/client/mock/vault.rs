@@ -11,8 +11,8 @@ use super::{Account, CoinBalance};
 use crate::client::mock::connection_manager::unlimited_coins;
 use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
+use bincode::{deserialize, serialize};
 use fs2::FileExt;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
     Coins, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
@@ -1493,7 +1493,7 @@ impl Store for FileStore {
             let mut raw_data = Vec::with_capacity(metadata.len() as usize);
             match file.read_to_end(&mut raw_data) {
                 Ok(0) => (),
-                Ok(_) => match deserialise::<Cache>(&raw_data) {
+                Ok(_) => match deserialize::<Cache>(&raw_data) {
                     Ok(cache) => {
                         self.sync_time = Some(mtime);
                         result = Some(cache);
@@ -1519,7 +1519,7 @@ impl Store for FileStore {
         // the lock.
         if let Some((mut file, writing)) = self.file.take() {
             if writing {
-                let raw_data = unwrap!(serialise(&cache));
+                let raw_data = unwrap!(serialize(&cache));
                 unwrap!(file.set_len(0));
                 let _ = unwrap!(file.seek(SeekFrom::Start(0)));
                 unwrap!(file.write_all(&raw_data));

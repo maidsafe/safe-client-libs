@@ -12,6 +12,7 @@
 use crate::ConnectionManager;
 use maidsafe_utilities::SeededRng;
 use rand::Rng;
+use rand::XorShiftRng;
 use safe_nd::{Request, Response};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
@@ -27,7 +28,7 @@ impl Synchronizer {
     /// Create new instance of `Synchronizer` using the given random number
     /// generator. The generator can be initialized with a seed to guarantee
     /// repeatable, deterministic runs.
-    pub fn new(rng: SeededRng) -> Self {
+    pub fn new(rng: XorShiftRng) -> Self {
         Self {
             inner: Arc::new(Inner {
                 state: Mutex::new(State::new(rng)),
@@ -110,14 +111,14 @@ impl Inner {
 }
 
 struct State {
-    rng: SeededRng,
+    rng: XorShiftRng,
     all: Vec<usize>,
     next: usize,
     awake: usize,
 }
 
 impl State {
-    fn new(rng: SeededRng) -> Self {
+    fn new(rng: XorShiftRng) -> Self {
         Self {
             rng,
             all: Vec::new(),

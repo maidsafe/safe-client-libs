@@ -11,7 +11,7 @@ use crate::client::MDataInfo;
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::DIR_TAG;
-use maidsafe_utilities::serialisation::{deserialise, serialise};
+use bincode::{deserialize, serialize};
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
 use safe_nd::{AppFullId, ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
@@ -51,7 +51,7 @@ impl Account {
     /// Symmetric encryption of Account using User's credentials.
     /// Credentials are passed through key-derivation-function first
     pub fn encrypt(&self, password: &[u8], pin: &[u8]) -> Result<Vec<u8>, CoreError> {
-        let serialised_self = serialise(self)?;
+        let serialised_self = serialize(self)?;
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
 
         Ok(secretbox::seal(&serialised_self, &nonce, &key))
@@ -64,7 +64,7 @@ impl Account {
         let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
             .map_err(|_| CoreError::SymmetricDecipherFailure)?;
 
-        Ok(deserialise(&decrypted_self)?)
+        Ok(deserialize(&decrypted_self)?)
     }
 
     /// Generate User's Identity for the network using supplied credentials in
@@ -210,7 +210,7 @@ impl Default for ClientKeys {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use maidsafe_utilities::serialisation::{deserialise, serialise};
+    use bincode::{deserialize, serialize};
     use std::u32;
 
     // Test deterministically generating User's Identity for the network using supplied credentials.
@@ -281,8 +281,8 @@ mod tests {
     #[test]
     fn serialisation() {
         let account = unwrap!(Account::new(ClientKeys::new(None)));
-        let encoded = unwrap!(serialise(&account));
-        let decoded: Account = unwrap!(deserialise(&encoded));
+        let encoded = unwrap!(serialize(&account));
+        let decoded: Account = unwrap!(deserialize(&encoded));
 
         assert_eq!(decoded, account);
     }
@@ -296,7 +296,7 @@ mod tests {
         let pin = b"1000";
 
         let encrypted = unwrap!(account.encrypt(password, pin));
-        let encoded = unwrap!(serialise(&account));
+        let encoded = unwrap!(serialize(&account));
         assert!(!encrypted.is_empty());
         assert_ne!(encrypted, encoded);
 

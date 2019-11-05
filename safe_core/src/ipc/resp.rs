@@ -16,8 +16,8 @@ use crate::ipc::req::{
     permission_set_into_repr_c, ContainerPermissions,
 };
 use crate::ipc::{BootstrapConfig, IpcError};
+use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
-use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
 use safe_nd::{AppFullId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName};
@@ -81,7 +81,7 @@ impl AuthGranted {
             access_container_info,
             access_container_entry,
         } = self;
-        let bootstrap_config = serialise(&bootstrap_config)?;
+        let bootstrap_config = serialize(&bootstrap_config)?;
         let (ptr, len, cap) = vec_into_raw_parts(bootstrap_config);
 
         Ok(ffi::AuthGranted {
@@ -109,7 +109,7 @@ impl ReprC for AuthGranted {
             ..
         } = *repr_c;
         let bootstrap_config = slice::from_raw_parts(bootstrap_config, bootstrap_config_len);
-        let bootstrap_config = deserialise(bootstrap_config)?;
+        let bootstrap_config = deserialize(bootstrap_config)?;
 
         Ok(Self {
             app_keys: AppKeys::clone_from_repr_c(app_keys)?,

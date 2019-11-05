@@ -10,8 +10,8 @@ use crate::access_container::{self, AUTHENTICATOR_ENTRY};
 use crate::client::AuthClient;
 use crate::config::KEY_APPS;
 use crate::{AuthError, AuthFuture};
+use bincode::serialize;
 use futures::{future, Future};
-use maidsafe_utilities::serialisation::serialise;
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
@@ -109,7 +109,7 @@ fn create_access_container(
     )
     .map_err(AuthError::from));
     let access_cont_value = fry!(symmetric_encrypt(
-        &fry!(serialise(default_entries)),
+        &fry!(serialize(default_entries)),
         &enc_key,
         None,
     ));

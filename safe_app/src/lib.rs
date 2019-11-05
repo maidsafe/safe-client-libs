@@ -123,11 +123,10 @@ pub use self::errors::*;
 pub use client::AppClient;
 
 use self::object_cache::ObjectCache;
+use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future, IntoFuture};
-use maidsafe_utilities::serialisation::deserialise;
-use maidsafe_utilities::thread::{self, Joiner};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig};
@@ -139,6 +138,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::sync::Mutex;
+use std::thread::{self, JoinHandle};
 use tokio::runtime::current_thread::{Handle, Runtime};
 
 macro_rules! try_tx {
@@ -156,7 +156,7 @@ type AppMsgTx = CoreMsgTx<AppClient, AppContext>;
 /// Handle to an application instance.
 pub struct App {
     core_tx: Mutex<AppMsgTx>,
-    _core_joiner: Joiner,
+    _core_joiner: JoinHandle<()>,
 }
 
 impl App {
@@ -311,30 +311,33 @@ impl App {
     {
         let (tx, rx) = mpsc::sync_channel(0);
 
-        let joiner = thread::named("App Event Loop", move || {
-            let mut el = try_tx!(Runtime::new(), tx);
-            let el_h = el.handle();
+        let joiner = thread::Builder::new()
+            .name(String::from("App Event Loop"))
+            .spawn(move || {
+                let mut el = try_tx!(Runtime::new(), tx);
+                let el_h = el.handle();
 
-            let (core_tx, core_rx) = futures_mpsc::unbounded();
-            let (net_tx, net_rx) = futures_mpsc::unbounded();
+                let (core_tx, core_rx) = futures_mpsc::unbounded();
+                let (net_tx, net_rx) = futures_mpsc::unbounded();
 
-            let _ = el.spawn(
-                net_rx
-                    .map(move |event| {
-                        if let NetworkEvent::Disconnected = event {
-                            disconnect_notifier()
-                        }
-                    })
-                    .for_each(|_| Ok(())),
-            );
+                let _ = el.spawn(
+                    net_rx
+                        .map(move |event| {
+                            if let NetworkEvent::Disconnected = event {
+                                disconnect_notifier()
+                            }
+                        })
+                        .for_each(|_| Ok(())),
+                );
 
-            let core_tx_clone = core_tx.clone();
+                let core_tx_clone = core_tx.clone();
 
-            let (client, context) = try_tx!(setup(el_h, core_tx_clone, net_tx), tx);
-            unwrap!(tx.send(Ok(core_tx)));
+                let (client, context) = try_tx!(setup(el_h, core_tx_clone, net_tx), tx);
+                unwrap!(tx.send(Ok(core_tx)));
 
-            event_loop::run(el, &client, &context, core_rx);
-        });
+                event_loop::run(el, &client, &context, core_rx);
+            })
+            .map_err(AppError::from)?;
 
         let core_tx = rx.recv()??;
 
@@ -482,7 +485,7 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
         .map_err(AppError::from)
         .and_then(move |value| {
             let encoded = utils::symmetric_decrypt(&value.data, &context.sym_enc_key)?;
-            let decoded = deserialise(&encoded)?;
+            let decoded = deserialize(&encoded)?;
 
             *context.access_info.borrow_mut() = decoded;
 
