@@ -17,6 +17,8 @@ pub mod access_container;
 pub mod cipher_opt;
 /// Crypto-related routines.
 pub mod crypto;
+/// Authentication Errors
+pub mod errors;
 /// Low level manipulation of `ImmutableData`.
 pub mod immutable_data;
 /// IPC utilities.

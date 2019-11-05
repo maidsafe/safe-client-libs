@@ -76,7 +76,6 @@ pub mod app_auth;
 pub mod app_container;
 pub mod apps;
 pub mod config;
-pub mod errors;
 pub mod ffi;
 pub mod ipc;
 pub mod revocation;

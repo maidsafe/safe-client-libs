@@ -10,6 +10,8 @@
 
 /// Apps management
 pub mod apps;
+/// Authentication Errors
+pub mod errors;
 /// Authenticator communication with apps
 pub mod ipc;
 /// Logging utilities

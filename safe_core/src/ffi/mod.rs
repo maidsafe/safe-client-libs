@@ -12,11 +12,12 @@
 
 /// Type definitions for arrays that are FFI input params.
 pub mod arrays;
+/// Error codes.
+pub mod errors;
 /// IPC utilities.
 pub mod ipc;
 /// NFS API.
 pub mod nfs;
-
 use self::arrays::*;
 use safe_nd::MDataKind as NativeMDataKind;
 

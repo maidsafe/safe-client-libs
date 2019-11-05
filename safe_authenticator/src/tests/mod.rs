@@ -13,8 +13,8 @@ mod utils;
 
 use crate::access_container as access_container_tools;
 use crate::config::{self, KEY_APPS};
-use crate::errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
 use crate::ffi::apps::*;
+use crate::ffi::errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };

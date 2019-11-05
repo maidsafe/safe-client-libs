@@ -935,17 +935,16 @@ mod tests {
                 })
                 // Re-insert to check for refunds for a failed insert_login_packet_for operation
                 .then(|result| match result {
-                    Err(CoreError::DataError(SndError::LoginPacketExists)) => Ok::<_, CoreError>(()),
+                    Err(CoreError::DataError(SndError::LoginPacketExists)) => {
+                        Ok::<_, CoreError>(())
+                    }
                     res => panic!("Unexpected {:?}", res),
                 })
                 // Check if coins are refunded
                 .and_then(move |_| c2.get_balance(None))
                 .and_then(move |balance| {
                     let expected = calculate_new_balance(start_bal, Some(2), Some(five_coins));
-                    assert_eq!(
-                        balance,
-                        expected
-                    );
+                    assert_eq!(balance, expected);
                     Ok(())
                 })
         });

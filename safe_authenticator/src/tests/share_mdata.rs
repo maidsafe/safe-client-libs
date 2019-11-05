@@ -6,8 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::{AuthError, ERR_INVALID_OWNER, ERR_NO_SUCH_DATA};
 use crate::ffi::apps::*;
+use crate::ffi::errors::{AuthError, ERR_INVALID_OWNER, ERR_NO_SUCH_DATA};
 use crate::ffi::ipc::encode_share_mdata_resp;
 use crate::run;
 use crate::test_utils::{self, Payload};

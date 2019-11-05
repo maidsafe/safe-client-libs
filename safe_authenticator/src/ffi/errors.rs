@@ -1,4 +1,4 @@
-// Copyright 2018 MaidSafe.net limited.
+// Copyright 2019 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under The General Public License (GPL), version 3.
 // Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
@@ -6,13 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-//! Errors thrown by Authenticator routines.
-
 pub use self::codes::*;
 use config_file_handler::Error as ConfigFileHandlerError;
 use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
 use maidsafe_utilities::serialisation::SerialisationError;
+pub use safe_core::ffi::errors::shared_codes::*;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::CoreError;
@@ -27,24 +26,6 @@ use std::sync::mpsc::RecvError;
 
 #[allow(missing_docs)]
 mod codes {
-    // Core errors
-    pub const ERR_ENCODE_DECODE_ERROR: i32 = -1;
-    pub const ERR_ASYMMETRIC_DECIPHER_FAILURE: i32 = -2;
-    pub const ERR_SYMMETRIC_DECIPHER_FAILURE: i32 = -3;
-    pub const ERR_RECEIVED_UNEXPECTED_DATA: i32 = -4;
-    pub const ERR_RECEIVED_UNEXPECTED_EVENT: i32 = -5;
-    pub const ERR_VERSION_CACHE_MISS: i32 = -6;
-    pub const ERR_ROOT_DIRECTORY_EXISTS: i32 = -7;
-    pub const ERR_RANDOM_DATA_GENERATION_FAILURE: i32 = -8;
-    pub const ERR_OPERATION_FORBIDDEN: i32 = -9;
-    pub const ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH: i32 = -10;
-    pub const ERR_UNSUCCESSFUL_PW_HASH: i32 = -11;
-    pub const ERR_OPERATION_ABORTED: i32 = -12;
-    pub const ERR_SELF_ENCRYPTION: i32 = -13;
-    pub const ERR_REQUEST_TIMEOUT: i32 = -14;
-    pub const ERR_CONFIG_FILE: i32 = -15;
-    pub const ERR_IO: i32 = -16;
-
     // Data type errors
     pub const ERR_ACCESS_DENIED: i32 = -100;
     pub const ERR_NO_SUCH_DATA: i32 = -101;
@@ -61,51 +42,10 @@ mod codes {
     pub const ERR_DUPLICATE_ENTRY_KEYS: i32 = -112;
     pub const ERR_KEYS_EXIST: i32 = -113;
 
-    // IPC errors.
-    pub const ERR_AUTH_DENIED: i32 = -200;
-    pub const ERR_CONTAINERS_DENIED: i32 = -201;
-    pub const ERR_INVALID_MSG: i32 = -202;
-    pub const ERR_ALREADY_AUTHORISED: i32 = -203;
-    pub const ERR_UNKNOWN_APP: i32 = -204;
-    pub const ERR_STRING_ERROR: i32 = -205;
-    pub const ERR_SHARE_MDATA_DENIED: i32 = -206;
-    pub const ERR_INVALID_OWNER: i32 = -207;
-    pub const ERR_INCOMPATIBLE_MOCK_STATUS: i32 = -208;
-
-    // NFS errors.
-    pub const ERR_FILE_EXISTS: i32 = -300;
-    pub const ERR_FILE_NOT_FOUND: i32 = -301;
-    pub const ERR_INVALID_RANGE: i32 = -302;
-
     // Authenticator errors.
-    pub const ERR_IO_ERROR: i32 = -1013;
     pub const ERR_ACCOUNT_CONTAINERS_CREATION: i32 = -1014;
     pub const ERR_NO_SUCH_CONTAINER: i32 = -1015;
     pub const ERR_PENDING_REVOCATION: i32 = -1016;
-    pub const ERR_UNEXPECTED: i32 = -2000;
-
-    // Identity & permission errors.
-    pub const ERR_INVALID_OWNERS_SUCCESSOR: i32 = -3001;
-    pub const ERR_INVALID_PERMISSIONS_SUCCESSOR: i32 = -3002;
-    pub const ERR_SIGN_KEYTYPE_MISMATCH: i32 = -3003;
-    pub const ERR_INVALID_SIGNATURE: i32 = -3004;
-
-    // Coin errors.
-    pub const ERR_LOSS_OF_PRECISION: i32 = -4000;
-    pub const ERR_EXCESSIVE_VALUE: i32 = -4001;
-    pub const ERR_FAILED_TO_PARSE: i32 = -4002;
-    pub const ERR_TRANSACTION_ID_EXISTS: i32 = -4003;
-    pub const ERR_INSUFFICIENT_BALANCE: i32 = -4004;
-    pub const ERR_BALANCE_EXISTS: i32 = -4005;
-    pub const ERR_NO_SUCH_BALANCE: i32 = -4006;
-
-    // Login packet errors.
-    pub const ERR_EXCEEDED_SIZE: i32 = -5001;
-    pub const ERR_NO_SUCH_LOGIN_PACKET: i32 = -5002;
-    pub const ERR_LOGIN_PACKET_EXISTS: i32 = -5003;
-
-    // Quic P2P errors.
-    pub const ERR_QUIC_P2P: i32 = -6000;
 }
 
 /// Authenticator errors.
@@ -266,6 +206,7 @@ impl From<StringError> for AuthError {
 
 impl ErrorCode for AuthError {
     fn error_code(&self) -> i32 {
+        use codes::*;
         match *self {
             Self::CoreError(ref err) => core_error_code(err),
             Self::SndError(ref err) => safe_nd_error_core(err),

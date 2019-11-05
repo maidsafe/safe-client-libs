@@ -7,7 +7,8 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::{App, AppError};
+use crate::ffi::errors::AppError;
+use crate::App;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
 use futures::Future;
 use safe_core::ffi::ipc::req::ContainerPermissions;

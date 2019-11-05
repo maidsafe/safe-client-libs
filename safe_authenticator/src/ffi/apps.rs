@@ -201,7 +201,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 mod tests {
     use crate::app_auth::{app_state, AppState};
     use crate::app_container::fetch;
-    use crate::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
+    use crate::ffi::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
     use crate::revocation::revoke_app;
     use crate::test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,

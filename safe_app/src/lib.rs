@@ -108,7 +108,6 @@ pub use crate::ffi::*;
 
 pub mod cipher_opt;
 mod client;
-mod errors;
 pub mod object_cache;
 pub mod permissions;
 
@@ -119,7 +118,7 @@ mod tests;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
-pub use self::errors::*;
+pub use self::ffi::errors::*;
 pub use client::AppClient;
 
 use self::object_cache::ObjectCache;
