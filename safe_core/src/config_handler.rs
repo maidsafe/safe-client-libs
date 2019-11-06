@@ -157,7 +157,7 @@ fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, CoreError>
 where
     T: DeserializeOwned,
 {
-    let path = dirs.project_path().join(file);
+    let path = dirs.config_dir().join(file);
     let file = match File::open(&path) {
         Ok(file) => {
             trace!("Reading: {}", path.display());
@@ -177,15 +177,13 @@ where
 
 /// Writes a `safe_core` config file **for use by tests and examples**.
 ///
-/// The file is written to the `current_bin_dir()` with the appropriate file name.
-///
 /// N.B. This method should only be used as a utility for test and examples.  In normal use cases,
 /// the config file should be created by the Vault's installer.
 #[cfg(test)]
 #[allow(unused)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     let dirs = dirs()?;
-    let dir = dirs.project_path();
+    let dir = dirs.config_dir();
     fs::create_dir_all(dir)?;
 
     let path = dir.join(CONFIG_FILE);
