@@ -49,7 +49,7 @@ pub fn set_config_dir_path<P: AsRef<OsStr> + ?Sized>(path: &P) {
 }
 
 /// Configuration for safe-core.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Config {
     /// QuicP2p options.
     pub quic_p2p: QuicP2pConfig,
@@ -120,7 +120,7 @@ impl Config {
 }
 
 /// Extra configuration options intended for developers.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct DevConfig {
     /// Switch off mutations limit in mock-vault.
     pub mock_unlimited_coins: bool,
@@ -180,7 +180,6 @@ where
 /// N.B. This method should only be used as a utility for test and examples.  In normal use cases,
 /// the config file should be created by the Vault's installer.
 #[cfg(test)]
-#[allow(unused)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     let dirs = dirs()?;
     let dir = dirs.config_dir();
@@ -199,31 +198,41 @@ pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
 mod test {
     use super::*;
     use std::env::temp_dir;
-    use std::fs::File;
 
-    // Write a default config file for use as reference. This will overwrite any existing
-    // configurations so use with care.
+    // 1. Write the default config file to temp directory.
+    // 2. Set the temp directory as the custom config directory path.
+    // 3. Assert that `Config::new()` reads the default config written to disk.
+    // 4. Verify that `Config::new()` generates the correct default config.
+    //    The default config will have the custom config path in the
+    //    `boostrap_cache_dir` field and `our_type` will be set to `Client`
     #[test]
-    #[ignore]
-    fn write_default_config_file() {
-        let config = Config::default();
-        unwrap!(write_config_file(&config));
-    }
-
-    // 1. Write a sample Quic-P2P config file to temp directory
-    // 2. Set the same path temp path as custom config directory path
-    // 3. Check if the config path is not altered by `ProjectDirs`, and also fetch and assert the config.
-    #[test]
-    fn test_custom_config_path() {
-        let mut path = temp_dir();
+    fn custom_config_path() {
+        let path = temp_dir();
+        let temp_dir_path = path.clone();
         set_config_dir_path(&path);
-        path.push("safe_core.config");
-        let config = QuicP2pConfig::default();
+        // In the default config, `our_type` will be set to Node.
+        let config: Config = Default::default();
+        unwrap!(write_config_file(&config));
 
-        let mut file = unwrap!(File::create(&path));
-        unwrap!(serde_json::to_writer_pretty(&mut file, &config));
+        let read_cfg = Config::new();
+        assert_eq!(config, read_cfg);
+        let mut path = unwrap!(ProjectDirs::from_path(temp_dir_path.clone()))
+            .config_dir()
+            .to_path_buf();
+        path.push(CONFIG_FILE);
+        unwrap!(std::fs::remove_file(path));
 
-        let read_cfg: QuicP2pConfig = unwrap!(Config::read_qp2p_from_file());
-        assert_eq!(config, read_cfg)
+        // In the absence of a config file, the config handler
+        // should initialize the `our_type` field to Client.
+        let config = Config::new();
+        let expected_config = Config {
+            quic_p2p: QuicP2pConfig {
+                our_type: quic_p2p::OurType::Client,
+                bootstrap_cache_dir: Some(unwrap!(temp_dir_path.into_os_string().into_string())),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert_eq!(config, expected_config);
     }
 }
