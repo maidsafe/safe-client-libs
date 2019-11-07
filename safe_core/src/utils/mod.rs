@@ -11,6 +11,10 @@ mod futures;
 
 /// Seed utilities.
 pub mod seed;
+
+/// Logging utilities.
+pub mod logging;
+
 /// Common utility functions for writing test cases.
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;

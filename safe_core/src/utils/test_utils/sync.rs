@@ -10,7 +10,6 @@
 #![allow(unused)]
 
 use crate::ConnectionManager;
-use maidsafe_utilities::SeededRng;
 use rand::Rng;
 use rand::XorShiftRng;
 use safe_nd::{Request, Response};

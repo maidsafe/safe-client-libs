@@ -12,7 +12,7 @@
 use super::AppError;
 use config_file_handler::FileHandler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, FFI_RESULT_OK};
-use maidsafe_utilities::log;
+use safe_core::utils::logging;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 
@@ -27,10 +27,10 @@ pub unsafe extern "C" fn app_init_logging(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
         if output_file_name_override.is_null() {
-            log::init(false)?;
+            logging::init(false)?;
         } else {
             let output_file_name_override = from_c_str(output_file_name_override)?;
-            log::init_with_output_file(false, output_file_name_override)?;
+            logging::init_with_output_file(false, output_file_name_override)?;
         }
         o_cb(user_data, FFI_RESULT_OK);
         Ok(())
@@ -66,13 +66,15 @@ pub unsafe extern "C" fn app_output_log_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use config_file_handler::current_bin_dir;
+//    use config_file_handler::current_bin_dir;
     use ffi_utils::test_utils::{call_0, call_1};
-    use std::env;
-    use std::fs::{self, File};
+//    use std::env;
+    use std::fs::File;
     use std::io::Read;
     use std::thread;
     use std::time::Duration;
+    use std::path::PathBuf;
+    use std::str::FromStr;
 
     // Test path where log file is created.
     #[test]
@@ -94,10 +96,9 @@ mod tests {
     // Test logging errors to file.
     #[test]
     fn file_logging() {
-        setup_log_config();
+        // setup_log_config();
 
-        let mut current_exe_path = unwrap!(current_bin_dir());
-        current_exe_path.push("secret-log-output.log");
+        let current_exe_path = unwrap!(PathBuf::from_str("sample_log_file/log.toml"));
 
         let log_file_path = unwrap!(CString::new(unwrap!(current_exe_path
             .clone()
@@ -130,17 +131,17 @@ mod tests {
         assert!(!file_content.contains(&junk_msg[..]));
     }
 
-    fn setup_log_config() {
-        let mut current_dir = unwrap!(env::current_dir());
-        let mut current_bin_dir = unwrap!(current_bin_dir());
-
-        if current_dir.as_path() != current_bin_dir.as_path() {
-            // Try to copy log.toml from the current dir to bin dir
-            // so that the config_file_handler can find it
-            current_dir.push("sample_log_file/log.toml");
-            current_bin_dir.push("log.toml");
-
-            let _ = unwrap!(fs::copy(current_dir, current_bin_dir));
-        }
-    }
+//    fn setup_log_config() {
+//        let mut current_dir = unwrap!(env::current_dir());
+//        let mut current_bin_dir = unwrap!(current_bin_dir());
+//
+//        if current_dir.as_path() != current_bin_dir.as_path() {
+//            // Try to copy log.toml from the current dir to bin dir
+//            // so that the config_file_handler can find it
+//            current_dir.push("sample_log_file/log.toml");
+//            current_bin_dir.push("log.toml");
+//
+//            let _ = unwrap!(fs::copy(current_dir, current_bin_dir));
+//        }
+//    }
 }
