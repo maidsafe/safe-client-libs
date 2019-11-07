@@ -203,7 +203,6 @@ fn setup() -> Stash {
         AuthReq {
             app: app_exchange_info,
             app_permissions: Default::default(),
-            app_container: false,
             containers: containers.clone(),
         }
     };
@@ -218,7 +217,6 @@ fn setup() -> Stash {
 
         AuthReq {
             app: app_exchange_info,
-            app_container: false,
             app_permissions: Default::default(),
             containers: containers.clone(),
         }

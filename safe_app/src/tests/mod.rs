@@ -12,15 +12,11 @@ mod coins;
 mod unpublished_mutable_data;
 
 use crate::ffi::test_utils::test_create_app_with_access;
-use crate::test_utils::{create_app, create_random_auth_req, gen_app_exchange_info};
+use crate::test_utils::{create_app, create_random_auth_req};
 use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access};
 use crate::{run, App, AppError};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
-use safe_authenticator::test_utils as authenticator;
-use safe_authenticator::test_utils::revoke;
-use safe_authenticator::{run as auth_run, AuthError, Authenticator};
-use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
 use safe_core::ipc::Permission;
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
@@ -133,7 +129,6 @@ pub fn login_registered_with_low_balance() {
         &auth,
         &AuthReq {
             app: app_info,
-            app_container: false,
             app_permissions: Default::default(),
             containers: HashMap::new(),
         },
@@ -145,115 +140,6 @@ pub fn login_registered_with_low_balance() {
         || (),
         cm_hook,
     ));
-}
-
-// Authorise an app with `app_container`.
-fn authorise_app(
-    auth: &Authenticator,
-    app_info: &AppExchangeInfo,
-    app_id: &str,
-    app_container: bool,
-) -> App {
-    let auth_granted = unwrap!(authenticator::register_app(
-        auth,
-        &AuthReq {
-            app: app_info.clone(),
-            app_container,
-            app_permissions: AppPermissions {
-                transfer_coins: true,
-                perform_mutations: true,
-                get_balance: true,
-            },
-            containers: HashMap::new(),
-        },
-    ));
-
-    unwrap!(App::registered(String::from(app_id), auth_granted, || ()))
-}
-
-// Get the number of containers for `app`
-fn num_containers(app: &App) -> usize {
-    trace!("Getting the number of containers.");
-
-    unwrap!(run(app, move |client, context| {
-        context.get_access_info(client).then(move |res| {
-            let info = unwrap!(res);
-            Ok(info.len())
-        })
-    }))
-}
-
-// Test app container creation under the following circumstances:
-// 1. An app is authorised for the first time with `app_container` set to `true`.
-// 2. If an app is authorised for the first time with `app_container` set to `false`,
-// then any subsequent authorisation with `app_container` set to `true` should trigger
-// the creation of the app's own container.
-// 3. If an app is authorised with `app_container` set to `true`, then subsequent
-// authorisation should not use up any mutations.
-// 4. Make sure that the app's own container is also created when it's re-authorised
-// with `app_container` set to `true` after it's been revoked.
-#[test]
-fn app_container_creation() {
-    trace!("Authorising an app for the first time with `app_container` set to `true`.");
-
-    {
-        let auth = authenticator::create_account_and_login();
-
-        let app_info = gen_app_exchange_info();
-        let app_id = app_info.id.clone();
-        let app = authorise_app(&auth, &app_info, &app_id, true);
-
-        assert_eq!(num_containers(&app), 1); // should only contain app container
-    }
-
-    trace!("Authorising a new app with `app_container` set to `false`.");
-    let auth = authenticator::create_account_and_login();
-    let app_info = gen_app_exchange_info();
-    let app_id = app_info.id.clone();
-
-    {
-        let app = authorise_app(&auth, &app_info, &app_id, false);
-        assert_eq!(num_containers(&app), 0); // should be empty
-    }
-
-    trace!("Re-authorising the app with `app_container` set to `true`.");
-    {
-        let app = authorise_app(&auth, &app_info, &app_id, true);
-        assert_eq!(num_containers(&app), 1); // should only contain app container
-    }
-
-    trace!("Making sure no mutations are done when re-authorising the app now.");
-    let orig_balance: Coins = unwrap!(auth_run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
-    }));
-
-    let _ = authorise_app(&auth, &app_info, &app_id, true);
-
-    let new_balance: Coins = unwrap!(auth_run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
-    }));
-
-    assert_eq!(orig_balance, new_balance);
-
-    trace!("Authorising a new app with `app_container` set to `false`.");
-    let auth = authenticator::create_account_and_login();
-
-    let app_info = gen_app_exchange_info();
-    let app_id = app_info.id.clone();
-
-    {
-        let app = authorise_app(&auth, &app_info, &app_id, false);
-        assert_eq!(num_containers(&app), 0); // should be empty
-    }
-
-    trace!("Revoking the app.");
-    revoke(&auth, &app_id);
-
-    trace!("Re-authorising the app with `app_container` set to `true`.");
-    {
-        let app = authorise_app(&auth, &app_info, &app_id, true);
-        assert_eq!(num_containers(&app), 1); // should only contain app container
-    }
 }
 
 // Test unregistered clients.

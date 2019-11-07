@@ -200,12 +200,10 @@ pub fn register_app(
 #[allow(clippy::implicit_hasher)]
 pub fn register_rand_app(
     authenticator: &Authenticator,
-    app_container: bool,
     containers_req: HashMap<String, ContainerPermissions>,
 ) -> Result<(String, AuthGranted), AuthError> {
     let auth_req = AuthReq {
         app: rand_app(),
-        app_container,
         app_permissions: AppPermissions {
             transfer_coins: true,
             perform_mutations: true,

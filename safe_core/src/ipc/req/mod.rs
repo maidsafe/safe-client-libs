@@ -418,14 +418,12 @@ mod tests {
 
         let a = AuthReq {
             app,
-            app_container: false,
             app_permissions: Default::default(),
             containers: HashMap::new(),
         };
 
         let ffi = unwrap!(a.into_repr_c());
 
-        assert_eq!(ffi.app_container, false);
         assert_eq!(ffi.containers_len, 0);
 
         let a = unsafe { unwrap!(AuthReq::clone_from_repr_c(&ffi)) };
@@ -434,7 +432,6 @@ mod tests {
         assert_eq!(a.app.scope, Some("2".to_string()));
         assert_eq!(a.app.name, "3");
         assert_eq!(a.app.vendor, "4");
-        assert_eq!(a.app_container, false);
         assert_eq!(a.containers.len(), 0);
     }
 

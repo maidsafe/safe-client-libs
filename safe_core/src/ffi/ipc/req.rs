@@ -102,8 +102,6 @@ impl Drop for ContainerPermissions {
 pub struct AuthReq {
     /// The application identifier for this request.
     pub app: AppExchangeInfo,
-    /// `true` if the app wants dedicated container for itself. `false` otherwise.
-    pub app_container: bool,
 
     /// App has permission to transfer coins on behalf of the user.
     pub app_permission_transfer_coins: bool,

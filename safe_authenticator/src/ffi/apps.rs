@@ -200,11 +200,10 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 #[cfg(test)]
 mod tests {
     use crate::app_auth::{app_state, AppState};
-    use crate::app_container::fetch;
     use crate::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
     use crate::revocation::revoke_app;
     use crate::test_utils::{
-        create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
+        create_account_and_login, get_app_or_err, rand_app, register_app,
     };
     use crate::{config, run};
     use ffi_utils::test_utils::call_0;
@@ -247,7 +246,6 @@ mod tests {
             &auth,
             &AuthReq {
                 app: app_info.clone(),
-                app_container: false,
                 app_permissions: Default::default(),
                 containers: HashMap::new(),
             },
@@ -277,7 +275,7 @@ mod tests {
     }
 
     // Test complete app removal
-    // 1. Authorise a new app A with `app_container` set to `true`.
+    // 1. Authorise a new app A.
     // 2. Put a file with predefined content into app A's own container.
     // 3. Revoke app A
     // 4. Verify that app A is still listed in the authenticator config.
@@ -285,42 +283,25 @@ mod tests {
     // 6. Call `auth_rm_revoked_app` with an app id corresponding to app A.
     // The operation should succeed.
     // 7. Verify that the app A is not listed anywhere in the authenticator config.
-    // 8. Verify that the app A's container entry corresponding to the file created
-    // at the step 2 is emptied out/removed.
-    // 9. Try to authorise app A again as app A2 (app_container set to `true`)
-    // 10. Verify that the app A2 is listed in the authenticator config.
-    // 11. Verify that the app A2 keys are different from the set of the app A keys
+    // 8. Try to authorise app A again as app A2
+    // 9. Verify that the app A2 is listed in the authenticator config.
+    // 10. Verify that the app A2 keys are different from the set of the app A keys
     // (i.e. the app keys should have been regenerated rather than reused).
-    // 12. Verify that the app A2 container does not contain the file created at step 2.
     #[test]
     fn rm_revoked_complete() {
         let auth = create_account_and_login();
         let app_info = rand_app();
         let app_id = app_info.id.clone();
         let app_id2 = app_id.clone();
-        let app_id3 = app_id.clone();
-        let app_id4 = app_id.clone();
-        let app_id5 = app_id.clone();
 
-        // Authorise app A with `app_container` set to `true`.
+        // Authorise app A
         let auth_granted1 = unwrap!(register_app(
             &auth,
             &AuthReq {
                 app: app_info.clone(),
-                app_container: true,
                 app_permissions: Default::default(),
                 containers: HashMap::new(),
             },
-        ));
-
-        // Put a file with predefined content into app A's own container.
-        let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id3))) });
-        unwrap!(create_file(
-            &auth,
-            mdata_info.clone(),
-            "test",
-            vec![1; 10],
-            true
         ));
 
         // Revoke app A
@@ -330,16 +311,6 @@ mod tests {
 
         // Verify that app A is still listed in the authenticator config.
         assert!(get_app_or_err(&auth, &app_id).is_ok());
-
-        // Verify that the app A container is still accessible.
-        {
-            unwrap!(run(&auth, move |client| {
-                fetch(client, &app_id4).and_then(move |res| match res {
-                    Some(_) => Ok(()),
-                    None => panic!("App container not accessible"),
-                })
-            }))
-        }
 
         // Call `auth_rm_revoked_app` with an app id corresponding to app A.
         let app_info_ffi = unwrap!(app_info.clone().into_repr_c());
@@ -359,20 +330,11 @@ mod tests {
             Ok(_) => panic!("App still listed in the authenticator config"),
         };
 
-        // Verify that the app A's container entry corresponding to the file created
-        // at step 2 is emptied out/removed.
-        let res = fetch_file(&auth, mdata_info, "test");
-        match res {
-            Err(_) => (),
-            Ok(_) => panic!("File not removed"),
-        }
-
-        // Try to authorise app A again as app A2 (app_container set to `true`)
+        // Try to authorise app A again as app A2
         let auth_granted2 = unwrap!(register_app(
             &auth,
             &AuthReq {
                 app: app_info,
-                app_container: true,
                 app_permissions: Default::default(),
                 containers: HashMap::new(),
             },
@@ -384,13 +346,5 @@ mod tests {
         // Verify that the app A2 keys are different from the set of the app A keys
         // (i.e. the app keys should have been regenerated rather than reused).
         assert_ne!(auth_granted1.app_keys, auth_granted2.app_keys);
-
-        // Verify that the app A2 container does not contain the file created at step 2.
-        let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id5))) });
-        let res = fetch_file(&auth, mdata_info, "test");
-        match res {
-            Err(_) => (),
-            Ok(_) => panic!("File not removed"),
-        }
     }
 }

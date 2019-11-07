@@ -19,8 +19,6 @@ use std::collections::HashMap;
 pub struct AuthReq {
     /// The application identifier for this request
     pub app: AppExchangeInfo,
-    /// `true` if the app wants dedicated container for itself. `false` otherwise.
-    pub app_container: bool,
     /// Stores app permissions, e.g. allowing to work with the user's coin balance.
     pub app_permissions: AppPermissions,
     /// The list of containers the app wishes to access (and desired permissions).
@@ -32,7 +30,6 @@ impl AuthReq {
     pub fn into_repr_c(self) -> Result<ffi::AuthReq, IpcError> {
         let AuthReq {
             app,
-            app_container,
             app_permissions,
             containers,
         } = self;
@@ -42,7 +39,6 @@ impl AuthReq {
 
         Ok(ffi::AuthReq {
             app: app.into_repr_c()?,
-            app_container,
             app_permission_transfer_coins: app_permissions.transfer_coins,
             app_permission_perform_mutations: app_permissions.perform_mutations,
             app_permission_get_balance: app_permissions.get_balance,
@@ -63,7 +59,6 @@ impl ReprC for AuthReq {
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         Ok(Self {
             app: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app)?,
-            app_container: (*repr_c).app_container,
             app_permissions: AppPermissions {
                 transfer_coins: (*repr_c).app_permission_transfer_coins,
                 perform_mutations: (*repr_c).app_permission_perform_mutations,

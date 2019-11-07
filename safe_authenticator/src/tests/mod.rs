@@ -25,12 +25,12 @@ use crate::safe_core::ipc::{
     self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use crate::test_utils::{self, ChannelType};
-use crate::{app_container, run};
+use crate::run;
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::Future;
 use safe_core::config_handler::Config;
-use safe_core::{app_container_name, mdata_info, AuthActions, Client};
+use safe_core::{mdata_info, AuthActions, Client};
 use safe_nd::PublicKey;
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -50,9 +50,9 @@ mod mock_routing {
     use safe_core::ipc::AuthReq;
     use safe_core::utils::generate_random_string;
     use safe_core::{
-        app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
+        test_create_balance, ConnectionManager, CoreError,
     };
-    use safe_nd::{Coins, Error as SndError, PublicKey, Request, RequestType, Response};
+    use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -156,7 +156,7 @@ mod mock_routing {
 
     // Test operation recovery for app authentication.
     //
-    // 1. Create a test app and try to authenticate it (with `app_container` set to true).
+    // 1. Create a test app and try to authenticate it.
     //
     // 2. Simulate a network failure after the `mutate_mdata_entries` operation (relating to the
     //    addition of the app to the user's config dir) - it should leave the app in the
@@ -176,11 +176,6 @@ mod mock_routing {
     // 8. Simulate a network failure for the `mutate_mdata_entries` operation
     //    (relating to update of the access container).
     // 9. Try to authenticate the app again, it should succeed now.
-    //
-    // 10. Check that the app's container has been created.
-    // 11. Check that the app's container has required permissions.
-    // 12. Check that the app's container is listed in the access container entry for
-    //     the app.
     #[test]
     fn app_authentication_recovery() {
         let locator = unwrap!(generate_random_string(10));
@@ -214,14 +209,12 @@ mod mock_routing {
             cm_hook,
         ));
 
-        // Create a test app and try to authenticate it (with `app_container` set to true).
+        // Create a test app and try to authenticate it.
         let auth_req = AuthReq {
             app: test_utils::rand_app(),
-            app_container: true,
             app_permissions: Default::default(),
             containers: utils::create_containers_req(),
         };
-        let app_id = auth_req.app.id.clone();
 
         // App authentication request should fail and leave the app in the
         // `Revoked` state (as it is listed in the config root, but not in the access
@@ -264,35 +257,6 @@ mod mock_routing {
         //     x => panic!("Unexpected {:?}", x),
         // }
 
-        // // Simulate a network failure for the `app_container` setup step -
-        // // it should fail at the third request for `SetMDataPermissions` (after
-        // // setting permissions for 2 requested containers, `_video` and `_documents`)
-        // let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-        //     cm.set_request_hook(move |req| {
-        //         match *req {
-        //             Request::PutMData { .. } => {
-        //                 Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-        //             }
-
-        //             // Pass-through
-        //             _ => None,
-        //         }
-        //     });
-        //     cm
-        // };
-        // let auth = unwrap!(Authenticator::login_with_hook(
-        //     locator.clone(),
-        //     password.clone(),
-        //     || (),
-        //     cm_hook,
-        // ));
-        // match test_utils::register_app(&auth, &auth_req) {
-        //     Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
-        //         SndError::InsufficientBalance,
-        //     )))) => (),
-        //     x => panic!("Unexpected {:?}", x),
-        // }
-
         // Simulate a network failure for the `MutateMDataEntries` request, which
         // is supposed to setup the access container entry for the app
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
@@ -326,41 +290,16 @@ mod mock_routing {
             password.clone(),
             || (),
         ));
-        let auth_granted = match test_utils::register_app(&auth, &auth_req) {
+        let _auth_granted = match test_utils::register_app(&auth, &auth_req) {
             Ok(auth_granted) => auth_granted,
             x => panic!("Unexpected {:?}", x),
         };
 
         // Check that the app's container has been created and that the access container
         // contains info about all of the requested containers.
-        let mut ac_entries =
-            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone());
         // let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         // let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
-        let (app_container, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
-        let app_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
-
-        unwrap!(run(&auth, move |client| {
-            let c2 = client.clone();
-
-            client
-                .get_mdata_version(*app_container.address())
-                .then(move |res| {
-                    let version = unwrap!(res);
-                    assert_eq!(version, 0);
-
-                    // Check that the app's container has required permissions.
-                    c2.list_mdata_permissions(*app_container.address())
-                })
-                .then(move |res| {
-                    let perms = unwrap!(res);
-                    assert!(perms.contains_key(&app_pk));
-                    assert_eq!(perms.len(), 1);
-
-                    Ok(())
-                })
-        }));
     }
 }
 
@@ -435,7 +374,6 @@ fn app_authentication() {
     let containers = utils::create_containers_req();
     let auth_req = AuthReq {
         app: app_exchange_info.clone(),
-        app_container: true,
         app_permissions: Default::default(),
         containers,
     };
@@ -488,25 +426,16 @@ fn app_authentication() {
         x => panic!("Unexpected {:?}", x),
     };
 
-    let mut expected = utils::create_containers_req();
-    let _ = expected.insert(
-        app_container_name(&app_id),
-        btree_set![
-            Permission::Read,
-            Permission::Insert,
-            Permission::Update,
-            Permission::Delete,
-            Permission::ManagePermissions,
-        ],
-    );
+    let expected = utils::create_containers_req();
+
     for (container, permissions) in expected.clone() {
         let perms = unwrap!(auth_granted.access_container_entry.get(&container));
         assert_eq!((*perms).1, permissions);
     }
 
-    let mut access_container =
+    let access_container =
         test_utils::access_container(&authenticator, app_id.clone(), auth_granted.clone());
-    assert_eq!(access_container.len(), 1);
+    assert_eq!(access_container.len(), 0);
 
     let app_keys = auth_granted.app_keys;
     let app_sign_pk = PublicKey::from(app_keys.bls_pk);
@@ -518,8 +447,6 @@ fn app_authentication() {
         expected,
     );
 
-    let (app_dir_info, _) = unwrap!(access_container.remove(&app_container_name(&app_id)));
-
     // Check the app info is present in the config file.
     let apps = unwrap!(run(&authenticator, |client| {
         config::list_apps(client).map(|(_, apps)| apps)
@@ -530,16 +457,6 @@ fn app_authentication() {
 
     assert_eq!(app_info.info, app_exchange_info);
     assert_eq!(app_info.keys, app_keys);
-
-    // Check the app dir is present in the access container's authenticator entry.
-    let received_app_dir_info = unwrap!(run(&authenticator, move |client| {
-        app_container::fetch(client, &app_id).and_then(move |app_dir| match app_dir {
-            Some(app_dir) => Ok(app_dir),
-            None => panic!("App directory not present"),
-        })
-    }));
-
-    assert_eq!(received_app_dir_info, app_dir_info);
 
     // Check the app is authorised.
     let auth_keys = unwrap!(run(&authenticator, |client| {
@@ -574,7 +491,6 @@ fn invalid_container_authentication() {
 
     let auth_req = AuthReq {
         app: app_exchange_info.clone(),
-        app_container: true,
         app_permissions: Default::default(),
         containers,
     };
@@ -612,7 +528,6 @@ fn unregistered_authentication() {
         req_id: ipc::gen_req_id(),
         req: IpcReq::Auth(AuthReq {
             app: test_utils::rand_app(),
-            app_container: true,
             app_permissions: Default::default(),
             containers: utils::create_containers_req(),
         }),
@@ -700,7 +615,6 @@ fn authenticated_app_can_be_authenticated_again() {
 
     let auth_req = AuthReq {
         app: test_utils::rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
     };
@@ -802,12 +716,10 @@ fn containers_unknown_app() {
 fn containers_access_request() {
     let authenticator = test_utils::create_account_and_login();
 
-    // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for app_container
-    // and containers "documents with permission to insert", "videos with all the permissions
-    // possible",
+    // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for containers
+    // "documents with permission to insert", "videos with all the permissions possible"
     let auth_req = AuthReq {
         app: test_utils::rand_app(),
-        app_container: true,
         app_permissions: Default::default(),
         containers: utils::create_containers_req(),
     };
@@ -914,14 +826,12 @@ fn lists_of_registered_and_revoked_apps() {
     // Register two apps.
     let auth_req1 = AuthReq {
         app: test_utils::rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
     };
 
     let auth_req2 = AuthReq {
         app: test_utils::rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
     };

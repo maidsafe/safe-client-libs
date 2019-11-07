@@ -15,7 +15,7 @@ use crate::{
     revocation,
     test_utils::{
         access_container, create_account_and_login, create_authenticator, create_file, rand_app,
-        register_app, register_rand_app, revoke, try_access_container, try_revoke,
+        register_app, revoke, try_access_container, try_revoke,
     },
     {access_container, run, AuthFuture, Authenticator},
 };
@@ -189,7 +189,6 @@ mod mock_routing {
         // Grant access to some of the default containers (e.g. `_video`, `_documents`).
         let auth_req = AuthReq {
             app: rand_app(),
-            app_container: false,
             app_permissions: Default::default(),
             containers: create_containers_req(),
         };
@@ -277,7 +276,6 @@ mod mock_routing {
         // Authenticate the app.
         let auth_req = AuthReq {
             app: rand_app(),
-            app_container: false,
             app_permissions: Default::default(),
             containers: create_containers_req(),
         };
@@ -316,7 +314,6 @@ mod mock_routing {
         // Authenticate the first app.
         let auth_req = AuthReq {
             app: rand_app(),
-            app_container: false,
             app_permissions: Default::default(),
             containers: create_containers_req(),
         };
@@ -327,7 +324,6 @@ mod mock_routing {
         // Authenticate the second app.
         let auth_req = AuthReq {
             app: rand_app(),
-            app_container: false,
             app_permissions: Default::default(),
             containers: create_containers_req(),
         };
@@ -419,8 +415,8 @@ mod mock_routing {
         // );
 
         let (app_id_0, auth_granted_0) =
-            unwrap!(register_rand_app(&auth, true, containers_req.clone()));
-        let (app_id_1, _) = unwrap!(register_rand_app(&auth, true, containers_req));
+            unwrap!(register_rand_app(&auth, containers_req.clone()));
+        let (app_id_1, _) = unwrap!(register_rand_app(&auth, containers_req));
 
         let ac_entries_0 = access_container(&auth, app_id_0.clone(), auth_granted_0);
 
@@ -515,10 +511,10 @@ mod mock_routing {
         // );
 
         let (app_id_0, auth_granted_0) =
-            unwrap!(register_rand_app(&auth, true, containers_req.clone()));
+            unwrap!(register_rand_app(&auth, containers_req.clone()));
         let (app_id_1, auth_granted_1) =
-            unwrap!(register_rand_app(&auth, true, containers_req.clone()));
-        let (app_id_2, _) = unwrap!(register_rand_app(&auth, true, containers_req));
+            unwrap!(register_rand_app(&auth, containers_req.clone()));
+        let (app_id_2, _) = unwrap!(register_rand_app(&auth, containers_req));
 
         let ac_entries_0 = access_container(&auth, app_id_0.clone(), auth_granted_0);
         let ac_entries_1 = access_container(&auth, app_id_1.clone(), auth_granted_1);
@@ -645,7 +641,6 @@ fn app_revocation_and_reauth() {
     // Create and authorise two apps.
     let auth_req1 = AuthReq {
         app: rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: create_containers_req(),
     };
@@ -654,7 +649,6 @@ fn app_revocation_and_reauth() {
 
     let auth_req2 = AuthReq {
         app: rand_app(),
-        app_container: true,
         app_permissions: Default::default(),
         containers: create_containers_req(),
     };
@@ -836,7 +830,6 @@ fn revocation_symmetric_decipher_failure() {
     // Create and authorise three apps, which we will put on the revocation queue.
     let auth_req1 = AuthReq {
         app: rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: create_containers_req(),
     };
@@ -846,7 +839,6 @@ fn revocation_symmetric_decipher_failure() {
 
     let auth_req2 = AuthReq {
         app: rand_app(),
-        app_container: true,
         app_permissions: Default::default(),
         containers: corrupt_containers,
     };
@@ -856,7 +848,6 @@ fn revocation_symmetric_decipher_failure() {
 
     let auth_req3 = AuthReq {
         app: rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: create_containers_req(),
     };
@@ -958,7 +949,6 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     // the account balance did not change.
     let auth_req = AuthReq {
         app: rand_app(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: create_containers_req(),
     };

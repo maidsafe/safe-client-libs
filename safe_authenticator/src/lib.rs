@@ -41,7 +41,6 @@ extern crate rand;
 
 pub mod access_container;
 pub mod app_auth;
-pub mod app_container;
 pub mod apps;
 pub mod config;
 pub mod errors;

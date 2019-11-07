@@ -77,14 +77,10 @@ pub fn create_auth_req(
         app_info.id = app_id;
     }
 
-    let (app_container, containers) = match access_info {
-        Some(access_info) => (true, access_info),
-        None => (false, HashMap::default()),
-    };
+    let containers = access_info.unwrap_or_default();
 
     NativeAuthReq {
         app: app_info,
-        app_container,
         app_permissions: AppPermissions {
             transfer_coins: true,
             perform_mutations: true,
