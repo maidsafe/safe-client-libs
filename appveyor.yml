@@ -1,6 +1,7 @@
 environment:
   global:
     RUST_BACKTRACE: 1
+    RUSTFLAGS: "-D warnings"
   matrix:
     - RUST_TOOLCHAIN: stable
 

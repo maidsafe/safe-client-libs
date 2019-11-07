@@ -1,7 +1,7 @@
 env:
   global:
     - RUST_BACKTRACE=1
-    - RUSTFLAGS="-C opt-level=2 -C codegen-units=8"
+    - RUSTFLAGS="-C opt-level=2 -C codegen-units=8 -D warnings"
     - PATH=$PATH:$HOME/.cargo/bin
 language: rust
 rust:

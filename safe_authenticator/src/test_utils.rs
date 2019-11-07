@@ -8,7 +8,7 @@
 
 //! Provides utilities to test the authenticator functionality.
 
-#![allow(clippy::not_unsafe_ptr_arg_deref)]
+#![allow(clippy::not_unsafe_ptr_arg_deref, unsafe_code)]
 
 use crate::client::AuthClient;
 use crate::errors::AuthError;

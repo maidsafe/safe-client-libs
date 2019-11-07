@@ -62,6 +62,7 @@ impl ReprC for RegisteredApp {
     type C = *const ffi::RegisteredApp;
     type Error = IpcError;
 
+    #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         Ok(Self {
             app_info: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app_info)?,

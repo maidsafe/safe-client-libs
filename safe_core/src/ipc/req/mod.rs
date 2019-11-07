@@ -165,6 +165,14 @@ where
 ///
 /// After calling this function, the raw pointer is owned by the resulting
 /// object.
+///
+/// # Safety
+///
+/// This function is unsafe as there is no guarantee that the given pointer is valid for len
+/// elements, nor whether the lifetime inferred is a suitable lifetime for the returned slice.
+///
+/// This function also assumes the provided `ffi::ContainerPermissions` is valid, i.e. it was
+/// constructed by calling `containers_into_vec`.
 pub unsafe fn containers_from_repr_c(
     raw: *const FfiContainerPermissions,
     len: usize,

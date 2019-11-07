@@ -268,6 +268,13 @@ pub fn access_container_entry_into_repr_c(
 }
 
 /// Convert FFI representation of `AccessContainerEntry` to native rust representation by cloning.
+///
+/// # Safety
+///
+/// This function dereferences the provided raw pointer, which must be valid.
+///
+/// This function also assumes the provided `ffi::AccessContainerEntry` is valid, i.e. it was
+/// constructed by calling `access_container_into_repr_c`.
 pub unsafe fn access_container_entry_clone_from_repr_c(
     entry: *const ffi::AccessContainerEntry,
 ) -> Result<AccessContainerEntry, IpcError> {

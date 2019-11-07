@@ -13,39 +13,10 @@
     html_favicon_url = "http://maidsafe.net/img/favicon.ico",
     test(attr(forbid(warnings)))
 )]
-// For explanation of lint checks, run `rustc -W help` or see
-// https://github.com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
-#![forbid(
-    exceeding_bitshifts,
-    mutable_transmutes,
-    no_mangle_const_items,
-    unknown_crate_types,
-    warnings
-)]
-#![deny(
-    bad_style,
-    deprecated,
-    improper_ctypes,
-    missing_docs,
-    non_shorthand_field_patterns,
-    overflowing_literals,
-    plugin_as_library,
-    stable_features,
-    unconditional_recursion,
-    unknown_lints,
-    unused,
-    unused_allocation,
-    unused_attributes,
-    unused_comparisons,
-    unused_features,
-    unused_parens,
-    while_true,
-    clippy::all,
-    clippy::option_unwrap_used,
-    clippy::unicode_not_nfc,
-    clippy::wrong_pub_self_convention
-)]
+// For explanation of lint checks, run `rustc -W help`.
+#![deny(unsafe_code)]
 #![warn(
+    missing_docs,
     trivial_casts,
     trivial_numeric_casts,
     unused_extern_crates,
@@ -53,12 +24,9 @@
     unused_qualifications,
     unused_results
 )]
-#![allow(
-    box_pointers,
-    missing_copy_implementations,
-    missing_debug_implementations,
-    variant_size_differences
-)]
+// Our unsafe FFI functions are missing safety documentation. It is probably not necessary for us to
+// provide this for every single function as that would be repetitive and verbose.
+#![allow(clippy::missing_safety_doc)]
 
 #[macro_use]
 extern crate ffi_utils;

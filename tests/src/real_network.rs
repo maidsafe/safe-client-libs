@@ -6,6 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+#![allow(unsafe_code)]
+
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec};
 use ffi_utils::{from_c_str, FfiResult, ReprC, StringError};
 use safe_app::ffi::app_registered;
