@@ -14,17 +14,15 @@
 #![cfg(feature = "mock-network")]
 
 use crate::app_auth::{self, AppState};
-use crate::client::AuthClient;
-use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::{access_container, config, revocation};
-use crate::{AuthError, AuthFuture, Authenticator};
-use futures::{future, Future};
+use crate::{AuthError, Authenticator};
+use futures::Future;
 use rand::{Rng, SeedableRng, XorShiftRng};
 use safe_core::config_handler;
 use safe_core::ipc::req::ContainerPermissions;
-use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq, Permission};
+use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq};
 use safe_core::mock_vault_path;
-use safe_core::{test_create_balance, Client, FutureExt, MDataInfo};
+use safe_core::{test_create_balance, FutureExt};
 use safe_nd::Coins;
 use std::collections::HashMap;
 use std::fs;
@@ -114,8 +112,8 @@ fn serialisation_read_data() {
         // Read access container and ensure all standard containers exists.
         access_container::fetch_authenticator_entry(&client)
             .then(move |res| {
-                let (_, containers) = unwrap!(res);
-                verify_std_dirs(&client, &containers).map(move |_| client)
+                let (_, _) = unwrap!(res);
+                Ok::<_, AuthError>(client)
             })
             .then(move |res| {
                 let client = unwrap!(res);
@@ -154,28 +152,6 @@ fn serialisation_read_data() {
     }));
 }
 
-fn verify_std_dirs(
-    client: &AuthClient,
-    actual_containers: &HashMap<String, MDataInfo>,
-) -> Box<AuthFuture<()>> {
-    let futures: Vec<_> = DEFAULT_PUBLIC_DIRS
-        .iter()
-        .chain(DEFAULT_PRIVATE_DIRS.iter())
-        .map(|expected_container| {
-            let mi = unwrap!(actual_containers.get(*expected_container));
-            client.get_mdata_version(*mi.address())
-        })
-        .collect();
-
-    future::join_all(futures)
-        .map_err(AuthError::from)
-        .then(|res| {
-            let _ = unwrap!(res);
-            Ok(())
-        })
-        .into_box()
-}
-
 fn verify_access_container_entry(
     actual_entry: &AccessContainerEntry,
     requested_containers: &HashMap<String, ContainerPermissions>,
@@ -205,16 +181,16 @@ fn setup() -> Stash {
     // IMPORTANT: Use constant seed for repeatability.
     let mut rng = XorShiftRng::from_seed([0, 1, 2, 3]);
 
-    let mut containers = HashMap::new();
-    let _ = containers.insert(
-        "_documents".to_string(),
-        btree_set![
-            Permission::Read,
-            Permission::Insert,
-            Permission::Update,
-            Permission::Delete,
-        ],
-    );
+    let containers = HashMap::new();
+    // let _ = containers.insert(
+    //     "_documents".to_string(),
+    //     btree_set![
+    //         Permission::Read,
+    //         Permission::Insert,
+    //         Permission::Update,
+    //         Permission::Delete,
+    //     ],
+    // );
 
     let auth_req0 = {
         let app_exchange_info = AppExchangeInfo {

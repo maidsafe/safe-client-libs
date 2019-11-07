@@ -24,12 +24,11 @@ use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use crate::safe_core::ipc::{
     self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
-use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
 use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
-use futures::{future, Future};
+use futures::Future;
 use safe_core::config_handler::Config;
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
 use safe_nd::PublicKey;
@@ -43,13 +42,12 @@ use tiny_keccak::sha3_256;
 mod mock_routing {
     use super::utils;
     use crate::access_container as access_container_tools;
+    use crate::config;
     use crate::errors::AuthError;
     use crate::run;
-    use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use crate::{test_utils, Authenticator};
     use futures::Future;
     use safe_core::ipc::AuthReq;
-    use safe_core::nfs::NfsError;
     use safe_core::utils::generate_random_string;
     use safe_core::{
         app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
@@ -59,13 +57,11 @@ mod mock_routing {
 
     // Test operation recovery for std dirs creation.
     // 1. Try to create a new user's account using `safe_authenticator::Authenticator::create_acc`
-    // 2. Simulate a network disconnection [1] for a randomly selected `PutMData` operation
-    //    with a type_tag == `safe_core::DIR_TAG` (in the range from 3rd request to
-    //    `safe_core::nfs::DEFAULT_PRIVATE_DIRS.len()`). This will meddle with creation of
-    //    default directories.
+    // 2. Simulate a network disconnection [1] for the `PutMData` operation for the config root dir.
+    //    This will meddle with creation of root directories.
     // 3. Try to log in using the same credentials that have been provided for `create_acc`.
     //    The log in operation should be successful.
-    // 4. Check that after logging in the remaining default directories have been created
+    // 4. Check that after logging in the root directories have been created
     //    (= operation recovery worked after log in)
     // 5. Check the access container entry in the user's config root - it must be accessible
     #[test]
@@ -90,7 +86,7 @@ mod mock_routing {
                         Request::PutMData(data) if data.tag() == safe_core::DIR_TAG => {
                             put_mdata_counter += 1;
 
-                            if put_mdata_counter > 4 {
+                            if put_mdata_counter > 0 {
                                 Some(Response::Mutation(Err(SndError::InsufficientBalance)))
                             } else {
                                 None
@@ -122,23 +118,20 @@ mod mock_routing {
         // Log in using the same credentials
         let authenticator = unwrap!(Authenticator::login(locator, password, || ()));
 
-        // Make sure that all default directories have been created after log in.
-        let std_dir_names: Vec<_> = DEFAULT_PRIVATE_DIRS
-            .iter()
-            .cloned()
-            .chain(DEFAULT_PUBLIC_DIRS.iter().cloned())
-            .collect();
-
-        // Verify that the access container has been created and
-        // fetch the entries of the root authenticator entry.
-        let (_entry_version, entries) = unwrap!(run(&authenticator, |client| {
+        // Verify that the access container and the config root dir have been created.
+        let (entry_version, entries) = unwrap!(run(&authenticator, |client| {
             access_container_tools::fetch_authenticator_entry(client).map_err(AuthError::from)
         }));
 
-        // Verify that all the std dirs are there.
-        for name in std_dir_names {
-            assert!(entries.contains_key(name));
-        }
+        assert_eq!(entry_version, 0);
+        assert!(entries.is_empty());
+
+        let (apps_entry_version, apps) = unwrap!(run(&authenticator, |client| {
+            config::list_apps(client).map_err(AuthError::from)
+        }));
+
+        assert_eq!(apps_entry_version, Some(0));
+        assert!(apps.is_empty());
     }
 
     // Ensure that users can log in with low account balance.
@@ -167,7 +160,7 @@ mod mock_routing {
     //
     // 2. Simulate a network failure after the `mutate_mdata_entries` operation (relating to the
     //    addition of the app to the user's config dir) - it should leave the app in the
-    //    `Revoked` state (as it is listen in the config root, but not in the access
+    //    `Revoked` state (as it is listed in the config root, but not in the access
     //    container)
     // 3. Try to authenticate the app again, it should continue without errors
     //
@@ -238,67 +231,67 @@ mod mock_routing {
             x => panic!("Unexpected {:?}", x),
         }
 
-        // Simulate a network failure for the `update_container_perms` step -
-        // it should fail at the second container (`_videos`)
-        let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-            let mut reqs_counter = 0;
+        // // Simulate a network failure for the `update_container_perms` step -
+        // // it should fail at the second container (`_videos`)
+        // let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
+        //     let mut reqs_counter = 0;
 
-            cm.set_request_hook(move |req| {
-                match *req {
-                    Request::SetMDataUserPermissions { .. } => {
-                        reqs_counter += 1;
+        //     cm.set_request_hook(move |req| {
+        //         match *req {
+        //             Request::SetMDataUserPermissions { .. } => {
+        //                 reqs_counter += 1;
 
-                        if reqs_counter == 2 {
-                            Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-                        } else {
-                            None
-                        }
-                    }
-                    // Pass-through
-                    _ => None,
-                }
-            });
-            cm
-        };
-        let auth = unwrap!(Authenticator::login_with_hook(
-            locator.clone(),
-            password.clone(),
-            || (),
-            cm_hook,
-        ));
-        match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
-            x => panic!("Unexpected {:?}", x),
-        }
+        //                 if reqs_counter == 2 {
+        //                     Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+        //                 } else {
+        //                     None
+        //                 }
+        //             }
+        //             // Pass-through
+        //             _ => None,
+        //         }
+        //     });
+        //     cm
+        // };
+        // let auth = unwrap!(Authenticator::login_with_hook(
+        //     locator.clone(),
+        //     password.clone(),
+        //     || (),
+        //     cm_hook,
+        // ));
+        // match test_utils::register_app(&auth, &auth_req) {
+        //     Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
+        //     x => panic!("Unexpected {:?}", x),
+        // }
 
-        // Simulate a network failure for the `app_container` setup step -
-        // it should fail at the third request for `SetMDataPermissions` (after
-        // setting permissions for 2 requested containers, `_video` and `_documents`)
-        let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-            cm.set_request_hook(move |req| {
-                match *req {
-                    Request::PutMData { .. } => {
-                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-                    }
+        // // Simulate a network failure for the `app_container` setup step -
+        // // it should fail at the third request for `SetMDataPermissions` (after
+        // // setting permissions for 2 requested containers, `_video` and `_documents`)
+        // let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
+        //     cm.set_request_hook(move |req| {
+        //         match *req {
+        //             Request::PutMData { .. } => {
+        //                 Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+        //             }
 
-                    // Pass-through
-                    _ => None,
-                }
-            });
-            cm
-        };
-        let auth = unwrap!(Authenticator::login_with_hook(
-            locator.clone(),
-            password.clone(),
-            || (),
-            cm_hook,
-        ));
-        match test_utils::register_app(&auth, &auth_req) {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
-                SndError::InsufficientBalance,
-            )))) => (),
-            x => panic!("Unexpected {:?}", x),
-        }
+        //             // Pass-through
+        //             _ => None,
+        //         }
+        //     });
+        //     cm
+        // };
+        // let auth = unwrap!(Authenticator::login_with_hook(
+        //     locator.clone(),
+        //     password.clone(),
+        //     || (),
+        //     cm_hook,
+        // ));
+        // match test_utils::register_app(&auth, &auth_req) {
+        //     Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
+        //         SndError::InsufficientBalance,
+        //     )))) => (),
+        //     x => panic!("Unexpected {:?}", x),
+        // }
 
         // Simulate a network failure for the `MutateMDataEntries` request, which
         // is supposed to setup the access container entry for the app
@@ -342,8 +335,8 @@ mod mock_routing {
         // contains info about all of the requested containers.
         let mut ac_entries =
             test_utils::access_container(&auth, app_id.clone(), auth_granted.clone());
-        let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
-        let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
+        // let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
+        // let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
         let (app_container, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
         let app_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
@@ -371,46 +364,31 @@ mod mock_routing {
     }
 }
 
-// Test creation and content of std dirs after account creation.
+// Test creation and content of access container after account creation.
 #[test]
 fn test_access_container() {
     let authenticator = test_utils::create_account_and_login();
-    let std_dir_names: Vec<_> = DEFAULT_PRIVATE_DIRS
-        .iter()
-        .chain(DEFAULT_PUBLIC_DIRS.iter())
-        .collect();
-
-    // Fetch the entries of the access container.
+    // Verify that there are no containers for a new account.
     let entries = unwrap!(run(&authenticator, |client| {
         access_container_tools::fetch_authenticator_entry(client).map(|(_version, entries)| entries)
     }));
 
-    // Verify that all the std dirs are there.
-    for name in &std_dir_names {
-        assert!(entries.contains_key(**name));
-    }
+    assert!(entries.is_empty());
 
-    // Fetch all the dirs under user root dir and verify they are empty.
-    let dirs = unwrap!(run(&authenticator, move |client| {
-        let fs: Vec<_> = entries
-            .into_iter()
-            .map(|(_, dir)| {
-                let f1 = client.list_seq_mdata_entries(dir.name(), dir.type_tag());
-                let f2 = client.list_mdata_permissions(*dir.address());
-
-                f1.join(f2).map_err(AuthError::from)
-            })
-            .collect();
-
-        future::join_all(fs)
+    // Fetch the permission set of the access container and verify that it is empty.
+    let permission_set = unwrap!(run(&authenticator, move |client| {
+        let access_container_info = client.access_container();
+        let access_container_address = safe_nd::MDataAddress::from_kind(
+            safe_nd::MDataKind::Seq,
+            access_container_info.name(),
+            access_container_info.type_tag(),
+        );
+        client
+            .list_mdata_permissions(access_container_address)
+            .map_err(AuthError::from)
     }));
 
-    assert_eq!(dirs.len(), std_dir_names.len());
-
-    for (entries, permissions) in dirs {
-        assert!(entries.is_empty());
-        assert!(permissions.is_empty());
-    }
+    assert!(permission_set.is_empty());
 }
 
 // Test creation and content of config dir after account creation.
@@ -528,7 +506,7 @@ fn app_authentication() {
 
     let mut access_container =
         test_utils::access_container(&authenticator, app_id.clone(), auth_granted.clone());
-    assert_eq!(access_container.len(), 3);
+    assert_eq!(access_container.len(), 1);
 
     let app_keys = auth_granted.app_keys;
     let app_sign_pk = PublicKey::from(app_keys.bls_pk);
@@ -843,8 +821,8 @@ fn containers_access_request() {
     let cont_req = ContainersReq {
         app: auth_req.app.clone(),
         containers: {
-            let mut containers = HashMap::new();
-            let _ = containers.insert("_downloads".to_string(), btree_set![Permission::Update]);
+            let containers = HashMap::new();
+            // let _ = containers.insert("_downloads".to_string(), btree_set![Permission::Update]);
             containers
         },
     };
@@ -876,8 +854,8 @@ fn containers_access_request() {
     // Using the access container from AuthGranted check if "app-id", "documents", "videos",
     // "downloads" are all mentioned and using MDataInfo for each check the permissions are
     // what had been asked for.
-    let mut expected = utils::create_containers_req();
-    let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
+    let expected = utils::create_containers_req();
+    // let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
 
     let app_sign_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
     let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);

@@ -12,25 +12,25 @@ use crate::AuthFuture;
 use futures::Future;
 use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
-use safe_core::ipc::req::{ContainerPermissions, Permission};
+use safe_core::ipc::req::ContainerPermissions;
 use safe_core::FutureExt;
 use std::collections::HashMap;
 
 // Creates a containers request asking for "documents with permission to
 // insert", and "videos with all the permissions possible".
 pub fn create_containers_req() -> HashMap<String, ContainerPermissions> {
-    let mut containers = HashMap::new();
-    let _ = containers.insert("_documents".to_owned(), btree_set![Permission::Insert]);
-    let _ = containers.insert(
-        "_videos".to_owned(),
-        btree_set![
-            Permission::Read,
-            Permission::Insert,
-            Permission::Update,
-            Permission::Delete,
-            Permission::ManagePermissions,
-        ],
-    );
+    let containers = HashMap::new();
+    // let _ = containers.insert("_documents".to_owned(), btree_set![Permission::Insert]);
+    // let _ = containers.insert(
+    //     "_videos".to_owned(),
+    //     btree_set![
+    //         Permission::Read,
+    //         Permission::Insert,
+    //         Permission::Update,
+    //         Permission::Delete,
+    //         Permission::ManagePermissions,
+    //     ],
+    // );
     containers
 }
 
