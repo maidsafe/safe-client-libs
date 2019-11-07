@@ -161,7 +161,6 @@ fn share_some_mdatas_with_valid_metadata() {
     let app_id = test_utils::rand_app();
     let auth_req = AuthReq {
         app: app_id.clone(),
-        app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
     };
@@ -421,7 +420,6 @@ fn auth_apps_accessing_mdatas() {
         let app_id = test_utils::rand_app();
         let auth_req = AuthReq {
             app: app_id.clone(),
-            app_container: false,
             app_permissions: Default::default(),
             containers: Default::default(),
         };

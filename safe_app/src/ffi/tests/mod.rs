@@ -12,7 +12,6 @@ mod nfs;
 use super::*;
 use crate::ffi::app_is_mock;
 use crate::ffi::ipc::decode_ipc_msg;
-use crate::test_utils::gen_app_exchange_info;
 use ffi_utils::test_utils::call_1;
 use safe_authenticator::ffi::ipc::encode_auth_resp;
 use safe_authenticator::test_utils;
@@ -20,7 +19,6 @@ use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::{gen_req_id, AuthGranted, Permission};
 use std::collections::HashMap;
-use App;
 
 // Creates a containers request asking for "documents with permission to
 // insert", and "videos with all the permissions possible".
@@ -130,39 +128,6 @@ fn network_status_callback() {
     }
 }
 
-// Test getting the app's container name.
-#[test]
-fn test_app_container_name() {
-    use safe_core;
-    use std::ffi::CString;
-
-    let auth = test_utils::create_account_and_login();
-
-    let app_info = gen_app_exchange_info();
-    let app_id = app_info.id.clone();
-
-    let auth_granted = unwrap!(test_utils::register_app(
-        &auth,
-        &AuthReq {
-            app: app_info,
-            app_permissions: Default::default(),
-            app_container: true,
-            containers: HashMap::new(),
-        },
-    ));
-
-    let _app = unwrap!(App::registered(app_id.clone(), auth_granted, || ()));
-
-    let name: String = unsafe {
-        unwrap!(call_1(|ud, cb| app_container_name(
-            unwrap!(CString::new(app_id.clone())).as_ptr(),
-            ud,
-            cb
-        )))
-    };
-    assert_eq!(name, safe_core::app_container_name(&app_id));
-}
-
 // Test app authentication using only FFI.
 #[test]
 fn app_authentication() {
@@ -175,7 +140,6 @@ fn app_authentication() {
     let auth_req = AuthReq {
         app: app_exchange_info.clone(),
         app_permissions: Default::default(),
-        app_container: true,
         containers,
     };
     let auth_req = unwrap!(auth_req.into_repr_c());

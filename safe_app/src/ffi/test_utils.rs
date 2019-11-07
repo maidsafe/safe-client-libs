@@ -95,7 +95,6 @@ mod tests {
 
         let auth_req = AuthReq {
             app: rand_app(),
-            app_container: false,
             app_permissions: Default::default(),
             containers,
         };

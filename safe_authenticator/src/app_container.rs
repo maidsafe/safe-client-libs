@@ -123,9 +123,6 @@ pub fn remove(client: AuthClient, app_id: &str) -> Box<AuthFuture<bool>> {
                                 &ac_entries,
                                 ac_entry_version + 1,
                             )
-
-                            // TODO(nbaksalyar): when MData deletion is implemented properly,
-                            // also delete the actual MutableData related to app
                         })
                         .map_err(From::from)
                         .map(move |_| true)

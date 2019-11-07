@@ -13,7 +13,7 @@ use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::ffi::apps as ffi;
 use crate::ffi::apps::RegisteredApp as FfiRegisteredApp;
-use crate::{app_container, AuthError};
+use crate::AuthError;
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use futures::future::Future;
 use maidsafe_utilities::serialisation::deserialise;
@@ -76,11 +76,9 @@ pub fn remove_revoked_app(client: &AuthClient, app_id: String) -> Box<AuthFuture
     let client = client.clone();
     let c2 = client.clone();
     let c3 = client.clone();
-    let c4 = client.clone();
 
     let app_id = app_id.clone();
     let app_id2 = app_id.clone();
-    let app_id3 = app_id.clone();
 
     config::list_apps(&client)
         .and_then(move |(apps_version, apps)| {
@@ -92,9 +90,8 @@ pub fn remove_revoked_app(client: &AuthClient, app_id: String) -> Box<AuthFuture
             AppState::NotAuthenticated => Err(AuthError::IpcError(IpcError::UnknownApp)),
         })
         .and_then(move |(apps, apps_version)| {
-            config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2)
+            config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2).map(|_| ())
         })
-        .and_then(move |_| app_container::remove(c4, &app_id3).map(move |_res| ()))
         .into_box()
 }
 

@@ -630,7 +630,6 @@ fn authorisation_and_revocation() {
 fn ffi_authorise_app(auth_h: *mut Authenticator, app_info: &AppExchangeInfo) -> AuthGranted {
     let auth_req = AuthReq {
         app: app_info.clone(),
-        app_container: false,
         app_permissions: AppPermissions {
             transfer_coins: true,
             perform_mutations: true,

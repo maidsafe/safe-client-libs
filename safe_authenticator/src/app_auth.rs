@@ -10,16 +10,15 @@
 
 use super::{AuthError, AuthFuture};
 use crate::access_container;
-use crate::app_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
 use crate::ipc::update_container_perms;
-use futures::future::{self, Either};
+use futures::future;
 use futures::Future;
 use safe_core::client;
-use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
+use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{app_container_name, client::AuthActions, recovery, Client, FutureExt, MDataInfo};
+use safe_core::{client::AuthActions, recovery, Client, FutureExt};
 use safe_nd::{AppPermissions, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
@@ -62,41 +61,6 @@ pub fn app_state(client: &AuthClient, apps: &Apps, app_id: &str) -> Box<AuthFutu
     }
 }
 
-/// Check whether `permissions` has an app container entry for `app_id` and that all permissions are
-/// set.
-fn app_container_exists(permissions: &AccessContainerEntry, app_id: &str) -> bool {
-    match permissions.get(&app_container_name(app_id)) {
-        Some(&(_, ref access)) => {
-            *access
-                == btree_set![
-                    Permission::Read,
-                    Permission::Insert,
-                    Permission::Update,
-                    Permission::Delete,
-                    Permission::ManagePermissions,
-                ]
-        }
-        None => false,
-    }
-}
-
-/// Insert info about the app's dedicated container into the access container entry
-fn insert_app_container(
-    mut permissions: AccessContainerEntry,
-    app_id: &str,
-    app_container_info: MDataInfo,
-) -> AccessContainerEntry {
-    let access = btree_set![
-        Permission::Read,
-        Permission::Insert,
-        Permission::Update,
-        Permission::Delete,
-        Permission::ManagePermissions,
-    ];
-    let _ = permissions.insert(app_container_name(app_id), (app_container_info, access));
-    permissions
-}
-
 fn update_access_container(
     client: &AuthClient,
     app: &AppInfo,
@@ -135,7 +99,6 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
     let app_id = auth_req.app.id.clone();
     let permissions = auth_req.containers.clone();
     let AuthReq {
-        app_container,
         app_permissions,
         ..
     } = auth_req;
@@ -182,11 +145,11 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
             match app_state {
                 AppState::Authenticated => {
                     // Return info of the already registered app
-                    authenticated_app(&c4, app, app_id, app_container, app_permissions)
+                    authenticated_app(&c4, app, app_id, app_permissions)
                 }
                 AppState::NotAuthenticated | AppState::Revoked => {
                     // Register a new app or restore a previously registered app
-                    authenticate_new_app(&c4, app, app_container, app_permissions, permissions)
+                    authenticate_new_app(&c4, app, app_permissions, permissions)
                 }
             }
         })
@@ -194,42 +157,28 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
 }
 
 /// Return info of an already registered app.
-/// If `app_container` is `true` then we also create/update the dedicated container.
 fn authenticated_app(
     client: &AuthClient,
     app: AppInfo,
     app_id: String,
-    app_container: bool,
     _app_permissions: AppPermissions,
 ) -> Box<AuthFuture<AuthGranted>> {
     let c2 = client.clone();
-    let c3 = client.clone();
 
     let app_keys = app.keys.clone();
-    let sign_pk = PublicKey::from(app.keys.bls_pk);
     let bootstrap_config = fry!(client::bootstrap_config());
 
     access_container::fetch_entry(client, &app_id, app_keys.clone())
         .and_then(move |(_version, perms)| {
             let perms = perms.unwrap_or_else(AccessContainerEntry::default);
-
+            
             // TODO: check if we need to update app permissions
+            
+            future::ok(perms)
 
-            // Check whether we need to create/update dedicated container
-            if app_container && !app_container_exists(&perms, &app_id) {
-                let future = app_container::fetch_or_create(&c2, &app_id, sign_pk).and_then(
-                    move |mdata_info| {
-                        let perms = insert_app_container(perms, &app_id, mdata_info);
-                        update_access_container(&c2, &app, perms.clone()).map(move |_| perms)
-                    },
-                );
-                Either::A(future)
-            } else {
-                Either::B(future::ok(perms))
-            }
         })
         .and_then(move |perms| {
-            let access_container_info = c3.access_container();
+            let access_container_info = c2.access_container();
             let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
             Ok(AuthGranted {
@@ -242,17 +191,14 @@ fn authenticated_app(
         .into_box()
 }
 
-/// Register a new or revoked app in Maid Managers and in the access container.
+/// Register a new or revoked app in the Client Handlers and in the access container.
 ///
-/// 1. Insert app's key to Maid Managers
-/// 2. Update container permissions for requested containers
-/// 3. Create the app container (if it's been requested)
+/// 1. Insert app's key to Client Handlers
 /// 4. Insert or update the access container entry for an app
 /// 5. Return `AuthGranted`
 fn authenticate_new_app(
     client: &AuthClient,
     app: AppInfo,
-    app_container: bool,
     app_permissions: AppPermissions,
     permissions: HashMap<String, ContainerPermissions>,
 ) -> Box<AuthFuture<AuthGranted>> {
@@ -260,12 +206,10 @@ fn authenticate_new_app(
     let c3 = client.clone();
     let c4 = client.clone();
     let c5 = client.clone();
-    let c6 = client.clone();
 
     let sign_pk = PublicKey::from(app.keys.bls_pk);
     let app_keys = app.keys.clone();
     let app_keys_auth = app.keys.clone();
-    let app_id = app.info.id.clone();
 
     client
         .list_auth_keys_and_version()
@@ -280,30 +224,18 @@ fn authenticate_new_app(
         .map_err(AuthError::from)
         .and_then(move |_| {
             if permissions.is_empty() {
-                ok!((Default::default(), sign_pk))
+                ok!((Default::default(), app))
             } else {
                 update_container_perms(&c3, permissions, sign_pk)
-                    .map(move |perms| (perms, sign_pk))
-                    .into_box()
-            }
-        })
-        .and_then(move |(perms, sign_pk)| {
-            if app_container {
-                app_container::fetch_or_create(&c4, &app_id, sign_pk)
-                    .and_then(move |mdata_info| {
-                        ok!(insert_app_container(perms, &app_id, mdata_info))
-                    })
                     .map(move |perms| (perms, app))
                     .into_box()
-            } else {
-                ok!((perms, app))
             }
         })
         .and_then(move |(perms, app)| {
-            update_access_container(&c5, &app, perms.clone()).map(move |_| perms)
+            update_access_container(&c4, &app, perms.clone()).map(move |_| perms)
         })
         .and_then(move |access_container_entry| {
-            let access_container_info = c6.access_container();
+            let access_container_info = c5.access_container();
             let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
             Ok(AuthGranted {
