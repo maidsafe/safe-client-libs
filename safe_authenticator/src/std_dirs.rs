@@ -11,27 +11,11 @@ use crate::client::AuthClient;
 use crate::config::KEY_APPS;
 use crate::{AuthError, AuthFuture};
 use futures::{future, Future};
-use maidsafe_utilities::serialisation::serialise;
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
-use safe_core::utils::symmetric_encrypt;
-use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
-use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
-use std::collections::HashMap;
-
-/// Default directories to be created at registration.
-pub static DEFAULT_PRIVATE_DIRS: [&str; 6] = [
-    "_documents",
-    "_downloads",
-    "_music",
-    "_pictures",
-    "_videos",
-    "_publicNames",
-];
-
-/// Publicly accessible default directories to be created upon registration.
-pub static DEFAULT_PUBLIC_DIRS: [&str; 1] = ["_public"];
+use safe_core::{Client, CoreError, FutureExt, MDataInfo};
+use safe_nd::{Error as SndError, MDataSeqValue};
 
 /// Create the root directories and the standard directories for the access container.
 pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
@@ -47,23 +31,13 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
     let access_cont_fut = access_container::fetch_authenticator_entry(&c2)
         .then(move |res| {
             match res {
-                Ok((_, default_containers)) => {
-                    // Make sure that all default dirs have been created
-                    create_std_dirs(&c3, &default_containers)
+                Ok(_) => {
+                    // Access container is already created.
+                    future::ok(()).into_box()
                 }
                 Err(AuthError::CoreError(CoreError::DataError(SndError::NoSuchData))) => {
-                    // Access container hasn't been created yet
-                    let access_cont_value = fry!(random_std_dirs())
-                        .into_iter()
-                        .map(|(name, md_info)| (String::from(name), md_info))
-                        .collect();
-                    let std_dirs_fut = create_std_dirs(&c3, &access_cont_value);
-                    let access_cont_fut =
-                        create_access_container(&c3, &access_container, &access_cont_value);
-
-                    future::join_all(vec![std_dirs_fut, access_cont_fut])
-                        .map(|_| ())
-                        .into_box()
+                    // Access container hasn't been created yet.
+                    create_access_container(&c3, &access_container).into_box()
                 }
                 Err(e) => err!(e),
             }
@@ -95,7 +69,6 @@ fn create_config_dir(client: &AuthClient, config_dir: &MDataInfo) -> Box<AuthFut
 fn create_access_container(
     client: &AuthClient,
     access_container: &MDataInfo,
-    default_entries: &HashMap<String, MDataInfo>,
 ) -> Box<AuthFuture<()>> {
     let enc_key = client.secret_symmetric_key();
 
@@ -108,50 +81,17 @@ fn create_access_container(
         ))),
     )
     .map_err(AuthError::from));
-    let access_cont_value = fry!(symmetric_encrypt(
-        &fry!(serialise(default_entries)),
-        &enc_key,
-        None,
-    ));
 
     create_dir(
         client,
         access_container,
         btree_map![
-            authenticator_key => MDataSeqValue { version: 0, data: access_cont_value }
+            authenticator_key => MDataSeqValue { version: 0, data: Vec::new() }
         ],
         btree_map![],
     )
     .map_err(From::from)
     .into_box()
-}
-
-/// Generates a list of `MDataInfo` for standard dirs.
-/// Returns a collection of standard dirs along with respective `MDataInfo`s.
-/// Doesn't actually put data onto the network.
-pub fn random_std_dirs() -> Result<Vec<(&'static str, MDataInfo)>, CoreError> {
-    let pub_dirs = DEFAULT_PUBLIC_DIRS
-        .iter()
-        .map(|name| MDataInfo::random_public(MDataKind::Seq, DIR_TAG).map(|dir| (*name, dir)));
-    let priv_dirs = DEFAULT_PRIVATE_DIRS
-        .iter()
-        .map(|name| MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map(|dir| (*name, dir)));
-    priv_dirs.chain(pub_dirs).collect()
-}
-
-/// A registration helper function to create the set of default dirs in the users root directory.
-pub fn create_std_dirs(
-    client: &AuthClient,
-    md_infos: &HashMap<String, MDataInfo>,
-) -> Box<AuthFuture<()>> {
-    let client = client.clone();
-    let creations: Vec<_> = md_infos
-        .iter()
-        .map(|(_, md_info)| {
-            create_dir(&client, md_info, btree_map![], btree_map![]).map_err(AuthError::from)
-        })
-        .collect();
-    future::join_all(creations).map(|_| ()).into_box()
 }
 
 #[cfg(test)]
@@ -163,41 +103,23 @@ mod tests {
 
     // Test creation of default dirs.
     #[test]
-    fn creates_default_dirs() {
+    fn creates_root_dirs() {
         let auth = create_account_and_login();
 
         unwrap!(run(&auth, |client| {
             let client = client.clone();
 
-            create_std_dirs(
-                &client,
-                &unwrap!(random_std_dirs())
-                    .into_iter()
-                    .map(|(k, v)| (k.to_owned(), v))
-                    .collect(),
-            )
-            .then(move |res| {
-                assert!(res.is_ok());
+            create(&client)
+                .then(move |res| {
+                    unwrap!(res);
 
-                access_container::fetch_authenticator_entry(&client)
-            })
-            .then(move |res| {
-                let (_, mdata_entries) = unwrap!(res);
-                assert_eq!(
-                    mdata_entries.len(),
-                    DEFAULT_PUBLIC_DIRS.len() + DEFAULT_PRIVATE_DIRS.len()
-                );
-
-                for key in DEFAULT_PUBLIC_DIRS
-                    .iter()
-                    .chain(DEFAULT_PRIVATE_DIRS.iter())
-                {
-                    // let's check whether all our entries have been created properly
-                    assert!(mdata_entries.contains_key(*key));
-                }
-
-                Ok(())
-            })
+                    access_container::fetch_authenticator_entry(&client)
+                })
+                .then(move |res| {
+                    let (_, mdata_entries) = unwrap!(res);
+                    assert_eq!(mdata_entries.len(), 0);
+                    Ok(())
+                })
         }));
     }
 }
