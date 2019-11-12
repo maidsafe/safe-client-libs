@@ -135,6 +135,11 @@ pub fn get_config() -> Config {
     Config::new()
 }
 
+/// Returns the directory from which the config files are read
+pub fn config_dir() -> Result<PathBuf, CoreError> {
+    Ok(dirs()?.config_dir().to_path_buf())
+}
+
 fn dirs() -> Result<ProjectDirs, CoreError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         ProjectDirs::from_path(custom_path)

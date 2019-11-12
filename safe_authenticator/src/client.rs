@@ -816,7 +816,7 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let (hook, keep_alive) = futures::oneshot();
 
-        let _x = unwrap!(thread::Builder::new()
+        let _joiner = unwrap!(thread::Builder::new()
             .name(String::from("Network Observer"))
             .spawn(move || {
                 match unwrap!(rx.recv()) {

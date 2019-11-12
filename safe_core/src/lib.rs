@@ -19,44 +19,8 @@
     html_favicon_url = "http://maidsafe.net/img/favicon.ico",
     test(attr(forbid(warnings)))
 )]
-<<<<<<< HEAD
 // For explanation of lint checks, run `rustc -W help`.
 #![deny(unsafe_code)]
-=======
-// For explanation of lint checks, run `rustc -W help` or see
-// https://github.
-// com/maidsafe/QA/blob/master/Documentation/Rust%20Lint%20Checks.md
-#![forbid(
-    exceeding_bitshifts,
-    mutable_transmutes,
-    no_mangle_const_items,
-    unknown_crate_types,
-    warnings
-)]
-#![deny(
-    bad_style,
-    deprecated,
-    improper_ctypes,
-    non_shorthand_field_patterns,
-    overflowing_literals,
-    plugin_as_library,
-    stable_features,
-    unconditional_recursion,
-    unknown_lints,
-    unsafe_code,
-    unused,
-    unused_allocation,
-    unused_attributes,
-    unused_comparisons,
-    unused_features,
-    unused_parens,
-    while_true,
-    clippy::all,
-    clippy::option_unwrap_used,
-    clippy::unicode_not_nfc,
-    clippy::wrong_pub_self_convention
-)]
->>>>>>> refactor/logging: remove the use of the logging module from ms-utils
 #![warn(
     missing_docs,
     trivial_casts,
@@ -113,14 +77,15 @@ pub use self::client::{
 };
 #[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManager};
+pub use self::config_handler::config_dir;
 #[cfg(not(feature = "mock-network"))]
 pub use self::connection_manager::ConnectionManager;
 pub use self::errors::CoreError;
 pub use self::event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::self_encryption_storage::{SelfEncryptionStorage, SelfEncryptionStorageError};
-pub use self::utils::FutureExt;
 pub use self::utils::logging;
+pub use self::utils::FutureExt;
 pub use quic_p2p::Config as QuicP2pConfig;
 
 /// All Maidsafe tagging should positive-offset from this.
