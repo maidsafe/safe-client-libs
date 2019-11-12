@@ -44,7 +44,7 @@ pub fn decode_authenticator_entry(
     encoded: &[u8],
     enc_key: &secretbox::Key,
 ) -> Result<HashMap<String, MDataInfo>, AuthError> {
-    if encoded.len() == 0 {
+    if encoded.is_empty() {
         return Ok(Default::default());
     }
     let plaintext = symmetric_decrypt(encoded, enc_key)?;

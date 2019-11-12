@@ -12,13 +12,14 @@ use super::{AuthError, AuthFuture};
 use crate::access_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
+use crate::containers::create_containers;
 use crate::ipc::update_container_perms;
 use futures::future;
 use futures::Future;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{client::AuthActions, recovery, Client, FutureExt};
+use safe_core::{client::AuthActions, identify_existing_containers, recovery, Client, FutureExt};
 use safe_nd::{AppPermissions, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
@@ -99,8 +100,7 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
     let app_id = auth_req.app.id.clone();
     let permissions = auth_req.containers.clone();
     let AuthReq {
-        app_permissions,
-        ..
+        app_permissions, ..
     } = auth_req;
 
     let c2 = client.clone();
@@ -171,11 +171,10 @@ fn authenticated_app(
     access_container::fetch_entry(client, &app_id, app_keys.clone())
         .and_then(move |(_version, perms)| {
             let perms = perms.unwrap_or_else(AccessContainerEntry::default);
-            
-            // TODO: check if we need to update app permissions
-            
-            future::ok(perms)
 
+            // TODO: check if we need to update app permissions
+
+            future::ok(perms)
         })
         .and_then(move |perms| {
             let access_container_info = c2.access_container();
@@ -206,13 +205,22 @@ fn authenticate_new_app(
     let c3 = client.clone();
     let c4 = client.clone();
     let c5 = client.clone();
+    let c6 = client.clone();
+    let c7 = client.clone();
 
     let sign_pk = PublicKey::from(app.keys.bls_pk);
     let app_keys = app.keys.clone();
     let app_keys_auth = app.keys.clone();
+    let access_container_info = client.access_container();
+    let access_container_addr = safe_nd::MDataAddress::from_kind(
+        safe_nd::MDataKind::Seq,
+        access_container_info.name(),
+        access_container_info.type_tag(),
+    );
 
     client
         .list_auth_keys_and_version()
+        .map_err(AuthError::from)
         .and_then(move |(_, version)| {
             recovery::ins_auth_key(
                 &c2,
@@ -220,19 +228,38 @@ fn authenticate_new_app(
                 app_permissions,
                 version + 1,
             )
+            .map_err(AuthError::from)
         })
-        .map_err(AuthError::from)
         .and_then(move |_| {
             if permissions.is_empty() {
-                ok!((Default::default(), app))
+                ok!((AccessContainerEntry::default(), app))
             } else {
-                update_container_perms(&c3, permissions, sign_pk)
-                    .map(move |perms| (perms, app))
+                identify_existing_containers(permissions, c6, access_container_addr)
+                    .map_err(AuthError::from)
+                    .and_then(move |requested_containers| {
+                        let update_containers_future =
+                            update_container_perms(&c3, requested_containers.existing, sign_pk);
+                        let create_containers_future =
+                            create_containers(&c7, requested_containers.new, sign_pk);
+                        future::join_all(vec![update_containers_future, create_containers_future])
+                            .into_box()
+                    })
+                    .and_then(|mut results| {
+                        let mut updated_containers: AccessContainerEntry =
+                            results.pop().unwrap_or_default();
+                        let new_containers: AccessContainerEntry =
+                            results.pop().unwrap_or_default();
+                        // Combine both the new and updated containers and store it in the access container
+                        updated_containers.extend(new_containers.into_iter());
+                        Ok((updated_containers, app))
+                    })
                     .into_box()
             }
         })
         .and_then(move |(perms, app)| {
-            update_access_container(&c4, &app, perms.clone()).map(move |_| perms)
+            update_access_container(&c4, &app, perms.clone())
+                .map(move |_| perms)
+                .map_err(AuthError::from)
         })
         .and_then(move |access_container_entry| {
             let access_container_info = c5.access_container();

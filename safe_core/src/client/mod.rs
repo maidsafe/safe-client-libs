@@ -36,11 +36,13 @@ use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::event::{NetworkEvent, NetworkTx};
 use crate::event_loop::{CoreFuture, CoreMsgTx};
+use crate::ipc::req::{ContainerPermissions, RequestedContainers};
 use crate::ipc::BootstrapConfig;
 use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use lazy_static::lazy_static;
 use lru_cache::LruCache;
+use maidsafe_utilities::serialisation::deserialise;
 use rust_sodium::crypto::{box_, sign};
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
@@ -53,7 +55,7 @@ use safe_nd::{
     XorName,
 };
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 use std::time::Duration;
 use threshold_crypto::SecretKey as BlsSecretKey;
@@ -61,6 +63,9 @@ use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
+
+/// Key of containers entry in the access container.
+pub const CONTAINERS_ENTRY: &str = "containers";
 
 // FIXME: move to conn manager
 // const CONNECTION_TIMEOUT_SECS: u64 = 40;
@@ -1144,6 +1149,60 @@ where
     block_on_all(cm.disconnect(&full_id.public_id()))?;
 
     res
+}
+
+/// List all the containers available for a user
+pub fn list_all_containers(
+    client: impl Client,
+    access_container_address: MDataAddress,
+) -> Box<CoreFuture<BTreeSet<String>>> {
+    let key = CONTAINERS_ENTRY.as_bytes().to_vec();
+    client
+        .get_seq_mdata_value(
+            *access_container_address.name(),
+            access_container_address.tag(),
+            key,
+        )
+        .and_then(|value| {
+            if value.data.is_empty() {
+                Ok(Default::default())
+            } else {
+                deserialise(&value.data).map_err(CoreError::from)
+            }
+        })
+        .into_box()
+}
+
+/// Given a list of containers separate it into existing containers and containers to be created
+pub fn identify_existing_containers(
+    containers: HashMap<String, ContainerPermissions>,
+    client: impl Client,
+    access_container_address: MDataAddress,
+) -> Box<CoreFuture<RequestedContainers>> {
+    list_all_containers(client, access_container_address)
+        .and_then(|mut all_containers| {
+            let (new, existing) = containers.into_iter().fold(
+                (
+                    HashMap::<String, ContainerPermissions>::new(),
+                    HashMap::<String, ContainerPermissions>::new(),
+                ),
+                |(mut new, mut existing), (container, permissions)| {
+                    match all_containers.take(&container) {
+                        Some(container) => {
+                            let _ = existing.insert(container, permissions);
+                        }
+                        None => {
+                            let _ = new.insert(container, permissions);
+                        }
+                    }
+                    (new, existing)
+                },
+            );
+            dbg!(new.clone());
+            dbg!(existing.clone());
+            Ok(RequestedContainers { new, existing })
+        })
+        .into_box()
 }
 
 /// Create a new mock balance at an arbitrary address.

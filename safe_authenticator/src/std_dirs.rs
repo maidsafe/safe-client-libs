@@ -14,7 +14,7 @@ use futures::{future, Future};
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
-use safe_core::{Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{client::CONTAINERS_ENTRY, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{Error as SndError, MDataSeqValue};
 
 /// Create the root directories and the standard directories for the access container.
@@ -82,11 +82,14 @@ fn create_access_container(
     )
     .map_err(AuthError::from));
 
+    let containers_key = CONTAINERS_ENTRY.as_bytes().to_vec();
+
     create_dir(
         client,
         access_container,
         btree_map![
-            authenticator_key => MDataSeqValue { version: 0, data: Vec::new() }
+            authenticator_key => MDataSeqValue { version: 0, data: Vec::new() },
+            containers_key => MDataSeqValue { version: 0, data: Vec::new() },
         ],
         btree_map![],
     )

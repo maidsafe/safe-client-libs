@@ -43,9 +43,32 @@ pub enum Permission {
     ManagePermissions,
 }
 
+impl Into<MDataAction> for Permission {
+    fn into(self) -> MDataAction {
+        match self {
+            Permission::Read => MDataAction::Read,
+            Permission::Insert => MDataAction::Insert,
+            Permission::Update => MDataAction::Update,
+            Permission::Delete => MDataAction::Delete,
+            Permission::ManagePermissions => MDataAction::ManagePermissions,
+        }
+    }
+}
+
 /// Permissions stored internally in the access container.
 /// In FFI represented as `ffi::PermissionSet`
 pub type ContainerPermissions = BTreeSet<Permission>;
+
+/// Convert `ContainerPermissions` into `safe_nd::MDataPermissionSet`
+pub fn container_perms_into_mdata_perms(
+    container_perms: ContainerPermissions,
+) -> MDataPermissionSet {
+    container_perms
+        .into_iter()
+        .fold(MDataPermissionSet::new(), |mdata_perm_set, permission| {
+            mdata_perm_set.allow(permission.into())
+        })
+}
 
 /// IPC request.
 // TODO: `TransOwnership` variant
@@ -60,6 +83,14 @@ pub enum IpcReq {
     Unregistered(Vec<u8>),
     /// Share mutable data.
     ShareMData(ShareMDataReq),
+}
+
+/// Represents separate list of containers, one for existing containers and one for containers to be created.
+pub struct RequestedContainers {
+    /// List of containers that already exist for a user (and the permissions requested)
+    pub existing: HashMap<String, ContainerPermissions>,
+    /// List of containers to be created (and the permissions to be given)
+    pub new: HashMap<String, ContainerPermissions>,
 }
 
 /// Consumes the object and returns the wrapped raw pointer.
