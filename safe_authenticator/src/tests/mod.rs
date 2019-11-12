@@ -20,12 +20,12 @@ use crate::ffi::apps::*;
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };
+use crate::run;
 use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use crate::safe_core::ipc::{
     self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use crate::test_utils::{self, ChannelType};
-use crate::run;
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::Future;
@@ -49,9 +49,7 @@ mod mock_routing {
     use futures::Future;
     use safe_core::ipc::AuthReq;
     use safe_core::utils::generate_random_string;
-    use safe_core::{
-        test_create_balance, ConnectionManager, CoreError,
-    };
+    use safe_core::{test_create_balance, ConnectionManager, CoreError};
     use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
     use std::str::FromStr;
 
@@ -299,7 +297,6 @@ mod mock_routing {
         // contains info about all of the requested containers.
         // let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         // let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
-
     }
 }
 
@@ -714,6 +711,7 @@ fn containers_unknown_app() {
 // Test making a containers access request.
 #[test]
 fn containers_access_request() {
+    unwrap!(maidsafe_utilities::log::init(false));
     let authenticator = test_utils::create_account_and_login();
 
     // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for containers

@@ -202,9 +202,7 @@ mod tests {
     use crate::app_auth::{app_state, AppState};
     use crate::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
     use crate::revocation::revoke_app;
-    use crate::test_utils::{
-        create_account_and_login, get_app_or_err, rand_app, register_app,
-    };
+    use crate::test_utils::{create_account_and_login, get_app_or_err, rand_app, register_app};
     use crate::{config, run};
     use ffi_utils::test_utils::call_0;
     use safe_core::ipc::{AuthReq, IpcError};

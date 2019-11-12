@@ -57,6 +57,7 @@ pub use ffi::logging::*;
 pub use ffi::*;
 
 mod client;
+mod containers;
 mod std_dirs;
 #[cfg(test)]
 mod tests;

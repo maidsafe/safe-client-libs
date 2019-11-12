@@ -414,8 +414,7 @@ mod mock_routing {
         //     ],
         // );
 
-        let (app_id_0, auth_granted_0) =
-            unwrap!(register_rand_app(&auth, containers_req.clone()));
+        let (app_id_0, auth_granted_0) = unwrap!(register_rand_app(&auth, containers_req.clone()));
         let (app_id_1, _) = unwrap!(register_rand_app(&auth, containers_req));
 
         let ac_entries_0 = access_container(&auth, app_id_0.clone(), auth_granted_0);
@@ -510,10 +509,8 @@ mod mock_routing {
         //     ],
         // );
 
-        let (app_id_0, auth_granted_0) =
-            unwrap!(register_rand_app(&auth, containers_req.clone()));
-        let (app_id_1, auth_granted_1) =
-            unwrap!(register_rand_app(&auth, containers_req.clone()));
+        let (app_id_0, auth_granted_0) = unwrap!(register_rand_app(&auth, containers_req.clone()));
+        let (app_id_1, auth_granted_1) = unwrap!(register_rand_app(&auth, containers_req.clone()));
         let (app_id_2, _) = unwrap!(register_rand_app(&auth, containers_req));
 
         let ac_entries_0 = access_container(&auth, app_id_0.clone(), auth_granted_0);
