@@ -9,12 +9,14 @@
 use crate::access_container;
 use crate::app_auth;
 use crate::config;
+use crate::containers::create_containers;
 use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
 use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use crate::{AuthError, Authenticator};
 use ffi_utils::{
     catch_unwind_cb, from_c_str, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
+use futures::future;
 use futures::{stream, Future, Stream};
 use safe_core::client::Client;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
@@ -23,9 +25,9 @@ use safe_core::ipc::req::{
     AuthReq as NativeAuthReq, ContainersReq as NativeContainersReq, IpcReq,
     ShareMDataReq as NativeShareMDataReq,
 };
-use safe_core::ipc::resp::IpcResp;
+use safe_core::ipc::resp::{AccessContainerEntry, IpcResp};
 use safe_core::ipc::{decode_msg, IpcError, IpcMsg};
-use safe_core::{client, CoreError, FutureExt};
+use safe_core::{client, identify_existing_containers, CoreError, FutureExt};
 use safe_nd::{MDataAddress, PublicKey};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
@@ -362,12 +364,45 @@ pub unsafe extern "C" fn encode_containers_resp(
                 let c2 = client.clone();
                 let c3 = client.clone();
                 let c4 = client.clone();
+                let c5 = client.clone();
+                let c6 = client.clone();
+
+                let access_container_info = client.access_container();
+                let access_container_addr = safe_nd::MDataAddress::from_kind(
+                    safe_nd::MDataKind::Seq,
+                    access_container_info.name(),
+                    access_container_info.type_tag(),
+                );
 
                 config::get_app(client, &app_id)
                     .and_then(move |app| {
                         let sign_pk = PublicKey::from(app.keys.bls_pk);
-                        update_container_perms(&c2, permissions, sign_pk)
-                            .map(move |perms| (app, perms))
+                        identify_existing_containers(permissions, c2, access_container_addr)
+                            .map_err(AuthError::from)
+                            .and_then(move |requested_containers| {
+                                let update_containers_future = update_container_perms(
+                                    &c5,
+                                    requested_containers.existing,
+                                    sign_pk,
+                                );
+                                let create_containers_future =
+                                    create_containers(&c6, requested_containers.new, sign_pk);
+                                future::join_all(vec![
+                                    update_containers_future,
+                                    create_containers_future,
+                                ])
+                                .into_box()
+                            })
+                            .and_then(|mut results| {
+                                let mut updated_containers: AccessContainerEntry =
+                                    results.pop().unwrap_or_default();
+                                let new_containers: AccessContainerEntry =
+                                    results.pop().unwrap_or_default();
+                                // Combine both the new and updated containers and store it in the access container
+                                updated_containers.extend(new_containers.into_iter());
+                                Ok((app, updated_containers))
+                            })
+                            .into_box()
                     })
                     .and_then(move |(app, mut perms)| {
                         let app_keys = app.keys;
