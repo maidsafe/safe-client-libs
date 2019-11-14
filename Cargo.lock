@@ -1835,9 +1835,9 @@ checksum = "bfa8506c1de11c9c4e4c38863ccbe02a305c8188e85a05a784c9e11e1c3910c8"
 
 [[package]]
 name = "safe-nd"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d05cb429e44dec4247afafa8d1771565491db4c36ff13fef12df49f8c758798"
+checksum = "152106422e63a38121d964980a069a600044b3f75db1f26a102821adacd99318"
 dependencies = [
  "bincode",
  "ed25519-dalek",

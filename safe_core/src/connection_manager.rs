@@ -22,7 +22,7 @@ use std::{
     rc::Rc,
     time::Duration,
 };
-use tokio::prelude::FutureExt;
+use tokio::util::FutureExt;
 
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
 
@@ -93,15 +93,12 @@ impl Inner {
     fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
-        let elders = HashSet::<NodeInfo>::default();
-
         let (connected_tx, connected_rx) = futures::oneshot();
 
         if let Entry::Vacant(value) = self.groups.entry(full_id.public_id()) {
             let _ = value.insert(fry!(ConnectionGroup::new(
                 self.config.clone(),
                 full_id,
-                elders,
                 connected_tx
             )));
             Box::new(
@@ -109,7 +106,14 @@ impl Inner {
                     .map_err(|err| CoreError::from(format!("{}", err)))
                     .and_then(|res| res)
                     .timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS))
-                    .map_err(|_e| CoreError::RequestTimeout),
+                    .map_err(|e| {
+                        if let Some(err) = e.into_inner() {
+                            // Do not swallow the original error in case if it's not a timeout.
+                            err
+                        } else {
+                            CoreError::RequestTimeout
+                        }
+                    }),
             )
         } else {
             trace!("Group {} is already connected", full_id.public_id());
