@@ -21,7 +21,7 @@ lru-cache = "~0.1.1"
 quic-p2p = "~0.3.0"
 rand = "0.6"
 safe_core = { path = "../safe_core", version = "~0.37.3" }
-safe-nd = "~0.6.0"
+safe-nd = "~0.7.0"
 serde = { version = "~1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
@@ -37,7 +37,7 @@ safe_core = { path = "../safe_core", version = "~0.37.3", features = ["testing"]
 ffi_utils = "~0.14.0"
 jni = "~0.12.0"
 safe_bindgen = { version = "~0.13.2", optional = true }
-safe-nd = "~0.6.0"
+safe-nd = "~0.7.0"
 threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
