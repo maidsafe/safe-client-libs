@@ -18,11 +18,11 @@ use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
-use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{client::CONTAINERS_ENTRY, recovery, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Key of the authenticator entry in the access container.
 pub const AUTHENTICATOR_ENTRY: &str = "authenticator";
@@ -84,6 +84,26 @@ pub fn fetch_authenticator_entry(
         .into_box()
 }
 
+/// Adds the information of newly created containers to the access container
+pub fn update_authenticator_entry(
+    client: &AuthClient,
+    new_containers: &HashMap<String, MDataInfo>,
+) -> Box<AuthFuture<()>> {
+    let c2 = client.clone();
+    let new_containers = new_containers.clone();
+
+    fetch_authenticator_entry(client)
+        .and_then(move |(version, mut containers)| {
+            new_containers
+                .into_iter()
+                .for_each(|(container_name, md_info)| {
+                    let _ = containers.insert(container_name, md_info);
+                });
+            put_authenticator_entry(&c2, &containers, version + 1)
+        })
+        .into_box()
+}
+
 /// Updates the authenticator entry.
 #[allow(clippy::implicit_hasher)]
 pub fn put_authenticator_entry(
@@ -91,7 +111,9 @@ pub fn put_authenticator_entry(
     new_value: &HashMap<String, MDataInfo>,
     version: u64,
 ) -> Box<AuthFuture<()>> {
+    let client2 = client.clone();
     let access_container = client.access_container();
+    let container_names: HashSet<String> = new_value.keys().cloned().collect();
     let (key, ciphertext) = {
         let sk = client.secret_symmetric_key();
         let key = fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
@@ -100,14 +122,39 @@ pub fn put_authenticator_entry(
         (key, ciphertext)
     };
 
-    let actions = if version == 0 {
+    let mut actions = if version == 0 {
         MDataSeqEntryActions::new().ins(key, ciphertext, 0)
     } else {
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    recovery::mutate_mdata_entries(client, *access_container.address(), actions)
-        .map_err(From::from)
+    let containers_key = CONTAINERS_ENTRY.as_bytes().to_vec();
+    let containers_key2 = CONTAINERS_ENTRY.as_bytes().to_vec();
+
+    // Fetch and update the list of containers
+    client
+        .get_seq_mdata_value(
+            access_container.name(),
+            access_container.type_tag(),
+            containers_key,
+        )
+        .map_err(AuthError::from)
+        .and_then(move |value| {
+            let mut containers_list: HashSet<String> = if value.data.is_empty() {
+                Default::default()
+            } else {
+                fry!(deserialise(&value.data))
+            };
+            containers_list.extend(container_names.into_iter());
+            actions = actions.update(
+                containers_key2,
+                fry!(serialise(&containers_list)),
+                value.version + 1,
+            );
+            recovery::mutate_mdata_entries(&client2, *access_container.address(), actions)
+                .map_err(From::from)
+                .into_box()
+        })
         .into_box()
 }
 
@@ -156,7 +203,8 @@ pub fn fetch_entry(
         .into_box()
 }
 
-/// Adds a new entry to the authenticator access container
+/// Adds a new entry to the authenticator access container.
+/// This function also updates the access container with the information about the newly created containers.
 pub fn put_entry(
     client: &AuthClient,
     app_id: &str,
@@ -168,9 +216,19 @@ pub fn put_entry(
 
     let client2 = client.clone();
     let client3 = client.clone();
+    let client4 = client.clone();
+    let client5 = client.clone();
+
     let access_container = client.access_container();
     let acc_cont_info = access_container.clone();
+    let acc_cont_info2 = access_container.clone();
     let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
+    let container_names: HashSet<String> = permissions.keys().cloned().collect();
+    let new_ac_entry = permissions.clone();
+    let containers_key = CONTAINERS_ENTRY.as_bytes().to_vec();
+    let containers_key2 = CONTAINERS_ENTRY.as_bytes().to_vec();
+    let sk = client.secret_symmetric_key();
+    let authenticator_key = fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
     let ciphertext = fry!(encode_app_entry(permissions, &app_keys.enc_key));
 
     let actions = if version == 0 {
@@ -180,6 +238,7 @@ pub fn put_entry(
     };
 
     let app_pk: PublicKey = app_keys.bls_pk.into();
+    let client = client.clone();
 
     client
         .get_mdata_version(*access_container.address())
@@ -195,8 +254,52 @@ pub fn put_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+            client3
+                .get_seq_mdata_value(
+                    access_container.name(),
+                    access_container.type_tag(),
+                    containers_key,
+                )
                 .map_err(AuthError::from)
+        })
+        .and_then(move |value| {
+            let mut containers_list: HashSet<String> = if value.data.is_empty() {
+                Default::default()
+            } else {
+                fry!(deserialise(&value.data))
+            };
+            containers_list.extend(container_names.into_iter());
+            let actions = actions.update(
+                containers_key2,
+                fry!(serialise(&containers_list)),
+                value.version + 1,
+            );
+            let access_container = client4.access_container();
+
+            let sk = client4.secret_symmetric_key();
+            let key = fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
+
+            client4
+                .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
+                .map(|val| (val, actions))
+                .map_err(AuthError::from)
+                .into_box()
+
+        })
+        .and_then(move |(value, actions)| {
+            let sk = client.secret_symmetric_key();
+            let mut containers = fry!(decode_authenticator_entry(&value.data, &sk));
+            // .and_then(move |(version, mut containers)| {
+            new_ac_entry
+                .into_iter()
+                .for_each(|(container_name, (md_info, _permissions))| {
+                    let _ = containers.insert(container_name, md_info);
+                });
+            let ciphertext = fry!(encode_authenticator_entry(&containers, &sk));
+            let actions = actions.update(authenticator_key, ciphertext, value.version + 1);
+            recovery::mutate_mdata_entries(&client5, *acc_cont_info2.address(), actions)
+                .map_err(AuthError::from)
+                .into_box()
         })
         .into_box()
 }

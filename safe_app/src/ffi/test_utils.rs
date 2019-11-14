@@ -79,34 +79,7 @@ pub unsafe extern "C" fn test_simulate_network_disconnect(
 
 #[cfg(test)]
 mod tests {
-    use super::test_create_app_with_access;
-    use crate::{App, AppError};
-    use ffi_utils::test_utils::call_1;
-    use ffi_utils::ErrorCode;
-    use safe_authenticator::test_utils::rand_app;
-    use safe_core::ipc::req::AuthReq;
-    use safe_core::ipc::Permission;
-    use std::collections::HashMap;
-
-    #[test]
-    fn create_app_with_invalid_access() {
-        let mut containers = HashMap::new();
-        let _ = containers.insert("_app".to_owned(), btree_set![Permission::Insert]);
-
-        let auth_req = AuthReq {
-            app: rand_app(),
-            app_permissions: Default::default(),
-            containers,
-        };
-        let auth_req = unwrap!(auth_req.into_repr_c());
-
-        let result: Result<*mut App, i32> =
-            unsafe { call_1(|ud, cb| test_create_app_with_access(&auth_req, ud, cb)) };
-        match result {
-            Err(error) if error == AppError::NoSuchContainer("_app".into()).error_code() => (),
-            x => panic!("Unexpected {:?}", x),
-        }
-    }
+    use crate::App;
 
     // Test simulating network disconnects.
     #[cfg(feature = "mock-network")]
