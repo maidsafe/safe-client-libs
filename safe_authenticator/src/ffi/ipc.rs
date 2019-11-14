@@ -386,7 +386,7 @@ pub unsafe extern "C" fn encode_containers_resp(
                                     sign_pk,
                                 );
                                 let create_containers_future =
-                                    create_containers(&c6, requested_containers.new, sign_pk);
+                                    create_containers(&c6, requested_containers.new, Some(sign_pk));
                                 future::join_all(vec![
                                     update_containers_future,
                                     create_containers_future,

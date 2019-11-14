@@ -20,9 +20,9 @@ use std::collections::HashMap;
 // insert", and "videos with all the permissions possible".
 pub fn create_containers_req() -> HashMap<String, ContainerPermissions> {
     let mut containers = HashMap::new();
-    let _ = containers.insert("_documents".to_owned(), btree_set![Permission::Insert]);
+    let _ = containers.insert("documents".to_owned(), btree_set![Permission::Insert]);
     let _ = containers.insert(
-        "_videos".to_owned(),
+        "videos".to_owned(),
         btree_set![
             Permission::Read,
             Permission::Insert,
@@ -35,6 +35,7 @@ pub fn create_containers_req() -> HashMap<String, ContainerPermissions> {
 }
 
 /// Corrupt an access container entry by overriding its secret key.
+#[allow(unused)]
 pub fn corrupt_container(client: &AuthClient, container_id: &str) -> Box<AuthFuture<()>> {
     trace!("Corrupting access container entry {}...", container_id);
 

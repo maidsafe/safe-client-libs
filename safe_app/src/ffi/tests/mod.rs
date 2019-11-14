@@ -134,7 +134,7 @@ fn app_authentication() {
     let auth = test_utils::create_account_and_login();
 
     let app_exchange_info = test_utils::rand_app();
-    let app_id = app_exchange_info.id.clone();
+    // let app_id = app_exchange_info.id.clone();
 
     let containers = create_containers_req();
     let auth_req = AuthReq {
@@ -222,17 +222,17 @@ fn app_authentication() {
 
     let auth_granted = unwrap!(context.auth_granted);
 
-    let mut expected = create_containers_req();
-    let _ = expected.insert(
-        safe_core::app_container_name(&app_id),
-        btree_set![
-            Permission::Read,
-            Permission::Insert,
-            Permission::Update,
-            Permission::Delete,
-            Permission::ManagePermissions,
-        ],
-    );
+    let expected = create_containers_req();
+    // let _ = expected.insert(
+    //     safe_core::app_container_name(&app_id),
+    //     btree_set![
+    //         Permission::Read,
+    //         Permission::Insert,
+    //         Permission::Update,
+    //         Permission::Delete,
+    //         Permission::ManagePermissions,
+    //     ],
+    // );
     for (container, permissions) in expected.clone() {
         let perms = unwrap!(auth_granted.access_container_entry.get(&container));
         assert_eq!((*perms).1, permissions);

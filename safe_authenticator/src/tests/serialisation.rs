@@ -19,7 +19,7 @@ use crate::{AuthError, Authenticator};
 use futures::Future;
 use rand::{Rng, SeedableRng, XorShiftRng};
 use safe_core::config_handler;
-use safe_core::ipc::req::ContainerPermissions;
+use safe_core::ipc::req::{ContainerPermissions, Permission};
 use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq};
 use safe_core::mock_vault_path;
 use safe_core::{test_create_balance, FutureExt};
@@ -181,16 +181,16 @@ fn setup() -> Stash {
     // IMPORTANT: Use constant seed for repeatability.
     let mut rng = XorShiftRng::from_seed([0, 1, 2, 3]);
 
-    let containers = HashMap::new();
-    // let _ = containers.insert(
-    //     "_documents".to_string(),
-    //     btree_set![
-    //         Permission::Read,
-    //         Permission::Insert,
-    //         Permission::Update,
-    //         Permission::Delete,
-    //     ],
-    // );
+    let mut containers = HashMap::new();
+    let _ = containers.insert(
+        "documents".to_string(),
+        btree_set![
+            Permission::Read,
+            Permission::Insert,
+            Permission::Update,
+            Permission::Delete,
+        ],
+    );
 
     let auth_req0 = {
         let app_exchange_info = AppExchangeInfo {

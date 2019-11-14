@@ -13,11 +13,14 @@ mod unpublished_mutable_data;
 
 use crate::ffi::test_utils::test_create_app_with_access;
 use crate::test_utils::{create_app, create_random_auth_req};
-use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access};
+use crate::test_utils::{
+    create_app_by_req, create_auth_req, create_auth_req_with_access, gen_app_exchange_info,
+};
 use crate::{run, App, AppError};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
-use safe_core::ipc::Permission;
+use safe_authenticator::test_utils as authenticator;
+use safe_core::ipc::{AuthReq, Permission};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
 #[cfg(feature = "mock-network")]
@@ -69,8 +72,8 @@ fn refresh_access_info() {
 #[allow(unsafe_code)]
 fn get_access_info() {
     let mut container_permissions = HashMap::new();
-    let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
-    let _ = container_permissions.insert("_downloads".to_string(), btree_set![Permission::Insert]);
+    let _ = container_permissions.insert("videos".to_string(), btree_set![Permission::Read]);
+    let _ = container_permissions.insert("downloads".to_string(), btree_set![Permission::Insert]);
 
     let auth_req = create_auth_req(None, Some(container_permissions));
     let auth_req_ffi = unwrap!(auth_req.into_repr_c());
@@ -86,14 +89,14 @@ fn get_access_info() {
     unwrap!(run(unsafe { &*app }, move |client, context| {
         context.get_access_info(client).then(move |res| {
             let info = unwrap!(res);
-            assert!(info.contains_key(&"_videos".to_string()));
-            assert!(info.contains_key(&"_downloads".to_string()));
-            assert_eq!(info.len(), 3); // third item is the app container
+            assert!(info.contains_key(&"videos".to_string()));
+            assert!(info.contains_key(&"downloads".to_string()));
+            assert_eq!(info.len(), 2);
 
-            let (ref _md_info, ref perms) = info["_videos"];
+            let (ref _md_info, ref perms) = info["videos"];
             assert_eq!(perms, &btree_set![Permission::Read]);
 
-            let (ref _md_info, ref perms) = info["_downloads"];
+            let (ref _md_info, ref perms) = info["downloads"];
             assert_eq!(perms, &btree_set![Permission::Insert]);
 
             Ok(())

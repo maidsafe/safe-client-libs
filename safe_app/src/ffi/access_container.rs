@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn get_access_info() {
         let mut container_permissions = HashMap::new();
-        let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
+        let _ = container_permissions.insert("videos".to_string(), btree_set![Permission::Read]);
         let app = unwrap!(create_app_by_req(&create_auth_req_with_access(
             container_permissions
         ),));
@@ -188,12 +188,12 @@ mod tests {
             unsafe { unwrap!(call_vec(|ud, cb| access_container_fetch(&app, ud, cb))) };
 
         let perms: HashMap<_, _> = perms.into_iter().map(|val| (val.0, val.1)).collect();
-        assert_eq!(perms["_videos"], btree_set![Permission::Read]);
-        assert_eq!(perms.len(), 2);
+        assert_eq!(perms["videos"], btree_set![Permission::Read]);
+        assert_eq!(perms.len(), 1);
 
         // Get MD info
         let md_info: MDataInfo = {
-            let videos_str = unwrap!(CString::new("_videos"));
+            let videos_str = unwrap!(CString::new("videos"));
             unsafe {
                 unwrap!(call_1(|ud, cb| access_container_get_container_mdata_info(
                     &app,

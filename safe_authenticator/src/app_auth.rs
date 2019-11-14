@@ -212,11 +212,7 @@ fn authenticate_new_app(
     let app_keys = app.keys.clone();
     let app_keys_auth = app.keys.clone();
     let access_container_info = client.access_container();
-    let access_container_addr = safe_nd::MDataAddress::from_kind(
-        safe_nd::MDataKind::Seq,
-        access_container_info.name(),
-        access_container_info.type_tag(),
-    );
+    let access_container_addr = *access_container_info.address();
 
     client
         .list_auth_keys_and_version()
@@ -240,7 +236,7 @@ fn authenticate_new_app(
                         let update_containers_future =
                             update_container_perms(&c3, requested_containers.existing, sign_pk);
                         let create_containers_future =
-                            create_containers(&c7, requested_containers.new, sign_pk);
+                            create_containers(&c7, requested_containers.new, Some(sign_pk));
                         future::join_all(vec![update_containers_future, create_containers_future])
                             .into_box()
                     })

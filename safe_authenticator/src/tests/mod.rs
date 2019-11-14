@@ -27,7 +27,7 @@ use crate::safe_core::ipc::{
 };
 use crate::test_utils::{self, ChannelType};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
-use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
+use ffi_utils::{from_c_str, ReprC, StringError};
 use futures::Future;
 use safe_core::config_handler::Config;
 use safe_core::{mdata_info, AuthActions, Client};
@@ -43,6 +43,7 @@ mod mock_routing {
     use super::utils;
     use crate::access_container as access_container_tools;
     use crate::config;
+    use crate::containers::create_containers;
     use crate::errors::AuthError;
     use crate::run;
     use crate::{test_utils, Authenticator};
@@ -222,38 +223,43 @@ mod mock_routing {
             x => panic!("Unexpected {:?}", x),
         }
 
-        // // Simulate a network failure for the `update_container_perms` step -
-        // // it should fail at the second container (`_videos`)
-        // let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-        //     let mut reqs_counter = 0;
+        // Create `documents` and `videos` containers
+        let _ = unwrap!(run(&auth, |client| {
+            create_containers(&client, utils::create_containers_req(), None)
+        }));
 
-        //     cm.set_request_hook(move |req| {
-        //         match *req {
-        //             Request::SetMDataUserPermissions { .. } => {
-        //                 reqs_counter += 1;
+        // Simulate a network failure for the `update_container_perms` step -
+        // it should fail at the second container (`_videos`)
+        let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
+            let mut reqs_counter = 0;
 
-        //                 if reqs_counter == 2 {
-        //                     Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-        //                 } else {
-        //                     None
-        //                 }
-        //             }
-        //             // Pass-through
-        //             _ => None,
-        //         }
-        //     });
-        //     cm
-        // };
-        // let auth = unwrap!(Authenticator::login_with_hook(
-        //     locator.clone(),
-        //     password.clone(),
-        //     || (),
-        //     cm_hook,
-        // ));
-        // match test_utils::register_app(&auth, &auth_req) {
-        //     Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
-        //     x => panic!("Unexpected {:?}", x),
-        // }
+            cm.set_request_hook(move |req| {
+                match *req {
+                    Request::SetMDataUserPermissions { .. } => {
+                        reqs_counter += 1;
+                        if reqs_counter == 2 {
+                            Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                        } else {
+                            None
+                        }
+                    }
+                    // Pass-through
+                    _ => None,
+                }
+            });
+            cm
+        };
+        let auth = unwrap!(Authenticator::login_with_hook(
+            locator.clone(),
+            password.clone(),
+            || (),
+            cm_hook,
+        ));
+
+        match test_utils::register_app(&auth, &auth_req) {
+            Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
+            x => panic!("Unexpected {:?}", x),
+        }
 
         // Simulate a network failure for the `MutateMDataEntries` request, which
         // is supposed to setup the access container entry for the app
@@ -288,15 +294,18 @@ mod mock_routing {
             password.clone(),
             || (),
         ));
-        let _auth_granted = match test_utils::register_app(&auth, &auth_req) {
+        let auth_granted = match test_utils::register_app(&auth, &auth_req) {
             Ok(auth_granted) => auth_granted,
             x => panic!("Unexpected {:?}", x),
         };
 
         // Check that the app's container has been created and that the access container
         // contains info about all of the requested containers.
-        // let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
-        // let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
+        let app_id = auth_req.app.id.clone();
+        let mut ac_entries =
+            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone());
+        let (_videos_md, _) = unwrap!(ac_entries.remove("videos"));
+        let (_documents_md, _) = unwrap!(ac_entries.remove("documents"));
     }
 }
 
@@ -432,7 +441,7 @@ fn app_authentication() {
 
     let access_container =
         test_utils::access_container(&authenticator, app_id.clone(), auth_granted.clone());
-    assert_eq!(access_container.len(), 0);
+    assert_eq!(access_container.len(), 2);
 
     let app_keys = auth_granted.app_keys;
     let app_sign_pk = PublicKey::from(app_keys.bls_pk);
@@ -464,52 +473,6 @@ fn app_authentication() {
     }));
 
     assert!(auth_keys.contains_key(&app_sign_pk));
-}
-
-// Try to authenticate with invalid container names.
-#[test]
-fn invalid_container_authentication() {
-    let authenticator = test_utils::create_account_and_login();
-    let req_id = ipc::gen_req_id();
-    let app_exchange_info = test_utils::rand_app();
-
-    // Permissions for invalid container name
-    let mut containers = HashMap::new();
-    let _ = containers.insert(
-        "_app".to_owned(),
-        btree_set![
-            Permission::Read,
-            Permission::Insert,
-            Permission::Update,
-            Permission::Delete,
-            Permission::ManagePermissions,
-        ],
-    );
-
-    let auth_req = AuthReq {
-        app: app_exchange_info.clone(),
-        app_permissions: Default::default(),
-        containers,
-    };
-
-    // Try to send IpcReq::Auth - it should fail
-    let result: Result<String, i32> = unsafe {
-        call_1(|ud, cb| {
-            let auth_req = unwrap!(auth_req.into_repr_c());
-            encode_auth_resp(
-                &authenticator,
-                &auth_req,
-                req_id,
-                true, // is_granted
-                ud,
-                cb,
-            )
-        })
-    };
-    match result {
-        Err(error) if error == AuthError::NoSuchContainer("_app".into()).error_code() => (),
-        x => panic!("Unexpected {:?}", x),
-    };
 }
 
 // Test unregistered client authentication.
@@ -711,7 +674,6 @@ fn containers_unknown_app() {
 // Test making a containers access request.
 #[test]
 fn containers_access_request() {
-    unwrap!(maidsafe_utilities::log::init(false));
     let authenticator = test_utils::create_account_and_login();
 
     // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for containers
@@ -731,8 +693,8 @@ fn containers_access_request() {
     let cont_req = ContainersReq {
         app: auth_req.app.clone(),
         containers: {
-            let containers = HashMap::new();
-            // let _ = containers.insert("_downloads".to_string(), btree_set![Permission::Update]);
+            let mut containers = HashMap::new();
+            let _ = containers.insert("_downloads".to_string(), btree_set![Permission::Update]);
             containers
         },
     };
@@ -764,8 +726,8 @@ fn containers_access_request() {
     // Using the access container from AuthGranted check if "app-id", "documents", "videos",
     // "downloads" are all mentioned and using MDataInfo for each check the permissions are
     // what had been asked for.
-    let expected = utils::create_containers_req();
-    // let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
+    let mut expected = utils::create_containers_req();
+    let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
 
     let app_sign_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
     let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);
