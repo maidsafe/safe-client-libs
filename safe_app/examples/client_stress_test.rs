@@ -56,7 +56,7 @@ enum Data {
 }
 
 fn main() {
-    unwrap!(maidsafe_utilities::log::init(true));
+    unwrap!(safe_core::utils::logging::init(true));
 
     let matches = App::new("client_stress_test")
         .about(

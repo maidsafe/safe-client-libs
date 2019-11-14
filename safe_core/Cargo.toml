@@ -25,7 +25,6 @@ lazy_static = "~1.2.0"
 log = "~0.4.8"
 log4rs = { version = "~0.8.3", features = ["toml_format"] }
 lru-cache = "~0.1.1"
-maidsafe_utilities = "~0.18.0"
 new_rand = { package = "rand", version = "0.6" }
 quic-p2p = "~0.3.0"
 rand = "~0.3.18"

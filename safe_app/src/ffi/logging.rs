@@ -8,6 +8,8 @@
 // Software.
 
 //! Logging utilities
+//! This module is exactly the same as safe_authenticator::ffi::logging, therefore changes to
+//! either one of them should also be reflected to the other to stay in sync.
 
 use super::AppError;
 use config_file_handler::FileHandler;
@@ -98,7 +100,7 @@ mod tests {
     fn file_logging() {
         setup_log_config();
 
-        let log_file_name = unwrap!(PathBuf::from_str("Client.log"));
+        let log_file_name = unwrap!(PathBuf::from_str("AppClient.log"));
 
         let file_name = unwrap!(CString::new(unwrap!(log_file_name
             .clone()

@@ -483,11 +483,11 @@ impl AsyncAppender {
     fn new<W: 'static + SyncWrite + Send>(mut writer: W, encoder: Box<dyn Encode>) -> Self {
         let (tx, rx) = mpsc::channel::<AsyncEvent>();
 
-        // TODO: Remove unwrap!
         let joiner =
             unwrap!(thread::Builder::new()
                 .name(String::from("AsyncLog"))
                 .spawn(move || {
+                    // Safe to unwrap as the expression is valid.
                     let re = unwrap!(Regex::new(r"#FS#?.*[/\\#]([^#]+)#FE#"));
 
                     for event in rx.iter() {

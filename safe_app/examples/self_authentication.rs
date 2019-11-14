@@ -29,7 +29,7 @@ use safe_authenticator::{AuthError, Authenticator};
 use safe_nd::Error as SndError;
 
 fn main() {
-    unwrap!(maidsafe_utilities::log::init(true));
+    unwrap!(safe_core::utils::logging::init(true));
 
     let mut secret_0 = String::new();
     let mut secret_1 = String::new();

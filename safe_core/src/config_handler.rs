@@ -186,9 +186,8 @@ where
 /// the config file should be created by the Vault's installer.
 #[cfg(test)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
-    let dirs = dirs()?;
-    let dir = dirs.config_dir();
-    fs::create_dir_all(dir)?;
+    let dir = config_dir()?;
+    fs::create_dir_all(dir.clone())?;
 
     let path = dir.join(CONFIG_FILE);
     dbg!(&path);

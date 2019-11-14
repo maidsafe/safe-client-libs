@@ -40,8 +40,8 @@
 //! extern crate log;
 //! #[macro_use]
 //! extern crate unwrap;
-//! extern crate maidsafe_utilities;
 //! use std::thread;
+//! use safe_core::utils::logging;
 //!
 //! mod my_mod {
 //!     pub fn show_warning() {
@@ -50,15 +50,16 @@
 //! }
 //!
 //! fn main() {
-//!     unwrap!(maidsafe_utilities::log::init(true));
+//!     unwrap!(logging::init(true));
 //!
 //!     my_mod::show_warning();
 //!
 //!     let unnamed = thread::spawn(move || info!("Message in unnamed thread"));
 //!     let _ = unnamed.join();
 //!
-//!     let _named = maidsafe_utilities::thread::named("Worker",
-//!                                      move || error!("Message in named thread"));
+//!     let _named = unwrap!(thread::Builder::new()
+//!                             .name(String::from("Worker"))
+//!                             .spawn(|| error!("Message in named thread")));
 //!
 //!     // WARN 16:10:44.989712300 <main> [example::my_mod main.rs:10] A warning
 //!     // INFO 16:10:44.990716600 <unnamed> [example main.rs:19] Message in unnamed thread
