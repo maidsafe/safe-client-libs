@@ -16,9 +16,9 @@ use crate::containers::create_containers;
 use crate::ipc::update_container_perms;
 use futures::future;
 use futures::Future;
-use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
+use safe_core::{client, MDataInfo};
 use safe_core::{client::AuthActions, identify_existing_containers, recovery, Client, FutureExt};
 use safe_nd::{AppPermissions, PublicKey};
 use std::collections::HashMap;
@@ -103,6 +103,8 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
         app_permissions, ..
     } = auth_req;
 
+    let containers = auth_req.containers.clone();
+
     let c2 = client.clone();
     let c3 = client.clone();
     let c4 = client.clone();
@@ -132,7 +134,7 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                 AppState::Authenticated | AppState::Revoked => {
                     let app_entry_name = sha3_256(app_id.as_bytes());
                     if let Some(app) = apps.remove(&app_entry_name) {
-                        ok!((app, app_state, app_id))
+                        ok!((app, app_state))
                     } else {
                         err!(AuthError::from(
                             "Logical error - couldn't find a revoked app in config"
@@ -141,11 +143,11 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                 }
             }
         })
-        .and_then(move |(app, app_state, app_id)| {
+        .and_then(move |(app, app_state)| {
             match app_state {
                 AppState::Authenticated => {
                     // Return info of the already registered app
-                    authenticated_app(&c4, app, app_id, app_permissions)
+                    authenticated_app(&c4, app, containers, app_permissions)
                 }
                 AppState::NotAuthenticated | AppState::Revoked => {
                     // Register a new app or restore a previously registered app
@@ -160,34 +162,33 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
 fn authenticated_app(
     client: &AuthClient,
     app: AppInfo,
-    app_id: String,
+    containers: HashMap<String, ContainerPermissions>,
     _app_permissions: AppPermissions,
 ) -> Box<AuthFuture<AuthGranted>> {
-    let c2 = client.clone();
+    let c1 = client.clone();
 
     let app_keys = app.keys.clone();
     let bootstrap_config = fry!(client::bootstrap_config());
-
-    access_container::fetch_entry(client, &app_id, app_keys.clone())
-        .and_then(move |(_version, perms)| {
-            let perms = perms.unwrap_or_else(AccessContainerEntry::default);
-
-            // TODO: check if we need to update app permissions
-
-            future::ok(perms)
+    let access_container_info = client.access_container();
+    let sign_pk = PublicKey::from(app.keys.bls_pk);
+    // Check for newly requested containers if any and update perms for old containers if any.
+    update_container_perms_and_access_container(
+        c1,
+        access_container_info.clone(),
+        app,
+        containers,
+        sign_pk,
+    )
+    .and_then(move |perms| {
+        let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
+        Ok(AuthGranted {
+            app_keys,
+            bootstrap_config,
+            access_container_info,
+            access_container_entry: perms,
         })
-        .and_then(move |perms| {
-            let access_container_info = c2.access_container();
-            let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
-
-            Ok(AuthGranted {
-                app_keys,
-                bootstrap_config,
-                access_container_info,
-                access_container_entry: perms,
-            })
-        })
-        .into_box()
+    })
+    .into_box()
 }
 
 /// Register a new or revoked app in the Client Handlers and in the access container.
@@ -205,14 +206,11 @@ fn authenticate_new_app(
     let c3 = client.clone();
     let c4 = client.clone();
     let c5 = client.clone();
-    let c6 = client.clone();
-    let c7 = client.clone();
 
     let sign_pk = PublicKey::from(app.keys.bls_pk);
     let app_keys = app.keys.clone();
     let app_keys_auth = app.keys.clone();
     let access_container_info = client.access_container();
-    let access_container_addr = *access_container_info.address();
 
     client
         .list_auth_keys_and_version()
@@ -230,26 +228,15 @@ fn authenticate_new_app(
             if permissions.is_empty() {
                 ok!((AccessContainerEntry::default(), app))
             } else {
-                identify_existing_containers(permissions, c6, access_container_addr)
-                    .map_err(AuthError::from)
-                    .and_then(move |requested_containers| {
-                        let update_containers_future =
-                            update_container_perms(&c3, requested_containers.existing, sign_pk);
-                        let create_containers_future =
-                            create_containers(&c7, requested_containers.new, Some(sign_pk));
-                        future::join_all(vec![update_containers_future, create_containers_future])
-                            .into_box()
-                    })
-                    .and_then(|mut results| {
-                        let mut updated_containers: AccessContainerEntry =
-                            results.pop().unwrap_or_default();
-                        let new_containers: AccessContainerEntry =
-                            results.pop().unwrap_or_default();
-                        // Combine both the new and updated containers and store it in the access container
-                        updated_containers.extend(new_containers.into_iter());
-                        Ok((updated_containers, app))
-                    })
-                    .into_box()
+                update_container_perms_and_access_container(
+                    c3,
+                    access_container_info,
+                    app.clone(),
+                    permissions,
+                    sign_pk,
+                )
+                .and_then(|res| Ok((res, app)))
+                .into_box()
             }
         })
         .and_then(move |(perms, app)| {
@@ -267,6 +254,40 @@ fn authenticate_new_app(
                 access_container_info,
                 access_container_entry,
             })
+        })
+        .into_box()
+}
+
+fn update_container_perms_and_access_container(
+    client: AuthClient,
+    access_container_mdinfo: MDataInfo,
+    app: AppInfo,
+    containers: HashMap<String, ContainerPermissions>,
+    sign_pk: PublicKey,
+) -> Box<AuthFuture<AccessContainerEntry>> {
+    let c1 = client.clone();
+    let c2 = client.clone();
+    let c3 = client.clone();
+    let c4 = client.clone();
+
+    identify_existing_containers(containers, c1, access_container_mdinfo.address().clone())
+        .map_err(AuthError::from)
+        .and_then(move |requested| {
+            let update_containers_future = update_container_perms(&c2, requested.existing, sign_pk);
+            let create_containers_future = create_containers(&c3, requested.new, Some(sign_pk));
+            future::join_all(vec![update_containers_future, create_containers_future]).into_box()
+        })
+        .and_then(|mut results| {
+            let mut updated_containers: AccessContainerEntry = results.pop().unwrap_or_default();
+            let new_containers: AccessContainerEntry = results.pop().unwrap_or_default();
+            // Combine both the new and updated containers and store it in the access container
+            updated_containers.extend(new_containers.into_iter());
+            Ok((updated_containers, app))
+        })
+        .and_then(move |(perms, app)| {
+            update_access_container(&c4, &app, perms.clone())
+                .map(move |_| perms)
+                .map_err(AuthError::from)
         })
         .into_box()
 }

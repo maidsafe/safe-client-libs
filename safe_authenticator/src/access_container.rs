@@ -284,7 +284,6 @@ pub fn put_entry(
                 .map(|val| (val, actions))
                 .map_err(AuthError::from)
                 .into_box()
-
         })
         .and_then(move |(value, actions)| {
             let sk = client.secret_symmetric_key();

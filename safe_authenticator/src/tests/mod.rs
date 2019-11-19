@@ -694,7 +694,7 @@ fn containers_access_request() {
         app: auth_req.app.clone(),
         containers: {
             let mut containers = HashMap::new();
-            let _ = containers.insert("_downloads".to_string(), btree_set![Permission::Update]);
+            let _ = containers.insert("downloads".to_string(), btree_set![Permission::Update]);
             containers
         },
     };
@@ -723,14 +723,59 @@ fn containers_access_request() {
         x => panic!("Unexpected {:?}", x),
     }
 
-    // Using the access container from AuthGranted check if "app-id", "documents", "videos",
+    // Using the access container from AuthGranted check if "documents", "videos",
     // "downloads" are all mentioned and using MDataInfo for each check the permissions are
     // what had been asked for.
     let mut expected = utils::create_containers_req();
-    let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
+    let _ = expected.insert("downloads".to_owned(), btree_set![Permission::Update]);
 
     let app_sign_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
     let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);
+    test_utils::compare_access_container_entries(
+        &authenticator,
+        app_sign_pk,
+        access_container,
+        expected,
+    );
+}
+
+// Test  on re-authentication.
+#[test]
+fn containers_access_request_on_re_authentication() {
+    let authenticator = test_utils::create_account_and_login();
+
+    // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for containers
+    // "documents with permission to insert", "videos with all the permissions possible"
+    let app = test_utils::rand_app();
+    let mut default_cont = utils::create_containers_req();
+
+    let auth_req = AuthReq {
+        app: app.clone(),
+        app_permissions: Default::default(),
+        containers: default_cont.clone(),
+    };
+    let app_id = auth_req.app.id.clone();
+
+    let auth_granted = unwrap!(test_utils::register_app(&authenticator, &auth_req));
+
+    let _ = default_cont.insert("downloads".to_string(), btree_set![Permission::Update]);
+
+    let auth_req2 = AuthReq {
+        app,
+        app_permissions: Default::default(),
+        containers: default_cont,
+    };
+
+    let auth_granted2 = unwrap!(test_utils::register_app(&authenticator, &auth_req2));
+
+    // Using the access container from AuthGranted2 check if "documents", "videos",
+    // "downloads" are all mentioned and using MDataInfo for each check the permissions are
+    // what had been asked for.
+    let mut expected = utils::create_containers_req();
+    let _ = expected.insert("downloads".to_owned(), btree_set![Permission::Update]);
+
+    let app_sign_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
+    let access_container = test_utils::access_container(&authenticator, app_id, auth_granted2);
     test_utils::compare_access_container_entries(
         &authenticator,
         app_sign_pk,

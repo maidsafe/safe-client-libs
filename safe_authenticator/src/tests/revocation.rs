@@ -14,8 +14,8 @@ use crate::{
     errors::AuthError,
     revocation,
     test_utils::{
-        access_container, create_account_and_login, create_authenticator, create_file, rand_app, fetch_file,
-        register_app, revoke, try_access_container,
+        access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
+        rand_app, register_app, revoke, try_access_container,
     },
     {access_container, run, AuthFuture, Authenticator},
 };
@@ -151,7 +151,7 @@ mod mock_routing {
     use super::*;
     use crate::{
         ffi::ipc::auth_flush_app_revocation_queue,
-        test_utils::{register_rand_app, try_revoke, get_container_from_authenticator_entry},
+        test_utils::{get_container_from_authenticator_entry, register_rand_app, try_revoke},
     };
     use config;
     use ffi_utils::test_utils::call_0;
@@ -652,7 +652,7 @@ fn app_revocation_and_reauth() {
     let auth_granted2 = unwrap!(register_app(&authenticator, &auth_req2));
 
     let mut ac_entries = access_container(&authenticator, app_id1.clone(), auth_granted1.clone());
-    
+
     // Put one file by each app into a shared container.
     let (videos_md1, _) = unwrap!(ac_entries.remove("videos"));
     unwrap!(create_file(
