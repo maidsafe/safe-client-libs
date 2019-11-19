@@ -198,7 +198,7 @@ pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     Ok(path)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "mock-network"))]
 mod test {
     use super::*;
     use std::env::temp_dir;

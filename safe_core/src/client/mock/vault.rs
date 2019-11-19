@@ -596,11 +596,6 @@ impl Vault {
                     self.authorise_operations(req_perms.as_slice(), source, requester_pk)
                 } {
                     Err(e)
-                } else if self
-                    .get_login_packet(new_login_packet.destination())
-                    .is_some()
-                {
-                    Err(SndError::LoginPacketExists)
                 } else {
                     self.get_balance(&source)
                         .and_then(|source_balance| {
@@ -610,14 +605,24 @@ impl Vault {
                             if !self.has_sufficient_balance(source_balance, debit_amt) {
                                 return Err(SndError::InsufficientBalance);
                             }
-                            // Debit the requester's wallet the cost of inserting a login packet
-                            self.commit_mutation(&source);
 
                             // Create the balance and transfer the mentioned amount of coins
                             self.create_balance(new_balance_dest, new_owner)
                         })
                         .and_then(|_| {
+                            // Debit the requester's wallet the cost of `CreateLoginPacketFor`
+                            self.commit_mutation(&source);
                             self.transfer_coins(source, new_balance_dest, amount, transaction_id)
+                        })
+                        .and_then(|_| {
+                            if self
+                                .get_login_packet(new_login_packet.destination())
+                                .is_some()
+                            {
+                                Err(SndError::LoginPacketExists)
+                            } else {
+                                Ok(())
+                            }
                         })
                         // Store the login packet
                         .map(|_| {

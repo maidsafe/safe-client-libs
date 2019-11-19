@@ -904,7 +904,10 @@ mod tests {
         let sig = client_full_id.sign(&acc_ciphertext);
         let client_pk = *client_full_id.public_id().public_key();
         let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
+        let new_login_packet2 = new_login_packet.clone();
         let five_coins = unwrap!(Coins::from_str("5"));
+        let random_key = BlsSecretKey::random();
+        let random_pk = random_key.public_key();
 
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = unwrap!(Coins::from_str("10"));
@@ -913,6 +916,8 @@ mod tests {
         random_client(move |client| {
             let c1 = client.clone();
             let c2 = client.clone();
+            let c3 = client.clone();
+            let c4 = client.clone();
             client
                 .insert_login_packet_for(
                     None,
@@ -922,7 +927,7 @@ mod tests {
                     new_login_packet.clone(),
                 )
                 // Make sure no error occurred.
-                .then(|result| match result {
+                .then(move |result| match result {
                     Ok(_transaction) => Ok::<_, CoreError>(()),
                     res => panic!("Unexpected {:?}", res),
                 })
@@ -936,16 +941,39 @@ mod tests {
                     )
                 })
                 // Re-insert to check for refunds for a failed insert_login_packet_for operation
-                .then(|result| match result {
+                // The balance is created first, so `BalanceExists` is returned.
+                .then(move |result| match result {
+                    Err(CoreError::DataError(SndError::BalanceExists)) => Ok::<_, CoreError>(()),
+                    res => panic!("Unexpected {:?}", res),
+                })
+                // For a different balance and an existing login packet
+                // `LoginPacketExists` should be returned.
+                .and_then(move |_| {
+                    c3.insert_login_packet_for(
+                        None,
+                        random_pk.into(),
+                        unwrap!(Coins::from_str("3")),
+                        None,
+                        new_login_packet2,
+                    )
+                })
+                .then(move |result| match result {
                     Err(CoreError::DataError(SndError::LoginPacketExists)) => {
-                        Ok::<_, CoreError>(())
+                        c4.get_balance(Some(&random_key))
                     }
                     res => panic!("Unexpected {:?}", res),
                 })
-                // Check if coins are refunded
-                .and_then(move |_| c2.get_balance(None))
+                // The new balance should exist
                 .and_then(move |balance| {
-                    let expected = calculate_new_balance(start_bal, Some(2), Some(five_coins));
+                    assert_eq!(balance, unwrap!(Coins::from_str("3")));
+                    c2.get_balance(None)
+                })
+                .and_then(move |balance| {
+                    let expected = calculate_new_balance(
+                        start_bal,
+                        Some(3),
+                        Some(unwrap!(Coins::from_str("8"))),
+                    );
                     assert_eq!(balance, expected);
                     Ok(())
                 })
