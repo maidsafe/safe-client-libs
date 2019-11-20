@@ -97,10 +97,6 @@ fn setup_test() -> *mut Authenticator {
         let exe_path = unwrap!(env::current_exe());
         let exe_path = exe_path.as_path();
 
-        // Test `auth_exe_file_stem`
-        let auth_exe: String = unsafe { unwrap!(call_1(|ud, cb| auth_exe_file_stem(ud, cb))) };
-        assert_eq!(auth_exe, unwrap!(unwrap!(exe_path.file_name()).to_str()));
-
         let crust_config_file = format!("{}.crust.config", unwrap!(exe_path.to_str()));
         println!("Copying crust.config to \"{}\"", crust_config_file);
 

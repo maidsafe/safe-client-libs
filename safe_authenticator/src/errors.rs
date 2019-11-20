@@ -10,7 +10,6 @@
 
 pub use self::codes::*;
 use bincode::Error as SerialisationError;
-use config_file_handler::Error as ConfigFileHandlerError;
 use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
 use safe_core::ipc::IpcError;
@@ -177,12 +176,6 @@ impl Into<IpcError> for AuthError {
 impl<T: 'static> From<SendError<T>> for AuthError {
     fn from(error: SendError<T>) -> Self {
         Self::Unexpected(error.description().to_owned())
-    }
-}
-
-impl From<ConfigFileHandlerError> for AuthError {
-    fn from(error: ConfigFileHandlerError) -> Self {
-        Self::from(error.to_string())
     }
 }
 

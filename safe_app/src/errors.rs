@@ -9,7 +9,6 @@
 
 pub use self::codes::*;
 use bincode::Error as SerialisationError;
-use config_file_handler::Error as ConfigFileHandlerError;
 use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
 use safe_core::ipc::IpcError;
@@ -256,12 +255,6 @@ impl From<IpcError> for AppError {
             IpcError::Unexpected(reason) => Self::Unexpected(reason),
             _ => Self::IpcError(err),
         }
-    }
-}
-
-impl From<ConfigFileHandlerError> for AppError {
-    fn from(err: ConfigFileHandlerError) -> Self {
-        Self::Unexpected(err.to_string())
     }
 }
 

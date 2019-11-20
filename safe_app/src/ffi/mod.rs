@@ -42,7 +42,6 @@ mod tests;
 use super::errors::AppError;
 use super::App;
 use bincode::deserialize;
-use config_file_handler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};
@@ -127,29 +126,6 @@ pub unsafe extern "C" fn app_reconnect(
     })
 }
 
-/// Returns the expected name for the application executable without an extension
-#[no_mangle]
-pub unsafe extern "C" fn app_exe_file_stem(
-    user_data: *mut c_void,
-    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, filename: *const c_char),
-) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        if let Ok(path) = config_file_handler::exe_file_stem()?.into_string() {
-            let path_c_str = CString::new(path)?;
-            o_cb(user_data, FFI_RESULT_OK, path_c_str.as_ptr());
-        } else {
-            call_result_cb!(
-                Err::<(), _>(AppError::from(
-                    "config_file_handler returned invalid string",
-                )),
-                user_data,
-                o_cb
-            );
-        }
-        Ok(())
-    });
-}
-
 /// Sets the path from which the `safe_core.config` file will be read.
 #[no_mangle]
 pub unsafe extern "C" fn app_set_config_dir_path(
@@ -160,21 +136,6 @@ pub unsafe extern "C" fn app_set_config_dir_path(
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let new_path = CStr::from_ptr(new_path).to_str()?;
         config_handler::set_config_dir_path(OsStr::new(new_path));
-        o_cb(user_data, FFI_RESULT_OK);
-        Ok(())
-    });
-}
-
-/// Sets the additional path in `config_file_handler` to search for files
-#[no_mangle]
-pub unsafe extern "C" fn app_set_additional_search_path(
-    new_path: *const c_char,
-    user_data: *mut c_void,
-    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
-) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
-        let new_path = CStr::from_ptr(new_path).to_str()?;
-        config_file_handler::set_additional_search_path(OsStr::new(new_path));
         o_cb(user_data, FFI_RESULT_OK);
         Ok(())
     });

@@ -11,7 +11,6 @@
 //! them should also be reflected to the other to stay in sync.
 
 use super::AuthError;
-use config_file_handler::FileHandler;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, FFI_RESULT_OK};
 use safe_core::utils::logging;
 use std::ffi::CString;
@@ -38,28 +37,22 @@ pub unsafe extern "C" fn auth_init_logging(
     });
 }
 
-/// This function should be called to find where log file will be created. It
-/// will additionally create an empty log file in the path in the deduced
-/// location and will return the file name along with complete path to it.
+/// Returns the path at which the the configuration files are expected.
 #[no_mangle]
-pub unsafe extern "C" fn auth_output_log_path(
-    output_file_name: *const c_char,
+pub unsafe extern "C" fn auth_config_dir_path(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, log_path: *const c_char),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AuthError> {
-        let op_file = from_c_str(output_file_name)?;
-        let fh = FileHandler::<()>::new(&op_file, true)
-            .map_err(|e| AuthError::Unexpected(format!("{}", e)))?;
-        let op_file_path = CString::new(
-            fh.path()
-                .to_path_buf()
+        let config_dir = safe_core::config_dir()?;
+        let config_dir_path = CString::new(
+            config_dir
                 .into_os_string()
                 .into_string()
                 .map_err(|_| AuthError::Unexpected("Couldn't convert OsString".to_string()))?
                 .into_bytes(),
         )?;
-        o_cb(user_data, FFI_RESULT_OK, op_file_path.as_ptr());
+        o_cb(user_data, FFI_RESULT_OK, config_dir_path.as_ptr());
         Ok(())
     })
 }
@@ -79,19 +72,11 @@ mod tests {
 
     // Test path where log file is created.
     #[test]
-    fn output_log_path() {
-        let name = "_test path";
-        let path_str = unwrap!(CString::new(name));
+    fn config_dir_path() {
+        let path: String = unsafe { unwrap!(call_1(|ud, cb| auth_config_dir_path(ud, cb),)) };
+        let expected_path = unwrap!(unwrap!(config_dir()).into_os_string().into_string());
 
-        let path: String = unsafe {
-            unwrap!(call_1(|ud, cb| auth_output_log_path(
-                path_str.as_ptr(),
-                ud,
-                cb
-            ),))
-        };
-
-        assert!(path.contains(name));
+        assert_eq!(path, expected_path);
     }
 
     // Test logging errors to file.
