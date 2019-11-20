@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -e
-
 if [[ -z "$SCL_BUILD_NUMBER" ]]; then
 	echo "Please set SCL_BUILD_NUMBER to a valid build number."
     exit 1
@@ -13,7 +11,7 @@ if [[ -z "$SCL_BUILD_BRANCH" ]]; then
 fi
 
 S3_BUCKET=safe-jenkins-build-artifacts
-declare -a types=("mock" "real")
+declare -a types=("dev" "prod")
 
 rm -rf artifacts
 for target in "$@"; do
@@ -22,20 +20,21 @@ for target in "$@"; do
         mkdir -p "artifacts/$type/$target/release"
         (
             cd "artifacts/$type/$target/release"
-            if [[ "$type" == "mock" ]]; then
-                aws s3 cp \
-                    --no-sign-request \
-                    --region eu-west-2 \
-                    "s3://$S3_BUCKET/$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-mock-$target.tar.gz" .
-                tar -xvf "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-mock-$target.tar.gz"
-                rm "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-mock-$target.tar.gz"
+            # If the key being queried doesn't exist this check prints out an ugly error message
+            # that could potentially be confusing to people who are reading the logs.
+            # It's not a problem, so the output is suppressed.
+            key="$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$type-$target.tar.gz"
+            aws s3api head-object \
+                --no-sign-request --region eu-west-2 \
+                --bucket "$S3_BUCKET" --key "$key" > /dev/null 2>&1
+            rc=$?
+            if [[ $rc == 0 ]]; then
+                echo "Retrieving $key"
+                aws s3 cp --no-sign-request --region eu-west-2 "s3://$S3_BUCKET/$key" .
+                tar -xvf "$key"
+                rm "$key"
             else
-                aws s3 cp \
-                    --no-sign-request \
-                    --region eu-west-2 \
-                    "s3://$S3_BUCKET/$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$target.tar.gz" .
-                tar -xvf "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$target.tar.gz"
-                rm "$SCL_BUILD_BRANCH-$SCL_BUILD_NUMBER-scl-$target.tar.gz"
+                echo "$target has no artifacts for $type"
             fi
         )
     done
