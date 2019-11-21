@@ -24,10 +24,6 @@ jobs:
           args: --all -- --check
       - shell: bash
         run: ./scripts/clippy-all
-      # - uses: actions-rs/cargo@v1
-      #   with:
-      #     command: clippy
-      #     args: --verbose --release --all-targets
 
   #build-ios:
     #runs-on: macOS-latest
@@ -115,8 +111,6 @@ jobs:
       matrix:
         # TODO: Add OSX
         os: [ubuntu-latest, windows-latest]
-    env:
-      SAFE_MOCK_IN_MEMORY_STORAGE: 1
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -124,30 +118,5 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >
-            config_mock_vault_path
-            --manifest-path=safe_core/Cargo.toml --features=mock-network
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >
-            --manifest-path=safe_core/Cargo.toml --features=mock-network
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >
-            --manifest-path=safe_authenticator/Cargo.toml --features=mock-network
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >
-            --release --manifest-path=safe_app/Cargo.toml
-            --features=mock-network
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >
-            --release --manifest-path=tests/Cargo.toml --features=mock-network
+      - shell: bash
+        run: ./scripts/test-mock

@@ -2,6 +2,7 @@
 
 set -e -x
 
+# SAFE_MOCK_IN_MEMORY_STORAGE should not be set for this first test.
 cargo test config_mock_vault_path --verbose --release --features=mock-network --manifest-path=safe_core/Cargo.toml
 export SAFE_MOCK_IN_MEMORY_STORAGE=1 &&
 cargo test --verbose --release --features=mock-network --manifest-path=safe_core/Cargo.toml

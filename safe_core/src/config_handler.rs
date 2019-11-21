@@ -79,7 +79,7 @@ impl Config {
     }
 
     fn read_qp2p_from_file() -> Result<QuicP2pConfig, CoreError> {
-        // Firs we read the default configuration file, and use a slightly modified default config
+        // First we read the default configuration file, and use a slightly modified default config
         // if there is none.
         let mut config: QuicP2pConfig = {
             match read_config_file(dirs()?, CONFIG_FILE) {
