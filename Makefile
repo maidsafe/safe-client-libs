@@ -45,7 +45,7 @@ endif
 build:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
-	./scripts/build-with-container "real" "x86_64"
+	./scripts/build-with-container "prod" "x86_64"
 else
 	./scripts/build-real
 endif
@@ -55,7 +55,7 @@ endif
 build-mock:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
-	./scripts/build-with-container "mock" "x86_64-mock"
+	./scripts/build-with-container "dev" "x86_64-dev"
 else
 	./scripts/build-mock
 endif
@@ -183,31 +183,41 @@ ifndef SCL_BUILD_NUMBER
 	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
 	@exit 1
 endif
-ifndef SCL_BUILD_MOCK
+ifndef SCL_BUILD_TYPE
 	@echo "A true or false value must be supplied indicating whether the build uses mocking."
-	@echo "Please set SCL_BUILD_MOCK to true or false."
+	@echo "Please set SCL_BUILD_TYPE to true or false."
 	@exit 1
 endif
 ifndef SCL_BUILD_TARGET
 	@echo "A value must be supplied for SCL_BUILD_TARGET."
 	@exit 1
 endif
-ifeq ($(SCL_BUILD_MOCK),true)
-	$(eval ARCHIVE_NAME := ${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-${SCL_BUILD_TARGET}.tar.gz)
-else
-	$(eval ARCHIVE_NAME := ${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_TARGET}.tar.gz)
-endif
+	$(eval ARCHIVE_NAME := ${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-${SCL_BUILD_TYPE}-${SCL_BUILD_TARGET}.tar.gz)
 	tar -C artifacts -zcvf ${ARCHIVE_NAME} .
 	rm artifacts/**
 	mv ${ARCHIVE_NAME} artifacts
 
 package-versioned-deploy-artifacts:
 	@rm -rf deploy
+	# The cargo-script installation can be removed when Jenkins is decommissioned.
+	# It's just being done because it's too late to update the build slave
+	# at this point.
+	cargo install cargo-script --force
 	./scripts/package-runner "versioned"
 
 package-commit_hash-deploy-artifacts:
 	@rm -rf deploy
+	# We still need the container for use with Jenkins.
+	# BRANCH_NAME is a variable Jenkins provides.
+	# This can be removed when Jenkins is decommissioned.
+ifdef BRANCH_NAME
+	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
+		-u ${USER_ID}:${GROUP_ID} \
+		maidsafe/safe-client-libs-build:x86_64 \
+		scripts/package-runner-container "commit_hash"
+else
 	./scripts/package-runner "commit_hash"
+endif
 
 package-nightly-deploy-artifacts:
 	@rm -rf deploy
@@ -245,22 +255,22 @@ ifndef SCL_BUILD_NUMBER
 	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
 	@exit 1
 endif
-	mkdir -p artifacts/real/universal
-	mkdir -p artifacts/mock/universal
-	mkdir -p artifacts/real/universal
-	mkdir -p artifacts/mock/universal
-	lipo -create -output artifacts/real/universal/libsafe_app.a \
-		artifacts/real/x86_64-apple-ios/release/libsafe_app.a \
-		artifacts/real/aarch64-apple-ios/release/libsafe_app.a
-	lipo -create -output artifacts/real/universal/libsafe_authenticator.a \
-		artifacts/real/x86_64-apple-ios/release/libsafe_authenticator.a \
-		artifacts/real/aarch64-apple-ios/release/libsafe_authenticator.a
-	lipo -create -output artifacts/mock/universal/libsafe_app.a \
-		artifacts/mock/x86_64-apple-ios/release/libsafe_app.a \
-		artifacts/mock/aarch64-apple-ios/release/libsafe_app.a
-	lipo -create -output artifacts/mock/universal/libsafe_authenticator.a \
-		artifacts/mock/x86_64-apple-ios/release/libsafe_authenticator.a \
-		artifacts/mock/aarch64-apple-ios/release/libsafe_authenticator.a
+	mkdir -p artifacts/prod/universal
+	mkdir -p artifacts/dev/universal
+	mkdir -p artifacts/prod/universal
+	mkdir -p artifacts/dev/universal
+	lipo -create -output artifacts/prod/universal/libsafe_app.a \
+		artifacts/prod/x86_64-apple-ios/release/libsafe_app.a \
+		artifacts/prod/aarch64-apple-ios/release/libsafe_app.a
+	lipo -create -output artifacts/prod/universal/libsafe_authenticator.a \
+		artifacts/prod/x86_64-apple-ios/release/libsafe_authenticator.a \
+		artifacts/prod/aarch64-apple-ios/release/libsafe_authenticator.a
+	lipo -create -output artifacts/dev/universal/libsafe_app.a \
+		artifacts/dev/x86_64-apple-ios/release/libsafe_app.a \
+		artifacts/dev/aarch64-apple-ios/release/libsafe_app.a
+	lipo -create -output artifacts/dev/universal/libsafe_authenticator.a \
+		artifacts/dev/x86_64-apple-ios/release/libsafe_authenticator.a \
+		artifacts/dev/aarch64-apple-ios/release/libsafe_authenticator.a
 
 package-universal-ios-lib:
 ifndef SCL_BUILD_BRANCH
@@ -275,16 +285,16 @@ ifndef SCL_BUILD_NUMBER
 endif
 	( \
 		cd artifacts; \
-		tar -C real/universal -zcvf \
-			${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-apple-ios.tar.gz .; \
+		tar -C prod/universal -zcvf \
+			${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-prod-apple-ios.tar.gz .; \
 	)
 	( \
 		cd artifacts; \
-		tar -C mock/universal -zcvf \
-			${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-mock-apple-ios.tar.gz .; \
+		tar -C dev/universal -zcvf \
+			${SCL_BUILD_BRANCH}-${SCL_BUILD_NUMBER}-scl-dev-apple-ios.tar.gz .; \
 	)
-	rm -rf artifacts/real
-	rm -rf artifacts/mock
+	rm -rf artifacts/prod
+	rm -rf artifacts/dev
 
 retrieve-all-build-artifacts:
 ifndef SCL_BUILD_BRANCH
@@ -297,10 +307,11 @@ ifndef SCL_BUILD_NUMBER
 	@echo "Please set SCL_BUILD_NUMBER to a valid build number."
 	@exit 1
 endif
+	# This used to include all the target triples, but we're only using
+	# this target in Jenkins now and it only builds macOS.
 	./scripts/retrieve-build-artifacts \
-		"x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
-		"armv7-linux-androideabi" "x86_64-linux-android" "x86_64-apple-ios" \
-		"aarch64-apple-ios" "apple-ios"
+		"x86_64-apple-darwin" "x86_64-apple-ios" "aarch64-apple-ios" \
+		"apple-ios"
 
 retrieve-ios-build-artifacts:
 ifndef SCL_BUILD_BRANCH
@@ -391,68 +402,68 @@ endif
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
 		--name "safe_app-${SAFE_APP_VERSION}-x86_64-apple-darwin.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-apple-darwin.tar.gz
+		--file deploy/prod/safe_app-${SAFE_APP_VERSION}-x86_64-apple-darwin.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
 		--name "safe_app-${SAFE_APP_VERSION}-x86_64-pc-windows-gnu.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-pc-windows-gnu.tar.gz
+		--file deploy/prod/safe_app-${SAFE_APP_VERSION}-x86_64-pc-windows-gnu.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
 		--name "safe_app-${SAFE_APP_VERSION}-apple-ios.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-apple-ios.tar.gz
+		--file deploy/prod/safe_app-${SAFE_APP_VERSION}-apple-ios.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
 		--name "safe_app-${SAFE_APP_VERSION}-armv7-linux-androideabi.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-armv7-linux-androideabi.tar.gz
+		--file deploy/prod/safe_app-${SAFE_APP_VERSION}-armv7-linux-androideabi.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_APP_VERSION} \
 		--name "safe_app-${SAFE_APP_VERSION}-x86_64-linux-android.tar.gz" \
-		--file deploy/real/safe_app-${SAFE_APP_VERSION}-x86_64-linux-android.tar.gz
+		--file deploy/prod/safe_app-${SAFE_APP_VERSION}-x86_64-linux-android.tar.gz
 
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
 		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-unknown-linux-gnu.tar.gz
+		--file deploy/prod/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-unknown-linux-gnu.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
 		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-apple-darwin.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-apple-darwin.tar.gz
+		--file deploy/prod/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-apple-darwin.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
 		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-pc-windows-gnu.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-pc-windows-gnu.tar.gz
+		--file deploy/prod/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-pc-windows-gnu.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
 		--name "safe_authenticator-${SAFE_AUTH_VERSION}-apple-ios.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-apple-ios.tar.gz
+		--file deploy/prod/safe_authenticator-${SAFE_AUTH_VERSION}-apple-ios.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
 		--name "safe_authenticator-${SAFE_AUTH_VERSION}-armv7-linux-androideabi.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-armv7-linux-androideabi.tar.gz
+		--file deploy/prod/safe_authenticator-${SAFE_AUTH_VERSION}-armv7-linux-androideabi.tar.gz
 	github-release upload \
 		--user ${GITHUB_REPO_OWNER} \
 		--repo ${GITHUB_REPO_NAME} \
 		--tag ${SAFE_AUTH_VERSION} \
 		--name "safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-linux-android.tar.gz" \
-		--file deploy/real/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-linux-android.tar.gz
+		--file deploy/prod/safe_authenticator-${SAFE_AUTH_VERSION}-x86_64-linux-android.tar.gz
 
 publish-safe_core:
 	./scripts/publish "safe_core"

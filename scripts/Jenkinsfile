@@ -13,136 +13,54 @@ properties([
 ])
 
 stage("build & test") {
-    parallel mock_linux: {
-        node("safe_client_libs") {
-            checkout(scm)
-            runTests("mock")
-            stripBuildArtifacts()
-            packageBuildArtifacts("mock", "x86_64-unknown-linux-gnu")
-            uploadBuildArtifacts()
-        }
-    },
-    mock_windows: {
-        node("windows") {
-            checkout(scm)
-            retrieveCache()
-            runTests("mock")
-            stripBuildArtifacts()
-            packageBuildArtifacts("mock", "x86_64-pc-windows-gnu")
-            uploadBuildArtifacts()
-        }
-    },
-    mock_osx: {
+    parallel dev_osx: {
         node("osx") {
             checkout(scm)
-            runTests("mock")
+            runTests("dev")
             stripBuildArtifacts()
-            packageBuildArtifacts("mock", "x86_64-apple-darwin")
+            packageBuildArtifacts("dev", "x86_64-apple-darwin")
             uploadBuildArtifacts()
         }
     },
-    mock_ios_aarch64: {
+    prod_macos: {
+        node("osx") {
+            checkout(scm)
+            sh("make build")
+            stripBuildArtifacts()
+            packageBuildArtifacts("prod", "x86_64-apple-darwin")
+            uploadBuildArtifacts()
+        }
+    },
+    dev_ios_aarch64: {
         node("osx") {
             checkout(scm)
             sh("make build-ios-mock-aarch64")
-            packageBuildArtifacts("mock", "aarch64-apple-ios")
+            packageBuildArtifacts("dev", "aarch64-apple-ios")
             uploadBuildArtifacts()
         }
     },
-    mock_ios_x86_64: {
-        node("osx") {
-            checkout(scm)
-            sh("make build-ios-mock-x86_64")
-            packageBuildArtifacts("mock", "x86_64-apple-ios")
-            uploadBuildArtifacts()
-        }
-    },
-    mock_android_armv7: {
-        node("safe_client_libs") {
-            checkout(scm)
-            sh("make build-android-mock-armv7")
-            packageBuildArtifacts("mock", "armv7-linux-androideabi")
-            uploadBuildArtifacts()
-        }
-    },
-    mock_android_x86_64: {
-        node("safe_client_libs") {
-            checkout(scm)
-            sh("make build-android-mock-x86_64")
-            packageBuildArtifacts("mock", "x86_64-linux-android")
-            uploadBuildArtifacts()
-        }
-    },
-    real_linux: {
-        node("safe_client_libs") {
-            checkout(scm)
-            sh("make build")
-            stripBuildArtifacts()
-            packageBuildArtifacts("real", "x86_64-unknown-linux-gnu")
-            uploadBuildArtifacts()
-        }
-    },
-    real_windows: {
-        node("windows") {
-            checkout(scm)
-            sh("make build")
-            stripBuildArtifacts()
-            packageBuildArtifacts("real", "x86_64-pc-windows-gnu")
-            uploadBuildArtifacts()
-        }
-    },
-    real_macos: {
-        node("osx") {
-            checkout(scm)
-            sh("make build")
-            stripBuildArtifacts()
-            packageBuildArtifacts("real", "x86_64-apple-darwin")
-            uploadBuildArtifacts()
-        }
-    },
-    real_ios_aarch64: {
+    prod_ios_aarch64: {
         node("osx") {
             checkout(scm)
             sh("make build-ios-aarch64")
-            packageBuildArtifacts("real", "aarch64-apple-ios")
+            packageBuildArtifacts("prod", "aarch64-apple-ios")
             uploadBuildArtifacts()
         }
     },
-    real_ios_x86_64: {
+    dev_ios_x86_64: {
+        node("osx") {
+            checkout(scm)
+            sh("make build-ios-mock-x86_64")
+            packageBuildArtifacts("dev", "x86_64-apple-ios")
+            uploadBuildArtifacts()
+        }
+    }
+    prod_ios_x86_64: {
         node("osx") {
             checkout(scm)
             sh("make build-ios-x86_64")
-            packageBuildArtifacts("real", "x86_64-apple-ios")
+            packageBuildArtifacts("prod", "x86_64-apple-ios")
             uploadBuildArtifacts()
-        }
-    },
-    real_android_armv7: {
-        node("safe_client_libs") {
-            checkout(scm)
-            sh("make build-android-armv7")
-            packageBuildArtifacts("real", "armv7-linux-androideabi")
-            uploadBuildArtifacts()
-        }
-    },
-    real_android_x86_64: {
-        node("safe_client_libs") {
-            checkout(scm)
-            sh("make build-android-x86_64")
-            packageBuildArtifacts("real", "x86_64-linux-android")
-            uploadBuildArtifacts()
-        }
-    },
-    integration_tests: {
-        node("safe_client_libs") {
-            checkout(scm)
-            runTests("integration")
-        }
-    },
-    clippy_and_rustfmt: {
-        node("safe_client_libs") {
-            checkout(scm)
-            sh("make clippy")
-            sh("make rustfmt")
         }
     }
 }
@@ -166,75 +84,13 @@ stage("deployment") {
             checkout(scm)
             sh("git fetch --tags --force")
             retrieveBuildArtifacts()
-            if (isNightlyBuild()) {
-                packageDeployArtifacts("nightly")
-                deletePreviousNightly()
-                uploadDeployArtifacts("mock")
-                uploadDeployArtifacts("real")
-            } else if (isVersionChangeCommit()) {
-                packageDeployArtifacts("versioned")
-                createTags()
-                createGitHubRelease()
-                uploadDeployArtifacts("mock")
-                uploadDeployArtifacts("real")
-            } else {
-                packageDeployArtifacts("commit_hash")
-                uploadDeployArtifacts("mock")
-                uploadDeployArtifacts("real")
-            }
+            packageDeployArtifacts("commit_hash")
+            uploadDeployArtifacts("dev")
+            uploadDeployArtifacts("prod")
         } else {
             echo("${env.BRANCH_NAME} does not match the deployment branch. Nothing to do.")
         }
     }
-    if (isNightlyBuild() && env.BRANCH_NAME == "${params.DEPLOY_BRANCH}") {
-        build(job: "../rust_cache_build-safe_client_libs-windows", wait: false)
-        build(job: "../docker_build-safe_client_libs_build_container", wait: false)
-    }
-}
-
-stage("publishing") {
-    node("safe_client_libs") {
-        checkout(scm)
-        if (shouldPublish()) {
-            def components = getComponentsWithVersionChanges()
-            def dryRun = isNightlyBuild() ? "true" : "false"
-            withEnv(["SCL_PUBLISH_DRY_RUN=${dryRun}"]) {
-                components.each({
-                    publishCrate(it)
-                    // The next crate may have references to the one that was just published,
-                    // and sometimes it's possible the next publishing process will complain
-                    // that the one that was just published doesn't exist. We can sleep for a
-                    // few seconds to give it a chance to register on crates.io.
-                    sh("sleep 10")
-                })
-            }
-        } else {
-            echo("Not publishing.")
-            echo("Not a version change commit or the publish branch doesn't match.")
-        }
-    }
-}
-
-@NonCPS
-def isNightlyBuild() {
-    return "${params.DEPLOY_NIGHTLY}" == "true" ||
-        null != currentBuild.getRawBuild().getCause(TimerTriggerCause.class)
-}
-
-def shouldPublish() {
-    return (isNightlyBuild() || isVersionChangeCommit()) &&
-        env.BRANCH_NAME == "${params.PUBLISH_BRANCH}"
-}
-
-def retrieveCache() {
-    if (!fileExists("target")) {
-        sh("SCL_BUILD_BRANCH=${params.CACHE_BRANCH} make retrieve-cache")
-    }
-}
-
-def isVersionChangeCommit() {
-    def message = getLatestCommitMessage()
-    return message.startsWith("Version change")
 }
 
 def getLatestCommitMessage() {
@@ -248,12 +104,11 @@ def getLatestCommitMessage() {
 }
 
 def packageBuildArtifacts(mode, target) {
-    def isMock = mode == "mock" ? "true" : "false"
     def branch = env.CHANGE_ID?.trim() ?: env.BRANCH_NAME
     withEnv(["SCL_BUILD_NUMBER=${env.BUILD_NUMBER}",
              "SCL_BUILD_BRANCH=${branch}",
              "SCL_BUILD_TARGET=${target}",
-             "SCL_BUILD_MOCK=${isMock}"]) {
+             "SCL_BUILD_TYPE=${mode}"]) {
         sh("make package-build-artifacts")
     }
 }
@@ -334,105 +189,8 @@ def uploadDeployArtifacts(type) {
     }
 }
 
-def createTags() {
-    def components = getComponentsWithVersionChanges()
-    withCredentials(
-        [usernamePassword(
-            credentialsId: "github_maidsafe_qa_user_credentials",
-            usernameVariable: "GIT_USER",
-            passwordVariable: "GIT_PASSWORD")]) {
-        components.each({
-            def version = getVersion(it)
-            def tag_name = "${it}-${version}"
-            sh("git config --global user.name \$GIT_USER")
-            sh("git config --global user.email qa@maidsafe.net")
-            sh("git config credential.username \$GIT_USER")
-            sh("git config credential.helper '!f() { echo password=\$GIT_PASSWORD; }; f'")
-            sh("git tag -a ${tag_name} -m 'Creating tag for ${tag_name}'")
-            sh("GIT_ASKPASS=true git push origin --tags")
-        })
-    }
-}
-
-def getComponentsWithVersionChanges() {
-    if (isNightlyBuild()) {
-        // For a nightly we want to run a dry run publish on all components.
-        return ["safe_core", "safe_authenticator", "safe_app"]
-    }
-    def components = []
-    def message = getLatestCommitMessage()
-    if (message.contains("safe_core")) {
-        components.add("safe_core")
-    }
-    if (message.contains("safe_authenticator")) {
-        components.add("safe_authenticator")
-    }
-    if (message.contains("safe_app")) {
-        components.add("safe_app")
-    }
-    return components
-}
-
-def createGitHubRelease() {
-    def components = getComponentsWithVersionChanges()
-    if (components.contains("safe_authenticator") || components.contains("safe_app")) {
-        withCredentials(
-            [usernamePassword(
-                credentialsId: "github_maidsafe_token_credentials",
-                usernameVariable: "GITHUB_USER",
-                passwordVariable: "GITHUB_TOKEN")]) {
-            sh("make deploy-github-release")
-        }
-    } else {
-        echo("No changes to safe_auth or safe_app - no GitHub release will be performed.")
-    }
-}
-
-def publishCrate(name) {
-    withCredentials(
-        [string(
-            credentialsId: "crates_io_token", variable: "CRATES_IO_TOKEN")]) {
-        sh("make publish-${name}")
-    }
-}
-
-def uploadBinaryCompatibilityTests() {
-    sh("mkdir -p ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}")
-    def testExecutable = sh(
-        returnStdout: true,
-        script: $/eval "find target/release -maxdepth 1 -mindepth 1 -name 'tests-*' ! -name '*.d'" /$).trim()
-    sh("cp ${testExecutable} ${env.WORKSPACE}/bct/${env.BUILD_NUMBER}/tests")
-    sh("rm -rf target/release")
-    withAWS(credentials: "aws_jenkins_user_credentials", region: "eu-west-2") {
-        s3Upload(
-            bucket: "${params.ARTIFACTS_BUCKET}",
-            file: "bct/${env.BUILD_NUMBER}/tests",
-            path: "bct/${env.BUILD_NUMBER}/tests",
-            workingDir: "${env.WORKSPACE}",
-            acl: "PublicRead")
-    }
-}
-
-def runBinaryCompatibilityTests() {
-    def buildNumber = getLastSuccessfulBuildNumber(currentBuild)
-    if (buildNumber != -1) {
-        echo("Running binary compatibility tests: build ${buildNumber} being used as previous set")
-        def bctTestPath = "${env.WORKSPACE}/bct-${buildNumber}"
-        withAWS(credentials: "aws_jenkins_user_credentials", region: "eu-west-2") {
-            s3Download(
-                file: "${bctTestPath}",
-                bucket: "${params.ARTIFACTS_BUCKET}",
-                path: "bct/${buildNumber}/tests",
-                force: true)
-        }
-        runTests("binary", bctTestPath)
-    } else {
-        echo("Not running binary compatibility tests:  no previously successful builds found")
-    }
-}
-
 def runTests(mode, bctTestPath="") {
-    if (mode == "mock") {
+    if (mode == "dev") {
         sh("make tests")
     } else if (mode == "mock-file") {
         sh("make test-with-mock-vault-file")
@@ -443,14 +201,4 @@ def runTests(mode, bctTestPath="") {
     } else {
         sh("make tests-integration")
     }
-}
-
-def getLastSuccessfulBuildNumber(build) {
-    if (build == null) {
-        return -1
-    }
-    if (build.result == "SUCCESS") {
-        return build.number as Integer
-    }
-    return getLastSuccessfulBuildNumber(build.getPreviousBuild())
 }
