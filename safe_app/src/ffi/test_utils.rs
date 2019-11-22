@@ -10,7 +10,7 @@
 use crate::errors::AppError;
 use crate::test_utils::{create_app_by_req, create_auth_req};
 use crate::App;
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, ReprC, FFI_RESULT_OK};
+use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::AuthReq;
 use safe_core::ipc::req::AuthReq as NativeAuthReq;
 use std::os::raw::{c_char, c_void};
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn test_create_app(
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, app: *mut App),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
-        let app_id = from_c_str(app_id)?;
+        let app_id = String::clone_from_repr_c(app_id)?;
         let auth_req = create_auth_req(Some(app_id), None);
         match create_app_by_req(&auth_req) {
             Ok(app) => {

@@ -82,7 +82,7 @@ impl AuthGranted {
             access_container_entry,
         } = self;
         let bootstrap_config = serialize(&bootstrap_config)?;
-        let (ptr, len, cap) = vec_into_raw_parts(bootstrap_config);
+        let (ptr, len) = vec_into_raw_parts(bootstrap_config);
 
         Ok(ffi::AuthGranted {
             app_keys: app_keys.into_repr_c(),
@@ -90,7 +90,6 @@ impl AuthGranted {
             access_container_entry: access_container_entry_into_repr_c(access_container_entry)?,
             bootstrap_config: ptr,
             bootstrap_config_len: len,
-            bootstrap_config_cap: cap,
         })
     }
 }
@@ -234,12 +233,11 @@ pub fn access_container_entry_into_repr_c(
         })
     }
 
-    let (containers, containers_len, containers_cap) = vec_into_raw_parts(vec);
+    let (containers, containers_len) = vec_into_raw_parts(vec);
 
     Ok(ffi::AccessContainerEntry {
         containers,
         containers_len,
-        containers_cap,
     })
 }
 
@@ -498,13 +496,9 @@ impl MDataKey {
 
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> ffi::MDataKey {
-        let (key, key_len, key_cap) = vec_into_raw_parts(self.0);
+        let (key, key_len) = vec_into_raw_parts(self.0);
 
-        ffi::MDataKey {
-            key,
-            key_len,
-            key_cap,
-        }
+        ffi::MDataKey { key, key_len }
     }
 }
 
@@ -541,12 +535,11 @@ impl MDataValue {
 
     /// Returns FFI counterpart without consuming the object.
     pub fn into_repr_c(self) -> ffi::MDataValue {
-        let (content, content_len, content_cap) = vec_into_raw_parts(self.content);
+        let (content, content_len) = vec_into_raw_parts(self.content);
 
         ffi::MDataValue {
             content,
             content_len,
-            content_cap,
             entry_version: self.entry_version,
         }
     }

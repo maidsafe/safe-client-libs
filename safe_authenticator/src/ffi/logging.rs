@@ -11,7 +11,7 @@
 //! them should also be reflected to the other to stay in sync.
 
 use super::AuthError;
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, FFI_RESULT_OK};
+use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::utils::logging;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn auth_init_logging(
         if output_file_name_override.is_null() {
             logging::init(false)?;
         } else {
-            let output_file_name_override = from_c_str(output_file_name_override)?;
+            let output_file_name_override = String::clone_from_repr_c(output_file_name_override)?;
             logging::init_with_output_file(false, output_file_name_override)?;
         }
         o_cb(user_data, FFI_RESULT_OK);

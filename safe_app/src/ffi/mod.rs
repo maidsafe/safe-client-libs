@@ -42,7 +42,7 @@ mod tests;
 use super::errors::AppError;
 use super::App;
 use bincode::deserialize;
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
+use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};
 use safe_core::{self, config_handler, Client};
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn app_registered(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let user_data = OpaqueCtx(user_data);
-        let app_id = from_c_str(app_id)?;
+        let app_id = String::clone_from_repr_c(app_id)?;
         let auth_granted = NativeAuthGranted::clone_from_repr_c(auth_granted)?;
 
         let app = App::registered(app_id, auth_granted, move || {

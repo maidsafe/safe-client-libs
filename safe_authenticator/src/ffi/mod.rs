@@ -19,7 +19,7 @@ pub mod logging;
 
 use crate::errors::AuthError;
 use crate::Authenticator;
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
+use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use rand::thread_rng;
 use safe_core::{config_handler, test_create_balance, Client};
 use safe_nd::{ClientFullId, Coins};
@@ -48,8 +48,8 @@ pub unsafe extern "C" fn create_acc(
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
         trace!("Authenticator - create a client account.");
 
-        let acc_locator = from_c_str(account_locator)?;
-        let acc_password = from_c_str(account_password)?;
+        let acc_locator = String::clone_from_repr_c(account_locator)?;
+        let acc_password = String::clone_from_repr_c(account_password)?;
         // FIXME: Send client id via FFI API too
         let client_id = ClientFullId::new_bls(&mut thread_rng());
         unwrap!(test_create_balance(
@@ -93,8 +93,8 @@ pub unsafe extern "C" fn login(
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
         trace!("Authenticator - log in a registered client.");
 
-        let acc_locator = from_c_str(account_locator)?;
-        let acc_password = from_c_str(account_password)?;
+        let acc_locator = String::clone_from_repr_c(account_locator)?;
+        let acc_password = String::clone_from_repr_c(account_password)?;
 
         let authenticator = Authenticator::login(acc_locator, acc_password, move || {
             o_disconnect_notifier_cb(user_data.0)

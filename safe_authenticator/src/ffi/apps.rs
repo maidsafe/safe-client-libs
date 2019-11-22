@@ -11,7 +11,9 @@ use crate::apps::{
     RegisteredApp as NativeRegisteredApp,
 };
 use crate::{AuthError, Authenticator};
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
+use ffi_utils::{
+    catch_unwind_cb, vec_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
+};
 use futures::Future;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
@@ -31,17 +33,14 @@ pub struct RegisteredApp {
     pub containers: *const ContainerPermissions,
     /// Length of the containers array.
     pub containers_len: usize,
-    /// Capacity of the containers array. Internal data required for the Rust allocator.
-    pub containers_cap: usize,
 }
 
 impl Drop for RegisteredApp {
     fn drop(&mut self) {
         unsafe {
-            let _ = Vec::from_raw_parts(
+            let _ = vec_from_raw_parts(
                 self.containers as *mut ContainerPermissions,
                 self.containers_len,
-                self.containers_cap,
             );
         }
     }
@@ -58,7 +57,7 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
-        let app_id = from_c_str(app_id)?;
+        let app_id = String::clone_from_repr_c(app_id)?;
 
         (*auth).send(move |client| {
             remove_revoked_app(client, app_id)

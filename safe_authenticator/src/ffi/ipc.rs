@@ -13,7 +13,7 @@ use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update
 use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use crate::{AuthError, Authenticator};
 use ffi_utils::{
-    catch_unwind_cb, from_c_str, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
+    catch_unwind_cb, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::{stream, Future, Stream};
 use safe_core::client::Client;
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn auth_revoke_app(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
-        let app_id = from_c_str(app_id)?;
+        let app_id = String::clone_from_repr_c(app_id)?;
 
         (*auth).send(move |client| {
             revoke_app(client, &app_id)

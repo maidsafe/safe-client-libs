@@ -46,14 +46,12 @@ impl RegisteredApp {
 
         let container_permissions_vec = containers_into_vec(containers.into_iter())?;
 
-        let (containers_ptr, containers_len, containers_cap) =
-            vec_into_raw_parts(container_permissions_vec);
+        let (containers_ptr, containers_len) = vec_into_raw_parts(container_permissions_vec);
 
         Ok(FfiRegisteredApp {
             app_info: app_info.into_repr_c()?,
             containers: containers_ptr,
             containers_len,
-            containers_cap,
         })
     }
 }

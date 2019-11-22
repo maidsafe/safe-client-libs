@@ -28,13 +28,12 @@ impl ContainersReq {
         let ContainersReq { app, containers } = self;
 
         let containers = containers_into_vec(containers).map_err(StringError::from)?;
-        let (containers_ptr, containers_len, containers_cap) = vec_into_raw_parts(containers);
+        let (containers_ptr, containers_len) = vec_into_raw_parts(containers);
 
         Ok(ffi::ContainersReq {
             app: app.into_repr_c()?,
             containers: containers_ptr,
             containers_len,
-            containers_cap,
         })
     }
 }

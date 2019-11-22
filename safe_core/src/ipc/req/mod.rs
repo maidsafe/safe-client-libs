@@ -21,7 +21,7 @@ use crate::ffi::ipc::req::{
     PermissionSet as FfiPermissionSet,
 };
 use crate::ipc::errors::IpcError;
-use ffi_utils::{from_c_str, ReprC, StringError};
+use ffi_utils::{ReprC, StringError};
 use safe_nd::{MDataAction, MDataPermissionSet};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
@@ -181,7 +181,7 @@ pub unsafe fn containers_from_repr_c(
         .iter()
         .map(|raw| {
             Ok((
-                from_c_str(raw.cont_name)?,
+                String::clone_from_repr_c(raw.cont_name)?,
                 container_perms_from_repr_c(raw.access)?,
             ))
         })
@@ -285,14 +285,14 @@ impl ReprC for AppExchangeInfo {
         } = *repr_c;
 
         Ok(Self {
-            id: from_c_str(id).map_err(StringError::from)?,
+            id: String::clone_from_repr_c(id).map_err(StringError::from)?,
             scope: if scope.is_null() {
                 None
             } else {
-                Some(from_c_str(scope).map_err(StringError::from)?)
+                Some(String::clone_from_repr_c(scope).map_err(StringError::from)?)
             },
-            name: from_c_str(name).map_err(StringError::from)?,
-            vendor: from_c_str(vendor).map_err(StringError::from)?,
+            name: String::clone_from_repr_c(name).map_err(StringError::from)?,
+            vendor: String::clone_from_repr_c(vendor).map_err(StringError::from)?,
         })
     }
 }

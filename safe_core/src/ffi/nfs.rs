@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::arrays::XorNameArray;
-
+use ffi_utils::vec_from_raw_parts;
 /// FFI-wrapper for `File`.
 #[repr(C)]
 pub struct File {
@@ -25,8 +25,6 @@ pub struct File {
     pub user_metadata: *const u8,
     /// Size of the user metadata.
     pub user_metadata_len: usize,
-    /// Capacity of user metadata. Internal field required for the Rust allocator.
-    pub user_metadata_cap: usize,
     /// Name of the `ImmutableData` containing the content of this file.
     pub data_map_name: XorNameArray,
     /// Published status of the file
@@ -35,12 +33,7 @@ pub struct File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        let _ = unsafe {
-            Vec::from_raw_parts(
-                self.user_metadata as *mut u8,
-                self.user_metadata_len,
-                self.user_metadata_cap,
-            )
-        };
+        let _ =
+            unsafe { vec_from_raw_parts(self.user_metadata as *mut u8, self.user_metadata_len) };
     }
 }

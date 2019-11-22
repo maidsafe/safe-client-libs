@@ -715,9 +715,9 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "ffi_utils"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7257c696f9906c515608023d82937ad1dfda41cb4740f00c895132467e9a0a6"
+checksum = "cc8fad519241d9fad9326b1d78b683528abda412dce3c62c131ee2ffe818ac31"
 dependencies = [
  "base64 0.9.3",
  "jni",

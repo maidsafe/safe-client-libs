@@ -28,7 +28,7 @@ use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
 use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
-use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
+use ffi_utils::{ErrorCode, ReprC, StringError};
 use futures::{future, Future};
 use safe_core::config_handler::Config;
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
@@ -897,7 +897,9 @@ impl ReprC for RegisteredAppId {
     type Error = StringError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(RegisteredAppId(from_c_str((*repr_c).app_info.id)?))
+        Ok(RegisteredAppId(String::clone_from_repr_c(
+            (*repr_c).app_info.id,
+        )?))
     }
 }
 
@@ -907,7 +909,7 @@ impl ReprC for RevokedAppId {
     type Error = StringError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(RevokedAppId(from_c_str((*repr_c).id)?))
+        Ok(RevokedAppId(String::clone_from_repr_c((*repr_c).id)?))
     }
 }
 

@@ -13,8 +13,7 @@ use crate::ffi::helper::send;
 use crate::ffi::object_cache::FileContextHandle;
 use crate::App;
 use ffi_utils::{
-    catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr,
-    FFI_RESULT_OK,
+    catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::future::{self, Either};
 use futures::Future;
@@ -64,7 +63,7 @@ pub unsafe extern "C" fn dir_fetch_file(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
-        let file_name = from_c_str(file_name)?;
+        let file_name = String::clone_from_repr_c(file_name)?;
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |client, _| {
@@ -96,7 +95,7 @@ pub unsafe extern "C" fn dir_insert_file(
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
         let file = NativeFile::clone_from_repr_c(file)?;
-        let file_name = from_c_str(file_name)?;
+        let file_name = String::clone_from_repr_c(file_name)?;
 
         send(app, user_data, o_cb, move |client, _| {
             file_helper::insert(client.clone(), parent_info, file_name, &file)
@@ -120,7 +119,7 @@ pub unsafe extern "C" fn dir_update_file(
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
         let file = NativeFile::clone_from_repr_c(file)?;
-        let file_name = from_c_str(file_name)?;
+        let file_name = String::clone_from_repr_c(file_name)?;
 
         send(app, user_data, o_cb, move |client, _| {
             let version = if version == GET_NEXT_VERSION {
@@ -150,7 +149,7 @@ pub unsafe extern "C" fn dir_delete_file(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let parent_info = NativeMDataInfo::clone_from_repr_c(parent_info)?;
-        let file_name = from_c_str(file_name)?;
+        let file_name = String::clone_from_repr_c(file_name)?;
 
         send(app, user_data, o_cb, move |client, _| {
             let version = if version == GET_NEXT_VERSION {

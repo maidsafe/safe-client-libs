@@ -43,13 +43,12 @@ impl ShareMDataReq {
             .map(ShareMData::into_repr_c)
             .collect::<Result<_, _>>()?;
 
-        let (mdata, mdata_len, mdata_cap) = vec_into_raw_parts(mdata_repr_c);
+        let (mdata, mdata_len) = vec_into_raw_parts(mdata_repr_c);
 
         Ok(ffi::ShareMDataReq {
             app: self.app.into_repr_c()?,
             mdata,
             mdata_len,
-            mdata_cap,
         })
     }
 }

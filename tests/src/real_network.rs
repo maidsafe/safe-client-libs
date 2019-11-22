@@ -9,7 +9,7 @@
 #![allow(unsafe_code)]
 
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec};
-use ffi_utils::{from_c_str, FfiResult, ReprC, StringError};
+use ffi_utils::{FfiResult, ReprC, StringError};
 use safe_app::ffi::app_registered;
 use safe_app::ffi::ipc::*;
 use safe_app::ffi::mdata_info::mdata_info_random_public;
@@ -758,7 +758,7 @@ impl ReprC for RegisteredAppId {
     type Error = StringError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(Self(from_c_str((*repr_c).app_info.id)?))
+        Ok(Self(String::clone_from_repr_c((*repr_c).app_info.id)?))
     }
 }
 

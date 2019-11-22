@@ -38,7 +38,7 @@ impl AuthReq {
         } = self;
 
         let containers = containers_into_vec(containers).map_err(StringError::from)?;
-        let (containers_ptr, containers_len, containers_cap) = vec_into_raw_parts(containers);
+        let (containers_ptr, containers_len) = vec_into_raw_parts(containers);
 
         Ok(ffi::AuthReq {
             app: app.into_repr_c()?,
@@ -48,7 +48,6 @@ impl AuthReq {
             app_permission_get_balance: app_permissions.get_balance,
             containers: containers_ptr,
             containers_len,
-            containers_cap,
         })
     }
 }

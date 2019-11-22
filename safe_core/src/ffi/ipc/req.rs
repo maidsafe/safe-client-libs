@@ -9,7 +9,7 @@
 use crate::ffi::arrays::XorNameArray;
 use crate::ipc::req::permission_set_into_repr_c;
 use ffi_utils::callback::CallbackArgs;
-use ffi_utils::ReprC;
+use ffi_utils::{vec_from_raw_parts, ReprC};
 use safe_nd::MDataPermissionSet;
 use serde::{Deserialize, Serialize};
 use std::ffi::CString;
@@ -119,18 +119,14 @@ pub struct AuthReq {
 
     /// Size of container permissions array.
     pub containers_len: usize,
-
-    /// Capacity of container permissions array. Internal field required for the Rust allocator.
-    pub containers_cap: usize,
 }
 
 impl Drop for AuthReq {
     fn drop(&mut self) {
         unsafe {
-            let _ = Vec::from_raw_parts(
+            let _ = vec_from_raw_parts(
                 self.containers as *mut ContainerPermissions,
                 self.containers_len,
-                self.containers_cap,
             );
         }
     }
@@ -145,17 +141,14 @@ pub struct ContainersReq {
     pub containers: *const ContainerPermissions,
     /// Size of requested containers array.
     pub containers_len: usize,
-    /// Capacity of requested containers array. Internal field required for the Rust allocator.
-    pub containers_cap: usize,
 }
 
 impl Drop for ContainersReq {
     fn drop(&mut self) {
         unsafe {
-            let _ = Vec::from_raw_parts(
+            let _ = vec_from_raw_parts(
                 self.containers as *mut ContainerPermissions,
                 self.containers_len,
-                self.containers_cap,
             );
         }
     }
@@ -181,18 +174,12 @@ pub struct ShareMDataReq {
     pub mdata: *const ShareMData,
     /// Length of the mdata array
     pub mdata_len: usize,
-    /// Capacity of the mdata vec - internal implementation detail
-    pub mdata_cap: usize,
 }
 
 impl Drop for ShareMDataReq {
     fn drop(&mut self) {
         unsafe {
-            let _ = Vec::from_raw_parts(
-                self.mdata as *mut ShareMData,
-                self.mdata_len,
-                self.mdata_cap,
-            );
+            let _ = vec_from_raw_parts(self.mdata as *mut ShareMData, self.mdata_len);
         }
     }
 }

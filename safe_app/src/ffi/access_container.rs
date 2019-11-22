@@ -8,7 +8,7 @@
 // Software.
 
 use crate::{App, AppError};
-use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
+use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK};
 use futures::Future;
 use safe_core::ffi::ipc::req::ContainerPermissions;
 use safe_core::ffi::MDataInfo;
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let name = from_c_str(name)?;
+        let name = String::clone_from_repr_c(name)?;
 
         (*app).send(move |client, context| {
             context
@@ -125,7 +125,7 @@ mod tests {
     use crate::run;
     use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
     use ffi_utils::test_utils::{call_0, call_1, call_vec};
-    use ffi_utils::{from_c_str, ReprC};
+    use ffi_utils::ReprC;
     use safe_core::ffi::ipc::req::ContainerPermissions as FfiContainerPermissions;
     use safe_core::ipc::req::ContainerPermissions;
     use safe_core::ipc::req::{container_perms_from_repr_c, Permission};
@@ -215,7 +215,7 @@ mod tests {
 
         unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
             Ok(PermSet(
-                from_c_str((*repr_c).cont_name)?,
+                String::clone_from_repr_c((*repr_c).cont_name)?,
                 container_perms_from_repr_c((*repr_c).access)?,
             ))
         }

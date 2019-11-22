@@ -12,8 +12,7 @@
 use crate::errors::AppError;
 use bincode::serialize;
 use ffi_utils::{
-    catch_unwind_cb, from_c_str, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC,
-    FFI_RESULT_OK,
+    catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC, FFI_RESULT_OK,
 };
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
 use safe_core::ffi::ipc::resp::AuthGranted;
@@ -165,7 +164,7 @@ pub unsafe extern "C" fn decode_ipc_msg(
     o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
 ) {
     catch_unwind_cb(user_data, o_err, || -> Result<_, AppError> {
-        let msg = from_c_str(msg)?;
+        let msg = String::clone_from_repr_c(msg)?;
         let msg = ipc::decode_msg(&msg)?;
 
         decode_ipc_msg_impl(
@@ -202,7 +201,7 @@ unsafe extern "C" fn decode_ipc_msg_64(
     o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
 ) {
     catch_unwind_cb(user_data, o_err, || -> Result<_, AppError> {
-        let msg = from_c_str(msg)?;
+        let msg = String::clone_from_repr_c(msg)?;
         let msg = ipc::decode_msg_64(&msg)?;
 
         decode_ipc_msg_impl(

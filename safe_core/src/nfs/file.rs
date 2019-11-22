@@ -42,8 +42,7 @@ impl File {
     pub fn into_repr_c(self) -> FfiFile {
         // TODO: move the metadata, not clone.
         let user_metadata = self.user_metadata().to_vec();
-        let (user_metadata, user_metadata_len, user_metadata_cap) =
-            vec_into_raw_parts(user_metadata);
+        let (user_metadata, user_metadata_len) = vec_into_raw_parts(user_metadata);
 
         FfiFile {
             size: self.size(),
@@ -53,7 +52,6 @@ impl File {
             modified_nsec: self.modified_time().timestamp_subsec_nanos(),
             user_metadata,
             user_metadata_len,
-            user_metadata_cap,
             data_map_name: self.data_map_name().0,
             published: self.published(),
         }

@@ -9,6 +9,7 @@
 use crate::ffi::arrays;
 use crate::ffi::ipc::req::PermissionSet;
 use crate::ffi::MDataInfo;
+use ffi_utils::vec_from_raw_parts;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
@@ -72,18 +73,12 @@ pub struct AccessContainerEntry {
     pub containers: *const ContainerInfo,
     /// Size of the array.
     pub containers_len: usize,
-    /// Internal field used by rust memory allocator.
-    pub containers_cap: usize,
 }
 
 impl Drop for AccessContainerEntry {
     fn drop(&mut self) {
         unsafe {
-            let _ = Vec::from_raw_parts(
-                self.containers as *mut ContainerInfo,
-                self.containers_len,
-                self.containers_cap,
-            );
+            let _ = vec_from_raw_parts(self.containers as *mut ContainerInfo, self.containers_len);
         }
     }
 }
@@ -102,18 +97,12 @@ pub struct AuthGranted {
     pub bootstrap_config: *const u8,
     /// `bootstrap_config`'s length.
     pub bootstrap_config_len: usize,
-    /// Used by Rust memory allocator.
-    pub bootstrap_config_cap: usize,
 }
 
 impl Drop for AuthGranted {
     fn drop(&mut self) {
         unsafe {
-            let _ = Vec::from_raw_parts(
-                self.bootstrap_config as *mut u8,
-                self.bootstrap_config_len,
-                self.bootstrap_config_cap,
-            );
+            let _ = vec_from_raw_parts(self.bootstrap_config as *mut u8, self.bootstrap_config_len);
         }
     }
 }
@@ -200,14 +189,12 @@ pub struct MDataKey {
     pub key: *const u8,
     /// Size of the key.
     pub key_len: usize,
-    /// Capacity of the key. Internal field required for the Rust allocator.
-    pub key_cap: usize,
 }
 
 impl Drop for MDataKey {
     #[allow(unsafe_code)]
     fn drop(&mut self) {
-        let _ = unsafe { Vec::from_raw_parts(self.key as *mut u8, self.key_len, self.key_cap) };
+        let _ = unsafe { vec_from_raw_parts(self.key as *mut u8, self.key_len) };
     }
 }
 
@@ -219,9 +206,6 @@ pub struct MDataValue {
     pub content: *const u8,
     /// Size of the content.
     pub content_len: usize,
-    /// Capacity of the content. Internal field required for the Rust allocator.
-    pub content_cap: usize,
-
     /// Entry version.
     pub entry_version: u64,
 }
@@ -229,9 +213,7 @@ pub struct MDataValue {
 impl Drop for MDataValue {
     #[allow(unsafe_code)]
     fn drop(&mut self) {
-        let _ = unsafe {
-            Vec::from_raw_parts(self.content as *mut u8, self.content_len, self.content_cap)
-        };
+        let _ = unsafe { vec_from_raw_parts(self.content as *mut u8, self.content_len) };
     }
 }
 
