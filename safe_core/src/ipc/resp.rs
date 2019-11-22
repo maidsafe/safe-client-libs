@@ -8,7 +8,7 @@
 
 #![allow(unsafe_code)]
 
-use crate::client::MDataInfo;
+use crate::client::{MDataInfo, SafeKey};
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::ffi::ipc::resp as ffi;
 use crate::ipc::req::{
@@ -18,18 +18,18 @@ use crate::ipc::req::{
 use crate::ipc::{BootstrapConfig, IpcError};
 use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
+use rand::thread_rng;
 use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
-use safe_nd::{AppFullId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName};
-use serde::{
-    ser::{SerializeStruct, Serializer},
-    Deserialize, Serialize,
+use safe_nd::{
+    AppFullId, ClientFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue,
+    PublicKey, XorName,
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CString, NulError};
 use std::ptr;
 use std::slice;
-use threshold_crypto::serde_impl::SerdeSecret;
 use tiny_keccak::sha3_256;
 
 /// Entry key under which the metadata are stored.
@@ -123,10 +123,10 @@ impl ReprC for AuthGranted {
 }
 
 /// Represents the needed keys to work with the data.
-#[derive(Clone, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct AppKeys {
-    /// Owner public key.
-    pub owner_key: PublicKey,
+    /// This is the identity of the App in the Network.
+    pub app_full_id: AppFullId,
     /// Data symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
     /// Asymmetric sign public key.
@@ -137,72 +137,56 @@ pub struct AppKeys {
     pub enc_pk: box_::PublicKey,
     /// Asymmetric enc private key.
     pub enc_sk: shared_box::SecretKey,
-    /// BLS secret key
-    pub bls_sk: threshold_crypto::SecretKey,
-    /// BLS public key
-    /// This is the identity of the App in the Network.
-    pub bls_pk: threshold_crypto::PublicKey,
-}
-
-// threshold_crypto::SecretKey cannot be serialised directly,
-// hence this trait is implemented
-impl Serialize for AppKeys {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut state = serializer.serialize_struct("AppKeys", 8)?;
-        state.serialize_field("owner_key", &self.owner_key)?;
-        state.serialize_field("enc_key", &self.enc_key)?;
-        state.serialize_field("sign_pk", &self.sign_pk)?;
-        state.serialize_field("sign_sk", &self.sign_sk)?;
-        state.serialize_field("enc_pk", &self.enc_pk)?;
-        state.serialize_field("enc_sk", &self.enc_sk)?;
-        state.serialize_field("bls_sk", &SerdeSecret(&self.bls_sk))?;
-        state.serialize_field("bls_pk", &self.bls_pk)?;
-        state.end()
-    }
 }
 
 impl AppKeys {
-    /// Generate random keys
-    pub fn random(owner_key: PublicKey) -> AppKeys {
+    /// Generates random keys for the provided client.
+    pub fn new(client_public_id: ClientPublicId) -> AppKeys {
         let (enc_pk, enc_sk) = shared_box::gen_keypair();
         let (sign_pk, sign_sk) = shared_sign::gen_keypair();
-        let bls_sk = threshold_crypto::SecretKey::random();
+        // TODO: Instead of using `thread_rng`, generate based on a provided seed or rng.
+        let app_full_id = AppFullId::new_bls(&mut thread_rng(), client_public_id);
 
         AppKeys {
-            owner_key,
+            app_full_id,
             enc_key: shared_secretbox::gen_key(),
             sign_pk,
             sign_sk,
             enc_pk,
             enc_sk,
-            bls_sk: bls_sk.clone(),
-            bls_pk: bls_sk.public_key(),
         }
     }
 
-    /// Construct FFI wrapper for the native Rust object, consuming self.
+    /// Converts `AppKeys` into an App `SafeKey`.
+    pub fn app_safe_key(&self) -> SafeKey {
+        SafeKey::app(self.app_full_id.clone())
+    }
+
+    /// Returns the associated public key.
+    pub fn public_key(&self) -> PublicKey {
+        *self.app_full_id.public_id().public_key()
+    }
+
+    /// Constructs FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> ffi::AppKeys {
         let AppKeys {
-            owner_key,
+            app_full_id,
             enc_key,
             sign_pk,
             sign_sk,
             enc_pk,
             enc_sk,
-            ..
         } = self;
 
-        let owner_pk = match owner_key {
+        // TODO: Handle the full app ID.
+        let bls_pk = match app_full_id.public_id().public_key() {
             PublicKey::Bls(pk) => pk.to_bytes(),
             // TODO and FIXME: use proper ReprC for PublicKey
             _ => panic!("unexpected owner key type"),
         };
 
         ffi::AppKeys {
-            owner_key: owner_pk,
+            bls_pk,
             enc_key: enc_key.0,
             sign_pk: sign_pk.0,
             sign_sk: sign_sk.0,
@@ -217,28 +201,19 @@ impl ReprC for AppKeys {
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        let bls_sk = threshold_crypto::SecretKey::random();
+        // TODO: handle this properly.
+        let mut rng = thread_rng();
+        let client_id = ClientFullId::new_bls(&mut rng);
+        let app_full_id = AppFullId::new_bls(&mut rng, client_id.public_id().clone());
 
         Ok(Self {
-            owner_key: PublicKey::from(
-                threshold_crypto::PublicKey::from_bytes(repr_c.owner_key)
-                    .map_err(|_| IpcError::EncodeDecodeError)?,
-            ),
+            app_full_id,
             enc_key: shared_secretbox::Key::from_raw(&repr_c.enc_key),
             sign_pk: sign::PublicKey(repr_c.sign_pk),
             sign_sk: shared_sign::SecretKey::from_raw(&repr_c.sign_sk),
             enc_pk: box_::PublicKey(repr_c.enc_pk),
             enc_sk: shared_box::SecretKey::from_raw(&repr_c.enc_sk),
-            bls_sk: bls_sk.clone(),
-            bls_pk: bls_sk.public_key(),
         })
-    }
-}
-
-impl Into<AppFullId> for AppKeys {
-    fn into(self) -> AppFullId {
-        let bls_sk = self.bls_sk.clone();
-        AppFullId::with_keys(bls_sk, self.owner_key)
     }
 }
 
@@ -260,6 +235,7 @@ pub fn access_container_entry_into_repr_c(
     }
 
     let (containers, containers_len, containers_cap) = vec_into_raw_parts(vec);
+
     Ok(ffi::AccessContainerEntry {
         containers,
         containers_len,
@@ -355,7 +331,7 @@ impl ReprC for AccessContInfo {
     }
 }
 
-/// Encrypts and serialises an access container key using given app ID and app key
+/// Encrypts and serialises an access container key using given app ID and app key.
 pub fn access_container_enc_key(
     app_id: &str,
     app_enc_key: &secretbox::Key,
@@ -371,7 +347,7 @@ pub fn access_container_enc_key(
     Ok(secretbox::seal(key, &key_nonce, app_enc_key))
 }
 
-/// Information about an app that has access to an MD through `sign_key`
+/// Information about an app that has access to an MD through `sign_key`.
 #[derive(Debug)]
 pub struct AppAccess {
     /// App's or user's public key
@@ -404,13 +380,14 @@ impl AppAccess {
             None => ptr::null(),
         };
 
-        let key = match sign_key {
-            PublicKey::Bls(bls_key) => bls_key.to_bytes(),
-            _ => return Err(IpcError::from("Unsupported key type")), // TODO: FFI repr for PublicKey
+        let sign_key = match sign_key {
+            PublicKey::Bls(sec_key) => sec_key.to_bytes(),
+            // TODO: FFI repr for PublicKey
+            _ => return Err(IpcError::from("Unsupported key type")),
         };
 
         Ok(ffi::AppAccess {
-            sign_key: key,
+            sign_key,
             permissions: permission_set_into_repr_c(permissions),
             name,
             app_id,
@@ -632,16 +609,16 @@ impl ReprC for MDataEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_utils::gen_client_id;
     use ffi_utils::ReprC;
     use rust_sodium::crypto::secretbox;
     use safe_nd::{XorName, XOR_NAME_LEN};
-    use threshold_crypto::SecretKey;
 
-    // // Test converting an `AuthGranted` object to its FFI representation and then back again.
+    // Test converting an `AuthGranted` object to its FFI representation and then back again.
     #[test]
     fn auth_granted() {
-        let bls_pk = PublicKey::Bls(SecretKey::random().public_key());
-        let ak = AppKeys::random(bls_pk);
+        let client_id = gen_client_id();
+        let ak = AppKeys::new(client_id.public_id().clone());
         let ac = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),
             tag: 681,
@@ -666,26 +643,21 @@ mod tests {
     // Testing converting an `AppKeys` object to its FFI representation and back again.
     #[test]
     fn app_keys() {
-        let pk = SecretKey::random().public_key();
-        let owner_key = PublicKey::Bls(pk);
-        let ak = AppKeys::random(owner_key);
+        let client_id = gen_client_id();
+        let ak = AppKeys::new(client_id.public_id().clone());
+
         let AppKeys {
-            owner_key,
             enc_key,
             sign_pk,
             sign_sk,
             enc_pk,
             enc_sk,
-            // TODO: check bls_pk and bls_sk also.
+            // TODO: check app_id also.
             ..
         } = ak.clone();
 
         let ffi_ak = ak.into_repr_c();
 
-        assert_eq!(
-            ffi_ak.owner_key.iter().collect::<Vec<_>>(),
-            pk.to_bytes().iter().collect::<Vec<_>>()
-        );
         assert_eq!(
             ffi_ak.enc_key.iter().collect::<Vec<_>>(),
             enc_key.0.iter().collect::<Vec<_>>()
@@ -709,7 +681,6 @@ mod tests {
 
         let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(ffi_ak)) };
 
-        assert_eq!(ak.owner_key, owner_key);
         assert_eq!(ak.enc_key, enc_key);
         assert_eq!(ak.sign_pk, sign_pk);
         assert_eq!(ak.sign_sk, sign_sk);

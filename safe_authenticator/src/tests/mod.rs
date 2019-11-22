@@ -32,7 +32,6 @@ use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
 use safe_core::config_handler::Config;
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
-use safe_nd::PublicKey;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -51,10 +50,11 @@ mod mock_routing {
     use safe_core::ipc::AuthReq;
     use safe_core::nfs::NfsError;
     use safe_core::utils::generate_random_string;
+    use safe_core::utils::test_utils::gen_client_id;
     use safe_core::{
         app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
     };
-    use safe_nd::{Coins, Error as SndError, PublicKey, Request, RequestType, Response};
+    use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
     use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
@@ -75,9 +75,10 @@ mod mock_routing {
         // be possible afterwards.
         let locator = unwrap!(generate_random_string(10));
         let password = unwrap!(generate_random_string(10));
-        let balance_sk = threshold_crypto::SecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -106,7 +107,7 @@ mod mock_routing {
             let authenticator = Authenticator::create_acc_with_hook(
                 locator.clone(),
                 password.clone(),
-                balance_sk,
+                client_id,
                 || (),
                 cm_hook,
             );
@@ -192,9 +193,10 @@ mod mock_routing {
     fn app_authentication_recovery() {
         let locator = unwrap!(generate_random_string(10));
         let password = unwrap!(generate_random_string(10));
-        let balance_sk = threshold_crypto::SecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -216,7 +218,7 @@ mod mock_routing {
         let auth = unwrap!(Authenticator::create_acc_with_hook(
             locator.clone(),
             password.clone(),
-            balance_sk,
+            client_id,
             || (),
             cm_hook,
         ));
@@ -346,7 +348,7 @@ mod mock_routing {
         let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
         let (app_container, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
-        let app_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
+        let app_pk = auth_granted.app_keys.public_key();
 
         unwrap!(run(&auth, move |client| {
             let c2 = client.clone();
@@ -531,7 +533,7 @@ fn app_authentication() {
     assert_eq!(access_container.len(), 3);
 
     let app_keys = auth_granted.app_keys;
-    let app_sign_pk = PublicKey::from(app_keys.bls_pk);
+    let app_sign_pk = app_keys.public_key();
 
     test_utils::compare_access_container_entries(
         &authenticator,
@@ -879,7 +881,7 @@ fn containers_access_request() {
     let mut expected = utils::create_containers_req();
     let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
 
-    let app_sign_pk = PublicKey::from(auth_granted.app_keys.bls_pk);
+    let app_sign_pk = auth_granted.app_keys.public_key();
     let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);
     test_utils::compare_access_container_entries(
         &authenticator,

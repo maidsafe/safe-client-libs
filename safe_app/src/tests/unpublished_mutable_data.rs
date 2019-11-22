@@ -9,7 +9,8 @@
 
 use crate::{client::AppClient, errors::AppError, run, test_utils::create_app};
 use futures::Future;
-use rand::{OsRng, Rng};
+use rand::rngs::StdRng;
+use rand::{FromEntropy, Rng};
 use safe_core::utils::test_utils::random_client;
 use safe_core::{client::AuthActions, Client, CoreError, FutureExt, DIR_TAG};
 use safe_nd::{Error, PublicKey, XorName};
@@ -87,7 +88,7 @@ fn md_created_by_app_1() {
         .spawn(|| {
             random_client(move |client| {
                 let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
-                let mut rng = unwrap!(OsRng::new());
+                let mut rng = StdRng::from_entropy();
 
                 let mut permissions = BTreeMap::new();
                 let _ = permissions.insert(
@@ -219,7 +220,7 @@ fn md_created_by_app_2() {
         .spawn(|| {
             random_client(move |client| {
                 let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
-                let mut rng = unwrap!(OsRng::new());
+                let mut rng = StdRng::from_entropy();
 
                 let mut permissions = BTreeMap::new();
                 let _ = permissions.insert(
@@ -267,8 +268,8 @@ fn md_created_by_app_3() {
     let app = create_app();
 
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let owners = PublicKey::from(client.public_bls_key());
-        let name: XorName = new_rand::random();
+        let owners = client.public_key();
+        let name: XorName = rand::random();
         let mdata =
             SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), BTreeMap::new(), owners);
         let c2 = client.clone();
@@ -311,7 +312,7 @@ fn multiple_apps() {
     let (mutate_again_tx, mutate_again_rx) = mpsc::channel();
     let (final_check_tx, final_check_rx) = mpsc::channel();
     unwrap!(app1.send(move |client, _app_context| {
-        let mut rng = unwrap!(OsRng::new());
+        let mut rng = StdRng::from_entropy();
         let bls_pk = client.owner_key();
         let app_bls_key = client.public_key();
         let mut permissions = BTreeMap::new();
@@ -426,7 +427,7 @@ fn multiple_apps() {
 fn permissions_and_version() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let mut rng = unwrap!(OsRng::new());
+        let mut rng = StdRng::from_entropy();
         let bls_pk = client.owner_key();
         let app_bls_key = client.public_key();
         let random_key = SecretKey::random().public_key();
@@ -531,7 +532,7 @@ fn permissions_and_version() {
 fn permissions_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let mut rng = unwrap!(OsRng::new());
+        let mut rng = StdRng::from_entropy();
         let bls_pk = client.owner_key();
         let app_bls_key = client.public_key();
         let random_key_a = SecretKey::random().public_key();
@@ -741,7 +742,7 @@ fn permissions_crud() {
 fn sequenced_entries_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let mut rng = unwrap!(OsRng::new());
+        let mut rng = StdRng::from_entropy();
         let bls_pk = client.owner_key();
         let app_bls_key = client.public_key();
         let mut permissions = BTreeMap::new();
@@ -848,7 +849,7 @@ fn sequenced_entries_crud() {
 fn unsequenced_entries_crud() {
     let app = create_app();
     unwrap!(run(&app, |client: &AppClient, _app_context| {
-        let mut rng = unwrap!(OsRng::new());
+        let mut rng = StdRng::from_entropy();
         let bls_pk = client.owner_key();
         let app_bls_key = client.public_key();
         let mut permissions = BTreeMap::new();

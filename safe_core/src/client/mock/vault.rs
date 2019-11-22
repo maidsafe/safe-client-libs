@@ -232,7 +232,7 @@ impl Vault {
                 return Err(SndError::NoSuchBalance);
             }
         };
-        balance.credit_balance(amount, new_rand::random())
+        balance.credit_balance(amount, rand::random())
     }
 
     fn get_balance(&self, coins_balance_id: &XorName) -> SndResult<Coins> {

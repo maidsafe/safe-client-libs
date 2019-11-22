@@ -10,13 +10,15 @@
 use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
 use lru_cache::LruCache;
+use rand::thread_rng;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
+use safe_core::ipc::AppKeys;
 use safe_core::ipc::BootstrapConfig;
-use safe_core::{Client, ClientKeys, ConnectionManager, NetworkTx};
-use safe_nd::{AppFullId, PublicId, PublicKey};
+use safe_core::{Client, ConnectionManager, NetworkTx};
+use safe_nd::{ClientFullId, PublicKey};
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -41,8 +43,9 @@ impl AppClient {
     ) -> Result<Self, AppError> {
         trace!("Creating unregistered client.");
 
-        let client_keys = ClientKeys::new(None);
-        let client_pk = PublicKey::from(client_keys.bls_pk);
+        let client_id = ClientFullId::new_bls(&mut thread_rng());
+        let app_keys = AppKeys::new(client_id.public_id().clone());
+        let pk = app_keys.public_key();
 
         let mut qp2p_config = Config::new().quic_p2p;
         if let Some(additional_contacts) = config.clone() {
@@ -54,25 +57,26 @@ impl AppClient {
         }
 
         let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
-        block_on_all(connection_manager.bootstrap(client_keys.app_safe_key(client_pk)))?;
+        block_on_all(connection_manager.bootstrap(app_keys.app_safe_key()))?;
 
         Ok(Self {
             inner: Rc::new(RefCell::new(ClientInner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
-                Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXMe
+                // FIXME
+                Duration::from_secs(180), // REQUEST_TIMEOUT_SECS),
                 core_tx,
                 net_tx,
             ))),
-            app_inner: Rc::new(RefCell::new(AppInner::new(client_keys, client_pk, config))),
+            app_inner: Rc::new(RefCell::new(AppInner::new(app_keys, pk, config))),
         })
     }
 
     /// This is a Gateway function to the Maidsafe network. This will help
     /// apps to authorise using an existing pair of keys.
     pub(crate) fn from_keys(
-        keys: ClientKeys,
+        keys: AppKeys,
         owner: PublicKey,
         el_handle: Handle,
         core_tx: AppMsgTx,
@@ -90,7 +94,7 @@ impl AppClient {
         all(feature = "testing", feature = "mock-network")
     ))]
     pub(crate) fn from_keys_with_hook<F>(
-        keys: ClientKeys,
+        keys: AppKeys,
         owner: PublicKey,
         el_handle: Handle,
         core_tx: AppMsgTx,
@@ -113,7 +117,7 @@ impl AppClient {
     }
 
     fn from_keys_impl<F>(
-        keys: ClientKeys,
+        keys: AppKeys,
         owner: PublicKey,
         el_handle: Handle,
         core_tx: AppMsgTx,
@@ -134,7 +138,7 @@ impl AppClient {
             .collect();
 
         let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
-        let _ = block_on_all(connection_manager.bootstrap(keys.clone().app_safe_key(owner)));
+        let _ = block_on_all(connection_manager.bootstrap(keys.app_safe_key()));
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
@@ -157,15 +161,11 @@ impl Client for AppClient {
 
     fn full_id(&self) -> SafeKey {
         let app_inner = self.app_inner.borrow();
-        app_inner.keys.app_safe_key(self.owner_key())
+        app_inner.keys.app_safe_key()
     }
 
-    fn public_id(&self) -> PublicId {
-        PublicId::App(
-            AppFullId::with_keys(self.secret_bls_key(), self.owner_key())
-                .public_id()
-                .clone(),
-        )
+    fn owner_key(&self) -> PublicKey {
+        self.app_inner.borrow().owner_key
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
@@ -201,25 +201,6 @@ impl Client for AppClient {
         let app_inner = self.app_inner.borrow();
         app_inner.keys.clone().enc_key
     }
-
-    fn public_bls_key(&self) -> threshold_crypto::PublicKey {
-        let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().bls_pk
-    }
-
-    fn secret_bls_key(&self) -> threshold_crypto::SecretKey {
-        let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().bls_sk
-    }
-
-    fn owner_key(&self) -> PublicKey {
-        let app_inner = self.app_inner.borrow();
-        app_inner.owner_key
-    }
-
-    fn public_key(&self) -> PublicKey {
-        self.public_bls_key().into()
-    }
 }
 
 impl Clone for AppClient {
@@ -238,13 +219,13 @@ impl fmt::Debug for AppClient {
 }
 
 struct AppInner {
-    keys: ClientKeys,
+    keys: AppKeys,
     owner_key: PublicKey,
     config: Option<BootstrapConfig>,
 }
 
 impl AppInner {
-    pub fn new(keys: ClientKeys, owner_key: PublicKey, config: Option<BootstrapConfig>) -> Self {
+    pub fn new(keys: AppKeys, owner_key: PublicKey, config: Option<BootstrapConfig>) -> Self {
         Self {
             keys,
             owner_key,

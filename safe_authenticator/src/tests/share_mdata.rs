@@ -69,7 +69,7 @@ fn share_some_mdatas() {
     let mut metadatas = Vec::new();
 
     for _ in 0..NUM_MDATAS {
-        let name = new_rand::random();
+        let name = rand::random();
         let tag = 0;
         let mdata = {
             SeqMutableData::new_with_data(name, tag, Default::default(), Default::default(), user)
@@ -128,7 +128,7 @@ fn share_invalid_mdatas() {
     let mut share_mdatas = Vec::new();
 
     for _ in 0..NUM_MDATAS {
-        let name = new_rand::random();
+        let name = rand::random();
         let tag = 15_000;
 
         share_mdatas.push(ShareMData {
@@ -167,7 +167,7 @@ fn share_some_mdatas_with_valid_metadata() {
     };
 
     let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
-    let app_key = PublicKey::from(app_auth.app_keys.bls_pk);
+    let app_key = app_auth.app_keys.public_key();
 
     let user = unwrap!(run(&authenticator, move |client| {
         ok!(client.public_key())
@@ -184,7 +184,7 @@ fn share_some_mdatas_with_valid_metadata() {
             description: Some(format!("description {}", i)),
         };
 
-        let name = new_rand::random();
+        let name = rand::random();
         let tag = 10_000;
         let mdata = {
             let value = MDataSeqValue {
@@ -274,7 +274,7 @@ fn share_some_mdatas_with_ownership_error() {
         ok!(client.public_key())
     }));
 
-    let name = new_rand::random();
+    let name = rand::random();
     let mdata = SeqMutableData::new_with_data(name, 0, btree_map![], btree_map![], user);
 
     unwrap!(run(&authenticator, move |client| {
@@ -372,7 +372,7 @@ fn auth_apps_accessing_mdatas() {
             None
         };
 
-        let name = new_rand::random();
+        let name = rand::random();
         let tag = 10_000 + i as u64;
         let mdata = {
             let owners = user;
@@ -427,7 +427,7 @@ fn auth_apps_accessing_mdatas() {
         };
 
         let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
-        let app_key = PublicKey::from(app_auth.app_keys.bls_pk);
+        let app_key = app_auth.app_keys.public_key();
 
         // Share the Mdatas with the app.
         let req_id = ipc::gen_req_id();

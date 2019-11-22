@@ -29,7 +29,7 @@ use std::thread;
 #[test]
 fn data_created_by_an_app() {
     let app = create_app();
-    let name: XorName = new_rand::random();
+    let name: XorName = rand::random();
     let tag = 15_002;
     let data: Vec<AData> = vec![
         PubSeqAppendOnlyData::new(name, tag).into(),
@@ -82,7 +82,7 @@ fn data_created_by_an_app() {
 #[test]
 fn managing_permissions_for_an_app() {
     let app = create_app();
-    let name: XorName = new_rand::random();
+    let name: XorName = rand::random();
     let tag = 15_002;
     let data: Vec<AData> = vec![
         PubSeqAppendOnlyData::new(name, tag).into(),
@@ -350,7 +350,7 @@ fn managing_permissions_for_an_app() {
 // The client tries to delete the data. It should pass if the data is unpublished. Deleting published data should fail.
 #[test]
 fn restricted_access_and_deletion() {
-    let name: XorName = new_rand::random();
+    let name: XorName = rand::random();
     let tag = 15_002;
     let data: Vec<AData> = vec![
         PubSeqAppendOnlyData::new(name, tag).into(),
@@ -563,7 +563,7 @@ fn restricted_access_and_deletion() {
 #[test]
 fn public_permissions_with_app_restrictions() {
     let app = create_app();
-    let name: XorName = new_rand::random();
+    let name: XorName = rand::random();
     let tag = 15_002;
     let data: Vec<AData> = vec![
         PubSeqAppendOnlyData::new(name, tag).into(),
@@ -766,7 +766,7 @@ fn random_app_access(address: ADataAddress) {
                 .get_adata(address)
                 .and_then(move |data| {
                     assert_eq!(*data.address(), address);
-                    let key: [u8; 5] = new_rand::random();
+                    let key: [u8; 5] = rand::random();
                     let values = vec![ADataEntry::new(key.to_vec(), vec![1, 2, 3])];
                     if address.is_seq() {
                         rand_client2.append_seq_adata(

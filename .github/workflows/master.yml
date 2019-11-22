@@ -240,8 +240,10 @@ jobs:
       - shell: bash
         id: release_description
         run: |
-          #description=$(./scripts/get-release-description ${{ steps.versioning.outputs.app_version }})
-          description="replace when set-output problem has been fixed"
+          description=$(./scripts/get-release-description ${{ steps.versioning.outputs.cli_version }})
+          description="${description//'%'/'%25'}"
+          description="${description//$'\n'/'%0A'}"
+          description="${description//$'\r'/'%0D'}"
           echo "::set-output name=description::$description"
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 

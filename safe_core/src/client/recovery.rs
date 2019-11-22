@@ -452,7 +452,7 @@ mod tests_with_mock_routing {
             let client3 = client.clone();
             let client4 = client.clone();
 
-            let name = new_rand::random();
+            let name = rand::random();
             let tag = 10_000;
             let owners = client.public_key();
 
@@ -553,7 +553,7 @@ mod tests_with_mock_routing {
             let client2 = client.clone();
             let client3 = client.clone();
 
-            let name: XorName = new_rand::random();
+            let name: XorName = rand::random();
             let tag = 10_000;
             let entries = btree_map![
                 vec![1] => MDataSeqValue {
@@ -660,7 +660,7 @@ mod tests_with_mock_routing {
             let client5 = client.clone();
             let client6 = client.clone();
 
-            let name: XorName = new_rand::random();
+            let name: XorName = rand::random();
             let tag = 10_000;
             let owners = client.public_key();
             let data = SeqMutableData::new_with_data(

@@ -12,8 +12,8 @@ use crate::AuthMsgTx;
 use futures::future;
 use futures::Future;
 use lru_cache::LruCache;
-use new_rand::rngs::StdRng;
-use new_rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use rust_sodium::crypto::sign::Seed;
 use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
@@ -25,14 +25,12 @@ use safe_core::ipc::BootstrapConfig;
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
-    ClientFullId, ClientPublicId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request,
-    Response, XorName,
+    ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
 };
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
-use threshold_crypto::SecretKey as BlsSecretKey;
 use tiny_keccak::sha3_256;
 use tokio::runtime::current_thread::{block_on_all, Handle};
 
@@ -48,7 +46,7 @@ impl AuthClient {
     pub(crate) fn registered(
         acc_locator: &str,
         acc_password: &str,
-        balance_sk: BlsSecretKey,
+        client_id: ClientFullId,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -56,7 +54,7 @@ impl AuthClient {
         Self::registered_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            balance_sk,
+            client_id,
             el_handle,
             core_tx,
             net_tx,
@@ -74,7 +72,7 @@ impl AuthClient {
     #[cfg(any(test, feature = "testing"))]
     pub(crate) fn registered_with_seed(
         seed: &str,
-        balance_sk: BlsSecretKey,
+        client_id: ClientFullId,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -87,7 +85,7 @@ where {
         Self::registered_impl(
             arr[0],
             arr[1],
-            balance_sk,
+            client_id,
             el_handle,
             core_tx,
             net_tx,
@@ -101,7 +99,7 @@ where {
     pub fn registered_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
-        balance_sk: BlsSecretKey,
+        client_id: ClientFullId,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -113,7 +111,7 @@ where {
         Self::registered_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            balance_sk,
+            client_id,
             el_handle,
             core_tx,
             net_tx,
@@ -128,7 +126,7 @@ where {
     fn registered_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
-        balance_sk: BlsSecretKey,
+        client_id: ClientFullId,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
@@ -146,11 +144,10 @@ where {
         let user_cred = UserCred::new(password, pin);
 
         let mut maid_keys = ClientKeys::new(id_seed);
-        maid_keys.bls_sk = balance_sk.clone();
-        maid_keys.bls_pk = balance_sk.public_key();
+        maid_keys.client_id = client_id.clone();
 
-        let balance_full_id = SafeKey::client_from_bls_key(balance_sk);
-        let client_full_id = maid_keys.client_safe_key();
+        let balance_full_id = SafeKey::client(client_id);
+        let client_safe_key = maid_keys.client_safe_key();
 
         let acc = Account::new(maid_keys)?;
         let acc_ciphertext = acc.encrypt(&user_cred.password, &user_cred.pin)?;
@@ -186,7 +183,7 @@ where {
             block_on_all(connection_manager.disconnect(&balance_full_id.public_id()))?;
         }
 
-        block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
+        block_on_all(connection_manager.bootstrap(client_safe_key.clone()))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
@@ -487,9 +484,8 @@ impl Client for AuthClient {
         auth_inner.acc.maid_keys.client_safe_key()
     }
 
-    fn public_id(&self) -> PublicId {
-        let client_pk = PublicKey::from(self.public_bls_key());
-        PublicId::Client(ClientPublicId::new(client_pk.into(), client_pk))
+    fn owner_key(&self) -> PublicKey {
+        self.public_key()
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
@@ -523,25 +519,6 @@ impl Client for AuthClient {
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         let auth_inner = self.auth_inner.borrow();
         auth_inner.acc.maid_keys.enc_key.clone()
-    }
-
-    fn public_bls_key(&self) -> threshold_crypto::PublicKey {
-        let auth_inner = self.auth_inner.borrow();
-        auth_inner.acc.maid_keys.bls_pk
-    }
-
-    fn secret_bls_key(&self) -> BlsSecretKey {
-        let auth_inner = self.auth_inner.borrow();
-        auth_inner.acc.maid_keys.bls_sk.clone()
-    }
-
-    fn owner_key(&self) -> PublicKey {
-        let auth_inner = self.auth_inner.borrow();
-        PublicKey::from(auth_inner.acc.maid_keys.bls_pk)
-    }
-
-    fn public_key(&self) -> PublicKey {
-        self.public_bls_key().into()
     }
 }
 
@@ -589,7 +566,7 @@ mod tests {
     use futures::Future;
     use safe_core::client::test_create_balance;
     use safe_core::utils::test_utils::{
-        calculate_new_balance, finish, random_client, setup_client,
+        calculate_new_balance, finish, gen_client_id, random_client, setup_client,
     };
     use safe_core::{utils, CoreError, DIR_TAG};
     use safe_nd::{Coins, Error as SndError, MDataKind};
@@ -607,9 +584,9 @@ mod tests {
 
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let balance_sk = BlsSecretKey::random();
+        let client_id = gen_client_id();
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -617,14 +594,14 @@ mod tests {
         let _ = unwrap!(AuthClient::registered(
             &sec_0,
             &sec_1,
-            balance_sk.clone(),
+            client_id.clone(),
             el.handle(),
             core_tx.clone(),
             net_tx.clone(),
         ));
 
         // Account creation - same secrets - should fail
-        match AuthClient::registered(&sec_0, &sec_1, balance_sk, el.handle(), core_tx, net_tx) {
+        match AuthClient::registered(&sec_0, &sec_1, client_id, el.handle(), core_tx, net_tx) {
             Ok(_) => panic!("Account name hijacking should fail"),
             Err(AuthError::SndError(SndError::LoginPacketExists)) => (),
             Err(err) => panic!("{:?}", err),
@@ -636,9 +613,10 @@ mod tests {
     fn login() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let balance_sk = BlsSecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -655,7 +633,7 @@ mod tests {
                     Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
-                AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
+                AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
             },
             |_| finish(),
         );
@@ -675,11 +653,11 @@ mod tests {
             let el = unwrap!(Runtime::new());
             let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
-            let balance_sk = BlsSecretKey::random();
+            let client_id = gen_client_id();
 
             match AuthClient::registered_with_seed(
                 &invalid_seed,
-                balance_sk,
+                client_id,
                 el.handle(),
                 core_tx,
                 net_tx,
@@ -700,9 +678,10 @@ mod tests {
         }
 
         let seed = unwrap!(utils::generate_random_string(30));
-        let balance_sk = BlsSecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -718,7 +697,7 @@ mod tests {
                     Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
                     x => panic!("Unexpected Login outcome: {:?}", x),
                 }
-                AuthClient::registered_with_seed(&seed, balance_sk, el_h, core_tx, net_tx)
+                AuthClient::registered_with_seed(&seed, client_id, el_h, core_tx, net_tx)
             },
             |_| finish(),
         );
@@ -735,9 +714,10 @@ mod tests {
     fn access_container_creation() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let balance_sk = BlsSecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -747,7 +727,7 @@ mod tests {
         setup_client(
             &(),
             |el_h, core_tx, net_tx| {
-                AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
+                AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
             },
             move |client| {
                 assert!(client.set_access_container(dir));
@@ -771,9 +751,10 @@ mod tests {
     fn config_root_dir_creation() {
         let sec_0 = unwrap!(utils::generate_random_string(10));
         let sec_1 = unwrap!(utils::generate_random_string(10));
-        let balance_sk = BlsSecretKey::random();
+        let client_id = gen_client_id();
+
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
@@ -783,7 +764,7 @@ mod tests {
         setup_client(
             &(),
             |el_h, core_tx, net_tx| {
-                AuthClient::registered(&sec_0, &sec_1, balance_sk, el_h, core_tx, net_tx)
+                AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
             },
             move |client| {
                 assert!(client.set_config_root_dir(dir));
@@ -857,7 +838,7 @@ mod tests {
             client.set_timeout(Duration::from_millis(250));
 
             client
-                .get_idata(IDataAddress::Pub(new_rand::random()))
+                .get_idata(IDataAddress::Pub(rand::random()))
                 .then(|result| match result {
                     Ok(_) => panic!("Unexpected success"),
                     Err(CoreError::RequestTimeout) => Ok::<_, CoreError>(()),
@@ -906,8 +887,8 @@ mod tests {
         let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
         let new_login_packet2 = new_login_packet.clone();
         let five_coins = unwrap!(Coins::from_str("5"));
-        let random_key = BlsSecretKey::random();
-        let random_pk = random_key.public_key();
+        let client_id = gen_client_id();
+        let random_pk = *client_id.public_id().public_key();
 
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = unwrap!(Coins::from_str("10"));
@@ -921,7 +902,7 @@ mod tests {
             client
                 .insert_login_packet_for(
                     None,
-                    maid_keys.bls_pk.into(),
+                    maid_keys.public_key(),
                     five_coins,
                     None,
                     new_login_packet.clone(),
@@ -934,7 +915,7 @@ mod tests {
                 .and_then(move |_| {
                     c1.insert_login_packet_for(
                         None,
-                        maid_keys.bls_pk.into(),
+                        maid_keys.public_key(),
                         unwrap!(Coins::from_str("3")),
                         None,
                         new_login_packet,
@@ -951,7 +932,7 @@ mod tests {
                 .and_then(move |_| {
                     c3.insert_login_packet_for(
                         None,
-                        random_pk.into(),
+                        random_pk,
                         unwrap!(Coins::from_str("3")),
                         None,
                         new_login_packet2,
@@ -959,7 +940,7 @@ mod tests {
                 })
                 .then(move |result| match result {
                     Err(CoreError::DataError(SndError::LoginPacketExists)) => {
-                        c4.get_balance(Some(&random_key))
+                        c4.get_balance(Some(&client_id))
                     }
                     res => panic!("Unexpected {:?}", res),
                 })

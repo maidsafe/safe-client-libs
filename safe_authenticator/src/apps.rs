@@ -23,7 +23,7 @@ use safe_core::ipc::resp::{AccessContainerEntry, AppAccess};
 use safe_core::ipc::{access_container_enc_key, AppExchangeInfo, IpcError};
 use safe_core::utils::symmetric_decrypt;
 use safe_core::FutureExt;
-use safe_nd::{MDataAddress, PublicKey, XorName};
+use safe_nd::{MDataAddress, XorName};
 use std::collections::HashMap;
 
 /// Represents an application that is registered with the Authenticator.
@@ -201,7 +201,7 @@ pub fn apps_accessing_mutable_data(
         .map_err(AuthError::from)
         .join(config::list_apps(&c2).map(|(_, apps)| {
             apps.into_iter()
-                .map(|(_, app_info)| (PublicKey::from(app_info.keys.bls_pk), app_info.info))
+                .map(|(_, app_info)| (app_info.keys.public_key(), app_info.info))
                 .collect::<HashMap<_, _>>()
         }))
         .and_then(move |(permissions, apps)| {

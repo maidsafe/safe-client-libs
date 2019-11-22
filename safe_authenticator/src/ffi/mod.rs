@@ -20,8 +20,9 @@ pub mod logging;
 use crate::errors::AuthError;
 use crate::Authenticator;
 use ffi_utils::{catch_unwind_cb, from_c_str, FfiResult, OpaqueCtx, FFI_RESULT_OK};
+use rand::thread_rng;
 use safe_core::{config_handler, test_create_balance, Client};
-use safe_nd::Coins;
+use safe_nd::{ClientFullId, Coins};
 use std::ffi::{CStr, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::str::FromStr;
@@ -49,15 +50,15 @@ pub unsafe extern "C" fn create_acc(
 
         let acc_locator = from_c_str(account_locator)?;
         let acc_password = from_c_str(account_password)?;
-        // FIXME: Send secret key via FFI API too
-        let balance_sk = threshold_crypto::SecretKey::random();
+        // FIXME: Send client id via FFI API too
+        let client_id = ClientFullId::new_bls(&mut thread_rng());
         unwrap!(test_create_balance(
-            &balance_sk,
+            &client_id,
             unwrap!(Coins::from_str("10"))
         ));
 
         let authenticator =
-            Authenticator::create_acc(acc_locator, acc_password, balance_sk, move || {
+            Authenticator::create_acc(acc_locator, acc_password, client_id, move || {
                 o_disconnect_notifier_cb(user_data.0)
             })?;
 

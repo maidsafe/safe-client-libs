@@ -19,13 +19,15 @@ use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::{access_container, config, revocation};
 use crate::{AuthError, AuthFuture, Authenticator};
 use futures::{future, Future};
-use rand::{Rng, SeedableRng, XorShiftRng};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use safe_core::config_handler;
 use safe_core::ipc::req::ContainerPermissions;
 use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq, Permission};
-use safe_core::mock_vault_path;
+use safe_core::utils::test_utils::gen_client_id;
+use safe_core::{mock_vault_path, utils};
 use safe_core::{test_create_balance, Client, FutureExt, MDataInfo};
-use safe_nd::Coins;
+use safe_nd::{ClientFullId, Coins};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -52,7 +54,7 @@ fn serialisation_write_data() {
     let auth = unwrap!(Authenticator::create_acc(
         stash.locator.clone(),
         stash.password.clone(),
-        stash.balance_sk.clone(),
+        stash.client_id.clone(),
         || (),
     ));
 
@@ -191,7 +193,7 @@ fn verify_access_container_entry(
 struct Stash {
     locator: String,
     password: String,
-    balance_sk: threshold_crypto::SecretKey,
+    client_id: ClientFullId,
     auth_req1: AuthReq,
     auth_req0: AuthReq,
 }
@@ -203,7 +205,7 @@ fn get_vault_path() -> PathBuf {
 
 fn setup() -> Stash {
     // IMPORTANT: Use constant seed for repeatability.
-    let mut rng = XorShiftRng::from_seed([0, 1, 2, 3]);
+    let mut rng = StdRng::seed_from_u64(1);
 
     let mut containers = HashMap::new();
     let _ = containers.insert(
@@ -218,7 +220,7 @@ fn setup() -> Stash {
 
     let auth_req0 = {
         let app_exchange_info = AppExchangeInfo {
-            id: random_string(&mut rng, 16),
+            id: utils::generate_random_string_rng(&mut rng, 16),
             scope: None,
             name: "test-app-0".to_string(),
             vendor: "test-vendor-0".to_string(),
@@ -234,7 +236,7 @@ fn setup() -> Stash {
 
     let auth_req1 = {
         let app_exchange_info = AppExchangeInfo {
-            id: random_string(&mut rng, 16),
+            id: utils::generate_random_string_rng(&mut rng, 16),
             scope: None,
             name: "test-app-1".to_string(),
             vendor: "test-vendor-1".to_string(),
@@ -247,21 +249,17 @@ fn setup() -> Stash {
             containers: containers.clone(),
         }
     };
-    let balance_sk = threshold_crypto::SecretKey::random();
+    let client_id = gen_client_id();
     unwrap!(test_create_balance(
-        &balance_sk,
+        &client_id,
         unwrap!(Coins::from_str("10"))
     ));
 
     Stash {
-        locator: random_string(&mut rng, 16),
-        password: random_string(&mut rng, 16),
-        balance_sk,
+        locator: utils::generate_random_string_rng(&mut rng, 16),
+        password: utils::generate_random_string_rng(&mut rng, 16),
+        client_id,
         auth_req0,
         auth_req1,
     }
-}
-
-fn random_string<R: Rng>(rng: &mut R, len: usize) -> String {
-    rng.gen_ascii_chars().take(len).collect()
 }

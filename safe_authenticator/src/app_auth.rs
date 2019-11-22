@@ -20,7 +20,7 @@ use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
 use safe_core::{app_container_name, client::AuthActions, recovery, Client, FutureExt, MDataInfo};
-use safe_nd::{AppPermissions, PublicKey};
+use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 
@@ -156,8 +156,9 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
             // return the app info from the config.
             match app_state {
                 AppState::NotAuthenticated => {
-                    let owner_key = c3.owner_key();
-                    let keys = AppKeys::random(owner_key);
+                    let public_id = c3.public_id();
+                    // Safe to unwrap as the auth client will have a client public id.
+                    let keys = AppKeys::new(unwrap!(public_id.client_public_id()).clone());
                     let app = AppInfo {
                         info: auth_req.app,
                         keys,
@@ -206,7 +207,7 @@ fn authenticated_app(
     let c3 = client.clone();
 
     let app_keys = app.keys.clone();
-    let sign_pk = PublicKey::from(app.keys.bls_pk);
+    let app_pk = app.keys.public_key();
     let bootstrap_config = fry!(client::bootstrap_config());
 
     access_container::fetch_entry(client, &app_id, app_keys.clone())
@@ -217,7 +218,7 @@ fn authenticated_app(
 
             // Check whether we need to create/update dedicated container
             if app_container && !app_container_exists(&perms, &app_id) {
-                let future = app_container::fetch_or_create(&c2, &app_id, sign_pk).and_then(
+                let future = app_container::fetch_or_create(&c2, &app_id, app_pk).and_then(
                     move |mdata_info| {
                         let perms = insert_app_container(perms, &app_id, mdata_info);
                         update_access_container(&c2, &app, perms.clone()).map(move |_| perms)
@@ -262,7 +263,7 @@ fn authenticate_new_app(
     let c5 = client.clone();
     let c6 = client.clone();
 
-    let sign_pk = PublicKey::from(app.keys.bls_pk);
+    let app_pk = app.keys.public_key();
     let app_keys = app.keys.clone();
     let app_keys_auth = app.keys.clone();
     let app_id = app.info.id.clone();
@@ -270,26 +271,21 @@ fn authenticate_new_app(
     client
         .list_auth_keys_and_version()
         .and_then(move |(_, version)| {
-            recovery::ins_auth_key(
-                &c2,
-                PublicKey::from(app_keys.bls_pk),
-                app_permissions,
-                version + 1,
-            )
+            recovery::ins_auth_key(&c2, app_keys.public_key(), app_permissions, version + 1)
         })
         .map_err(AuthError::from)
         .and_then(move |_| {
             if permissions.is_empty() {
-                ok!((Default::default(), sign_pk))
+                ok!((Default::default(), app_pk))
             } else {
-                update_container_perms(&c3, permissions, sign_pk)
-                    .map(move |perms| (perms, sign_pk))
+                update_container_perms(&c3, permissions, app_pk)
+                    .map(move |perms| (perms, app_pk))
                     .into_box()
             }
         })
-        .and_then(move |(perms, sign_pk)| {
+        .and_then(move |(perms, app_pk)| {
             if app_container {
-                app_container::fetch_or_create(&c4, &app_id, sign_pk)
+                app_container::fetch_or_create(&c4, &app_id, app_pk)
                     .and_then(move |mdata_info| {
                         ok!(insert_app_container(perms, &app_id, mdata_info))
                     })

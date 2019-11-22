@@ -30,10 +30,12 @@ extern crate unwrap;
 
 use clap::{App, Arg};
 use futures::Future;
+use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use safe_app::{Client, CoreError, CoreFuture, FutureExt, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
-use safe_nd::{IData, PublicKey, SeqMutableData, XorName};
+use safe_core::utils;
+use safe_nd::{ClientFullId, IData, PublicKey, SeqMutableData, XorName};
 use std::sync::mpsc;
 
 fn random_mutable_data<R: Rng>(
@@ -113,11 +115,11 @@ fn main() {
     let mutable_data_count = unwrap!(value_t!(matches, "mutable", usize));
 
     let seed = if matches.is_present("seed") {
-        unwrap!(value_t!(matches, "seed", u32))
+        unwrap!(value_t!(matches, "seed", u64))
     } else {
         rand::random()
     };
-    let mut rng = rand::XorShiftRng::from_seed([0, 0, 0, seed]);
+    let mut rng = StdRng::seed_from_u64(seed);
 
     let get_only = matches.is_present("get-only");
 
@@ -127,8 +129,8 @@ fn main() {
     {
         (locator.to_string(), password.to_string())
     } else {
-        let new_locator = rng.gen_ascii_chars().take(20).collect();
-        let new_password = rng.gen_ascii_chars().take(20).collect();
+        let new_locator = utils::generate_readable_string_rng(&mut rng, 20);
+        let new_password = utils::generate_readable_string_rng(&mut rng, 20);
         println!(
             "A new account will be created.\nLocator: {}\nPassword: {}",
             new_locator, new_password
@@ -149,12 +151,12 @@ fn main() {
         println!("\nTrying to create an account ...");
 
         // FIXME - pass the secret key of the wallet as a parameter
-        let bls_sk = threshold_crypto::SecretKey::random();
+        let client_id = ClientFullId::new_bls(&mut rng);
 
         let auth = unwrap!(Authenticator::create_acc(
             locator.as_str(),
             password.as_str(),
-            bls_sk,
+            client_id,
             || ()
         ));
 
@@ -170,7 +172,7 @@ fn main() {
 
     for _ in 0..immutable_data_count {
         // Construct data
-        let data = PubImmutableData::new(rng.gen_iter().take(1024).collect());
+        let data = PubImmutableData::new(utils::generate_random_vector_rng(&mut rng, 1024));
         println!("{:?}", data.name());
         stored_data.push(Data::Immutable(data.into()));
     }

@@ -176,7 +176,7 @@ pub fn put_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    let app_pk: PublicKey = app_keys.bls_pk.into();
+    let app_pk: PublicKey = app_keys.public_key();
 
     client
         .get_mdata_version(*access_container.address())
@@ -213,7 +213,7 @@ pub fn delete_entry(
     let client2 = client.clone();
     let client3 = client.clone();
     let actions = MDataSeqEntryActions::new().del(key, version);
-    let app_pk: PublicKey = app_keys.bls_pk.into();
+    let app_pk: PublicKey = app_keys.public_key();
 
     client
         .get_mdata_version(*access_container.address())
