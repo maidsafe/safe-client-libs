@@ -109,7 +109,8 @@ struct Inner {
     quic_p2p: QuicP2p,
     full_id: SafeKey,
     elders: HashMap<SocketAddr, Elder>,
-    hooks: HashMap<MessageId, Sender<Response>>, // to be replaced with Accumulator for multiple vaults.
+    // TODO: to be replaced with Accumulator for multiple vaults.
+    hooks: HashMap<MessageId, Sender<Response>>,
     connection_hook: Option<Sender<Result<(), CoreError>>>,
     disconnect_tx: Option<Sender<()>>,
     id: u64,
@@ -171,8 +172,9 @@ impl Inner {
 
     fn handle_quic_p2p_event(&mut self, event: Event) {
         use Event::*;
-        // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
-        // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.handle_response(sender, token, response)` should be called.
+        // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for
+        // now) if the message is found to be related to a certain `ConnectionGroup`,
+        // `connection_group.handle_response(sender, token, response)` should be called.
         match event {
             BootstrapFailure => self.handle_bootstrap_failure(),
             BootstrappedTo { node } => self.handle_bootstrapped_to(node),

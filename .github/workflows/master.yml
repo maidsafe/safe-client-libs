@@ -205,6 +205,14 @@ jobs:
           #name: safe_client_libs-x86_64-apple-darwin-dev
           #path: artifacts/dev/x86_64-apple-darwin/release
 
+      # Upload all the release archives to S3.
+      - uses: actions/aws/cli@master
+        with:
+          args: s3 sync deploy/dev s3://safe-client-libs
+      - uses: actions/aws/cli@master
+        with:
+          args: s3 sync deploy/prod s3://safe-client-libs
+
       # Get information for the release.
       - shell: bash
         id: commit_message
@@ -276,50 +284,49 @@ jobs:
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
           asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
           asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       #- uses: actions/upload-release-asset@v1.0.1
         #with:
           #upload_url: ${{ steps.create_release.outputs.upload_url }}
           #asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
           #asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
           #asset_content_type: application/zip
+        #if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
           asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
           asset_content_type: application/zip
-
-      # Upload all the release archives to S3.
-      - uses: actions/aws/cli@master
-        with:
-          args: s3 sync deploy/dev s3://safe-client-libs
-      - uses: actions/aws/cli@master
-        with:
-          args: s3 sync deploy/prod s3://safe-client-libs
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
   publish:
     needs: deploy
