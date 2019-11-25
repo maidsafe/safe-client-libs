@@ -533,11 +533,11 @@ fn app_authentication() {
     assert_eq!(access_container.len(), 3);
 
     let app_keys = auth_granted.app_keys;
-    let app_sign_pk = app_keys.public_key();
+    let app_pk = app_keys.public_key();
 
     test_utils::compare_access_container_entries(
         &authenticator,
-        app_sign_pk,
+        app_pk,
         access_container.clone(),
         expected,
     );
@@ -573,7 +573,7 @@ fn app_authentication() {
             .map_err(AuthError::from)
     }));
 
-    assert!(auth_keys.contains_key(&app_sign_pk));
+    assert!(auth_keys.contains_key(&app_pk));
 }
 
 // Try to authenticate with invalid container names.
@@ -881,11 +881,11 @@ fn containers_access_request() {
     let mut expected = utils::create_containers_req();
     let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
 
-    let app_sign_pk = auth_granted.app_keys.public_key();
+    let app_pk = auth_granted.app_keys.public_key();
     let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);
     test_utils::compare_access_container_entries(
         &authenticator,
-        app_sign_pk,
+        app_pk,
         access_container,
         expected,
     );

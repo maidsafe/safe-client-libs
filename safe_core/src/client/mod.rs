@@ -32,7 +32,7 @@ use self::mock::ConnectionManager;
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
-use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
 use crate::event::{NetworkEvent, NetworkTx};
 use crate::event_loop::{CoreFuture, CoreMsgTx};
@@ -41,7 +41,7 @@ use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use lazy_static::lazy_static;
 use lru_cache::LruCache;
-use rust_sodium::crypto::{box_, sign};
+use rust_sodium::crypto::box_;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
@@ -174,12 +174,6 @@ pub trait Client: Clone + 'static {
     /// Return the symmetric encryption key.
     fn secret_symmetric_key(&self) -> shared_secretbox::Key;
 
-    /// Return the public signing key.
-    fn public_signing_key(&self) -> sign::PublicKey;
-
-    /// Return the secret signing key.
-    fn secret_signing_key(&self) -> shared_sign::SecretKey;
-
     /// Create a `Message` from the given request.
     /// This function adds the requester signature and message ID.
     fn compose_message(&self, request: Request, sign: bool) -> Message {
@@ -199,11 +193,6 @@ pub trait Client: Clone + 'static {
             message_id,
             signature,
         }
-    }
-
-    /// Return the public and secret signing keys.
-    fn signing_keypair(&self) -> (sign::PublicKey, shared_sign::SecretKey) {
-        (self.public_signing_key(), self.secret_signing_key())
     }
 
     /// Set request timeout.

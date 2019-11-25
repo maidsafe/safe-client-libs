@@ -413,7 +413,9 @@ mod tests {
             unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
 
         let app_pk_handle = unwrap!(run(&app, move |client, context| {
-            Ok(context.object_cache().insert_pub_key(client.public_key()))
+            Ok(context
+                .object_cache()
+                .insert_pub_sign_key(client.public_key()))
         }));
 
         unsafe {

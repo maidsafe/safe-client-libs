@@ -111,6 +111,30 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
     (auth, locator, password)
 }
 
+/// Amount of seed subparts used when calculating values from a seed.
+pub const SEED_SUBPARTS: usize = 4;
+
+/// Divide `seed` into the number of subparts given by `SEED_SUBPARTS`.
+pub fn divide_seed(seed: &str) -> Result<[&[u8]; SEED_SUBPARTS], AuthError> {
+    let seed = seed.as_bytes();
+    if seed.len() < SEED_SUBPARTS {
+        let e = format!(
+            "Improper Seed length of {}. Please supply bigger Seed.",
+            seed.len()
+        );
+        return Err(AuthError::Unexpected(e));
+    }
+
+    let interval = seed.len() / SEED_SUBPARTS;
+
+    let mut arr: [&[u8]; SEED_SUBPARTS] = Default::default();
+    for (i, val) in arr.iter_mut().enumerate() {
+        *val = &seed[interval * i..interval * (i + 1)];
+    }
+
+    Ok(arr)
+}
+
 /// Creates a random authenticator and login using the same credentials.
 pub fn create_account_and_login() -> Authenticator {
     let (_, locator, password) = create_authenticator();

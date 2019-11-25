@@ -11,11 +11,8 @@ use rust_sodium::crypto::box_::{
     SECRETKEYBYTES as ASYM_SECRET_KEY_LEN,
 };
 use rust_sodium::crypto::secretbox::{KEYBYTES as SYM_KEY_LEN, NONCEBYTES as SYM_NONCE_LEN};
-use rust_sodium::crypto::sign::{
-    PUBLICKEYBYTES as SIGN_PUBLIC_KEY_LEN, SECRETKEYBYTES as SIGN_SECRET_KEY_LEN,
-};
 use safe_nd::XOR_NAME_LEN;
-use threshold_crypto::PK_SIZE as BLS_PUBLIC_KEY_LEN;
+use threshold_crypto::{PK_SIZE as BLS_PUBLIC_KEY_LEN, SIG_SIZE};
 
 /// Array containing public key bytes.
 pub type AsymPublicKey = [u8; ASYM_PUBLIC_KEY_LEN];
@@ -31,11 +28,8 @@ pub type SymNonce = [u8; SYM_NONCE_LEN];
 
 /// Array containing BLS public key.
 pub type BlsPublicKey = [u8; BLS_PUBLIC_KEY_LEN];
-
-/// Array containing sign public key bytes.
-pub type SignPublicKey = [u8; SIGN_PUBLIC_KEY_LEN];
-/// Array containing sign private key bytes.
-pub type SignSecretKey = [u8; SIGN_SECRET_KEY_LEN];
+/// Array containing a BLS Signature.
+pub type Signature = [u8; SIG_SIZE];
 
 /// Array containing `XorName` bytes.
 pub type XorNameArray = [u8; XOR_NAME_LEN];

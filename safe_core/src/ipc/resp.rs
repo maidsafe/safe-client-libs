@@ -9,7 +9,7 @@
 #![allow(unsafe_code)]
 
 use crate::client::{MDataInfo, SafeKey};
-use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::crypto::{shared_box, shared_secretbox};
 use crate::ffi::ipc::resp as ffi;
 use crate::ipc::req::{
     container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c,
@@ -19,7 +19,6 @@ use crate::ipc::{BootstrapConfig, IpcError};
 use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
 use rand::thread_rng;
-use rust_sodium::crypto::sign;
 use rust_sodium::crypto::{box_, secretbox};
 use safe_nd::{
     AppFullId, ClientFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue,
@@ -128,10 +127,6 @@ pub struct AppKeys {
     pub app_full_id: AppFullId,
     /// Data symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
-    /// Asymmetric sign public key.
-    pub sign_pk: sign::PublicKey,
-    /// Asymmetric sign private key.
-    pub sign_sk: shared_sign::SecretKey,
     /// Asymmetric enc public key.
     pub enc_pk: box_::PublicKey,
     /// Asymmetric enc private key.
@@ -142,15 +137,12 @@ impl AppKeys {
     /// Generates random keys for the provided client.
     pub fn new(client_public_id: ClientPublicId) -> AppKeys {
         let (enc_pk, enc_sk) = shared_box::gen_keypair();
-        let (sign_pk, sign_sk) = shared_sign::gen_keypair();
         // TODO: Instead of using `thread_rng`, generate based on a provided seed or rng.
         let app_full_id = AppFullId::new_bls(&mut thread_rng(), client_public_id);
 
         AppKeys {
             app_full_id,
             enc_key: shared_secretbox::gen_key(),
-            sign_pk,
-            sign_sk,
             enc_pk,
             enc_sk,
         }
@@ -171,8 +163,6 @@ impl AppKeys {
         let AppKeys {
             app_full_id,
             enc_key,
-            sign_pk,
-            sign_sk,
             enc_pk,
             enc_sk,
         } = self;
@@ -187,8 +177,6 @@ impl AppKeys {
         ffi::AppKeys {
             bls_pk,
             enc_key: enc_key.0,
-            sign_pk: sign_pk.0,
-            sign_sk: sign_sk.0,
             enc_pk: enc_pk.0,
             enc_sk: enc_sk.0,
         }
@@ -208,8 +196,6 @@ impl ReprC for AppKeys {
         Ok(Self {
             app_full_id,
             enc_key: shared_secretbox::Key::from_raw(&repr_c.enc_key),
-            sign_pk: sign::PublicKey(repr_c.sign_pk),
-            sign_sk: shared_sign::SecretKey::from_raw(&repr_c.sign_sk),
             enc_pk: box_::PublicKey(repr_c.enc_pk),
             enc_sk: shared_box::SecretKey::from_raw(&repr_c.enc_sk),
         })
@@ -641,8 +627,6 @@ mod tests {
 
         let AppKeys {
             enc_key,
-            sign_pk,
-            sign_sk,
             enc_pk,
             enc_sk,
             // TODO: check app_id also.
@@ -656,14 +640,6 @@ mod tests {
             enc_key.0.iter().collect::<Vec<_>>()
         );
         assert_eq!(
-            ffi_ak.sign_pk.iter().collect::<Vec<_>>(),
-            sign_pk.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            ffi_ak.sign_sk.iter().collect::<Vec<_>>(),
-            sign_sk.0.iter().collect::<Vec<_>>()
-        );
-        assert_eq!(
             ffi_ak.enc_pk.iter().collect::<Vec<_>>(),
             enc_pk.0.iter().collect::<Vec<_>>()
         );
@@ -675,8 +651,6 @@ mod tests {
         let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(ffi_ak)) };
 
         assert_eq!(ak.enc_key, enc_key);
-        assert_eq!(ak.sign_pk, sign_pk);
-        assert_eq!(ak.sign_sk, sign_sk);
         assert_eq!(ak.enc_pk, enc_pk);
         assert_eq!(ak.enc_sk, enc_sk);
     }

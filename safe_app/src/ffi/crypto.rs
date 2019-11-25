@@ -15,15 +15,13 @@ use crate::ffi::object_cache::{
 };
 use crate::App;
 use bincode::{deserialize, serialize};
-use ffi_utils::{
-    catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
-};
-use rust_sodium::crypto::{box_, sealedbox, sign};
-use safe_core::crypto::{shared_box, shared_sign};
-use safe_core::ffi::arrays::{
-    AsymNonce, AsymPublicKey, AsymSecretKey, SignPublicKey, SignSecretKey,
-};
+use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
+use rand::thread_rng;
+use rust_sodium::crypto::{box_, sealedbox};
+use safe_core::crypto::shared_box;
+use safe_core::ffi::arrays::{AsymNonce, AsymPublicKey, AsymSecretKey};
 use safe_core::Client;
+use safe_nd::{ClientFullId, PublicKey, Signature};
 use std::os::raw::c_void;
 use std::slice;
 use tiny_keccak::sha3_256;
@@ -31,6 +29,10 @@ use tiny_keccak::sha3_256;
 /// Special value that represents that a message should be signed by the app.
 #[no_mangle]
 pub static SIGN_WITH_APP: SignSecKeyHandle = NULL_OBJECT_HANDLE;
+
+/// Special value that represents that a signature should be verified by the app.
+#[no_mangle]
+pub static VERIFY_WITH_APP: SignSecKeyHandle = NULL_OBJECT_HANDLE;
 
 /// Gets the public signing key of the app.
 #[no_mangle]
@@ -41,7 +43,7 @@ pub unsafe extern "C" fn app_pub_sign_key(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |client, context| {
-            let key = client.public_signing_key();
+            let key = client.public_key();
             Ok(context.object_cache().insert_pub_sign_key(key))
         })
     })
@@ -60,12 +62,13 @@ pub unsafe extern "C" fn sign_generate_key_pair(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let (ourpk, oursk) = shared_sign::gen_keypair();
+        let full_id = ClientFullId::new_bls(&mut thread_rng());
+        let public_key = *full_id.public_id().public_key();
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |_, context| {
-            let pk_h = context.object_cache().insert_pub_sign_key(ourpk);
-            let sk_h = context.object_cache().insert_sec_sign_key(oursk);
+            let pk_h = context.object_cache().insert_pub_sign_key(public_key);
+            let sk_h = context.object_cache().insert_sec_sign_key(full_id);
 
             o_cb(user_data.0, FFI_RESULT_OK, pk_h, sk_h);
 
@@ -78,12 +81,14 @@ pub unsafe extern "C" fn sign_generate_key_pair(
 #[no_mangle]
 pub unsafe extern "C" fn sign_pub_key_new(
     app: *const App,
-    data: *const SignPublicKey,
+    data: *const u8,
+    data_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, handle: SignPubKeyHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = sign::PublicKey(*data);
+        let serialized_key = vec_clone_from_raw_parts(data, data_len);
+        let key: PublicKey = unwrap!(deserialize(&serialized_key));
         send_sync(app, user_data, o_cb, move |_, context| {
             Ok(context.object_cache().insert_pub_sign_key(key))
         })
@@ -99,13 +104,28 @@ pub unsafe extern "C" fn sign_pub_key_get(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        pub_sign_key: *const SignPublicKey,
+        pub_sign_key: *const u8,
+        pub_sign_key_len: usize,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        send_sync(app, user_data, o_cb, move |_, context| {
-            let key = context.object_cache().get_pub_sign_key(handle)?;
-            Ok(&key.0)
+        let user_data = OpaqueCtx(user_data);
+        (*app).send(move |_, context| {
+            let key: PublicKey = {
+                let sign_pk = try_cb!(
+                    context.object_cache().get_pub_sign_key(handle),
+                    user_data,
+                    o_cb
+                );
+                *sign_pk
+            };
+            match serialize(&key) {
+                Ok(result) => o_cb(user_data.0, FFI_RESULT_OK, result.as_ptr(), result.len()),
+                res @ Err(..) => {
+                    call_result_cb!(res.map_err(AppError::from), user_data, o_cb);
+                }
+            }
+            None
         })
     })
 }
@@ -130,14 +150,16 @@ pub unsafe extern "C" fn sign_pub_key_free(
 #[no_mangle]
 pub unsafe extern "C" fn sign_sec_key_new(
     app: *const App,
-    data: *const SignSecretKey,
+    data: *const u8,
+    data_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, handle: SignSecKeyHandle),
 ) {
+    let serialized_key = vec_clone_from_raw_parts(data, data_len);
     catch_unwind_cb(user_data, o_cb, || {
-        let key = shared_sign::SecretKey::from_raw(&*data);
+        let full_id: ClientFullId = deserialize(&serialized_key)?;
         send_sync(app, user_data, o_cb, move |_, context| {
-            Ok(context.object_cache().insert_sec_sign_key(key))
+            Ok(context.object_cache().insert_sec_sign_key(full_id))
         })
     })
 }
@@ -151,13 +173,29 @@ pub unsafe extern "C" fn sign_sec_key_get(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        pub_sign_key: *const SignSecretKey,
+        sec_sign_key: *const u8,
+        sec_sign_key_len: usize,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        send_sync(app, user_data, o_cb, move |_, context| {
-            let key = context.object_cache().get_sec_sign_key(handle)?;
-            Ok(&key.0)
+        let user_data = OpaqueCtx(user_data);
+        (*app).send(move |_, context| {
+            let sign_sk = {
+                let sign_sk = try_cb!(
+                    context.object_cache().get_sec_sign_key(handle),
+                    user_data,
+                    o_cb
+                );
+                sign_sk.clone()
+            };
+
+            match serialize(&sign_sk) {
+                Ok(result) => o_cb(user_data.0, FFI_RESULT_OK, result.as_ptr(), result.len()),
+                res @ Err(..) => {
+                    call_result_cb!(res.map_err(AppError::from), user_data, o_cb);
+                }
+            }
+            None
         })
     })
 }
@@ -349,34 +387,32 @@ pub unsafe extern "C" fn sign(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        signed_data: *const u8,
-        signed_data_len: usize,
+        signature: *const u8,
+        signature_len: usize,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let user_data = OpaqueCtx(user_data);
         let plaintext = vec_clone_from_raw_parts(data, data_len);
 
+        let user_data = OpaqueCtx(user_data);
         (*app).send(move |client, context| {
-            let sign_sk = if sign_sk_h == SIGN_WITH_APP {
-                client.secret_signing_key()
+            let signature = if sign_sk_h == SIGN_WITH_APP {
+                let safe_key = client.full_id();
+                safe_key.sign(&plaintext)
             } else {
                 let sign_sk = try_cb!(
                     context.object_cache().get_sec_sign_key(sign_sk_h),
                     user_data,
                     o_cb
                 );
-                sign_sk.clone()
+                sign_sk.sign(&plaintext)
             };
-
-            let signed_text = sign::sign(&plaintext, &sign_sk);
-            o_cb(
-                user_data.0,
-                FFI_RESULT_OK,
-                signed_text.as_safe_ptr(),
-                signed_text.len(),
-            );
-
+            match serialize(&signature) {
+                Ok(result) => o_cb(user_data.0, FFI_RESULT_OK, result.as_ptr(), result.len()),
+                res @ Err(..) => {
+                    call_result_cb!(res.map_err(AppError::from), user_data, o_cb);
+                }
+            }
             None
         })
     })
@@ -384,44 +420,38 @@ pub unsafe extern "C" fn sign(
 
 /// Verifies signed data using a given public sign key.
 ///
-/// Returns an error if the message could not be verified.
+/// If `sign_pk_h` is `VERIFY_WITH_APP`, then uses the app's own public key to verify.
 #[no_mangle]
 pub unsafe extern "C" fn verify(
     app: *const App,
     signed_data: *const u8,
     signed_data_len: usize,
+    signature: *const u8,
+    signature_len: usize,
     sign_pk_h: SignPubKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(
-        user_data: *mut c_void,
-        result: *const FfiResult,
-        verified_data: *const u8,
-        verified_data_len: usize,
-    ),
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, valid: u32),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
         let signed = vec_clone_from_raw_parts(signed_data, signed_data_len);
+        let signature_array = vec_clone_from_raw_parts(signature, signature_len);
+        let signature: Signature = deserialize(&signature_array)?;
 
-        (*app).send(move |_, context| {
-            let sign_pk = try_cb!(
-                context.object_cache().get_pub_sign_key(sign_pk_h),
-                user_data,
-                o_cb
-            );
+        (*app).send(move |client, context| {
+            let sign_pk: PublicKey = if sign_pk_h == VERIFY_WITH_APP {
+                client.public_key()
+            } else {
+                let sign_pk = try_cb!(
+                    context.object_cache().get_pub_sign_key(sign_pk_h),
+                    user_data,
+                    o_cb
+                );
+                *sign_pk
+            };
+            let result = sign_pk.verify(&signature, &signed);
 
-            let verified = try_cb!(
-                sign::verify(&signed, &sign_pk).map_err(|()| AppError::EncodeDecodeError),
-                user_data,
-                o_cb
-            );
-            o_cb(
-                user_data.0,
-                FFI_RESULT_OK,
-                verified.as_safe_ptr(),
-                verified.len(),
-            );
-
+            o_cb(user_data.0, FFI_RESULT_OK, result.is_ok() as u32);
             None
         })
     })
@@ -671,7 +701,7 @@ mod tests {
     use crate::errors::ERR_INVALID_SIGN_PUB_KEY_HANDLE;
     use crate::ffi::mutable_data::permissions::USER_ANYONE;
     use crate::run;
-    use crate::safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
+    use crate::safe_core::arrays::{AsymNonce, AsymPublicKey};
     use crate::test_utils::create_app;
     use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
     use rust_sodium::crypto::box_;
@@ -686,15 +716,25 @@ mod tests {
             unsafe { unwrap!(call_2(|ud, cb| sign_generate_key_pair(&app1, ud, cb))) };
 
         // Copying app1 pubkey to app2 object cache
-        let pk_raw: SignPublicKey =
-            unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_get(&app1, app1_pk_h, ud, cb))) };
+        let pk_raw = unsafe {
+            unwrap!(call_vec_u8(|ud, cb| sign_pub_key_get(
+                &app1, app1_pk_h, ud, cb
+            )))
+        };
 
-        let app2_pk_h: SignPubKeyHandle =
-            unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_new(&app2, &pk_raw, ud, cb))) };
+        let app2_pk_h: SignPubKeyHandle = unsafe {
+            unwrap!(call_1(|ud, cb| sign_pub_key_new(
+                &app2,
+                pk_raw.as_ptr(),
+                pk_raw.len(),
+                ud,
+                cb
+            )))
+        };
 
         // Trying to sign a message from app1
         let data = b"hi there";
-        let signed = unsafe {
+        let signature = unsafe {
             unwrap!(call_vec_u8(|ud, cb| sign(
                 &app1,
                 data.as_ptr(),
@@ -706,21 +746,23 @@ mod tests {
         };
 
         // Trying to verify the message in app2
-        let verified = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| verify(
+        let verified: bool = unsafe {
+            unwrap!(call_1(|ud, cb| verify(
                 &app2,
-                signed.as_ptr(),
-                signed.len(),
+                data.as_ptr(),
+                data.len(),
+                signature.as_ptr(),
+                signature.len(),
                 app2_pk_h,
                 ud,
                 cb
             )))
         };
 
-        assert_eq!(&verified, data);
+        assert!(verified);
 
         // Trying to sign a message from app1 using its secret sign key
-        let signed = unsafe {
+        let signature = unsafe {
             unwrap!(call_vec_u8(|ud, cb| sign(
                 &app1,
                 data.as_ptr(),
@@ -731,26 +773,20 @@ mod tests {
             )))
         };
 
-        // Trying to verify the message in app2
-        let app1_pk_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_sign_key(&app1, ud, cb))) };
-        // Copying app1 pubkey to app2 object cache
-        let pk_raw: AsymPublicKey =
-            unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_get(&app1, app1_pk_h, ud, cb))) };
-
-        let app2_pk2_h =
-            unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_new(&app2, &pk_raw, ud, cb))) };
-        let verified = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| verify(
-                &app2,
-                signed.as_ptr(),
-                signed.len(),
-                app2_pk2_h,
+        let verified: bool = unsafe {
+            unwrap!(call_1(|ud, cb| verify(
+                &app1,
+                data.as_ptr(),
+                data.len(),
+                signature.as_ptr(),
+                signature.len(),
+                VERIFY_WITH_APP,
                 ud,
                 cb
             )))
         };
 
-        assert_eq!(&verified, data);
+        assert!(verified);
     }
 
     // Test encrypting and decrypting messages between apps.
@@ -859,15 +895,15 @@ mod tests {
         let app_sign_key1_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_sign_key(&app, ud, cb))) };
 
         let app_sign_key1 = unwrap!(run(&app, move |client, context| {
-            let app_sign_key1 = client.public_signing_key();
+            let app_sign_key1 = client.public_key();
             let app_sign_key2 = unwrap!(context.object_cache().get_pub_sign_key(app_sign_key1_h));
             assert_eq!(app_sign_key1, *app_sign_key2);
 
             Ok(app_sign_key1)
         }));
 
-        let app_sign_key1_raw: SignPublicKey = unsafe {
-            unwrap!(call_1(|ud, cb| sign_pub_key_get(
+        let app_sign_key1_raw = unsafe {
+            unwrap!(call_vec_u8(|ud, cb| sign_pub_key_get(
                 &app,
                 app_sign_key1_h,
                 ud,
@@ -878,7 +914,8 @@ mod tests {
         let app_sign_key2_h = unsafe {
             unwrap!(call_1(|ud, cb| sign_pub_key_new(
                 &app,
-                &app_sign_key1_raw,
+                app_sign_key1_raw.as_ptr(),
+                app_sign_key1_raw.len(),
                 ud,
                 cb
             ),))
@@ -902,8 +939,8 @@ mod tests {
         }
 
         // Test that calling `sign_pub_key_get` on `USER_ANYONE` returns an error.
-        let user: Result<SignPublicKey, i32> =
-            unsafe { call_1(|ud, cb| sign_pub_key_get(&app, USER_ANYONE, ud, cb)) };
+        let user: Result<Vec<u8>, i32> =
+            unsafe { call_vec_u8(|ud, cb| sign_pub_key_get(&app, USER_ANYONE, ud, cb)) };
         match user {
             Err(ERR_INVALID_SIGN_PUB_KEY_HANDLE) => (),
             Err(e) => panic!("Unexpected error: {:?}", e),
@@ -915,24 +952,11 @@ mod tests {
     #[test]
     fn sign_secret_key_basics() {
         let app = create_app();
+        let (_, app_sign_key1_h): (SignPubKeyHandle, SignSecKeyHandle) =
+            unsafe { unwrap!(call_2(|ud, cb| sign_generate_key_pair(&app, ud, cb))) };
 
-        let app_sign_key1 = unwrap!(run(&app, move |client, _| {
-            let app_sign_key1 = client.secret_signing_key();
-
-            Ok(app_sign_key1)
-        }));
-
-        let app_sign_key1_h = unsafe {
-            unwrap!(call_1(|ud, cb| sign_sec_key_new(
-                &app,
-                &app_sign_key1.0,
-                ud,
-                cb
-            ),))
-        };
-
-        let app_sign_key1_raw: SignSecretKey = unsafe {
-            unwrap!(call_1(|ud, cb| sign_sec_key_get(
+        let app_sign_key1_raw = unsafe {
+            unwrap!(call_vec_u8(|ud, cb| sign_sec_key_get(
                 &app,
                 app_sign_key1_h,
                 ud,
@@ -943,17 +967,23 @@ mod tests {
         let app_sign_key2_h = unsafe {
             unwrap!(call_1(|ud, cb| sign_sec_key_new(
                 &app,
-                &app_sign_key1_raw,
+                app_sign_key1_raw.as_ptr(),
+                app_sign_key1_raw.len(),
                 ud,
                 cb
             ),))
         };
-
-        unwrap!(run(&app, move |_, context| {
-            let sign_key = unwrap!(context.object_cache().get_sec_sign_key(app_sign_key2_h));
-            assert_eq!(*app_sign_key1, *sign_key.clone());
-            Ok(())
+        let sign_sk1 = unwrap!(run(&app, move |_, context| {
+            let sign_sk = unwrap!(context.object_cache().get_sec_sign_key(app_sign_key1_h));
+            Ok(sign_sk.clone())
         }));
+
+        let sign_sk2 = unwrap!(run(&app, move |_, context| {
+            let sign_sk = unwrap!(context.object_cache().get_sec_sign_key(app_sign_key2_h));
+            Ok(sign_sk.clone())
+        }));
+
+        assert_eq!(sign_sk1, sign_sk2);
 
         unsafe {
             unwrap!(call_0(|ud, cb| sign_sec_key_free(

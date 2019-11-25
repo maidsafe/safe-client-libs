@@ -13,7 +13,7 @@ use crate::client::{req, AuthActions, Client, ClientInner, SafeKey, IMMUT_DATA_C
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
-use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
 use crate::event::NetworkTx;
 use crate::event_loop::CoreMsgTx;
@@ -21,9 +21,8 @@ use crate::ipc::BootstrapConfig;
 use crate::utils;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
-use rand::SeedableRng;
-use rust_sodium::crypto::sign::Seed;
-use rust_sodium::crypto::{box_, sign};
+use rand::{thread_rng, SeedableRng};
+use rust_sodium::crypto::box_;
 use safe_nd::{ClientFullId, Coins, LoginPacket, PublicKey, Request, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -53,7 +52,6 @@ impl CoreClient {
             el_handle,
             core_tx,
             net_tx,
-            None,
             |cm| cm,
         )
     }
@@ -64,7 +62,6 @@ impl CoreClient {
         el_handle: Handle,
         core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
-        id_seed: Option<&Seed>,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, CoreError>
     where
@@ -75,7 +72,7 @@ impl CoreClient {
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
         let acc_loc = ClientAccount::generate_network_id(&keyword, &pin)?;
-        let maid_keys = ClientKeys::new(id_seed);
+        let maid_keys = ClientKeys::new(&mut thread_rng());
         let acc = ClientAccount::new(maid_keys.clone())?;
         let acc_ciphertext = acc.encrypt(&password, &pin)?;
 
@@ -182,14 +179,6 @@ impl Client for CoreClient {
 
     fn secret_encryption_key(&self) -> shared_box::SecretKey {
         self.keys.enc_sk.clone()
-    }
-
-    fn public_signing_key(&self) -> sign::PublicKey {
-        self.keys.sign_pk
-    }
-
-    fn secret_signing_key(&self) -> shared_sign::SecretKey {
-        self.keys.sign_sk.clone()
     }
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {

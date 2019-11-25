@@ -11,10 +11,10 @@ use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
 use lru_cache::LruCache;
 use rand::thread_rng;
-use rust_sodium::crypto::{box_, sign};
+use rust_sodium::crypto::box_;
 use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
-use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
+use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::ipc::AppKeys;
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ConnectionManager, NetworkTx};
@@ -175,16 +175,6 @@ impl Client for AppClient {
 
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
         self.inner.clone()
-    }
-
-    fn public_signing_key(&self) -> sign::PublicKey {
-        let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().sign_pk
-    }
-
-    fn secret_signing_key(&self) -> shared_sign::SecretKey {
-        let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().sign_sk
     }
 
     fn public_encryption_key(&self) -> box_::PublicKey {

@@ -23,12 +23,6 @@ pub struct AppKeys {
     pub bls_pk: arrays::BlsPublicKey,
     /// Data symmetric encryption key.
     pub enc_key: arrays::SymSecretKey,
-    /// Asymmetric sign public key.
-    ///
-    /// This is the identity of the App in the Network.
-    pub sign_pk: arrays::SignPublicKey,
-    /// Asymmetric sign private key.
-    pub sign_sk: arrays::SignSecretKey,
     /// Asymmetric enc public key.
     pub enc_pk: arrays::AsymPublicKey,
     /// Asymmetric enc private key.

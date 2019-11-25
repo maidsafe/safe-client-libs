@@ -24,8 +24,8 @@ use std::collections::BTreeMap;
 use std::sync::mpsc;
 use std::thread;
 
-// AD created by app. App lists its own sign_pk in owners field. Put should fail - Rejected at the client handlers.
-// Should pass when it lists the owner's sign_pk instead.
+// AD created by app. App lists its own public key in owners field. Put should fail - Rejected at the client handlers.
+// Should pass when it lists the owner's public key instead.
 #[test]
 fn data_created_by_an_app() {
     let app = create_app();
@@ -105,9 +105,9 @@ fn managing_permissions_for_an_app() {
             let client5 = client.clone();
             let client6 = client.clone();
 
-            let sign_pk = client.public_key();
+            let app_pk = client.public_key();
             // Send the app's key to be added to the data's permission list
-            unwrap!(app_key_tx.send(sign_pk));
+            unwrap!(app_key_tx.send(app_pk));
             // Wait for the address of the data on the network
             let address: ADataAddress = unwrap!(address_rx.recv());
             client
@@ -134,7 +134,7 @@ fn managing_permissions_for_an_app() {
                     if address.is_pub() {
                         let mut permissions = BTreeMap::new();
                         let _ = permissions.insert(
-                            ADataUser::Key(sign_pk),
+                            ADataUser::Key(app_pk),
                             ADataPubPermissionSet::new(true, true),
                         );
                         client3.add_pub_adata_permissions(
@@ -149,7 +149,7 @@ fn managing_permissions_for_an_app() {
                     } else {
                         let mut permissions = BTreeMap::new();
                         let _ = permissions
-                            .insert(sign_pk, ADataUnpubPermissionSet::new(true, true, true));
+                            .insert(app_pk, ADataUnpubPermissionSet::new(true, true, true));
                         client3.add_unpub_adata_permissions(
                             address,
                             ADataUnpubPermissions {
@@ -175,7 +175,7 @@ fn managing_permissions_for_an_app() {
                     if address.is_pub() {
                         let mut permissions = BTreeMap::new();
                         let _ = permissions.insert(
-                            ADataUser::Key(sign_pk),
+                            ADataUser::Key(app_pk),
                             ADataPubPermissionSet::new(true, true),
                         );
                         let _ = permissions.insert(
@@ -194,7 +194,7 @@ fn managing_permissions_for_an_app() {
                     } else {
                         let mut permissions = BTreeMap::new();
                         let _ = permissions
-                            .insert(sign_pk, ADataUnpubPermissionSet::new(true, true, true));
+                            .insert(app_pk, ADataUnpubPermissionSet::new(true, true, true));
                         let _ = permissions
                             .insert(random_app, ADataUnpubPermissionSet::new(true, true, false));
                         client4.add_unpub_adata_permissions(

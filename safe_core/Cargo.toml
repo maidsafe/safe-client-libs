@@ -17,7 +17,7 @@ chrono = { version = "~0.4.0", features = ["serde"] }
 crossbeam-channel = "~0.3.9"
 data-encoding = "~2.1.1"
 directories = "~2.0.2"
-ffi_utils = "~0.13.0"
+ffi_utils = "~0.14.0"
 fs2 = "~0.4.3"
 futures = "~0.1.17"
 env_logger = "~0.6.2"

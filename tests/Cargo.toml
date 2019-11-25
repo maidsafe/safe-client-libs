@@ -9,7 +9,7 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.1.0"
 
 [dependencies]
-ffi_utils = "~0.13.0"
+ffi_utils = "~0.14.0"
 futures = "~0.1.17"
 safe_app = { path = "../safe_app", version = "~0.10.0", features = ["testing"] }
 safe_authenticator = { path = "../safe_authenticator", version = "~0.10.0", features = ["testing"] }

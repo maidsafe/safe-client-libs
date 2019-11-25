@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 // Retrieve the sign key corresponding to the handle from the object cache
 pub fn get_user(object_cache: &ObjectCache, handle: PubKeyHandle) -> Result<PublicKey, AppError> {
     let user = {
-        let sign_key = object_cache.get_pub_key(handle)?;
+        let sign_key = object_cache.get_pub_sign_key(handle)?;
         *sign_key
     };
 

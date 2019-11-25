@@ -22,6 +22,7 @@ use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
 use std::str::Utf8Error;
 use std::sync::mpsc::{RecvError, RecvTimeoutError};
+use threshold_crypto::error::FromBytesError;
 
 #[allow(missing_docs)]
 mod codes {
@@ -334,6 +335,12 @@ impl From<RecvTimeoutError> for AppError {
     fn from(_err: RecvTimeoutError) -> Self {
         // TODO: change this to err.description() once that lands in stable.
         Self::from("mpsc receive error")
+    }
+}
+
+impl From<FromBytesError> for AppError {
+    fn from(err: FromBytesError) -> Self {
+        Self::from(err.to_string())
     }
 }
 

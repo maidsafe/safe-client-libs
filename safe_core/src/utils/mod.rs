@@ -9,9 +9,6 @@
 #[macro_use]
 mod futures;
 
-/// Seed utilities.
-pub mod seed;
-
 /// Logging utilities.
 pub mod logging;
 

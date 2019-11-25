@@ -141,7 +141,7 @@ pub unsafe extern "C" fn mdata_list_permission_sets(
             let user_perm_sets: Vec<UserPermissionSet> = permissions
                 .iter()
                 .map(|(user_key, permission_set)| {
-                    let user_h = context.object_cache().insert_pub_key(*user_key);
+                    let user_h = context.object_cache().insert_pub_sign_key(*user_key);
                     permissions::UserPermissionSet {
                         user_h,
                         perm_set: permission_set.clone(),

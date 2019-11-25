@@ -8,13 +8,12 @@
 
 use crate::client::id::SafeKey;
 use crate::client::MDataInfo;
-use crate::crypto::{shared_box, shared_secretbox, shared_sign};
+use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
 use crate::DIR_TAG;
 use bincode::{deserialize, serialize};
-use rand::thread_rng;
-use rust_sodium::crypto::sign::Seed;
-use rust_sodium::crypto::{box_, pwhash, secretbox, sign};
+use rand::{thread_rng, CryptoRng, Rng};
+use rust_sodium::crypto::{box_, pwhash, secretbox};
 use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Serialize};
 use tiny_keccak::sha3_256;
@@ -122,10 +121,6 @@ pub struct ClientKeys {
     pub client_id: ClientFullId,
     /// Symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
-    /// Signing public key.
-    pub sign_pk: sign::PublicKey,
-    /// Signing secret key.
-    pub sign_sk: shared_sign::SecretKey,
     /// Encryption public key.
     pub enc_pk: box_::PublicKey,
     /// Encryption private key.
@@ -136,21 +131,12 @@ impl ClientKeys {
     /// Generates random client keys, with an optional seed.
     ///
     /// Only signing keys are generated from the seed.
-    // TODO: Remove usage of rust_sodium::Seed.
-    // TODO: Allow providing an rng?
-    pub fn new(seed: Option<&Seed>) -> Self {
-        let (sign_pk, sign_sk) = match seed {
-            Some(s) => shared_sign::keypair_from_seed(s),
-            None => shared_sign::gen_keypair(),
-        };
+    pub fn new<T: CryptoRng + Rng>(rng: &mut T) -> Self {
         let (enc_pk, enc_sk) = shared_box::gen_keypair();
         let enc_key = shared_secretbox::gen_key();
-        // TODO: generate based on provided seed/rng.
-        let client_id = ClientFullId::new_bls(&mut thread_rng());
+        let client_id = ClientFullId::new_bls(rng);
 
         ClientKeys {
-            sign_pk,
-            sign_sk,
             enc_pk,
             enc_sk,
             enc_key,
@@ -171,7 +157,7 @@ impl ClientKeys {
 
 impl Default for ClientKeys {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(&mut thread_rng())
     }
 }
 
@@ -248,7 +234,7 @@ mod tests {
     // Test serialising and deserialising accounts.
     #[test]
     fn serialisation() {
-        let account = unwrap!(Account::new(ClientKeys::new(None)));
+        let account = unwrap!(Account::new(ClientKeys::default()));
         let encoded = unwrap!(serialize(&account));
         let decoded: Account = unwrap!(deserialize(&encoded));
 
@@ -258,7 +244,7 @@ mod tests {
     // Test encryption and decryption of accounts.
     #[test]
     fn encryption() {
-        let account = unwrap!(Account::new(ClientKeys::new(None)));
+        let account = unwrap!(Account::new(ClientKeys::default()));
 
         let password = b"impossible to guess";
         let pin = b"1000";

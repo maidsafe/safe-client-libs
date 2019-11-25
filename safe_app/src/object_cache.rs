@@ -15,11 +15,11 @@ use crate::cipher_opt::CipherOpt;
 use crate::client::AppClient;
 use crate::ffi::nfs::FileContext;
 use crate::ffi::object_cache::*;
-use rust_sodium::crypto::{box_, sign};
-use safe_core::crypto::{shared_box, shared_sign};
+use rust_sodium::crypto::box_;
+use safe_core::crypto::shared_box;
 use safe_core::SelfEncryptionStorage;
 use safe_nd::{
-    MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataUnseqEntries,
+    ClientFullId, MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataUnseqEntries,
     MDataUnseqEntryActions, PublicKey,
 };
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
@@ -39,9 +39,8 @@ pub struct ObjectCache {
     mdata_permissions: Store<BTreeMap<PublicKey, MDataPermissionSet>>,
     se_reader: Store<SelfEncryptor<SelfEncryptionStorage<AppClient>>>,
     se_writer: Store<SequentialEncryptor<SelfEncryptionStorage<AppClient>>>,
-    pub_sign_key: Store<sign::PublicKey>,
-    sec_sign_key: Store<shared_sign::SecretKey>,
-    pub_key: Store<PublicKey>,
+    pub_sign_key: Store<PublicKey>,
+    sec_sign_key: Store<ClientFullId>,
     file: Store<FileContext>,
 }
 
@@ -62,7 +61,6 @@ impl ObjectCache {
             se_writer: Store::new(),
             pub_sign_key: Store::new(),
             sec_sign_key: Store::new(),
-            pub_key: Store::new(),
             file: Store::new(),
         }
     }
@@ -82,7 +80,6 @@ impl ObjectCache {
         self.se_writer.clear();
         self.pub_sign_key.clear();
         self.sec_sign_key.clear();
-        self.pub_key.clear();
         self.file.clear();
     }
 }
@@ -200,7 +197,7 @@ impl_cache!(
 );
 impl_cache!(
     pub_sign_key,
-    sign::PublicKey,
+    PublicKey,
     SignPubKeyHandle,
     InvalidSignPubKeyHandle,
     get_pub_sign_key,
@@ -209,21 +206,12 @@ impl_cache!(
 );
 impl_cache!(
     sec_sign_key,
-    shared_sign::SecretKey,
+    ClientFullId,
     SignSecKeyHandle,
     InvalidSignSecKeyHandle,
     get_sec_sign_key,
     insert_sec_sign_key,
     remove_sec_sign_key
-);
-impl_cache!(
-    pub_key,
-    PublicKey,
-    PubKeyHandle,
-    InvalidPubKeyHandle,
-    get_pub_key,
-    insert_pub_key,
-    remove_pub_key
 );
 impl_cache!(
     file,
@@ -297,13 +285,14 @@ impl<V> Store<V> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_sodium::crypto::sign;
+    use safe_core::utils::test_utils::gen_client_id;
 
     // Test resetting the object cache.
     #[test]
     fn reset() {
         let object_cache = ObjectCache::new();
-        let (pk, _) = sign::gen_keypair();
+        let client_id = gen_client_id();
+        let pk = *client_id.public_id().public_key();
 
         let handle = object_cache.insert_pub_sign_key(pk);
         assert!(object_cache.get_pub_sign_key(handle).is_ok());

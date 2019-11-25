@@ -7,22 +7,21 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::AuthError;
+#[cfg(any(test, feature = "testing"))]
+use crate::test_utils::divide_seed;
 use crate::AuthFuture;
 use crate::AuthMsgTx;
 use futures::future;
 use futures::Future;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
-use rand::SeedableRng;
-use rust_sodium::crypto::sign::Seed;
-use rust_sodium::crypto::{box_, sign};
+use rand::{thread_rng, CryptoRng, Rng, SeedableRng};
+use rust_sodium::crypto::box_;
 use safe_core::client::account::Account;
 use safe_core::client::{req, AuthActions, ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
-use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
+use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::ipc::BootstrapConfig;
-#[cfg(any(test, feature = "testing"))]
-use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
     ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
@@ -58,7 +57,7 @@ impl AuthClient {
             el_handle,
             core_tx,
             net_tx,
-            None,
+            None::<&mut StdRng>,
             |cm| cm,
         )
     }
@@ -80,7 +79,8 @@ impl AuthClient {
 where {
         let arr = divide_seed(seed)?;
 
-        let id_seed = Seed(sha3_256(arr[SEED_SUBPARTS - 2]));
+        let seed = sha3_256(seed.as_bytes());
+        let mut rng = StdRng::from_seed(seed);
 
         Self::registered_impl(
             arr[0],
@@ -89,7 +89,7 @@ where {
             el_handle,
             core_tx,
             net_tx,
-            Some(&id_seed),
+            Some(&mut rng),
             |cm| cm,
         )
     }
@@ -115,7 +115,7 @@ where {
             el_handle,
             core_tx,
             net_tx,
-            None,
+            None::<&mut StdRng>,
             connection_manager_wrapper_fn,
         )
     }
@@ -123,17 +123,18 @@ where {
     // This is a Gateway function to the Maidsafe network. This will help create a fresh acc for the
     // user in the SAFE-network.
     #[allow(clippy::too_many_arguments)]
-    fn registered_impl<F>(
+    fn registered_impl<F, R>(
         acc_locator: &[u8],
         acc_password: &[u8],
         client_id: ClientFullId,
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
-        id_seed: Option<&Seed>,
+        seed: Option<&mut R>,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
+        R: CryptoRng + SeedableRng + Rng,
         F: Fn(ConnectionManager) -> ConnectionManager,
     {
         trace!("Creating an account.");
@@ -142,8 +143,10 @@ where {
 
         let acc_locator = Account::generate_network_id(&keyword, &pin)?;
         let user_cred = UserCred::new(password, pin);
-
-        let mut maid_keys = ClientKeys::new(id_seed);
+        let mut maid_keys = match seed {
+            Some(seed) => ClientKeys::new(seed),
+            None => ClientKeys::new(&mut thread_rng()),
+        };
         maid_keys.client_id = client_id.clone();
 
         let balance_full_id = SafeKey::client(client_id);
@@ -506,16 +509,6 @@ impl Client for AuthClient {
         auth_inner.acc.maid_keys.enc_sk.clone()
     }
 
-    fn public_signing_key(&self) -> sign::PublicKey {
-        let auth_inner = self.auth_inner.borrow();
-        auth_inner.acc.maid_keys.sign_pk
-    }
-
-    fn secret_signing_key(&self) -> shared_sign::SecretKey {
-        let auth_inner = self.auth_inner.borrow();
-        auth_inner.acc.maid_keys.sign_sk.clone()
-    }
-
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         let auth_inner = self.auth_inner.borrow();
         auth_inner.acc.maid_keys.enc_key.clone()
@@ -662,7 +655,7 @@ mod tests {
                 core_tx,
                 net_tx,
             ) {
-                Err(AuthError::CoreError(CoreError::Unexpected(_))) => (),
+                Err(AuthError::Unexpected(_)) => (),
                 _ => panic!("Expected a failure"),
             }
         }
@@ -672,7 +665,7 @@ mod tests {
             let (net_tx, _) = mpsc::unbounded();
 
             match AuthClient::login_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
-                Err(AuthError::CoreError(CoreError::Unexpected(_))) => (),
+                Err(AuthError::Unexpected(_)) => (),
                 _ => panic!("Expected a failure"),
             }
         }
@@ -875,7 +868,7 @@ mod tests {
 
         let acc_loc = unwrap!(Account::generate_network_id(&keyword, &pin));
 
-        let maid_keys = ClientKeys::new(None);
+        let maid_keys = ClientKeys::new(&mut thread_rng());
         let acc = unwrap!(Account::new(maid_keys.clone()));
 
         let acc_ciphertext = unwrap!(acc.encrypt(&password, &pin));

@@ -340,7 +340,7 @@ mod tests {
     use rust_sodium::crypto::secretbox;
     use safe_authenticator::ffi::ipc::encode_auth_resp;
     use safe_authenticator::test_utils as auth_utils;
-    use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
+    use safe_core::crypto::{shared_box, shared_secretbox};
     use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
     use safe_core::ipc::{
         self, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, BootstrapConfig,
@@ -957,14 +957,11 @@ mod tests {
         let client_id = gen_client_id();
         let app_full_id = gen_app_id(client_id.public_id().clone());
         let enc_key = shared_secretbox::gen_key();
-        let (sign_pk, sign_sk) = shared_sign::gen_keypair();
         let (enc_pk, enc_sk) = shared_box::gen_keypair();
 
         AppKeys {
             app_full_id,
             enc_key,
-            sign_pk,
-            sign_sk,
             enc_pk,
             enc_sk,
         }

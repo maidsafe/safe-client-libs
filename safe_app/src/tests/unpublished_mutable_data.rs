@@ -34,10 +34,9 @@ fn md_created_by_app_1() {
     let (name_tx, name_rx) = mpsc::channel();
 
     unwrap!(app.send(move |client, _app_context| {
-        let sign_pk = client.public_signing_key();
-        let app_bls_key = client.public_key();
+        let app_pk = client.public_key();
 
-        unwrap!(app_keys_tx.send((sign_pk, app_bls_key)));
+        unwrap!(app_keys_tx.send(app_pk));
 
         let bls_pk = client.owner_key();
         let name: XorName = unwrap!(name_rx.recv());
@@ -87,12 +86,12 @@ fn md_created_by_app_1() {
         .name(String::from("Alt client"))
         .spawn(|| {
             random_client(move |client| {
-                let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
+                let app_pk = unwrap!(app_keys_rx.recv());
                 let mut rng = StdRng::from_entropy();
 
                 let mut permissions = BTreeMap::new();
                 let _ = permissions.insert(
-                    app_bls_pk,
+                    app_pk,
                     MDataPermissionSet::new()
                         .allow(MDataAction::Insert)
                         .allow(MDataAction::Read),
@@ -114,7 +113,7 @@ fn md_created_by_app_1() {
                     .list_auth_keys_and_version()
                     .then(move |res| {
                         let (_, version) = unwrap!(res);
-                        cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
+                        cl2.ins_auth_key(app_pk, Default::default(), version + 1)
                     })
                     .then(move |res| {
                         unwrap!(res);
@@ -140,10 +139,9 @@ fn md_created_by_app_2() {
     let (name_tx, name_rx) = mpsc::channel();
 
     unwrap!(app.send(move |client, _app_context| {
-        let sign_pk = client.public_signing_key();
-        let app_bls_key = client.public_key();
+        let app_pk = client.public_key();
 
-        unwrap!(app_keys_tx.send((sign_pk, app_bls_key)));
+        unwrap!(app_keys_tx.send(app_pk));
 
         let name: XorName = unwrap!(name_rx.recv());
         let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
@@ -175,7 +173,7 @@ fn md_created_by_app_2() {
                     Err(CoreError::DataError(Error::AccessDenied)) => (),
                     Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
                 }
-                let user = app_bls_key;
+                let user = app_pk;
                 let permissions = MDataPermissionSet::new()
                     .allow(MDataAction::Insert)
                     .allow(MDataAction::Delete);
@@ -219,12 +217,12 @@ fn md_created_by_app_2() {
         .name(String::from("Alt client"))
         .spawn(|| {
             random_client(move |client| {
-                let (_app_sign_pk, app_bls_pk) = unwrap!(app_keys_rx.recv());
+                let app_pk = unwrap!(app_keys_rx.recv());
                 let mut rng = StdRng::from_entropy();
 
                 let mut permissions = BTreeMap::new();
                 let _ = permissions.insert(
-                    app_bls_pk,
+                    app_pk,
                     MDataPermissionSet::new().allow(MDataAction::ManagePermissions),
                 );
 
@@ -247,7 +245,7 @@ fn md_created_by_app_2() {
                     .list_auth_keys_and_version()
                     .then(move |res| {
                         let (_, version) = unwrap!(res);
-                        cl2.ins_auth_key(app_bls_pk, Default::default(), version + 1)
+                        cl2.ins_auth_key(app_pk, Default::default(), version + 1)
                     })
                     .then(move |res| {
                         unwrap!(res);
@@ -260,8 +258,8 @@ fn md_created_by_app_2() {
     unwrap!(rx.recv());
 }
 
-// MD created by App. App lists its own sign_pk in owners field: Put should fail - Rejected by
-// MaidManagers. Should pass when it lists the owner's sign_pk instead.
+// MD created by App. App lists its own public key in owners field: Put should fail - Rejected by
+// Client handlers. Should pass when it lists the owner's public key instead.
 #[test]
 #[allow(unsafe_code)]
 fn md_created_by_app_3() {

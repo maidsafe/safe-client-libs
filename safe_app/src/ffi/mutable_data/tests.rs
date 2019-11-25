@@ -41,7 +41,9 @@ fn permissions_crud_ffi() {
         .allow(MDataAction::ManagePermissions);
 
     let app_pk_handle = unwrap!(run(&app, move |client, context| {
-        Ok(context.object_cache().insert_pub_key(client.public_key()))
+        Ok(context
+            .object_cache()
+            .insert_pub_sign_key(client.public_key()))
     }));
 
     // Create permissions
@@ -92,8 +94,8 @@ fn permissions_crud_ffi() {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].perm_set, perm_set);
         unwrap!(run(&app, move |_, context| {
-            let key = *unwrap!(context.object_cache().get_pub_key(result[0].user_h));
-            let expected = *unwrap!(context.object_cache().get_pub_key(app_pk_handle));
+            let key = *unwrap!(context.object_cache().get_pub_sign_key(result[0].user_h));
+            let expected = *unwrap!(context.object_cache().get_pub_sign_key(app_pk_handle));
             assert_eq!(key, expected);
             Ok(())
         }));
@@ -224,7 +226,9 @@ fn entries_crud_ffi() {
         unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
 
     let app_pk_handle = unwrap!(run(&app, move |client, context| {
-        Ok(context.object_cache().insert_pub_key(client.public_key()))
+        Ok(context
+            .object_cache()
+            .insert_pub_sign_key(client.public_key()))
     }));
 
     unsafe {
