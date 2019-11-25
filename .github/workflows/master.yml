@@ -205,14 +205,6 @@ jobs:
           #name: safe_client_libs-x86_64-apple-darwin-dev
           #path: artifacts/dev/x86_64-apple-darwin/release
 
-      # Upload all the release archives to S3.
-      - uses: actions/aws/cli@master
-        with:
-          args: s3 sync deploy/dev s3://safe-client-libs
-      - uses: actions/aws/cli@master
-        with:
-          args: s3 sync deploy/prod s3://safe-client-libs
-
       # Get information for the release.
       - shell: bash
         id: commit_message
@@ -229,14 +221,6 @@ jobs:
           echo "::set-output name=core_version::$core_version"
           echo "::set-output name=auth_version::$auth_version"
           echo "::set-output name=app_version::$app_version"
-
-      # Put the artifacts into tar/zip archives for deployment with the release.
-      - shell: bash
-        run: make package-commit_hash-deploy-artifacts
-        if: "!startsWith(steps.commit_message.outputs.commit_message, 'Version change')"
-      - shell: bash
-        run: make package-versioned-deploy-artifacts
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - shell: bash
         id: release_description
         run: |
@@ -246,6 +230,23 @@ jobs:
           description="${description//$'\r'/'%0D'}"
           echo "::set-output name=description::$description"
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+
+      # Create deploy directories.
+      # Put the artifacts into tar/zip archives for deployment with the release.
+      - shell: bash
+        run: make package-commit_hash-deploy-artifacts
+        if: "!startsWith(steps.commit_message.outputs.commit_message, 'Version change')"
+      - shell: bash
+        run: make package-versioned-deploy-artifacts
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+
+      # Upload all the release archives to S3.
+      - uses: actions/aws/cli@master
+        with:
+          args: s3 sync deploy/dev s3://safe-client-libs
+      - uses: actions/aws/cli@master
+        with:
+          args: s3 sync deploy/prod s3://safe-client-libs
 
       # Create the release and attach safe_client_libs archives as assets.
       - uses: csexton/create-release@add-body
