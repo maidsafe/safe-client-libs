@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::ffi::arrays;
+use crate::ffi::arrays::*;
 use crate::ffi::ipc::req::PermissionSet;
 use crate::ffi::MDataInfo;
 use ffi_utils::vec_from_raw_parts;
@@ -23,11 +23,11 @@ pub struct AppKeys {
     /// `full_id`s length
     pub full_id_len: usize,
     /// Data symmetric encryption key.
-    pub enc_key: arrays::SymSecretKey,
+    pub enc_key: SymSecretKey,
     /// Asymmetric enc public key.
-    pub enc_pk: arrays::AsymPublicKey,
+    pub enc_pk: AsymPublicKey,
     /// Asymmetric enc private key.
-    pub enc_sk: arrays::AsymSecretKey,
+    pub enc_sk: AsymSecretKey,
 }
 
 /// Access container info.
@@ -35,11 +35,11 @@ pub struct AppKeys {
 #[derive(Clone, Copy)]
 pub struct AccessContInfo {
     /// ID
-    pub id: arrays::XorNameArray,
+    pub id: XorNameArray,
     /// Type tag
     pub tag: u64,
     /// Nonce
-    pub nonce: arrays::SymNonce,
+    pub nonce: SymNonce,
 }
 
 /// Information about a container (name, `MDataInfo` and permissions).
@@ -106,7 +106,7 @@ impl Drop for AuthGranted {
 #[repr(C)]
 pub struct AppAccess {
     /// App's or user's public key.
-    pub sign_key: arrays::BlsPublicKey,
+    pub sign_key: BlsPublicKey,
     /// A list of permissions.
     pub permissions: PermissionSet,
     /// App's user-facing name.
@@ -145,7 +145,7 @@ pub struct MetadataResponse {
     /// null if not present.
     pub description: *const c_char,
     /// Xor name of this struct's corresponding MData object.
-    pub xor_name: arrays::XorNameArray,
+    pub xor_name: XorNameArray,
     /// Type tag of this struct's corresponding MData object.
     pub type_tag: u64,
 }
