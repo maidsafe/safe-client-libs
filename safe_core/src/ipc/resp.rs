@@ -21,8 +21,7 @@ use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError
 use rand::thread_rng;
 use rust_sodium::crypto::{box_, secretbox};
 use safe_nd::{
-    AppFullId, ClientFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue,
-    PublicKey, XorName,
+    AppFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -84,7 +83,7 @@ impl AuthGranted {
         let (ptr, len) = vec_into_raw_parts(bootstrap_config);
 
         Ok(ffi::AuthGranted {
-            app_keys: app_keys.into_repr_c(),
+            app_keys: app_keys.into_repr_c()?,
             access_container_info: access_container_info.into_repr_c(),
             access_container_entry: access_container_entry_into_repr_c(access_container_entry)?,
             bootstrap_config: ptr,
@@ -159,7 +158,7 @@ impl AppKeys {
     }
 
     /// Constructs FFI wrapper for the native Rust object, consuming self.
-    pub fn into_repr_c(self) -> ffi::AppKeys {
+    pub fn into_repr_c(self) -> Result<ffi::AppKeys, IpcError> {
         let AppKeys {
             app_full_id,
             enc_key,
@@ -167,19 +166,16 @@ impl AppKeys {
             enc_sk,
         } = self;
 
-        // TODO: Handle the full app ID.
-        let bls_pk = match app_full_id.public_id().public_key() {
-            PublicKey::Bls(pk) => pk.to_bytes(),
-            // TODO and FIXME: use proper ReprC for PublicKey
-            _ => panic!("unexpected owner key type"),
-        };
+        let app_full_id = serialize(&app_full_id)?;
+        let (full_id, full_id_len) = vec_into_raw_parts(app_full_id);
 
-        ffi::AppKeys {
-            bls_pk,
+        Ok(ffi::AppKeys {
+            full_id,
+            full_id_len,
             enc_key: enc_key.0,
             enc_pk: enc_pk.0,
             enc_sk: enc_sk.0,
-        }
+        })
     }
 }
 
@@ -188,10 +184,8 @@ impl ReprC for AppKeys {
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        // TODO: handle this properly.
-        let mut rng = thread_rng();
-        let client_id = ClientFullId::new_bls(&mut rng);
-        let app_full_id = AppFullId::new_bls(&mut rng, client_id.public_id().clone());
+        let raw_full_id = vec_clone_from_raw_parts(repr_c.full_id, repr_c.full_id_len);
+        let app_full_id = deserialize(&raw_full_id)?;
 
         Ok(Self {
             app_full_id,
@@ -629,11 +623,10 @@ mod tests {
             enc_key,
             enc_pk,
             enc_sk,
-            // TODO: check app_id also.
-            ..
+            app_full_id,
         } = ak.clone();
 
-        let ffi_ak = ak.into_repr_c();
+        let ffi_ak = unwrap!(ak.into_repr_c());
 
         assert_eq!(
             ffi_ak.enc_key.iter().collect::<Vec<_>>(),
@@ -653,6 +646,7 @@ mod tests {
         assert_eq!(ak.enc_key, enc_key);
         assert_eq!(ak.enc_pk, enc_pk);
         assert_eq!(ak.enc_sk, enc_sk);
+        assert_eq!(ak.app_full_id, app_full_id);
     }
 
     // Test converting an `AccessContInfo` to `MDataInfo` and back again.

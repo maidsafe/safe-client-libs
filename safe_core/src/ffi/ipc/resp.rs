@@ -18,9 +18,10 @@ use std::ptr;
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct AppKeys {
-    // TODO: Handle the full app ID.
-    /// Owner signing public key.
-    pub bls_pk: arrays::BlsPublicKey,
+    /// Application identity.
+    pub full_id: *const u8,
+    /// `full_id`s length
+    pub full_id_len: usize,
     /// Data symmetric encryption key.
     pub enc_key: arrays::SymSecretKey,
     /// Asymmetric enc public key.
