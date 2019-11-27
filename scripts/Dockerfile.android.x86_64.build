@@ -43,8 +43,6 @@ COPY . .
 
 USER maidsafe:maidsafe
 ENV CARGO_TARGET_DIR=/target \
-    OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu \
-    OPENSSL_INCLUDE_DIR=/usr/include/openssl \
     CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=x86_64-linux-android-gcc \
     PATH=$PATH:/usr/local/bin/android-toolchains/bin
 RUN rustup target add x86_64-linux-android && \
