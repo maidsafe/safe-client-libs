@@ -22,8 +22,7 @@ quic-p2p = "~0.3.0"
 rand = "0.6"
 rust_sodium = "~0.10.2"
 safe_core = { path = "../safe_core", version = "~0.35.0" }
-# safe-nd = "~0.4.0"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd.git", branch = "master" }
+safe-nd = "~0.6.0"
 serde = { version = "~1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
@@ -40,8 +39,7 @@ ffi_utils = "~0.13.0"
 jni = "~0.12.0"
 rust_sodium = "~0.10.2"
 safe_bindgen = { version = "~0.13.1", optional = true }
-# safe-nd = "~0.4.0"
-safe-nd = { git = "https://github.com/maidsafe/safe-nd.git", branch = "master" }
+safe-nd = "~0.6.0"
 unwrap = "~1.2.0"
 
 [features]

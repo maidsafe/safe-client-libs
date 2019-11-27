@@ -1904,8 +1904,9 @@ checksum = "bfa8506c1de11c9c4e4c38863ccbe02a305c8188e85a05a784c9e11e1c3910c8"
 
 [[package]]
 name = "safe-nd"
-version = "0.5.0"
-source = "git+https://github.com/maidsafe/safe-nd.git#b67c4eae5c5412b5de5c9b505b2eb1246b43f182"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d05cb429e44dec4247afafa8d1771565491db4c36ff13fef12df49f8c758798"
 dependencies = [
  "bincode",
  "ed25519-dalek",
