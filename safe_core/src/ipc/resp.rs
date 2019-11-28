@@ -98,7 +98,7 @@ impl ReprC for AuthGranted {
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let ffi::AuthGranted {
-            app_keys,
+            ref app_keys,
             bootstrap_config,
             bootstrap_config_len,
             access_container_info,
@@ -180,18 +180,18 @@ impl AppKeys {
 }
 
 impl ReprC for AppKeys {
-    type C = ffi::AppKeys;
+    type C = *const ffi::AppKeys;
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        let raw_full_id = vec_clone_from_raw_parts(repr_c.full_id, repr_c.full_id_len);
+        let raw_full_id = vec_clone_from_raw_parts((*repr_c).full_id, (*repr_c).full_id_len);
         let app_full_id = deserialize(&raw_full_id)?;
 
         Ok(Self {
             app_full_id,
-            enc_key: shared_secretbox::Key::from_raw(&repr_c.enc_key),
-            enc_pk: box_::PublicKey(repr_c.enc_pk),
-            enc_sk: shared_box::SecretKey::from_raw(&repr_c.enc_sk),
+            enc_key: shared_secretbox::Key::from_raw(&(*repr_c).enc_key),
+            enc_pk: box_::PublicKey((*repr_c).enc_pk),
+            enc_sk: shared_box::SecretKey::from_raw(&(*repr_c).enc_sk),
         })
     }
 }
@@ -641,7 +641,7 @@ mod tests {
             enc_sk.0.iter().collect::<Vec<_>>()
         );
 
-        let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(ffi_ak)) };
+        let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(&ffi_ak)) };
 
         assert_eq!(ak.enc_key, enc_key);
         assert_eq!(ak.enc_pk, enc_pk);

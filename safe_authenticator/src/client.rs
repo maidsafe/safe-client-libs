@@ -75,8 +75,7 @@ impl AuthClient {
         el_handle: Handle,
         core_tx: AuthMsgTx,
         net_tx: NetworkTx,
-    ) -> Result<Self, AuthError>
-where {
+    ) -> Result<Self, AuthError> {
         let arr = divide_seed(seed)?;
 
         let seed = sha3_256(seed.as_bytes());

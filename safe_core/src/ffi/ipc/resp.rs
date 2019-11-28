@@ -6,6 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+// All the FFI array types must be imported at the file
+// level for safe_bindgen to parse correctly
 use crate::ffi::arrays::*;
 use crate::ffi::ipc::req::PermissionSet;
 use crate::ffi::MDataInfo;
@@ -16,7 +18,7 @@ use std::ptr;
 
 /// Represents the needed keys to work with the data.
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct AppKeys {
     /// Application identity.
     pub full_id: *const u8,
@@ -28,6 +30,14 @@ pub struct AppKeys {
     pub enc_pk: AsymPublicKey,
     /// Asymmetric enc private key.
     pub enc_sk: AsymSecretKey,
+}
+
+impl Drop for AppKeys {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = vec_from_raw_parts(self.full_id as *mut u8, self.full_id_len);
+        }
+    }
 }
 
 /// Access container info.
