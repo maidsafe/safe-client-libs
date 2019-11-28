@@ -10,7 +10,6 @@
 use crate::errors::AppError;
 use bincode::{deserialize, serialize};
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, SafePtr, FFI_RESULT_OK};
-use rust_sodium::crypto::secretbox;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
 use safe_core::ffi::{md_kind_clone_from_repr_c, MDataInfo};
@@ -38,12 +37,11 @@ pub unsafe extern "C" fn mdata_info_new_private(
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let name = XorName(*name);
         let sk = shared_secretbox::Key::from_raw(&*secret_key);
-        let nonce = secretbox::Nonce(*nonce);
 
         let md_kind = md_kind_clone_from_repr_c(md_seq);
         let address = MDataAddress::from_kind(md_kind, name, type_tag);
 
-        let info = NativeMDataInfo::new_private(address, (sk, nonce));
+        let info = NativeMDataInfo::new_private(address, (sk, *nonce));
         let info = info.into_repr_c();
 
         o_cb(user_data, FFI_RESULT_OK, &info);
@@ -235,9 +233,8 @@ mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_1, call_vec_u8};
     use rand;
-    use rust_sodium::crypto::secretbox;
     use safe_core::crypto::shared_secretbox;
-    use safe_core::MDataInfo;
+    use safe_core::{utils, MDataInfo};
     use safe_nd::{MDataKind as NativeMDataKind, XOR_NAME_LEN};
 
     // Test creating non-encrypted mdata info.
@@ -272,14 +269,14 @@ mod tests {
         };
 
         let key = shared_secretbox::gen_key();
-        let nonce = secretbox::gen_nonce();
+        let nonce = utils::generate_nonce();
         let new_info: MDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_new_private(
                 false,
                 &[2; XOR_NAME_LEN],
                 type_tag,
-                &key.0,
-                &nonce.0,
+                &*key,
+                &nonce,
                 ud,
                 cb
             )))

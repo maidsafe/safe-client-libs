@@ -15,11 +15,10 @@ use crate::nfs::reader::Reader;
 use crate::nfs::writer::Writer;
 use crate::nfs::{create_dir, File, Mode, NfsError, NfsFuture};
 use crate::utils::test_utils::random_client;
-use crate::utils::{generate_random_vector, FutureExt};
+use crate::utils::{self, generate_random_vector, FutureExt};
 use crate::DIR_TAG;
 use futures::future::{self, Loop};
 use futures::Future;
-use rust_sodium::crypto::secretbox;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
 use std;
@@ -86,8 +85,8 @@ fn file_fetch_public_md() {
         let c7 = client.clone();
 
         let mut root = unwrap!(MDataInfo::random_public(MDataKind::Unseq, DIR_TAG));
-        root.enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
-        root.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+        root.enc_info = Some((shared_secretbox::gen_key(), utils::generate_nonce()));
+        root.new_enc_info = Some((shared_secretbox::gen_key(), utils::generate_nonce()));
         let root2 = root.clone();
 
         create_dir(client, &root, btree_map![], btree_map![])

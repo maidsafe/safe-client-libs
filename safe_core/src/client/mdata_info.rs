@@ -11,14 +11,16 @@ use crate::errors::CoreError;
 use crate::ffi::arrays::{SymNonce, SymSecretKey};
 use crate::ffi::{md_kind_clone_from_repr_c, md_kind_into_repr_c, MDataInfo as FfiMDataInfo};
 use crate::ipc::IpcError;
-use crate::utils::{symmetric_decrypt, symmetric_encrypt};
+use crate::utils::{
+    self, symmetric_decrypt, symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN,
+};
 use ffi_utils::ReprC;
-use rust_sodium::crypto::secretbox;
 use safe_nd::{
     MDataAddress, MDataKind, MDataSeqEntries, MDataSeqEntryAction, MDataSeqValue, XorName,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::TryInto;
 use tiny_keccak::sha3_256;
 
 /// Information allowing to locate and access mutable data on the network.
@@ -27,17 +29,17 @@ pub struct MDataInfo {
     /// Address of the mutable data, containing its name, type tag, and whether it is sequenced.
     pub address: MDataAddress,
     /// Key to encrypt/decrypt the directory content and the nonce to be used for keys
-    pub enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
+    pub enc_info: Option<(shared_secretbox::Key, SymEncNonce)>,
 
     /// Future encryption info, used for two-phase data reencryption.
-    pub new_enc_info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
+    pub new_enc_info: Option<(shared_secretbox::Key, SymEncNonce)>,
 }
 
 impl MDataInfo {
     /// Construct `MDataInfo` for private (encrypted) data with a provided private key.
     pub fn new_private(
         address: MDataAddress,
-        enc_info: (shared_secretbox::Key, secretbox::Nonce),
+        enc_info: (shared_secretbox::Key, SymEncNonce),
     ) -> Self {
         MDataInfo {
             address,
@@ -58,7 +60,7 @@ impl MDataInfo {
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
         let address = MDataAddress::from_kind(kind, rand::random(), type_tag);
-        let enc_info = (shared_secretbox::gen_key(), secretbox::gen_nonce());
+        let enc_info = (shared_secretbox::gen_key(), utils::generate_nonce());
 
         Ok(Self::new_private(address, enc_info))
     }
@@ -96,7 +98,7 @@ impl MDataInfo {
     }
 
     /// Returns the nonce, if any.
-    pub fn nonce(&self) -> Option<&secretbox::Nonce> {
+    pub fn nonce(&self) -> Option<&SymEncNonce> {
         self.enc_info.as_ref().map(|&(_, ref nonce)| nonce)
     }
 
@@ -141,7 +143,7 @@ impl MDataInfo {
     /// field with random keys, unless it's already populated.
     pub fn start_new_enc_info(&mut self) {
         if self.enc_info.is_some() && self.new_enc_info.is_none() {
-            self.new_enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+            self.new_enc_info = Some((shared_secretbox::gen_key(), utils::generate_nonce()));
         }
     }
 
@@ -281,16 +283,14 @@ fn decrypt_value(info: &MDataInfo, value: &MDataSeqValue) -> Result<MDataSeqValu
 
 fn enc_entry_key(
     plain_text: &[u8],
-    key: &secretbox::Key,
-    seed: secretbox::Nonce,
+    key: &SymEncKey,
+    seed: SymEncNonce,
 ) -> Result<Vec<u8>, CoreError> {
-    let nonce = {
-        let secretbox::Nonce(ref nonce) = seed;
+    let nonce: SymEncNonce = {
         let mut pt = plain_text.to_vec();
-        pt.extend_from_slice(&nonce[..]);
-        unwrap!(secretbox::Nonce::from_slice(
-            &sha3_256(&pt)[..secretbox::NONCEBYTES],
-        ))
+        pt.extend_from_slice(&seed[..]);
+        // safe to unwrap as hash length is 256
+        unwrap!(sha3_256(&pt)[..SYM_ENC_NONCE_LEN].try_into())
     };
     symmetric_encrypt(plain_text, key, Some(&nonce))
 }
@@ -328,10 +328,10 @@ impl ReprC for MDataInfo {
 
 // Helper function for converting to FFI representation.
 fn enc_info_into_repr_c(
-    info: Option<(shared_secretbox::Key, secretbox::Nonce)>,
+    info: Option<(shared_secretbox::Key, SymEncNonce)>,
 ) -> (bool, SymSecretKey, SymNonce) {
     if let Some((key, nonce)) = info {
-        (true, key.0, nonce.0)
+        (true, *key, nonce)
     } else {
         (false, Default::default(), Default::default())
     }
@@ -342,12 +342,9 @@ fn enc_info_from_repr_c(
     is_set: bool,
     key: SymSecretKey,
     nonce: SymNonce,
-) -> Option<(shared_secretbox::Key, secretbox::Nonce)> {
+) -> Option<(shared_secretbox::Key, SymEncNonce)> {
     if is_set {
-        Some((
-            shared_secretbox::Key::from_raw(&key),
-            secretbox::Nonce(nonce),
-        ))
+        Some((shared_secretbox::Key::from_raw(&key), nonce))
     } else {
         None
     }

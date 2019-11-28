@@ -10,12 +10,15 @@ use crate::client::id::SafeKey;
 use crate::client::MDataInfo;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
+use crate::utils::{SymEncKey, SymEncNonce, SYM_ENC_KEY_LEN, SYM_ENC_NONCE_LEN};
 use crate::DIR_TAG;
 use bincode::{deserialize, serialize};
 use rand::{thread_rng, CryptoRng, Rng};
-use rust_sodium::crypto::{box_, pwhash, secretbox};
+use miscreant::aead::Aead;
+use miscreant::aead::Aes128SivAead;
 use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 use tiny_keccak::sha3_256;
 
 /// Object representing the User Account information on the network.
@@ -50,8 +53,9 @@ impl Account {
     pub fn encrypt(&self, password: &[u8], pin: &[u8]) -> Result<Vec<u8>, CoreError> {
         let serialised_self = serialize(self)?;
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
+        let mut cipher = Aes128SivAead::new(&key);
 
-        Ok(secretbox::seal(&serialised_self, &nonce, &key))
+        Ok(cipher.seal(&nonce, &[], &serialised_self))
     }
 
     /// Symmetrically decrypts Account using User's credentials.
@@ -59,7 +63,10 @@ impl Account {
     /// Credentials are passed through key-derivation-function first.
     pub fn decrypt(encrypted_self: &[u8], password: &[u8], pin: &[u8]) -> Result<Self, CoreError> {
         let (key, nonce) = Self::generate_crypto_keys(password, pin)?;
-        let decrypted_self = secretbox::open(encrypted_self, &nonce, &key)
+        let mut cipher = Aes128SivAead::new(&key);
+
+        let decrypted_self = cipher
+            .open(&nonce, &[], &encrypted_self)
             .map_err(|_| CoreError::SymmetricDecipherFailure)?;
 
         Ok(deserialize(&decrypted_self)?)
@@ -77,13 +84,12 @@ impl Account {
     fn generate_crypto_keys(
         password: &[u8],
         pin: &[u8],
-    ) -> Result<(secretbox::Key, secretbox::Nonce), CoreError> {
-        let mut output = [0; secretbox::KEYBYTES + secretbox::NONCEBYTES];
+    ) -> Result<(SymEncKey, SymEncNonce), CoreError> {
+        let mut output = [0; SYM_ENC_KEY_LEN + SYM_ENC_NONCE_LEN];
         Self::derive_key(&mut output[..], password, pin)?;
-
         // OK to unwrap here, as we guaranteed the slices have the correct length.
-        let key = unwrap!(secretbox::Key::from_slice(&output[..secretbox::KEYBYTES]));
-        let nonce = unwrap!(secretbox::Nonce::from_slice(&output[secretbox::KEYBYTES..]));
+        let key: SymEncKey = unwrap!(output[..SYM_ENC_KEY_LEN].try_into());
+        let nonce: SymEncNonce = unwrap!(output[SYM_ENC_KEY_LEN..].try_into());
 
         Ok((key, nonce))
     }

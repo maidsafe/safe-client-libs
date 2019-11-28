@@ -14,10 +14,9 @@ use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
 use futures::Future;
-use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
-use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
+use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
 use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
@@ -31,7 +30,7 @@ pub const AUTHENTICATOR_ENTRY: &str = "authenticator";
 pub fn enc_key(
     access_container: &MDataInfo,
     app_id: &str,
-    secret_key: &secretbox::Key,
+    secret_key: &SymEncKey,
 ) -> Result<Vec<u8>, AuthError> {
     let nonce = access_container
         .nonce()
@@ -42,7 +41,7 @@ pub fn enc_key(
 /// Decodes raw authenticator entry.
 pub fn decode_authenticator_entry(
     encoded: &[u8],
-    enc_key: &secretbox::Key,
+    enc_key: &SymEncKey,
 ) -> Result<HashMap<String, MDataInfo>, AuthError> {
     let plaintext = symmetric_decrypt(encoded, enc_key)?;
     Ok(deserialize(&plaintext)?)
@@ -52,7 +51,7 @@ pub fn decode_authenticator_entry(
 #[allow(clippy::implicit_hasher)]
 pub fn encode_authenticator_entry(
     decoded: &HashMap<String, MDataInfo>,
-    enc_key: &secretbox::Key,
+    enc_key: &SymEncKey,
 ) -> Result<Vec<u8>, AuthError> {
     let plaintext = serialize(decoded)?;
     Ok(symmetric_encrypt(&plaintext, enc_key, None)?)
@@ -111,7 +110,7 @@ pub fn put_authenticator_entry(
 /// Decodes raw app entry.
 pub fn decode_app_entry(
     encoded: &[u8],
-    enc_key: &secretbox::Key,
+    enc_key: &SymEncKey,
 ) -> Result<AccessContainerEntry, AuthError> {
     let plaintext = symmetric_decrypt(encoded, enc_key)?;
     Ok(deserialize(&plaintext)?)
@@ -120,7 +119,7 @@ pub fn decode_app_entry(
 /// Encodes app entry into raw mdata content.
 pub fn encode_app_entry(
     decoded: &AccessContainerEntry,
-    enc_key: &secretbox::Key,
+    enc_key: &SymEncKey,
 ) -> Result<Vec<u8>, AuthError> {
     let plaintext = serialize(decoded)?;
     Ok(symmetric_encrypt(&plaintext, enc_key, None)?)

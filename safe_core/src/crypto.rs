@@ -12,64 +12,53 @@
 
 /// Symmetric encryption utilities.
 pub mod shared_secretbox {
-    use rust_sodium::crypto::secretbox;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use crate::utils::{self, SymEncKey};
+    use serde::{Deserialize, Serialize};
+    use std::convert::TryInto;
     use std::fmt::{self, Debug};
     use std::ops::Deref;
     use std::sync::Arc;
 
     /// Shared symmetric encryption key.
-    #[derive(Clone, Eq, PartialEq)]
-    pub struct Key(Arc<secretbox::Key>);
+    #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+    pub struct Key(Arc<SymEncKey>);
 
     impl Key {
         /// Create new safe-to-share key from the given regular key.
-        pub fn new(inner: &secretbox::Key) -> Self {
+        pub fn new(inner: &SymEncKey) -> Self {
             // NOTE: make sure we move the inner array, not the whole key, because
             // moving the key would leave the `inner` variable in the "moved-from"
             // state which means it's destructor wouldn't be called and the old
             // memory location wouldn't be zeroed - leaving the sensitive data
             // dangling in the memory.
-            Key(Arc::new(secretbox::Key(inner.0)))
+            Key(Arc::new(*inner))
         }
 
         /// Create new key from the given raw key data.
-        pub fn from_raw(data: &[u8; secretbox::KEYBYTES]) -> Self {
+        pub fn from_raw(data: &SymEncKey) -> Self {
             // FIXME: this function subverts the purpose of this module - it
             // copies the sensitive data. Possible fix might be to take the input by
             // mutable reference and zero it afterwards.
-            Key(Arc::new(secretbox::Key(*data)))
+            Key(Arc::new(*data))
         }
 
         /// Create new key from the data in the given slice.
         pub fn from_slice(data: &[u8]) -> Option<Self> {
-            secretbox::Key::from_slice(data).map(|key| Self::new(&key))
+            let key: SymEncKey = unwrap!(data.try_into());
+            Some(Self(Arc::new(key)))
         }
     }
 
     /// Generate new random shared symmetric encryption key.
     pub fn gen_key() -> Key {
-        Key::new(&secretbox::gen_key())
+        Key::new(&utils::generate_symm_enc_key())
     }
 
     impl Deref for Key {
-        type Target = secretbox::Key;
+        type Target = SymEncKey;
 
         fn deref(&self) -> &Self::Target {
             &*self.0
-        }
-    }
-
-    impl<'de> Deserialize<'de> for Key {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-            let inner = secretbox::Key::deserialize(deserializer)?;
-            Ok(Key::new(&inner))
-        }
-    }
-
-    impl Serialize for Key {
-        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            self.0.serialize(serializer)
         }
     }
 

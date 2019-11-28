@@ -337,7 +337,6 @@ mod tests {
     use crate::test_utils;
     use ffi_utils::test_utils::{call_1, call_2};
     use ffi_utils::ReprC;
-    use rust_sodium::crypto::secretbox;
     use safe_authenticator::ffi::ipc::encode_auth_resp;
     use safe_authenticator::test_utils as auth_utils;
     use safe_core::crypto::{shared_box, shared_secretbox};
@@ -618,7 +617,7 @@ mod tests {
         let access_container_info = AccessContInfo {
             id: rand::random(),
             tag: rand::random(),
-            nonce: secretbox::gen_nonce(),
+            nonce: utils::generate_nonce(),
         };
 
         let auth_granted = AuthGranted {

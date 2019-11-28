@@ -19,12 +19,25 @@ pub mod test_utils;
 pub use self::futures::FutureExt;
 use crate::errors::CoreError;
 use bincode::{deserialize, serialize};
+use miscreant::aead::Aead;
+use miscreant::Aes128SivAead;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::OsRng;
-use rand::Rng;
+use rand::{self, Rng};
 use rust_sodium::crypto::hash::sha512::{self, Digest, DIGESTBYTES};
-use rust_sodium::crypto::secretbox;
 use serde::{Deserialize, Serialize};
+
+/// Length of the symmetric encryption key.
+pub const SYM_ENC_KEY_LEN: usize = 32;
+
+/// Length of the nonce used for symmetric encryption.
+pub const SYM_ENC_NONCE_LEN: usize = 16;
+
+/// Symmetric encryption key
+pub type SymEncKey = [u8; SYM_ENC_KEY_LEN];
+
+/// Symmetric encryption nonce
+pub type SymEncNonce = [u8; SYM_ENC_NONCE_LEN];
 
 /// Easily create a BTreeSet.
 #[macro_export]
@@ -64,37 +77,44 @@ macro_rules! btree_map {
 
 #[derive(Serialize, Deserialize)]
 struct SymmetricEnc {
-    nonce: [u8; secretbox::NONCEBYTES],
+    nonce: SymEncNonce,
     cipher_text: Vec<u8>,
+}
+
+/// Generates a symmetric encryption key
+pub fn generate_symm_enc_key() -> SymEncKey {
+    rand::random()
+}
+
+/// Generates a nonce for symmetric encryption
+pub fn generate_nonce() -> SymEncNonce {
+    rand::random()
 }
 
 /// Symmetric encryption.
 /// If `nonce` is `None`, then it will be generated randomly.
 pub fn symmetric_encrypt(
     plain_text: &[u8],
-    secret_key: &secretbox::Key,
-    nonce: Option<&secretbox::Nonce>,
+    secret_key: &SymEncKey,
+    nonce: Option<&SymEncNonce>,
 ) -> Result<Vec<u8>, CoreError> {
     let nonce = match nonce {
         Some(nonce) => *nonce,
-        None => secretbox::gen_nonce(),
+        None => generate_nonce(),
     };
 
-    let cipher_text = secretbox::seal(plain_text, &nonce, secret_key);
+    let mut cipher = Aes128SivAead::new(secret_key);
+    let cipher_text = cipher.seal(&nonce, &[], plain_text);
 
-    Ok(serialize(&SymmetricEnc {
-        nonce: nonce.0,
-        cipher_text,
-    })?)
+    Ok(serialize(&SymmetricEnc { nonce, cipher_text })?)
 }
 
 /// Symmetric decryption.
-pub fn symmetric_decrypt(
-    cipher_text: &[u8],
-    secret_key: &secretbox::Key,
-) -> Result<Vec<u8>, CoreError> {
+pub fn symmetric_decrypt(cipher_text: &[u8], secret_key: &SymEncKey) -> Result<Vec<u8>, CoreError> {
     let SymmetricEnc { nonce, cipher_text } = deserialize::<SymmetricEnc>(cipher_text)?;
-    secretbox::open(&cipher_text, &secretbox::Nonce(nonce), secret_key)
+    let mut cipher = Aes128SivAead::new(secret_key);
+    cipher
+        .open(&nonce, &[], &cipher_text)
         .map_err(|_| CoreError::SymmetricDecipherFailure)
 }
 

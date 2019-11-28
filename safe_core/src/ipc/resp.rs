@@ -16,10 +16,13 @@ use crate::ipc::req::{
     permission_set_into_repr_c, ContainerPermissions,
 };
 use crate::ipc::{BootstrapConfig, IpcError};
+use crate::utils::{SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN};
 use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
+use miscreant::aead::Aead;
+use miscreant::aead::Aes128SivAead;
 use rand::thread_rng;
-use rust_sodium::crypto::{box_, secretbox};
+use rust_sodium::crypto::box_;
 use safe_nd::{
     AppFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName,
 };
@@ -172,7 +175,7 @@ impl AppKeys {
         Ok(ffi::AppKeys {
             full_id,
             full_id_len,
-            enc_key: enc_key.0,
+            enc_key: *enc_key,
             enc_pk: enc_pk.0,
             enc_sk: enc_sk.0,
         })
@@ -254,7 +257,7 @@ pub struct AccessContInfo {
     /// Type tag
     pub tag: u64,
     /// Nonce
-    pub nonce: secretbox::Nonce,
+    pub nonce: SymEncNonce,
 }
 
 impl AccessContInfo {
@@ -265,7 +268,7 @@ impl AccessContInfo {
         ffi::AccessContInfo {
             id: id.0,
             tag,
-            nonce: nonce.0,
+            nonce,
         }
     }
 
@@ -304,7 +307,7 @@ impl ReprC for AccessContInfo {
         Ok(Self {
             id: XorName(repr_c.id),
             tag: repr_c.tag,
-            nonce: secretbox::Nonce(repr_c.nonce),
+            nonce: repr_c.nonce,
         })
     }
 }
@@ -312,17 +315,17 @@ impl ReprC for AccessContInfo {
 /// Encrypts and serialises an access container key using given app ID and app key.
 pub fn access_container_enc_key(
     app_id: &str,
-    app_enc_key: &secretbox::Key,
-    access_container_nonce: &secretbox::Nonce,
+    app_enc_key: &SymEncKey,
+    access_container_nonce: &SymEncNonce,
 ) -> Result<Vec<u8>, IpcError> {
     let key = app_id.as_bytes();
     let mut key_pt = key.to_vec();
     key_pt.extend_from_slice(&access_container_nonce[..]);
 
-    let key_nonce = secretbox::Nonce::from_slice(&sha3_256(&key_pt)[..secretbox::NONCEBYTES])
-        .ok_or(IpcError::EncodeDecodeError)?;
+    let key_nonce = &sha3_256(&key_pt)[..SYM_ENC_NONCE_LEN];
 
-    Ok(secretbox::seal(key, &key_nonce, app_enc_key))
+    let mut cipher = Aes128SivAead::new(app_enc_key);
+    Ok(cipher.seal(&key_nonce, &[], key))
 }
 
 /// Information about an app that has access to an MD through `sign_key`.
@@ -582,9 +585,9 @@ impl ReprC for MDataEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils;
     use crate::utils::test_utils::gen_client_id;
     use ffi_utils::ReprC;
-    use rust_sodium::crypto::secretbox;
     use safe_nd::{XorName, XOR_NAME_LEN};
 
     // Test converting an `AuthGranted` object to its FFI representation and then back again.
@@ -595,7 +598,7 @@ mod tests {
         let ac = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),
             tag: 681,
-            nonce: secretbox::gen_nonce(),
+            nonce: utils::generate_nonce(),
         };
         let ag = AuthGranted {
             app_keys: ak,
@@ -630,7 +633,7 @@ mod tests {
 
         assert_eq!(
             ffi_ak.enc_key.iter().collect::<Vec<_>>(),
-            enc_key.0.iter().collect::<Vec<_>>()
+            (*enc_key).iter().collect::<Vec<_>>()
         );
         assert_eq!(
             ffi_ak.enc_pk.iter().collect::<Vec<_>>(),
@@ -652,7 +655,7 @@ mod tests {
     // Test converting an `AccessContInfo` to `MDataInfo` and back again.
     #[test]
     fn access_container_mdata_info() {
-        let (key, nonce) = (shared_secretbox::gen_key(), secretbox::gen_nonce());
+        let (key, nonce) = (shared_secretbox::gen_key(), utils::generate_nonce());
         let a = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),
             tag: 681,
@@ -671,7 +674,7 @@ mod tests {
     // Test converting an `AccessContInfo` to its FFI representation and back again.
     #[test]
     fn access_container_ffi() {
-        let nonce = secretbox::gen_nonce();
+        let nonce = utils::generate_nonce();
         let a = AccessContInfo {
             id: XorName([2; XOR_NAME_LEN]),
             tag: 681,
@@ -684,7 +687,7 @@ mod tests {
         assert_eq!(ffi.tag, 681);
         assert_eq!(
             ffi.nonce.iter().collect::<Vec<_>>(),
-            nonce.0.iter().collect::<Vec<_>>()
+            nonce.iter().collect::<Vec<_>>()
         );
 
         let a = unsafe { unwrap!(AccessContInfo::clone_from_repr_c(ffi)) };

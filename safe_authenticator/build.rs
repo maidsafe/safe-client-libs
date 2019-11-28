@@ -16,7 +16,7 @@ fn main() {
 #[cfg(feature = "bindings")]
 mod bindings {
     use jni::signature::{JavaType, Primitive};
-    use rust_sodium::crypto::{box_, secretbox, sign};
+    use rust_sodium::crypto::{box_, sign};
     use safe_bindgen::{Bindgen, FilterMode, LangC, LangCSharp, LangJava};
     use safe_nd::XOR_NAME_LEN;
     use std::collections::HashMap;
@@ -200,8 +200,6 @@ mod bindings {
         lang.add_const("ulong", "ASYM_PUBLIC_KEY_LEN", box_::PUBLICKEYBYTES);
         lang.add_const("ulong", "ASYM_SECRET_KEY_LEN", box_::SECRETKEYBYTES);
         lang.add_const("ulong", "ASYM_NONCE_LEN", box_::NONCEBYTES);
-        lang.add_const("ulong", "SYM_KEY_LEN", secretbox::KEYBYTES);
-        lang.add_const("ulong", "SYM_NONCE_LEN", secretbox::NONCEBYTES);
         lang.add_const("ulong", "SIGN_PUBLIC_KEY_LEN", sign::PUBLICKEYBYTES);
         lang.add_const("ulong", "SIGN_SECRET_KEY_LEN", sign::SECRETKEYBYTES);
         lang.add_const("ulong", "XOR_NAME_LEN", XOR_NAME_LEN);

@@ -6,11 +6,11 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::utils::{SYM_ENC_KEY_LEN, SYM_ENC_NONCE_LEN};
 use rust_sodium::crypto::box_::{
     NONCEBYTES as ASYM_NONCE_LEN, PUBLICKEYBYTES as ASYM_PUBLIC_KEY_LEN,
     SECRETKEYBYTES as ASYM_SECRET_KEY_LEN,
 };
-use rust_sodium::crypto::secretbox::{KEYBYTES as SYM_KEY_LEN, NONCEBYTES as SYM_NONCE_LEN};
 use safe_nd::XOR_NAME_LEN;
 use threshold_crypto::{PK_SIZE as BLS_PUBLIC_KEY_LEN, SIG_SIZE};
 
@@ -22,9 +22,9 @@ pub type AsymSecretKey = [u8; ASYM_SECRET_KEY_LEN];
 pub type AsymNonce = [u8; ASYM_NONCE_LEN];
 
 /// Array containing private key bytes.
-pub type SymSecretKey = [u8; SYM_KEY_LEN];
+pub type SymSecretKey = [u8; SYM_ENC_KEY_LEN];
 /// Array containing nonce bytes.
-pub type SymNonce = [u8; SYM_NONCE_LEN];
+pub type SymNonce = [u8; SYM_ENC_NONCE_LEN];
 
 /// Array containing BLS public key.
 pub type BlsPublicKey = [u8; BLS_PUBLIC_KEY_LEN];

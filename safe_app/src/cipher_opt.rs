@@ -13,8 +13,10 @@ use crate::client::AppClient;
 use crate::errors::AppError;
 use crate::AppContext;
 use bincode::{deserialize, serialize};
-use rust_sodium::crypto::{box_, sealedbox, secretbox};
-use safe_core::{Client, CoreError};
+use miscreant::aead::Aead;
+use miscreant::aead::Aes128SivAead;
+use rust_sodium::crypto::{box_, sealedbox};
+use safe_core::{utils, Client, CoreError};
 
 /// Cipher Options
 #[derive(Debug)]
@@ -34,7 +36,7 @@ pub enum CipherOpt {
 enum WireFormat {
     Plain(Vec<u8>),
     Symmetric {
-        nonce: secretbox::Nonce,
+        nonce: Vec<u8>,
         cipher_text: Vec<u8>,
     },
     Asymmetric(Vec<u8>),
@@ -46,8 +48,10 @@ impl CipherOpt {
         match *self {
             CipherOpt::PlainText => Ok(serialize(&WireFormat::Plain(plain_text.to_owned()))?),
             CipherOpt::Symmetric => {
-                let nonce = secretbox::gen_nonce();
-                let cipher_text = secretbox::seal(plain_text, &nonce, app_ctx.sym_enc_key()?);
+                let nonce = utils::generate_nonce().to_vec();
+                let sym_enc_key = app_ctx.sym_enc_key()?;
+                let mut cipher = Aes128SivAead::new(&**sym_enc_key);
+                let cipher_text = cipher.seal(&nonce, &[], plain_text);
                 let wire_format = WireFormat::Symmetric { nonce, cipher_text };
 
                 Ok(serialize(&wire_format)?)
@@ -74,10 +78,11 @@ impl CipherOpt {
         match deserialize::<WireFormat>(cipher_text)? {
             WireFormat::Plain(plain_text) => Ok(plain_text),
             WireFormat::Symmetric { nonce, cipher_text } => {
-                Ok(
-                    secretbox::open(&cipher_text, &nonce, app_ctx.sym_enc_key()?)
-                        .map_err(|()| CoreError::SymmetricDecipherFailure)?,
-                )
+                let sym_enc_key = app_ctx.sym_enc_key()?;
+                let mut cipher = Aes128SivAead::new(&**sym_enc_key);
+                Ok(cipher
+                    .open(&nonce, &[], &cipher_text)
+                    .map_err(|_| CoreError::SymmetricDecipherFailure)?)
             }
             WireFormat::Asymmetric(cipher_text) => {
                 let (asym_pk, asym_sk) = client.encryption_keypair();
