@@ -82,7 +82,7 @@ struct SymmetricEnc {
 }
 
 /// Generates a symmetric encryption key
-pub fn generate_symm_enc_key() -> SymEncKey {
+pub fn generate_sym_enc_key() -> SymEncKey {
     rand::random()
 }
 

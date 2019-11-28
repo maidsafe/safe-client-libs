@@ -51,7 +51,7 @@ pub mod shared_secretbox {
 
     /// Generate new random shared symmetric encryption key.
     pub fn gen_key() -> Key {
-        Key::new(&utils::generate_symm_enc_key())
+        Key::new(&utils::generate_sym_enc_key())
     }
 
     impl Deref for Key {

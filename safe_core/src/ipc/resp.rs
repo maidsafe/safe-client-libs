@@ -16,11 +16,10 @@ use crate::ipc::req::{
     permission_set_into_repr_c, ContainerPermissions,
 };
 use crate::ipc::{BootstrapConfig, IpcError};
-use crate::utils::{SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN};
+use crate::utils::{symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN};
+use crate::CoreError;
 use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
-use miscreant::aead::Aead;
-use miscreant::aead::Aes128SivAead;
 use rand::thread_rng;
 use rust_sodium::crypto::box_;
 use safe_nd::{
@@ -28,6 +27,7 @@ use safe_nd::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::ffi::{CString, NulError};
 use std::ptr;
 use std::slice;
@@ -317,15 +317,14 @@ pub fn access_container_enc_key(
     app_id: &str,
     app_enc_key: &SymEncKey,
     access_container_nonce: &SymEncNonce,
-) -> Result<Vec<u8>, IpcError> {
+) -> Result<Vec<u8>, CoreError> {
     let key = app_id.as_bytes();
     let mut key_pt = key.to_vec();
     key_pt.extend_from_slice(&access_container_nonce[..]);
-
-    let key_nonce = &sha3_256(&key_pt)[..SYM_ENC_NONCE_LEN];
-
-    let mut cipher = Aes128SivAead::new(app_enc_key);
-    Ok(cipher.seal(&key_nonce, &[], key))
+    // Safe to unwrap since hash is 256 bytes
+    let key_nonce: SymEncNonce = unwrap!(sha3_256(&key_pt)[..SYM_ENC_NONCE_LEN].try_into());
+    let cipher_text = symmetric_encrypt(key, app_enc_key, Some(&key_nonce))?;
+    Ok(cipher_text)
 }
 
 /// Information about an app that has access to an MD through `sign_key`.

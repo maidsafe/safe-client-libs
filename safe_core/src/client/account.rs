@@ -13,13 +13,19 @@ use crate::errors::CoreError;
 use crate::utils::{SymEncKey, SymEncNonce, SYM_ENC_KEY_LEN, SYM_ENC_NONCE_LEN};
 use crate::DIR_TAG;
 use bincode::{deserialize, serialize};
-use rand::{thread_rng, CryptoRng, Rng};
+use hmac::Hmac;
 use miscreant::aead::Aead;
 use miscreant::aead::Aes128SivAead;
+use pbkdf2;
+use rand::{thread_rng, CryptoRng, Rng};
+use rust_sodium::crypto::box_;
 use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Serialize};
+use sha3::Sha3_256;
 use std::convert::TryInto;
 use tiny_keccak::sha3_256;
+
+const ITERATIONS: usize = 10000;
 
 /// Object representing the User Account information on the network.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -76,7 +82,7 @@ impl Account {
     /// a deterministic way.  This is similar to the username in various places.
     pub fn generate_network_id(keyword: &[u8], pin: &[u8]) -> Result<XorName, CoreError> {
         let mut id = XorName([0; XOR_NAME_LEN]);
-        Self::derive_key(&mut id.0[..], keyword, pin)?;
+        Self::derive_key(&mut id.0[..], keyword, pin);
 
         Ok(id)
     }
@@ -86,7 +92,8 @@ impl Account {
         pin: &[u8],
     ) -> Result<(SymEncKey, SymEncNonce), CoreError> {
         let mut output = [0; SYM_ENC_KEY_LEN + SYM_ENC_NONCE_LEN];
-        Self::derive_key(&mut output[..], password, pin)?;
+        Self::derive_key(&mut output[..], password, pin);
+
         // OK to unwrap here, as we guaranteed the slices have the correct length.
         let key: SymEncKey = unwrap!(output[..SYM_ENC_KEY_LEN].try_into());
         let nonce: SymEncNonce = unwrap!(output[SYM_ENC_KEY_LEN..].try_into());
@@ -94,29 +101,9 @@ impl Account {
         Ok((key, nonce))
     }
 
-    fn derive_key(output: &mut [u8], input: &[u8], user_salt: &[u8]) -> Result<(), CoreError> {
-        let mut salt = pwhash::Salt([0; pwhash::SALTBYTES]);
-        {
-            let pwhash::Salt(ref mut salt_bytes) = salt;
-            if salt_bytes.len() == 32 {
-                let hashed_pin = sha3_256(user_salt);
-                for it in salt_bytes.iter_mut().enumerate() {
-                    *it.1 = hashed_pin[it.0];
-                }
-            } else {
-                return Err(CoreError::UnsupportedSaltSizeForPwHash);
-            }
-        }
-
-        pwhash::derive_key(
-            output,
-            input,
-            &salt,
-            pwhash::OPSLIMIT_INTERACTIVE,
-            pwhash::MEMLIMIT_INTERACTIVE,
-        )
-        .map(|_| ())
-        .map_err(|_| CoreError::UnsuccessfulPwHash)
+    fn derive_key(output: &mut [u8], input: &[u8], user_salt: &[u8]) {
+        let salt = sha3_256(user_salt);
+        pbkdf2::pbkdf2::<Hmac<Sha3_256>>(input, &salt, ITERATIONS, output)
     }
 }
 
