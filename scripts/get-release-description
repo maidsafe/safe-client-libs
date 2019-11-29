@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-version=$1
-if [[ -z "$version" ]]; then
+app_version=$1
+if [[ -z "$app_version" ]]; then
+    echo "You must supply a version number."
+    exit 1
+fi
+auth_version=$2
+if [[ -z "$auth_version" ]]; then
     echo "You must supply a version number."
     exit 1
 fi
@@ -56,56 +61,56 @@ Safe Auth: TAR_SAFE_AUTH_ANDROID_X86_64_CHECKSUM
 ```
 EOF
 
-s3_safe_app_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-unknown-linux-gnu.tar.gz"
-s3_safe_app_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-pc-windows-gnu.tar.gz"
-s3_safe_app_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-apple-darwin.tar.gz"
-s3_safe_app_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-apple-ios.tar.gz"
-s3_safe_app_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-armv7-linux-androideabi.tar.gz"
-s3_safe_app_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$version-x86_64-linux-android.tar.gz"
+s3_safe_app_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$app_version-x86_64-unknown-linux-gnu.tar.gz"
+s3_safe_app_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$app_version-x86_64-pc-windows-gnu.tar.gz"
+s3_safe_app_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$app_version-x86_64-apple-darwin.tar.gz"
+s3_safe_app_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$app_version-apple-ios.tar.gz"
+s3_safe_app_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$app_version-armv7-linux-androideabi.tar.gz"
+s3_safe_app_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_app-mock-$app_version-x86_64-linux-android.tar.gz"
 
-s3_safe_auth_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-unknown-linux-gnu.tar.gz"
-s3_safe_auth_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-pc-windows-gnu.tar.gz"
-s3_safe_auth_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-apple-darwin.tar.gz"
-s3_safe_auth_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-apple-ios.tar.gz"
-s3_safe_auth_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-armv7-linux-androideabi.tar.gz"
-s3_safe_auth_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$version-x86_64-linux-android.tar.gz"
+s3_safe_auth_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$auth_version-x86_64-unknown-linux-gnu.tar.gz"
+s3_safe_auth_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$auth_version-x86_64-pc-windows-gnu.tar.gz"
+s3_safe_auth_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$auth_version-x86_64-apple-darwin.tar.gz"
+s3_safe_auth_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$auth_version-apple-ios.tar.gz"
+s3_safe_auth_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$auth_version-armv7-linux-androideabi.tar.gz"
+s3_safe_auth_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator-mock-$auth_version-x86_64-linux-android.tar.gz"
 
 tar_safe_app_linux_checksum=$(sha256sum \
-    "./deploy/prod/safe_app-$version-x86_64-unknown-linux-gnu.tar.gz" | \
+    "./deploy/prod/safe_app-$app_version-x86_64-unknown-linux-gnu.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_app_macos_checksum=$(sha256sum \
-    "./deploy/prod/safe_app-$version-x86_64-apple-darwin.tar.gz" | \
+    "./deploy/prod/safe_app-$app_version-x86_64-apple-darwin.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_app_win_checksum=$(sha256sum \
-    "./deploy/prod/safe_app-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    "./deploy/prod/safe_app-$app_version-x86_64-pc-windows-gnu.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_app_ios_checksum=$(sha256sum \
-    "./deploy/prod/safe_app-$version-apple-ios.tar.gz" | \
+    "./deploy/prod/safe_app-$app_version-apple-ios.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_app_android_armv7_checksum=$(sha256sum \
-    "./deploy/prod/safe_app-$version-armv7-linux-androideabi.tar.gz" | \
+    "./deploy/prod/safe_app-$app_version-armv7-linux-androideabi.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_app_android_x86_64_checksum=$(sha256sum \
-    "./deploy/prod/safe_app-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    "./deploy/prod/safe_app-$app_version-x86_64-pc-windows-gnu.tar.gz" | \
     awk '{ print $1 }')
 
 tar_safe_auth_linux_checksum=$(sha256sum \
-    "./deploy/prod/safe_authenticator-$version-x86_64-unknown-linux-gnu.tar.gz" | \
+    "./deploy/prod/safe_authenticator-$auth_version-x86_64-unknown-linux-gnu.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_auth_macos_checksum=$(sha256sum \
-    "./deploy/prod/safe_authenticator-$version-x86_64-apple-darwin.tar.gz" | \
+    "./deploy/prod/safe_authenticator-$auth_version-x86_64-apple-darwin.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_auth_win_checksum=$(sha256sum \
-    "./deploy/prod/safe_authenticator-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    "./deploy/prod/safe_authenticator-$auth_version-x86_64-pc-windows-gnu.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_auth_ios_checksum=$(sha256sum \
-    "./deploy/prod/safe_authenticator-$version-apple-ios.tar.gz" | \
+    "./deploy/prod/safe_authenticator-$auth_version-apple-ios.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_auth_android_armv7_checksum=$(sha256sum \
-    "./deploy/prod/safe_authenticator-$version-armv7-linux-androideabi.tar.gz" | \
+    "./deploy/prod/safe_authenticator-$auth_version-armv7-linux-androideabi.tar.gz" | \
     awk '{ print $1 }')
 tar_safe_auth_android_x86_64_checksum=$(sha256sum \
-    "./deploy/prod/safe_authenticator-$version-x86_64-pc-windows-gnu.tar.gz" | \
+    "./deploy/prod/safe_authenticator-$auth_version-x86_64-pc-windows-gnu.tar.gz" | \
     awk '{ print $1 }')
 
 release_description=$(sed "s/S3_SAFE_APP_LINUX_DEPLOY_URL/$s3_safe_app_linux_deploy_url/g" <<< "$release_description")

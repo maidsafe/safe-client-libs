@@ -217,27 +217,26 @@ jobs:
           core_version=$(grep "^version" < safe_core/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
           auth_version=$(grep "^version" < safe_authenticator/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
           app_version=$(grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          commit_message=$(git log --format=%B -n 1 ${{ github.sha }})
           echo "::set-output name=core_version::$core_version"
           echo "::set-output name=auth_version::$auth_version"
           echo "::set-output name=app_version::$app_version"
-      - shell: bash
-        id: release_description
-        run: |
-          description=$(./scripts/get-release-description ${{ steps.versioning.outputs.cli_version }})
-          description="${description//'%'/'%25'}"
-          description="${description//$'\n'/'%0A'}"
-          description="${description//$'\r'/'%0D'}"
-          echo "::set-output name=description::$description"
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
-      # Create deploy directories.
-      # Put the artifacts into tar/zip archives for deployment with the release.
+      # Create `deploy` directory and put the artifacts into tar/zip archives for deployment with the release.
       - shell: bash
         run: make package-commit_hash-deploy-artifacts
         if: "!startsWith(steps.commit_message.outputs.commit_message, 'Version change')"
       - shell: bash
         run: make package-versioned-deploy-artifacts
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      # Get release description (requires generated archives)
+      - shell: bash
+        id: release_description
+        run: |
+          description=$(./scripts/get-release-description ${{ steps.versioning.outputs.app_version }} ${{ steps.versioning.outputs.auth_version }})
+          description="${description//'%'/'%25'}"
+          description="${description//$'\n'/'%0A'}"
+          description="${description//$'\r'/'%0D'}"
+          echo "::set-output name=description::$description"
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
       # Upload all the release archives to S3.
