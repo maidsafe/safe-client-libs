@@ -272,6 +272,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-modes"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31aa8410095e39fdb732909fb5730a48d5bd7c2e3cd76bd1b07b3dbea130c529"
+dependencies = [
+ "block-cipher-trait",
+ "block-padding",
+]
+
+[[package]]
 name = "block-padding"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2132,9 +2142,9 @@ dependencies = [
 
 [[package]]
 name = "safe_bindgen"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e85de5ed32661702ad780caa5be7d229dd0fc84efef17de045a41d7969cfdd"
+checksum = "b682ff3faa44b9208223c453c8eccf41f0b49d63cf72d08b49081cf67c96dbcc"
 dependencies = [
  "Inflector",
  "clap",
@@ -2252,17 +2262,18 @@ dependencies = [
 
 [[package]]
 name = "self_encryption"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6daf2f20d78d0b7eb4442d09a12846d64a227af32e4a4fc317cc1db8369d0377"
+checksum = "b9fca883fe25a508bdbaf83a785de1de989cb34b91a649f5759fdae4fc85d1c1"
 dependencies = [
+ "aes",
  "bincode",
+ "block-modes",
  "brotli",
  "futures",
  "memmap",
  "rand 0.6.5",
  "rand_chacha 0.1.1",
- "rust_sodium",
  "serde",
  "tiny-keccak",
  "unwrap",

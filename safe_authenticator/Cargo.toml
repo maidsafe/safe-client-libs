@@ -38,7 +38,7 @@ safe_core = { path = "../safe_core", version = "~0.36.0", features = ["testing"]
 ffi_utils = "~0.14.0"
 jni = "~0.12.0"
 rust_sodium = "~0.10.2"
-safe_bindgen = { version = "~0.13.1", optional = true }
+safe_bindgen = { version = "~0.13.2", optional = true }
 safe-nd = "~0.6.0"
 unwrap = "~1.2.0"
 

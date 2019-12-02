@@ -46,8 +46,11 @@ mod bindings {
             return;
         }
 
+        println!("Generating C bindings");
         gen_bindings_c();
+        println!("Generating C# bindings");
         gen_bindings_csharp();
+        println!("Generating Java bindings");
         gen_bindings_java();
     }
 

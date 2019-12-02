@@ -3,7 +3,10 @@ name: PR
 on: [pull_request]
 
 env:
+  # Run all cargo commands with --verbose.
+  CARGO_TERM_VERBOSE: true
   RUST_BACKTRACE: 1
+  # Deny all compiler warnings.
   RUSTFLAGS: "-D warnings"
 
 jobs:
@@ -24,6 +27,21 @@ jobs:
           args: --all -- --check
       - shell: bash
         run: ./scripts/clippy-all
+
+  # Run `cargo build` in the root directory to test all build scripts.
+  build-script:
+    name: Build Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
 
   #build-ios:
     #runs-on: macOS-latest

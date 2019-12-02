@@ -189,6 +189,7 @@ gen_primitive_type_converter!(i64, jlong);
 gen_primitive_type_converter!(u64, jlong);
 
 gen_byte_array_converter!(i8, 8);
+gen_byte_array_converter!(u8, 16);
 gen_byte_array_converter!(u8, 24);
 gen_byte_array_converter!(u8, 32);
 gen_byte_array_converter!(u8, 48);

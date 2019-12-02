@@ -43,8 +43,15 @@ mod bindings {
         "#[repr(C)] pub struct FfiResult { error_code: i32, description: *const c_char }";
 
     pub fn main() {
+        if env::var("CARGO_FEATURE_BINDINGS").is_err() {
+            return;
+        }
+
+        println!("Generating C bindings");
         gen_bindings_c();
+        println!("Generating C# bindings");
         gen_bindings_csharp();
+        println!("Generating Java bindings");
         gen_bindings_java();
     }
 
