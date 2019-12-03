@@ -2054,7 +2054,7 @@ dependencies = [
 
 [[package]]
 name = "safe_app"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "bincode",
  "clap",
@@ -2095,7 +2095,7 @@ dependencies = [
 
 [[package]]
 name = "safe_authenticator"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "bincode",
  "env_logger 0.6.2",
@@ -2150,7 +2150,7 @@ dependencies = [
 
 [[package]]
 name = "safe_core"
-version = "0.35.0"
+version = "0.36.0"
 dependencies = [
  "bincode",
  "bytes",

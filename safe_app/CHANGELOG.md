@@ -1,5 +1,11 @@
 # SAFE App
 
+## [0.11.0]
+- Update to quic-p2p 0.3.0
+- Add `set_config_dir_path` API to set a custom path for configuration files.
+- Deprecate the `maidsafe_utilities` and `config_file_handler` dependencies.
+- Migrate to GitHub actions for CI / CD for all platforms except Mac OS builds.
+
 ## [0.10.0]
 - Use safe_core 0.33.0.
 - Use the new network data types.

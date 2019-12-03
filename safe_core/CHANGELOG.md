@@ -1,5 +1,12 @@
 # Safe Core - Change Log
 
+## [0.36.0]
+- Update to quic-p2p 0.3.0
+- Add `set_config_dir_path` API to set a custom path for configuration files.
+- Deprecate the `maidsafe_utilities` and `config_file_handler` dependencies.
+- Migrate to GitHub actions for CI / CD for all platforms except Mac OS builds.
+- Fix inconsistency with real vault.
+
 ## [0.35.0]
 - Remove unused `routing` module and fix errors
 - Rework MDataKey and MDataValue to use FFI conventions
