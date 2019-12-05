@@ -24,14 +24,16 @@ use miscreant::Aes128SivAead;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::OsRng;
 use rand::{self, Rng};
-use rust_sodium::crypto::hash::sha512::{self, Digest, DIGESTBYTES};
 use serde::{Deserialize, Serialize};
+use tiny_keccak::sha3_512;
 
 /// Length of the symmetric encryption key.
 pub const SYM_ENC_KEY_LEN: usize = 32;
 
 /// Length of the nonce used for symmetric encryption.
 pub const SYM_ENC_NONCE_LEN: usize = 16;
+
+const SHA3_512_HASH_LEN: usize = 64;
 
 /// Symmetric encryption key
 pub type SymEncKey = [u8; SYM_ENC_KEY_LEN];
@@ -184,11 +186,11 @@ where
 
 /// Derive Password, Keyword and PIN (in order).
 pub fn derive_secrets(acc_locator: &[u8], acc_password: &[u8]) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
-    let Digest(locator_hash) = sha512::hash(acc_locator);
+    let locator_hash = sha3_512(acc_locator);
 
-    let pin = sha512::hash(&locator_hash[DIGESTBYTES / 2..]).0.to_vec();
+    let pin = sha3_512(&locator_hash[SHA3_512_HASH_LEN / 2..]).to_vec();
     let keyword = locator_hash.to_vec();
-    let password = sha512::hash(acc_password).0.to_vec();
+    let password = sha3_512(acc_password).to_vec();
 
     (password, keyword, pin)
 }
