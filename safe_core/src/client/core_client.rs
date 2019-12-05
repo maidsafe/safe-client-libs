@@ -22,7 +22,6 @@ use crate::utils;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
-use rust_sodium::crypto::box_;
 use safe_nd::{ClientFullId, Coins, LoginPacket, PublicKey, Request, Response};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -173,7 +172,7 @@ impl Client for CoreClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> box_::PublicKey {
+    fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
         self.keys.enc_pk
     }
 

@@ -18,11 +18,11 @@ use miscreant::aead::Aead;
 use miscreant::aead::Aes128SivAead;
 use pbkdf2;
 use rand::{thread_rng, CryptoRng, Rng};
-use rust_sodium::crypto::box_;
 use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::convert::TryInto;
+use threshold_crypto;
 use tiny_keccak::sha3_256;
 
 const ITERATIONS: usize = 10000;
@@ -115,7 +115,7 @@ pub struct ClientKeys {
     /// Symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
     /// Encryption public key.
-    pub enc_pk: box_::PublicKey,
+    pub enc_pk: threshold_crypto::PublicKey,
     /// Encryption private key.
     pub enc_sk: shared_box::SecretKey,
 }

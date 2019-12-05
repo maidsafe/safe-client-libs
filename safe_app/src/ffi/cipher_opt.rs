@@ -109,7 +109,6 @@ mod tests {
     use crate::{run, App, AppContext};
     use ffi_utils::test_utils::{call_0, call_1};
     use ffi_utils::ErrorCode;
-    use rust_sodium::crypto::box_;
     use safe_core::{utils, Client};
 
     // Test plaintext "encryption" and decryption.
@@ -246,7 +245,7 @@ mod tests {
         let app = create_app();
 
         let peer_encrypt_key_handle = unwrap!(run(&app, |_, context| {
-            let (pk, _) = box_::gen_keypair();
+            let pk = threshold_crypto::SecretKey::random().public_key();
             Ok(context.object_cache().insert_encrypt_key(pk))
         }));
 

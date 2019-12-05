@@ -41,7 +41,6 @@ use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use lazy_static::lazy_static;
 use lru_cache::LruCache;
-use rust_sodium::crypto::box_;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
@@ -55,6 +54,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
+use threshold_crypto;
 use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Capacity of the immutable data cache.
@@ -161,13 +161,13 @@ pub trait Client: Clone + 'static {
     fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>>;
 
     /// Return the public encryption key.
-    fn public_encryption_key(&self) -> box_::PublicKey;
+    fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
 
     /// Return the secret encryption key.
     fn secret_encryption_key(&self) -> shared_box::SecretKey;
 
     /// Return the public and secret encryption keys.
-    fn encryption_keypair(&self) -> (box_::PublicKey, shared_box::SecretKey) {
+    fn encryption_keypair(&self) -> (threshold_crypto::PublicKey, shared_box::SecretKey) {
         (self.public_encryption_key(), self.secret_encryption_key())
     }
 

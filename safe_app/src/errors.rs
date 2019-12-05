@@ -152,7 +152,7 @@ pub enum AppError {
 
     /// Invalid CipherOpt handle.
     InvalidCipherOptHandle,
-    /// Invalid encrypt (box_) key handle.
+    /// Invalid encrypt (threshold_crypto) key handle.
     InvalidEncryptPubKeyHandle,
     /// Invalid secret key handle.
     InvalidEncryptSecKeyHandle,
@@ -205,7 +205,7 @@ impl Display for AppError {
                 "Tried to access a client key from an unregistered client",
             ),
             Self::InvalidEncryptPubKeyHandle => {
-                write!(formatter, "Invalid encrypt (box_) key handle")
+                write!(formatter, "Invalid encrypt (threshold_crypto) key handle")
             }
             Self::InvalidMDataEntriesHandle => {
                 write!(formatter, "Invalid MutableData entries handle")

@@ -45,6 +45,7 @@ jni = "~0.12.0"
 rust_sodium = "~0.10.2"
 safe_bindgen = { version = "~0.13.2", optional = true }
 safe-nd = "~0.6.0"
+threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
 [features]

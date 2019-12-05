@@ -71,55 +71,44 @@ pub mod shared_secretbox {
 
 /// Asymmetric encryption utilities.
 pub mod shared_box {
-    use rust_sodium::crypto::box_;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use bincode::deserialize;
+    use serde::{Deserialize, Serialize};
     use std::fmt::{self, Debug};
     use std::ops::Deref;
-    use std::sync::Arc;
+    use threshold_crypto::{serde_impl::SerdeSecret, SecretKey as BlsSecretKey};
 
     /// Shared secret encryption key.
-    #[derive(Clone, Eq, PartialEq)]
-    pub struct SecretKey(Arc<box_::SecretKey>);
+    #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
+    pub struct SecretKey(SerdeSecret<BlsSecretKey>);
 
     impl SecretKey {
         /// Create new safe-to-share key from the given regular key.
-        pub fn new(inner: &box_::SecretKey) -> Self {
-            SecretKey(Arc::new(box_::SecretKey(inner.0)))
+        pub fn new(inner: BlsSecretKey) -> Self {
+            SecretKey(SerdeSecret(inner))
         }
 
         /// Create new key from the given raw key data.
-        pub fn from_raw(data: &[u8; box_::SECRETKEYBYTES]) -> Self {
+        pub fn from_raw(data: &[u8]) -> Result<Self, crate::CoreError> {
             // FIXME: this function subverts the purpose of this module - it
             // copies the sensitive data. Possible fix might be to take the input by
             // mutable reference and zero it afterwards.
-            SecretKey(Arc::new(box_::SecretKey(*data)))
+            let sk = deserialize(data)?;
+            Ok(SecretKey(sk))
         }
     }
 
     /// Generate new random public/secret keypair.
-    pub fn gen_keypair() -> (box_::PublicKey, SecretKey) {
-        let (pk, sk) = box_::gen_keypair();
-        (pk, SecretKey::new(&sk))
+    pub fn gen_keypair() -> (threshold_crypto::PublicKey, SecretKey) {
+        let sk = threshold_crypto::SecretKey::random();
+        let pk = sk.public_key();
+        (pk, SecretKey::new(sk))
     }
 
     impl Deref for SecretKey {
-        type Target = box_::SecretKey;
+        type Target = threshold_crypto::SecretKey;
 
         fn deref(&self) -> &Self::Target {
-            &*self.0
-        }
-    }
-
-    impl<'de> Deserialize<'de> for SecretKey {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-            let inner = box_::SecretKey::deserialize(deserializer)?;
-            Ok(SecretKey::new(&inner))
-        }
-    }
-
-    impl Serialize for SecretKey {
-        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            self.0.serialize(serializer)
+            &(*self.0)
         }
     }
 

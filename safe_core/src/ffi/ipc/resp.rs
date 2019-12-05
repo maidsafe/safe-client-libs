@@ -28,8 +28,10 @@ pub struct AppKeys {
     pub enc_key: SymSecretKey,
     /// Asymmetric enc public key.
     pub enc_pk: AsymPublicKey,
-    /// Asymmetric enc private key.
-    pub enc_sk: AsymSecretKey,
+    /// Pointer to serialized asymmetric encryption private key.
+    pub enc_sk: *const u8,
+    /// Asymmetric enc private key's length.
+    pub enc_sk_len: usize,
 }
 
 impl Drop for AppKeys {

@@ -11,7 +11,6 @@ use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
 use lru_cache::LruCache;
 use rand::thread_rng;
-use rust_sodium::crypto::box_;
 use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
@@ -177,7 +176,7 @@ impl Client for AppClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> box_::PublicKey {
+    fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
         let app_inner = self.app_inner.borrow();
         app_inner.keys.clone().enc_pk
     }

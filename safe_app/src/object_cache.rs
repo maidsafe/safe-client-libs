@@ -15,9 +15,7 @@ use crate::cipher_opt::CipherOpt;
 use crate::client::AppClient;
 use crate::ffi::nfs::FileContext;
 use crate::ffi::object_cache::*;
-use rust_sodium::crypto::box_;
-use safe_core::crypto::shared_box;
-use safe_core::SelfEncryptionStorage;
+use safe_core::{crypto::shared_box, SelfEncryptionStorage};
 use safe_nd::{
     ClientFullId, MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataUnseqEntries,
     MDataUnseqEntryActions, PublicKey,
@@ -25,12 +23,13 @@ use safe_nd::{
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, HashMap};
+use threshold_crypto;
 
 /// Contains session object cache
 pub struct ObjectCache {
     handle_gen: HandleGenerator,
     cipher_opt: Store<CipherOpt>,
-    encrypt_key: Store<box_::PublicKey>,
+    encrypt_key: Store<threshold_crypto::PublicKey>,
     secret_key: Store<shared_box::SecretKey>,
     seq_mdata_entries: Store<MDataSeqEntries>,
     unseq_mdata_entries: Store<MDataUnseqEntries>,
@@ -118,7 +117,7 @@ impl_cache!(
 );
 impl_cache!(
     encrypt_key,
-    box_::PublicKey,
+    threshold_crypto::PublicKey,
     EncryptPubKeyHandle,
     InvalidEncryptPubKeyHandle,
     get_encrypt_key,

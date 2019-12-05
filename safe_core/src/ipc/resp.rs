@@ -21,7 +21,6 @@ use crate::CoreError;
 use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
 use rand::thread_rng;
-use rust_sodium::crypto::box_;
 use safe_nd::{
     AppFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName,
 };
@@ -130,7 +129,7 @@ pub struct AppKeys {
     /// Data symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
     /// Asymmetric enc public key.
-    pub enc_pk: box_::PublicKey,
+    pub enc_pk: threshold_crypto::PublicKey,
     /// Asymmetric enc private key.
     pub enc_sk: shared_box::SecretKey,
 }
@@ -171,13 +170,15 @@ impl AppKeys {
 
         let app_full_id = serialize(&app_full_id)?;
         let (full_id, full_id_len) = vec_into_raw_parts(app_full_id);
-
+        let asym_sk = serialize(&enc_sk)?;
+        let (sk, enc_sk_len) = vec_into_raw_parts(asym_sk);
         Ok(ffi::AppKeys {
             full_id,
             full_id_len,
             enc_key: *enc_key,
-            enc_pk: enc_pk.0,
-            enc_sk: enc_sk.0,
+            enc_pk: enc_pk.to_bytes(),
+            enc_sk: sk,
+            enc_sk_len,
         })
     }
 }
@@ -189,12 +190,14 @@ impl ReprC for AppKeys {
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let raw_full_id = vec_clone_from_raw_parts((*repr_c).full_id, (*repr_c).full_id_len);
         let app_full_id = deserialize(&raw_full_id)?;
+        let raw_sk = vec_clone_from_raw_parts((*repr_c).enc_sk, (*repr_c).enc_sk_len);
+        let enc_sk = deserialize(&raw_sk)?;
 
         Ok(Self {
             app_full_id,
             enc_key: shared_secretbox::Key::from_raw(&(*repr_c).enc_key),
-            enc_pk: box_::PublicKey((*repr_c).enc_pk),
-            enc_sk: shared_box::SecretKey::from_raw(&(*repr_c).enc_sk),
+            enc_pk: threshold_crypto::PublicKey::from_bytes((*repr_c).enc_pk)?,
+            enc_sk,
         })
     }
 }
@@ -628,20 +631,20 @@ mod tests {
             app_full_id,
         } = ak.clone();
 
-        let ffi_ak = unwrap!(ak.into_repr_c());
+        let ffi_ak: ffi::AppKeys = unwrap!(ak.into_repr_c());
 
         assert_eq!(
             ffi_ak.enc_key.iter().collect::<Vec<_>>(),
             (*enc_key).iter().collect::<Vec<_>>()
         );
         assert_eq!(
-            ffi_ak.enc_pk.iter().collect::<Vec<_>>(),
-            enc_pk.0.iter().collect::<Vec<_>>()
+            ffi_ak.enc_pk.iter().cloned().collect::<Vec<_>>(),
+            enc_pk.to_bytes().to_vec()
         );
-        assert_eq!(
-            ffi_ak.enc_sk.iter().collect::<Vec<_>>(),
-            enc_sk.0.iter().collect::<Vec<_>>()
-        );
+
+        let sk_raw = unsafe { vec_clone_from_raw_parts(ffi_ak.enc_sk, ffi_ak.enc_sk_len) };
+        let sk = unwrap!(serialize(&enc_sk));
+        assert_eq!(sk_raw, sk);
 
         let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(&ffi_ak)) };
 

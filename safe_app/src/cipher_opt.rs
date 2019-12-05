@@ -15,8 +15,8 @@ use crate::AppContext;
 use bincode::{deserialize, serialize};
 use miscreant::aead::Aead;
 use miscreant::aead::Aes128SivAead;
-use rust_sodium::crypto::{box_, sealedbox};
 use safe_core::{utils, Client, CoreError};
+use threshold_crypto::{Ciphertext, PublicKey};
 
 /// Cipher Options
 #[derive(Debug)]
@@ -28,10 +28,11 @@ pub enum CipherOpt {
     /// Encrypt using asymmetric encryption (encrypting for peer to read)
     Asymmetric {
         /// PublicKey of the peer to whom we want to encrypt
-        peer_encrypt_key: box_::PublicKey,
+        peer_encrypt_key: PublicKey,
     },
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum WireFormat {
     Plain(Vec<u8>),
@@ -39,7 +40,7 @@ enum WireFormat {
         nonce: Vec<u8>,
         cipher_text: Vec<u8>,
     },
-    Asymmetric(Vec<u8>),
+    Asymmetric(Ciphertext),
 }
 
 impl CipherOpt {
@@ -59,7 +60,7 @@ impl CipherOpt {
             CipherOpt::Asymmetric {
                 ref peer_encrypt_key,
             } => {
-                let cipher_text = sealedbox::seal(plain_text, peer_encrypt_key);
+                let cipher_text = peer_encrypt_key.encrypt(plain_text);
                 Ok(serialize(&WireFormat::Asymmetric(cipher_text))?)
             }
         }
@@ -85,9 +86,10 @@ impl CipherOpt {
                     .map_err(|_| CoreError::SymmetricDecipherFailure)?)
             }
             WireFormat::Asymmetric(cipher_text) => {
-                let (asym_pk, asym_sk) = client.encryption_keypair();
-                Ok(sealedbox::open(&cipher_text, &asym_pk, &asym_sk)
-                    .map_err(|()| CoreError::AsymmetricDecipherFailure)?)
+                let asym_sk = client.secret_encryption_key();
+                asym_sk
+                    .decrypt(&cipher_text)
+                    .ok_or_else(|| AppError::from(CoreError::AsymmetricDecipherFailure))
             }
         }
     }

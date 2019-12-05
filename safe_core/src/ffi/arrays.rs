@@ -7,19 +7,11 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::utils::{SYM_ENC_KEY_LEN, SYM_ENC_NONCE_LEN};
-use rust_sodium::crypto::box_::{
-    NONCEBYTES as ASYM_NONCE_LEN, PUBLICKEYBYTES as ASYM_PUBLIC_KEY_LEN,
-    SECRETKEYBYTES as ASYM_SECRET_KEY_LEN,
-};
 use safe_nd::XOR_NAME_LEN;
 use threshold_crypto::{PK_SIZE as BLS_PUBLIC_KEY_LEN, SIG_SIZE};
 
 /// Array containing public key bytes.
-pub type AsymPublicKey = [u8; ASYM_PUBLIC_KEY_LEN];
-/// Array containing private key bytes.
-pub type AsymSecretKey = [u8; ASYM_SECRET_KEY_LEN];
-/// Array containing nonce bytes.
-pub type AsymNonce = [u8; ASYM_NONCE_LEN];
+pub type AsymPublicKey = [u8; BLS_PUBLIC_KEY_LEN];
 
 /// Array containing private key bytes.
 pub type SymSecretKey = [u8; SYM_ENC_KEY_LEN];

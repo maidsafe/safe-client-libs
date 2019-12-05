@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::ffi::NulError;
 use std::str::Utf8Error;
+use threshold_crypto::error::FromBytesError;
 
 /// Ipc error.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -89,5 +90,11 @@ impl<'a> From<&'a str> for IpcError {
 impl From<String> for IpcError {
     fn from(s: String) -> Self {
         IpcError::Unexpected(s)
+    }
+}
+
+impl From<FromBytesError> for IpcError {
+    fn from(err: FromBytesError) -> Self {
+        Self::from(err.to_string())
     }
 }

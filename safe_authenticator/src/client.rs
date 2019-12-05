@@ -16,7 +16,6 @@ use futures::Future;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, CryptoRng, Rng, SeedableRng};
-use rust_sodium::crypto::box_;
 use safe_core::client::account::Account;
 use safe_core::client::{req, AuthActions, ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
@@ -498,7 +497,7 @@ impl Client for AuthClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> box_::PublicKey {
+    fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
         let auth_inner = self.auth_inner.borrow();
         auth_inner.acc.maid_keys.enc_pk
     }
