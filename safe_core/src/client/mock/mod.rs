@@ -10,9 +10,8 @@ pub mod vault;
 
 mod account;
 mod connection_manager;
-// TODO: Update these tests
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 pub use self::account::{Account, CoinBalance};
 pub use self::connection_manager::{ConnectionManager, RequestHookFn};

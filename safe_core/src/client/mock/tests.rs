@@ -8,103 +8,138 @@
 
 // FIXME: consider splitting test functions into multiple smaller ones
 #![allow(clippy::cognitive_complexity)]
+#![allow(unused_imports)] // Remove this after fixing all the tests
 
-use super::routing::Routing;
 use crate::client::mock::vault::Vault;
-use crate::client::SafeKey;
+use crate::client::{SafeKey, COST_OF_PUT};
 use crate::config_handler::{Config, DevConfig};
-use crate::utils;
+use crate::{utils, NetworkEvent};
 
-use routing::{
-    Action, Authority, ClientError, EntryAction, EntryActions, Event, FullId,
-    MutableData as OldMutableData, PermissionSet, Request, Response, User, Value,
-};
+use super::connection_manager::ConnectionManager;
+use bincode::serialize;
+use futures::sync::mpsc::{self, UnboundedReceiver};
+use futures::Future;
 use safe_nd::{
     AppFullId, AppPermissions, ClientFullId, Coins, Error, IData, MData, MDataAction as NewAction,
-    MDataAddress, MDataPermissionSet as NewPermissionSet, MessageId, PubImmutableData, PublicId,
-    PublicKey, Request as RpcRequest, Response as RpcResponse, UnpubImmutableData,
-    UnseqMutableData, XorName,
+    MDataAddress, MDataPermissionSet as NewPermissionSet, Message, MessageId, PubImmutableData,
+    PublicId, PublicKey, Request, RequestType, Response, UnpubImmutableData, UnseqMutableData,
+    XorName,
 };
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::str::FromStr;
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use threshold_crypto::SecretKey;
 
-// Helper macro to receive a routing event and assert it's a response
-// failure.
-macro_rules! expect_failure {
-    ($rx:expr, $msg_id:expr, $res:path, $err:pat) => {
-        match unwrap!($rx.recv_timeout(Duration::from_secs(10))) {
-            Event::Response {
-                response: $res { res, msg_id },
-                ..
-            } => {
-                assert_eq!(msg_id, $msg_id);
-
-                match res {
-                    Ok(_) => panic!("Unexpected success"),
-                    Err($err) => (),
-                    Err(err) => panic!("Unexpected error {:?}", err),
-                }
-            }
-            event => panic!("Unexpected event {:?}", event),
-        }
+// Helper macro to fetch the response for a request and
+// assert that the expected error is returned.
+macro_rules! send_req_expect_failure {
+    ($cm:expr, $sender:expr, $req:expr, $err:path) => {
+        let expected_response = $req.error_response($err);
+        let response = process_request($cm, $sender, $req);
+        assert_eq!(response, expected_response);
     };
+}
+
+macro_rules! send_req_expect_ok {
+    ($cm:expr, $sender:expr, $req:expr, $res:expr) => {
+        let response = process_request($cm, $sender, $req);
+        assert_eq!($res, unwrap!(response.try_into()));
+    };
+}
+
+fn process_request(
+    connection_manager: &mut ConnectionManager,
+    sender: &SafeKey,
+    request: Request,
+) -> Response {
+    let sign = request.get_type() != RequestType::PublicGet;
+    let message_id = MessageId::new();
+    let signature = if sign {
+        Some(sender.sign(&unwrap!(serialize(&(&request, message_id)))))
+    } else {
+        None
+    };
+    let message = Message::Request {
+        request,
+        message_id,
+        signature,
+    };
+    unwrap!(connection_manager
+        .send(&sender.public_id(), &message)
+        .wait())
 }
 
 // Test the basics idata operations.
 #[test]
 fn immutable_data_basics() {
-    let (mut routing, routing_rx, full_id, _) = setup();
+    let (mut connection_manager, _, client_full_id) = setup();
 
     // Create account
     let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
+    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
 
     // Construct PubImmutableData
-    let orig_data = PubImmutableData::new(unwrap!(utils::generate_random_vector(100)));
-    let nae_mgr = Authority::NaeManager(*orig_data.name());
+    let orig_data: IData =
+        PubImmutableData::new(unwrap!(utils::generate_random_vector(100))).into();
 
     // GetIData should fail
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_idata(nae_mgr, *orig_data.name(), msg_id));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::GetIData,
-        ClientError::NoSuchData
+    let get_request = Request::GetIData(*orig_data.address());
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        get_request.clone(),
+        Error::NoSuchData
     );
 
     // First PutIData should succeed
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_idata(client_mgr, orig_data.clone(), msg_id));
-    expect_success!(routing_rx, msg_id, Response::PutIData);
+    let put_request = Request::PutIData(orig_data.clone());
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        put_request.clone(),
+        ()
+    );
 
     // Now GetIData should pass
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_idata(nae_mgr, *orig_data.name(), msg_id));
-    let got_data = expect_success!(routing_rx, msg_id, Response::GetIData);
-    assert_eq!(got_data, orig_data);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        get_request.clone(),
+        orig_data
+    );
 
-    // TODO: Verify balance
+    let balance = unwrap!(coins.checked_sub(*COST_OF_PUT));
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetBalance,
+        balance
+    );
 
     // Subsequent PutIData for same data should succeed - De-duplication
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_idata(client_mgr, orig_data.clone(), msg_id));
-    expect_success!(routing_rx, msg_id, Response::PutIData);
+    send_req_expect_ok!(&mut connection_manager, &client_safe_key, put_request, ());
 
     // GetIData should succeed
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_idata(nae_mgr, *orig_data.name(), msg_id));
-    let got_data = expect_success!(routing_rx, msg_id, Response::GetIData);
-    assert_eq!(got_data, orig_data);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        get_request,
+        orig_data
+    );
 
-    // TODO: Verify balance
+    // The balance should be deducted twice
+    let balance = unwrap!(balance.checked_sub(*COST_OF_PUT));
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetBalance,
+        balance
+    );
 }
-
+/*
 // Test the basic mdata operations.
 #[test]
 fn mutable_data_basics() {
@@ -1778,60 +1813,50 @@ fn request_hooks() {
     unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
     expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
 }
+*/
 
 // Setup routing with a shared, global vault.
-fn setup() -> (Routing, Receiver<Event>, FullId, SafeKey) {
-    let (routing, routing_rx, full_id, full_id_new) = setup_impl();
+fn setup() -> (
+    ConnectionManager,
+    UnboundedReceiver<NetworkEvent>,
+    ClientFullId,
+) {
+    let (conn_manager, conn_manager_rx, client_id) = setup_impl();
 
-    (routing, routing_rx, full_id, full_id_new)
+    (conn_manager, conn_manager_rx, client_id)
 }
 
 // Setup routing with a new, non-shared vault.
-fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, SafeKey) {
-    let (mut routing, routing_rx, full_id, full_id_new) = setup_impl();
+// fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, SafeKey) {
+//     let (mut routing, routing_rx, full_id, full_id_new) = setup_impl();
 
-    routing.set_vault(&Arc::new(Mutex::new(Vault::new(config))));
+//     routing.set_vault(&Arc::new(Mutex::new(Vault::new(config))));
 
-    (routing, routing_rx, full_id, full_id_new)
-}
+//     (routing, routing_rx, full_id, full_id_new)
+// }
 
-fn setup_impl() -> (Routing, Receiver<Event>, FullId, SafeKey) {
-    let full_id = FullId::new();
-    let owner_pk = PublicKey::from(SecretKey::random().public_key());
-    let app_full_id = AppFullId::with_keys(full_id.bls_key().clone(), owner_pk);
-    let (routing_tx, routing_rx) = mpsc::channel();
-    let routing = unwrap!(Routing::new(
-        routing_tx,
-        Some(full_id.clone()),
-        PublicId::App(app_full_id.public_id().clone()),
-        None,
-        Duration::new(0, 0),
-    ));
+fn setup_impl() -> (
+    ConnectionManager,
+    UnboundedReceiver<NetworkEvent>,
+    ClientFullId,
+) {
+    let mut rng = rand::thread_rng();
+    let client_id = ClientFullId::new_bls(&mut rng);
+    let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
+    let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));
 
-    // Wait until connection is established.
-    match unwrap!(routing_rx.recv_timeout(Duration::from_secs(10))) {
-        Event::Connected => (),
-        e => panic!("Unexpected event {:?}", e),
-    }
-
-    (routing, routing_rx, full_id, SafeKey::App(app_full_id))
+    (connection_manager, conn_manager_rx, client_id)
 }
 
 // Create a wallet for an account, and change the `PublicId` in routing to a Client variant
 // Return the FullId which will be used to sign the requests that follow.
-fn create_account(
-    routing: &mut Routing,
+fn register_client(
+    conn_manager: &mut ConnectionManager,
     coins: Coins,
-    owner_sk: &SecretKey,
-) -> (Authority<XorName>, SafeKey) {
-    let owner_key: PublicKey = owner_sk.public_key().into();
-    let account_name = XorName::from(owner_key);
-    routing.create_balance(owner_key, coins);
+    client_id: ClientFullId,
+) -> SafeKey {
+    let client_public_key = client_id.public_id().public_key();
+    conn_manager.create_balance(*client_public_key, coins);
 
-    routing.public_id = PublicId::Client(safe_nd::ClientPublicId::new(owner_key.into(), owner_key));
-
-    (
-        Authority::ClientManager(account_name),
-        SafeKey::client_from_bls_key(owner_sk.clone()),
-    )
+    SafeKey::client(client_id)
 }
