@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.36.1]
+- Remove Rust Sodium dependency
+
 ## [0.36.0]
 - Update to quic-p2p 0.3.0
 - Add `set_config_dir_path` API to set a custom path for configuration files.
