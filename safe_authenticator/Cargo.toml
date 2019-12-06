@@ -9,7 +9,7 @@ license = "GPL-3.0"
 name = "safe_authenticator"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.11.0"
+version = "0.12.0"
 
 [dependencies]
 bincode = "~1.1.4"
@@ -20,7 +20,7 @@ log = "~0.4.1"
 lru-cache = "~0.1.1"
 quic-p2p = "~0.3.0"
 rand = "0.6"
-safe_core = { path = "../safe_core", version = "~0.36.0" }
+safe_core = { path = "../safe_core", version = "~0.37.0" }
 safe-nd = "~0.6.0"
 serde = { version = "~1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
@@ -31,7 +31,7 @@ env_logger = { version = "~0.6.2", optional = true }
 
 [dev-dependencies]
 env_logger = "~0.6.2"
-safe_core = { path = "../safe_core", version = "~0.36.0", features = ["testing"] }
+safe_core = { path = "../safe_core", version = "~0.37.0", features = ["testing"] }
 
 [build-dependencies]
 ffi_utils = "~0.14.0"
