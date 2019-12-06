@@ -43,66 +43,84 @@ jobs:
         with:
           command: build
 
-  #build-ios:
-    #runs-on: macOS-latest
-    #strategy:
-      #matrix:
-        #target: [aarch64-apple-ios, x86_64-apple-ios]
-    #steps:
-      #- uses: actions/checkout@v1
-      #- uses: actions-rs/toolchain@v1
-        #with:
-          #profile: minimal
-          #toolchain: stable
-          #override: true
-          #target: ${{ matrix.target }}
-      #- uses: actions-rs/cargo@v1
-        #with:
-          #command: build
-          #args: >
-            #--release --manifest-path=safe_authenticator/Cargo.toml
-            #--target=${{ matrix.target }}
-      #- uses: actions-rs/cargo@v1
-        #with:
-          #command: build
-          #args: >
-            #--release --manifest-path=safe_app/Cargo.toml
-            #--target=${{ matrix.target }}
-      #- shell: bash
-        #run: |
-          #[[ -d "artifacts" ]] && rm -rf artifacts
-          #mkdir artifacts
-          #find "target/${{ matrix.target }}/release" -maxdepth 1 -type f
-            #-exec cp '{}' artifacts \;
-      #- uses: actions/upload-artifact@master
-        #with:
-          #name: safe_client_libs-${{ matrix.target }}-prod
-          #path: artifacts
-      #- uses: actions-rs/cargo@v1
-        #with:
-          #command: build
-          #args: >
-            #--release --manifest-path=safe_authenticator/Cargo.toml
-            #--features=mock-network --target=${{ matrix.target }}
-      #- uses: actions-rs/cargo@v1
-        #with:
-          #command: build
-          #args: >
-            #--release --manifest-path=safe_app/Cargo.toml
-            #--features=mock-network --target=${{ matrix.target }}
-      #- shell: bash
-        #run: |
-          #[[ -d "artifacts" ]] && rm -rf artifacts
-          #mkdir artifacts
-          #find "target/${{ matrix.target }}/release" -maxdepth 1 -type f
-            #-exec cp '{}' artifacts \;
-      #- uses: actions/upload-artifact@master
-        #with:
-          #name: safe_client_libs-${{ matrix.target }}-dev
-          #path: artifacts
+  build-ios:
+    runs-on: macOS-latest
+    strategy:
+      matrix:
+        target: [aarch64-apple-ios, x86_64-apple-ios]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: ${{ matrix.target }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            --release --manifest-path=safe_authenticator/Cargo.toml
+            --target=${{ matrix.target }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            --release --manifest-path=safe_app/Cargo.toml
+            --target=${{ matrix.target }}
+      - shell: bash
+        run: |
+          [[ -d "artifacts" ]] && rm -rf artifacts
+          mkdir artifacts
+          find "target/${{ matrix.target }}/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      # Upload for build-ios-universal
+      - uses: actions/upload-artifact@master
+        with:
+          name: safe_client_libs-${{ matrix.target }}-prod
+          path: artifacts
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            --release --manifest-path=safe_authenticator/Cargo.toml
+            --features=mock-network --target=${{ matrix.target }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            --release --manifest-path=safe_app/Cargo.toml
+            --features=mock-network --target=${{ matrix.target }}
+      - shell: bash
+        run: |
+          [[ -d "artifacts" ]] && rm -rf artifacts
+          mkdir artifacts
+          find "target/${{ matrix.target }}/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      # Upload for build-ios-universal
+      - uses: actions/upload-artifact@master
+        with:
+          name: safe_client_libs-${{ matrix.target }}-dev
+          path: artifacts
 
-  # Put the universal iOS build here when macOS is ready.
-  # It will need to depend on the build-ios job.
+  # Use a single job for each type to build all targets.
+  build-ios-universal:
+    name: Build iOS Universal
+    runs-on: macos-latest
+    needs: build-ios
+    strategy:
+      matrix:
+        type: [prod, dev]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-x86_64-apple-ios-${{ matrix.type }}
+          path: artifacts/${{ matrix.type }}/x86_64-apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-aarch64-apple-ios-${{ matrix.type }}
+          path: artifacts/${{ matrix.type }}/aarch64-apple-ios/release
+      - shell: bash
+        run: make universal-ios-lib-${{ matrix.type }}
 
   build-android:
     runs-on: ubuntu-latest
@@ -117,18 +135,13 @@ jobs:
       - uses: actions/checkout@v1
       - shell: bash
         run: make build-android
-      - uses: actions/upload-artifact@master
-        with:
-          name: safe_client_libs-${{ matrix.target }}-${{ matrix.type }}
-          path: artifacts
 
   test:
     name: Test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # TODO: Add OSX
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
