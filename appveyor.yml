@@ -69,20 +69,3 @@ test_script:
     cargo test --verbose --release --features=mock-network --manifest-path=safe_core/Cargo.toml
     cargo test --verbose --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml
     cargo test --verbose --release --features=mock-network --manifest-path=safe_app/Cargo.toml
-
-before_deploy:
-  - PowerShell .\scripts\package.ps1
-  - ps: $root = Resolve-Path .\target\deploy; [IO.Directory]::GetFiles($root.Path, '*.zip') | % { Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) }
-  - ps: $root = Resolve-Path .\target\deploy; [IO.Directory]::GetFiles($root.Path, '*.tar.gz') | % { Push-AppveyorArtifact $_ -FileName $_.Substring($root.Path.Length + 1) }
-
-deploy:
-  provider: S3
-  access_key_id: AKIAIA2TXTG7EV5VIG2Q
-  secret_access_key:
-    secure: WtcjRuYVPF9Fhv1qBVBG+rP6VR7HEa+IayW1L8GqhgUJmp1M8gV4J9u/TdY5Fsb2
-  bucket: safe-client-libs
-  region: eu-west-2
-  set_public: true
-  artifact: /.*\.zip/,/.*\.tar.gz/
-  on:
-    branch: master

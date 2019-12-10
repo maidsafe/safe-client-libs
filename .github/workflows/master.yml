@@ -229,6 +229,32 @@ jobs:
         with:
           name: safe_client_libs-x86_64-apple-darwin-dev
           path: artifacts/dev/x86_64-apple-darwin/release
+      # iOS
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-aarch64-apple-ios-prod
+          path: artifacts/prod/aarch64-apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-aarch64-apple-ios-dev
+          path: artifacts/dev/aarch64-apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-x86_64-apple-ios-prod
+          path: artifacts/prod/x86_64-apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-x86_64-apple-ios-dev
+          path: artifacts/dev/x86_64-apple-ios/release
+      # Universal iOS
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-apple-ios-prod
+          path: artifacts/prod/apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_client_libs-apple-ios-dev
+          path: artifacts/dev/apple-ios/release
 
       # Get information for the release.
       - shell: bash
@@ -276,12 +302,14 @@ jobs:
       - uses: csexton/create-release@add-body
         id: create_release
         with:
-          tag_name: ${{ steps.versioning.outputs.app_version }}
+          tag_name: safe_core-${{ steps.versioning.outputs.core_version }}-safe_app-${{ steps.versioning.outputs.app_version }}
           release_name: safe_client_libs
           draft: false
           prerelease: false
           body: ${{ steps.release_description.outputs.description }}
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+
+      # Upload safe_app assets
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
@@ -320,36 +348,80 @@ jobs:
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
+          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-aarch64-apple-ios.tar.gz
+          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-aarch64-apple-ios.tar.gz
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
+          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-ios.tar.gz
+          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-ios.tar.gz
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
+          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
+          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+
+      # Upload safe_auth assets
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-aarch64-apple-ios.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-aarch64-apple-ios.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-ios.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-ios.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
