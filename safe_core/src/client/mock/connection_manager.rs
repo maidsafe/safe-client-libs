@@ -53,6 +53,17 @@ impl ConnectionManager {
         })
     }
 
+    /// Create a new connection manager with the vault instance created from the provided config.
+    pub fn new_with_vault(vault_config: Config, net_tx: &NetworkTx) -> Result<Self, CoreError> {
+        Ok(Self {
+            vault: Arc::new(Mutex::new(Vault::new(vault_config))),
+            request_hook: None,
+            response_hook: None,
+            groups: Arc::new(Mutex::new(HashSet::default())),
+            net_tx: net_tx.clone(),
+        })
+    }
+
     /// Returns `true` if this connection manager is already connected to a Client Handlers
     /// group serving the provided public ID.
     pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {

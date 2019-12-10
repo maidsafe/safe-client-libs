@@ -1467,8 +1467,16 @@ impl FileStore {
 
     #[cfg(test)]
     fn open_file(&self) -> File {
-        assert!(self.path.is_none());
-        unwrap!(tempfile())
+        if let Some(path) = &self.path {
+            // Using File::create here as it creates a new file in write mode if it doesn't exist
+            // or truncates if it already exists.
+            unwrap!(
+                std::fs::File::create(path),
+                "Error creating mock vault file"
+            )
+        } else {
+            unwrap!(tempfile())
+        }
     }
 }
 

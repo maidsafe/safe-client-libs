@@ -14,7 +14,7 @@ use crate::client::mock::vault::Vault;
 use crate::client::{SafeKey, COST_OF_PUT};
 use crate::config_handler::{Config, DevConfig};
 use crate::utils::test_utils::{gen_app_id, gen_client_id};
-use crate::{utils, NetworkEvent};
+use crate::{utils, NetworkEvent, QuicP2pConfig};
 
 use super::connection_manager::ConnectionManager;
 use bincode::serialize;
@@ -22,11 +22,11 @@ use futures::sync::mpsc::{self, UnboundedReceiver};
 use futures::Future;
 use rand::thread_rng;
 use safe_nd::{
-    AppFullId, AppPermissions, ClientFullId, Coins, Error, IData, MData, MDataAction as NewAction,
-    MDataAction, MDataAddress, MDataEntries, MDataPermissionSet as NewPermissionSet,
-    MDataPermissionSet, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, MDataValue,
-    MDataValues, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request, RequestType,
-    Response, SeqMutableData, UnpubImmutableData, UnseqMutableData, XorName,
+    ADataPubPermissionSet, AppFullId, AppPermissions, ClientFullId, Coins, Error, IData, MData,
+    MDataAction, MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet,
+    MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, MDataValue, MDataValues, Message,
+    MessageId, PubImmutableData, PublicId, PublicKey, Request, RequestType, Response,
+    SeqMutableData, UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -78,7 +78,7 @@ fn process_request(
 // Test the basics idata operations.
 #[test]
 fn immutable_data_basics() {
-    let (mut connection_manager, _, client_safe_key, _) = setup();
+    let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     // Construct PubImmutableData
     let orig_data: IData =
@@ -144,7 +144,7 @@ fn immutable_data_basics() {
 // Test the basic mdata operations.
 #[test]
 fn mutable_data_basics() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData
     let name = rand::random();
@@ -400,7 +400,7 @@ fn mutable_data_basics() {
 // Test reclamation of deleted mdata.
 #[test]
 fn mutable_data_reclaim() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData
     let name = rand::random();
@@ -504,7 +504,7 @@ fn mutable_data_reclaim() {
 // Test valid and invalid mdata entry versioning.
 #[test]
 fn mutable_data_entry_versioning() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData
     let name = rand::random();
@@ -642,7 +642,7 @@ fn mutable_data_entry_versioning() {
 // Test various operations with and without proper permissions.
 #[test]
 fn mutable_data_permissions() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData with some entries and empty permissions.
     let name = rand::random();
@@ -912,7 +912,7 @@ fn mutable_data_permissions() {
 #[test]
 fn mutable_data_ownership() {
     // Create owner's connection manager
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Create app's connection_manager
     let (app_safe_key, mut connection_manager2, _) = register_new_app(
@@ -948,531 +948,424 @@ fn mutable_data_ownership() {
     );
 }
 
-/*
 #[test]
 fn pub_idata_rpc() {
-    let (mut routing, routing_rx, full_id, _) = setup();
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None);
+    let (mut connection_manager2, _, client2_safe_key, _) = setup(None);
 
-    let value = unwrap!(utils::generate_random_vector::<u8>(10));
-    let data = PubImmutableData::new(value);
-    let address = *data.address();
+    // Construct PubImmutableData
+    let orig_data: IData =
+        PubImmutableData::new(unwrap!(utils::generate_random_vector(100))).into();
 
-    // Put pub idata. Should succeed.
+    let get_request = Request::GetIData(*orig_data.address());
+
+    // Put pub idata as an owner. Should succeed.
     {
-        let rpc_response =
-            routing.req(&routing_rx, RpcRequest::PutIData(data.into()), &full_id_new);
-        match rpc_response {
-            RpcResponse::Mutation(res) => {
-                assert!(res.is_ok());
-            }
-            _ => panic!("Unexpected"),
-        }
+        let put_request = Request::PutIData(orig_data.clone());
+        send_req_expect_ok!(
+            &mut connection_manager,
+            &client_safe_key,
+            put_request.clone(),
+            ()
+        );
     }
 
-    // Get pub idata as an owner. Should succeed.
+    // Get pub idata. Should succeed.
     {
-        let rpc_response = routing.req(&routing_rx, RpcRequest::GetIData(address), &full_id_new);
-        match rpc_response {
-            RpcResponse::GetIData(res) => {
-                let idata: IData = unwrap!(res);
-                assert_eq!(*idata.address(), address);
-            }
-            _ => panic!("Unexpected"),
-        }
+        send_req_expect_ok!(
+            &mut connection_manager,
+            &client_safe_key,
+            get_request.clone(),
+            orig_data.clone()
+        );
     }
 
-    let (mut app_routing, app_routing_rx, _, app_full_id_new) = setup();
+    let app_perms = AppPermissions {
+        transfer_coins: true,
+        get_balance: true,
+        perform_mutations: true,
+    };
+
+    let (app_key, mut app_conn_manager, _) =
+        register_new_app(&mut connection_manager2, &client2_safe_key, app_perms);
 
     // Get pub idata while not being an owner. Should succeed.
     {
-        let rpc_response = app_routing.req(
-            &app_routing_rx,
-            RpcRequest::GetIData(address),
-            &app_full_id_new,
+        send_req_expect_ok!(
+            &mut app_conn_manager,
+            &app_key,
+            get_request.clone(),
+            orig_data
         );
-        match rpc_response {
-            RpcResponse::GetIData(res) => {
-                let idata: IData = unwrap!(res);
-                assert_eq!(*idata.address(), address);
-            }
-            _ => panic!("Unexpected"),
-        }
     }
 }
 
 #[test]
 fn unpub_idata_rpc() {
-    let (mut owner_routing, owner_routing_rx, full_id, _) = setup();
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (_, full_id_new) = create_account(&mut owner_routing, coins, owner_sk);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
-    let data =
-        UnpubImmutableData::new(value, PublicKey::Bls(*full_id.public_id().bls_public_key()));
+    let data: IData = UnpubImmutableData::new(value, client_safe_key.public_key()).into();
     let address = *data.address();
 
     // Construct put request.
-    let response = owner_routing.req(
-        &owner_routing_rx,
-        RpcRequest::PutIData(data.into()),
-        &full_id_new,
-    );
-    match response {
-        RpcResponse::Mutation(res) => {
-            assert!(res.is_ok());
-        }
-        _ => panic!("Unexpected response"),
+    {
+        let put_request = Request::PutIData(data.clone());
+        send_req_expect_ok!(
+            &mut connection_manager,
+            &client_safe_key,
+            put_request.clone(),
+            ()
+        );
     }
 
     // Construct get request.
-    let rpc_response = owner_routing.req(
-        &owner_routing_rx,
-        RpcRequest::GetIData(address),
-        &full_id_new,
+    let get_request = Request::GetIData(address);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        get_request.clone(),
+        data
     );
-    match rpc_response {
-        RpcResponse::GetIData(res) => {
-            let idata: IData = unwrap!(res);
-            assert_eq!(*idata.address(), address);
-        }
-        _ => panic!("Unexpected response"),
-    }
 
-    let (mut app_routing, app_routing_rx, _, app_full_id_new) = setup();
+    let app_perms = AppPermissions {
+        transfer_coins: true,
+        get_balance: true,
+        perform_mutations: true,
+    };
+
+    let (mut conn_manager2, _, client2_safe_key, _) = setup(None);
+    let (app_key, mut app_conn_manager, _) =
+        register_new_app(&mut conn_manager2, &client2_safe_key, app_perms);
 
     // Try to get unpub idata while not being an owner. Should fail.
-    {
-        let rpc_response = app_routing.req(
-            &app_routing_rx,
-            RpcRequest::GetIData(address),
-            &app_full_id_new,
-        );
-        match rpc_response {
-            RpcResponse::GetIData(res) => match res {
-                Ok(_) => panic!("Unexpected"),
-                Err(Error::AccessDenied) => (),
-                Err(e) => panic!("Unexpected {:?}", e),
-            },
-            _ => panic!("Unexpected"),
-        }
-    }
+    send_req_expect_failure!(
+        &mut app_conn_manager,
+        &app_key,
+        get_request.clone(),
+        Error::AccessDenied
+    );
 
+    let del_request = Request::DeleteUnpubIData(address);
     // Try to delete unpub idata while not being an owner. Should fail.
-    {
-        let rpc_response = app_routing.req(
-            &app_routing_rx,
-            RpcRequest::DeleteUnpubIData(address),
-            &app_full_id_new,
-        );
-        match rpc_response {
-            RpcResponse::Mutation(res) => match res {
-                Ok(_) => panic!("Unexpected"),
-                Err(Error::AccessDenied) => (),
-                Err(e) => panic!("Unexpected {:?}", e),
-            },
-            _ => panic!("Unexpected"),
-        }
-    }
+    send_req_expect_failure!(
+        &mut app_conn_manager,
+        &app_key,
+        del_request,
+        Error::AccessDenied
+    );
 }
 
 #[test]
 fn unpub_md() {
-    let (mut routing, routing_rx, full_id, _) = setup();
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
-    let bls_key = full_id.bls_key().public_key();
+    let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     let name = XorName(rand::random());
     let tag = 15001;
 
-    let mut permissions: BTreeMap<_, _> = Default::default();
-    let _ = permissions.insert(
-        PublicKey::Bls(bls_key),
-        NewPermissionSet::new().allow(NewAction::Read),
-    );
-    let data = UnseqMutableData::new_with_data(
-        name,
-        tag,
-        Default::default(),
-        permissions,
-        PublicKey::from(bls_key),
+    let data: MData = UnseqMutableData::new(name, tag, client_safe_key.public_key()).into();
+
+    // Put Unseq MData as owner - Should pass.
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data.clone()),
+        ()
     );
 
-    // Construct put request.
-    let response: RpcResponse = routing.req(
-        &routing_rx,
-        RpcRequest::PutMData(MData::Unseq(data.clone())),
-        &full_id_new,
+    // Get Unseq MData as owner - Should pass.
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMData(*data.address()),
+        data
     );
-
-    match response {
-        RpcResponse::Mutation(res) => unwrap!(res),
-        _ => panic!("Unexpected response"),
-    };
-
-    // Construct get request.
-    let rpc_response: RpcResponse = routing.req(
-        &routing_rx,
-        RpcRequest::GetMData(MDataAddress::Unseq { name, tag }),
-        &full_id_new,
-    );
-    match rpc_response {
-        RpcResponse::GetMData(res) => {
-            let unpub_mdata: MData = unwrap!(res);
-            println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
-            assert_eq!(*unpub_mdata.name(), name);
-            assert_eq!(unpub_mdata.tag(), tag);
-        }
-        _ => panic!("Unexpected response"),
-    }
 }
 
 // Test auth key operations with valid and invalid version bumps.
 #[test]
 fn auth_keys() {
-    let (mut routing, routing_rx, full_id, _) = setup_with_config(Config {
-        quic_p2p: None,
-        dev: Some(DevConfig {
-            mock_unlimited_mutations: true,
-            mock_in_memory_storage: true,
-            mock_vault_path: None,
-        }),
-    });
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     // Initially, the list of auth keys should be empty and the version should be zero.
-    let mut response: RpcResponse = routing.req(
-        &routing_rx,
-        RpcRequest::ListAuthKeysAndVersion,
-        &full_id_new,
+    let mut response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListAuthKeysAndVersion,
     );
-
-    match response {
-        RpcResponse::ListAuthKeysAndVersion(res) => match res {
-            Ok(keys) => {
-                assert_eq!(keys.0.len(), 0);
-                assert_eq!(keys.1, 0);
-            }
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        },
-        _ => panic!("Unexpected response"),
-    }
+    let (keys, version): (BTreeMap<_, _>, u64) = unwrap!(response.try_into());
+    assert_eq!(keys.len(), 0);
+    assert_eq!(version, 0);
 
     let app_key = PublicKey::from(SecretKey::random().public_key());
 
     // Attempt to insert auth key without proper version bump fails.
-    let test_ins_auth_key_req = RpcRequest::InsAuthKey {
+    let test_ins_auth_key_req = Request::InsAuthKey {
         key: app_key,
         version: 0,
         permissions: AppPermissions {
             transfer_coins: true,
+            get_balance: true,
+            perform_mutations: true,
         },
     };
 
-    response = routing.req(&routing_rx, test_ins_auth_key_req, &full_id_new);
+    let error = Error::InvalidSuccessor(0);
 
-    match response {
-        RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
-        RpcResponse::Mutation(Err(Error::InvalidSuccessor(0))) => (),
-        _ => panic!("Unexpected Response"),
-    }
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        test_ins_auth_key_req,
+        error
+    );
 
     // Insert an auth key with proper version bump succeeds.
-    let ins_auth_key_req = RpcRequest::InsAuthKey {
+    let ins_auth_key_req = Request::InsAuthKey {
         key: app_key,
         version: 1,
         permissions: AppPermissions {
             transfer_coins: true,
+            get_balance: true,
+            perform_mutations: true,
         },
     };
 
-    response = routing.req(&routing_rx, ins_auth_key_req, &full_id_new);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        ins_auth_key_req,
+        ()
+    );
 
-    match response {
-        RpcResponse::Mutation(Ok(())) => (),
-        RpcResponse::Mutation(Err(e)) => panic!("Unexpected Error : {:?}", e),
-        _ => panic!("Unexpected Response"),
-    }
-
-    response = routing.req(
-        &routing_rx,
-        RpcRequest::ListAuthKeysAndVersion,
-        &full_id_new,
+    response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListAuthKeysAndVersion,
     );
 
     match response {
-        RpcResponse::ListAuthKeysAndVersion(res) => match res {
+        Response::ListAuthKeysAndVersion(res) => match res {
             Ok(keys) => {
                 assert_eq!(unwrap!(keys.0.get(&app_key)).transfer_coins, true);
+                assert_eq!(unwrap!(keys.0.get(&app_key)).get_balance, true);
+                assert_eq!(unwrap!(keys.0.get(&app_key)).perform_mutations, true);
                 assert_eq!(keys.1, 1);
             }
             Err(e) => panic!("Unexpected error: {:?}", e),
         },
-        _ => panic!("Unexpected response"),
+        res => panic!("Unexpected Response {:?}", res),
     }
+
     // Attempt to delete auth key without proper version bump fails.
-    let test_del_auth_key_req = RpcRequest::DelAuthKey {
+    let test_del_auth_key_req = Request::DelAuthKey {
         key: app_key,
         version: 0,
     };
 
-    response = routing.req(&routing_rx, test_del_auth_key_req, &full_id_new);
+    let error = Error::InvalidSuccessor(1);
 
-    match response {
-        RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
-        RpcResponse::Mutation(Err(Error::InvalidSuccessor(1))) => (),
-        _ => panic!("Unexpected Response"),
-    }
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        test_del_auth_key_req,
+        error
+    );
 
     // Attempt to delete non-existing key fails.
     let test_auth_key = PublicKey::from(SecretKey::random().public_key());
 
-    let test1_del_auth_key_req = RpcRequest::DelAuthKey {
+    let test1_del_auth_key_req = Request::DelAuthKey {
         key: test_auth_key,
         version: 2,
     };
 
-    response = routing.req(&routing_rx, test1_del_auth_key_req, &full_id_new);
-
-    match response {
-        RpcResponse::Mutation(Ok(())) => panic!("Unexpected Success"),
-        RpcResponse::Mutation(Err(Error::NoSuchKey)) => (),
-        _ => panic!("Unexpected Response"),
-    }
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        test1_del_auth_key_req,
+        Error::NoSuchKey
+    );
 
     // Delete auth key with proper version bump succeeds.
-    let del_auth_key_req = RpcRequest::DelAuthKey {
+    let del_auth_key_req = Request::DelAuthKey {
         key: app_key,
         version: 2,
     };
 
-    response = routing.req(&routing_rx, del_auth_key_req, &full_id_new);
-
-    match response {
-        RpcResponse::Mutation(Ok(())) => (),
-        RpcResponse::Mutation(Err(e)) => panic!("Unexpected Error : {:?}", e),
-        _ => panic!("Unexpected Response"),
-    }
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        del_auth_key_req,
+        ()
+    );
 
     // Retrieve the list of auth keys and version
-    response = routing.req(
-        &routing_rx,
-        RpcRequest::ListAuthKeysAndVersion,
-        &full_id_new,
+    response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListAuthKeysAndVersion,
     );
 
     match response {
-        RpcResponse::ListAuthKeysAndVersion(res) => match res {
+        Response::ListAuthKeysAndVersion(res) => match res {
             Ok(keys) => {
                 assert_eq!(keys.0.len(), 0);
                 assert_eq!(keys.1, 2);
             }
             Err(e) => panic!("Unexpected error: {:?}", e),
         },
-        _ => panic!("Unexpected response"),
+        res => panic!("Unexpected Response {:?}", res),
     }
 }
 
 // Ensure Get/Mutate AuthKeys Requests and DeleteMData Requests called by AppClients fails.
 #[test]
 fn auth_actions_from_app() {
-    // Creates an App Routing instance
-    let (mut app_routing, app_routing_rx, _, app_full_id_new) = setup();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
-    // Creates a Client Routing instance
-    let (mut routing, routing_rx, full_id, _) = setup();
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let bls_key = full_id.bls_key().public_key();
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (_, full_id_new) = create_account(&mut routing, coins, owner_sk);
+    let app_perms = AppPermissions {
+        transfer_coins: true,
+        get_balance: true,
+        perform_mutations: true,
+    };
+
+    // Creates an App instance
+    let (app_key, mut app_conn_manager, _) =
+        register_new_app(&mut connection_manager, &client_safe_key, app_perms);
 
     let name = XorName(rand::random());
     let tag = 15002;
 
     let mut permissions: BTreeMap<_, _> = Default::default();
     let _ = permissions.insert(
-        PublicKey::Bls(bls_key),
-        NewPermissionSet::new().allow(NewAction::Read),
+        app_key.public_key(),
+        MDataPermissionSet::new().allow(MDataAction::Read),
     );
 
-    let data =
-        UnseqMutableData::new_with_data(name, tag, Default::default(), permissions, owner_key);
+    let data: MData =
+        UnseqMutableData::new_with_data(name, tag, Default::default(), permissions, owner_key)
+            .into();
 
-    let address = MDataAddress::Unseq { name, tag };
+    let address = *data.address();
 
-    let response: RpcResponse = routing.req(
-        &routing_rx,
-        RpcRequest::PutMData(MData::Unseq(data.clone())),
-        &full_id_new,
+    // Upload MData for testing
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data.clone()),
+        ()
     );
-
-    match response {
-        RpcResponse::Mutation(res) => unwrap!(res),
-        _ => panic!("Unexpected response"),
-    };
 
     // Assert if the inserted data is correct.
-    let rpc_response: RpcResponse = routing.req(
-        &routing_rx,
-        RpcRequest::GetMData(MDataAddress::Unseq { name, tag }),
-        &full_id_new,
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMData(address),
+        data
     );
-    match rpc_response {
-        RpcResponse::GetMData(res) => {
-            let unpub_mdata: MData = unwrap!(res);
-            println!("{:?} :: {}", unpub_mdata.name(), unpub_mdata.tag());
-            assert_eq!(*unpub_mdata.name(), name);
-            assert_eq!(unpub_mdata.tag(), tag);
-        }
-        _ => panic!("Unexpected response"),
-    }
 
     // Delete MData called by apps should fail
-    let del_mdata_by_app = app_routing.req(
-        &app_routing_rx,
-        RpcRequest::DeleteMData(address),
-        &app_full_id_new,
+    send_req_expect_failure!(
+        &mut app_conn_manager,
+        &app_key,
+        Request::DeleteMData(address),
+        Error::AccessDenied
     );
-
-    match del_mdata_by_app {
-        RpcResponse::Mutation(res) => match res {
-            Err(Error::AccessDenied) => (),
-            Err(e) => panic!("Unexpected error {:?}", e),
-            Ok(_) => panic!("Unexpected success"),
-        },
-        app_req => panic!("Unexpected response {:?}", app_req),
-    }
 
     // List Auth Keys called by apps should fail
-    let list_auth_keys_by_app = app_routing.req(
-        &app_routing_rx,
-        RpcRequest::ListAuthKeysAndVersion,
-        &app_full_id_new,
+    send_req_expect_failure!(
+        &mut app_conn_manager,
+        &app_key,
+        Request::ListAuthKeysAndVersion,
+        Error::AccessDenied
     );
-
-    match list_auth_keys_by_app {
-        RpcResponse::ListAuthKeysAndVersion(res) => match res {
-            Err(Error::AccessDenied) => (),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-            Ok(_) => panic!("Unexpected success"),
-        },
-        _ => panic!("Unexpected response"),
-    }
 
     // Delete Auth Keys called by apps should fail
-    let delete_auth_keys_by_app = app_routing.req(
-        &app_routing_rx,
-        RpcRequest::DelAuthKey {
-            key: PublicKey::Bls(bls_key),
+    send_req_expect_failure!(
+        &mut app_conn_manager,
+        &app_key,
+        Request::DelAuthKey {
+            key: app_key.public_key(),
             version: 1,
         },
-        &app_full_id_new,
+        Error::AccessDenied
     );
-
-    match delete_auth_keys_by_app {
-        RpcResponse::Mutation(res) => match res {
-            Err(Error::AccessDenied) => (),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-            Ok(_) => panic!("Unexpected success"),
-        },
-        _ => panic!("Unexpected response"),
-    }
 }
 
 // Exhaust the account balance and ensure that mutations fail.
 #[test]
 fn low_balance_check() {
-    for &custom_vault in &[true, false] {
-        let (mut routing, routing_rx, full_id, _) = setup_with_config(Config {
-            quic_p2p: None,
+    for unlimited in &[true, false] {
+        let (mut connection_manager, _, client_safe_key, owner_key) = setup(Some(Config {
+            quic_p2p: QuicP2pConfig::with_default_cert(),
             dev: Some(DevConfig {
-                mock_unlimited_mutations: custom_vault,
-                mock_in_memory_storage: true,
+                mock_unlimited_coins: *unlimited,
+                mock_in_memory_storage: false,
                 mock_vault_path: None,
             }),
-        });
-        // let owner_key = PublicKey::from(*full_id.public_id();
-        let owner_sk = full_id.bls_key();
-        let owner_key: PublicKey = full_id.bls_key().public_key().into();
-        let coins = unwrap!(Coins::from_nano(5));
-        let (client_mgr, full_id_new) = create_account(&mut routing, coins, owner_sk);
+        }));
+
+        let name: XorName = rand::random();
+        let tag = 1000u64;
+
+        let data: MData = UnseqMutableData::new(name, tag, owner_key).into();
 
         // Put MutableData so we can test getting it later.
         // Do this before exhausting the balance (below).
-        let name = rand::random();
-        let tag = 1000u64;
-
-        let data = unwrap!(OldMutableData::new(
-            name,
-            tag,
-            Default::default(),
-            Default::default(),
-            btree_set!(owner_key),
-        ));
-        let nae_mgr = Authority::NaeManager(*data.name());
-
-        let msg_id = MessageId::new();
-        unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-        expect_success!(routing_rx, msg_id, Response::PutMData);
+        send_req_expect_ok!(
+            &mut connection_manager,
+            &client_safe_key,
+            Request::PutMData(data.clone()),
+            ()
+        );
 
         let vec_data = unwrap!(utils::generate_random_vector(10));
-        let data = PubImmutableData::new(vec_data);
-        let msg_id = MessageId::new();
+        let idata: IData = PubImmutableData::new(vec_data).into();
 
-        // Another mutation should fail/succeed depending on config value.
-        let unlimited_muts = match routing.config().dev {
-            Some(dev) => dev.mock_unlimited_mutations,
-            None => false,
-        };
-
-        let rpc_response = routing.req(&routing_rx, RpcRequest::GetBalance, &full_id_new);
-        let balance = match rpc_response {
-            RpcResponse::GetBalance(res) => unwrap!(res),
+        let rpc_response = process_request(
+            &mut connection_manager,
+            &client_safe_key,
+            Request::GetBalance,
+        );
+        let balance: Coins = match rpc_response {
+            Response::GetBalance(res) => unwrap!(res),
             _ => panic!("Unexpected response"),
         };
 
-        // Exhause the account balance by transferring everyting to a new wallet
+        // Exhaust the account balance by transferring everything to a new wallet
         let new_balance_owner: PublicKey = SecretKey::random().public_key().into();
-        let _ = routing.req(
-            &routing_rx,
-            RpcRequest::CreateBalance {
+        let response = process_request(
+            &mut connection_manager,
+            &client_safe_key,
+            Request::CreateBalance {
                 new_balance_owner,
-                amount: balance,
+                amount: unwrap!(balance.checked_sub(*COST_OF_PUT)),
                 transaction_id: rand::random(),
             },
-            &full_id_new,
         );
 
-        if !unlimited_muts {
-            assert!(!custom_vault);
-            // Attempt to perform another mutation fails on low balance.
-            unwrap!(routing.put_idata(client_mgr, data.clone(), msg_id));
-            expect_failure!(
-                routing_rx,
-                msg_id,
-                Response::PutIData,
-                ClientError::LowBalance
-            );
-        } else {
-            assert!(custom_vault);
-            // Attempt to perform another mutation succeeds.
-            unwrap!(routing.put_idata(client_mgr, data, msg_id));
-            expect_success!(routing_rx, msg_id, Response::PutIData);
+        match response {
+            Response::Transaction(Ok(_)) => (),
+            x => panic!("Unexpected Error {:?}", x),
+        }
+
+        let response = process_request(
+            &mut connection_manager,
+            &client_safe_key,
+            Request::PutIData(idata.clone()),
+        );
+        match response {
+            Response::Mutation(res) => assert_eq!(*unlimited, res.is_ok()), // Should succeed if unlimited is true
+            res => panic!("Unexpected response {:?}", res),
         }
 
         // Try getting MutableData (should succeed regardless of low balance)
-        let msg_id = MessageId::new();
-        unwrap!(routing.get_mdata(nae_mgr, name, tag, msg_id));
-        let mdata = expect_success!(routing_rx, msg_id, Response::GetMData);
-        assert!(mdata.serialised_size() > 0);
+        send_req_expect_ok!(
+            &mut connection_manager,
+            &client_safe_key,
+            Request::GetMData(*data.address()),
+            data
+        );
     }
 }
 
@@ -1492,31 +1385,14 @@ fn invalid_config_mock_vault_path() {
     }
 
     // Make sure that using a non-existant mock-vault path fails.
-    let (mut routing, _, full_id, _) = setup_with_config(Config {
-        quic_p2p: None,
+    let (mut _conn_manager, _, _client_safe_key, _owner_key) = setup(Some(Config {
+        quic_p2p: QuicP2pConfig::with_default_cert(),
         dev: Some(DevConfig {
-            mock_unlimited_mutations: false,
+            mock_unlimited_coins: false,
             mock_in_memory_storage: false,
             mock_vault_path: Some(String::from("./this_path_should_not_exist")),
         }),
-    });
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-
-    // `put_mdata` should fail.
-    let name = rand::random();
-    let tag = 1000u64;
-
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key),
-    ));
-    let client_mgr = Authority::ClientManager(owner_key.into());
-
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
+    }));
 }
 
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
@@ -1536,41 +1412,34 @@ fn config_mock_vault_path() {
         _ => panic!("Error creating directory"),
     }
 
-    let (mut routing, routing_rx, full_id, _) = setup_with_config(Config {
-        quic_p2p: None,
+    let (mut conn_manager, _, client_safe_key, owner_key) = setup(Some(Config {
+        quic_p2p: QuicP2pConfig::with_default_cert(),
         dev: Some(DevConfig {
-            mock_unlimited_mutations: false,
+            mock_unlimited_coins: false,
             mock_in_memory_storage: false,
             mock_vault_path: Some(String::from("./tmp")),
         }),
-    });
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
-
+    }));
     // Put MutableData. Should succeed.
     let name = rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key),
-    ));
-    let nae_mgr = Authority::NaeManager(*data.name());
+    let data: MData = UnseqMutableData::new(name, tag, owner_key).into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::PutMData(data.clone()),
+        ()
+    );
 
     // Try getting MutableData back.
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata(nae_mgr, name, tag, msg_id));
-    let mdata = expect_success!(routing_rx, msg_id, Response::GetMData);
-    assert!(mdata.serialised_size() > 0);
+    send_req_expect_ok!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::GetMData(*data.address()),
+        data
+    );
 
     unwrap!(std::fs::remove_dir_all("./tmp"));
 }
@@ -1578,150 +1447,122 @@ fn config_mock_vault_path() {
 // Test routing request hooks.
 #[test]
 fn request_hooks() {
-    let (mut routing, routing_rx, full_id, _) = setup();
-
-    routing.set_request_hook(move |req| {
+    let (mut conn_manager, _, client_safe_key, owner_key) = setup(None);
+    let custom_error: Error = Error::NetworkOther("hello world".to_string());
+    let expected_error = custom_error.clone();
+    conn_manager.set_request_hook(move |req| {
         match *req {
-            Request::PutMData {
-                ref data, msg_id, ..
-            } if data.tag() == 10_000u64 => {
+            Request::PutMData(ref data) if data.tag() == 10_000u64 => {
                 // Send an OK response but don't put data on the mock vault
-                Some(Response::PutMData {
-                    res: Ok(()),
-                    msg_id,
-                })
+                Some(Response::Mutation(Ok(())))
             }
-            Request::MutateMDataEntries { tag, msg_id, .. } if tag == 12_345u64 => {
-                Some(Response::MutateMDataEntries {
-                    res: Err(ClientError::from("hello world")),
-                    msg_id,
-                })
+            Request::MutateMDataEntries { address, .. } if address.tag() == 12_345u64 => {
+                Some(Response::Mutation(Err(custom_error.clone())))
             }
             // Pass-through
             _ => None,
         }
     });
 
-    // Create account
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
-    let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
-
     // Construct MutableData (but hook won't allow to store it on the network
     // if the tag is 10000)
     let name = rand::random();
     let tag = 10_000u64;
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key)
-    ));
+    let data = SeqMutableData::new(name, tag, owner_key);
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::PutMData(data.clone().into()),
+        ()
+    );
 
     // Check that this MData is not available
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_version(Authority::NaeManager(name), name, tag, msg_id));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::GetMDataVersion,
-        ClientError::NoSuchData
+    send_req_expect_failure!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::GetMDataVersion(*data.address()),
+        Error::NoSuchData
     );
 
     // Put an MData with a different tag, this should be stored now
-    let name = rand::random();
-    let tag = 12_345u64;
+    let name2 = rand::random();
+    let tag2 = 12_345u64;
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key)
-    ));
+    let data2 = SeqMutableData::new(name2, tag2, owner_key);
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::PutMData(data2.clone().into()),
+        ()
+    );
 
     // Try adding some entries - this should fail, as the hook function
     // won't allow to put entries to MD with a tag 12345
     let key0 = b"key0";
     let value0_v0 = unwrap!(utils::generate_random_vector(10));
 
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Ins(Value {
-            content: value0_v0.clone(),
-            entry_version: 0,
-        })
-    ];
+    let mut seq_actions = MDataSeqEntryActions::new();
+    seq_actions.add_action(
+        key0.to_vec(),
+        MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: value0_v0.clone(),
+            version: 0,
+        }),
+    );
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(
-        client_mgr,
-        name,
-        tag,
-        actions.clone(),
-        msg_id,
-        owner_key
-    ));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::NetworkOther(..)
+    let actions: MDataEntryActions = seq_actions.into();
+
+    send_req_expect_failure!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address: *data2.address(),
+            actions: actions.clone(),
+        },
+        expected_error
     );
 
     // Now remove the hook function and try again - this should succeed now
-    routing.remove_request_hook();
+    conn_manager.remove_request_hook();
 
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    send_req_expect_ok!(
+        &mut conn_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address: *data2.address(),
+            actions: actions.clone(),
+        },
+        ()
+    );
 }
-*/
 
-// Setup a connection manager for a new account with a shared, global vault.
-fn setup() -> (
+// Setup a connection manager for a new account with a shared, global vault or with a
+// new, non-shared vault by providing a config.
+fn setup(
+    vault_config: Option<Config>,
+) -> (
     ConnectionManager,
     UnboundedReceiver<NetworkEvent>,
     SafeKey,
     PublicKey,
 ) {
-    let (mut conn_manager, conn_manager_rx, client_id) = setup_impl();
-
+    let client_id = gen_client_id();
+    let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
+    let mut conn_manager = if let Some(given_config) = vault_config {
+        unwrap!(ConnectionManager::new_with_vault(
+            given_config,
+            &conn_manager_tx
+        ))
+    } else {
+        unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx))
+    };
     let coins = unwrap!(Coins::from_str("10"));
     let client_safe_key = register_client(&mut conn_manager, coins, client_id);
     let owner_key = client_safe_key.public_key();
-
     (conn_manager, conn_manager_rx, client_safe_key, owner_key)
-}
-
-// Setup routing with a new, non-shared vault.
-// fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId, SafeKey) {
-//     let (mut routing, routing_rx, full_id, full_id_new) = setup_impl();
-
-//     routing.set_vault(&Arc::new(Mutex::new(Vault::new(config))));
-
-//     (routing, routing_rx, full_id, full_id_new)
-// }
-
-fn setup_impl() -> (
-    ConnectionManager,
-    UnboundedReceiver<NetworkEvent>,
-    ClientFullId,
-) {
-    let client_id = gen_client_id();
-    let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
-    let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));
-
-    (connection_manager, conn_manager_rx, client_id)
 }
 
 // Create a balance for an account.
