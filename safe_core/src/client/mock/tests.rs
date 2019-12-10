@@ -19,13 +19,15 @@ use super::connection_manager::ConnectionManager;
 use bincode::serialize;
 use futures::sync::mpsc::{self, UnboundedReceiver};
 use futures::Future;
+use rand::thread_rng;
 use safe_nd::{
     AppFullId, AppPermissions, ClientFullId, Coins, Error, IData, MData, MDataAction as NewAction,
-    MDataAddress, MDataPermissionSet as NewPermissionSet, Message, MessageId, PubImmutableData,
-    PublicId, PublicKey, Request, RequestType, Response, UnpubImmutableData, UnseqMutableData,
-    XorName,
+    MDataAction, MDataAddress, MDataEntries, MDataPermissionSet as NewPermissionSet,
+    MDataPermissionSet, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, MDataValue,
+    MDataValues, Message, MessageId, PubImmutableData, PublicId, PublicKey, Request, RequestType,
+    Response, SeqMutableData, UnpubImmutableData, UnseqMutableData, XorName,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::mpsc as std_mpsc;
@@ -139,98 +141,99 @@ fn immutable_data_basics() {
         balance
     );
 }
-/*
+
 // Test the basic mdata operations.
 #[test]
 fn mutable_data_basics() {
-    let (mut routing, routing_rx, full_id, _) = setup();
+    let (mut connection_manager, _, client_full_id) = setup();
 
     // Create account
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
+    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
+
+    let owner_key = client_safe_key.public_key();
 
     // Construct MutableData
     let name = rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key),
-    ));
-    let nae_mgr = Authority::NaeManager(*data.name());
+    let data = SeqMutableData::new(name, tag, owner_key);
+    let data1_address = *data.address();
 
     // Operations on non-existing MutableData should fail.
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_version(nae_mgr, name, tag, msg_id));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::GetMDataVersion,
-        ClientError::NoSuchData
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMDataVersion(data1_address),
+        Error::NoSuchData
     );
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_entries(nae_mgr, name, tag, msg_id));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::ListMDataEntries,
-        ClientError::NoSuchData
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataEntries(data1_address),
+        Error::NoSuchData
     );
 
     // PutMData
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data.into()),
+        ()
+    );
 
     // It should be possible to put an MData using the same name but a
     // different type tag
     let tag2 = 1001u64;
 
-    let data2 = unwrap!(OldMutableData::new(
-        name,
-        tag2,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key),
-    ));
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data2, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    let data2: MData = SeqMutableData::new(name, tag2, owner_key).into();
+    let data2_address = *data2.address();
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data2.clone()),
+        ()
+    );
 
     // GetMDataVersion should respond with 0
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_version(nae_mgr, name, tag, msg_id));
-    let version = expect_success!(routing_rx, msg_id, Response::GetMDataVersion);
-    assert_eq!(version, 0);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMDataVersion(data2_address),
+    );
+    assert_eq!(response, Response::GetMDataVersion(Ok(0)));
 
     // GetMData should return the entire MutableData object
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata(nae_mgr, name, tag, msg_id));
-    let mdata = expect_success!(routing_rx, msg_id, Response::GetMData);
-    assert!(mdata.serialised_size() > 0);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMData(data2_address),
+        data2
+    );
 
     // ListMDataEntries, ListMDataKeys and ListMDataValues should all respond
     // with empty collections.
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_entries(nae_mgr, name, tag, msg_id));
-    let entries = expect_success!(routing_rx, msg_id, Response::ListMDataEntries);
-    assert!(entries.is_empty());
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataEntries(data2_address),
+        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
+    );
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_keys(nae_mgr, name, tag, msg_id));
-    let keys = expect_success!(routing_rx, msg_id, Response::ListMDataKeys);
-    assert!(keys.is_empty());
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataKeys(data2_address),
+        BTreeSet::new()
+    );
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_values(nae_mgr, name, tag, msg_id));
-    let values = expect_success!(routing_rx, msg_id, Response::ListMDataValues);
-    assert!(values.is_empty());
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataValues(data2_address),
+        MDataValues::from(Vec::<MDataSeqValue>::new())
+    );
 
     // Add couple of entries
     let key0 = b"key0";
@@ -238,323 +241,433 @@ fn mutable_data_basics() {
     let value0_v0 = unwrap!(utils::generate_random_vector(10));
     let value1_v0 = unwrap!(utils::generate_random_vector(10));
 
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Ins(Value {
-            content: value0_v0.clone(),
-            entry_version: 0,
+    let actions: MDataSeqEntryActions = btree_map![
+        key0.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: value0_v0.clone(),
+            version: 0,
         }),
-        key1.to_vec() => EntryAction::Ins(Value {
-            content: value1_v0.clone(),
-            entry_version: 0,
+        key1.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: value1_v0.clone(),
+            version: 0,
         })
-    ];
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address: data2_address,
+            actions: actions.into()
+        },
+        ()
+    );
 
-    // ListMDataEntries
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_entries(nae_mgr, name, tag, msg_id));
-    let entries = expect_success!(routing_rx, msg_id, Response::ListMDataEntries);
-    assert_eq!(entries.len(), 2);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataEntries(data2_address),
+    );
+    let entries: MDataEntries = unwrap!(response.try_into());
 
-    let entry = unwrap!(entries.get(&key0[..]));
-    assert_eq!(entry.content, value0_v0);
-    assert_eq!(entry.entry_version, 0);
+    match entries {
+        MDataEntries::Seq(entries) => {
+            assert_eq!(entries.len(), 2);
 
-    let entry = unwrap!(entries.get(&key1[..]));
-    assert_eq!(entry.content, value1_v0);
-    assert_eq!(entry.entry_version, 0);
+            let entry = unwrap!(entries.get(&key0[..]));
+            assert_eq!(entry.data, value0_v0);
+            assert_eq!(entry.version, 0);
 
-    // Second MData with a diff. type tag still should be empty
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_entries(nae_mgr, name, tag2, msg_id));
-    let entries = expect_success!(routing_rx, msg_id, Response::ListMDataEntries);
-    assert!(entries.is_empty());
+            let entry = unwrap!(entries.get(&key1[..]));
+            assert_eq!(entry.data, value1_v0);
+            assert_eq!(entry.version, 0);
+        }
+        _ => panic!("MData type mismatch"),
+    }
+
+    // First MData with a diff. type tag still should be empty
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataEntries(data1_address),
+        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
+    );
 
     // ListMDataKeys
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_keys(nae_mgr, name, tag, msg_id));
-    let keys = expect_success!(routing_rx, msg_id, Response::ListMDataKeys);
-    assert_eq!(keys.len(), 2);
-    assert!(keys.contains(&key0[..]));
-    assert!(keys.contains(&key1[..]));
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataKeys(data2_address),
+    );
+    match response {
+        Response::ListMDataKeys(Ok(keys)) => {
+            assert_eq!(keys.len(), 2);
+            assert!(keys.contains(&key0[..]));
+            assert!(keys.contains(&key1[..]));
+        }
+        Response::ListMDataKeys(err) => panic!("Unexpected error: {:?}", err),
+        res => panic!("Unexpected response: {:?}", res),
+    }
 
     // ListMDataValues
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_values(nae_mgr, name, tag, msg_id));
-    let values = expect_success!(routing_rx, msg_id, Response::ListMDataValues);
-    assert_eq!(values.len(), 2);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataValues(data2_address),
+    );
+    match response {
+        Response::ListMDataValues(Ok(values)) => match values {
+            MDataValues::Seq(seq_values) => assert_eq!(seq_values.len(), 2),
+            _ => panic!("MData type mismatch"),
+        },
+        Response::ListMDataValues(err) => panic!("Unexpected error: {:?}", err),
+        res => panic!("Unexpected response: {:?}", res),
+    }
 
-    // GetMDataValue with existing key
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_value(nae_mgr, name, tag, key0.to_vec(), msg_id,));
-    let value = expect_success!(routing_rx, msg_id, Response::GetMDataValue);
-    assert_eq!(value.content, value0_v0);
-    assert_eq!(value.entry_version, 0);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMDataValue {
+            address: data2_address,
+            key: key0.to_vec()
+        },
+        MDataValue::Seq(MDataSeqValue {
+            data: value0_v0,
+            version: 0
+        })
+    );
 
     // GetMDataValue with non-existing key
     let key2 = b"key2";
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_value(nae_mgr, name, tag, key2.to_vec(), msg_id,));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::GetMDataValue,
-        ClientError::NoSuchEntry
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMDataValue {
+            address: data2_address,
+            key: key2.to_vec()
+        },
+        Error::NoSuchEntry
     );
 
     // Mutate the entries: insert, update and delete
     let value0_v1 = unwrap!(utils::generate_random_vector(10));
     let value2_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Update(Value {
-            content: value0_v1.clone(),
-            entry_version: 1,
+    let actions: MDataSeqEntryActions = btree_map![
+        key0.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
+            data: value0_v1.clone(),
+            version: 1,
         }),
-        key1.to_vec() => EntryAction::Del(1),
-        key2.to_vec() => EntryAction::Ins(Value {
-            content: value2_v0.clone(),
-            entry_version: 0,
+        key1.to_vec() => MDataSeqEntryAction::Del(1),
+        key2.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: value2_v0.clone(),
+            version: 0,
         })
-    ];
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address: data2_address,
+            actions: actions.into()
+        },
+        ()
+    );
 
-    // ListMDataEntries should respond with modified entries
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_entries(nae_mgr, name, tag, msg_id));
-    let entries = expect_success!(routing_rx, msg_id, Response::ListMDataEntries);
-    assert_eq!(entries.len(), 3);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataEntries(data2_address),
+    );
+    let entries: MDataEntries = unwrap!(response.try_into());
 
-    // Updated entry
-    let entry = unwrap!(entries.get(&key0[..]));
-    assert_eq!(entry.content, value0_v1);
-    assert_eq!(entry.entry_version, 1);
+    match entries {
+        MDataEntries::Seq(entries) => {
+            assert_eq!(entries.len(), 2);
 
-    // Deleted entry
-    let entry = unwrap!(entries.get(&key1[..]));
-    assert!(entry.content.is_empty());
-    assert_eq!(entry.entry_version, 1);
+            // Updated entry
+            let entry = unwrap!(entries.get(&key0[..]));
+            assert_eq!(entry.data, value0_v1);
+            assert_eq!(entry.version, 1);
 
-    // Inserted entry
-    let entry = unwrap!(entries.get(&key2[..]));
-    assert_eq!(entry.content, value2_v0);
-    assert_eq!(entry.entry_version, 0);
+            // Deleted entry
+            let entry = entries.get(&key1[..]);
+            assert!(entry.is_none());
+
+            // Inserted entry
+            let entry = unwrap!(entries.get(&key2[..]));
+            assert_eq!(entry.data, value2_v0);
+            assert_eq!(entry.version, 0);
+        }
+        _ => panic!("MData type mismatch"),
+    }
 }
 
 // Test reclamation of deleted mdata.
 #[test]
 fn mutable_data_reclaim() {
-    let (mut routing, routing_rx, full_id, _) = setup();
+    let (mut connection_manager, _, client_full_id) = setup();
 
     // Create account
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
     let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
+    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
+
+    let owner_key = client_safe_key.public_key();
 
     // Construct MutableData
     let name = rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key),
-    ));
-    let nae_mgr = Authority::NaeManager(*data.name());
+    let data = SeqMutableData::new(name, tag, owner_key);
+    let address: MDataAddress = *data.address();
 
     // PutMData
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data.into()),
+        ()
+    );
 
     // Mutate the entries: insert, delete and insert again
     let key0 = b"key0";
     let value0 = unwrap!(utils::generate_random_vector(10));
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Ins(Value {
-            content: value0.clone(),
-            entry_version: 0,
+    let actions: MDataSeqEntryActions = btree_map![
+        key0.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: value0.clone(),
+            version: 0,
         }),
-    ];
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
-
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Del(1),
-    ];
-
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
-
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Update(Value {
-            content: value0.clone(),
-            entry_version: 2,
-        })
-    ];
-
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
-
-    // GetMDataVersion should respond with 0 as the mdata itself hasn't changed.
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_version(nae_mgr, name, tag, msg_id));
-    let version = expect_success!(routing_rx, msg_id, Response::GetMDataVersion);
-    assert_eq!(version, 0);
-
-    // Try deleting the entry with an invalid entry_version and make sure it fails
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Del(4),
-    ];
-
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::InvalidEntryActions(_)
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into()
+        },
+        ()
     );
 
-    // Try deleting the entry with an entry_version of 3 and make sure it succeeds
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Del(3),
-    ];
+    let actions: MDataSeqEntryActions = btree_map![
+        key0.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
+            data: value0.clone(),
+            version: 1,
+        })
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into()
+        },
+        ()
+    );
+
+    // GetMDataVersion should respond with 0 as the mdata itself hasn't changed.
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMDataVersion(address),
+    );
+    assert_eq!(response, Response::GetMDataVersion(Ok(0)));
+
+    // Try deleting the entry with an invalid entry_version and make sure it fails
+    let actions: MDataSeqEntryActions = btree_map![
+        key0.to_vec() => MDataSeqEntryAction::Del(3),
+    ]
+    .into();
+
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
+    );
+    match response {
+        Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
+        Response::Mutation(Ok(())) => panic!("Unexpected success"),
+        res => panic!("Unexpected response: {:?}", res),
+    }
+
+    // Try deleting the entry with an entry_version of 2 and make sure it succeeds
+    let actions: MDataSeqEntryActions = btree_map![
+        key0.to_vec() => MDataSeqEntryAction::Del(2),
+    ]
+    .into();
+
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into()
+        },
+        ()
+    );
 }
 
 // Test valid and invalid mdata entry versioning.
 #[test]
 fn mutable_data_entry_versioning() {
-    let (mut routing, routing_rx, full_id, _) = setup();
+    let (mut connection_manager, _, client_full_id) = setup();
 
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
+    // Create account
     let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, _) = create_account(&mut routing, coins, owner_sk);
+    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
+
+    let owner_key = client_safe_key.public_key();
 
     // Construct MutableData
     let name = rand::random();
     let tag = 1000u64;
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set!(owner_key),
-    ));
+    let data = SeqMutableData::new(name, tag, owner_key);
+    let address = *data.address();
 
     // PutMData
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data.into()),
+        ()
+    );
 
     // Insert a new entry
     let key = b"key0";
     let value_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = btree_map![
-        key.to_vec() => EntryAction::Ins(Value {
-            content: value_v0,
-            entry_version: 0,
+    let actions: MDataSeqEntryActions = btree_map![
+        key.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
+            data: value_v0,
+            version: 0,
         })
-    ];
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
+        ()
+    );
 
     // Attempt to update it without version bump fails.
     let value_v1 = unwrap!(utils::generate_random_vector(10));
-    let actions = btree_map![
-        key.to_vec() => EntryAction::Update(Value {
-            content: value_v1.clone(),
-            entry_version: 0,
+    let actions: MDataSeqEntryActions = btree_map![
+        key.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
+            data: value_v1.clone(),
+            version: 0,
         })
-    ];
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key,));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::InvalidEntryActions(_)
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
     );
+    match response {
+        Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
+        Response::Mutation(Ok(())) => panic!("Unexpected success"),
+        res => panic!("Unexpected response: {:?}", res),
+    }
 
     // Attempt to update it with incorrect version fails.
-    let actions = EntryActions::new()
-        .update(key.to_vec(), value_v1.clone(), 314_159_265)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::InvalidEntryActions(_)
+    let actions: MDataSeqEntryActions =
+        MDataSeqEntryActions::new().update(key.to_vec(), value_v1.clone(), 314_159_265);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
     );
+    match response {
+        Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
+        Response::Mutation(Ok(())) => panic!("Unexpected success"),
+        res => panic!("Unexpected response: {:?}", res),
+    }
 
     // Update with correct version bump succeeds.
-    let actions = btree_map![
-        key.to_vec() => EntryAction::Update(Value {
-            content: value_v1.clone(),
-            entry_version: 1,
+    let actions: MDataSeqEntryActions = btree_map![
+        key.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
+            data: value_v1.clone(),
+            version: 1,
         })
-    ];
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
-
-    // Delete without version bump fails.
-    let actions = btree_map![
-        key.to_vec() => EntryAction::Del(1)
-    ];
-
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::InvalidEntryActions(_)
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
+        ()
     );
 
-    // Delete with correct version bump succeeds.
-    let actions = btree_map![
-        key.to_vec() => EntryAction::Del(2)
-    ];
+    // Delete without version bump fails.
+    let actions: MDataSeqEntryActions = btree_map![
+        key.to_vec() => MDataSeqEntryAction::Del(1)
+    ]
+    .into();
 
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
+    );
+    match response {
+        Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
+        Response::Mutation(Ok(())) => panic!("Unexpected success"),
+        res => panic!("Unexpected response: {:?}", res),
+    }
+
+    // Delete with correct version bump succeeds.
+    let actions: MDataSeqEntryActions = btree_map![
+        key.to_vec() => MDataSeqEntryAction::Del(2)
+    ]
+    .into();
+
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
+        ()
+    );
 }
 
 // Test various operations with and without proper permissions.
 #[test]
 fn mutable_data_permissions() {
-    let (mut routing, routing_rx, full_id, _) = setup();
+    let (mut connection_manager, _, client_full_id) = setup();
 
-    let owner_key = PublicKey::from(*full_id.public_id().bls_public_key());
+    // Create account
     let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = full_id.bls_key();
-    let (client_mgr, full_id_new) = create_account(&mut routing, coins, owner_sk);
+    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
+
+    let owner_key = client_safe_key.public_key();
 
     // Construct MutableData with some entries and empty permissions.
     let name = rand::random();
@@ -564,519 +677,308 @@ fn mutable_data_permissions() {
     let value0_v0 = unwrap!(utils::generate_random_vector(10));
 
     let entries = btree_map![
-        key0.to_vec() => Value { content: value0_v0, entry_version: 0 }
+        key0.to_vec() => MDataSeqValue { data: value0_v0, version: 0 }
     ];
 
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        entries,
-        btree_set!(owner_key)
-    ));
-
-    let nae_mgr = Authority::NaeManager(*data.name());
+    let data = SeqMutableData::new_with_data(name, tag, entries, Default::default(), owner_key);
+    let address: MDataAddress = *data.address();
 
     // Put it to the network.
-    let msg_id = MessageId::new();
-    unwrap!(routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::PutMData);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::PutMData(data.into()),
+        ()
+    );
 
     // ListMDataPermissions responds with empty collection.
-    let msg_id = MessageId::new();
-    unwrap!(routing.list_mdata_permissions(nae_mgr, name, tag, msg_id));
-    let permissions = expect_success!(routing_rx, msg_id, Response::ListMDataPermissions);
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::ListMDataPermissions(address),
+    );
+    let permissions: BTreeMap<PublicKey, MDataPermissionSet> = unwrap!(response.try_into());
     assert!(permissions.is_empty());
 
     // Owner can do anything by default.
     let value0_v1 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .update(key0.to_vec(), value0_v1, 1)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, owner_key));
-    expect_success!(routing_rx, msg_id, Response::MutateMDataEntries);
+    let actions = MDataSeqEntryActions::new().update(key0.to_vec(), value0_v1, 1);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into()
+        },
+        ()
+    );
 
     // Create app and authorise it.
-    let (mut app_routing, app_routing_rx, app_full_id, _) = setup();
-    let app_sign_key = PublicKey::Bls(*app_full_id.public_id().bls_public_key());
-
-    let response = routing.req(
-        &routing_rx,
-        RpcRequest::ListAuthKeysAndVersion,
-        &full_id_new,
-    );
-    let version = match response {
-        RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
-        x => panic!("Unexpected response: {:?}", x),
-    };
-
-    let response = routing.req(
-        &routing_rx,
-        RpcRequest::InsAuthKey {
-            version: version + 1,
-            permissions: Default::default(),
-            key: app_sign_key,
+    let (app_safe_key, mut connection_manager2, _) = register_new_app(
+        &mut connection_manager,
+        &client_safe_key,
+        AppPermissions {
+            get_balance: true,
+            transfer_coins: true,
+            perform_mutations: true,
         },
-        &full_id_new,
     );
-    match response {
-        RpcResponse::Mutation(Ok(())) => (),
-        x => panic!("Unexpected response: {:?}", x),
-    };
 
     // App can't mutate any entry, by default.
     let value0_v2 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .update(key0.to_vec(), value0_v2.clone(), 2)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
+    let actions = MDataSeqEntryActions::new().update(key0.to_vec(), value0_v2.clone(), 2);
+    let mutation_request = Request::MutateMDataEntries {
+        address,
+        actions: actions.into(),
+    };
+    send_req_expect_failure!(
+        &mut connection_manager2,
+        &app_safe_key,
+        mutation_request.clone(),
+        Error::AccessDenied
     );
 
-    // App can't grant itself permission to update.
-    let perms = PermissionSet::new().allow(Action::Update);
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        perms,
-        1,
-        msg_id,
-        app_sign_key
-    ));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::SetMDataUserPermissions,
-        ClientError::AccessDenied
+    // App can't grant itself permission to update and read.
+    let permissions = MDataPermissionSet::new()
+        .allow(MDataAction::Update)
+        .allow(MDataAction::Read);
+    let update_perms_req = Request::SetMDataUserPermissions {
+        address,
+        user: app_safe_key.public_key(),
+        permissions,
+        version: 1,
+    };
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &app_safe_key,
+        update_perms_req.clone(),
+        Error::AccessDenied
     );
 
     // Verify app still can't update, after the previous attempt to
     // modify its permissions.
-    let actions = EntryActions::new()
-        .update(key0.to_vec(), value0_v2.clone(), 2)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
+    send_req_expect_failure!(
+        &mut connection_manager2,
+        &app_safe_key,
+        mutation_request.clone(),
+        Error::AccessDenied
     );
 
-    // Grant insert permission for app.
-    let perms = PermissionSet::new().allow(Action::Insert);
-    let msg_id = MessageId::new();
-    unwrap!(routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        perms,
-        1,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::SetMDataUserPermissions);
+    // Grant read and update permission for app.
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        update_perms_req,
+        ()
+    );
 
     // The version is bumped.
-    let msg_id = MessageId::new();
-    unwrap!(routing.get_mdata_version(nae_mgr, name, tag, msg_id));
-    let version = expect_success!(routing_rx, msg_id, Response::GetMDataVersion);
-    assert_eq!(version, 1);
-
-    // App still can't update entries.
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Update(Value {
-            content: value0_v2.clone(),
-            entry_version: 2,
-        })
-    ];
-
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
+    let response = process_request(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::GetMDataVersion(address),
     );
+    assert_eq!(response, Response::GetMDataVersion(Ok(1)));
 
-    // But it insert new ones.
+    // App can't insert entries.
     let key1 = b"key1";
     let value1_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = btree_map![
-        key1.to_vec() => EntryAction::Ins(Value {
-            content: value1_v0,
-            entry_version: 0,
-        })
-    ];
 
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_success!(app_routing_rx, msg_id, Response::MutateMDataEntries);
+    let actions: MDataSeqEntryActions = btree_map![
+    key1.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
+        data: value1_v0.clone(),
+        version: 0,
+    })
+    ]
+    .into();
+
+    let insertion_request = Request::MutateMDataEntries {
+        address,
+        actions: actions.into(),
+    };
+    send_req_expect_failure!(
+        &mut connection_manager2,
+        &app_safe_key,
+        insertion_request.clone(),
+        Error::AccessDenied
+    );
+
+    // But it can update an entry.
+    let actions: MDataSeqEntryActions = btree_map![
+    key0.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
+        data: value0_v2,
+        version: 2,
+    })
+    ]
+    .into();
+
+    send_req_expect_ok!(
+        &mut connection_manager2,
+        &app_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into(),
+        },
+        ()
+    );
 
     // Attempt to modify permissions without proper version bump fails
-    let perms = PermissionSet::new()
-        .allow(Action::Insert)
-        .allow(Action::Update);
-    let msg_id = MessageId::new();
-    unwrap!(routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        perms,
-        1,
-        msg_id,
-        owner_key
-    ));
-    expect_failure!(
-        routing_rx,
-        msg_id,
-        Response::SetMDataUserPermissions,
-        ClientError::InvalidSuccessor(_)
+    let permissions = MDataPermissionSet::new()
+        .allow(MDataAction::Read)
+        .allow(MDataAction::Insert)
+        .allow(MDataAction::Update);
+    let invalid_update_perms_req = Request::SetMDataUserPermissions {
+        address,
+        user: app_safe_key.public_key(),
+        permissions: permissions.clone(),
+        version: 1,
+    };
+    let error = Error::InvalidSuccessor(1);
+    send_req_expect_failure!(
+        &mut connection_manager,
+        &client_safe_key,
+        invalid_update_perms_req,
+        error
     );
 
     // Modifying permissions with version bump succeeds.
-    let perms = PermissionSet::new()
-        .allow(Action::Insert)
-        .allow(Action::Update);
-    let msg_id = MessageId::new();
-    unwrap!(routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        perms,
-        2,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::SetMDataUserPermissions);
+    let valid_update_perms_req = Request::SetMDataUserPermissions {
+        address,
+        user: app_safe_key.public_key(),
+        permissions,
+        version: 2,
+    };
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        valid_update_perms_req,
+        ()
+    );
 
     // App can now update entries.
-    let actions = btree_map![
-        key0.to_vec() => EntryAction::Update(Value {
-            content: value0_v2,
-            entry_version: 2,
-        })
-    ];
-
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_success!(app_routing_rx, msg_id, Response::MutateMDataEntries);
+    send_req_expect_ok!(
+        &mut connection_manager2,
+        &app_safe_key,
+        insertion_request,
+        ()
+    );
 
     // Revoke all permissions from app.
-    let msg_id = MessageId::new();
-    unwrap!(routing.del_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        3,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::DelMDataUserPermissions);
+    send_req_expect_ok!(
+        &mut connection_manager2,
+        &client_safe_key,
+        Request::DelMDataUserPermissions {
+            address,
+            user: app_safe_key.public_key(),
+            version: 3
+        },
+        ()
+    );
 
     // App can no longer mutate the entries.
-    let key2 = b"key2";
-    let value2_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new().ins(key2.to_vec(), value2_v0, 0).into();
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
+    send_req_expect_failure!(
+        &mut connection_manager2,
+        &app_safe_key,
+        mutation_request.clone(),
+        Error::AccessDenied
     );
 
     // Grant the app permission to manage permissions.
-    let perms = PermissionSet::new().allow(Action::ManagePermissions);
-    let msg_id = MessageId::new();
-    unwrap!(routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        perms,
-        4,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::SetMDataUserPermissions);
+    let permissions = MDataPermissionSet::new().allow(MDataAction::ManagePermissions);
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &client_safe_key,
+        Request::SetMDataUserPermissions {
+            address,
+            user: app_safe_key.public_key(),
+            permissions,
+            version: 4
+        },
+        ()
+    );
 
     // The app still can't mutate the entries.
-    let value1_v1 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .update(key1.to_vec(), value1_v1, 1)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
+    send_req_expect_failure!(
+        &mut connection_manager2,
+        &app_safe_key,
+        mutation_request.clone(),
+        Error::AccessDenied
     );
 
     // App can modify its own permission.
-    let perms = PermissionSet::new().allow(Action::Update);
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Key(app_sign_key),
-        perms,
-        5,
-        msg_id,
-        app_sign_key
-    ));
-    expect_success!(app_routing_rx, msg_id, Response::SetMDataUserPermissions);
+    let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
+    send_req_expect_ok!(
+        &mut connection_manager2,
+        &app_safe_key,
+        Request::SetMDataUserPermissions {
+            address,
+            user: app_safe_key.public_key(),
+            permissions,
+            version: 5
+        },
+        ()
+    );
 
     // The app can now mutate the entries.
     let value1_v1 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .update(key1.to_vec(), value1_v1, 1)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.mutate_mdata_entries(client_mgr, name, tag, actions, msg_id, app_sign_key));
-    expect_success!(app_routing_rx, msg_id, Response::MutateMDataEntries);
-
-    // Create another app and authorise it.
-    let (mut app2_routing, app2_routing_rx, app2_full_id, _) = setup();
-    let app2_sign_key = PublicKey::from(*app2_full_id.public_id().bls_public_key());
-
-    let version = match routing.req(
-        &routing_rx,
-        RpcRequest::ListAuthKeysAndVersion,
-        &full_id_new,
-    ) {
-        RpcResponse::ListAuthKeysAndVersion(Ok((_, version))) => version,
-        x => panic!("Unexpected {:?}", x),
-    };
-
-    let _ = routing.req(
-        &routing_rx,
-        RpcRequest::InsAuthKey {
-            key: app2_sign_key,
-            permissions: Default::default(),
-            version: version + 1,
+    let actions = MDataSeqEntryActions::new().update(key1.to_vec(), value1_v1, 1);
+    send_req_expect_ok!(
+        &mut connection_manager2,
+        &app_safe_key,
+        Request::MutateMDataEntries {
+            address,
+            actions: actions.into()
         },
-        &full_id_new,
-    );
-
-    // The new app can't mutate entries
-    let key3 = b"key3";
-    let value3_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .ins(key3.to_vec(), value3_v0.clone(), 0)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(app2_routing.mutate_mdata_entries(
-        client_mgr,
-        name,
-        tag,
-        actions,
-        msg_id,
-        app2_sign_key
-    ));
-    expect_failure!(
-        app2_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
-    );
-
-    // Grant insert permission for anyone.
-    let perms = PermissionSet::new().allow(Action::Insert);
-    let msg_id = MessageId::new();
-    unwrap!(routing.set_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Anyone,
-        perms,
-        6,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::SetMDataUserPermissions);
-
-    // The new app can now mutate entries
-    let actions = EntryActions::new().ins(key3.to_vec(), value3_v0, 0).into();
-    let msg_id = MessageId::new();
-    unwrap!(app2_routing.mutate_mdata_entries(
-        client_mgr,
-        name,
-        tag,
-        actions,
-        msg_id,
-        app2_sign_key
-    ));
-    expect_success!(app2_routing_rx, msg_id, Response::MutateMDataEntries);
-
-    // Revoke the insert permission for anyone.
-    let msg_id = MessageId::new();
-    unwrap!(routing.del_mdata_user_permissions(
-        client_mgr,
-        name,
-        tag,
-        User::Anyone,
-        7,
-        msg_id,
-        owner_key
-    ));
-    expect_success!(routing_rx, msg_id, Response::DelMDataUserPermissions);
-
-    // The new app can now longer mutate entries
-    let key4 = b"key4";
-    let value4_v0 = unwrap!(utils::generate_random_vector(10));
-    let actions = EntryActions::new()
-        .ins(key4.to_vec(), value4_v0.clone(), 0)
-        .into();
-    let msg_id = MessageId::new();
-    unwrap!(app2_routing.mutate_mdata_entries(
-        client_mgr,
-        name,
-        tag,
-        actions,
-        msg_id,
-        app2_sign_key
-    ));
-    expect_failure!(
-        app2_routing_rx,
-        msg_id,
-        Response::MutateMDataEntries,
-        ClientError::AccessDenied
+        ()
     );
 }
 
-// Test mdata operations with valid and invalid owners.
+// Test mdata operations with valid and invalid owner.
 #[test]
 fn mutable_data_ownership() {
-    // Create owner's routing client
-    let (mut owner_routing, owner_routing_rx, owner_full_id, _) = setup();
+    // Create owner's connection manager
+    let (mut connection_manager, _, client_full_id) = setup();
 
-    let owner_key = PublicKey::from(*owner_full_id.public_id().bls_public_key());
+    // Create account
     let coins = unwrap!(Coins::from_str("10"));
-    let owner_sk = owner_full_id.bls_key();
-    let (client_mgr, owner_full_id_new) = create_account(&mut owner_routing, coins, owner_sk);
+    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
+    let owner_key = client_safe_key.public_key();
 
-    // Create app's routing client and authorise the app.
-    let (mut app_routing, app_routing_rx, app_full_id, _) = setup();
-    let app_sign_key = PublicKey::from(*app_full_id.public_id().bls_public_key());
-
-    let resp = owner_routing.req(
-        &owner_routing_rx,
-        RpcRequest::InsAuthKey {
-            key: app_sign_key,
-            version: 1,
-            permissions: Default::default(),
+    // Create app's connection_manager
+    let (app_safe_key, mut connection_manager2, _) = register_new_app(
+        &mut connection_manager,
+        &client_safe_key,
+        AppPermissions {
+            get_balance: true,
+            transfer_coins: true,
+            perform_mutations: true,
         },
-        &owner_full_id_new,
     );
-
-    match resp {
-        RpcResponse::Mutation(res) => unwrap!(res),
-        _ => panic!("Unexpected repsonse"),
-    }
 
     // Attempt to put MutableData using the app sign key as owner key should fail.
     let name = rand::random();
     let tag = 1000u64;
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set![app_sign_key]
-    ));
+    let data: MData = SeqMutableData::new(name, tag, app_safe_key.public_key()).into();
 
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.put_mdata(client_mgr, data, msg_id, app_sign_key));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::PutMData,
-        ClientError::InvalidOwners
+    send_req_expect_failure!(
+        &mut connection_manager2,
+        &app_safe_key,
+        Request::PutMData(data.clone()),
+        Error::InvalidOwners
     );
 
     // Putting it with correct owner succeeds.
-    let data = unwrap!(OldMutableData::new(
-        name,
-        tag,
-        Default::default(),
-        Default::default(),
-        btree_set![owner_key]
-    ));
+    let data: MData = SeqMutableData::new(name, tag, owner_key).into();
 
-    let msg_id = MessageId::new();
-    unwrap!(owner_routing.put_mdata(client_mgr, data, msg_id, owner_key));
-    expect_success!(owner_routing_rx, msg_id, Response::PutMData);
-
-    // Attempt to change owner by app should fail.
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.change_mdata_owner(
-        client_mgr,
-        name,
-        tag,
-        btree_set![app_sign_key],
-        1,
-        msg_id
-    ));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::ChangeMDataOwner,
-        ClientError::AccessDenied
+    send_req_expect_ok!(
+        &mut connection_manager,
+        &app_safe_key,
+        Request::PutMData(data),
+        ()
     );
-
-    let coins = unwrap!(Coins::from_str("10"));
-    // Attempt to change owner by app via its own account should fail.
-    let app_owner_sk = owner_full_id.bls_key();
-    let (app_client_mgr, _) = create_account(&mut app_routing, coins, app_owner_sk);
-    let msg_id = MessageId::new();
-    unwrap!(app_routing.change_mdata_owner(
-        app_client_mgr,
-        name,
-        tag,
-        btree_set![app_sign_key],
-        1,
-        msg_id
-    ));
-    expect_failure!(
-        app_routing_rx,
-        msg_id,
-        Response::ChangeMDataOwner,
-        ClientError::AccessDenied
-    );
-
-    // Changing the owner by owner should succeed.
-    let msg_id = MessageId::new();
-    unwrap!(owner_routing.change_mdata_owner(
-        client_mgr,
-        name,
-        tag,
-        btree_set![app_sign_key],
-        1,
-        msg_id
-    ));
-    expect_success!(owner_routing_rx, msg_id, Response::ChangeMDataOwner);
 }
 
+/*
 #[test]
 fn pub_idata_rpc() {
     let (mut routing, routing_rx, full_id, _) = setup();
@@ -1840,7 +1742,7 @@ fn setup_impl() -> (
     UnboundedReceiver<NetworkEvent>,
     ClientFullId,
 ) {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     let client_id = ClientFullId::new_bls(&mut rng);
     let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
     let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));
@@ -1848,8 +1750,8 @@ fn setup_impl() -> (
     (connection_manager, conn_manager_rx, client_id)
 }
 
-// Create a wallet for an account, and change the `PublicId` in routing to a Client variant
-// Return the FullId which will be used to sign the requests that follow.
+// Create a balance for an account.
+// Return the safe key which will be used to sign the requests that follow.
 fn register_client(
     conn_manager: &mut ConnectionManager,
     coins: Coins,
@@ -1859,4 +1761,40 @@ fn register_client(
     conn_manager.create_balance(*client_public_key, coins);
 
     SafeKey::client(client_id)
+}
+
+// Register a new app for an account with the given permissions.
+// Return the app's safe key and it's connection manager along with the reciever
+// for network events.
+fn register_new_app(
+    conn_manager: &mut ConnectionManager,
+    client_safe_key: &SafeKey,
+    permissions: AppPermissions,
+) -> (SafeKey, ConnectionManager, UnboundedReceiver<NetworkEvent>) {
+    let client_id = unwrap!(client_safe_key.public_id().client_public_id()).clone();
+    let app_full_id = AppFullId::new_bls(&mut thread_rng(), client_id);
+    let response = process_request(
+        conn_manager,
+        client_safe_key,
+        Request::ListAuthKeysAndVersion,
+    );
+    let (_, version): (_, u64) = unwrap!(response.try_into());
+
+    send_req_expect_ok!(
+        conn_manager,
+        client_safe_key,
+        Request::InsAuthKey {
+            key: *app_full_id.public_id().public_key(),
+            version: version + 1,
+            permissions
+        },
+        ()
+    );
+    let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
+    let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));
+    (
+        SafeKey::app(app_full_id),
+        connection_manager,
+        conn_manager_rx,
+    )
 }
