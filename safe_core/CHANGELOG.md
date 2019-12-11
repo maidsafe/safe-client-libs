@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.37.1]
+- Fix automatic deploys and releases
+
 ## [0.37.0]
 - Remove Rust Sodium dependency
 
