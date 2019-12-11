@@ -13,6 +13,7 @@
 use crate::client::mock::vault::Vault;
 use crate::client::{SafeKey, COST_OF_PUT};
 use crate::config_handler::{Config, DevConfig};
+use crate::utils::test_utils::{gen_app_id, gen_client_id};
 use crate::{utils, NetworkEvent};
 
 use super::connection_manager::ConnectionManager;
@@ -77,11 +78,7 @@ fn process_request(
 // Test the basics idata operations.
 #[test]
 fn immutable_data_basics() {
-    let (mut connection_manager, _, client_full_id) = setup();
-
-    // Create account
-    let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
+    let (mut connection_manager, _, client_safe_key, _) = setup();
 
     // Construct PubImmutableData
     let orig_data: IData =
@@ -113,7 +110,9 @@ fn immutable_data_basics() {
         orig_data
     );
 
-    let balance = unwrap!(coins.checked_sub(*COST_OF_PUT));
+    // Initial balance is 10 coins
+    let balance = unwrap!(Coins::from_str("10"));
+    let balance = unwrap!(balance.checked_sub(*COST_OF_PUT));
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
@@ -145,13 +144,7 @@ fn immutable_data_basics() {
 // Test the basic mdata operations.
 #[test]
 fn mutable_data_basics() {
-    let (mut connection_manager, _, client_full_id) = setup();
-
-    // Create account
-    let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
-
-    let owner_key = client_safe_key.public_key();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
 
     // Construct MutableData
     let name = rand::random();
@@ -407,13 +400,7 @@ fn mutable_data_basics() {
 // Test reclamation of deleted mdata.
 #[test]
 fn mutable_data_reclaim() {
-    let (mut connection_manager, _, client_full_id) = setup();
-
-    // Create account
-    let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
-
-    let owner_key = client_safe_key.public_key();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
 
     // Construct MutableData
     let name = rand::random();
@@ -517,13 +504,7 @@ fn mutable_data_reclaim() {
 // Test valid and invalid mdata entry versioning.
 #[test]
 fn mutable_data_entry_versioning() {
-    let (mut connection_manager, _, client_full_id) = setup();
-
-    // Create account
-    let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
-
-    let owner_key = client_safe_key.public_key();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
 
     // Construct MutableData
     let name = rand::random();
@@ -661,13 +642,7 @@ fn mutable_data_entry_versioning() {
 // Test various operations with and without proper permissions.
 #[test]
 fn mutable_data_permissions() {
-    let (mut connection_manager, _, client_full_id) = setup();
-
-    // Create account
-    let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
-
-    let owner_key = client_safe_key.public_key();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
 
     // Construct MutableData with some entries and empty permissions.
     let name = rand::random();
@@ -937,12 +912,7 @@ fn mutable_data_permissions() {
 #[test]
 fn mutable_data_ownership() {
     // Create owner's connection manager
-    let (mut connection_manager, _, client_full_id) = setup();
-
-    // Create account
-    let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut connection_manager, coins, client_full_id);
-    let owner_key = client_safe_key.public_key();
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup();
 
     // Create app's connection_manager
     let (app_safe_key, mut connection_manager2, _) = register_new_app(
@@ -1717,15 +1687,20 @@ fn request_hooks() {
 }
 */
 
-// Setup routing with a shared, global vault.
+// Setup a connection manager for a new account with a shared, global vault.
 fn setup() -> (
     ConnectionManager,
     UnboundedReceiver<NetworkEvent>,
-    ClientFullId,
+    SafeKey,
+    PublicKey,
 ) {
-    let (conn_manager, conn_manager_rx, client_id) = setup_impl();
+    let (mut conn_manager, conn_manager_rx, client_id) = setup_impl();
 
-    (conn_manager, conn_manager_rx, client_id)
+    let coins = unwrap!(Coins::from_str("10"));
+    let client_safe_key = register_client(&mut conn_manager, coins, client_id);
+    let owner_key = client_safe_key.public_key();
+
+    (conn_manager, conn_manager_rx, client_safe_key, owner_key)
 }
 
 // Setup routing with a new, non-shared vault.
@@ -1742,8 +1717,7 @@ fn setup_impl() -> (
     UnboundedReceiver<NetworkEvent>,
     ClientFullId,
 ) {
-    let mut rng = thread_rng();
-    let client_id = ClientFullId::new_bls(&mut rng);
+    let client_id = gen_client_id();
     let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
     let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));
 
@@ -1772,7 +1746,7 @@ fn register_new_app(
     permissions: AppPermissions,
 ) -> (SafeKey, ConnectionManager, UnboundedReceiver<NetworkEvent>) {
     let client_id = unwrap!(client_safe_key.public_id().client_public_id()).clone();
-    let app_full_id = AppFullId::new_bls(&mut thread_rng(), client_id);
+    let app_full_id = gen_app_id(client_id);
     let response = process_request(
         conn_manager,
         client_safe_key,
