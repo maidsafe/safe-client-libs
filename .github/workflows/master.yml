@@ -302,7 +302,7 @@ jobs:
       - uses: csexton/create-release@add-body
         id: create_release
         with:
-          tag_name: safe_core-${{ steps.versioning.outputs.core_version }}-safe_app-${{ steps.versioning.outputs.app_version }}
+          tag_name: safe_core-${{ steps.versioning.outputs.core_version }}-safe_auth-${{ steps.versioning.outputs.auth_version }}-safe_app-${{ steps.versioning.outputs.app_version }}
           release_name: safe_client_libs
           draft: false
           prerelease: false
