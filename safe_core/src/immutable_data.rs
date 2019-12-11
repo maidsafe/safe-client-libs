@@ -10,6 +10,7 @@ use crate::client::Client;
 use crate::crypto::shared_secretbox;
 use crate::event_loop::CoreFuture;
 use crate::self_encryption_storage::SelfEncryptionStorage;
+use crate::self_encryption_storage_dry_run::SelfEncryptionStorageDryRun;
 use crate::utils::{self, FutureExt};
 use bincode::{deserialize, serialize};
 use futures::Future;
@@ -36,6 +37,42 @@ pub fn create(
 
     let client = client.clone();
     let storage = SelfEncryptionStorage::new(client.clone(), published);
+    let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
+
+    self_encryptor
+        .write(value, 0)
+        .and_then(move |_| self_encryptor.close())
+        .map_err(From::from)
+        .and_then(move |(data_map, _)| {
+            let serialised_data_map = fry!(serialize(&data_map));
+
+            let value = if let Some(key) = encryption_key {
+                let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
+                fry!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
+            } else {
+                fry!(serialize(&DataTypeEncoding::Serialised(
+                    serialised_data_map
+                ),))
+            };
+
+            pack(client, value, published)
+        })
+        .into_box()
+}
+
+/// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
+/// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
+/// The DataMap is generated but the chunks are not uploaded to the network.
+pub fn gen_data_map(
+    client: &impl Client,
+    value: &[u8],
+    published: bool,
+    encryption_key: Option<shared_secretbox::Key>,
+) -> Box<CoreFuture<IData>> {
+    trace!("Creating conformant ImmutableData data map.");
+
+    let client = client.clone();
+    let storage = SelfEncryptionStorageDryRun::new(published);
     let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
 
     self_encryptor
