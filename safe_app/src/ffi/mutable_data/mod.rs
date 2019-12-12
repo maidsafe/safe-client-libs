@@ -22,11 +22,13 @@ use crate::ffi::object_cache::{
     MDataEntriesHandle, MDataEntryActionsHandle, MDataPermissionsHandle, SignPubKeyHandle,
     NULL_OBJECT_HANDLE,
 };
+use crate::ffi::GET_NEXT_VERSION;
 use crate::App;
 use bincode::serialized_size;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
+use futures::future::{self, Either};
 use futures::Future;
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ffi::ipc::resp::MDataKey;
@@ -34,9 +36,11 @@ use safe_core::ffi::ipc::resp::MDataValue;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::resp::{MDataKey as NativeMDataKey, MDataValue as NativeMDataValue};
-use safe_core::Client;
-use safe_core::{FutureExt, MDataInfo as NativeMDataInfo};
-use safe_nd::{MDataPermissionSet, MDataSeqValue, PublicKey, SeqMutableData};
+use safe_core::{Client, FutureExt, MDataInfo as NativeMDataInfo};
+use safe_nd::{
+    EntryError, Error as SndError, MDataPermissionSet, MDataSeqEntryAction, MDataSeqValue,
+    PublicKey, SeqMutableData,
+};
 use std::collections::BTreeMap;
 use std::os::raw::c_void;
 
@@ -345,24 +349,85 @@ pub unsafe extern "C" fn mdata_mutate_entries(
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
 
         (*app).send(move |client, context| {
-            let actions = try_cb!(
+            let c2 = client.clone();
+
+            let mut actions = try_cb!(
                 context
                     .object_cache()
                     .get_seq_mdata_entry_actions(actions_h)
                     .map_err(Error::from),
                 user_data,
                 o_cb
-            );
+            )
+            .clone();
+            let name = info.name();
+            let type_tag = info.type_tag();
 
-            client
-                .mutate_seq_mdata_entries(info.name(), info.type_tag(), actions.clone())
-                .map_err(Error::from)
-                .then(move |result| {
-                    call_result_cb!(result, user_data, o_cb);
-                    Ok(())
-                })
-                .into_box()
-                .into()
+            // Check if any of the versions are `GET_NEXT_VERSION`. If so, get the entries for the
+            // mdata from the network, calculate the versions for all applicable keys, and update
+            // `actions`.
+
+            let mut get_version_for_keys = vec![];
+
+            for (key, action) in actions.actions().iter() {
+                match action {
+                    MDataSeqEntryAction::Update(_) | MDataSeqEntryAction::Del(_) => {
+                        if action.version() == GET_NEXT_VERSION {
+                            get_version_for_keys.push(key.clone());
+                        }
+                    }
+                    // `GET_NEXT_VERSION` is not possible for insert.
+                    MDataSeqEntryAction::Ins(_) => (),
+                }
+            }
+
+            if !get_version_for_keys.is_empty() {
+                // To minimize network requests, get all entries at once instead of individual
+                // values for each key.
+                let fut = client
+                    .list_seq_mdata_entries(name, type_tag)
+                    .and_then(move |entries| {
+                        let mut errors = BTreeMap::new();
+
+                        for key in get_version_for_keys {
+                            // Get the next version.
+                            let version = if let Some(entry) = entries.get(&key) {
+                                entry.version + 1
+                            } else {
+                                // The key doesn't exist, and insert is not compatible with
+                                // `GET_NEXT_VERSION`.
+                                let _ = errors.insert(key.clone(), EntryError::NoSuchEntry);
+                                continue;
+                            };
+
+                            // Update the version on the action.
+                            // Unwrap is okay as the key is guaranteed to exist.
+                            let mut action = unwrap!(actions.actions().get(&key)).clone();
+                            action.set_version(version);
+                            actions.add_action(key.to_vec(), action);
+                        }
+
+                        // Return any errors that occurred.
+                        if !errors.is_empty() {
+                            return err!(SndError::InvalidEntryActions(errors));
+                        }
+
+                        ok!(actions)
+                    });
+
+                Either::A(fut)
+            } else {
+                // No changes to the actions necessary.
+                Either::B(future::ok(actions))
+            }
+            .and_then(move |actions| c2.mutate_seq_mdata_entries(name, type_tag, actions))
+            .map_err(Error::from)
+            .then(move |result| {
+                call_result_cb!(result, user_data, o_cb);
+                Ok(())
+            })
+            .into_box()
+            .into()
         })
     })
 }

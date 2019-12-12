@@ -49,15 +49,24 @@ pub unsafe extern "C" fn mdata_entry_actions_insert(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    add_action(app, actions_h, key, key_len, user_data, o_cb, || {
+    add_action(
+        app,
+        actions_h,
+        key,
+        key_len,
+        user_data,
+        o_cb,
         MDataSeqEntryAction::Ins(MDataSeqValue {
             data: vec_clone_from_raw_parts(value, value_len),
             version: 0,
-        })
-    })
+        }),
+    )
 }
 
 /// Add action to update existing entry.
+///
+/// If `version` is `GET_NEXT_VERSION`, the correct version for the entry at `key` is obtained
+/// automatically when calling `mdata_mutate_entries`.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_entry_actions_update(
     app: *const App,
@@ -70,15 +79,24 @@ pub unsafe extern "C" fn mdata_entry_actions_update(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    add_action(app, actions_h, key, key_len, user_data, o_cb, || {
+    add_action(
+        app,
+        actions_h,
+        key,
+        key_len,
+        user_data,
+        o_cb,
         MDataSeqEntryAction::Update(MDataSeqValue {
             data: vec_clone_from_raw_parts(value, value_len),
             version,
-        })
-    })
+        }),
+    )
 }
 
 /// Add action to delete existing entry.
+///
+/// If `version` is `GET_NEXT_VERSION`, the correct version for the entry at `key` is obtained
+/// automatically when calling `mdata_mutate_entries`.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_entry_actions_delete(
     app: *const App,
@@ -89,12 +107,18 @@ pub unsafe extern "C" fn mdata_entry_actions_delete(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    add_action(app, actions_h, key, key_len, user_data, o_cb, || {
-        MDataSeqEntryAction::Del(version)
-    })
+    add_action(
+        app,
+        actions_h,
+        key,
+        key_len,
+        user_data,
+        o_cb,
+        MDataSeqEntryAction::Del(version),
+    )
 }
 
-/// Free the entry actions from memory
+/// Free the entry actions from memory.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_entry_actions_free(
     app: *const App,
@@ -114,26 +138,24 @@ pub unsafe extern "C" fn mdata_entry_actions_free(
 
 // Add new action to the entry actions stored in the object cache. The action
 // to add is the result of the passed in lambda `f`.
-unsafe fn add_action<F>(
+unsafe fn add_action(
     app: *const App,
     actions_h: MDataEntryActionsHandle,
     key: *const u8,
     key_len: usize,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
-    f: F,
-) where
-    F: FnOnce() -> MDataSeqEntryAction,
-{
+    action: MDataSeqEntryAction,
+) {
     catch_unwind_cb(user_data, o_cb, || {
         let key = vec_clone_from_raw_parts(key, key_len);
-        let action = f();
 
         send_sync(app, user_data, o_cb, move |_, context| {
             let actions = &mut context
                 .object_cache()
                 .get_seq_mdata_entry_actions(actions_h)?;
             actions.add_action(key, action);
+
             Ok(())
         })
     })

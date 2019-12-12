@@ -29,8 +29,10 @@ pub enum CoreError {
     ReceivedUnexpectedData,
     /// Received unexpected event.
     ReceivedUnexpectedEvent,
+    // TODO: unused?
     /// No such data found in local version cache.
     VersionCacheMiss,
+    // TODO: unused?
     /// Cannot overwrite a root directory if it already exists.
     RootDirectoryExists,
     /// Unable to obtain generator for random data.

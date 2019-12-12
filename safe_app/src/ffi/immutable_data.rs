@@ -232,6 +232,7 @@ pub unsafe extern "C" fn idata_serialised_size(
         (*app).send(move |client, _| {
             let idata_kind = IDataKind::from_flag(published);
             let address = IDataAddress::from_kind(idata_kind, name);
+
             client
                 .get_idata(address)
                 .map(move |idata| o_cb(user_data.0, FFI_RESULT_OK, idata.serialised_size()))

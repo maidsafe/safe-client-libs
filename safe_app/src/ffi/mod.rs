@@ -52,6 +52,10 @@ use std::ffi::{CStr, CString, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::slice;
 
+/// Constant to pass to certain functions that take a version when the next version should be
+/// retrieved and used automatically.
+pub const GET_NEXT_VERSION: u64 = 0;
+
 /// Create unregistered app.
 /// The `user_data` parameter corresponds to the first parameter of the
 /// `o_cb` and `o_disconnect_notifier_cb` callbacks.

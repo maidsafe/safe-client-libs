@@ -12,6 +12,7 @@ use crate::errors::AppError;
 use crate::ffi::errors::Error;
 use crate::ffi::helper::send;
 use crate::ffi::object_cache::FileContextHandle;
+use crate::ffi::GET_NEXT_VERSION;
 use crate::App;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
@@ -32,10 +33,6 @@ pub struct FileContext {
     writer: Option<Writer<AppClient>>,
     original_file: NativeFile,
 }
-
-/// Constant to pass to `dir_update_file()` or `dir_delete_file()` when the next version should be
-/// retrieved and used automatically.
-pub const GET_NEXT_VERSION: u64 = 0;
 
 /// Replaces the entire content of the file when writing data.
 pub static OPEN_MODE_OVERWRITE: u64 = 1;

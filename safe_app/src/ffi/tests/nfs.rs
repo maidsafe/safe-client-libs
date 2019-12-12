@@ -10,6 +10,7 @@
 use crate::ffi::errors::{Error, ERR_INVALID_FILE_MODE, ERR_INVALID_RANGE};
 use crate::ffi::nfs::*;
 use crate::ffi::object_cache::FileContextHandle;
+use crate::ffi::GET_NEXT_VERSION;
 use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
 use crate::AppError;
 use crate::{run, App};

@@ -265,12 +265,13 @@ fn unregistered_client() {
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
     let pub_adata = PubUnseqAppendOnlyData::new(addr, tag);
+    let mut unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
 
     // Registered Client PUTs something onto the network.
     {
         let pub_idata = pub_idata.clone();
         let mut pub_adata = pub_adata.clone();
-        let mut unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
+
         random_client(|client| {
             let owner = ADataOwner {
                 public_key: client.owner_key(),
@@ -337,18 +338,24 @@ fn unregistered_client_put() {
     }));
 }
 
-// Verify that published data can be accessed by both unregistered clients and clients that are not in the permission set
+// Verify that published data can be accessed by both unregistered clients and clients that are not
+// in the permission set.
 #[test]
 fn published_data_access() {
     let name: XorName = rand::random();
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
+    let mut pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
+    let mut pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
+
     // Create a random client and store some data
     {
-        let mut pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
-        let mut pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
         let pub_idata = pub_idata.clone();
-        random_client(|client| {
+
+        random_client(move |client| {
+            let client2 = client.clone();
+            let client3 = client.clone();
+
             let owner = ADataOwner {
                 public_key: client.owner_key(),
                 entries_index: 0,
@@ -356,8 +363,7 @@ fn published_data_access() {
             };
             unwrap!(pub_seq_adata.append_owner(owner, 0));
             unwrap!(pub_unseq_adata.append_owner(owner, 0));
-            let client2 = client.clone();
-            let client3 = client.clone();
+
             client
                 .put_idata(pub_idata)
                 .and_then(move |_| client2.put_adata(pub_seq_adata.into()))
@@ -372,6 +378,7 @@ fn published_data_access() {
     {
         let pub_idata = pub_idata.clone();
         let app = unwrap!(App::unregistered(|| (), None));
+
         unwrap!(run(&app, move |client, _context| {
             let client2 = client.clone();
             let client3 = client.clone();
