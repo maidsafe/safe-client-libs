@@ -8,8 +8,8 @@
 
 /// User Account information.
 pub mod account;
-/// Not exclusively for testing purposes but also for its wait_for_response macro.
-#[macro_use]
+/// Core client used for testing purposes.
+#[cfg(any(test, feature = "testing"))]
 pub mod core_client;
 /// `MDataInfo` utilities.
 pub mod mdata_info;

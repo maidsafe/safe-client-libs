@@ -19,20 +19,17 @@ fi
 
 if [[ ! -d "artifacts" ]]; then
     echo "This script is intended to be used with a docker container and a set of pre-built artifacts."
-    echo "Place these artifacts in an 'artifacts' folder at the root of the reptargetitory and perform the 'docker run' command again."
+    echo "Place these artifacts in an 'artifacts' folder at the root of the repository and perform the 'docker run' command again."
     exit 1
 fi
 
 export RUST_BACKTRACE=1
 [[ ! -d "deploy" ]] && mkdir -p deploy/prod deploy/dev
 
-#declare -a targets=(\
-    #"x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
-    #"armv7-linux-androideabi" "x86_64-linux-android" "x86_64-apple-ios" \
-    #"aarch64-apple-ios" "apple-ios")
 declare -a targets=(\
-    "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" \
-    "armv7-linux-androideabi" "x86_64-linux-android")
+    "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
+    "armv7-linux-androideabi" "x86_64-linux-android" \
+    "aarch64-apple-ios" "x86_64-apple-ios" "apple-ios")
 
 function run_packaging() {
     local name=$1
