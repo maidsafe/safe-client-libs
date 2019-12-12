@@ -71,6 +71,7 @@ jobs:
           path: artifacts
 
   build-ios:
+    name: Build iOS
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -152,6 +153,7 @@ jobs:
           path: artifacts/${{ matrix.type }}/universal
 
   build-android:
+    name: Build Android
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -170,6 +172,7 @@ jobs:
           path: artifacts
 
   deploy:
+    name: Deploy
     runs-on: ubuntu-latest
     needs: [build, build-android, build-ios, build-ios-universal]
     env:
@@ -426,6 +429,7 @@ jobs:
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
   publish:
+    name: Publish
     needs: deploy
     runs-on: ubuntu-latest
     steps:
@@ -435,6 +439,27 @@ jobs:
         run: |
           commit_message=$(git log --format=%B -n 1 ${{ github.sha }})
           echo "::set-output name=commit_message::$commit_message"
+      - shell: bash
+        id: versioning
+        run: |
+          core_version=$(grep "^version" < safe_core/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          auth_version=$(grep "^version" < safe_authenticator/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          app_version=$(grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          old_core_version=$(cargo search safe_core --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          old_auth_version=$(cargo search safe_authenticator --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          old_app_version=$(cargo search safe_app --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          echo "Current core version: $core_version"
+          echo "Current auth version: $auth_version"
+          echo "Current app version: $app_version"
+          echo "Old core version: $old_core_version"
+          echo "Old auth version: $old_auth_version"
+          echo "Old app version: $old_app_version"
+          echo "::set-output name=core_version::$core_version"
+          echo "::set-output name=auth_version::$auth_version"
+          echo "::set-output name=app_version::$app_version"
+          echo "::set-output name=old_core_version::$old_core_version"
+          echo "::set-output name=old_auth_version::$old_auth_version"
+          echo "::set-output name=old_app_version::$old_app_version"
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -446,18 +471,20 @@ jobs:
           command: login
           args: ${{ secrets.CRATES_IO_TOKEN }}
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+      # Only publish crates if their Cargo.toml version != their crates.io version.
+      # Otherwise, cargo publish would fail on individual crates that haven't had their versions changed.
       - uses: actions-rs/cargo@v1
         with:
           command: publish
-          args: --manifest-path=safe_core/Cargo.toml --dry-run
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+          args: --manifest-path=safe_core/Cargo.toml
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
-          args: --manifest-path=safe_authenticator/Cargo.toml --dry-run
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+          args: --manifest-path=safe_authenticator/Cargo.toml
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
-          args: --manifest-path=safe_app/Cargo.toml --dry-run
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+          args: --manifest-path=safe_app/Cargo.toml
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version

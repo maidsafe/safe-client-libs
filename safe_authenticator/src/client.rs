@@ -399,7 +399,8 @@ impl AuthClient {
         let sig = full_id.sign(&encrypted_account);
         let client_pk = match full_id.public_id() {
             PublicId::Client(id) => *id.public_key(),
-            x => panic!("Unexpected ID type {:?}", x), // fixme
+            // FIXME
+            x => panic!("Unexpected ID type {:?}", x),
         };
         LoginPacket::new(acc_loc, client_pk, encrypted_account, sig).map_err(AuthError::from)
     }

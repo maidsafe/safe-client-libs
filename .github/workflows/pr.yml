@@ -44,6 +44,7 @@ jobs:
           command: build
 
   build-ios:
+    name: Build iOS
     runs-on: macOS-latest
     strategy:
       matrix:
@@ -123,6 +124,7 @@ jobs:
         run: make universal-ios-lib-${{ matrix.type }}
 
   build-android:
+    name: Build Android
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -151,3 +153,20 @@ jobs:
           override: true
       - shell: bash
         run: ./scripts/test-mock
+
+  # Test publish using --dry-run.
+  # Only safe_core, as auth and app will fail if core was version-updated.
+  test-publish:
+    name: Test Publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: publish
+          args: --manifest-path=safe_core/Cargo.toml --dry-run
