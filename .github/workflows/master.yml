@@ -31,6 +31,24 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      # Build prod libraries.
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -48,6 +66,8 @@ jobs:
         with:
           name: safe_client_libs-${{ matrix.target }}-prod
           path: artifacts
+
+      # Build dev libraries.
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -84,6 +104,24 @@ jobs:
           toolchain: stable
           override: true
           target: ${{ matrix.target }}
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      # Build prod libraries.
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -101,10 +139,13 @@ jobs:
           [[ -d "artifacts" ]] && rm -rf artifacts
           mkdir artifacts
           find "target/${{ matrix.target }}/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      # Upload for build-ios-universal
       - uses: actions/upload-artifact@master
         with:
           name: safe_client_libs-${{ matrix.target }}-prod
           path: artifacts
+
+      # Build dev libraries.
       - uses: actions-rs/cargo@v1
         with:
           command: build
@@ -122,6 +163,7 @@ jobs:
           [[ -d "artifacts" ]] && rm -rf artifacts
           mkdir artifacts
           find "target/${{ matrix.target }}/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+      # Upload for build-ios-universal
       - uses: actions/upload-artifact@master
         with:
           name: safe_client_libs-${{ matrix.target }}-dev
@@ -428,6 +470,7 @@ jobs:
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
+  # Automatic publish, triggered by a commit starting with "Version change".
   publish:
     name: Publish
     needs: deploy
