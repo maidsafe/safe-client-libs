@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.37.3]
+- Make another fix to automatic publishing
+
 ## [0.37.2]
 - Refactor and reenable client mock tests
 - Fix automatic publishing

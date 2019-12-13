@@ -471,6 +471,7 @@ jobs:
           command: login
           args: ${{ secrets.CRATES_IO_TOKEN }}
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+
       # Only publish crates if their Cargo.toml version != their crates.io version.
       # Otherwise, cargo publish would fail on individual crates that haven't had their versions changed.
       - uses: actions-rs/cargo@v1
@@ -478,10 +479,20 @@ jobs:
           command: publish
           args: --manifest-path=safe_core/Cargo.toml
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
+      # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
+      - shell: bash
+        name: Sleep
+        run: sleep 120
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
           args: --manifest-path=safe_authenticator/Cargo.toml
+        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
+        # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
+      - shell: bash
+        name: Sleep
+        run: sleep 120
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
       - uses: actions-rs/cargo@v1
         with:
