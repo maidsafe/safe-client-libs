@@ -1,5 +1,9 @@
 # Safe Core - Change Log
 
+## [0.37.2]
+- Refactor and reenable client mock tests
+- Fix automatic publishing
+
 ## [0.37.1]
 - Fix automatic deploys and releases
 
