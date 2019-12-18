@@ -9,14 +9,15 @@
 use crate::client::Client;
 use crate::crypto::shared_secretbox;
 use crate::event_loop::CoreFuture;
-use crate::self_encryption_storage::SelfEncryptionStorage;
-use crate::self_encryption_storage_dry_run::SelfEncryptionStorageDryRun;
+use crate::self_encryption_storage::{
+    SelfEncryptionStorage, SelfEncryptionStorageDryRun, SEStorageError,
+};
 use crate::utils::{self, FutureExt};
 use bincode::{deserialize, serialize};
 use futures::Future;
 
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
-use self_encryption::{DataMap, SelfEncryptor};
+use self_encryption::{DataMap, SelfEncryptor, Storage};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -37,27 +38,7 @@ pub fn create(
 
     let client = client.clone();
     let storage = SelfEncryptionStorage::new(client.clone(), published);
-    let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
-
-    self_encryptor
-        .write(value, 0)
-        .and_then(move |_| self_encryptor.close())
-        .map_err(From::from)
-        .and_then(move |(data_map, _)| {
-            let serialised_data_map = fry!(serialize(&data_map));
-
-            let value = if let Some(key) = encryption_key {
-                let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
-                fry!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
-            } else {
-                fry!(serialize(&DataTypeEncoding::Serialised(
-                    serialised_data_map
-                ),))
-            };
-
-            pack(client, value, published)
-        })
-        .into_box()
+    write_with_self_encryptor(storage, client, value, published, encryption_key)
 }
 
 /// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
@@ -72,28 +53,8 @@ pub fn gen_data_map(
     trace!("Creating conformant ImmutableData data map.");
 
     let client = client.clone();
-    let storage = SelfEncryptionStorageDryRun::new(published);
-    let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
-
-    self_encryptor
-        .write(value, 0)
-        .and_then(move |_| self_encryptor.close())
-        .map_err(From::from)
-        .and_then(move |(data_map, _)| {
-            let serialised_data_map = fry!(serialize(&data_map));
-
-            let value = if let Some(key) = encryption_key {
-                let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
-                fry!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
-            } else {
-                fry!(serialize(&DataTypeEncoding::Serialised(
-                    serialised_data_map
-                ),))
-            };
-
-            pack(client, value, published)
-        })
-        .into_box()
+    let storage = SelfEncryptionStorageDryRun::new(client.clone(), true);
+    write_with_self_encryptor(storage, client, value, published, encryption_key)
 }
 
 /// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
@@ -135,6 +96,38 @@ pub fn get_value(
     client
         .get_idata(address)
         .and_then(move |data| extract_value(&client2, &data, decryption_key))
+        .into_box()
+}
+
+fn write_with_self_encryptor<S>(
+    se_storage: S,
+    client: impl Client,
+    value: &[u8],
+    published: bool,
+    encryption_key: Option<shared_secretbox::Key>,
+) -> Box<CoreFuture<IData>>
+where
+    S: Storage<Error = SEStorageError> + 'static,
+{
+    let self_encryptor = fry!(SelfEncryptor::new(se_storage, DataMap::None));
+    self_encryptor
+        .write(value, 0)
+        .and_then(move |_| self_encryptor.close())
+        .map_err(From::from)
+        .and_then(move |(data_map, _)| {
+            let serialised_data_map = fry!(serialize(&data_map));
+
+            let value = if let Some(key) = encryption_key {
+                let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
+                fry!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
+            } else {
+                fry!(serialize(&DataTypeEncoding::Serialised(
+                    serialised_data_map
+                ),))
+            };
+
+            pack(client, value, published)
+        })
         .into_box()
 }
 

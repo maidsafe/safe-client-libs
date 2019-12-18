@@ -112,3 +112,48 @@ impl From<CoreError> for SEStorageError {
 }
 
 impl StorageError for SEStorageError {}
+
+/// Network storage is the concrete type which self-encryption crate will use
+/// to put or get data from the network.
+pub struct SelfEncryptionStorageDryRun<C: Client> {
+    client: C,
+    published: bool,
+}
+
+impl<C: Client> SelfEncryptionStorageDryRun<C> {
+    /// Create a new SelfEncryptionStorage instance.
+    pub fn new(client: C, published: bool) -> Self {
+        Self { client, published }
+    }
+}
+
+impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
+    type Error = SEStorageError;
+
+    fn get(&self, _name: &[u8]) -> Box<dyn Future<Item = Vec<u8>, Error = Self::Error>> {
+        trace!("Self encrypt invoked GetIData dry run.");
+        err!(CoreError::Unexpected(
+            "Cannot get from storage since it's a dry run.".to_owned()
+        ))
+    }
+
+    fn put(
+        &mut self,
+        _: Vec<u8>,
+        _data: Vec<u8>,
+    ) -> Box<dyn Future<Item = (), Error = Self::Error>> {
+        trace!("Self encrypt invoked PutIData dry run.");
+        err!(CoreError::Unexpected(
+            "Cannot put to storage since it's a dry run.".to_owned()
+        ))
+    }
+
+    fn generate_address(&self, data: &[u8]) -> Vec<u8> {
+        let idata: IData = if self.published {
+            PubImmutableData::new(data.to_vec()).into()
+        } else {
+            UnpubImmutableData::new(data.to_vec(), self.client.public_key()).into()
+        };
+        idata.name().0.to_vec()
+    }
+}

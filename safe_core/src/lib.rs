@@ -66,8 +66,6 @@ pub mod ipc;
 pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
-/// Implements the Self Encryption storage trait but for dry run.
-pub mod self_encryption_storage_dry_run;
 
 #[cfg(not(feature = "mock-network"))]
 mod connection_manager;
