@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::self_encryption_storage::SelfEncryptionStorageError;
+use crate::self_encryption_storage::SEStorageError;
 use bincode::Error as SerialisationError;
 use futures::sync::mpsc::SendError;
 use safe_nd::Error as SndError;
@@ -49,7 +49,7 @@ pub enum CoreError {
     /// Blocking operation was cancelled.
     OperationAborted,
     /// Error while self-encrypting data.
-    SelfEncryption(SelfEncryptionError<SelfEncryptionStorageError>),
+    SelfEncryption(SelfEncryptionError<SEStorageError>),
     /// The request has timed out.
     RequestTimeout,
     /// Configuration file error.
@@ -96,8 +96,8 @@ impl From<mpsc::RecvError> for CoreError {
     }
 }
 
-impl From<SelfEncryptionError<SelfEncryptionStorageError>> for CoreError {
-    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
+impl From<SelfEncryptionError<SEStorageError>> for CoreError {
+    fn from(error: SelfEncryptionError<SEStorageError>) -> Self {
         Self::SelfEncryption(error)
     }
 }
@@ -118,8 +118,8 @@ impl From<serde_json::error::Error> for CoreError {
     fn from(error: serde_json::error::Error) -> Self {
         use serde_json::error::Category;
         match error.classify() {
-            Category::Io => CoreError::IoError(error.into()),
-            Category::Syntax | Category::Data | Category::Eof => CoreError::ConfigError(error),
+            Category::Io => Self::IoError(error.into()),
+            Category::Syntax | Category::Data | Category::Eof => Self::ConfigError(error),
         }
     }
 }

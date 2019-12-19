@@ -26,8 +26,8 @@ pub enum NetworkEvent {
 impl Into<i32> for NetworkEvent {
     fn into(self) -> i32 {
         match self {
-            NetworkEvent::Connected => NETWORK_EVENT_START_RANGE,
-            NetworkEvent::Disconnected => NETWORK_EVENT_START_RANGE - 1,
+            Self::Connected => NETWORK_EVENT_START_RANGE,
+            Self::Disconnected => NETWORK_EVENT_START_RANGE - 1,
         }
     }
 }

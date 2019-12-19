@@ -80,7 +80,7 @@ impl ConnectionGroup {
         let inner = Arc::new(Mutex::new(Inner {
             quic_p2p,
             full_id,
-            hooks: Default::default(),
+            hooks: HashMap::<MessageId, Sender<Response>>::default(),
             connection_hook: Some(connection_hook),
             disconnect_tx: None,
             elders: elders
@@ -90,7 +90,7 @@ impl ConnectionGroup {
             id: GROUP_COUNTER.fetch_add(1, Ordering::SeqCst),
         }));
 
-        let _ = setup_quic_p2p_event_loop(inner.clone(), event_rx);
+        let _ = setup_quic_p2p_event_loop(&inner, event_rx);
 
         Ok(Self { inner })
     }
@@ -187,8 +187,8 @@ impl Inner {
                 peer_addr,
                 msg,
                 token,
-            } => self.handle_unsent_user_message(peer_addr, msg, token),
-            NewMessage { peer_addr, msg } => self.handle_new_message(peer_addr, msg),
+            } => self.handle_unsent_user_message(peer_addr, &msg, token),
+            NewMessage { peer_addr, msg } => self.handle_new_message(peer_addr, &msg),
             Finish => {
                 info!("Received unexpected event: {}", event);
             }
@@ -217,10 +217,10 @@ impl Inner {
         trace!("{}: Sent user message", self.id);
     }
 
-    fn handle_unsent_user_message(&mut self, peer_addr: SocketAddr, msg: Bytes, token: Token) {
+    fn handle_unsent_user_message(&mut self, peer_addr: SocketAddr, msg: &Bytes, token: Token) {
         // TODO: check if we have handled the challenge?
 
-        match deserialize(&msg) {
+        match deserialize(msg) {
             Ok(Message::Request {
                 request,
                 message_id,
@@ -242,23 +242,22 @@ impl Inner {
         // TODO: unimplemented
     }
 
-    fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: Bytes) {
+    fn handle_new_message(&mut self, peer_addr: SocketAddr, msg: &Bytes) {
         let have_handled_challenge = self
             .elders
             .get(&peer_addr)
-            .map(|elder| elder.public_id.is_some())
-            .unwrap_or(false);
+            .map_or(false, |elder| elder.public_id.is_some());
 
         trace!(
             "{}: Message from {:?}: {}. Have we handled challenge? {:?}",
             self.id,
             peer_addr,
-            utils::bin_data_format(&msg),
+            utils::bin_data_format(msg),
             have_handled_challenge
         );
 
         if have_handled_challenge {
-            match deserialize(&msg) {
+            match deserialize(msg) {
                 Ok(Message::Response {
                     response,
                     message_id,
@@ -266,9 +265,9 @@ impl Inner {
                 Ok(Message::Notification { notification }) => {
                     trace!("Got transaction notification: {:?}", notification);
                 }
-                Ok(_msg) => error!("Unexpected message type, expected response."),
+                Ok(_) => error!("Unexpected message type, expected response."),
                 Err(e) => {
-                    if let Ok(_x) = deserialize::<Challenge>(&msg) {
+                    if let Ok(_x) = deserialize::<Challenge>(msg) {
                         error!("Unexpected challenge, expected response ({:?}).", e);
                     } else {
                         error!("Unexpected error {:?}", e);
@@ -276,12 +275,12 @@ impl Inner {
                 }
             }
         } else {
-            match deserialize(&msg) {
+            match deserialize(msg) {
                 Ok(Challenge::Request(PublicId::Node(node_public_id), challenge)) => {
                     trace!("Got the challenge");
                     self.handle_challenge(peer_addr, node_public_id, challenge)
                 }
-                Ok(_msg) => error!("Unexpected message type, expected challenge."),
+                Ok(_) => error!("Unexpected message type, expected challenge."),
                 Err(e) => error!("Unexpected error {:?}", e),
             }
         }
@@ -352,10 +351,10 @@ impl Inner {
 }
 
 fn setup_quic_p2p_event_loop(
-    inner: Arc<Mutex<Inner>>,
+    inner: &Arc<Mutex<Inner>>,
     event_rx: Receiver<Event>,
 ) -> JoinHandle<()> {
-    let inner_weak = Arc::downgrade(&inner);
+    let inner_weak = Arc::downgrade(inner);
 
     thread::spawn(move || {
         while let Ok(event) = event_rx.recv() {

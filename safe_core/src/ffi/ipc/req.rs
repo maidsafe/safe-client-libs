@@ -32,7 +32,7 @@ pub struct PermissionSet {
 }
 
 impl ReprC for PermissionSet {
-    type C = *const PermissionSet;
+    type C = *const Self;
     type Error = ();
 
     /// Constructs the object from a raw pointer.
@@ -167,7 +167,7 @@ pub struct ShareMData {
 
 #[repr(C)]
 /// Represents a request to share mutable data
-pub struct ShareMDataReq {
+pub struct ShareMDataRequest {
     /// Info about the app requesting shared access
     pub app: AppExchangeInfo,
     /// List of MD names & type tags and permissions that need to be shared
@@ -176,7 +176,7 @@ pub struct ShareMDataReq {
     pub mdata_len: usize,
 }
 
-impl Drop for ShareMDataReq {
+impl Drop for ShareMDataRequest {
     fn drop(&mut self) {
         unsafe {
             let _ = vec_from_raw_parts(self.mdata as *mut ShareMData, self.mdata_len);

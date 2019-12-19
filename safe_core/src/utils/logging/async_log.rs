@@ -22,6 +22,7 @@ use serde_value::Value;
 use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Stdout, Write};
@@ -52,7 +53,7 @@ pub struct AsyncConsoleAppenderBuilder {
 
 impl AsyncConsoleAppenderBuilder {
     pub fn encoder(self, encoder: Box<dyn Encode>) -> Self {
-        AsyncConsoleAppenderBuilder { encoder }
+        Self { encoder }
     }
 
     pub fn build(self) -> AsyncAppender {
@@ -82,7 +83,7 @@ pub struct AsyncFileAppenderBuilder {
 
 impl AsyncFileAppenderBuilder {
     pub fn encoder(self, encoder: Box<dyn Encode>) -> Self {
-        AsyncFileAppenderBuilder {
+        Self {
             path: self.path,
             encoder,
             append: self.append,
@@ -91,7 +92,7 @@ impl AsyncFileAppenderBuilder {
     }
 
     pub fn append(self, append: bool) -> Self {
-        AsyncFileAppenderBuilder {
+        Self {
             path: self.path,
             encoder: self.encoder,
             append,
@@ -100,7 +101,7 @@ impl AsyncFileAppenderBuilder {
     }
 
     pub fn timestamp(self, timestamp: bool) -> Self {
-        AsyncFileAppenderBuilder {
+        Self {
             path: self.path,
             encoder: self.encoder,
             append: self.append,
@@ -147,7 +148,7 @@ pub struct AsyncServerAppenderBuilder<A> {
 
 impl<A: ToSocketAddrs> AsyncServerAppenderBuilder<A> {
     pub fn encoder(self, encoder: Box<dyn Encode>) -> Self {
-        AsyncServerAppenderBuilder {
+        Self {
             addr: self.addr,
             encoder,
             no_delay: self.no_delay,
@@ -155,7 +156,7 @@ impl<A: ToSocketAddrs> AsyncServerAppenderBuilder<A> {
     }
 
     pub fn no_delay(self, no_delay: bool) -> Self {
-        AsyncServerAppenderBuilder {
+        Self {
             addr: self.addr,
             encoder: self.encoder,
             no_delay,
@@ -278,7 +279,7 @@ impl Deserialize for AsyncFileAppenderCreator {
             let path = Path::new(&op_file).to_owned();
             let mut path_owned = path.to_owned();
             path.file_stem()
-                .and_then(|s| s.to_str())
+                .and_then(OsStr::to_str)
                 .and_then(|stem| {
                     UNIX_EPOCH
                         .elapsed()
@@ -286,11 +287,7 @@ impl Deserialize for AsyncFileAppenderCreator {
                         .ok()
                         .map(|dur| (dur, stem))
                 })
-                .and_then(|elt| {
-                    path.extension()
-                        .and_then(|ex| ex.to_str())
-                        .map(|ex| (elt, ex))
-                })
+                .and_then(|elt| path.extension().and_then(OsStr::to_str).map(|ex| (elt, ex)))
                 .map_or_else(
                     || println!("Could not set timestamped file!"),
                     |((dur, stem), ext)| {
@@ -298,7 +295,7 @@ impl Deserialize for AsyncFileAppenderCreator {
                     },
                 );
 
-            path_owned.file_name().and_then(|f| f.to_str()).map_or_else(
+            path_owned.file_name().and_then(OsStr::to_str).map_or_else(
                 || println!("Could not extract modified file name from path"),
                 |f| op_file = f.to_string(),
             );
@@ -511,7 +508,7 @@ impl AsyncAppender {
                     }
                 }));
 
-        AsyncAppender {
+        Self {
             encoder,
             tx: Mutex::new(tx),
             _raii_joiner: joiner,

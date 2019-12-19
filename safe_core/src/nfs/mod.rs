@@ -18,7 +18,7 @@ mod reader;
 mod tests;
 mod writer;
 
-pub use self::dir::create_dir;
+pub use self::dir::create_directory;
 pub use self::errors::NfsError;
 pub use self::file::File;
 pub use self::reader::Reader;

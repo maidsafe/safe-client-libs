@@ -28,19 +28,19 @@ impl<C: Client> SelfEncryptionStorage<C> {
 }
 
 impl<C: Client> Storage for SelfEncryptionStorage<C> {
-    type Error = SelfEncryptionStorageError;
+    type Error = SEStorageError;
 
     fn get(&self, name: &[u8]) -> Box<dyn Future<Item = Vec<u8>, Error = Self::Error>> {
         trace!("Self encrypt invoked GetIData.");
 
         if name.len() != XOR_NAME_LEN {
             let err = CoreError::Unexpected("Requested `name` is incorrect size.".to_owned());
-            let err = SelfEncryptionStorageError::from(err);
+            let err = SEStorageError::from(err);
             return Box::new(futures::failed(err));
         }
 
         let name = {
-            let mut temp = [0u8; XOR_NAME_LEN];
+            let mut temp = [0_u8; XOR_NAME_LEN];
             temp.clone_from_slice(name);
             XorName(temp)
         };
@@ -64,35 +64,38 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
         data: Vec<u8>,
     ) -> Box<dyn Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData.");
-        let idata: IData = if self.published {
+        let immutable_data: IData = if self.published {
             PubImmutableData::new(data).into()
         } else {
             UnpubImmutableData::new(data, self.client.public_key()).into()
         };
-        self.client.put_idata(idata).map_err(From::from).into_box()
+        self.client
+            .put_idata(immutable_data)
+            .map_err(From::from)
+            .into_box()
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {
-        let idata: IData = if self.published {
+        let immutable_data: IData = if self.published {
             PubImmutableData::new(data.to_vec()).into()
         } else {
             UnpubImmutableData::new(data.to_vec(), self.client.public_key()).into()
         };
-        idata.name().0.to_vec()
+        immutable_data.name().0.to_vec()
     }
 }
 
 /// Errors arising from storage object being used by self-encryptors.
 #[derive(Debug)]
-pub struct SelfEncryptionStorageError(pub Box<CoreError>);
+pub struct SEStorageError(pub Box<CoreError>);
 
-impl Display for SelfEncryptionStorageError {
+impl Display for SEStorageError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         Display::fmt(&*self.0, formatter)
     }
 }
 
-impl Error for SelfEncryptionStorageError {
+impl Error for SEStorageError {
     fn description(&self) -> &str {
         self.0.description()
     }
@@ -102,10 +105,10 @@ impl Error for SelfEncryptionStorageError {
     }
 }
 
-impl From<CoreError> for SelfEncryptionStorageError {
-    fn from(error: CoreError) -> SelfEncryptionStorageError {
-        SelfEncryptionStorageError(Box::new(error))
+impl From<CoreError> for SEStorageError {
+    fn from(error: CoreError) -> Self {
+        Self(Box::new(error))
     }
 }
 
-impl StorageError for SelfEncryptionStorageError {}
+impl StorageError for SEStorageError {}

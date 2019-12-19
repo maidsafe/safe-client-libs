@@ -17,7 +17,7 @@ use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, CryptoRng, Rng, SeedableRng};
 use safe_core::client::account::Account;
-use safe_core::client::{req, AuthActions, ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use safe_core::client::{req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::ipc::BootstrapConfig;
@@ -34,7 +34,7 @@ use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Client object used by safe_authenticator.
 pub struct AuthClient {
-    inner: Rc<RefCell<ClientInner<AuthClient, ()>>>,
+    inner: Rc<RefCell<Inner<AuthClient, ()>>>,
     auth_inner: Rc<RefCell<AuthInner>>,
 }
 
@@ -187,7 +187,7 @@ impl AuthClient {
         block_on_all(connection_manager.bootstrap(client_safe_key.clone()))?;
 
         Ok(AuthClient {
-            inner: Rc::new(RefCell::new(ClientInner::new(
+            inner: Rc::new(RefCell::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -320,7 +320,7 @@ impl AuthClient {
         block_on_all(connection_manager.bootstrap(id_packet.clone()))?;
 
         Ok(AuthClient {
-            inner: Rc::new(RefCell::new(ClientInner::new(
+            inner: Rc::new(RefCell::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -494,7 +494,7 @@ impl Client for AuthClient {
         None
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
+    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>> {
         self.inner.clone()
     }
 

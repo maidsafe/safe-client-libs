@@ -139,7 +139,7 @@ pub fn remove(client: AuthClient, app_id: &str) -> Box<AuthFuture<bool>> {
 // Creates a new app's dedicated container
 fn create(client: &AuthClient, app_pk: PublicKey) -> Box<AuthFuture<MDataInfo>> {
     let dir = fry!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map_err(AuthError::from));
-    nfs::create_dir(
+    nfs::create_directory(
         client,
         &dir,
         btree_map![],

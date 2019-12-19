@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::CoreError;
-use crate::self_encryption_storage::SelfEncryptionStorageError;
+use crate::self_encryption_storage::SEStorageError;
 use bincode::Error as SerialisationError;
 use self_encryption::SelfEncryptionError;
 use std::fmt;
@@ -28,50 +28,48 @@ pub enum NfsError {
     /// Unsuccessful Serialisation or Deserialisation
     EncodeDecodeError(SerialisationError),
     /// Error while self-encrypting/-decrypting data
-    SelfEncryption(SelfEncryptionError<SelfEncryptionStorageError>),
+    SelfEncryption(SelfEncryptionError<SEStorageError>),
 }
 
 impl From<CoreError> for NfsError {
     fn from(error: CoreError) -> Self {
-        NfsError::CoreError(error)
+        Self::CoreError(error)
     }
 }
 
 impl From<SerialisationError> for NfsError {
     fn from(error: SerialisationError) -> Self {
-        NfsError::EncodeDecodeError(error)
+        Self::EncodeDecodeError(error)
     }
 }
 
 impl<'a> From<&'a str> for NfsError {
     fn from(error: &'a str) -> Self {
-        NfsError::Unexpected(error.to_string())
+        Self::Unexpected(error.to_string())
     }
 }
 
-impl From<SelfEncryptionError<SelfEncryptionStorageError>> for NfsError {
-    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
-        NfsError::SelfEncryption(error)
+impl From<SelfEncryptionError<SEStorageError>> for NfsError {
+    fn from(error: SelfEncryptionError<SEStorageError>) -> Self {
+        Self::SelfEncryption(error)
     }
 }
 
 impl fmt::Display for NfsError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            NfsError::CoreError(ref error) => write!(f, "Client Errror: {}", error),
-            NfsError::FileExists => {
-                write!(f, "File already exists with the same name in a directory")
-            }
-            NfsError::FileNotFound => write!(f, "File not found"),
+            Self::CoreError(ref error) => write!(f, "Client Errror: {}", error),
+            Self::FileExists => write!(f, "File already exists with the same name in a directory"),
+            Self::FileNotFound => write!(f, "File not found"),
 
-            NfsError::InvalidRange => write!(f, "Invalid byte range specified"),
-            NfsError::Unexpected(ref error) => write!(f, "Unexpected error - {:?}", error),
-            NfsError::EncodeDecodeError(ref error) => write!(
+            Self::InvalidRange => write!(f, "Invalid byte range specified"),
+            Self::Unexpected(ref error) => write!(f, "Unexpected error - {:?}", error),
+            Self::EncodeDecodeError(ref error) => write!(
                 f,
                 "Unsuccessful Serialisation or Deserialisation: {:?}",
                 error
             ),
-            NfsError::SelfEncryption(ref error) => write!(
+            Self::SelfEncryption(ref error) => write!(
                 f,
                 "Error while self-encrypting/-decrypting data: {:?}",
                 error
@@ -83,17 +81,15 @@ impl fmt::Display for NfsError {
 impl fmt::Debug for NfsError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            NfsError::CoreError(ref error) => write!(f, "NfsError::CoreError -> {:?}", error),
-            NfsError::FileExists => write!(f, "NfsError::FileExists"),
-            NfsError::FileNotFound => write!(f, "NfsError::FileNotFound"),
-            NfsError::InvalidRange => write!(f, "NfsError::InvalidRange"),
-            NfsError::Unexpected(ref error) => write!(f, "NfsError::Unexpected -> {:?}", error),
-            NfsError::EncodeDecodeError(ref error) => {
+            Self::CoreError(ref error) => write!(f, "NfsError::CoreError -> {:?}", error),
+            Self::FileExists => write!(f, "NfsError::FileExists"),
+            Self::FileNotFound => write!(f, "NfsError::FileNotFound"),
+            Self::InvalidRange => write!(f, "NfsError::InvalidRange"),
+            Self::Unexpected(ref error) => write!(f, "NfsError::Unexpected -> {:?}", error),
+            Self::EncodeDecodeError(ref error) => {
                 write!(f, "NfsError::EncodeDecodeError -> {:?}", error)
             }
-            NfsError::SelfEncryption(ref error) => {
-                write!(f, "NfsError::SelfEncrpytion -> {:?}", error)
-            }
+            Self::SelfEncryption(ref error) => write!(f, "NfsError::SelfEncrpytion -> {:?}", error),
         }
     }
 }

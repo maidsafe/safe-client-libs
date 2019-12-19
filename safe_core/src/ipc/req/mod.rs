@@ -249,7 +249,7 @@ pub struct AppExchangeInfo {
 impl AppExchangeInfo {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<FfiAppExchangeInfo, IpcError> {
-        let AppExchangeInfo {
+        let Self {
             id,
             scope,
             name,

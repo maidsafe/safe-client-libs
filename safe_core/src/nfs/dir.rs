@@ -15,7 +15,7 @@ use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqEntries, PublicKey,
 use std::collections::BTreeMap;
 
 /// Create a new directory based on the provided `MDataInfo`.
-pub fn create_dir(
+pub fn create_directory(
     client: &impl Client,
     dir: &MDataInfo,
     contents: MDataSeqEntries,

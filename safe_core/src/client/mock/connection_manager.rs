@@ -10,7 +10,7 @@ use super::vault::{self, Vault};
 use crate::config_handler::{get_config, Config};
 use crate::{
     client::SafeKey,
-    event::{NetworkEvent, NetworkTx},
+    network_event::{NetworkEvent, NetworkTx},
     CoreError, CoreFuture,
 };
 use quic_p2p::{self, Config as QuicP2pConfig};

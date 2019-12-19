@@ -22,7 +22,7 @@ use log::Record;
 use safe_core::client::{test_create_balance, Client};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
-    AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataReq as FfiShareMDataReq,
+    AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataRequest as FfiShareMDataReq,
 };
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};

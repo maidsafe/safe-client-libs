@@ -14,7 +14,7 @@ use bincode::serialize;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC, FFI_RESULT_OK,
 };
-use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
+use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataRequest};
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{
     self, AuthReq as NativeAuthReq, ContainersReq as NativeContainersReq, IpcError, IpcMsg, IpcReq,
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn encode_unregistered_req(
 /// Encode `ShareMDataReq`.
 #[no_mangle]
 pub unsafe extern "C" fn encode_share_mdata_req(
-    req: *const ShareMDataReq,
+    req: *const ShareMDataRequest,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
         user_data: *mut c_void,

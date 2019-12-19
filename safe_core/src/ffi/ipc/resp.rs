@@ -165,7 +165,7 @@ pub struct MetadataResponse {
 impl MetadataResponse {
     /// Create invalid metadata.
     pub fn invalid() -> Self {
-        MetadataResponse {
+        Self {
             name: ptr::null(),
             description: ptr::null(),
             xor_name: Default::default(),

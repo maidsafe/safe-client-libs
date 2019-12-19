@@ -111,7 +111,9 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
     };
     let serialised_data = fry!(serialize(&data));
 
-    if !data.validate_size() {
+    if data.validate_size() {
+        ok!(data)
+    } else {
         let storage = SelfEncryptionStorage::new(client.clone(), published);
         let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
         self_encryptor
@@ -123,8 +125,6 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
                 pack(client, value, published)
             })
             .into_box()
-    } else {
-        ok!(data)
     }
 }
 

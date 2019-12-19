@@ -41,7 +41,7 @@ impl MDataInfo {
         address: MDataAddress,
         enc_info: (shared_secretbox::Key, SymEncNonce),
     ) -> Self {
-        MDataInfo {
+        Self {
             address,
             enc_info: Some(enc_info),
             new_enc_info: None,
@@ -50,7 +50,7 @@ impl MDataInfo {
 
     /// Construct `MDataInfo` for public data.
     pub fn new_public(address: MDataAddress) -> Self {
-        MDataInfo {
+        Self {
             address,
             enc_info: None,
             new_enc_info: None,

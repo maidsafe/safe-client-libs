@@ -45,7 +45,7 @@ pub struct Account {
 impl Account {
     /// Creates new Account with a provided set of keys.
     pub fn new(maid_keys: ClientKeys) -> Result<Self, CoreError> {
-        Ok(Account {
+        Ok(Self {
             maid_keys,
             access_container: MDataInfo::random_private(MDataKind::Seq, DIR_TAG)?,
             config_root: MDataInfo::random_private(MDataKind::Seq, DIR_TAG)?,
@@ -125,13 +125,13 @@ impl ClientKeys {
     ///
     /// Only signing keys are generated from the seed.
     pub fn new<T: CryptoRng + Rng>(rng: &mut T) -> Self {
-        let (enc_pk, enc_sk) = shared_box::gen_keypair();
+        let (enc_public_key, enc_secret_key) = shared_box::gen_keypair();
         let enc_key = shared_secretbox::gen_key();
         let client_id = ClientFullId::new_bls(rng);
 
-        ClientKeys {
-            enc_pk,
-            enc_sk,
+        Self {
+            enc_pk: enc_public_key,
+            enc_sk: enc_secret_key,
             enc_key,
             client_id,
         }

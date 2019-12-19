@@ -8,11 +8,14 @@
 
 mod connection_group;
 
-use crate::{client::SafeKey, event::NetworkEvent, event::NetworkTx, CoreError, CoreFuture};
+use crate::{
+    client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError, CoreFuture,
+};
 use connection_group::ConnectionGroup;
 use futures::{future, Future};
-use quic_p2p::Config as QuicP2pConfig;
+use quic_p2p::{Config as QuicP2pConfig, NodeInfo};
 use safe_nd::{Message, PublicId, Response};
+use std::collections::HashSet;
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
@@ -23,7 +26,7 @@ use tokio::prelude::FutureExt;
 
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
 
-/// Initialises QuicP2p instance. Establishes new connections.
+/// Initialises `QuicP2p` instance. Establishes new connections.
 /// Contains a reference to crossbeam channel provided by quic-p2p for capturing the events.
 #[derive(Clone)]
 pub struct ConnectionManager {
@@ -90,7 +93,7 @@ impl Inner {
     fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
-        let elders = Default::default();
+        let elders = HashSet::<NodeInfo>::default();
 
         let (connected_tx, connected_rx) = futures::oneshot();
 

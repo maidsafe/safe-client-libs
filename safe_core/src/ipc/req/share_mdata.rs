@@ -36,7 +36,7 @@ pub struct ShareMData {
 
 impl ShareMDataReq {
     /// Construct FFI wrapper for the native Rust object, consuming self.
-    pub fn into_repr_c(self) -> Result<ffi::ShareMDataReq, IpcError> {
+    pub fn into_repr_c(self) -> Result<ffi::ShareMDataRequest, IpcError> {
         let mdata_repr_c: Vec<_> = self
             .mdata
             .into_iter()
@@ -45,7 +45,7 @@ impl ShareMDataReq {
 
         let (mdata, mdata_len) = vec_into_raw_parts(mdata_repr_c);
 
-        Ok(ffi::ShareMDataReq {
+        Ok(ffi::ShareMDataRequest {
             app: self.app.into_repr_c()?,
             mdata,
             mdata_len,
@@ -54,7 +54,7 @@ impl ShareMDataReq {
 }
 
 impl ReprC for ShareMDataReq {
-    type C = *const ffi::ShareMDataReq;
+    type C = *const ffi::ShareMDataRequest;
     type Error = IpcError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {

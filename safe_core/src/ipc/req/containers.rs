@@ -25,7 +25,7 @@ pub struct ContainersReq {
 impl ContainersReq {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::ContainersReq, IpcError> {
-        let ContainersReq { app, containers } = self;
+        let Self { app, containers } = self;
 
         let containers = containers_into_vec(containers).map_err(StringError::from)?;
         let (containers_ptr, containers_len) = vec_into_raw_parts(containers);

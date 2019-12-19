@@ -41,7 +41,7 @@ use safe_authenticator::*;
 use safe_core::arrays::*;
 use safe_core::ffi::ipc::req::{
     AppExchangeInfo, AuthReq, ContainerPermissions, ContainersReq, PermissionSet, ShareMData,
-    ShareMDataReq,
+    ShareMDataRequest,
 };
 use safe_core::ffi::ipc::resp::{
     AccessContInfo, AccessContainerEntry, AppAccess, AppKeys, AuthGranted, ContainerInfo,

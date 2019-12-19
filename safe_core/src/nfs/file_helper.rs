@@ -127,7 +127,9 @@ where
 
     version_fut
         .and_then(move |version| {
-            if !published {
+            if published {
+                ok!(version)
+            } else {
                 fetch(client, parent2, name2)
                     .and_then(move |(_, file)| {
                         client2
@@ -136,8 +138,6 @@ where
                             .map_err(NfsError::from)
                     })
                     .into_box()
-            } else {
-                ok!(version)
             }
         })
         .and_then(move |version| {

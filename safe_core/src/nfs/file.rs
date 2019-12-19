@@ -27,8 +27,8 @@ pub struct File {
 
 impl File {
     /// Create a new instance of FileMetadata
-    pub fn new(user_metadata: Vec<u8>, published: bool) -> File {
-        File {
+    pub fn new(user_metadata: Vec<u8>, published: bool) -> Self {
+        Self {
             size: 0,
             created: Utc::now(),
             modified: Utc::now(),
@@ -131,7 +131,7 @@ impl ReprC for File {
         let created = convert_date_time((*repr_c).created_sec, (*repr_c).created_nsec)?;
         let modified = convert_date_time((*repr_c).modified_sec, (*repr_c).modified_nsec)?;
 
-        let mut file = File::new(user_metadata, (*repr_c).published);
+        let mut file = Self::new(user_metadata, (*repr_c).published);
         file.set_size((*repr_c).size);
         file.set_created_time(created);
         file.set_modified_time(modified);
@@ -142,8 +142,8 @@ impl ReprC for File {
 }
 
 #[inline]
-fn convert_date_time(sec: i64, nsec: u32) -> Result<DateTime<Utc>, NfsError> {
-    let naive = NaiveDateTime::from_timestamp_opt(sec, nsec)
+fn convert_date_time(sec: i64, nano_sec: u32) -> Result<DateTime<Utc>, NfsError> {
+    let naive = NaiveDateTime::from_timestamp_opt(sec, nano_sec)
         .ok_or_else(|| NfsError::Unexpected("Invalid date format".to_string()))?;
     Ok(DateTime::<Utc>::from_utc(naive, Utc))
 }

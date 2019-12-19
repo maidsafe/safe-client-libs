@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::u32;
 
-/// QuicP2P bootstrap info, shared from Authenticator to apps.
+/// `QuicP2P` bootstrap info, shared from Authenticator to apps.
 pub type BootstrapConfig = HashSet<NodeInfo>;
 
 /// IPC message.
@@ -108,5 +108,5 @@ pub fn decode_msg_64(encoded: &str) -> Result<IpcMsg, IpcError> {
 /// Generate unique request ID.
 pub fn gen_req_id() -> u32 {
     // Generate the number in range 1..MAX inclusive.
-    rand::thread_rng().gen_range(0, u32::MAX) + 1
+    rand::thread_rng().gen_range(0, u32::max_value()) + 1
 }

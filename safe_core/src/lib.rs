@@ -70,7 +70,7 @@ pub mod self_encryption_storage;
 #[cfg(not(feature = "mock-network"))]
 mod connection_manager;
 mod errors;
-mod event;
+mod network_event;
 
 pub use self::client::{
     mdata_info, recovery, test_create_balance, AuthActions, Client, ClientKeys, MDataInfo,
@@ -81,9 +81,11 @@ pub use self::config_handler::config_dir;
 #[cfg(not(feature = "mock-network"))]
 pub use self::connection_manager::ConnectionManager;
 pub use self::errors::CoreError;
-pub use self::event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
-pub use self::self_encryption_storage::{SelfEncryptionStorage, SelfEncryptionStorageError};
+pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
+pub use self::self_encryption_storage::{
+    SEStorageError as SelfEncryptionStorageError, SelfEncryptionStorage,
+};
 pub use self::utils::logging;
 pub use self::utils::FutureExt;
 pub use quic_p2p::Config as QuicP2pConfig;

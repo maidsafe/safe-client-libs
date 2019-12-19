@@ -130,15 +130,12 @@ fn init_impl(show_thread_name: bool, op_file_name_override: Option<String>) -> R
     let path = config_dir()
         .map_err(|e| e.description().to_string())?
         .join(CONFIG_FILE);
-    let log_config_path = match File::open(&path) {
-        Ok(_file) => {
-            trace!("Reading: {}", path.display());
-            Some(path)
-        }
-        Err(_) => {
-            trace!("Not available: {}", path.display());
-            None
-        }
+    let log_config_path = if let Ok(_file) = File::open(&path) {
+        trace!("Reading: {}", path.display());
+        Some(path)
+    } else {
+        trace!("Not available: {}", path.display());
+        None
     };
     if let Some(config_path) = log_config_path {
         let mut deserializers = Deserializers::default();
@@ -380,7 +377,7 @@ impl Display for ParseLoggerError {
 
 impl From<()> for ParseLoggerError {
     fn from(_: ()) -> Self {
-        ParseLoggerError
+        Self
     }
 }
 

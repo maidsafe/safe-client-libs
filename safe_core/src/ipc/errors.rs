@@ -46,50 +46,50 @@ pub enum IpcError {
 }
 
 impl<T: 'static> From<SendError<T>> for IpcError {
-    fn from(error: SendError<T>) -> IpcError {
-        IpcError::Unexpected(error.description().to_owned())
+    fn from(error: SendError<T>) -> Self {
+        Self::Unexpected(error.description().to_owned())
     }
 }
 
 impl From<Utf8Error> for IpcError {
     fn from(_err: Utf8Error) -> Self {
-        IpcError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<DecodeError> for IpcError {
     fn from(_err: DecodeError) -> Self {
-        IpcError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<SerialisationError> for IpcError {
     fn from(_err: SerialisationError) -> Self {
-        IpcError::EncodeDecodeError
+        Self::EncodeDecodeError
     }
 }
 
 impl From<StringError> for IpcError {
     fn from(err: StringError) -> Self {
-        IpcError::StringError(err)
+        Self::StringError(err)
     }
 }
 
 impl From<NulError> for IpcError {
     fn from(error: NulError) -> Self {
-        IpcError::from(error.description())
+        Self::from(error.description())
     }
 }
 
 impl<'a> From<&'a str> for IpcError {
     fn from(s: &'a str) -> Self {
-        IpcError::Unexpected(s.to_string())
+        Self::Unexpected(s.to_string())
     }
 }
 
 impl From<String> for IpcError {
     fn from(s: String) -> Self {
-        IpcError::Unexpected(s)
+        Self::Unexpected(s)
     }
 }
 

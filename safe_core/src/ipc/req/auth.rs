@@ -30,7 +30,7 @@ pub struct AuthReq {
 impl AuthReq {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::AuthReq, IpcError> {
-        let AuthReq {
+        let Self {
             app,
             app_container,
             app_permissions,

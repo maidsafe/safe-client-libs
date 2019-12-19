@@ -75,7 +75,7 @@ pub struct AuthGranted {
 impl AuthGranted {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::AuthGranted, IpcError> {
-        let AuthGranted {
+        let Self {
             app_keys,
             bootstrap_config,
             access_container_info,
@@ -136,16 +136,16 @@ pub struct AppKeys {
 
 impl AppKeys {
     /// Generates random keys for the provided client.
-    pub fn new(client_public_id: ClientPublicId) -> AppKeys {
-        let (enc_pk, enc_sk) = shared_box::gen_keypair();
+    pub fn new(client_public_id: ClientPublicId) -> Self {
+        let (enc_public_key, enc_secret_key) = shared_box::gen_keypair();
         // TODO: Instead of using `thread_rng`, generate based on a provided seed or rng.
         let app_full_id = AppFullId::new_bls(&mut thread_rng(), client_public_id);
 
-        AppKeys {
+        Self {
             app_full_id,
             enc_key: shared_secretbox::gen_key(),
-            enc_pk,
-            enc_sk,
+            enc_pk: enc_public_key,
+            enc_sk: enc_secret_key,
         }
     }
 
@@ -161,7 +161,7 @@ impl AppKeys {
 
     /// Constructs FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::AppKeys, IpcError> {
-        let AppKeys {
+        let Self {
             app_full_id,
             enc_key,
             enc_pk,
@@ -346,7 +346,7 @@ pub struct AppAccess {
 impl AppAccess {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<ffi::AppAccess, IpcError> {
-        let AppAccess {
+        let Self {
             sign_key,
             permissions,
             name,
@@ -476,7 +476,7 @@ pub struct MDataKey(
 impl MDataKey {
     /// Create the key from bytes.
     pub fn from_bytes(key: &[u8]) -> Self {
-        MDataKey(key.into())
+        Self(key.into())
     }
 
     /// Construct FFI wrapper for the native Rust object, consuming self.
@@ -495,7 +495,7 @@ impl ReprC for MDataKey {
         let ffi::MDataKey { key, key_len, .. } = *repr_c;
         let key = vec_clone_from_raw_parts(key, key_len);
 
-        Ok(MDataKey(key))
+        Ok(Self(key))
     }
 }
 

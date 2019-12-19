@@ -17,7 +17,7 @@ use ffi_utils::{
 };
 use futures::{stream, Future, Stream};
 use safe_core::client::Client;
-use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
+use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataRequest};
 use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::ipc::req::{
     AuthReq as NativeAuthReq, ContainersReq as NativeContainersReq, IpcReq,
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
     o_share_mdata: extern "C" fn(
         user_data: *mut c_void,
         req_id: u32,
-        req: *const ShareMDataReq,
+        req: *const ShareMDataRequest,
         metadata: *const MetadataResponse,
         metadata_len: usize,
     ),
@@ -435,7 +435,7 @@ pub unsafe extern "C" fn encode_containers_resp(
 #[no_mangle]
 pub unsafe extern "C" fn encode_share_mdata_resp(
     auth: *const Authenticator,
-    req: *const ShareMDataReq,
+    req: *const ShareMDataRequest,
     req_id: u32,
     is_granted: bool,
     user_data: *mut c_void,

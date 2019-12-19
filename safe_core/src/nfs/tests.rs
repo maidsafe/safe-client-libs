@@ -13,7 +13,7 @@ use crate::errors::CoreError;
 use crate::nfs::file_helper::{self, Version};
 use crate::nfs::reader::Reader;
 use crate::nfs::writer::Writer;
-use crate::nfs::{create_dir, File, Mode, NfsError, NfsFuture};
+use crate::nfs::{create_directory, File, Mode, NfsError, NfsFuture};
 use crate::utils::test_utils::random_client;
 use crate::utils::{self, generate_random_vector, FutureExt};
 use crate::DIR_TAG;
@@ -39,7 +39,7 @@ fn create_test_file_with_size(
     let root = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
     let root2 = root.clone();
 
-    create_dir(client, &root, btree_map![], btree_map![])
+    create_directory(client, &root, btree_map![], btree_map![])
         .then(move |res| {
             assert!(res.is_ok());
 
@@ -89,7 +89,7 @@ fn file_fetch_public_md() {
         root.new_enc_info = Some((shared_secretbox::gen_key(), utils::generate_nonce()));
         let root2 = root.clone();
 
-        create_dir(client, &root, btree_map![], btree_map![])
+        create_directory(client, &root, btree_map![], btree_map![])
             .then(move |res| {
                 assert!(res.is_ok());
 
@@ -178,7 +178,7 @@ fn files_stored_in_unpublished_idata() {
             let root = unwrap!(MDataInfo::random_public(MDataKind::Unseq, DIR_TAG));
             let root2 = root.clone();
 
-            create_dir(client, &root, btree_map![], btree_map![])
+            create_directory(client, &root, btree_map![], btree_map![])
                 .and_then(move |()| {
                     file_helper::write(
                         c2.clone(),

@@ -14,7 +14,7 @@ use bincode::serialize;
 use futures::{future, Future};
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
-use safe_core::nfs::create_dir;
+use safe_core::nfs::create_directory;
 use safe_core::utils::symmetric_encrypt;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
 use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
@@ -87,7 +87,7 @@ fn create_config_dir(client: &AuthClient, config_dir: &MDataInfo) -> Box<AuthFut
 
     let config_dir_entries = fry!(mdata_info::encrypt_entries(config_dir, &config_dir_entries));
 
-    create_dir(client, config_dir, config_dir_entries, btree_map![])
+    create_directory(client, config_dir, config_dir_entries, btree_map![])
         .map_err(From::from)
         .into_box()
 }
@@ -114,7 +114,7 @@ fn create_access_container(
         None,
     ));
 
-    create_dir(
+    create_directory(
         client,
         access_container,
         btree_map![
@@ -148,7 +148,7 @@ pub fn create_std_dirs(
     let creations: Vec<_> = md_infos
         .iter()
         .map(|(_, md_info)| {
-            create_dir(&client, md_info, btree_map![], btree_map![]).map_err(AuthError::from)
+            create_directory(&client, md_info, btree_map![], btree_map![]).map_err(AuthError::from)
         })
         .collect();
     future::join_all(creations).map(|_| ()).into_box()

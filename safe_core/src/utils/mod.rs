@@ -41,7 +41,7 @@ pub type SymEncKey = [u8; SYM_ENC_KEY_LEN];
 /// Symmetric encryption nonce
 pub type SymEncNonce = [u8; SYM_ENC_NONCE_LEN];
 
-/// Easily create a BTreeSet.
+/// Easily create a `BTreeSet`.
 #[macro_export]
 macro_rules! btree_set {
     ($($item:expr),*) => {{
@@ -57,7 +57,7 @@ macro_rules! btree_set {
     };
 }
 
-/// Easily create a BTreeMap with the key => value syntax.
+/// Easily create a `BTreeMap` with the key => value syntax.
 #[macro_export]
 macro_rules! btree_map {
     () => ({

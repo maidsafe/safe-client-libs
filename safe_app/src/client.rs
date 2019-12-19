@@ -11,7 +11,7 @@ use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
 use lru_cache::LruCache;
 use rand::thread_rng;
-use safe_core::client::{ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use safe_core::client::{Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::ipc::AppKeys;
@@ -26,7 +26,7 @@ use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Client object used by safe_app.
 pub struct AppClient {
-    inner: Rc<RefCell<ClientInner<AppClient, AppContext>>>,
+    inner: Rc<RefCell<Inner<AppClient, AppContext>>>,
     app_inner: Rc<RefCell<AppInner>>,
 }
 
@@ -59,7 +59,7 @@ impl AppClient {
         block_on_all(connection_manager.bootstrap(app_keys.app_safe_key()))?;
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(ClientInner::new(
+            inner: Rc::new(RefCell::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -142,7 +142,7 @@ impl AppClient {
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(ClientInner::new(
+            inner: Rc::new(RefCell::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -172,7 +172,7 @@ impl Client for AppClient {
         app_inner.config.clone()
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
+    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>> {
         self.inner.clone()
     }
 

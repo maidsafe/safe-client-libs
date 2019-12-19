@@ -48,7 +48,7 @@ impl WebSocket {
         let last_reconnect = Instant::now() - Duration::from_secs(RECONNECT_PERIOD);
         let socket = Self::connect(url.clone(), session_id.clone());
 
-        WebSocket {
+        Self {
             url,
             session_id,
             socket,

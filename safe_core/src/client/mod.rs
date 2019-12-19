@@ -34,9 +34,9 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event::{NetworkEvent, NetworkTx};
 use crate::event_loop::{CoreFuture, CoreMsgTx};
 use crate::ipc::BootstrapConfig;
+use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use lazy_static::lazy_static;
@@ -84,10 +84,10 @@ fn send(client: &impl Client, request: Request) -> Box<CoreFuture<Response>> {
 
 // Sends a mutation request to a new routing.
 fn send_mutation(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
-    Box::new(send(client, req).and_then(move |res| {
-        trace!("mutation res: {:?}", res);
-        match res {
-            Response::Mutation(res) => res.map_err(CoreError::from),
+    Box::new(send(client, req).and_then(move |result| {
+        trace!("mutation result: {:?}", result);
+        match result {
+            Response::Mutation(result) => result.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }))
@@ -158,7 +158,7 @@ pub trait Client: Clone + 'static {
 
     /// Return an associated `ClientInner` type which is expected to contain fields associated with
     /// the implementing type.
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>>;
+    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>>;
 
     /// Return the public encryption key.
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
@@ -1227,8 +1227,8 @@ pub fn wallet_transfer_coins(
     })
 }
 
-/// This trait implements functions that are supposed to be called only by CoreClient and AuthClient.
-/// Applications are not allowed to DELETE MData and get/mutate auth keys, hence AppClient does not implement
+/// This trait implements functions that are supposed to be called only by `CoreClient` and `AuthClient`.
+/// Applications are not allowed to `DELETE MData` and get/mutate auth keys, hence `AppClient` does not implement
 /// this trait.
 pub trait AuthActions: Client + Clone + 'static {
     /// Fetches a list of authorised keys and version.
@@ -1303,7 +1303,7 @@ fn sign_request(request: Request, client_id: &ClientFullId) -> Message {
 /// Struct containing fields expected by the `Client` trait. Implementers of `Client` should be
 /// composed around this struct.
 #[allow(unused)] // FIXME
-pub struct ClientInner<C: Client, T> {
+pub struct Inner<C: Client, T> {
     connection_manager: ConnectionManager,
     el_handle: Handle,
     cache: LruCache<IDataAddress, IData>,
@@ -1312,7 +1312,7 @@ pub struct ClientInner<C: Client, T> {
     net_tx: NetworkTx,
 }
 
-impl<C: Client, T> ClientInner<C, T> {
+impl<C: Client, T> Inner<C, T> {
     /// Create a new `ClientInner` object.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -1322,8 +1322,8 @@ impl<C: Client, T> ClientInner<C, T> {
         timeout: Duration,
         core_tx: CoreMsgTx<C, T>,
         net_tx: NetworkTx,
-    ) -> ClientInner<C, T> {
-        ClientInner {
+    ) -> Inner<C, T> {
+        Self {
             el_handle,
             connection_manager,
             cache,

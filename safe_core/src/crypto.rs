@@ -31,7 +31,7 @@ pub mod shared_secretbox {
             // state which means it's destructor wouldn't be called and the old
             // memory location wouldn't be zeroed - leaving the sensitive data
             // dangling in the memory.
-            Key(Arc::new(*inner))
+            Self(Arc::new(*inner))
         }
 
         /// Create new key from the given raw key data.
@@ -39,7 +39,7 @@ pub mod shared_secretbox {
             // FIXME: this function subverts the purpose of this module - it
             // copies the sensitive data. Possible fix might be to take the input by
             // mutable reference and zero it afterwards.
-            Key(Arc::new(*data))
+            Self(Arc::new(*data))
         }
 
         /// Create new key from the data in the given slice.
@@ -84,7 +84,7 @@ pub mod shared_box {
     impl SecretKey {
         /// Create new safe-to-share key from the given regular key.
         pub fn new(inner: BlsSecretKey) -> Self {
-            SecretKey(SerdeSecret(inner))
+            Self(SerdeSecret(inner))
         }
 
         /// Create new key from the given raw key data.
@@ -93,7 +93,7 @@ pub mod shared_box {
             // copies the sensitive data. Possible fix might be to take the input by
             // mutable reference and zero it afterwards.
             let sk = deserialize(data)?;
-            Ok(SecretKey(sk))
+            Ok(Self(sk))
         }
     }
 

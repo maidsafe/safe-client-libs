@@ -9,15 +9,15 @@
 use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::ConnectionManager;
-use crate::client::{req, AuthActions, Client, ClientInner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use crate::client::{req, AuthActions, Client, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event::NetworkTx;
 use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
+use crate::network_event::NetworkTx;
 use crate::utils;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
@@ -32,7 +32,7 @@ use tokio::runtime::current_thread::{block_on_all, Handle};
 
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
-    inner: Rc<RefCell<ClientInner<CoreClient, ()>>>,
+    inner: Rc<RefCell<Inner<CoreClient, ()>>>,
     keys: ClientKeys,
 }
 
@@ -140,7 +140,7 @@ impl CoreClient {
         block_on_all(connection_manager.bootstrap(maid_keys.client_safe_key()))?;
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(ClientInner {
+            inner: Rc::new(RefCell::new(Inner {
                 el_handle,
                 connection_manager,
                 cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -168,7 +168,7 @@ impl Client for CoreClient {
         None
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
+    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>> {
         self.inner.clone()
     }
 

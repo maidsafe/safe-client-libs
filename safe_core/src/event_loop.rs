@@ -37,7 +37,7 @@ impl<C: Client, T> CoreMsg<C, T> {
         F: FnOnce(&C, &T) -> Option<TailFuture> + Send + 'static,
     {
         let mut f = Some(f);
-        CoreMsg(Some(Box::new(
+        Self(Some(Box::new(
             move |client, context| -> Option<TailFuture> {
                 let f = unwrap!(f.take());
                 f(client, context)
@@ -48,7 +48,7 @@ impl<C: Client, T> CoreMsg<C, T> {
     /// Construct a new message which when processed by the event loop will
     /// terminate the event loop. This will be the graceful exit condition.
     pub fn build_terminator() -> Self {
-        CoreMsg(None)
+        Self(None)
     }
 }
 

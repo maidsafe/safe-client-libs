@@ -50,7 +50,7 @@ pub struct MDataInfo {
 }
 
 // TODO: Implement `into_repr_c` for MDataKind once we move FfiMDataKind to safe-nd.
-/// Convert from native to FFI representation for MDataKind.
+/// Convert from native to FFI representation for `MDataKind`.
 pub fn md_kind_into_repr_c(kind: NativeMDataKind) -> bool {
     match kind {
         NativeMDataKind::Seq => true,
@@ -60,7 +60,7 @@ pub fn md_kind_into_repr_c(kind: NativeMDataKind) -> bool {
 
 // TODO: Implement `clone_from_repr_c` for `MDataKind` once we move
 // `FfiMDataKind` to safe-nd.
-/// Convert from FFI to native representation for MDataKind.
+/// Convert from FFI to native representation for `MDataKind`.
 pub fn md_kind_clone_from_repr_c(kind: bool) -> NativeMDataKind {
     if kind {
         NativeMDataKind::Seq
