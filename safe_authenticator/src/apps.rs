@@ -76,7 +76,6 @@ pub fn remove_revoked_app(client: &AuthClient, app_id: String) -> Box<AuthFuture
     let c3 = client.clone();
     let c4 = client.clone();
 
-    let app_id = app_id.clone();
     let app_id2 = app_id.clone();
     let app_id3 = app_id.clone();
 

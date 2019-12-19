@@ -161,7 +161,7 @@ fn update_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()
                 &client2,
                 address,
                 &permissions,
-                data.permissions().clone(),
+                data.permissions(),
                 version + 1,
             )
             .map(move |_| (data, entries))

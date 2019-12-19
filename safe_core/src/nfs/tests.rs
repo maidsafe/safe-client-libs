@@ -180,12 +180,7 @@ fn files_stored_in_unpublished_idata() {
 
             create_dir(client, &root, btree_map![], btree_map![])
                 .and_then(move |()| {
-                    file_helper::write(
-                        c2.clone(),
-                        File::new(Vec::new(), false),
-                        Mode::Overwrite,
-                        None,
-                    )
+                    file_helper::write(c2, File::new(Vec::new(), false), Mode::Overwrite, None)
                 })
                 .and_then(move |writer| {
                     writer
@@ -217,7 +212,7 @@ fn files_stored_in_unpublished_idata() {
                     unwrap!(client2_rx.recv());
                     file_helper::delete(c6, dir.clone(), "", false, Version::Custom(1)).map(|_| dir)
                 })
-                .and_then(move |dir| file_helper::fetch(c7, dir.clone(), ""))
+                .and_then(move |dir| file_helper::fetch(c7, dir, ""))
                 .then(move |res| {
                     match res {
                         Err(NfsError::FileNotFound) => (),
@@ -233,7 +228,7 @@ fn files_stored_in_unpublished_idata() {
     // Get the directory name and try to fetch a file from it
     let dir: MDataInfo = unwrap!(client1_rx.recv());
     random_client(move |client| {
-        file_helper::fetch(client.clone(), dir.clone(), "").then(|res| {
+        file_helper::fetch(client.clone(), dir, "").then(|res| {
             match res {
                 Ok(_) => panic!("Unexpected success"),
                 Err(NfsError::CoreError(CoreError::DataError(SndError::AccessDenied))) => (),
@@ -610,7 +605,7 @@ fn file_update_metadata() {
             .then(move |res| {
                 let dir = unwrap!(res);
 
-                file_helper::fetch(c3.clone(), dir, "hello.txt")
+                file_helper::fetch(c3, dir, "hello.txt")
             })
             .map(move |(_version, file)| {
                 assert_eq!(*file.user_metadata(), [12u8; 10][..]);
@@ -635,7 +630,7 @@ fn file_delete() {
             })
             .then(move |res| {
                 let dir = unwrap!(res);
-                file_helper::fetch(c3.clone(), dir, "hello.txt")
+                file_helper::fetch(c3, dir, "hello.txt")
             })
             .then(move |res| -> Result<_, CoreError> {
                 match res {

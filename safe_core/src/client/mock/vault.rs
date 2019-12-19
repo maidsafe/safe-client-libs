@@ -710,11 +710,7 @@ impl Vault {
                 let result = if data.owner() != owner_pk {
                     Err(SndError::InvalidOwners)
                 } else {
-                    self.put_data(
-                        DataId::Mutable(address),
-                        Data::Mutable(data.clone()),
-                        requester,
-                    )
+                    self.put_data(DataId::Mutable(address), Data::Mutable(data), requester)
                 };
                 Response::Mutation(result)
             }

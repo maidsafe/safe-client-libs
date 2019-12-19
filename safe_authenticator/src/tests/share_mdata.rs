@@ -142,7 +142,7 @@ fn share_invalid_mdatas() {
         req_id: ipc::gen_req_id(),
         req: IpcReq::ShareMData(ShareMDataReq {
             app: test_utils::rand_app(),
-            mdata: share_mdatas.clone(),
+            mdata: share_mdatas,
         }),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
@@ -292,7 +292,7 @@ fn share_some_mdatas_with_ownership_error() {
     let req_id = ipc::gen_req_id();
     let req = ShareMDataReq {
         app: test_utils::rand_app(),
-        mdata: vec![share_md.clone()],
+        mdata: vec![share_md],
     };
     let msg = IpcMsg::Req {
         req_id,

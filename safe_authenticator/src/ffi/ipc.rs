@@ -356,7 +356,7 @@ pub unsafe extern "C" fn encode_containers_resp(
             o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
         } else {
             let permissions = cont_req.containers.clone();
-            let app_id = cont_req.app.id.clone();
+            let app_id = cont_req.app.id;
 
             (*auth).send(move |client| {
                 let c2 = client.clone();

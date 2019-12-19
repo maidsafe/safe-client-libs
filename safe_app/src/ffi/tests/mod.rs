@@ -173,7 +173,7 @@ fn app_authentication() {
 
     let containers = create_containers_req();
     let auth_req = AuthReq {
-        app: app_exchange_info.clone(),
+        app: app_exchange_info,
         app_permissions: Default::default(),
         app_container: true,
         containers,

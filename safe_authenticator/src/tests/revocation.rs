@@ -229,13 +229,13 @@ mod mock_routing {
         unwrap!(try_revoke(&auth, &app_id));
 
         // Verify that the `_documents` and `_videos` containers are still accessible.
-        let _ = unwrap!(fetch_file(&auth, docs_md.clone(), "test.doc"));
+        let _ = unwrap!(fetch_file(&auth, docs_md, "test.doc"));
 
         let new_videos_md = unwrap!(get_container_from_authenticator_entry(&auth, "_videos"));
         let _ = unwrap!(fetch_file(&auth, new_videos_md, "video.mp4"));
 
         // Verify that we can still access the file using the old info.
-        let _ = unwrap!(fetch_file(&auth, videos_md.clone(), "video.mp4"));
+        let _ = unwrap!(fetch_file(&auth, videos_md, "video.mp4"));
 
         // Ensure that the app key has been removed from MaidManagers
         let auth_keys = unwrap!(run(&auth, move |client| {
@@ -247,17 +247,13 @@ mod mock_routing {
         assert!(!auth_keys.contains_key(&auth_granted.app_keys.public_key()));
 
         // Login and revoke the app again.
-        let auth = unwrap!(Authenticator::login(
-            locator.clone(),
-            password.clone(),
-            || (),
-        ));
+        let auth = unwrap!(Authenticator::login(locator, password, || (),));
 
         // App revocation should succeed
         revoke(&auth, &app_id);
 
         // Check that the app is now revoked.
-        let app_id = app_id.clone();
+        let app_id = app_id;
         unwrap!(run(&auth, move |client| {
             verify_app_is_revoked(client, app_id, ac_entries)
         }));
@@ -325,7 +321,7 @@ mod mock_routing {
         };
 
         let _ = unwrap!(register_app(&auth, &auth_req));
-        let app_id_0 = auth_req.app.id.clone();
+        let app_id_0 = auth_req.app.id;
 
         // Authenticate the second app.
         let auth_req = AuthReq {
@@ -336,7 +332,7 @@ mod mock_routing {
         };
 
         let _ = unwrap!(register_app(&auth, &auth_req));
-        let app_id_1 = auth_req.app.id.clone();
+        let app_id_1 = auth_req.app.id;
 
         // Simulate failed revocations of both apps.
         simulate_revocation_failure(&locator, &password, &[&app_id_0, &app_id_1]);
@@ -689,7 +685,7 @@ fn app_revocation_and_reauth() {
     let (app_container_md, _) = unwrap!(ac_entries.remove(&app_container_name));
     unwrap!(create_file(
         &authenticator,
-        app_container_md.clone(),
+        app_container_md,
         "3.mp4",
         vec![1; 10],
         true,
@@ -709,7 +705,7 @@ fn app_revocation_and_reauth() {
     revoke(&authenticator, &app_id1);
 
     // There should now be 2 entries.
-    assert_eq!(count_mdata_entries(&authenticator, videos_md1.clone()), 2);
+    assert_eq!(count_mdata_entries(&authenticator, videos_md1), 2);
 
     // The first app is no longer in the access container.
     let ac = try_access_container(&authenticator, app_id1.clone(), auth_granted1.clone());
@@ -743,7 +739,7 @@ fn app_revocation_and_reauth() {
 
     // Re-authorise the first app.
     let auth_granted1 = unwrap!(register_app(&authenticator, &auth_req1));
-    let mut ac_entries = access_container(&authenticator, app_id1.clone(), auth_granted1.clone());
+    let mut ac_entries = access_container(&authenticator, app_id1.clone(), auth_granted1);
     let (videos_md1, _) = unwrap!(ac_entries.remove("_videos"));
 
     // The first app can access the files again.
@@ -752,13 +748,13 @@ fn app_revocation_and_reauth() {
 
     // The second app as well.
     let _ = unwrap!(fetch_file(&authenticator, videos_md2.clone(), "1.mp4"));
-    let _ = unwrap!(fetch_file(&authenticator, videos_md2.clone(), "2.mp4"));
+    let _ = unwrap!(fetch_file(&authenticator, videos_md2, "2.mp4"));
 
     // Revoke the first app again. Only the second app can access the files.
     revoke(&authenticator, &app_id1);
 
     // There should now be 2 entries.
-    assert_eq!(count_mdata_entries(&authenticator, videos_md1.clone()), 2);
+    assert_eq!(count_mdata_entries(&authenticator, videos_md1), 2);
 
     // Check that the first app is now revoked, but the second app is not.
     let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
@@ -769,16 +765,16 @@ fn app_revocation_and_reauth() {
         app_1.join(app_2).map(|_| ())
     }));
 
-    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
+    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2);
     let (videos_md2, _) = unwrap!(ac_entries.remove("_videos"));
     let _ = unwrap!(fetch_file(&authenticator, videos_md2.clone(), "1.mp4"));
-    let _ = unwrap!(fetch_file(&authenticator, videos_md2.clone(), "2.mp4"));
+    let _ = unwrap!(fetch_file(&authenticator, videos_md2, "2.mp4"));
 
     // Revoke the second app that has created its own app container.
     revoke(&authenticator, &app_id2);
 
     // Check that the first and second apps are both revoked.
-    let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
+    let (app_id1_clone, app_id2_clone) = (app_id1, app_id2.clone());
     unwrap!(run(&authenticator, move |client| {
         let app_1 = verify_app_is_revoked(client, app_id1_clone, ac_entries.clone());
         let app_2 = verify_app_is_revoked(client, app_id2_clone, ac_entries);
@@ -791,18 +787,14 @@ fn app_revocation_and_reauth() {
     let auth_granted2 = unwrap!(register_app(&authenticator, &auth_req2));
 
     // The second app should be able to access data from its own container,
-    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
+    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2);
     let (app_container_md, _) = unwrap!(ac_entries.remove(&app_container_name));
 
     assert_eq!(
         count_mdata_entries(&authenticator, app_container_md.clone()),
         1
     );
-    let _ = unwrap!(fetch_file(
-        &authenticator,
-        app_container_md.clone(),
-        "3.mp4",
-    ));
+    let _ = unwrap!(fetch_file(&authenticator, app_container_md, "3.mp4",));
 
     // Check that the second app is authenticated.
     let app_id2_clone = app_id2.clone();
@@ -813,9 +805,8 @@ fn app_revocation_and_reauth() {
     revoke(&authenticator, &app_id2);
 
     // Check that the second app is now revoked again.
-    let app_id2_clone = app_id2.clone();
     unwrap!(run(&authenticator, move |client| {
-        verify_app_is_revoked(client, app_id2_clone, ac_entries)
+        verify_app_is_revoked(client, app_id2, ac_entries)
     }));
 }
 
@@ -866,12 +857,12 @@ fn revocation_symmetric_decipher_failure() {
     let _auth_granted3 = unwrap!(register_app(&authenticator, &auth_req3));
 
     // Put a file into the _downloads container.
-    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2.clone());
+    let mut ac_entries = access_container(&authenticator, app_id2.clone(), auth_granted2);
     let (downloads_md, _) = unwrap!(ac_entries.remove("_downloads"));
 
     unwrap!(create_file(
         &authenticator,
-        downloads_md.clone(),
+        downloads_md,
         "video.mp4",
         vec![1; 10],
         true,
@@ -881,7 +872,7 @@ fn revocation_symmetric_decipher_failure() {
     {
         let app_id1 = app_id1.clone();
         let app_id2 = app_id2.clone();
-        let app_id2_clone = app_id2.clone();
+        let app_id2_clone = app_id2;
 
         unwrap!(run(&authenticator, move |client| {
             let c2 = client.clone();
@@ -927,7 +918,7 @@ fn revocation_symmetric_decipher_failure() {
 
     // Verify app1 was revoked, app2 is not in the revocation queue,
     // app3 is not in the revocation queue. (Above revocation does not fail)
-    let ac = try_access_container(&authenticator, app_id1.clone(), auth_granted1.clone());
+    let ac = try_access_container(&authenticator, app_id1.clone(), auth_granted1);
     assert!(ac.is_none());
     assert!(!queue.contains(&app_id1));
     assert!(!queue.contains(&app_id2));

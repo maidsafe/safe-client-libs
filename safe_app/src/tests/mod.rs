@@ -265,13 +265,12 @@ fn unregistered_client() {
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
     let pub_adata = PubUnseqAppendOnlyData::new(addr, tag);
-    let unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
 
     // Registered Client PUTs something onto the network.
     {
         let pub_idata = pub_idata.clone();
         let mut pub_adata = pub_adata.clone();
-        let mut unpub_adata = unpub_adata.clone();
+        let mut unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
         random_client(|client| {
             let owner = ADataOwner {
                 public_key: client.owner_key(),
@@ -344,13 +343,11 @@ fn published_data_access() {
     let name: XorName = rand::random();
     let tag = 15002;
     let pub_idata = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
-    let pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
-    let pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
     // Create a random client and store some data
     {
+        let mut pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
+        let mut pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
         let pub_idata = pub_idata.clone();
-        let mut pub_seq_adata = pub_seq_adata.clone();
-        let mut pub_unseq_adata = pub_unseq_adata.clone();
         random_client(|client| {
             let owner = ADataOwner {
                 public_key: client.owner_key(),

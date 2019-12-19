@@ -330,11 +330,7 @@ mod mock_routing {
 
         // Now try to authenticate the app without network failure simulation -
         // it should succeed.
-        let auth = unwrap!(Authenticator::login(
-            locator.clone(),
-            password.clone(),
-            || (),
-        ));
+        let auth = unwrap!(Authenticator::login(locator, password, || (),));
         let auth_granted = match test_utils::register_app(&auth, &auth_req) {
             Ok(auth_granted) => auth_granted,
             x => panic!("Unexpected {:?}", x),
@@ -597,7 +593,7 @@ fn invalid_container_authentication() {
     );
 
     let auth_req = AuthReq {
-        app: app_exchange_info.clone(),
+        app: app_exchange_info,
         app_container: true,
         app_permissions: Default::default(),
         containers,
@@ -843,7 +839,7 @@ fn containers_access_request() {
     // permission to update only"
     let req_id = ipc::gen_req_id();
     let cont_req = ContainersReq {
-        app: auth_req.app.clone(),
+        app: auth_req.app,
         containers: {
             let mut containers = HashMap::new();
             let _ = containers.insert("_downloads".to_string(), btree_set![Permission::Update]);

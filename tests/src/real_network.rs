@@ -167,7 +167,7 @@ fn write_data() {
     println!("File name: {}", file_name);
 
     unsafe {
-        let mut ac_entries = access_container(&*auth_h, app_id, auth_granted.clone());
+        let mut ac_entries = access_container(&*auth_h, app_id, auth_granted);
         let (videos_md, _) = unwrap!(ac_entries.remove("_videos"));
 
         match fetch_file(&*auth_h, videos_md.clone(), file_name) {
@@ -188,7 +188,7 @@ fn write_data() {
 
                 unwrap!(create_file(
                     &*auth_h,
-                    videos_md.clone(),
+                    videos_md,
                     file_name,
                     vec![1; 10],
                     true,
@@ -236,7 +236,7 @@ fn read_data() {
     assert!(any);
 
     let videos_md = unsafe {
-        let mut ac_entries = access_container(&*auth_h, app_id, auth_granted.clone());
+        let mut ac_entries = access_container(&*auth_h, app_id, auth_granted);
         let (videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         videos_md
     };
@@ -268,7 +268,7 @@ fn mdata_operations() {
         id: app_id.clone(),
         scope: None,
         name: app_id.clone(), // Use ID for name so the app is easier to find in Browser.
-        vendor: app_id.clone(),
+        vendor: app_id,
     };
 
     println!("Authorising app...");
@@ -559,11 +559,11 @@ fn authorisation_and_revocation() {
 
     // The app is no longer in the access container.
     unsafe {
-        let ac = try_access_container(&*auth_h, app_id.clone(), auth_granted.clone());
+        let ac = try_access_container(&*auth_h, app_id.clone(), auth_granted);
         assert!(ac.is_none());
 
         // The app can no longer access the file.
-        match fetch_file(&*auth_h, videos_md.clone(), file_name.as_str()) {
+        match fetch_file(&*auth_h, videos_md, file_name.as_str()) {
             Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
             x => panic!("Unexpected {:?}", x),
         }
@@ -595,9 +595,9 @@ fn authorisation_and_revocation() {
 
     // The app can access the file again.
     unsafe {
-        let mut ac_entries = access_container(&*auth_h, app_id.clone(), auth_granted.clone());
+        let mut ac_entries = access_container(&*auth_h, app_id, auth_granted);
         let (videos_md, _) = unwrap!(ac_entries.remove("_videos"));
-        let _ = unwrap!(fetch_file(&*auth_h, videos_md.clone(), file_name));
+        let _ = unwrap!(fetch_file(&*auth_h, videos_md, file_name));
     };
 
     println!("Revoking app...");

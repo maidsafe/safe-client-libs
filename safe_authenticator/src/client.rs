@@ -184,7 +184,7 @@ impl AuthClient {
             block_on_all(connection_manager.disconnect(&balance_full_id.public_id()))?;
         }
 
-        block_on_all(connection_manager.bootstrap(client_safe_key.clone()))?;
+        block_on_all(connection_manager.bootstrap(client_safe_key))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
@@ -317,7 +317,7 @@ impl AuthClient {
 
         trace!("Creating an actual client...");
 
-        block_on_all(connection_manager.bootstrap(id_packet.clone()))?;
+        block_on_all(connection_manager.bootstrap(id_packet))?;
 
         Ok(AuthClient {
             inner: Rc::new(RefCell::new(ClientInner::new(
@@ -414,7 +414,7 @@ impl AuthClient {
         let keys = &auth_inner.user_cred;
         let acc_loc = &auth_inner.acc_loc;
         let account_packet_id = SafeKey::client(create_client_id(&acc_loc.0));
-        let account_pub_id = account_packet_id.public_id().clone();
+        let account_pub_id = account_packet_id.public_id();
         let updated_packet = fry!(Self::prepare_account_packet_update(
             *acc_loc,
             account,

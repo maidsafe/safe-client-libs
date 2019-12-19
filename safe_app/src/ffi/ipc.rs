@@ -360,7 +360,7 @@ mod tests {
 
         println!("Authorising app...");
         let auth_req = test_utils::create_random_auth_req();
-        let ffi_auth_req = unwrap!(auth_req.clone().into_repr_c());
+        let ffi_auth_req = unwrap!(auth_req.into_repr_c());
 
         // Encode auth req using base64.
         let (_req_id, encoded): (u32, String) =

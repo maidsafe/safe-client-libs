@@ -115,7 +115,7 @@ where
 
     let (core_tx, core_rx) = mpsc::unbounded();
     let (net_tx, net_rx) = mpsc::unbounded();
-    let client = unwrap!(c(el_h.clone(), core_tx.clone(), net_tx));
+    let client = unwrap!(c(el_h, core_tx.clone(), net_tx));
 
     let net_fut = net_rx
         .for_each(move |net_event| {

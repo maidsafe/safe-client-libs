@@ -129,13 +129,9 @@ mod tests {
         // Use `sync_channel` as `App::registered` requires `Send`.
         let (tx, rx) = mpsc::sync_channel::<()>(0);
 
-        let mut app = unwrap!(App::registered(
-            auth_req.app.id.clone(),
-            auth_granted,
-            move || {
-                unwrap!(tx.send(()));
-            },
-        ));
+        let mut app = unwrap!(App::registered(auth_req.app.id, auth_granted, move || {
+            unwrap!(tx.send(()));
+        },));
 
         unsafe {
             unwrap!(call_0(|ud, cb| test_simulate_network_disconnect(

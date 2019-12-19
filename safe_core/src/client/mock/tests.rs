@@ -440,7 +440,7 @@ fn mutable_data_reclaim() {
 
     let actions: MDataSeqEntryActions = btree_map![
         key0.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
-            data: value0.clone(),
+            data: value0,
             version: 1,
         })
     ]
@@ -586,7 +586,7 @@ fn mutable_data_entry_versioning() {
     // Update with correct version bump succeeds.
     let actions: MDataSeqEntryActions = btree_map![
         key.to_vec() => MDataSeqEntryAction::Update(MDataSeqValue {
-            data: value_v1.clone(),
+            data: value_v1,
             version: 1,
         })
     ]
@@ -761,7 +761,7 @@ fn mutable_data_permissions() {
 
     let actions: MDataSeqEntryActions = btree_map![
     key1.to_vec() => MDataSeqEntryAction::Ins(MDataSeqValue {
-        data: value1_v0.clone(),
+        data: value1_v0,
         version: 0,
     })
     ]
@@ -876,7 +876,7 @@ fn mutable_data_permissions() {
     send_req_expect_failure!(
         &mut connection_manager2,
         &app_safe_key,
-        mutation_request.clone(),
+        mutation_request,
         Error::AccessDenied
     );
 
@@ -928,12 +928,11 @@ fn mutable_data_ownership() {
     // Attempt to put MutableData using the app sign key as owner key should fail.
     let name = rand::random();
     let tag = 1000u64;
-    let data: MData = SeqMutableData::new(name, tag, app_safe_key.public_key()).into();
 
     send_req_expect_failure!(
         &mut connection_manager2,
         &app_safe_key,
-        Request::PutMData(data.clone()),
+        Request::PutMData(SeqMutableData::new(name, tag, app_safe_key.public_key()).into()),
         Error::InvalidOwners
     );
 
@@ -962,12 +961,7 @@ fn pub_idata_rpc() {
     // Put pub idata as an owner. Should succeed.
     {
         let put_request = Request::PutIData(orig_data.clone());
-        send_req_expect_ok!(
-            &mut connection_manager,
-            &client_safe_key,
-            put_request.clone(),
-            ()
-        );
+        send_req_expect_ok!(&mut connection_manager, &client_safe_key, put_request, ());
     }
 
     // Get pub idata. Should succeed.
@@ -991,12 +985,7 @@ fn pub_idata_rpc() {
 
     // Get pub idata while not being an owner. Should succeed.
     {
-        send_req_expect_ok!(
-            &mut app_conn_manager,
-            &app_key,
-            get_request.clone(),
-            orig_data
-        );
+        send_req_expect_ok!(&mut app_conn_manager, &app_key, get_request, orig_data);
     }
 }
 
@@ -1011,12 +1000,7 @@ fn unpub_idata_rpc() {
     // Construct put request.
     {
         let put_request = Request::PutIData(data.clone());
-        send_req_expect_ok!(
-            &mut connection_manager,
-            &client_safe_key,
-            put_request.clone(),
-            ()
-        );
+        send_req_expect_ok!(&mut connection_manager, &client_safe_key, put_request, ());
     }
 
     // Construct get request.
@@ -1042,7 +1026,7 @@ fn unpub_idata_rpc() {
     send_req_expect_failure!(
         &mut app_conn_manager,
         &app_key,
-        get_request.clone(),
+        get_request,
         Error::AccessDenied
     );
 
@@ -1508,7 +1492,7 @@ fn request_hooks() {
     seq_actions.add_action(
         key0.to_vec(),
         MDataSeqEntryAction::Ins(MDataSeqValue {
-            data: value0_v0.clone(),
+            data: value0_v0,
             version: 0,
         }),
     );
@@ -1533,7 +1517,7 @@ fn request_hooks() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address: *data2.address(),
-            actions: actions.clone(),
+            actions: actions,
         },
         ()
     );
