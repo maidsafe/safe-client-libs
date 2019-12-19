@@ -80,7 +80,7 @@ use tokio::runtime::current_thread::{Handle, Runtime};
 
 /// Future type specialised with `AuthError` as an error type.
 pub type AuthFuture<T> = dyn Future<Item = T, Error = AuthError>;
-/// Transmitter of AuthClient messages.
+/// Transmitter of `AuthClient` messages.
 pub type AuthMsgTx = CoreMsgTx<AuthClient, ()>;
 
 macro_rules! try_tx {
@@ -198,7 +198,7 @@ impl Authenticator {
             }
         };
 
-        Ok(Authenticator {
+        Ok(Self {
             core_tx: Mutex::new(core_tx),
             _core_joiner: joiner,
         })
@@ -254,7 +254,9 @@ impl Authenticator {
 
                 let client = try_tx!(create_client_fn(el_h, core_tx_clone, net_tx), tx);
 
-                if !client.std_dirs_created() {
+                if client.std_dirs_created() {
+                    unwrap!(tx.send(Ok(core_tx)));
+                } else {
                     // Standard directories haven't been created during
                     // the user account registration - retry it again.
                     let tx2 = tx.clone();
@@ -272,8 +274,6 @@ impl Authenticator {
                             .into_box()
                             .into()
                     })));
-                } else {
-                    unwrap!(tx.send(Ok(core_tx)));
                 }
 
                 event_loop::run(el, &client, &(), core_rx);
@@ -290,7 +290,7 @@ impl Authenticator {
             }
         };
 
-        Ok(Authenticator {
+        Ok(Self {
             core_tx: Mutex::new(core_tx),
             _core_joiner: joiner,
         })

@@ -196,7 +196,7 @@ pub fn register_app(
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::Auth(auth_req.clone()),
+        request: IpcReq::Auth(auth_req.clone()),
     };
 
     // Invoke `decode_ipc_msg` and expect to get AuthReq back.
@@ -205,7 +205,7 @@ pub fn register_app(
     )));
     match ipc_req {
         Ok(IpcMsg::Req {
-            req: IpcReq::Auth(_),
+            request: IpcReq::Auth(_),
             ..
         }) => (),
         x => return Err(AuthError::Unexpected(format!("Unexpected {:?}", x))),
@@ -492,7 +492,7 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
 
             let msg = IpcMsg::Req {
                 req_id,
-                req: IpcReq::Auth(req),
+                request: IpcReq::Auth(req),
             };
 
             send_via_user_data::<ChannelType>(user_data, Ok((msg, None)))
@@ -508,7 +508,7 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
 
             let msg = IpcMsg::Req {
                 req_id,
-                req: IpcReq::Containers(req),
+                request: IpcReq::Containers(req),
             };
 
             send_via_user_data::<ChannelType>(user_data, Ok((msg, None)))
@@ -545,7 +545,7 @@ pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> C
 
             let msg = IpcMsg::Req {
                 req_id,
-                req: IpcReq::ShareMData(req),
+                request: IpcReq::ShareMData(req),
             };
 
             send_via_user_data::<ChannelType>(
@@ -592,7 +592,7 @@ pub extern "C" fn unregistered_cb(
     unsafe {
         let msg = IpcMsg::Req {
             req_id,
-            req: IpcReq::Unregistered(vec_clone_from_raw_parts(extra_data, extra_data_len)),
+            request: IpcReq::Unregistered(vec_clone_from_raw_parts(extra_data, extra_data_len)),
         };
 
         send_via_user_data::<ChannelType>(user_data, Ok((msg, None)))

@@ -139,18 +139,17 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
         .and_then(move |app| {
             access_container::fetch_entry(&c3, &app.info.id, app.keys.clone()).and_then(
                 move |(version, ac_entry)| {
-                    match ac_entry {
-                        Some(ac_entry) => {
-                            let containers: Containers = ac_entry
-                                .into_iter()
-                                .map(|(name, (mdata_info, _))| (name, mdata_info))
-                                .collect();
+                    if let Some(ac_entry) = ac_entry {
+                        let containers: Containers = ac_entry
+                            .into_iter()
+                            .map(|(name, (mdata_info, _))| (name, mdata_info))
+                            .collect();
 
-                            clear_from_access_container_entry(&c4, app, version, containers)
-                        }
+                        clear_from_access_container_entry(&c4, app, version, containers)
+                    } else {
                         // If the access container entry was not found, the entry must have been
                         // deleted with the app having stayed on the revocation queue.
-                        None => ok!(()),
+                        ok!(())
                     }
                 },
             )

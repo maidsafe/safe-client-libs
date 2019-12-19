@@ -28,7 +28,7 @@ fn share_zero_mdatas() {
 
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
-        req: IpcReq::ShareMData(ShareMDataReq {
+        request: IpcReq::ShareMData(ShareMDataReq {
             app: test_utils::rand_app(),
             mdata: vec![],
         }),
@@ -42,7 +42,7 @@ fn share_zero_mdatas() {
     match decoded {
         (
             IpcMsg::Req {
-                req: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
+                request: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
                 ..
             },
             Some(Payload::Metadata(metadatas)),
@@ -91,7 +91,7 @@ fn share_some_mdatas() {
 
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
-        req: IpcReq::ShareMData(ShareMDataReq {
+        request: IpcReq::ShareMData(ShareMDataReq {
             app: test_utils::rand_app(),
             mdata: mdatas.clone(),
         }),
@@ -105,7 +105,7 @@ fn share_some_mdatas() {
     match decoded {
         (
             IpcMsg::Req {
-                req: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
+                request: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
                 ..
             },
             Some(Payload::Metadata(received_metadatas)),
@@ -140,7 +140,7 @@ fn share_invalid_mdatas() {
 
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
-        req: IpcReq::ShareMData(ShareMDataReq {
+        request: IpcReq::ShareMData(ShareMDataReq {
             app: test_utils::rand_app(),
             mdata: share_mdatas,
         }),
@@ -216,7 +216,7 @@ fn share_some_mdatas_with_valid_metadata() {
     };
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::ShareMData(req.clone()),
+        request: IpcReq::ShareMData(req.clone()),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
@@ -227,7 +227,7 @@ fn share_some_mdatas_with_valid_metadata() {
     match decoded {
         (
             IpcMsg::Req {
-                req: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
+                request: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
                 ..
             },
             Some(Payload::Metadata(received_metadatas)),
@@ -296,7 +296,7 @@ fn share_some_mdatas_with_ownership_error() {
     };
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::ShareMData(req.clone()),
+        request: IpcReq::ShareMData(req.clone()),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
@@ -322,7 +322,7 @@ fn share_some_mdatas_with_ownership_error() {
 
     match ipc::decode_msg(&share_mdata_resp) {
         Ok(IpcMsg::Resp {
-            resp: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
+            response: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
             ..
         }) => (),
         x => panic!("Unexpected {:?}", x),
@@ -437,7 +437,7 @@ fn auth_apps_accessing_mdatas() {
         };
         let msg = IpcMsg::Req {
             req_id,
-            req: IpcReq::ShareMData(req.clone()),
+            request: IpcReq::ShareMData(req.clone()),
         };
         let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
@@ -449,7 +449,7 @@ fn auth_apps_accessing_mdatas() {
         match decoded {
             (
                 IpcMsg::Req {
-                    req: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
+                    request: IpcReq::ShareMData(ShareMDataReq { mdata, .. }),
                     ..
                 },
                 Some(Payload::Metadata(received_metadatas)),

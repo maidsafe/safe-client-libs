@@ -37,32 +37,32 @@ pub fn decode_ipc_msg(
 ) -> Box<AuthFuture<Result<IpcMsg, (i32, String, CString)>>> {
     match msg {
         IpcMsg::Req {
-            req: IpcReq::Auth(auth_req),
+            request: IpcReq::Auth(auth_req),
             req_id,
         } => {
             // Ok status should be returned for all app states (including
             // Revoked and Authenticated).
             ok!(Ok(IpcMsg::Req {
                 req_id,
-                req: IpcReq::Auth(auth_req),
+                request: IpcReq::Auth(auth_req),
             }))
         }
         IpcMsg::Req {
-            req: IpcReq::Unregistered(extra_data),
+            request: IpcReq::Unregistered(extra_data),
             req_id,
         } => ok!(Ok(IpcMsg::Req {
             req_id,
-            req: IpcReq::Unregistered(extra_data),
+            request: IpcReq::Unregistered(extra_data),
         })),
         IpcMsg::Req {
-            req: IpcReq::ShareMData(share_mdata_req),
+            request: IpcReq::ShareMData(share_mdata_req),
             req_id,
         } => ok!(Ok(IpcMsg::Req {
             req_id,
-            req: IpcReq::ShareMData(share_mdata_req),
+            request: IpcReq::ShareMData(share_mdata_req),
         })),
         IpcMsg::Req {
-            req: IpcReq::Containers(cont_req),
+            request: IpcReq::Containers(cont_req),
             req_id,
         } => {
             trace!("Handling IpcReq::Containers({:?})", cont_req);
@@ -76,20 +76,20 @@ pub fn decode_ipc_msg(
                     match app_state {
                         AppState::Authenticated => Ok(Ok(IpcMsg::Req {
                             req_id,
-                            req: IpcReq::Containers(cont_req),
+                            request: IpcReq::Containers(cont_req),
                         })),
                         AppState::Revoked | AppState::NotAuthenticated => {
                             // App is not authenticated
                             let (error_code, description) =
                                 ffi_error!(AuthError::from(IpcError::UnknownApp));
 
-                            let resp = IpcMsg::Resp {
-                                resp: IpcResp::Auth(Err(IpcError::UnknownApp)),
+                            let response = IpcMsg::Resp {
+                                response: IpcResp::Auth(Err(IpcError::UnknownApp)),
                                 req_id,
                             };
-                            let resp = encode_response(&resp)?;
+                            let encoded_response = encode_response(&response)?;
 
-                            Ok(Err((error_code, description, resp)))
+                            Ok(Err((error_code, description, encoded_response)))
                         }
                     }
                 })
@@ -153,8 +153,8 @@ pub fn update_container_perms(
 
 /// Encode `IpcMsg` into a `CString`, using base32 encoding.
 pub fn encode_response(msg: &IpcMsg) -> Result<CString, IpcError> {
-    let resp = ipc::encode_msg(msg)?;
-    Ok(CString::new(resp).map_err(StringError::from)?)
+    let response = ipc::encode_msg(msg)?;
+    Ok(CString::new(response).map_err(StringError::from)?)
 }
 
 enum ShareMDataError {

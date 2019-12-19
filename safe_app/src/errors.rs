@@ -200,7 +200,7 @@ impl Display for AppError {
                 formatter,
                 "Invalid file mode (e.g. trying to write when file is opened for reading only)"
             ),
-            AppError::UnregisteredClientAccess => write!(
+            Self::UnregisteredClientAccess => write!(
                 formatter,
                 "Tried to access a client key from an unregistered client",
             ),
@@ -435,7 +435,7 @@ fn core_error_code(err: &CoreError) -> i32 {
             SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
             SndError::ExceededSize => ERR_EXCEEDED_SIZE,
         },
-        CoreError::QuicP2p(ref _err) => ERR_QUIC_P2P, // FIXME: use proper error codes
+        CoreError::QuicP2p(ref _error) => ERR_QUIC_P2P, // FIXME: use proper error codes
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,

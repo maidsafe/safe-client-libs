@@ -38,8 +38,8 @@ pub const GET_NEXT_VERSION: u64 = 0;
 
 /// Replaces the entire content of the file when writing data.
 pub static OPEN_MODE_OVERWRITE: u64 = 1;
-/// Appends to existing data in the file. Falls back to OPEN_MODE_OVERWRITE if it encounters an
-/// empty file. If it is known ahead of time that a file is empty, use OPEN_MODE_OVERWRITE instead
+/// Appends to existing data in the file. Falls back to `OPEN_MODE_OVERWRITE` if it encounters an
+/// empty file. If it is known ahead of time that a file is empty, use `OPEN_MODE_OVERWRITE` instead
 /// to avoid incurring an unnecessary GET.
 pub static OPEN_MODE_APPEND: u64 = 2;
 /// Open file to read.
@@ -185,20 +185,22 @@ pub unsafe extern "C" fn file_open(
             let original_file = file.clone();
 
             // Initialise the reader if OPEN_MODE_READ is requested.
-            let reader = if open_mode & OPEN_MODE_READ != 0 {
+            let reader = if open_mode & OPEN_MODE_READ == 0 {
+                Either::B(future::ok(None))
+            } else {
                 let fut = file_helper::read(client.clone(), &file, parent_info.enc_key().cloned())
                     .map(Some);
                 Either::A(fut)
-            } else {
-                Either::B(future::ok(None))
             };
 
             // Initialise the writer if one of write modes is requested.
-            let writer = if open_mode & (OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND) != 0 {
-                let writer_mode = if open_mode & OPEN_MODE_APPEND != 0 {
-                    Mode::Append
-                } else {
+            let writer = if open_mode & (OPEN_MODE_OVERWRITE | OPEN_MODE_APPEND) == 0 {
+                Either::B(future::ok(None))
+            } else {
+                let writer_mode = if open_mode & OPEN_MODE_APPEND == 0 {
                     Mode::Overwrite
+                } else {
+                    Mode::Append
                 };
                 let fut = file_helper::write(
                     client.clone(),
@@ -208,8 +210,6 @@ pub unsafe extern "C" fn file_open(
                 )
                 .map(Some);
                 Either::A(fut)
-            } else {
-                Either::B(future::ok(None))
             };
 
             reader.join(writer).map(move |(reader, writer)| {

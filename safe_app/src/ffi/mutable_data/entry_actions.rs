@@ -13,7 +13,7 @@ use crate::ffi::helper::send_sync;
 use crate::ffi::object_cache::MDataEntryActionsHandle;
 use crate::App;
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult};
-use safe_nd::{MDataSeqEntryAction, MDataSeqValue};
+use safe_nd::{MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue};
 use std::os::raw::c_void;
 
 /// Create new entry actions.
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn mdata_entry_actions_new(
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, |_, context| {
-            let actions = Default::default();
+            let actions = MDataSeqEntryActions::default();
             Ok(context
                 .object_cache()
                 .insert_seq_mdata_entry_actions(actions))

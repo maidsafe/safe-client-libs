@@ -267,7 +267,7 @@ impl App {
 
         let core_tx = rx.recv()??;
 
-        Ok(App {
+        Ok(Self {
             core_tx: Mutex::new(core_tx),
             _core_joiner: joiner,
         })
@@ -316,7 +316,7 @@ pub struct Registered {
 
 impl AppContext {
     fn unregistered() -> Self {
-        AppContext::Unregistered(Rc::new(Unregistered {
+        Self::Unregistered(Rc::new(Unregistered {
             object_cache: ObjectCache::new(),
         }))
     }
@@ -326,7 +326,7 @@ impl AppContext {
         sym_enc_key: shared_secretbox::Key,
         access_container_info: AccessContInfo,
     ) -> Self {
-        AppContext::Registered(Rc::new(Registered {
+        Self::Registered(Rc::new(Registered {
             object_cache: ObjectCache::new(),
             app_id,
             sym_enc_key,
@@ -338,8 +338,8 @@ impl AppContext {
     /// Object cache
     pub fn object_cache(&self) -> &ObjectCache {
         match *self {
-            AppContext::Unregistered(ref context) => &context.object_cache,
-            AppContext::Registered(ref context) => &context.object_cache,
+            Self::Unregistered(ref context) => &context.object_cache,
+            Self::Registered(ref context) => &context.object_cache,
         }
     }
 
@@ -368,8 +368,8 @@ impl AppContext {
 
     fn as_registered(&self) -> Result<&Rc<Registered>, AppError> {
         match *self {
-            AppContext::Registered(ref a) => Ok(a),
-            AppContext::Unregistered(_) => Err(AppError::OperationForbidden),
+            Self::Registered(ref a) => Ok(a),
+            Self::Unregistered(_) => Err(AppError::OperationForbidden),
         }
     }
 }

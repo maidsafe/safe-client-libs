@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 //! Logging utilities
-//! This module is exactly the same as safe_app::ffi::logging, therefore changes to either one of
+//! This module is exactly the same as `safe_app::ffi::logging`, therefore changes to either one of
 //! them should also be reflected to the other to stay in sync.
 
 use super::AuthError;

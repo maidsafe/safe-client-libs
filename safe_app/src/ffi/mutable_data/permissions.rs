@@ -18,6 +18,8 @@ use crate::App;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
+use safe_nd::{MDataPermissionSet, PublicKey};
+use std::collections::BTreeMap;
 use std::os::raw::c_void;
 
 /// Special value that represents `User::Anyone` in permission sets.
@@ -48,7 +50,7 @@ pub unsafe extern "C" fn mdata_permissions_new(
         send_sync(app, user_data, o_cb, |_, context| {
             Ok(context
                 .object_cache()
-                .insert_mdata_permissions(Default::default()))
+                .insert_mdata_permissions(BTreeMap::<PublicKey, MDataPermissionSet>::default()))
         })
     })
 }

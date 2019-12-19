@@ -136,13 +136,19 @@ pub unsafe extern "C" fn encode_share_mdata_req(
 }
 
 fn encode_ipc(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
-    let encoded = ipc::encode_msg(&IpcMsg::Req { req_id, req })?;
+    let encoded = ipc::encode_msg(&IpcMsg::Req {
+        req_id,
+        request: req,
+    })?;
     Ok(CString::new(encoded)?)
 }
 
 #[cfg(any(test, feature = "testing"))]
 fn encode_ipc_64(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
-    let encoded = ipc::encode_msg_64(&IpcMsg::Req { req_id, req })?;
+    let encoded = ipc::encode_msg_64(&IpcMsg::Req {
+        req_id,
+        request: req,
+    })?;
     Ok(CString::new(encoded)?)
 }
 
@@ -237,7 +243,7 @@ fn decode_ipc_msg_impl(
 ) -> Result<(), AppError> {
     match msg {
         IpcMsg::Resp {
-            resp: IpcResp::Auth(res),
+            response: IpcResp::Auth(res),
             req_id,
         } => match res {
             Ok(auth_granted) => match auth_granted.into_repr_c() {
@@ -267,7 +273,7 @@ fn decode_ipc_msg_impl(
             }
         },
         IpcMsg::Resp {
-            resp: IpcResp::Containers(res),
+            response: IpcResp::Containers(res),
             req_id,
         } => match res {
             Ok(()) => o_containers(user_data, req_id),
@@ -283,7 +289,7 @@ fn decode_ipc_msg_impl(
             }
         },
         IpcMsg::Resp {
-            resp: IpcResp::Unregistered(res),
+            response: IpcResp::Unregistered(res),
             req_id,
         } => match res {
             Ok(bootstrap_cfg) => {
@@ -307,7 +313,7 @@ fn decode_ipc_msg_impl(
             }
         },
         IpcMsg::Resp {
-            resp: IpcResp::ShareMData(res),
+            response: IpcResp::ShareMData(res),
             req_id,
         } => match res {
             Ok(()) => o_share_mdata(user_data, req_id),
@@ -381,7 +387,7 @@ mod tests {
         let auth_req = match decoded {
             (
                 IpcMsg::Req {
-                    req: IpcReq::Auth(auth_req),
+                    request: IpcReq::Auth(auth_req),
                     ..
                 },
                 None,
@@ -503,7 +509,7 @@ mod tests {
         let (decoded_req_id, decoded_req) = match msg {
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Auth(req),
+                request: IpcReq::Auth(req),
             } => (req_id, req),
             x => panic!("Unexpected {:?}", x),
         };
@@ -537,7 +543,7 @@ mod tests {
         let (decoded_req_id, decoded_req) = match msg {
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Containers(req),
+                request: IpcReq::Containers(req),
             } => (req_id, req),
             x => panic!("Unexpected {:?}", x),
         };
@@ -565,7 +571,7 @@ mod tests {
         let (decoded_req_id, decoded_data) = match msg {
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Unregistered(extra_data),
+                request: IpcReq::Unregistered(extra_data),
             } => (req_id, extra_data),
             x => panic!("Unexpected {:?}", x),
         };
@@ -599,7 +605,7 @@ mod tests {
         let (decoded_req_id, decoded_req) = match msg {
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::ShareMData(req),
+                request: IpcReq::ShareMData(req),
             } => (req_id, req),
             x => panic!("Unexpected {:?}", x),
         };
@@ -629,7 +635,7 @@ mod tests {
 
         let msg = IpcMsg::Resp {
             req_id,
-            resp: IpcResp::Auth(Ok(auth_granted.clone())),
+            response: IpcResp::Auth(Ok(auth_granted.clone())),
         };
 
         let encoded = unwrap!(ipc::encode_msg(&msg));
@@ -716,7 +722,7 @@ mod tests {
 
         let msg = IpcMsg::Resp {
             req_id,
-            resp: IpcResp::Containers(Ok(())),
+            response: IpcResp::Containers(Ok(())),
         };
 
         let encoded = unwrap!(ipc::encode_msg(&msg));
@@ -797,7 +803,7 @@ mod tests {
 
         let msg = IpcMsg::Resp {
             req_id,
-            resp: IpcResp::Unregistered(Ok(BootstrapConfig::default())),
+            response: IpcResp::Unregistered(Ok(BootstrapConfig::default())),
         };
 
         let encoded = unwrap!(ipc::encode_msg(&msg));
@@ -878,7 +884,7 @@ mod tests {
 
         let msg = IpcMsg::Resp {
             req_id,
-            resp: IpcResp::ShareMData(Ok(())),
+            response: IpcResp::ShareMData(Ok(())),
         };
 
         let encoded = unwrap!(ipc::encode_msg(&msg));
@@ -956,13 +962,13 @@ mod tests {
         let client_id = gen_client_id();
         let app_full_id = gen_app_id(client_id.public_id().clone());
         let enc_key = shared_secretbox::gen_key();
-        let (enc_pk, enc_sk) = shared_box::gen_keypair();
+        let (enc_public_key, enc_secret_key) = shared_box::gen_keypair();
 
         AppKeys {
             app_full_id,
             enc_key,
-            enc_pk,
-            enc_sk,
+            enc_public_key,
+            enc_secret_key,
         }
     }
 

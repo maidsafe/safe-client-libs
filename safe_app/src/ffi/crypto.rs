@@ -66,10 +66,15 @@ pub unsafe extern "C" fn sign_generate_key_pair(
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |_, context| {
-            let pk_h = context.object_cache().insert_pub_sign_key(public_key);
-            let sk_h = context.object_cache().insert_sec_sign_key(full_id);
+            let public_key_handle = context.object_cache().insert_pub_sign_key(public_key);
+            let secret_key_handle = context.object_cache().insert_sec_sign_key(full_id);
 
-            o_cb(user_data.0, FFI_RESULT_OK, pk_h, sk_h);
+            o_cb(
+                user_data.0,
+                FFI_RESULT_OK,
+                public_key_handle,
+                secret_key_handle,
+            );
 
             None
         })
@@ -247,14 +252,19 @@ pub unsafe extern "C" fn enc_generate_key_pair(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let (ourpk, oursk) = shared_box::gen_keypair();
+        let (our_public_key, our_secret_key) = shared_box::gen_keypair();
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |_, context| {
-            let pk_h = context.object_cache().insert_encrypt_key(ourpk);
-            let sk_h = context.object_cache().insert_secret_key(oursk);
+            let public_key_handle = context.object_cache().insert_encrypt_key(our_public_key);
+            let secret_key_handle = context.object_cache().insert_secret_key(our_secret_key);
 
-            o_cb(user_data.0, FFI_RESULT_OK, pk_h, sk_h);
+            o_cb(
+                user_data.0,
+                FFI_RESULT_OK,
+                public_key_handle,
+                secret_key_handle,
+            );
 
             None
         })

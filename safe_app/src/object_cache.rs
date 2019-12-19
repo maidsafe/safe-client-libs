@@ -46,7 +46,7 @@ pub struct ObjectCache {
 impl ObjectCache {
     /// Construct object cache.
     pub fn new() -> Self {
-        ObjectCache {
+        Self {
             handle_gen: HandleGenerator::new(),
             cipher_opt: Store::new(),
             encrypt_key: Store::new(),
@@ -233,7 +233,7 @@ struct HandleGenerator(Cell<ObjectHandle>);
 
 impl HandleGenerator {
     fn new() -> Self {
-        HandleGenerator(Cell::new(NULL_OBJECT_HANDLE))
+        Self(Cell::new(NULL_OBJECT_HANDLE))
     }
 
     fn gen(&self) -> ObjectHandle {
@@ -253,7 +253,7 @@ struct Store<V> {
 
 impl<V> Store<V> {
     fn new() -> Self {
-        Store {
+        Self {
             inner: RefCell::new(HashMap::new()),
         }
     }

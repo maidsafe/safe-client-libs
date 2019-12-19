@@ -32,7 +32,7 @@ use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio::runtime::current_thread::{block_on_all, Handle};
 
-/// Client object used by safe_authenticator.
+/// Client object used by `safe_authenticator`.
 pub struct AuthClient {
     inner: Rc<RefCell<Inner<AuthClient, ()>>>,
     auth_inner: Rc<RefCell<AuthInner>>,
@@ -186,7 +186,7 @@ impl AuthClient {
 
         block_on_all(connection_manager.bootstrap(client_safe_key))?;
 
-        Ok(AuthClient {
+        Ok(Self {
             inner: Rc::new(RefCell::new(Inner::new(
                 el_handle,
                 connection_manager,
@@ -319,7 +319,7 @@ impl AuthClient {
 
         block_on_all(connection_manager.bootstrap(id_packet))?;
 
-        Ok(AuthClient {
+        Ok(Self {
             inner: Rc::new(RefCell::new(Inner::new(
                 el_handle,
                 connection_manager,
@@ -354,11 +354,11 @@ impl AuthClient {
         let mut auth_inner = self.auth_inner.borrow_mut();
         let acc = &mut auth_inner.acc;
 
-        if acc.config_root != dir {
+        if acc.config_root == dir {
+            false
+        } else {
             acc.config_root = dir;
             true
-        } else {
-            false
         }
     }
 
@@ -380,11 +380,11 @@ impl AuthClient {
         let mut auth_inner = self.auth_inner.borrow_mut();
         let account = &mut auth_inner.acc;
 
-        if account.access_container != dir {
+        if account.access_container == dir {
+            false
+        } else {
             account.access_container = dir;
             true
-        } else {
-            false
         }
     }
 
@@ -500,12 +500,12 @@ impl Client for AuthClient {
 
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
         let auth_inner = self.auth_inner.borrow();
-        auth_inner.acc.maid_keys.enc_pk
+        auth_inner.acc.maid_keys.enc_public_key
     }
 
     fn secret_encryption_key(&self) -> shared_box::SecretKey {
         let auth_inner = self.auth_inner.borrow();
-        auth_inner.acc.maid_keys.enc_sk.clone()
+        auth_inner.acc.maid_keys.enc_secret_key.clone()
     }
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {
@@ -522,7 +522,7 @@ impl fmt::Debug for AuthClient {
 
 impl Clone for AuthClient {
     fn clone(&self) -> Self {
-        AuthClient {
+        Self {
             inner: Rc::clone(&self.inner),
             auth_inner: Rc::clone(&self.auth_inner),
         }
@@ -546,8 +546,8 @@ struct UserCred {
 }
 
 impl UserCred {
-    fn new(password: Vec<u8>, pin: Vec<u8>) -> UserCred {
-        UserCred { pin, password }
+    fn new(password: Vec<u8>, pin: Vec<u8>) -> Self {
+        Self { pin, password }
     }
 }
 

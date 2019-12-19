@@ -24,7 +24,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use tokio::runtime::current_thread::{block_on_all, Handle};
 
-/// Client object used by safe_app.
+/// Client object used by `safe_app`.
 pub struct AppClient {
     inner: Rc<RefCell<Inner<AppClient, AppContext>>>,
     app_inner: Rc<RefCell<AppInner>>,
@@ -178,12 +178,12 @@ impl Client for AppClient {
 
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
         let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().enc_pk
+        app_inner.keys.clone().enc_public_key
     }
 
     fn secret_encryption_key(&self) -> shared_box::SecretKey {
         let app_inner = self.app_inner.borrow();
-        app_inner.keys.clone().enc_sk
+        app_inner.keys.clone().enc_secret_key
     }
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {

@@ -39,7 +39,7 @@ pub struct RegisteredApp {
 impl RegisteredApp {
     /// Construct FFI wrapper for the native Rust object, consuming self.
     pub fn into_repr_c(self) -> Result<FfiRegisteredApp, IpcError> {
-        let RegisteredApp {
+        let Self {
             app_info,
             containers,
         } = self;
@@ -120,8 +120,7 @@ pub fn list_revoked(client: &AuthClient) -> Box<AuthFuture<Vec<AppExchangeInfo>>
                 // been deleted (is empty), then it's revoked.
                 let revoked = entries
                     .get(&key)
-                    .map(|entry| entry.data.is_empty())
-                    .unwrap_or(true);
+                    .map_or(true, |entry| entry.data.is_empty());
 
                 if revoked {
                     apps.push(app.info.clone());

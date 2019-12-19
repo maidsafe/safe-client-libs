@@ -51,7 +51,7 @@ pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
 
         match msg {
             IpcMsg::Req {
-                req: IpcReq::Unregistered(extra_data),
+                request: IpcReq::Unregistered(extra_data),
                 req_id,
             } => {
                 o_unregistered(
@@ -108,7 +108,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
             decode_ipc_msg(client, msg)
                 .and_then(move |msg| match msg {
                     Ok(IpcMsg::Req {
-                        req: IpcReq::Auth(auth_req),
+                        request: IpcReq::Auth(auth_req),
                         req_id,
                     }) => {
                         let repr_c = fry!(auth_req.into_repr_c().map_err(AuthError::IpcError));
@@ -116,7 +116,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         ok!(())
                     }
                     Ok(IpcMsg::Req {
-                        req: IpcReq::Containers(cont_req),
+                        request: IpcReq::Containers(cont_req),
                         req_id,
                     }) => {
                         let repr_c = fry!(cont_req.into_repr_c().map_err(AuthError::IpcError));
@@ -124,7 +124,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         ok!(())
                     }
                     Ok(IpcMsg::Req {
-                        req: IpcReq::Unregistered(extra_data),
+                        request: IpcReq::Unregistered(extra_data),
                         req_id,
                     }) => {
                         o_unregistered(
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         ok!(())
                     }
                     Ok(IpcMsg::Req {
-                        req: IpcReq::ShareMData(share_mdata_req),
+                        request: IpcReq::ShareMData(share_mdata_req),
                         req_id,
                     }) => decode_share_mdata_req(&c1, &share_mdata_req)
                         .and_then(move |metadata_cont| {
@@ -251,19 +251,19 @@ pub unsafe extern "C" fn encode_unregistered_resp(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
-        if !is_granted {
-            let resp = encode_response(&IpcMsg::Resp {
-                req_id,
-                resp: IpcResp::Unregistered(Err(IpcError::AuthDenied)),
-            })?;
-
-            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
-        } else {
+        if is_granted {
             let bootstrap_cfg = client::bootstrap_config()?;
 
             let resp = encode_response(&IpcMsg::Resp {
                 req_id,
-                resp: IpcResp::Unregistered(Ok(bootstrap_cfg)),
+                response: IpcResp::Unregistered(Ok(bootstrap_cfg)),
+            })?;
+
+            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
+        } else {
+            let resp = encode_response(&IpcMsg::Resp {
+                req_id,
+                response: IpcResp::Unregistered(Err(IpcError::AuthDenied)),
             })?;
 
             o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
@@ -287,20 +287,13 @@ pub unsafe extern "C" fn encode_auth_resp(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
         let auth_req = NativeAuthReq::clone_from_repr_c(req)?;
 
-        if !is_granted {
-            let resp = encode_response(&IpcMsg::Resp {
-                req_id,
-                resp: IpcResp::Auth(Err(IpcError::AuthDenied)),
-            })?;
-
-            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
-        } else {
+        if is_granted {
             (*auth).send(move |client| {
                 app_auth::authenticate(client, auth_req)
                     .and_then(move |auth_granted| {
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
-                            resp: IpcResp::Auth(Ok(auth_granted)),
+                            response: IpcResp::Auth(Ok(auth_granted)),
                         })?;
 
                         o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
@@ -310,14 +303,14 @@ pub unsafe extern "C" fn encode_auth_resp(
                         let (error_code, description) = ffi_error!(e);
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
-                            resp: IpcResp::Auth(Err(e.into())),
+                            response: IpcResp::Auth(Err(e.into())),
                         })?;
-                        let res = NativeResult {
+                        let result = NativeResult {
                             error_code,
                             description: Some(description),
                         }
                         .into_repr_c()?;
-                        o_cb(user_data.0, &res, resp.as_ptr());
+                        o_cb(user_data.0, &result, resp.as_ptr());
                         Ok(())
                     })
                     .map_err(move |e| {
@@ -326,6 +319,13 @@ pub unsafe extern "C" fn encode_auth_resp(
                     .into_box()
                     .into()
             })?;
+        } else {
+            let response = encode_response(&IpcMsg::Resp {
+                req_id,
+                response: IpcResp::Auth(Err(IpcError::AuthDenied)),
+            })?;
+
+            o_cb(user_data.0, FFI_RESULT_OK, response.as_ptr());
         }
 
         Ok(())
@@ -347,14 +347,7 @@ pub unsafe extern "C" fn encode_containers_resp(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
         let cont_req = NativeContainersReq::clone_from_repr_c(req)?;
 
-        if !is_granted {
-            let resp = encode_response(&IpcMsg::Resp {
-                req_id,
-                resp: IpcResp::Containers(Err(IpcError::AuthDenied)),
-            })?;
-
-            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
-        } else {
+        if is_granted {
             let permissions = cont_req.containers.clone();
             let app_id = cont_req.app.id;
 
@@ -402,7 +395,7 @@ pub unsafe extern "C" fn encode_containers_resp(
                     .and_then(move |_| {
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
-                            resp: IpcResp::Containers(Ok(())),
+                            response: IpcResp::Containers(Ok(())),
                         })?;
                         o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
                         Ok(())
@@ -411,20 +404,27 @@ pub unsafe extern "C" fn encode_containers_resp(
                         let (error_code, description) = ffi_error!(e);
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
-                            resp: IpcResp::Containers(Err(e.into())),
+                            response: IpcResp::Containers(Err(e.into())),
                         })?;
-                        let res = NativeResult {
+                        let result = NativeResult {
                             error_code,
                             description: Some(description),
                         }
                         .into_repr_c()?;
-                        o_cb(user_data.0, &res, resp.as_ptr());
+                        o_cb(user_data.0, &result, resp.as_ptr());
                         Ok(())
                     })
                     .map_err(move |e| debug!("Unexpected error: {:?}", e))
                     .into_box()
                     .into()
             })?;
+        } else {
+            let response = encode_response(&IpcMsg::Resp {
+                req_id,
+                response: IpcResp::Containers(Err(IpcError::AuthDenied)),
+            })?;
+
+            o_cb(user_data.0, FFI_RESULT_OK, response.as_ptr());
         }
 
         Ok(())
@@ -446,14 +446,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
         let share_mdata_req = NativeShareMDataReq::clone_from_repr_c(req)?;
 
-        if !is_granted {
-            let resp = encode_response(&IpcMsg::Resp {
-                req_id,
-                resp: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
-            })?;
-
-            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
-        } else {
+        if is_granted {
             (*auth).send(move |client| {
                 let client_cloned0 = client.clone();
                 let client_cloned1 = client.clone();
@@ -488,7 +481,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
                             .and_then(move |()| {
                                 let resp = encode_response(&IpcMsg::Resp {
                                     req_id,
-                                    resp: IpcResp::ShareMData(Ok(())),
+                                    response: IpcResp::ShareMData(Ok(())),
                                 })
                                 .map_err(AuthError::IpcError)?;
                                 o_cb(user_data, FFI_RESULT_OK, resp.as_ptr());
@@ -502,6 +495,13 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
                     .into_box()
                     .into()
             })?;
+        } else {
+            let resp = encode_response(&IpcMsg::Resp {
+                req_id,
+                response: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
+            })?;
+
+            o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
         }
 
         Ok(())

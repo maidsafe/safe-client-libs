@@ -173,11 +173,11 @@ impl Client for CoreClient {
     }
 
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
-        self.keys.enc_pk
+        self.keys.enc_public_key
     }
 
     fn secret_encryption_key(&self) -> shared_box::SecretKey {
-        self.keys.enc_sk.clone()
+        self.keys.enc_secret_key.clone()
     }
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {

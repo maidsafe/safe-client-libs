@@ -52,7 +52,7 @@ pub type RevocationQueue = VecDeque<String>;
 
 /// Bump the current version to obtain new version.
 pub fn next_version(version: Option<u64>) -> u64 {
-    version.map(|v| v + 1).unwrap_or(0)
+    version.map_or(0, |v| v + 1)
 }
 
 /// Retrieves apps registered with the authenticator.
@@ -127,11 +127,11 @@ pub fn push_to_app_revocation_queue(
         queue,
         new_version,
         move |queue| {
-            if !queue.contains(&app_id) {
+            if queue.contains(&app_id) {
+                false
+            } else {
                 queue.push_back(app_id.clone());
                 true
-            } else {
-                false
             }
         },
     )
@@ -205,10 +205,10 @@ where
         .get_seq_mdata_value(parent.name(), parent.type_tag(), key)
         .and_then(move |value| {
             let decoded = parent.decrypt(&value.data)?;
-            let decoded = if !decoded.is_empty() {
-                deserialize(&decoded)?
-            } else {
+            let decoded = if decoded.is_empty() {
                 Default::default()
+            } else {
+                deserialize(&decoded)?
             };
 
             Ok((Some(value.version), decoded))

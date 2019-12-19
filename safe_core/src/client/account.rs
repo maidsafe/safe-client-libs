@@ -115,9 +115,9 @@ pub struct ClientKeys {
     /// Symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
     /// Encryption public key.
-    pub enc_pk: threshold_crypto::PublicKey,
+    pub enc_public_key: threshold_crypto::PublicKey,
     /// Encryption private key.
-    pub enc_sk: shared_box::SecretKey,
+    pub enc_secret_key: shared_box::SecretKey,
 }
 
 impl ClientKeys {
@@ -130,8 +130,8 @@ impl ClientKeys {
         let client_id = ClientFullId::new_bls(rng);
 
         Self {
-            enc_pk: enc_public_key,
-            enc_sk: enc_secret_key,
+            enc_public_key,
+            enc_secret_key,
             enc_key,
             client_id,
         }

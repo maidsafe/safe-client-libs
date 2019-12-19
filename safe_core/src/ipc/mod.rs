@@ -43,14 +43,14 @@ pub enum IpcMsg {
         /// Request ID.
         req_id: u32,
         /// Request.
-        req: IpcReq,
+        request: IpcReq,
     },
     /// Response.
     Resp {
         /// Request ID.
         req_id: u32,
         /// Response.
-        resp: IpcResp,
+        response: IpcResp,
     },
     /// Revoked.
     Revoked {

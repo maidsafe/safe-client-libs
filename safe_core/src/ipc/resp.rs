@@ -129,9 +129,9 @@ pub struct AppKeys {
     /// Data symmetric encryption key.
     pub enc_key: shared_secretbox::Key,
     /// Asymmetric enc public key.
-    pub enc_pk: threshold_crypto::PublicKey,
+    pub enc_public_key: threshold_crypto::PublicKey,
     /// Asymmetric enc private key.
-    pub enc_sk: shared_box::SecretKey,
+    pub enc_secret_key: shared_box::SecretKey,
 }
 
 impl AppKeys {
@@ -144,8 +144,8 @@ impl AppKeys {
         Self {
             app_full_id,
             enc_key: shared_secretbox::gen_key(),
-            enc_pk: enc_public_key,
-            enc_sk: enc_secret_key,
+            enc_public_key,
+            enc_secret_key,
         }
     }
 
@@ -164,21 +164,21 @@ impl AppKeys {
         let Self {
             app_full_id,
             enc_key,
-            enc_pk,
-            enc_sk,
+            enc_public_key,
+            enc_secret_key,
         } = self;
 
         let app_full_id = serialize(&app_full_id)?;
         let (full_id, full_id_len) = vec_into_raw_parts(app_full_id);
-        let asym_sk = serialize(&enc_sk)?;
+        let asym_sk = serialize(&enc_secret_key)?;
         let (sk, enc_sk_len) = vec_into_raw_parts(asym_sk);
         Ok(ffi::AppKeys {
             full_id,
             full_id_len,
             enc_key: *enc_key,
-            enc_pk: enc_pk.to_bytes(),
-            enc_sk: sk,
-            enc_sk_len,
+            enc_public_key: enc_public_key.to_bytes(),
+            enc_secret_key: sk,
+            enc_secret_key_len: enc_sk_len,
         })
     }
 }
@@ -190,14 +190,15 @@ impl ReprC for AppKeys {
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let raw_full_id = vec_clone_from_raw_parts((*repr_c).full_id, (*repr_c).full_id_len);
         let app_full_id = deserialize(&raw_full_id)?;
-        let raw_sk = vec_clone_from_raw_parts((*repr_c).enc_sk, (*repr_c).enc_sk_len);
+        let raw_sk =
+            vec_clone_from_raw_parts((*repr_c).enc_secret_key, (*repr_c).enc_secret_key_len);
         let enc_sk = deserialize(&raw_sk)?;
 
         Ok(Self {
             app_full_id,
             enc_key: shared_secretbox::Key::from_raw(&(*repr_c).enc_key),
-            enc_pk: threshold_crypto::PublicKey::from_bytes((*repr_c).enc_pk)?,
-            enc_sk,
+            enc_public_key: threshold_crypto::PublicKey::from_bytes((*repr_c).enc_public_key)?,
+            enc_secret_key: enc_sk,
         })
     }
 }
@@ -626,8 +627,8 @@ mod tests {
 
         let AppKeys {
             enc_key,
-            enc_pk,
-            enc_sk,
+            enc_public_key: enc_pk,
+            enc_secret_key: enc_sk,
             app_full_id,
         } = ak.clone();
 
@@ -638,19 +639,20 @@ mod tests {
             (*enc_key).iter().collect::<Vec<_>>()
         );
         assert_eq!(
-            ffi_ak.enc_pk.iter().cloned().collect::<Vec<_>>(),
+            ffi_ak.enc_public_key.iter().cloned().collect::<Vec<_>>(),
             enc_pk.to_bytes().to_vec()
         );
 
-        let sk_raw = unsafe { vec_clone_from_raw_parts(ffi_ak.enc_sk, ffi_ak.enc_sk_len) };
+        let sk_raw =
+            unsafe { vec_clone_from_raw_parts(ffi_ak.enc_secret_key, ffi_ak.enc_secret_key_len) };
         let sk = unwrap!(serialize(&enc_sk));
         assert_eq!(sk_raw, sk);
 
         let ak = unsafe { unwrap!(AppKeys::clone_from_repr_c(&ffi_ak)) };
 
         assert_eq!(ak.enc_key, enc_key);
-        assert_eq!(ak.enc_pk, enc_pk);
-        assert_eq!(ak.enc_sk, enc_sk);
+        assert_eq!(ak.enc_public_key, enc_pk);
+        assert_eq!(ak.enc_secret_key, enc_sk);
         assert_eq!(ak.app_full_id, app_full_id);
     }
 

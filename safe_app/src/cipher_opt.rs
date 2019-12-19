@@ -47,8 +47,8 @@ impl CipherOpt {
     /// Encrypt plain text
     pub fn encrypt(&self, plain_text: &[u8], app_ctx: &AppContext) -> Result<Vec<u8>, AppError> {
         match *self {
-            CipherOpt::PlainText => Ok(serialize(&WireFormat::Plain(plain_text.to_owned()))?),
-            CipherOpt::Symmetric => {
+            Self::PlainText => Ok(serialize(&WireFormat::Plain(plain_text.to_owned()))?),
+            Self::Symmetric => {
                 let nonce = utils::generate_nonce().to_vec();
                 let sym_enc_key = app_ctx.sym_enc_key()?;
                 let mut cipher = Aes128SivAead::new(&**sym_enc_key);
@@ -57,7 +57,7 @@ impl CipherOpt {
 
                 Ok(serialize(&wire_format)?)
             }
-            CipherOpt::Asymmetric {
+            Self::Asymmetric {
                 ref peer_encrypt_key,
             } => {
                 let cipher_text = peer_encrypt_key.encrypt(plain_text);

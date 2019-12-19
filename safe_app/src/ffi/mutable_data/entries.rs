@@ -41,7 +41,7 @@ pub unsafe extern "C" fn seq_mdata_entries_new(
         send_sync(app, user_data, o_cb, |_, context| {
             Ok(context
                 .object_cache()
-                .insert_seq_mdata_entries(Default::default()))
+                .insert_seq_mdata_entries(BTreeMap::<Vec<u8>, MDataSeqValue>::default()))
         })
     })
 }

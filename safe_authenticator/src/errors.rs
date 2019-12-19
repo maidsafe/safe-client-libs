@@ -340,7 +340,7 @@ fn core_error_code(err: &CoreError) -> i32 {
         CoreError::RandomDataGenerationFailure => ERR_RANDOM_DATA_GENERATION_FAILURE,
         CoreError::OperationForbidden => ERR_OPERATION_FORBIDDEN,
         CoreError::DataError(ref err) => safe_nd_error_core(err),
-        CoreError::QuicP2p(ref _err) => ERR_QUIC_P2P, // FIXME: use proper error codes
+        CoreError::QuicP2p(ref _error) => ERR_QUIC_P2P, // FIXME: use proper error codes
         CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
         CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,

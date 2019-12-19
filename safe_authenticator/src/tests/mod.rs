@@ -462,7 +462,7 @@ fn app_authentication() {
 
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::Auth(auth_req.clone()),
+        request: IpcReq::Auth(auth_req.clone()),
     };
 
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
@@ -473,7 +473,7 @@ fn app_authentication() {
         (
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Auth(req),
+                request: IpcReq::Auth(req),
             },
             _,
         ) => (req_id, req),
@@ -500,7 +500,7 @@ fn app_authentication() {
     let auth_granted = match unwrap!(ipc::decode_msg(&encoded_auth_resp)) {
         IpcMsg::Resp {
             req_id: received_req_id,
-            resp: IpcResp::Auth(Ok(auth_granted)),
+            response: IpcResp::Auth(Ok(auth_granted)),
         } => {
             assert_eq!(received_req_id, req_id);
             auth_granted
@@ -630,7 +630,7 @@ fn unregistered_authentication() {
     // Try to send IpcReq::Auth - it should fail
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
-        req: IpcReq::Auth(AuthReq {
+        request: IpcReq::Auth(AuthReq {
             app: test_utils::rand_app(),
             app_container: true,
             app_permissions: Default::default(),
@@ -649,7 +649,7 @@ fn unregistered_authentication() {
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::Unregistered(test_data.clone()),
+        request: IpcReq::Unregistered(test_data.clone()),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
@@ -658,7 +658,7 @@ fn unregistered_authentication() {
         (
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Unregistered(extra_data),
+                request: IpcReq::Unregistered(extra_data),
             },
             _,
         ) => (req_id, extra_data),
@@ -680,7 +680,7 @@ fn unregistered_authentication() {
     let bootstrap_cfg = match unwrap!(ipc::decode_msg(&encoded_resp)) {
         IpcMsg::Resp {
             req_id: received_req_id,
-            resp: IpcResp::Unregistered(Ok(bootstrap_cfg)),
+            response: IpcResp::Unregistered(Ok(bootstrap_cfg)),
         } => {
             assert_eq!(received_req_id, req_id);
             bootstrap_cfg
@@ -700,7 +700,7 @@ fn unregistered_authentication() {
         (
             IpcMsg::Req {
                 req_id,
-                req: IpcReq::Unregistered(extra_data),
+                request: IpcReq::Unregistered(extra_data),
             },
             _,
         ) => (req_id, extra_data),
@@ -728,7 +728,7 @@ fn authenticated_app_can_be_authenticated_again() {
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::Auth(auth_req.clone()),
+        request: IpcReq::Auth(auth_req.clone()),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
@@ -738,7 +738,7 @@ fn authenticated_app_can_be_authenticated_again() {
     )) {
         (
             IpcMsg::Req {
-                req: IpcReq::Auth(_),
+                request: IpcReq::Auth(_),
                 ..
             },
             _,
@@ -764,7 +764,7 @@ fn authenticated_app_can_be_authenticated_again() {
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::Auth(auth_req),
+        request: IpcReq::Auth(auth_req),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
@@ -774,7 +774,7 @@ fn authenticated_app_can_be_authenticated_again() {
     )) {
         (
             IpcMsg::Req {
-                req: IpcReq::Auth(_),
+                request: IpcReq::Auth(_),
                 ..
             },
             _,
@@ -792,7 +792,7 @@ fn containers_unknown_app() {
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
-        req: IpcReq::Containers(ContainersReq {
+        request: IpcReq::Containers(ContainersReq {
             app: test_utils::rand_app(),
             containers: utils::create_containers_req(),
         }),
@@ -809,7 +809,7 @@ fn containers_unknown_app() {
         Err((
             code,
             Some(IpcMsg::Resp {
-                resp: IpcResp::Auth(Err(IpcError::UnknownApp)),
+                response: IpcResp::Auth(Err(IpcError::UnknownApp)),
                 ..
             }),
         )) if code == ERR_UNKNOWN_APP => (),
@@ -865,7 +865,7 @@ fn containers_access_request() {
 
     match ipc::decode_msg(&encoded_containers_resp) {
         Ok(IpcMsg::Resp {
-            resp: IpcResp::Containers(Ok(())),
+            response: IpcResp::Containers(Ok(())),
             ..
         }) => (),
         x => panic!("Unexpected {:?}", x),

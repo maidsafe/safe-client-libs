@@ -35,7 +35,8 @@ use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_
 use safe_core::ipc::resp::{MDataKey as NativeMDataKey, MDataValue as NativeMDataValue};
 use safe_core::Client;
 use safe_core::{FutureExt, MDataInfo as NativeMDataInfo};
-use safe_nd::SeqMutableData;
+use safe_nd::{MDataPermissionSet, MDataSeqValue, PublicKey, SeqMutableData};
+use std::collections::BTreeMap;
 use std::os::raw::c_void;
 
 /// Special value that represents an empty permission set.
@@ -69,25 +70,25 @@ pub unsafe extern "C" fn mdata_put(
         (*app).send(move |client, context| {
             let owner_key = client.owner_key();
 
-            let permissions = if permissions_h != PERMISSIONS_EMPTY {
+            let permissions = if permissions_h == PERMISSIONS_EMPTY {
+                BTreeMap::<PublicKey, MDataPermissionSet>::default()
+            } else {
                 try_cb!(
                     helper::get_permissions(context.object_cache(), permissions_h),
                     user_data,
                     o_cb
                 )
-            } else {
-                Default::default()
             };
 
-            let entries = if entries_h != ENTRIES_EMPTY {
+            let entries = if entries_h == ENTRIES_EMPTY {
+                BTreeMap::<Vec<u8>, MDataSeqValue>::default()
+            } else {
                 try_cb!(
                     context.object_cache().get_seq_mdata_entries(entries_h),
                     user_data,
                     o_cb
                 )
                 .clone()
-            } else {
-                Default::default()
             };
 
             let data = SeqMutableData::new_with_data(
