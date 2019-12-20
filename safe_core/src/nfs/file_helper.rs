@@ -108,7 +108,7 @@ where
     S: AsRef<str>,
 {
     let name = name.as_ref();
-    let name2 = name.to_owned().clone();
+    let name2 = name.to_owned();
     let client2 = client.clone();
     let client3 = client.clone();
     let parent2 = parent.clone();

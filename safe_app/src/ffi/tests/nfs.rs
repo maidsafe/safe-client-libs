@@ -143,7 +143,7 @@ fn open_file() {
     let file_name1 = "file1.txt";
     let ffi_file_name1 = unwrap!(CString::new(file_name1));
 
-    let content = unwrap!(utils::generate_random_vector(10));
+    let mut content = unwrap!(utils::generate_random_vector(10));
 
     let write_h = unsafe {
         unwrap!(call_1(|ud, cb| file_open(
@@ -323,10 +323,9 @@ fn open_file() {
         )))
     };
 
-    let mut expected_content = content.clone();
-    expected_content.extend(&append_content);
+    content.extend(&append_content);
 
-    assert_eq!(retrieved_content, expected_content);
+    assert_eq!(retrieved_content, content);
 
     let returned_file: NativeFile =
         unsafe { unwrap!(call_1(|ud, cb| file_close(&app, read_h, ud, cb))) };
@@ -640,7 +639,7 @@ fn open_close_file() {
 
     // Create a file.
     let user_metadata = b"metadata".to_vec();
-    let file = NativeFile::new(user_metadata.clone(), true);
+    let file = NativeFile::new(user_metadata, true);
     let ffi_file = file.into_repr_c();
 
     let content = unwrap!(utils::generate_random_vector(10));

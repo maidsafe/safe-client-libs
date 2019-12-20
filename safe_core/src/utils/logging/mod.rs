@@ -16,7 +16,7 @@
 //! An example of a log message is:
 //!
 //! ```
-//! # fn main() { /*
+//! # /*
 //! WARN 19:33:49.245434200 <main> [example::my_mod main.rs:10] Warning level message.
 //! ^           ^             ^              ^         ^                  ^
 //! |       timestamp         |           module       |               message
@@ -24,7 +24,7 @@
 //! |                    thread name           file and line no.
 //! |
 //! level (ERROR, WARN, INFO, DEBUG, or TRACE)
-//! # */}
+//! # */
 //! ```
 //!
 //! Logging of the thread name is enabled or disabled via the `show_thread_name` parameter.  If
@@ -36,35 +36,32 @@
 //! #Examples
 //!
 //! ```
-//! #[macro_use]
-//! extern crate log;
-//! #[macro_use]
-//! extern crate unwrap;
+//! use log::{error, info};
 //! use std::thread;
 //! use safe_core::utils::logging;
+//! use unwrap::unwrap;
 //!
 //! mod my_mod {
+//!     use log::warn;
 //!     pub fn show_warning() {
 //!         warn!("A warning");
 //!     }
 //! }
 //!
-//! fn main() {
-//!     unwrap!(logging::init(true));
+//! unwrap!(logging::init(true));
 //!
-//!     my_mod::show_warning();
+//! my_mod::show_warning();
 //!
-//!     let unnamed = thread::spawn(move || info!("Message in unnamed thread"));
-//!     let _ = unnamed.join();
+//! let unnamed = thread::spawn(move || info!("Message in unnamed thread"));
+//! let _ = unnamed.join();
 //!
-//!     let _named = unwrap!(thread::Builder::new()
-//!                             .name(String::from("Worker"))
-//!                             .spawn(|| error!("Message in named thread")));
+//! let _named = unwrap!(thread::Builder::new()
+//!                         .name(String::from("Worker"))
+//!                         .spawn(|| error!("Message in named thread")));
 //!
-//!     // WARN 16:10:44.989712300 <main> [example::my_mod main.rs:10] A warning
-//!     // INFO 16:10:44.990716600 <unnamed> [example main.rs:19] Message in unnamed thread
-//!     // ERROR 16:10:44.991221900 Worker [example main.rs:22] Message in named thread
-//! }
+//! // WARN 16:10:44.989712300 <main> [example::my_mod main.rs:10] A warning
+//! // INFO 16:10:44.990716600 <unnamed> [example main.rs:19] Message in unnamed thread
+//! // ERROR 16:10:44.991221900 Worker [example main.rs:22] Message in named thread
 //! ```
 //!
 //! Environment variable `RUST_LOG` can be set and fine-tuned to get various modules logging to
