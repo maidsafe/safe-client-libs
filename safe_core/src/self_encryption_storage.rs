@@ -143,17 +143,17 @@ impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
         _data: Vec<u8>,
     ) -> Box<dyn Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData dry run.");
-        err!(CoreError::Unexpected(
-            "Cannot put to storage since it's a dry run.".to_owned()
-        ))
+        // We do nothing here just return ok so self-encrpytion can finish
+        // and generate chunk addresses and datamap if required
+        ok!(())
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {
-        let idata: IData = if self.published {
+        let immutable_data: IData = if self.published {
             PubImmutableData::new(data.to_vec()).into()
         } else {
             UnpubImmutableData::new(data.to_vec(), self.client.public_key()).into()
         };
-        idata.name().0.to_vec()
+        immutable_data.name().0.to_vec()
     }
 }
