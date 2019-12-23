@@ -35,10 +35,9 @@ pub fn create(
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<IData>> {
     trace!("Creating conformant ImmutableData.");
-
     let client = client.clone();
-    let storage = SelfEncryptionStorage::new(client.clone(), published);
-    write_with_self_encryptor(storage, client, value, published, encryption_key)
+    let se_storage = SelfEncryptionStorage::new(client.clone(), published);
+    write_with_self_encryptor(se_storage, client, value, published, encryption_key)
 }
 
 /// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
@@ -51,10 +50,9 @@ pub fn gen_data_map(
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<IData>> {
     trace!("Creating conformant ImmutableData data map.");
-
     let client = client.clone();
-    let storage = SelfEncryptionStorageDryRun::new(client.clone(), true);
-    write_with_self_encryptor(storage, client, value, published, encryption_key)
+    let se_storage = SelfEncryptionStorageDryRun::new(client.clone(), published);
+    write_with_self_encryptor(se_storage, client, value, published, encryption_key)
 }
 
 /// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
@@ -63,9 +61,9 @@ pub fn extract_value(
     data: &IData,
     decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
-    let client = client.clone();
     let published = data.is_pub();
-    unpack(client.clone(), data)
+    let se_storage = SelfEncryptionStorage::new(client.clone(), published);
+    unpack(se_storage.clone(), client.clone(), data)
         .and_then(move |value| {
             let data_map = if let Some(key) = decryption_key {
                 let plain_text = utils::symmetric_decrypt(&value, &key)?;
@@ -74,8 +72,7 @@ pub fn extract_value(
                 deserialize(&value)?
             };
 
-            let storage = SelfEncryptionStorage::new(client, published);
-            Ok(SelfEncryptor::new(storage, data_map)?)
+            Ok(SelfEncryptor::new(se_storage, data_map)?)
         })
         .and_then(|self_encryptor| {
             let length = self_encryptor.len();
@@ -107,9 +104,9 @@ fn write_with_self_encryptor<S>(
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<IData>>
 where
-    S: Storage<Error = SEStorageError> + 'static,
+    S: Storage<Error = SEStorageError> + Clone + 'static,
 {
-    let self_encryptor = fry!(SelfEncryptor::new(se_storage, DataMap::None));
+    let self_encryptor = fry!(SelfEncryptor::new(se_storage.clone(), DataMap::None));
     self_encryptor
         .write(value, 0)
         .and_then(move |_| self_encryptor.close())
@@ -126,14 +123,22 @@ where
                 ),))
             };
 
-            pack(client, value, published)
+            pack(se_storage, client, value, published)
         })
         .into_box()
 }
 
 // TODO: consider rewriting these two function to not use recursion.
 
-fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<IData>> {
+fn pack<S>(
+    se_storage: S,
+    client: impl Client,
+    value: Vec<u8>,
+    published: bool,
+) -> Box<CoreFuture<IData>>
+where
+    S: Storage<Error = SEStorageError> + Clone + 'static,
+{
     let data: IData = if published {
         PubImmutableData::new(value).into()
     } else {
@@ -144,34 +149,34 @@ fn pack(client: impl Client, value: Vec<u8>, published: bool) -> Box<CoreFuture<
     if data.validate_size() {
         ok!(data)
     } else {
-        let storage = SelfEncryptionStorage::new(client.clone(), published);
-        let self_encryptor = fry!(SelfEncryptor::new(storage, DataMap::None));
+        let self_encryptor = fry!(SelfEncryptor::new(se_storage.clone(), DataMap::None));
         self_encryptor
             .write(&serialised_data, 0)
             .and_then(move |_| self_encryptor.close())
             .map_err(From::from)
             .and_then(move |(data_map, _)| {
                 let value = fry!(serialize(&DataTypeEncoding::DataMap(data_map)));
-                pack(client, value, published)
+                pack(se_storage, client, value, published)
             })
             .into_box()
     }
 }
 
-fn unpack(client: impl Client, data: &IData) -> Box<CoreFuture<Vec<u8>>> {
-    let published = data.is_pub();
+fn unpack<S>(se_storage: S, client: impl Client, data: &IData) -> Box<CoreFuture<Vec<u8>>>
+where
+    S: Storage<Error = SEStorageError> + Clone + 'static,
+{
     match fry!(deserialize(data.value())) {
         DataTypeEncoding::Serialised(value) => ok!(value),
         DataTypeEncoding::DataMap(data_map) => {
-            let storage = SelfEncryptionStorage::new(client.clone(), published);
-            let self_encryptor = fry!(SelfEncryptor::new(storage, data_map));
+            let self_encryptor = fry!(SelfEncryptor::new(se_storage.clone(), data_map));
             let length = self_encryptor.len();
             self_encryptor
                 .read(0, length)
                 .map_err(From::from)
                 .and_then(move |serialised_data| {
                     let data = fry!(deserialize(&serialised_data));
-                    unpack(client, &data)
+                    unpack(se_storage, client, &data)
                 })
                 .into_box()
         }
@@ -267,26 +272,51 @@ mod tests {
             })
         }
 
-        let value = unwrap!(utils::generate_random_vector(size));
-
         // Encrypted and unpublished
         {
+            let value = unwrap!(utils::generate_random_vector(size));
             let value_before = value.clone();
+            let value_before2 = value.clone();
             let key = shared_secretbox::gen_key();
+            let key2 = key.clone();
 
             random_client(move |client| {
                 let client2 = client.clone();
                 let client3 = client.clone();
+                let client4 = client.clone();
+                let client5 = client.clone();
 
-                create(client, &value_before.clone(), false, Some(key.clone()))
+                // gen address without putting to the network (unpublished and encrypted)
+                gen_data_map(client, &value.clone(), false, Some(key2.clone()))
                     .then(move |res| {
-                        let data_before = unwrap!(res);
-                        let address = *data_before.address();
-                        client2.put_idata(data_before).map(move |_| address)
+                        let data = unwrap!(res);
+                        let address_before = *data.address();
+                        // attempt to retrieve it with generated address (it should error)
+                        get_value(&client2, address_before, Some(key2.clone()))
+                            .then(move |res| {
+                                match res {
+                                    Err(err) => {
+                                        if let CoreError::DataError(SndError::NoSuchData) = err {
+                                            // let's put it to the network (unpublished and encrypted)
+                                            create(&client3, &value_before2.clone(), false, Some(key2.clone()))
+                                        } else {
+                                            panic!("Unexpected error when ImmutableData retrieved using address generated by gen_data_map");
+                                        }
+                                    }
+                                    Ok(_) => panic!("ImmutableData unexpectedly retrieved using address generated by gen_data_map"),
+                                }
+                            })
+                            .then(move |res| {
+                                let data_map_before = unwrap!(res);
+                                let address_after = *data_map_before.address();
+                                // the addresses generated without/with putting to the network should match
+                                assert_eq!(address_after, address_before);
+                                client4.put_idata(data_map_before).map(move |_| address_after)
+                            })
                     })
                     .then(move |res| {
                         let address = unwrap!(res);
-                        get_value(&client3, address, Some(key))
+                        get_value(&client5, address, Some(key))
                     })
                     .then(move |res| {
                         let value_after = unwrap!(res);
@@ -295,6 +325,8 @@ mod tests {
                     })
             })
         }
+
+        let value = unwrap!(utils::generate_random_vector(size));
 
         // Put unencrypted Retrieve encrypted - Should fail
         {
