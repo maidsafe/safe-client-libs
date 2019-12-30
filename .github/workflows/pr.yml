@@ -147,14 +147,92 @@ jobs:
     strategy:
       matrix:
         target: [armv7-linux-androideabi, x86_64-linux-android]
-        type: [prod, dev]
-    env:
-      SAFE_CLIENT_LIBS_CONTAINER_TARGET: ${{ matrix.target }}
-      SAFE_CLIENT_LIBS_CONTAINER_TYPE: ${{ matrix.type }}
+        component: [safe_app, safe_authenticator]
     steps:
       - uses: actions/checkout@v1
-      - shell: bash
-        run: make build-android
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: ${{ matrix.target }}
+      
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      # Check if NDK bundle is installed and list files.
+      - name: Check Android NDK bundle
+        shell: bash
+        run: ls /usr/local/lib/android/sdk/ndk-bundle
+
+      # Setup NDK build toolchain for arm.
+      - if: matrix.target == 'armv7-linux-androideabi'
+        name: Setup NDK toolchain for armv7
+        shell: bash
+        run: |
+          mkdir toolchains
+          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch arm --api 21 --install-dir toolchains --force
+          echo "::set-env name=CC_armv7_linux_androideabi::arm-linux-androideabi-clang"
+          echo "::set-env name=CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER::arm-linux-androideabi-clang"
+          echo "::add-path::$PWD/toolchains/bin"
+
+      # Setup NDK build toolchain for x86_64.
+      - if: matrix.target == 'x86_64-linux-android'
+        name: Setup NDK toolchain for x86_64
+        shell: bash
+        run: |
+          mkdir toolchains
+          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
+          echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
+          echo "::add-path::$PWD/toolchains/bin"
+
+      # Verify installed NDK toolchain for the target.
+      - name: Check Android NDK toolchain Files
+        shell: bash
+        run: ls toolchains
+      - name: Download Android Build Toolchain
+        shell: bash
+        run:  rustup target add ${{matrix.target}}
+
+    # Build prod native lib.
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --manifest-path=${{ matrix.component }}/Cargo.toml --target=${{ matrix.target }}
+
+      # Upload prod native lib.
+      - uses: actions/upload-artifact@master
+        with:
+          name: ${{ matrix.component }}-${{ matrix.target }}-prod
+          path: target/${{ matrix.target }}/release/lib${{matrix.component}}.so
+
+      # Build dev native lib.
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            --release --manifest-path=${{ matrix.component }}/Cargo.toml --target=${{ matrix.target }}
+            --features=mock-network
+
+      # Upload dev native lib.
+      - uses: actions/upload-artifact@master
+        with:
+          name: ${{ matrix.component }}-${{ matrix.target }}-dev
+          path: target/${{ matrix.target }}/release/lib${{matrix.component}}.so
 
   # Run test suite.
   test:
