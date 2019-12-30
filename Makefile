@@ -8,35 +8,6 @@ USER_ID := $(shell id -u)
 GROUP_ID := $(shell id -g)
 UNAME_S := $(shell uname -s)
 
-build-container:
-ifndef SAFE_CLIENT_LIBS_CONTAINER_TYPE
-	@echo "A container type must be specified."
-	@echo "Please set SAFE_CLIENT_LIBS_CONTAINER_TYPE to 'dev' or 'prod'."
-	@exit 1
-endif
-ifndef SAFE_CLIENT_LIBS_CONTAINER_TARGET
-	@echo "A build target must be specified."
-	@echo "Please set SAFE_CLIENT_LIBS_CONTAINER_TARGET to a valid Rust 'target triple', e.g. 'x86_64-unknown-linux-gnu'."
-	@exit 1
-endif
-	./scripts/build-container.sh \
-		"${SAFE_CLIENT_LIBS_CONTAINER_TARGET}" \
-		"${SAFE_CLIENT_LIBS_CONTAINER_TYPE}"
-
-push-container:
-ifndef SAFE_CLIENT_LIBS_CONTAINER_TYPE
-	@echo "A container type must be specified."
-	@echo "Please set SAFE_CLIENT_LIBS_CONTAINER_TYPE to 'dev' or 'prod'."
-	@exit 1
-endif
-ifndef SAFE_CLIENT_LIBS_CONTAINER_TARGET
-	@echo "A build target must be specified."
-	@echo "Please set SAFE_CLIENT_LIBS_CONTAINER_TARGET to a valid Rust 'target triple', e.g. 'x86_64-unknown-linux-gnu'."
-	@exit 1
-endif
-	docker push \
-		maidsafe/safe-client-libs-build:${SAFE_CLIENT_LIBS_CONTAINER_TARGET}-${SAFE_CLIENT_LIBS_CONTAINER_TYPE}
-
 build:
 	rm -rf artifacts
 ifeq ($(UNAME_S),Linux)
@@ -56,33 +27,6 @@ else
 endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
-
-.ONESHELL:
-build-android:
-ifndef SAFE_CLIENT_LIBS_CONTAINER_TYPE
-	@echo "A container type must be specified."
-	@echo "Please set SAFE_CLIENT_LIBS_CONTAINER_TYPE to 'dev' or 'prod'."
-	@exit 1
-endif
-ifndef SAFE_CLIENT_LIBS_CONTAINER_TARGET
-	@echo "A build target must be specified."
-	@echo "Please set SAFE_CLIENT_LIBS_CONTAINER_TARGET to a valid Rust 'target triple', e.g. 'x86_64-unknown-linux-gnu'."
-	@exit 1
-endif
-	rm -rf artifacts
-	container_name="build-$$(uuidgen | sed 's/-//g')"
-	build_command="cargo build --release --manifest-path=safe_app/Cargo.toml --target=${SAFE_CLIENT_LIBS_CONTAINER_TARGET}"
-	[[ ${SAFE_CLIENT_LIBS_CONTAINER_TYPE} == 'dev' ]] && build_command="$$build_command --features=mock-network"
-	docker run --name "$$container_name" \
-	  -v $$(pwd):/usr/src/safe_client_libs:Z \
-	  -u $$(id -u):$$(id -g) \
-	  maidsafe/safe-client-libs-build:${SAFE_CLIENT_LIBS_CONTAINER_TARGET}-${SAFE_CLIENT_LIBS_CONTAINER_TYPE} \
-	  bash -c "$$build_command"
-	docker cp "$$container_name":/target .
-	docker rm "$$container_name"
-	mkdir artifacts
-	find "target/${SAFE_CLIENT_LIBS_CONTAINER_TARGET}/release" \
-		-maxdepth 1 -type f -exec cp '{}' artifacts \;
 
 clippy:
 ifeq ($(UNAME_S),Linux)
