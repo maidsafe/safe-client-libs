@@ -144,36 +144,6 @@ package-nightly-deploy-artifacts:
 	./scripts/package-runner "nightly"
 	find . -name "*.zip" -exec rm "{}" \;
 
-universal-ios-lib-dev:
-ifneq ($(UNAME_S),Darwin)
-	@echo "This target can only be run on macOS"
-	@exit 1
-endif
-
-	mkdir -p artifacts/dev/universal
-
-	lipo -create -output artifacts/dev/universal/libsafe_app.a \
-		artifacts/dev/x86_64-apple-ios/release/libsafe_app.a \
-		artifacts/dev/aarch64-apple-ios/release/libsafe_app.a
-	lipo -create -output artifacts/dev/universal/libsafe_authenticator.a \
-		artifacts/dev/x86_64-apple-ios/release/libsafe_authenticator.a \
-		artifacts/dev/aarch64-apple-ios/release/libsafe_authenticator.a
-
-universal-ios-lib-prod:
-ifneq ($(UNAME_S),Darwin)
-	@echo "This target can only be run on macOS"
-	@exit 1
-endif
-
-	mkdir -p artifacts/prod/universal
-
-	lipo -create -output artifacts/prod/universal/libsafe_app.a \
-		artifacts/prod/x86_64-apple-ios/release/libsafe_app.a \
-		artifacts/prod/aarch64-apple-ios/release/libsafe_app.a
-	lipo -create -output artifacts/prod/universal/libsafe_authenticator.a \
-		artifacts/prod/x86_64-apple-ios/release/libsafe_authenticator.a \
-		artifacts/prod/aarch64-apple-ios/release/libsafe_authenticator.a
-
 test-artifacts-binary:
 ifndef SCL_BCT_PATH
 	@echo "A value must be supplied for the previous binary compatibility test suite."

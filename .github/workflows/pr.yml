@@ -83,7 +83,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        target: [aarch64-apple-ios, x86_64-apple-ios]
+        component: [safe_app, safe_authenticator]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -91,7 +91,14 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          target: ${{ matrix.target }}
+          target: aarch64-apple-ios
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: x86_64-apple-ios
+      
       # Cache.
       - name: Cache cargo registry
         uses: actions/cache@v1
@@ -108,75 +115,31 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
+      
+      # Install cargo-lipe for universal iOS libs.
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-lipo
+      
       # Build prod libraries.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_authenticator/Cargo.toml
-            --target=${{ matrix.target }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_app/Cargo.toml
-            --target=${{ matrix.target }}
-      - shell: bash
-        run: |
-          [[ -d "artifacts" ]] && rm -rf artifacts
-          mkdir artifacts
-          find "target/${{ matrix.target }}/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      # Upload for build-ios-universal
+      - name: Build universal lib - prod
+        shell: bash
+        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml
+      # Upload prod libs.
       - uses: actions/upload-artifact@master
         with:
-          name: safe_client_libs-${{ matrix.target }}-prod
-          path: artifacts
-
-      # Build dev libraries.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_authenticator/Cargo.toml
-            --features=mock-network --target=${{ matrix.target }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_app/Cargo.toml
-            --features=mock-network --target=${{ matrix.target }}
-      - shell: bash
-        run: |
-          [[ -d "artifacts" ]] && rm -rf artifacts
-          mkdir artifacts
-          find "target/${{ matrix.target }}/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      # Upload for build-ios-universal
+          name: ${{ matrix.component }}-apple-ios-prod
+          path: target/universal/release/lib${{ matrix.component }}.a
+      # Build dev libs.
+      - name: Build universal lib - dev
+        shell: bash
+        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml --features=mock-network
+      # Upload dev libs.
       - uses: actions/upload-artifact@master
         with:
-          name: safe_client_libs-${{ matrix.target }}-dev
-          path: artifacts
-
-  # Use a single job for each type to build all targets.
-  build-ios-universal:
-    name: Build iOS Universal
-    runs-on: macos-latest
-    needs: build-ios
-    strategy:
-      matrix:
-        type: [prod, dev]
-    steps:
-      - uses: actions/checkout@v1
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_client_libs-x86_64-apple-ios-${{ matrix.type }}
-          path: artifacts/${{ matrix.type }}/x86_64-apple-ios/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_client_libs-aarch64-apple-ios-${{ matrix.type }}
-          path: artifacts/${{ matrix.type }}/aarch64-apple-ios/release
-      - shell: bash
-        run: make universal-ios-lib-${{ matrix.type }}
+          name: ${{ matrix.component }}-apple-ios-dev
+          path: target/universal/release/lib${{ matrix.component }}.a
 
   build-android:
     name: Build Android
