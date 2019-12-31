@@ -28,28 +28,6 @@ endif
 	mkdir artifacts
 	find target/release -maxdepth 1 -type f -exec cp '{}' artifacts \;
 
-clippy:
-ifeq ($(UNAME_S),Linux)
-	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:x86_64-mock \
-		scripts/clippy-all
-else
-	./scripts/clippy-all
-endif
-
-rustfmt:
-ifeq ($(UNAME_S),Linux)
-	docker run --rm -v "${PWD}":/usr/src/safe_client_libs:Z \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:x86_64-mock \
-		scripts/rustfmt
-else
-	./scripts/rustfmt
-endif
-
 package-build-artifacts:
 ifndef SCL_BUILD_BRANCH
 	@echo "A branch or PR reference must be provided."
@@ -132,17 +110,6 @@ else
 	@echo "Tests against the mock vault file are run only on OS X."
 	@exit 1
 endif
-
-tests-integration:
-	rm -rf target/
-	docker run --rm -v "${PWD}":/usr/src/safe_client_libs \
-		-u ${USER_ID}:${GROUP_ID} \
-		-e CARGO_TARGET_DIR=/target \
-		maidsafe/safe-client-libs-build:x86_64-mock \
-		scripts/test-integration
-
-debug:
-	docker run --rm -v "${PWD}":/usr/src/crust maidsafe/safe-client-libs-build:x86_64 /bin/bash
 
 copy-artifacts:
 	rm -rf artifacts
