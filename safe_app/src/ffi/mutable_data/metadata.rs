@@ -9,7 +9,7 @@
 
 //! FFI routines for handling mutable data metadata.
 
-use crate::AppError;
+use crate::ffi::errors::Result;
 use bincode::serialize;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::resp::MetadataResponse;
@@ -28,7 +28,7 @@ pub unsafe extern "C" fn mdata_encode_metadata(
         encoded_len: usize,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let metadata = UserMetadata::clone_from_repr_c(metadata)?;
         let encoded = serialize(&metadata)?;
         o_cb(user_data, FFI_RESULT_OK, encoded.as_ptr(), encoded.len());

@@ -17,6 +17,8 @@ pub mod access_container;
 pub mod cipher_opt;
 /// Crypto-related routines.
 pub mod crypto;
+/// Errors
+pub mod errors;
 /// Low level manipulation of `ImmutableData`.
 pub mod immutable_data;
 /// IPC utilities.
@@ -39,7 +41,7 @@ mod helper;
 #[cfg(test)]
 mod tests;
 
-use super::errors::AppError;
+use super::ffi::errors::{Error, Result};
 use super::App;
 use bincode::deserialize;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
@@ -61,7 +63,7 @@ pub unsafe extern "C" fn app_unregistered(
     o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, app: *mut App),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let user_data = OpaqueCtx(user_data);
 
         let config = if bootstrap_config_len == 0 || bootstrap_config.is_null() {
@@ -90,7 +92,7 @@ pub unsafe extern "C" fn app_registered(
     o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, app: *mut App),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let user_data = OpaqueCtx(user_data);
         let app_id = String::clone_from_repr_c(app_id)?;
         let auth_granted = NativeAuthGranted::clone_from_repr_c(auth_granted)?;
@@ -112,11 +114,11 @@ pub unsafe extern "C" fn app_reconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let user_data = OpaqueCtx(user_data);
         (*app).send(move |client, _| {
             try_cb!(
-                client.restart_network().map_err(AppError::from),
+                client.restart_network().map_err(Error::from),
                 user_data.0,
                 o_cb
             );
@@ -133,7 +135,7 @@ pub unsafe extern "C" fn app_set_config_dir_path(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let new_path = CStr::from_ptr(new_path).to_str()?;
         config_handler::set_config_dir_path(OsStr::new(new_path));
         o_cb(user_data, FFI_RESULT_OK);
@@ -158,7 +160,7 @@ pub unsafe extern "C" fn app_reset_object_cache(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let user_data = OpaqueCtx(user_data);
         (*app).send(move |_, context| {
             context.object_cache().reset();
@@ -179,7 +181,7 @@ pub unsafe extern "C" fn app_container_name(
         container_name: *const c_char,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let name = CString::new(safe_core::app_container_name(
             CStr::from_ptr(app_id).to_str()?,
         ))?;
