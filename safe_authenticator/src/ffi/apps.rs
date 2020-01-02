@@ -34,6 +34,8 @@ pub struct RegisteredApp {
     pub containers: *const ContainerPermissions,
     /// Length of the containers array.
     pub containers_len: usize,
+    /// Permissions allowed for the application
+    pub app_perms: FfiAppPermissions,
 }
 
 impl Drop for RegisteredApp {
@@ -45,6 +47,18 @@ impl Drop for RegisteredApp {
             );
         }
     }
+}
+
+/// Permission for Apps
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct FfiAppPermissions {
+    /// Whether this app has permissions to transfer coins.
+    pub transfer_coins: bool,
+    /// Whether this app has permissions to perform mutations.
+    pub perform_mutations: bool,
+    /// Whether this app has permissions to read the coin balance.
+    pub get_balance: bool,
 }
 
 /// Remove a revoked app from the authenticator config.

@@ -13,7 +13,7 @@ use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::ffi::apps as ffi;
 use crate::ffi::apps::RegisteredApp as FfiRegisteredApp;
-use crate::{app_container, AuthError};
+use crate::{app_container, AuthError, FfiAppPermissions};
 use bincode::deserialize;
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use futures::future::Future;
@@ -23,7 +23,7 @@ use safe_core::ipc::resp::{AccessContainerEntry, AppAccess};
 use safe_core::ipc::{access_container_enc_key, AppExchangeInfo, IpcError};
 use safe_core::utils::symmetric_decrypt;
 use safe_core::FutureExt;
-use safe_nd::{MDataAddress, XorName};
+use safe_nd::{AppPermissions, MDataAddress, XorName};
 use std::collections::HashMap;
 
 /// Represents an application that is registered with the Authenticator.
@@ -34,6 +34,8 @@ pub struct RegisteredApp {
     /// List of containers that this application has access to.
     /// Maps from the container name to the set of permissions.
     pub containers: HashMap<String, ContainerPermissions>,
+    /// Permissions allowed for the app
+    pub app_perms: AppPermissions,
 }
 
 impl RegisteredApp {
@@ -42,16 +44,24 @@ impl RegisteredApp {
         let Self {
             app_info,
             containers,
+            app_perms,
         } = self;
 
         let container_permissions_vec = containers_into_vec(containers.into_iter())?;
 
         let (containers_ptr, containers_len) = vec_into_raw_parts(container_permissions_vec);
 
+        let ffi_app_perms = FfiAppPermissions {
+            transfer_coins: app_perms.transfer_coins,
+            get_balance: app_perms.get_balance,
+            perform_mutations: app_perms.perform_mutations,
+        };
+
         Ok(FfiRegisteredApp {
             app_info: app_info.into_repr_c()?,
             containers: containers_ptr,
             containers_len,
+            app_perms: ffi_app_perms,
         })
     }
 }
@@ -62,9 +72,16 @@ impl ReprC for RegisteredApp {
 
     #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
+        let native_app_perms = AppPermissions {
+            transfer_coins: (*repr_c).app_perms.transfer_coins,
+            get_balance: (*repr_c).app_perms.get_balance,
+            perform_mutations: (*repr_c).app_perms.perform_mutations,
+        };
+
         Ok(Self {
             app_info: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app_info)?,
             containers: containers_from_repr_c((*repr_c).containers, (*repr_c).containers_len)?,
+            app_perms: native_app_perms,
         })
     }
 }
@@ -171,6 +188,7 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
                     let registered_app = RegisteredApp {
                         app_info: app.info.clone(),
                         containers,
+                        app_perms: app.perms,
                     };
 
                     apps.push(registered_app);
