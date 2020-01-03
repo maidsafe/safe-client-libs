@@ -24,7 +24,7 @@ use safe_core::ipc::req::{
 };
 use safe_core::ipc::resp::{AccessContainerEntry, IpcResp, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, IpcError, IpcMsg};
-use safe_core::{recovery, Client, CoreError, FutureExt};
+use safe_core::{mutable_data, Client, CoreError, FutureExt};
 use safe_nd::{Error as SndError, PublicKey, XorName};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -126,7 +126,7 @@ pub fn update_container_perms(
                 let fut = client
                     .get_mdata_version(*mdata_info.address())
                     .and_then(move |version| {
-                        recovery::set_mdata_user_permissions(
+                        mutable_data::set_mdata_user_permissions(
                             &c2,
                             *mdata_info.address(),
                             app_pk,

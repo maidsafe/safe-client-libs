@@ -17,7 +17,7 @@ use futures::Future;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
-use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{mutable_data, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
@@ -102,7 +102,7 @@ pub fn put_authenticator_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    recovery::mutate_mdata_entries(client, *access_container.address(), actions)
+    mutable_data::mutate_mdata_entries(client, *access_container.address(), actions)
         .map_err(From::from)
         .into_box()
 }
@@ -191,7 +191,7 @@ pub fn put_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+            mutable_data::mutate_mdata_entries(&client3, *access_container.address(), actions)
                 .map_err(AuthError::from)
         })
         .into_box()
@@ -223,7 +223,7 @@ pub fn delete_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+            mutable_data::mutate_mdata_entries(&client3, *access_container.address(), actions)
                 .map_err(AuthError::from)
         })
         .into_box()

@@ -295,41 +295,6 @@ fn union_permission_sets(a: MDataPermissionSet, b: MDataPermissionSet) -> MDataP
         })
 }
 
-/// Insert key to maid managers.
-/// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
-pub fn ins_auth_key(
-    client: &(impl Client + AuthActions),
-    key: PublicKey,
-    permissions: AppPermissions,
-    version: u64,
-) -> Box<CoreFuture<()>> {
-    let state = (0, version);
-    let client = client.clone();
-
-    future::loop_fn(state, move |(attempts, version)| {
-        client
-            .ins_auth_key(key, permissions, version)
-            .map(|_| Loop::Break(()))
-            .or_else(move |error| match error {
-                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, current_version + 1)))
-                    } else {
-                        Err(error)
-                    }
-                }
-                CoreError::RequestTimeout => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, version)))
-                    } else {
-                        Err(CoreError::RequestTimeout)
-                    }
-                }
-                error => Err(error),
-            })
-    })
-    .into_box()
-}
 
 #[cfg(test)]
 mod tests {

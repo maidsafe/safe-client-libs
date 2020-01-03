@@ -19,7 +19,7 @@ use futures::Future;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{app_container_name, client::AuthActions, recovery, Client, FutureExt, MDataInfo};
+use safe_core::{app_container_name, client::AuthActions, client_handler, Client, FutureExt, MDataInfo};
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
@@ -272,7 +272,7 @@ fn authenticate_new_app(
     client
         .list_auth_keys_and_version()
         .and_then(move |(_, version)| {
-            recovery::ins_auth_key(&c2, app_keys.public_key(), app_permissions, version + 1)
+            client_handler::ins_auth_key(&c2, app_keys.public_key(), app_permissions, version + 1)
         })
         .map_err(AuthError::from)
         .and_then(move |_| {

@@ -13,8 +13,10 @@ pub mod account;
 pub mod core_client;
 /// `MDataInfo` utilities.
 pub mod mdata_info;
-/// Operations with recovery.
-pub mod recovery;
+/// Operations for mutable_data.
+pub mod mutable_data;
+/// Operations for Client Handler
+pub mod client_handler;
 
 mod id;
 #[cfg(feature = "mock-network")]
