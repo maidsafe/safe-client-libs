@@ -116,7 +116,7 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       
-      # Install cargo-lipe for universal iOS libs.
+      # Install cargo-lipo for universal iOS libs.
       - uses: actions-rs/cargo@v1
         with:
           command: install
