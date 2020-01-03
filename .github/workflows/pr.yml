@@ -206,7 +206,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.features }}
+          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
       # Upload safe_app native lib.
       - name: upload safe_app artifact
@@ -220,7 +220,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.features }}
+          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
       # Upload safe_authenticator native lib.
       - name: upload safe_authenticator artifact
