@@ -26,9 +26,11 @@ maidsafe_logo.png",
     unused_qualifications,
     unused_results
 )]
-// Our unsafe FFI functions are missing safety documentation. It is probably not necessary for us to
-// provide this for every single function as that would be repetitive and verbose.
-#![allow(clippy::missing_safety_doc)]
+#![allow(
+    // Our unsafe FFI functions are missing safety documentation. It is probably not necessary for
+    // us to provide this for every single function as that would be repetitive and verbose.
+    clippy::missing_safety_doc,
+)]
 
 #[macro_use]
 extern crate ffi_utils;
@@ -54,11 +56,10 @@ pub use safe_nd::PubImmutableData;
 
 // Export FFI interface.
 
-pub mod ffi;
-
 pub use crate::ffi::access_container::*;
 pub use crate::ffi::cipher_opt::*;
 pub use crate::ffi::crypto::*;
+pub use crate::ffi::errors::codes::*;
 pub use crate::ffi::immutable_data::*;
 pub use crate::ffi::ipc::*;
 pub use crate::ffi::logging::*;
@@ -74,23 +75,27 @@ pub use crate::ffi::object_cache::*;
 pub use crate::ffi::test_utils::*;
 pub use crate::ffi::*;
 
+// Export public app objects.
+
+pub use crate::errors::AppError;
+pub use client::AppClient;
+
 pub mod cipher_opt;
-mod client;
-mod errors;
+pub mod ffi;
 pub mod object_cache;
 pub mod permissions;
-
-#[cfg(test)]
-mod tests;
 
 /// Utility functions to test apps functionality.
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
-pub use self::errors::*;
-pub use client::AppClient;
+mod client;
+mod errors;
+#[cfg(test)]
+mod tests;
 
 use self::object_cache::ObjectCache;
+use crate::ffi::errors::{Error, Result as FfiResult};
 use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
@@ -129,7 +134,7 @@ pub struct App {
 
 impl App {
     /// Send a message to app's event loop.
-    pub fn send<F>(&self, f: F) -> Result<(), AppError>
+    pub fn send<F>(&self, f: F) -> FfiResult<()>
     where
         F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Item = (), Error = ()>>>
             + Send
@@ -137,7 +142,7 @@ impl App {
     {
         let msg = CoreMsg::new(f);
         let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.unbounded_send(msg).map_err(AppError::from)
+        core_tx.unbounded_send(msg).map_err(Error::from)
     }
 
     /// Create unregistered app.
@@ -375,7 +380,7 @@ impl AppContext {
 }
 
 /// Helper to execute a future by blocking the thread until the result arrives.
-pub fn run<F, I, T>(app: &App, f: F) -> Result<T, AppError>
+pub fn run<F, I, T>(app: &App, f: F) -> FfiResult<T>
 where
     F: FnOnce(&AppClient, &AppContext) -> I + Send + 'static,
     I: IntoFuture<Item = T, Error = AppError> + 'static,
@@ -392,7 +397,7 @@ where
             .into_box();
         Some(future)
     })?;
-    rx.recv()?
+    rx.recv()?.map_err(crate::ffi::errors::Error::from)
 }
 
 fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFuture<()>> {

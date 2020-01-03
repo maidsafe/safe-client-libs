@@ -7,7 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY};
+use crate::ffi::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY};
 use crate::ffi::mdata_info::*;
 use crate::ffi::mutable_data::entries::*;
 use crate::ffi::mutable_data::entry_actions::*;

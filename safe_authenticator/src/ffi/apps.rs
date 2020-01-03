@@ -10,7 +10,8 @@ use crate::apps::{
     apps_accessing_mutable_data, list_registered, list_revoked, remove_revoked_app,
     RegisteredApp as NativeRegisteredApp,
 };
-use crate::{AuthError, Authenticator};
+use crate::ffi::errors::{Error, Result};
+use crate::Authenticator;
 use ffi_utils::{
     catch_unwind_cb, vec_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
@@ -56,13 +57,13 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
         let app_id = String::clone_from_repr_c(app_id)?;
 
         (*auth).send(move |client| {
             remove_revoked_app(client, app_id)
                 .then(move |res| {
-                    call_result_cb!(res, user_data, o_cb);
+                    call_result_cb!(res.map_err(Error::from), user_data, o_cb);
                     Ok(())
                 })
                 .into_box()
@@ -84,15 +85,14 @@ pub unsafe extern "C" fn auth_revoked_apps(
     ),
 ) {
     let user_data = OpaqueCtx(user_data);
-
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
         (*auth).send(move |client| {
             list_revoked(client)
                 .and_then(move |apps| {
                     let app_list: Vec<_> = apps
                         .into_iter()
                         .map(NativeAppExchangeInfo::into_repr_c)
-                        .collect::<Result<_, _>>()?;
+                        .collect::<std::result::Result<_, _>>()?;
                     o_cb(
                         user_data.0,
                         FFI_RESULT_OK,
@@ -103,14 +103,14 @@ pub unsafe extern "C" fn auth_revoked_apps(
                     Ok(())
                 })
                 .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
                 })
                 .into_box()
                 .into()
         })?;
 
         Ok(())
-    })
+    });
 }
 
 /// Get a list of apps registered in authenticator.
@@ -127,20 +127,20 @@ pub unsafe extern "C" fn auth_registered_apps(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
         (*auth).send(move |client| {
             list_registered(client)
                 .and_then(move |registered_apps| {
                     let apps: Vec<_> = registered_apps
                         .into_iter()
                         .map(NativeRegisteredApp::into_repr_c)
-                        .collect::<Result<_, _>>()?;
+                        .collect::<std::result::Result<_, _>>()?;
                     o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
 
                     Ok(())
                 })
                 .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
                 })
                 .into_box()
                 .into()
@@ -168,14 +168,14 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
     let user_data = OpaqueCtx(user_data);
     let name = XorName(*md_name);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
         (*auth).send(move |client| {
             apps_accessing_mutable_data(client, name, md_type_tag)
                 .and_then(move |apps_with_access| {
                     let app_access_vec: Vec<_> = apps_with_access
                         .into_iter()
                         .map(NativeAppAccess::into_repr_c)
-                        .collect::<Result<_, _>>()?;
+                        .collect::<std::result::Result<_, _>>()?;
                     o_cb(
                         user_data.0,
                         FFI_RESULT_OK,
@@ -186,7 +186,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
                     Ok(())
                 })
                 .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
                 })
                 .into_box()
                 .into()
@@ -200,7 +200,8 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 mod tests {
     use crate::app_auth::{app_state, AppState};
     use crate::app_container::fetch;
-    use crate::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
+    use crate::errors::AuthError;
+    use crate::ffi::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
     use crate::revocation::revoke_app;
     use crate::test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,

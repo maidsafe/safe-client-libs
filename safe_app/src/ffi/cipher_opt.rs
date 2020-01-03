@@ -8,6 +8,7 @@
 // Software.
 
 use crate::cipher_opt::CipherOpt;
+use crate::ffi::errors::Error;
 use crate::ffi::object_cache::{CipherOptHandle, EncryptPubKeyHandle};
 use crate::App;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, FFI_RESULT_OK};
@@ -65,7 +66,10 @@ pub unsafe extern "C" fn cipher_opt_new_asymmetric(
     catch_unwind_cb(user_data, o_cb, || {
         (*app).send(move |_, context| {
             let pk = try_cb!(
-                context.object_cache().get_encrypt_key(peer_encrypt_key_h),
+                context
+                    .object_cache()
+                    .get_encrypt_key(peer_encrypt_key_h)
+                    .map_err(Error::from),
                 user_data,
                 o_cb
             );
@@ -92,7 +96,10 @@ pub unsafe extern "C" fn cipher_opt_free(
 
     catch_unwind_cb(user_data, o_cb, || {
         (*app).send(move |_, context| {
-            let res = context.object_cache().remove_cipher_opt(handle);
+            let res = context
+                .object_cache()
+                .remove_cipher_opt(handle)
+                .map_err(Error::from);
             call_result_cb!(res, user_data, o_cb);
             None
         })
@@ -103,12 +110,13 @@ pub unsafe extern "C" fn cipher_opt_free(
 mod tests {
     use super::*;
     use crate::client::AppClient;
-    use crate::errors::AppError;
+    use crate::ffi::errors::codes::{
+        ERR_INVALID_CIPHER_OPT_HANDLE, ERR_INVALID_ENCRYPT_PUB_KEY_HANDLE,
+    };
     use crate::ffi::object_cache::CipherOptHandle;
     use crate::test_utils::create_app;
     use crate::{run, App, AppContext};
     use ffi_utils::test_utils::{call_0, call_1};
-    use ffi_utils::ErrorCode;
     use safe_core::{utils, Client};
 
     // Test plaintext "encryption" and decryption.
@@ -254,7 +262,7 @@ mod tests {
         let cipher_opt_handle_sym =
             unsafe { unwrap!(call_1(|ud, cb| cipher_opt_new_symmetric(&app, ud, cb))) };
         let cipher_opt_handle_asym = unsafe {
-            let err_code = AppError::InvalidEncryptPubKeyHandle.error_code();
+            let err_code = ERR_INVALID_ENCRYPT_PUB_KEY_HANDLE;
             let res: Result<CipherOptHandle, _> =
                 call_1(|ud, cb| cipher_opt_new_asymmetric(&app, 29_293_290, ud, cb));
             assert_eq!(unwrap!(res.err()), err_code);
@@ -279,7 +287,7 @@ mod tests {
         assert_free(&app, cipher_opt_handle_sym, 0);
         assert_free(&app, cipher_opt_handle_asym, 0);
 
-        let err_code = AppError::InvalidCipherOptHandle.error_code();
+        let err_code = ERR_INVALID_CIPHER_OPT_HANDLE;
         assert_free(&app, cipher_opt_handle_pt, err_code);
         assert_free(&app, cipher_opt_handle_sym, err_code);
         assert_free(&app, cipher_opt_handle_asym, err_code);

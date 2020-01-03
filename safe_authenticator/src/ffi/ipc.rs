@@ -9,6 +9,7 @@
 use crate::access_container;
 use crate::app_auth;
 use crate::config;
+use crate::ffi::errors::{Error, Result};
 use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
 use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use crate::{AuthError, Authenticator};
@@ -45,7 +46,7 @@ pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_err, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_err, || -> Result<_> {
         let msg_raw = CStr::from_ptr(msg).to_str()?;
         let msg = decode_msg(msg_raw)?;
 
@@ -63,7 +64,7 @@ pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
             }
             _ => {
                 call_result_cb!(
-                    Err::<(), _>(AuthError::CoreError(CoreError::OperationForbidden)),
+                    Err::<(), _>(Error::from(CoreError::OperationForbidden)),
                     user_data,
                     o_err
                 );
@@ -99,7 +100,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_err, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_err, || -> Result<_> {
         let msg_raw = CStr::from_ptr(msg).to_str()?;
         let msg = decode_msg(msg_raw)?;
 
@@ -172,13 +173,14 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         ok!(())
                     }
                     Ok(IpcMsg::Resp { .. }) | Ok(IpcMsg::Revoked { .. }) | Ok(IpcMsg::Err(..)) => {
-                        let err = AuthError::Unexpected("Unexpected msg type".to_owned());
+                        let err =
+                            Error::from(AuthError::Unexpected("Unexpected msg type".to_owned()));
                         call_result_cb!(Err::<(), _>(err), user_data, o_err);
                         ok!(())
                     }
                 })
                 .map_err(move |err| {
-                    call_result_cb!(Err::<(), _>(err), user_data, o_err);
+                    call_result_cb!(Err::<(), _>(Error::from(err)), user_data, o_err);
                 })
                 .into_box()
                 .into()
@@ -197,7 +199,7 @@ pub unsafe extern "C" fn auth_revoke_app(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
         let app_id = String::clone_from_repr_c(app_id)?;
 
         (*auth).send(move |client| {
@@ -208,7 +210,7 @@ pub unsafe extern "C" fn auth_revoke_app(
                     Ok(())
                 })
                 .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
                 })
                 .into_box()
                 .into()
@@ -227,11 +229,11 @@ pub unsafe extern "C" fn auth_flush_app_revocation_queue(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
         (*auth).send(move |client| {
             flush_app_revocation_queue(client)
                 .then(move |res| {
-                    call_result_cb!(res, user_data, o_cb);
+                    call_result_cb!(res.map_err(Error::from), user_data, o_cb);
                     Ok(())
                 })
                 .into_box()
@@ -250,7 +252,7 @@ pub unsafe extern "C" fn encode_unregistered_resp(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<()> {
         if is_granted {
             let bootstrap_cfg = client::bootstrap_config()?;
 
@@ -284,12 +286,13 @@ pub unsafe extern "C" fn encode_auth_resp(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<()> {
         let auth_req = NativeAuthReq::clone_from_repr_c(req)?;
 
         if is_granted {
             (*auth).send(move |client| {
                 app_auth::authenticate(client, auth_req)
+                    .map_err(Error::from)
                     .and_then(move |auth_granted| {
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
@@ -299,7 +302,7 @@ pub unsafe extern "C" fn encode_auth_resp(
                         o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
                         Ok(())
                     })
-                    .or_else(move |e| -> Result<(), AuthError> {
+                    .or_else(move |e| -> Result<()> {
                         let (error_code, description) = ffi_error!(e);
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
@@ -344,7 +347,7 @@ pub unsafe extern "C" fn encode_containers_resp(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<()> {
         let cont_req = NativeContainersReq::clone_from_repr_c(req)?;
 
         if is_granted {
@@ -400,7 +403,8 @@ pub unsafe extern "C" fn encode_containers_resp(
                         o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
                         Ok(())
                     })
-                    .or_else(move |e| -> Result<(), AuthError> {
+                    .map_err(Error::from)
+                    .or_else(move |e| -> Result<()> {
                         let (error_code, description) = ffi_error!(e);
                         let resp = encode_response(&IpcMsg::Resp {
                             req_id,
@@ -443,7 +447,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<(), AuthError> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<()> {
         let share_mdata_req = NativeShareMDataReq::clone_from_repr_c(req)?;
 
         if is_granted {
@@ -490,7 +494,7 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
                             .into_box()
                     })
                     .map_err(move |e| {
-                        call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                        call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
                     })
                     .into_box()
                     .into()

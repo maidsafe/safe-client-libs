@@ -13,6 +13,7 @@ use crate::access_container;
 use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::config;
+use crate::ffi::errors::Error as FFIError;
 use bincode::deserialize;
 use ffi_utils::StringError;
 use futures::future::{self, Either};
@@ -81,7 +82,7 @@ pub fn decode_ipc_msg(
                         AppState::Revoked | AppState::NotAuthenticated => {
                             // App is not authenticated
                             let (error_code, description) =
-                                ffi_error!(AuthError::from(IpcError::UnknownApp));
+                                ffi_error!(FFIError::from(IpcError::UnknownApp));
 
                             let response = IpcMsg::Resp {
                                 response: IpcResp::Auth(Err(IpcError::UnknownApp)),

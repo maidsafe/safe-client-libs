@@ -12,6 +12,8 @@
 
 /// Type definitions for arrays that are FFI input params.
 pub mod arrays;
+/// FFI Error Codes
+pub mod error_codes;
 /// IPC utilities.
 pub mod ipc;
 /// NFS API.
