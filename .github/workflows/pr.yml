@@ -157,8 +157,8 @@ jobs:
           override: true
           target: ${{ matrix.target }}
       
-      # Set environment variable for the feature flag.
-      - name: Set features output variable for the dev build
+      # Set output parameter for the feature flag.
+      - name: Set features output parameter for the dev build
         id: set_dev_flag
         if: matrix.type == 'dev'
         run: echo ::set-output name=features::--features=mock-network

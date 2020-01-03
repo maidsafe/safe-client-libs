@@ -169,8 +169,8 @@ jobs:
           override: true
           target: ${{ matrix.target }}
       
-      # Set environment variable for the feature flag.
-      - name: Set features output variable for the dev build
+      # Set output parameter for the feature flag.
+      - name: Set features output parameter for the dev build
         id: set_dev_flag
         if: matrix.type == 'dev'
         run: echo ::set-output name=features::--features=mock-network
@@ -218,7 +218,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.features.docker_tag }}
+          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
       # Upload safe_app native lib.
       - name: upload safe_app artifact
@@ -232,7 +232,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.features.docker_tag }}
+          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
       # Upload safe_authenticator native lib.
       - name: upload safe_authenticator artifact
