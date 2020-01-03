@@ -327,14 +327,6 @@ jobs:
       # iOS
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-aarch64-apple-ios-prod
-          path: artifacts/prod/aarch64-apple-ios/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_client_libs-aarch64-apple-ios-dev
-          path: artifacts/dev/aarch64-apple-ios/release
-      - uses: actions/download-artifact@master
-        with:
           name: safe_app-apple-ios-prod
           path: artifacts/prod/apple-ios/release
       - uses: actions/download-artifact@master
