@@ -147,7 +147,7 @@ jobs:
     strategy:
       matrix:
         target: [armv7-linux-androideabi, x86_64-linux-android]
-        component: [safe_app, safe_authenticator]
+        type: [dev, prod]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -156,6 +156,12 @@ jobs:
           profile: minimal
           override: true
           target: ${{ matrix.target }}
+      
+      # Set environment variable for the feature flag.
+      - name: Set features output variable for the dev build
+        id: set_dev_flag
+        if: matrix.type == 'dev'
+        run: echo ::set-output name=features::--features=mock-network
       
       # Cache.
       - name: Cache cargo registry
@@ -173,11 +179,6 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      # Check if NDK bundle is installed and list files.
-      - name: Check Android NDK bundle
-        shell: bash
-        run: ls /usr/local/lib/android/sdk/ndk-bundle
 
       # Setup NDK build toolchain for arm.
       - if: matrix.target == 'armv7-linux-androideabi'
@@ -200,39 +201,33 @@ jobs:
           echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
           echo "::add-path::$PWD/toolchains/bin"
 
-      # Verify installed NDK toolchain for the target.
-      - name: Check Android NDK toolchain Files
-        shell: bash
-        run: ls toolchains
-      - name: Download Android Build Toolchain
-        shell: bash
-        run:  rustup target add ${{matrix.target}}
-
-    # Build prod native lib.
-      - uses: actions-rs/cargo@v1
+    # Build safe_app native lib.
+      - name: build safe_app
+        uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --manifest-path=${{ matrix.component }}/Cargo.toml --target=${{ matrix.target }}
+          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.features }}
 
-      # Upload prod native lib.
-      - uses: actions/upload-artifact@master
+      # Upload safe_app native lib.
+      - name: upload safe_app artifact
+        uses: actions/upload-artifact@master
         with:
-          name: ${{ matrix.component }}-${{ matrix.target }}-prod
-          path: target/${{ matrix.target }}/release/lib${{matrix.component}}.so
+          name: safe_app-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_app.so
 
-      # Build dev native lib.
-      - uses: actions-rs/cargo@v1
+      # Build safe_authenticator native lib.
+      - name: build safe_authenticator
+        uses: actions-rs/cargo@v1
         with:
           command: build
-          args: >
-            --release --manifest-path=${{ matrix.component }}/Cargo.toml --target=${{ matrix.target }}
-            --features=mock-network
+          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.features }}
 
-      # Upload dev native lib.
-      - uses: actions/upload-artifact@master
+      # Upload safe_authenticator native lib.
+      - name: upload safe_authenticator artifact
+        uses: actions/upload-artifact@master
         with:
-          name: ${{ matrix.component }}-${{ matrix.target }}-dev
-          path: target/${{ matrix.target }}/release/lib${{matrix.component}}.so
+          name: safe_authenticator-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_authenticator.so
 
   # Run test suite.
   test:
