@@ -343,20 +343,6 @@ jobs:
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-aarch64-apple-ios.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-aarch64-apple-ios.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-ios.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-ios.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
           asset_content_type: application/zip
@@ -396,20 +382,6 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-aarch64-apple-ios.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-aarch64-apple-ios.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-ios.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-ios.tar.gz
           asset_content_type: application/zip
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
