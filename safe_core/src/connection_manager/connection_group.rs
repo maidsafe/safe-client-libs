@@ -271,7 +271,7 @@ impl Joining {
 
 struct Connected {
     elders: HashMap<SocketAddr, Elder>,
-    hooks: HashMap<MessageId, Sender<Response>>, // to be replaced with Accumulator for multiple vaults.
+    hooks: HashMap<MessageId, (Sender<Response>, usize)>, // to be replaced with Accumulator for multiple vaults.
 }
 
 impl Connected {
@@ -305,7 +305,7 @@ impl Connected {
         let mut rng = rand::thread_rng();
 
         let (future_tx, future_rx) = oneshot::channel();
-        let _ = self.hooks.insert(msg_id, future_tx);
+        let _ = self.hooks.insert(msg_id, (future_tx, self.elders.len()));
 
         let bytes = Bytes::from(unwrap!(serialize(msg)));
         {
@@ -339,7 +339,16 @@ impl Connected {
         let _ = self
             .hooks
             .remove(&msg_id)
-            .map(|sender| sender.send(response))
+            .map(|(sender, count)| {
+                let count = count - 1;
+                dbg!("Response no: {}", count);
+                if count == 0 {
+                    sender.send(response)
+                } else {
+                    let _ = self.hooks.insert(msg_id, (sender, count));
+                    Ok(())
+                }
+            })
             .or_else(|| {
                 trace!("No hook found for message ID {:?}", msg_id);
                 None
