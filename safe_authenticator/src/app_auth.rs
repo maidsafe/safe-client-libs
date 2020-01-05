@@ -13,7 +13,7 @@ use crate::access_container;
 use crate::app_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
-use crate::ipc::update_container_perms;
+use crate::access_container::update_container_perms;
 use futures::future::{self, Either};
 use futures::Future;
 use safe_core::client;

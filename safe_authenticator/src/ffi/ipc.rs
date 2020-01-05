@@ -10,7 +10,7 @@ use crate::access_container;
 use crate::app_auth;
 use crate::config;
 use crate::ffi::errors::{Error, Result};
-use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response, update_container_perms};
+use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response};
 use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use crate::{AuthError, Authenticator};
 use ffi_utils::{
@@ -362,7 +362,7 @@ pub unsafe extern "C" fn encode_containers_resp(
                 config::get_app(client, &app_id)
                     .and_then(move |app| {
                         let app_pk = app.keys.public_key();
-                        update_container_perms(&c2, permissions, app_pk)
+                        access_container::update_container_perms(&c2, permissions, app_pk)
                             .map(move |perms| (app, perms))
                     })
                     .and_then(move |(app, mut perms)| {
