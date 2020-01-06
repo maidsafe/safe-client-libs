@@ -98,7 +98,7 @@ jobs:
           toolchain: stable
           override: true
           target: x86_64-apple-ios
-      
+
       # Cache.
       - name: Cache cargo registry
         uses: actions/cache@v1
@@ -115,13 +115,13 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      
+
       # Install cargo-lipo for universal iOS libs.
       - uses: actions-rs/cargo@v1
         with:
           command: install
           args: cargo-lipo
-      
+
       # Build prod libraries.
       - name: Build universal lib - prod
         shell: bash
@@ -156,13 +156,13 @@ jobs:
           profile: minimal
           override: true
           target: ${{ matrix.target }}
-      
+
       # Set output parameter for the feature flag.
       - name: Set features output parameter for the dev build
         id: set_dev_flag
         if: matrix.type == 'dev'
         run: echo ::set-output name=features::--features=mock-network
-      
+
       # Cache.
       - name: Cache cargo registry
         uses: actions/cache@v1
@@ -261,7 +261,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
       # Run tests.
       - shell: bash
-        run: ./scripts/test-mock
+        run: ./scripts/test-mock && scripts/test-integration
 
   # Test publish using --dry-run.
   # Only safe_core, as auth and app will fail if core was version-updated.

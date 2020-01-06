@@ -9,9 +9,10 @@
 
 pub mod entries;
 pub mod entry_actions;
-mod helper;
 pub mod metadata;
 pub mod permissions;
+
+mod helper;
 #[cfg(test)]
 mod tests;
 

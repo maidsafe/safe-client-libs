@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
-scripts/check-real &&
-  scripts/check-mock
+scripts/check-real
+scripts/check-mock

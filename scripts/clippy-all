@@ -1,9 +1,9 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
 # Deny any warnings that occur.
 export RUSTFLAGS="-D warnings"
 
-scripts/clippy-real &&
-  scripts/clippy-mock
+scripts/clippy-real
+scripts/clippy-mock
