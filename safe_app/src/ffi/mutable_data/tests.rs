@@ -21,10 +21,10 @@ use ffi_utils::test_utils::{
     call_0, call_1, call_vec, call_vec_u8, send_via_user_data, sender_as_user_data,
 };
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult};
+use safe_core::core_structs::{MDataKey, MDataValue};
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
-use safe_core::core_structs::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
 use safe_nd::{MDataAction, MDataPermissionSet};
 use std::sync::mpsc;

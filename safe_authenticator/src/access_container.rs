@@ -15,8 +15,8 @@ use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
 use futures::future;
 use futures::Future;
+use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys};
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
-use safe_core::core_structs::{AppKeys, access_container_enc_key, AccessContainerEntry};
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
 use safe_core::{recovery_wrapped_apis, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
@@ -242,8 +242,12 @@ pub fn put_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery_wrapped_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
-                .map_err(AuthError::from)
+            recovery_wrapped_apis::mutate_mdata_entries(
+                &client3,
+                *access_container.address(),
+                actions,
+            )
+            .map_err(AuthError::from)
         })
         .into_box()
 }
@@ -274,8 +278,12 @@ pub fn delete_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery_wrapped_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
-                .map_err(AuthError::from)
+            recovery_wrapped_apis::mutate_mdata_entries(
+                &client3,
+                *access_container.address(),
+                actions,
+            )
+            .map_err(AuthError::from)
         })
         .into_box()
 }

@@ -8,24 +8,16 @@
 
 #![allow(unsafe_code)]
 
-use crate::client::{MDataInfo, SafeKey};
-use crate::crypto::{shared_box, shared_secretbox};
+use crate::core_structs::{
+    access_container_entry_clone_from_repr_c, access_container_entry_into_repr_c, AccessContInfo,
+    AccessContainerEntry, AppKeys,
+};
 use crate::ffi::ipc::resp as ffi;
-use crate::ipc::req::{
-    container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c,
-    permission_set_into_repr_c, ContainerPermissions,
-};
-use crate::core_structs::{AppKeys, AccessContInfo, AccessContainerEntry, access_container_entry_into_repr_c, access_container_entry_clone_from_repr_c};
-use crate::ipc::{BootstrapConfig, IpcError};
-use crate::utils::{symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN};
-use crate::CoreError;
-use bincode::{deserialize, serialize};
-use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
-use rand::thread_rng;
 
-use safe_nd::{
-    AppFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName,
-};
+use crate::ipc::{BootstrapConfig, IpcError};
+use bincode::{deserialize, serialize};
+use ffi_utils::{vec_into_raw_parts, ReprC};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -35,6 +27,7 @@ use std::slice;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
 
+use std::slice;
 
 /// IPC response.
 // TODO: `TransOwnership` variant
@@ -116,7 +109,6 @@ impl ReprC for AuthGranted {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,5 +142,4 @@ mod tests {
 
         assert_eq!(ag.access_container_info.tag, 681);
     }
-
 }

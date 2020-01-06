@@ -24,8 +24,8 @@ use futures::{future, Future};
 use safe_core::{
     app_container_name,
     client::AuthActions,
-    ipc::req::container_perms_into_permission_set,
     core_structs::AccessContainerEntry,
+    ipc::req::container_perms_into_permission_set,
     ipc::{AuthReq, Permission},
     Client, CoreError, FutureExt, MDataInfo,
 };

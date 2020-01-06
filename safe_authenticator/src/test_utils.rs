@@ -20,14 +20,14 @@ use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
 use log::Record;
 use safe_core::client::{test_create_balance, Client};
+use safe_core::core_structs::AccessContainerEntry;
+use safe_core::core_structs::UserMetadata;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
     AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataRequest as FfiShareMDataReq,
 };
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
-use safe_core::core_structs::AccessContainerEntry;
-use safe_core::core_structs::UserMetadata;
 use safe_core::ipc::{
     self, AppExchangeInfo, AuthGranted, AuthReq, ContainersReq, IpcMsg, IpcReq, ShareMDataReq,
 };

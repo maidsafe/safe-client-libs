@@ -31,11 +31,11 @@ use safe_authenticator::ffi::*;
 use safe_authenticator::test_utils::*;
 use safe_authenticator::{AuthError, Authenticator};
 use safe_core::btree_set;
+use safe_core::core_structs::{MDataEntry, MDataKey, MDataValue};
 use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::req::{
     permission_set_into_repr_c, AppExchangeInfo, AuthReq, ContainerPermissions,
 };
-use safe_core::core_structs::{MDataEntry, MDataKey, MDataValue};
 use safe_core::ipc::{AuthGranted, Permission};
 use safe_core::nfs::{Mode, NfsError};
 use safe_core::MDataInfo;

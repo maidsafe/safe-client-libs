@@ -18,10 +18,10 @@ use ffi_utils::callback::Callback;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
 };
-use safe_core::ffi::ipc::resp::MDataEntry;
 use safe_core::core_structs::{
     MDataEntry as NativeMDataEntry, MDataKey as NativeMDataKey, MDataValue as NativeMDataValue,
 };
+use safe_core::ffi::ipc::resp::MDataEntry;
 use safe_core::CoreError;
 use safe_nd::{Error as NdError, MDataSeqValue};
 use std::collections::BTreeMap;

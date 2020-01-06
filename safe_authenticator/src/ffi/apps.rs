@@ -16,11 +16,11 @@ use ffi_utils::{
     catch_unwind_cb, vec_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::Future;
+use safe_core::core_structs::AppAccess as NativeAppAccess;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
 use safe_core::ffi::ipc::resp::AppAccess;
 use safe_core::ipc::req::AppExchangeInfo as NativeAppExchangeInfo;
-use safe_core::core_structs::AppAccess as NativeAppAccess;
 use safe_core::FutureExt;
 use safe_nd::XorName;
 use std::os::raw::{c_char, c_void};

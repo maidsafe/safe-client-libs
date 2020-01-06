@@ -12,8 +12,8 @@
 use crate::ffi::errors::Result;
 use bincode::serialize;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
-use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::core_structs::UserMetadata;
+use safe_core::ffi::ipc::resp::MetadataResponse;
 use std::os::raw::c_void;
 
 /// Serialize metadata.

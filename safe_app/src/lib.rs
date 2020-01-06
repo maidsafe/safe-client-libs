@@ -100,9 +100,9 @@ use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future, IntoFuture};
-use safe_core::crypto::shared_secretbox;
+use safe_core::core_structs::AccessContInfo;
 use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry};
-use safe_core::core_structs::{AccessContInfo};
+use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::{AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;

@@ -10,7 +10,6 @@
 #![allow(unsafe_code)]
 
 ///! Core structs for network operations
-
 use crate::client::{MDataInfo, SafeKey};
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::ffi::ipc::resp as ffi;
@@ -18,7 +17,7 @@ use crate::ipc::req::{
     container_perms_from_repr_c, container_perms_into_repr_c, permission_set_clone_from_repr_c,
     permission_set_into_repr_c, ContainerPermissions,
 };
-use crate::ipc::{BootstrapConfig, IpcError};
+use crate::ipc::IpcError;
 use crate::utils::{symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN};
 use crate::CoreError;
 use bincode::{deserialize, serialize};
@@ -43,7 +42,6 @@ pub static METADATA_KEY: &[u8] = b"_metadata";
 // TODO: Replace with `METADATA_KEY.len()` once `len` is stable as a const fn.
 #[no_mangle]
 pub static METADATA_KEY_LEN: usize = 9;
-
 
 /// Represents the needed keys to work with the data.
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -516,7 +514,6 @@ mod tests {
     use crate::utils::test_utils::gen_client_id;
     use ffi_utils::ReprC;
     use safe_nd::{XorName, XOR_NAME_LEN};
-
 
     // Testing converting an `AppKeys` object to its FFI representation and back again.
     #[test]

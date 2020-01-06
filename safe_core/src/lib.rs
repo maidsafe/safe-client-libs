@@ -43,14 +43,14 @@ pub use ffi::*;
 pub mod client;
 /// Config file handling.
 pub mod config_handler;
+/// Core structs and associatied functionality
+pub mod core_structs;
 /// Cryptographic utilities.
 pub mod crypto;
 /// Event loop handling.
 pub mod event_loop;
 /// Utilities for handling `ImmutableData`.
 pub mod immutable_data;
-/// Core structs and associatied functionality
-pub mod core_structs;
 /// Inter-Process Communication utilities.
 pub mod ipc;
 /// NFS utilities.
@@ -66,8 +66,8 @@ mod errors;
 mod network_event;
 
 pub use self::client::{
-    client_handler, mdata_info, recovery_wrapped_apis, test_create_balance, AuthActions, Client, ClientKeys,
-    MDataInfo,
+    client_handler, mdata_info, recovery_wrapped_apis, test_create_balance, AuthActions, Client,
+    ClientKeys, MDataInfo,
 };
 #[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManager};
