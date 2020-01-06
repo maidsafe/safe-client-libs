@@ -61,3 +61,7 @@ name = "client_stress_test"
 [[example]]
 bench = false
 name = "self_authentication"
+
+[[example]]
+bench = false
+name = "email"
