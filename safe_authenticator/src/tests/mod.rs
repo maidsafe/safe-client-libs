@@ -28,6 +28,7 @@ use crate::safe_core::ipc::{
 use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
 use crate::{app_container, run};
+use crate::ffi::apps::AppPermissions as FfiAppPermissions;
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{ReprC, StringError};
 use futures::{future, Future};

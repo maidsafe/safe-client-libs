@@ -35,7 +35,7 @@ pub struct RegisteredApp {
     /// Length of the containers array.
     pub containers_len: usize,
     /// Permissions allowed for the application
-    pub app_perms: FfiAppPermissions,
+    pub app_perms: AppPermissions,
 }
 
 impl Drop for RegisteredApp {
@@ -52,7 +52,7 @@ impl Drop for RegisteredApp {
 /// Permission for Apps
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct FfiAppPermissions {
+pub struct AppPermissions {
     /// Whether this app has permissions to transfer coins.
     pub transfer_coins: bool,
     /// Whether this app has permissions to perform mutations.
