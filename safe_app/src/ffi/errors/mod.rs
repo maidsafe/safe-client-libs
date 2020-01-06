@@ -32,7 +32,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// FFI Error type
 #[derive(Debug)]
-pub struct Error(AppError);
+pub struct Error(pub AppError);
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
