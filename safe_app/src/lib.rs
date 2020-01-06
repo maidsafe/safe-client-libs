@@ -95,7 +95,7 @@ mod errors;
 mod tests;
 
 use self::object_cache::ObjectCache;
-pub use crate::ffi::errors::{Error as FfiError, Result as FfiResult};
+use crate::ffi::errors::{Error as FfiError, Result as FfiResult};
 use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;

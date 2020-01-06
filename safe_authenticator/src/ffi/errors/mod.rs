@@ -30,7 +30,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// FFI Error type
 #[derive(Debug)]
-pub struct Error(AuthError);
+pub struct Error(pub AuthError);
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
