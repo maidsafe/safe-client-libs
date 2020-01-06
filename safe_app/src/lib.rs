@@ -47,7 +47,7 @@ extern crate unwrap;
 
 // Re-export functions used in FFI so that they are accessible through the Rust API.
 
-pub use safe_core::ipc::AppKeys;
+pub use safe_core::core_structs::AppKeys;
 pub use safe_core::{
     app_container_name, immutable_data, ipc, mdata_info, nfs, utils, Client, ClientKeys, CoreError,
     CoreFuture, FutureExt, MDataInfo, DIR_TAG, MAIDSAFE_TAG,
@@ -101,8 +101,9 @@ use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future, IntoFuture};
 use safe_core::crypto::shared_secretbox;
-use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
-use safe_core::ipc::{AccessContInfo, AuthGranted, BootstrapConfig};
+use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry};
+use safe_core::core_structs::{AccessContInfo};
+use safe_core::ipc::{AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};

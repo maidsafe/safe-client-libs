@@ -18,7 +18,7 @@ pub use self::req::{
     AppExchangeInfo, AuthReq, ContainersReq, IpcReq, Permission, ShareMData, ShareMDataReq,
 };
 pub use self::resp::{
-    access_container_enc_key, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, IpcResp,
+    AuthGranted, IpcResp,
 };
 
 use bincode::{deserialize, serialize};

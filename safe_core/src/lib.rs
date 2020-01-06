@@ -49,6 +49,8 @@ pub mod crypto;
 pub mod event_loop;
 /// Utilities for handling `ImmutableData`.
 pub mod immutable_data;
+/// Core structs and associatied functionality
+pub mod core_structs;
 /// Inter-Process Communication utilities.
 pub mod ipc;
 /// NFS utilities.

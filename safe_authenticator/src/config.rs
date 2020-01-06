@@ -15,7 +15,7 @@ use bincode::{deserialize, serialize};
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use safe_core::ipc::req::AppExchangeInfo;
-use safe_core::ipc::resp::AppKeys;
+use safe_core::core_structs::AppKeys;
 use safe_core::ipc::IpcError;
 use safe_core::{Client, CoreError, FutureExt};
 use safe_nd::{AppPermissions, EntryError, Error as SndError, MDataSeqEntryActions};

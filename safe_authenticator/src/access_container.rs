@@ -16,8 +16,7 @@ use bincode::{deserialize, serialize};
 use futures::future;
 use futures::Future;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
-use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
-use safe_core::ipc::AppKeys;
+use safe_core::core_structs::{AppKeys, access_container_enc_key, AccessContainerEntry};
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
 use safe_core::{mutable_data, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{

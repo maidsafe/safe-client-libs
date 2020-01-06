@@ -24,7 +24,7 @@ use ffi_utils::{vec_clone_from_raw_parts, FfiResult};
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
-use safe_core::ipc::resp::{MDataKey, MDataValue};
+use safe_core::core_structs::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
 use safe_nd::{MDataAction, MDataPermissionSet};
 use std::sync::mpsc;

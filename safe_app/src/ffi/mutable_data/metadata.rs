@@ -13,7 +13,7 @@ use crate::ffi::errors::Result;
 use bincode::serialize;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::resp::MetadataResponse;
-use safe_core::ipc::resp::UserMetadata;
+use safe_core::core_structs::UserMetadata;
 use std::os::raw::c_void;
 
 /// Serialize metadata.
@@ -41,7 +41,7 @@ mod tests {
     use crate::ffi::mutable_data::metadata::mdata_encode_metadata;
     use bincode::deserialize;
     use ffi_utils::test_utils::call_vec_u8;
-    use safe_core::ipc::resp::UserMetadata;
+    use safe_core::core_structs::UserMetadata;
 
     // Test serializing and deserializing metadata.
     #[test]

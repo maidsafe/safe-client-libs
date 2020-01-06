@@ -26,8 +26,8 @@ use safe_core::ffi::ipc::req::{
 };
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
-use safe_core::ipc::resp::AccessContainerEntry;
-use safe_core::ipc::resp::UserMetadata;
+use safe_core::core_structs::AccessContainerEntry;
+use safe_core::core_structs::UserMetadata;
 use safe_core::ipc::{
     self, AppExchangeInfo, AuthGranted, AuthReq, ContainersReq, IpcMsg, IpcReq, ShareMDataReq,
 };

@@ -12,7 +12,7 @@ use crate::config::KEY_APPS;
 use crate::{AuthError, AuthFuture};
 use bincode::serialize;
 use futures::{future, Future};
-use safe_core::ipc::access_container_enc_key;
+use safe_core::core_structs::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_directory;
 use safe_core::utils::symmetric_encrypt;

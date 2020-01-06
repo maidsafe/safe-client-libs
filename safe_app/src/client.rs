@@ -14,7 +14,7 @@ use rand::thread_rng;
 use safe_core::client::{Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
-use safe_core::ipc::AppKeys;
+use safe_core::core_structs::AppKeys;
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ConnectionManager, NetworkTx};
 use safe_nd::{ClientFullId, PublicKey};

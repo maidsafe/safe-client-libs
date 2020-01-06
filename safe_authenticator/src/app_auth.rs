@@ -18,7 +18,8 @@ use futures::future::{self, Either};
 use futures::Future;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
-use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
+use safe_core::ipc::resp::{AuthGranted};
+use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
 use safe_core::{
     app_container_name, client::AuthActions, client_handler, Client, FutureExt, MDataInfo,
 };

@@ -35,7 +35,7 @@ use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::req::{
     permission_set_into_repr_c, AppExchangeInfo, AuthReq, ContainerPermissions,
 };
-use safe_core::ipc::resp::{MDataEntry, MDataKey, MDataValue};
+use safe_core::core_structs::{MDataEntry, MDataKey, MDataValue};
 use safe_core::ipc::{AuthGranted, Permission};
 use safe_core::nfs::{Mode, NfsError};
 use safe_core::MDataInfo;
