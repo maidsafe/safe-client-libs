@@ -10,16 +10,18 @@
 
 use super::{AuthError, AuthFuture};
 use crate::access_container;
+use crate::access_container::update_container_perms;
 use crate::app_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
-use crate::access_container::update_container_perms;
 use futures::future::{self, Either};
 use futures::Future;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{app_container_name, client::AuthActions, client_handler, Client, FutureExt, MDataInfo};
+use safe_core::{
+    app_container_name, client::AuthActions, client_handler, Client, FutureExt, MDataInfo,
+};
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;

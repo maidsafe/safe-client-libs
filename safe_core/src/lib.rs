@@ -64,7 +64,8 @@ mod errors;
 mod network_event;
 
 pub use self::client::{
-    client_handler, mdata_info, mutable_data, test_create_balance, AuthActions, Client, ClientKeys, MDataInfo,
+    client_handler, mdata_info, mutable_data, test_create_balance, AuthActions, Client, ClientKeys,
+    MDataInfo,
 };
 #[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManager};

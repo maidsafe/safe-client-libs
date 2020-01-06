@@ -13,8 +13,9 @@
 use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
-use futures::Future;
 use futures::future;
+use futures::Future;
+use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
@@ -22,15 +23,10 @@ use safe_core::{mutable_data, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
-use safe_core::ipc::req::{
-    container_perms_into_permission_set, ContainerPermissions
-};
 use std::collections::HashMap;
 
 /// Key of the authenticator entry in the access container.
 pub const AUTHENTICATOR_ENTRY: &str = "authenticator";
-
-
 
 /// Updates containers permissions (adds a given key to the permissions set)
 #[allow(clippy::implicit_hasher)]
@@ -81,7 +77,6 @@ pub fn update_container_perms(
         .map_err(AuthError::from)
         .into_box()
 }
-
 
 /// Gets access container entry key corresponding to the given app.
 pub fn enc_key(

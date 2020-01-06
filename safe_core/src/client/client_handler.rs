@@ -11,14 +11,9 @@ use crate::client::AuthActions;
 use crate::errors::CoreError;
 use crate::event_loop::CoreFuture;
 use crate::utils::FutureExt;
-use futures::future::{self, Either, Loop};
+use futures::future::{self, Loop};
 use futures::Future;
-use safe_nd::{
-    AppPermissions, EntryError, Error as SndError, MDataAction, MDataAddress, MDataPermissionSet,
-    MDataSeqEntries, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey,
-    SeqMutableData,
-};
-use std::collections::BTreeMap;
+use safe_nd::{AppPermissions, Error as SndError, PublicKey};
 
 const MAX_ATTEMPTS: usize = 10;
 

@@ -18,9 +18,7 @@ use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
-use safe_core::ipc::req::{
-    IpcReq, ShareMDataReq,
-};
+use safe_core::ipc::req::{IpcReq, ShareMDataReq};
 use safe_core::ipc::resp::{IpcResp, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, IpcError, IpcMsg};
 use safe_core::{Client, CoreError, FutureExt};
@@ -99,7 +97,6 @@ pub fn decode_ipc_msg(
         }
     }
 }
-
 
 /// Encode `IpcMsg` into a `CString`, using base32 encoding.
 pub fn encode_response(msg: &IpcMsg) -> Result<CString, IpcError> {

@@ -8,6 +8,8 @@
 
 /// User Account information.
 pub mod account;
+/// Operations for Client Handler
+pub mod client_handler;
 /// Core client used for testing purposes.
 #[cfg(any(test, feature = "testing"))]
 pub mod core_client;
@@ -15,8 +17,6 @@ pub mod core_client;
 pub mod mdata_info;
 /// Operations for mutable_data.
 pub mod mutable_data;
-/// Operations for Client Handler
-pub mod client_handler;
 
 mod id;
 #[cfg(feature = "mock-network")]
