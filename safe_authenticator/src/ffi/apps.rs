@@ -35,7 +35,7 @@ pub struct RegisteredApp {
     /// Length of the containers array.
     pub containers_len: usize,
     /// Permissions allowed for the application
-    pub app_perms: AppPermissions,
+    pub app_permissions: AppPermissions,
 }
 
 impl Drop for RegisteredApp {

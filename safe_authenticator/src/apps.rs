@@ -12,8 +12,8 @@ use super::{config, AuthFuture};
 use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::ffi::apps as ffi;
-use crate::ffi::apps::RegisteredApp as FfiRegisteredApp;
 use crate::ffi::apps::AppPermissions as FfiAppPermissions;
+use crate::ffi::apps::RegisteredApp as FfiRegisteredApp;
 use crate::{app_container, AuthError};
 use bincode::deserialize;
 use ffi_utils::{vec_into_raw_parts, ReprC};
@@ -62,7 +62,7 @@ impl RegisteredApp {
             app_info: app_info.into_repr_c()?,
             containers: containers_ptr,
             containers_len,
-            app_perms: ffi_app_perms,
+            app_permissions: ffi_app_perms,
         })
     }
 }
@@ -74,9 +74,9 @@ impl ReprC for RegisteredApp {
     #[allow(unsafe_code)]
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
         let native_app_perms = AppPermissions {
-            transfer_coins: (*repr_c).app_perms.transfer_coins,
-            get_balance: (*repr_c).app_perms.get_balance,
-            perform_mutations: (*repr_c).app_perms.perform_mutations,
+            transfer_coins: (*repr_c).app_permissions.transfer_coins,
+            get_balance: (*repr_c).app_permissions.get_balance,
+            perform_mutations: (*repr_c).app_permissions.perform_mutations,
         };
 
         Ok(Self {
