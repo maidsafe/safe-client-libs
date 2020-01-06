@@ -66,7 +66,7 @@ mod errors;
 mod network_event;
 
 pub use self::client::{
-    client_handler, mdata_info, mutable_data, test_create_balance, AuthActions, Client, ClientKeys,
+    client_handler, mdata_info, recovery_wrapped_apis, test_create_balance, AuthActions, Client, ClientKeys,
     MDataInfo,
 };
 #[cfg(feature = "mock-network")]

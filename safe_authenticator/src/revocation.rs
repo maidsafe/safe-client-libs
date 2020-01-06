@@ -14,7 +14,7 @@ use crate::client::AuthClient;
 use crate::config::{self, AppInfo, RevocationQueue};
 use futures::future::{self, Either, Loop};
 use futures::Future;
-use safe_core::mutable_data;
+use safe_core::recovery_wrapped_apis;
 use safe_core::{client::AuthActions, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{Error as SndError, PublicKey};
 use std::collections::HashMap;
@@ -211,7 +211,7 @@ fn revoke_container_perms(
                 .clone()
                 .get_mdata_version(*mdata_info.address())
                 .and_then(move |version| {
-                    mutable_data::del_mdata_user_permissions(
+                    recovery_wrapped_apis::del_mdata_user_permissions(
                         &c2,
                         *mdata_info.address(),
                         pk,

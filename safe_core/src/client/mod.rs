@@ -15,8 +15,8 @@ pub mod client_handler;
 pub mod core_client;
 /// `MDataInfo` utilities.
 pub mod mdata_info;
-/// Operations for mutable_data.
-pub mod mutable_data;
+/// Varias APIs wrapped to provide resiliance for common network operaionts.
+pub mod recovery_wrapped_apis;
 
 mod id;
 #[cfg(feature = "mock-network")]

@@ -25,7 +25,7 @@ use safe_core::{
     app_container_name,
     client::AuthActions,
     ipc::req::container_perms_into_permission_set,
-    ipc::resp::AccessContainerEntry,
+    core_structs::AccessContainerEntry,
     ipc::{AuthReq, Permission},
     Client, CoreError, FutureExt, MDataInfo,
 };

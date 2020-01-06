@@ -20,6 +20,8 @@ use std::collections::BTreeMap;
 
 const MAX_ATTEMPTS: usize = 10;
 
+///! Wrapped APIs to provide auto recovery and resiliance to some network errors.
+
 /// Puts mutable data on the network and tries to recover from errors.
 ///
 /// If the data already exists, it tries to mutate it so its entries and permissions
