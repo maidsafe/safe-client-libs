@@ -90,7 +90,7 @@ pub mod permissions;
 pub mod test_utils;
 
 mod client;
-mod errors;
+pub mod errors;
 #[cfg(test)]
 mod tests;
 
