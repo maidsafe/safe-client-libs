@@ -8,15 +8,13 @@
 
 /// User Account information.
 pub mod account;
-/// Operations for Client Handler
-pub mod client_handler;
 /// Core client used for testing purposes.
 #[cfg(any(test, feature = "testing"))]
 pub mod core_client;
 /// `MDataInfo` utilities.
 pub mod mdata_info;
-/// Varias APIs wrapped to provide resiliance for common network operaionts.
-pub mod recovery_wrapped_apis;
+/// Various APIs wrapped to provide resiliance for common network operations.
+pub mod recoverable_apis;
 
 mod id;
 #[cfg(feature = "mock-network")]

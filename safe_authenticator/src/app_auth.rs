@@ -21,7 +21,7 @@ use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::AuthGranted;
 use safe_core::{
-    app_container_name, client::AuthActions, client_handler, Client, FutureExt, MDataInfo,
+    app_container_name, client::AuthActions, recoverable_apis, Client, FutureExt, MDataInfo,
 };
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
@@ -275,7 +275,12 @@ fn authenticate_new_app(
     client
         .list_auth_keys_and_version()
         .and_then(move |(_, version)| {
-            client_handler::ins_auth_key(&c2, app_keys.public_key(), app_permissions, version + 1)
+            recoverable_apis::ins_auth_key_to_client_h(
+                &c2,
+                app_keys.public_key(),
+                app_permissions,
+                version + 1,
+            )
         })
         .map_err(AuthError::from)
         .and_then(move |_| {

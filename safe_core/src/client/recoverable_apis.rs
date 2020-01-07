@@ -7,15 +7,18 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::Client;
+use crate::client::AuthActions;
 use crate::errors::CoreError;
 use crate::event_loop::CoreFuture;
 use crate::utils::FutureExt;
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use safe_nd::{
-    EntryError, Error as SndError, MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntries,
-    MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey, SeqMutableData,
+    AppPermissions, EntryError, Error as SndError, MDataAction, MDataAddress, MDataPermissionSet,
+    MDataSeqEntries, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey,
+    SeqMutableData,
 };
+
 use std::collections::BTreeMap;
 
 const MAX_ATTEMPTS: usize = 10;
@@ -293,6 +296,42 @@ fn union_permission_sets(a: MDataPermissionSet, b: MDataPermissionSet) -> MDataP
                 set
             }
         })
+}
+
+/// Insert key to Client Handler.
+/// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
+pub fn ins_auth_key_to_client_h(
+    client: &(impl Client + AuthActions),
+    key: PublicKey,
+    permissions: AppPermissions,
+    version: u64,
+) -> Box<CoreFuture<()>> {
+    let state = (0, version);
+    let client = client.clone();
+
+    future::loop_fn(state, move |(attempts, version)| {
+        client
+            .ins_auth_key(key, permissions, version)
+            .map(|_| Loop::Break(()))
+            .or_else(move |error| match error {
+                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
+                    if attempts < MAX_ATTEMPTS {
+                        Ok(Loop::Continue((attempts + 1, current_version + 1)))
+                    } else {
+                        Err(error)
+                    }
+                }
+                CoreError::RequestTimeout => {
+                    if attempts < MAX_ATTEMPTS {
+                        Ok(Loop::Continue((attempts + 1, version)))
+                    } else {
+                        Err(CoreError::RequestTimeout)
+                    }
+                }
+                error => Err(error),
+            })
+    })
+    .into_box()
 }
 
 #[cfg(test)]

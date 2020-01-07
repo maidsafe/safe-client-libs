@@ -18,7 +18,7 @@ use futures::Future;
 use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys};
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
-use safe_core::{recovery_wrapped_apis, Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{recoverable_apis, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
@@ -51,7 +51,7 @@ pub fn update_container_perms(
                 let fut = client
                     .get_mdata_version(*mdata_info.address())
                     .and_then(move |version| {
-                        recovery_wrapped_apis::set_mdata_user_permissions(
+                        recoverable_apis::set_mdata_user_permissions(
                             &c2,
                             *mdata_info.address(),
                             app_pk,
@@ -153,7 +153,7 @@ pub fn put_authenticator_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    recovery_wrapped_apis::mutate_mdata_entries(client, *access_container.address(), actions)
+    recoverable_apis::mutate_mdata_entries(client, *access_container.address(), actions)
         .map_err(From::from)
         .into_box()
 }
@@ -242,12 +242,8 @@ pub fn put_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery_wrapped_apis::mutate_mdata_entries(
-                &client3,
-                *access_container.address(),
-                actions,
-            )
-            .map_err(AuthError::from)
+            recoverable_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
+                .map_err(AuthError::from)
         })
         .into_box()
 }
@@ -278,12 +274,8 @@ pub fn delete_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery_wrapped_apis::mutate_mdata_entries(
-                &client3,
-                *access_container.address(),
-                actions,
-            )
-            .map_err(AuthError::from)
+            recoverable_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
+                .map_err(AuthError::from)
         })
         .into_box()
 }
