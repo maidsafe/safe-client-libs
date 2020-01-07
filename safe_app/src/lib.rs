@@ -90,12 +90,12 @@ pub mod permissions;
 pub mod test_utils;
 
 mod client;
-mod errors;
+pub mod errors;
 #[cfg(test)]
 mod tests;
 
 use self::object_cache::ObjectCache;
-use crate::ffi::errors::{Error, Result as FfiResult};
+use crate::ffi::errors::{Error as FfiError, Result as FfiResult};
 use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
@@ -142,7 +142,7 @@ impl App {
     {
         let msg = CoreMsg::new(f);
         let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.unbounded_send(msg).map_err(Error::from)
+        core_tx.unbounded_send(msg).map_err(FfiError::from)
     }
 
     /// Create unregistered app.

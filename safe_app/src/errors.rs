@@ -7,6 +7,8 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
+//! Errors thrown by App routines.
+
 use bincode::Error as SerialisationError;
 use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
