@@ -9,6 +9,8 @@
 
 env:
   global:
+    # Run all cargo commands with --verbose.
+    - CARGO_TERM_VERBOSE=true
     - RUST_BACKTRACE=1
     - PATH=$PATH:$HOME/.cargo/bin
 language: rust
