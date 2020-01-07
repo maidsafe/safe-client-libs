@@ -30,6 +30,8 @@
     clippy::missing_safety_doc,
 )]
 
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
+
 // Export FFI interface
 
 pub use crate::ffi::apps::*;
@@ -38,7 +40,7 @@ pub use crate::ffi::ipc::*;
 pub use crate::ffi::logging::*;
 pub use crate::ffi::*;
 
-// Export public auth objects.
+// Export public auth interface.
 
 pub use self::errors::AuthError;
 pub use client::AuthClient;

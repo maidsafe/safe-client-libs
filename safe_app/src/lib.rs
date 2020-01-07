@@ -32,6 +32,8 @@ maidsafe_logo.png",
     clippy::missing_safety_doc,
 )]
 
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
+
 // Re-export functions used in FFI so that they are accessible through the Rust API.
 
 pub use safe_core::core_structs::AppKeys;
@@ -62,7 +64,7 @@ pub use crate::ffi::object_cache::*;
 pub use crate::ffi::test_utils::*;
 pub use crate::ffi::*;
 
-// Export public app objects.
+// Export public app interface.
 
 pub use crate::errors::AppError;
 pub use client::AppClient;
