@@ -372,12 +372,10 @@ jobs:
         if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
       # Upload all the release archives to S3.
-      - uses: actions/aws/cli@master
-        with:
-          args: s3 sync deploy/dev s3://safe-client-libs --acl public-read
-      - uses: actions/aws/cli@master
-        with:
-          args: s3 sync deploy/prod s3://safe-client-libs --acl public-read
+      - name: Upload dev to S3
+        run: aws s3 sync deploy/dev s3://safe-client-libs --acl public-read
+      - name: Upload prod to S3
+        run: aws s3 sync deploy/prod s3://safe-client-libs --acl public-read
 
       # Create the release and attach safe_client_libs archives as assets.
       - uses: csexton/create-release@add-body
