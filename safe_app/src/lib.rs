@@ -45,6 +45,8 @@ extern crate serde_derive;
 #[macro_use]
 extern crate unwrap;
 
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
+
 // Re-export functions used in FFI so that they are accessible through the Rust API.
 
 pub use safe_core::ipc::AppKeys;
@@ -75,7 +77,7 @@ pub use crate::ffi::object_cache::*;
 pub use crate::ffi::test_utils::*;
 pub use crate::ffi::*;
 
-// Export public app objects.
+// Export public app interface.
 
 pub use crate::errors::AppError;
 pub use client::AppClient;

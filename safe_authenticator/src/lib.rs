@@ -39,7 +39,9 @@ extern crate safe_core;
 #[macro_use]
 extern crate unwrap;
 
-// Export FFI interface
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
+
+// Export FFI interface.
 
 pub use crate::ffi::apps::*;
 pub use crate::ffi::errors::codes::*;
@@ -47,7 +49,7 @@ pub use crate::ffi::ipc::*;
 pub use crate::ffi::logging::*;
 pub use crate::ffi::*;
 
-// Export public auth objects.
+// Export public auth interface.
 
 pub use self::errors::AuthError;
 pub use client::AuthClient;
