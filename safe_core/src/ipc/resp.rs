@@ -31,6 +31,7 @@ use std::ffi::{CString, NulError};
 use std::ptr;
 use std::slice;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 /// Entry key under which the metadata are stored.
 #[no_mangle]

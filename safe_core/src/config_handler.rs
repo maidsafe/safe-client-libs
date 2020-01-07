@@ -8,6 +8,8 @@
 
 use crate::CoreError;
 use directories::ProjectDirs;
+use lazy_static::lazy_static;
+use log::{info, trace};
 use quic_p2p::Config as QuicP2pConfig;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(test)]
@@ -19,6 +21,7 @@ use std::{
     path::PathBuf,
     sync::Mutex,
 };
+use unwrap::unwrap;
 
 const CONFIG_DIR_QUALIFIER: &str = "net";
 const CONFIG_DIR_ORGANISATION: &str = "MaidSafe";

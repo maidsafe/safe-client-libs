@@ -7,7 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{Client, CoreError, FutureExt};
+use crate::{err, ok};
 use futures::{self, Future};
+use log::trace;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData, XorName, XOR_NAME_LEN};
 use self_encryption::{Storage, StorageError};
 use std::error::Error;

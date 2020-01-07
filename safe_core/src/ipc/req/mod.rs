@@ -300,11 +300,13 @@ impl ReprC for AppExchangeInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::btree_set;
     use crate::ffi::ipc::req::PermissionSet as FfiPermissionSet;
     use ffi_utils::ReprC;
     use safe_nd::MDataAction;
     use std::collections::HashMap;
     use std::ffi::CStr;
+    use unwrap::unwrap;
 
     // Test converting `ContainerPermissions` to its FFI representation and back again.
     #[test]

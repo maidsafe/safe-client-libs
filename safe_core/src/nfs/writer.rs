@@ -12,8 +12,10 @@ use crate::errors::CoreError;
 use crate::nfs::{data_map, File, NfsError, NfsFuture};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
+use crate::{err, ok};
 use chrono::Utc;
 use futures::Future;
+use log::trace;
 use safe_nd::Error as SndError;
 use self_encryption::{DataMap, SequentialEncryptor};
 

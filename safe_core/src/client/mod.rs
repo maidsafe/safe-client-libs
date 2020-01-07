@@ -27,6 +27,7 @@ pub use self::mdata_info::MDataInfo;
 pub use self::mock::vault::mock_vault_path;
 #[cfg(feature = "mock-network")]
 pub use self::mock::ConnectionManager as MockConnectionManager;
+
 #[cfg(feature = "mock-network")]
 use self::mock::ConnectionManager;
 use crate::config_handler::Config;
@@ -40,6 +41,7 @@ use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use lazy_static::lazy_static;
+use log::trace;
 use lru_cache::LruCache;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
@@ -56,6 +58,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use threshold_crypto;
 use tokio::runtime::current_thread::{block_on_all, Handle};
+use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;

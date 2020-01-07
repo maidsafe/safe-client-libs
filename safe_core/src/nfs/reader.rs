@@ -8,10 +8,12 @@
 
 use crate::client::Client;
 use crate::crypto::shared_secretbox;
+use crate::err;
 use crate::nfs::{data_map, File, NfsError, NfsFuture};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use futures::Future;
+use log::{debug, trace};
 use self_encryption::SelfEncryptor;
 
 /// `Reader` is used to read contents of a `File`. It can read in chunks if the `File` happens to be

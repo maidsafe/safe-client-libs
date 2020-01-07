@@ -335,6 +335,7 @@ pub fn ins_auth_key(
 mod tests {
     use super::*;
     use safe_nd::MDataSeqValue;
+    use unwrap::unwrap;
 
     // Test modifying given entry actions to fix entry errors
     #[test]
@@ -441,8 +442,10 @@ mod tests {
 #[cfg(all(test, feature = "mock-network"))]
 mod tests_with_mock_routing {
     use super::*;
+    use crate::btree_map;
     use crate::utils::test_utils::random_client;
     use safe_nd::{MDataSeqValue, XorName};
+    use unwrap::unwrap;
 
     // Test putting mdata and recovering from errors
     #[test]

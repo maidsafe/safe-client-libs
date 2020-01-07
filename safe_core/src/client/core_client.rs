@@ -19,6 +19,7 @@ use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::NetworkTx;
 use crate::utils;
+use log::trace;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
@@ -29,6 +30,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio::runtime::current_thread::{block_on_all, Handle};
+use unwrap::unwrap;
 
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {

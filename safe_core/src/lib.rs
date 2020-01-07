@@ -31,13 +31,6 @@
     unused_results
 )]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate unwrap;
-
 pub mod ffi;
 
 pub use ffi::arrays::*;
@@ -45,10 +38,6 @@ pub use ffi::ipc::req::*;
 pub use ffi::ipc::resp::*;
 pub use ffi::nfs::*;
 pub use ffi::*;
-
-/// Utility functions.
-#[macro_use]
-pub mod utils;
 
 /// Client trait and related constants.
 pub mod client;
@@ -66,6 +55,8 @@ pub mod ipc;
 pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
+/// Utility functions.
+pub mod utils;
 
 #[cfg(not(feature = "mock-network"))]
 mod connection_manager;

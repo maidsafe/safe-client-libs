@@ -11,6 +11,7 @@ mod sync;
 
 #[cfg(feature = "mock-network")]
 pub use self::sync::Synchronizer;
+
 use crate::client::core_client::CoreClient;
 use crate::client::{Client, COST_OF_PUT};
 use crate::event_loop::{self, CoreMsg, CoreMsgTx};
@@ -19,11 +20,13 @@ use crate::utils::{self, FutureExt};
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
+use log::trace;
 use rand;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use tokio::runtime::current_thread::{Handle, Runtime};
+use unwrap::unwrap;
 
 /// Generates a random BLS secret and public keypair.
 pub fn gen_bls_keypair() -> Keypair {
