@@ -169,6 +169,7 @@ mod tests {
     use ffi_utils::test_utils::{call_0, call_1};
     use safe_core::utils;
     use safe_nd::{MDataSeqEntryAction, MDataSeqValue};
+    use unwrap::unwrap;
 
     // Test entry action basics such as insert, update, and delete.
     #[test]

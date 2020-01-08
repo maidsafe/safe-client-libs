@@ -21,13 +21,16 @@ pub mod logging;
 
 use crate::ffi::errors::{Error, Result};
 use crate::Authenticator;
+use ffi_utils::try_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
+use log::trace;
 use rand::thread_rng;
 use safe_core::{config_handler, test_create_balance, Client};
 use safe_nd::{ClientFullId, Coins};
 use std::ffi::{CStr, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::str::FromStr;
+use unwrap::unwrap;
 
 /// Create a registered client. This or any one of the other companion
 /// functions to get an authenticator instance must be called before initiating any

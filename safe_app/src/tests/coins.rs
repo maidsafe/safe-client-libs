@@ -15,6 +15,7 @@ use futures::Future;
 use safe_core::{Client, CoreError};
 use safe_nd::{AppPermissions, Coins, Error, XorName};
 use std::str::FromStr;
+use unwrap::unwrap;
 
 // Apps should not be able to request the coin balance if they don't have
 // explicit permissions.

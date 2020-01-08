@@ -62,6 +62,7 @@ pub unsafe extern "C" fn auth_config_dir_path(
 mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_0, call_1};
+    use log::{debug, error};
     use safe_core::config_dir;
     use std::env;
     use std::fs::{self, File};
@@ -70,6 +71,7 @@ mod tests {
     use std::str::FromStr;
     use std::thread;
     use std::time::Duration;
+    use unwrap::unwrap;
 
     // Test path where log file is created.
     #[test]

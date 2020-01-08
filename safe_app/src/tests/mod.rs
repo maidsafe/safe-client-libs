@@ -17,9 +17,11 @@ use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with
 use crate::{run, App, AppError};
 use ffi_utils::test_utils::call_1;
 use futures::Future;
+use log::trace;
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::test_utils::revoke;
 use safe_authenticator::{run as auth_run, AuthError, Authenticator};
+use safe_core::btree_set;
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
 use safe_core::ipc::Permission;
 use safe_core::utils;
@@ -36,6 +38,7 @@ use safe_nd::{
 use safe_nd::{RequestType, Response};
 use std::collections::HashMap;
 use std::rc::Rc;
+use unwrap::unwrap;
 
 // Test refreshing access info by fetching it from the network.
 #[test]

@@ -13,6 +13,7 @@ use crate::AuthFuture;
 use crate::AuthMsgTx;
 use futures::future;
 use futures::Future;
+use log::trace;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, CryptoRng, Rng, SeedableRng};
@@ -20,6 +21,7 @@ use safe_core::client::account::Account;
 use safe_core::client::{req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
+use safe_core::fry;
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
@@ -31,6 +33,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio::runtime::current_thread::{block_on_all, Handle};
+use unwrap::unwrap;
 
 /// Client object used by `safe_authenticator`.
 pub struct AuthClient {
@@ -557,6 +560,7 @@ mod tests {
     use futures::sync::mpsc;
     use futures::Future;
     use safe_core::client::test_create_balance;
+    use safe_core::ok;
     use safe_core::utils::test_utils::{
         calculate_new_balance, finish, gen_client_id, random_client, setup_client,
     };

@@ -14,6 +14,7 @@ use crate::ffi::helper::send;
 use crate::ffi::object_cache::FileContextHandle;
 use crate::ffi::GET_NEXT_VERSION;
 use crate::App;
+use ffi_utils::{call_result_cb, try_cb};
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };

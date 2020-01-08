@@ -16,6 +16,7 @@ use safe_core::core_structs::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_directory;
 use safe_core::utils::symmetric_encrypt;
+use safe_core::{btree_map, err, fry};
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
 use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
 use std::collections::HashMap;
@@ -160,6 +161,7 @@ mod tests {
     use crate::run;
     use crate::test_utils::create_account_and_login;
     use futures::Future;
+    use unwrap::unwrap;
 
     // Test creation of default dirs.
     #[test]

@@ -13,10 +13,12 @@ use crate::ffi::errors::{Error, Result};
 use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response};
 use crate::revocation::{flush_app_revocation_queue, revoke_app};
 use crate::{AuthError, Authenticator};
+use ffi_utils::{call_result_cb, ffi_error};
 use ffi_utils::{
     catch_unwind_cb, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::{stream, Future, Stream};
+use log::debug;
 use safe_core::client::Client;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataRequest};
 use safe_core::ffi::ipc::resp::MetadataResponse;
@@ -27,6 +29,7 @@ use safe_core::ipc::req::{
 use safe_core::ipc::resp::IpcResp;
 use safe_core::ipc::{decode_msg, IpcError, IpcMsg};
 use safe_core::{client, CoreError, FutureExt};
+use safe_core::{fry, ok};
 use safe_nd::MDataAddress;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
