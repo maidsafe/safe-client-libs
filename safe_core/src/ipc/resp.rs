@@ -19,14 +19,6 @@ use bincode::{deserialize, serialize};
 use ffi_utils::{vec_into_raw_parts, ReprC};
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::ffi::{CString, NulError};
-use std::ptr;
-use std::slice;
-use tiny_keccak::sha3_256;
-use unwrap::unwrap;
-
 use std::slice;
 
 /// IPC response.
@@ -114,8 +106,8 @@ mod tests {
     use super::*;
     use crate::utils;
     use crate::utils::test_utils::gen_client_id;
-    use ffi_utils::ReprC;
     use safe_nd::{XorName, XOR_NAME_LEN};
+    use unwrap::unwrap;
 
     // Test converting an `AuthGranted` object to its FFI representation and then back again.
     #[test]

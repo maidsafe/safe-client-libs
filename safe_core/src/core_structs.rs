@@ -33,7 +33,7 @@ use std::ffi::{CString, NulError};
 use std::ptr;
 use std::slice;
 use tiny_keccak::sha3_256;
-
+use unwrap::unwrap;
 /// Entry key under which the metadata are stored.
 #[no_mangle]
 pub static METADATA_KEY: &[u8] = b"_metadata";
@@ -512,8 +512,8 @@ mod tests {
     use super::*;
     use crate::utils;
     use crate::utils::test_utils::gen_client_id;
-    use ffi_utils::ReprC;
     use safe_nd::{XorName, XOR_NAME_LEN};
+    use unwrap::unwrap;
 
     // Testing converting an `AppKeys` object to its FFI representation and back again.
     #[test]
