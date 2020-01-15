@@ -13,6 +13,7 @@ use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
 use bincode::{deserialize, serialize};
 use fs2::FileExt;
+use log::{debug, trace, warn};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
     Coins, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
@@ -34,6 +35,7 @@ use std::time::Duration;
 use std::time::SystemTime;
 #[cfg(test)]
 use tempfile::tempfile;
+use unwrap::unwrap;
 
 const FILE_NAME: &str = "SCL-Mock";
 

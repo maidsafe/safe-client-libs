@@ -10,6 +10,7 @@
 use crate::test_utils::{create_app, create_random_auth_req};
 use crate::{run, App, AppError};
 use futures::future::Future;
+use log::trace;
 use safe_authenticator::test_utils::{create_authenticator, register_app};
 use safe_authenticator::{run as auth_run, AuthError};
 use safe_core::utils::test_utils::random_client;
@@ -23,9 +24,10 @@ use safe_nd::{
 use std::collections::BTreeMap;
 use std::sync::mpsc;
 use std::thread;
+use unwrap::unwrap;
 
-// AD created by app. App lists its own public key in owners field. Put should fail - Rejected at the client handlers.
-// Should pass when it lists the owner's public key instead.
+// AD created by app. App lists its own public key in owners field. Put should fail - Rejected at
+// the client handlers. Should pass when it lists the owner's public key instead.
 #[test]
 fn data_created_by_an_app() {
     let app = create_app();

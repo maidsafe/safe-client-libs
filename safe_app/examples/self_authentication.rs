@@ -21,13 +21,11 @@
     unused_results
 )]
 
-#[macro_use]
-extern crate unwrap;
-
 use rand::thread_rng;
 use safe_app::CoreError;
 use safe_authenticator::{AuthError, Authenticator};
 use safe_nd::{ClientFullId, Error as SndError};
+use unwrap::unwrap;
 
 fn main() {
     unwrap!(safe_core::utils::logging::init(true));

@@ -22,18 +22,17 @@ use crate::ffi::errors::{ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_A
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };
-use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
-use crate::safe_core::ipc::{
-    self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
-};
 use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
 use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{ReprC, StringError};
 use futures::{future, Future};
+use safe_core::btree_set;
 use safe_core::config_handler::Config;
 use safe_core::ffi::error_codes::ERR_NO_SUCH_CONTAINER;
+use safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
+use safe_core::ipc::{self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission};
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
@@ -41,6 +40,7 @@ use std::ffi::CString;
 use std::sync::mpsc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 #[cfg(feature = "mock-network")]
 mod mock_routing {
@@ -60,6 +60,7 @@ mod mock_routing {
     };
     use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
     use std::str::FromStr;
+    use unwrap::unwrap;
 
     // Test operation recovery for std dirs creation.
     // 1. Try to create a new user's account using `safe_authenticator::Authenticator::create_acc`

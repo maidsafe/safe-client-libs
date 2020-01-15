@@ -16,10 +16,12 @@ use crate::test_utils::gen_app_exchange_info;
 use ffi_utils::test_utils::call_1;
 use safe_authenticator::ffi::ipc::encode_auth_resp;
 use safe_authenticator::test_utils;
+use safe_core::btree_set;
 use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions};
 use safe_core::ipc::{gen_req_id, AuthGranted, Permission};
 use std::collections::HashMap;
+use unwrap::unwrap;
 use App;
 
 // Creates a containers request asking for "documents with permission to

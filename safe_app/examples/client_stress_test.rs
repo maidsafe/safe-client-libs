@@ -7,7 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-//! Safe client example.
+//! SAFE client example.
 
 // For explanation of lint checks, run `rustc -W help`.
 #![deny(unsafe_code)]
@@ -21,22 +21,17 @@
     unused_results
 )]
 
-#[macro_use]
-extern crate clap;
-#[macro_use]
-extern crate safe_core;
-#[macro_use]
-extern crate unwrap;
-
-use clap::{App, Arg};
+use clap::{value_t, App, Arg};
 use futures::Future;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use safe_app::{Client, CoreError, CoreFuture, FutureExt, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
 use safe_core::utils;
+use safe_core::{btree_map, ok};
 use safe_nd::{ClientFullId, IData, PublicKey, SeqMutableData, XorName};
 use std::sync::mpsc;
+use unwrap::unwrap;
 
 fn random_mutable_data<R: Rng>(
     type_tag: u64,

@@ -44,6 +44,7 @@ mod tests;
 use super::App;
 use bincode::deserialize;
 use errors::{Error, Result};
+use ffi_utils::try_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::resp::AuthGranted;
 use safe_core::ipc::{AuthGranted as NativeAuthGranted, BootstrapConfig};

@@ -32,6 +32,7 @@ use std::str::FromStr;
 use std::sync::mpsc::{self, Sender};
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
+use unwrap::unwrap;
 
 /// Message terminator for streaming to Log Servers. Servers must look out for this sequence which
 /// demarcates the end of a particular log message.

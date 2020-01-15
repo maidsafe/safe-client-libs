@@ -82,6 +82,7 @@ use self::async_log::{
     AsyncWebSockAppenderCreator,
 };
 use crate::config_dir;
+use log::trace;
 use log::LevelFilter;
 use log4rs;
 use log4rs::config::{Appender, Config, Logger, Root};
@@ -96,6 +97,7 @@ use std::fs::File;
 use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::sync::Once;
+use unwrap::unwrap;
 
 static INITIALISE_LOGGER: Once = Once::new();
 static CONFIG_FILE: &str = "log.toml";
@@ -432,6 +434,7 @@ fn init_once_guard<F: FnOnce() -> Result<(), String>>(init_fn: F) -> Result<(), 
 mod tests {
     use super::parse_loggers;
     use log::LevelFilter;
+    use unwrap::unwrap;
 
     #[test]
     fn test_parse_loggers_empty() {

@@ -18,18 +18,6 @@
     unused_qualifications
 )]
 
-#[cfg(target_os = "android")]
-extern crate android_logger;
-#[macro_use]
-extern crate ffi_utils;
-extern crate jni;
-#[macro_use]
-extern crate log;
-extern crate safe_app;
-extern crate safe_core;
-#[macro_use]
-extern crate unwrap;
-
 use ffi_utils::java::{convert_cb_from_java, object_array_to_java, EnvGuard, JniResult};
 use ffi_utils::*;
 use jni::errors::{Error as JniError, ErrorKind};
@@ -37,6 +25,7 @@ use jni::objects::{AutoLocal, GlobalRef, JClass, JMethodID, JObject, JString, JV
 use jni::strings::JNIStr;
 use jni::sys::{jbyte, jbyteArray, jclass, jint, jlong, jobject, jsize};
 use jni::{signature::JavaType, AttachGuard, JNIEnv, JavaVM};
+use log::error;
 use safe_app::ffi::object_cache::*;
 use safe_app::UserPermissionSet;
 use safe_core::arrays::*;
@@ -53,6 +42,7 @@ use safe_core::ffi::*;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
 use std::{cmp, mem, slice};
+use unwrap::unwrap;
 
 #[repr(C)]
 struct App(*mut c_void);

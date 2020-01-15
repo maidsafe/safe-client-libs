@@ -32,24 +32,11 @@ maidsafe_logo.png",
     clippy::missing_safety_doc,
 )]
 
-#[macro_use]
-extern crate ffi_utils;
-#[macro_use]
-extern crate log;
-#[cfg(test)]
-extern crate rand;
-#[macro_use]
-extern crate safe_core;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate unwrap;
-
 // Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Re-export functions used in FFI so that they are accessible through the Rust API.
 
-pub use safe_core::ipc::AppKeys;
+pub use safe_core::core_structs::AppKeys;
 pub use safe_core::{
     app_container_name, immutable_data, ipc, mdata_info, nfs, utils, Client, ClientKeys, CoreError,
     CoreFuture, FutureExt, MDataInfo, DIR_TAG, MAIDSAFE_TAG,
@@ -102,12 +89,13 @@ use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future, IntoFuture};
+use log::info;
+use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
 use safe_core::crypto::shared_secretbox;
-use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
-use safe_core::ipc::{AccessContInfo, AuthGranted, BootstrapConfig};
+use safe_core::ipc::{AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
+use safe_core::{event_loop, fry, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -115,6 +103,7 @@ use std::sync::mpsc;
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
 use tokio::runtime::current_thread::{Handle, Runtime};
+use unwrap::unwrap;
 
 macro_rules! try_tx {
     ($result:expr, $tx:ident) => {

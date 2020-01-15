@@ -31,13 +31,6 @@
     unused_results
 )]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate unwrap;
-
 // Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Export FFI interface.
@@ -68,14 +61,12 @@ pub use self::utils::logging;
 pub use self::utils::FutureExt;
 pub use quic_p2p::Config as QuicP2pConfig;
 
-/// Utility functions.
-#[macro_use]
-pub mod utils;
-
 /// Client trait and related constants.
 pub mod client;
 /// Config file handling.
 pub mod config_handler;
+/// Core structs and associated functionality
+pub mod core_structs;
 /// Cryptographic utilities.
 pub mod crypto;
 /// Event loop handling.
@@ -90,6 +81,8 @@ pub mod ipc;
 pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
+/// Utility functions.
+pub mod utils;
 
 #[cfg(not(feature = "mock-network"))]
 mod connection_manager;

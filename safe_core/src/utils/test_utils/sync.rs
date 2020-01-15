@@ -15,6 +15,7 @@ use rand::Rng;
 use safe_nd::{Request, Response};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
+use unwrap::unwrap;
 
 /// Helper for running multiple clients in parallel while keeping the runs
 /// deterministic.

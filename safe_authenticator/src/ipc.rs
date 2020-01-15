@@ -9,24 +9,24 @@
 //! Inter-Process Communication utilities.
 
 use super::{AuthError, AuthFuture};
-use crate::access_container;
 use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::config;
 use crate::ffi::errors::Error as FFIError;
 use bincode::deserialize;
+use ffi_utils::ffi_error;
 use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;
+use log::trace;
+use safe_core::core_structs::{UserMetadata, METADATA_KEY};
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
-use safe_core::ipc::req::{
-    container_perms_into_permission_set, ContainerPermissions, IpcReq, ShareMDataReq,
-};
-use safe_core::ipc::resp::{AccessContainerEntry, IpcResp, UserMetadata, METADATA_KEY};
+use safe_core::ipc::req::{IpcReq, ShareMDataReq};
+use safe_core::ipc::resp::IpcResp;
 use safe_core::ipc::{self, IpcError, IpcMsg};
-use safe_core::{recovery, Client, CoreError, FutureExt};
-use safe_nd::{Error as SndError, PublicKey, XorName};
-use std::collections::HashMap;
+use safe_core::{err, ok};
+use safe_core::{Client, CoreError, FutureExt};
+use safe_nd::{Error as SndError, XorName};
 use std::ffi::CString;
 
 /// Decodes a given encoded IPC message and returns either an `IpcMsg` struct or
@@ -100,56 +100,6 @@ pub fn decode_ipc_msg(
             return err!(AuthError::IpcError(IpcError::InvalidMsg));
         }
     }
-}
-
-/// Updates containers permissions (adds a given key to the permissions set)
-#[allow(clippy::implicit_hasher)]
-pub fn update_container_perms(
-    client: &AuthClient,
-    permissions: HashMap<String, ContainerPermissions>,
-    app_pk: PublicKey,
-) -> Box<AuthFuture<AccessContainerEntry>> {
-    let c2 = client.clone();
-
-    access_container::fetch_authenticator_entry(client)
-        .and_then(move |(_, mut root_containers)| {
-            let mut reqs = Vec::new();
-            let client = c2.clone();
-
-            for (container_key, access) in permissions {
-                let c2 = client.clone();
-                let mdata_info = fry!(root_containers
-                    .remove(&container_key)
-                    .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone())));
-                let perm_set = container_perms_into_permission_set(&access);
-
-                let fut = client
-                    .get_mdata_version(*mdata_info.address())
-                    .and_then(move |version| {
-                        recovery::set_mdata_user_permissions(
-                            &c2,
-                            *mdata_info.address(),
-                            app_pk,
-                            perm_set,
-                            version + 1,
-                        )
-                        .map(move |_| (container_key, mdata_info, access))
-                    })
-                    .map_err(AuthError::from);
-
-                reqs.push(fut);
-            }
-
-            future::join_all(reqs).into_box()
-        })
-        .map(|perms| {
-            perms
-                .into_iter()
-                .map(|(container_key, dir, access)| (container_key, (dir, access)))
-                .collect()
-        })
-        .map_err(AuthError::from)
-        .into_box()
 }
 
 /// Encode `IpcMsg` into a `CString`, using base32 encoding.

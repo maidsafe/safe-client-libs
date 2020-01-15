@@ -26,17 +26,19 @@ use crate::ffi::object_cache::{
 use crate::ffi::GET_NEXT_VERSION;
 use crate::App;
 use bincode::serialized_size;
+use ffi_utils::{call_result_cb, try_cb};
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::future::{self, Either};
 use futures::Future;
+use safe_core::core_structs::{MDataKey as NativeMDataKey, MDataValue as NativeMDataValue};
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ffi::ipc::resp::MDataKey;
 use safe_core::ffi::ipc::resp::MDataValue;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
-use safe_core::ipc::resp::{MDataKey as NativeMDataKey, MDataValue as NativeMDataValue};
+use safe_core::{err, ok};
 use safe_core::{Client, FutureExt, MDataInfo as NativeMDataInfo};
 use safe_nd::{
     EntryError, Error as SndError, MDataPermissionSet, MDataSeqEntryAction, MDataSeqValue,
@@ -44,6 +46,7 @@ use safe_nd::{
 };
 use std::collections::BTreeMap;
 use std::os::raw::c_void;
+use unwrap::unwrap;
 
 /// Special value that represents an empty permission set.
 #[no_mangle]

@@ -13,8 +13,10 @@ use crate::self_encryption_storage::{
     SEStorageError, SelfEncryptionStorage, SelfEncryptionStorageDryRun,
 };
 use crate::utils::{self, FutureExt};
+use crate::{fry, ok};
 use bincode::{deserialize, serialize};
 use futures::Future;
+use log::trace;
 
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
 use self_encryption::{DataMap, SelfEncryptor, Storage};
@@ -189,6 +191,7 @@ mod tests {
     use crate::errors::CoreError;
     use futures::Future;
     use safe_nd::Error as SndError;
+    use unwrap::unwrap;
     use utils;
     use utils::test_utils::{finish, random_client};
 

@@ -16,6 +16,7 @@ use crate::ffi::mutable_data::helper;
 use crate::ffi::object_cache::{MDataPermissionsHandle, SignPubKeyHandle, NULL_OBJECT_HANDLE};
 use crate::permissions;
 use crate::App;
+use ffi_utils::try_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::PermissionSet;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};

@@ -11,6 +11,7 @@
 
 use crate::ffi::errors::{Error, Result};
 use bincode::serialize;
+use ffi_utils::ffi_error;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC, FFI_RESULT_OK,
 };
@@ -345,11 +346,13 @@ mod tests {
     use ffi_utils::ReprC;
     use safe_authenticator::ffi::ipc::encode_auth_resp;
     use safe_authenticator::test_utils as auth_utils;
+    use safe_core::btree_set;
+    use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
     use safe_core::crypto::{shared_box, shared_secretbox};
     use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
     use safe_core::ipc::{
-        self, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, BootstrapConfig,
-        ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData, ShareMDataReq,
+        self, AuthGranted, BootstrapConfig, ContainersReq, IpcMsg, IpcReq, IpcResp, Permission,
+        ShareMData, ShareMDataReq,
     };
     use safe_core::utils;
     use safe_core::utils::test_utils::{gen_app_id, gen_client_id};
@@ -357,6 +360,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
+    use unwrap::unwrap;
 
     // Test that encoding and decoding base64 is no longer backwards compatible, as expected.
     #[test]

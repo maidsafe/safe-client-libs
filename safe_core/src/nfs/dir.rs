@@ -11,6 +11,7 @@ use crate::errors::CoreError;
 use crate::nfs::{NfsError, NfsFuture};
 use crate::utils::FutureExt;
 use futures::Future;
+use log::trace;
 use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqEntries, PublicKey, SeqMutableData};
 use std::collections::BTreeMap;
 

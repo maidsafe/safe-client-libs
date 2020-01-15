@@ -17,6 +17,7 @@ use crate::{run, App};
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
 use ffi_utils::ErrorCode;
 use futures::Future;
+use safe_core::btree_set;
 use safe_core::ffi::nfs::File;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::Permission;
@@ -26,6 +27,7 @@ use safe_core::utils;
 use std;
 use std::collections::HashMap;
 use std::ffi::CString;
+use unwrap::unwrap;
 
 fn setup() -> (App, MDataInfo) {
     let mut container_permissions = HashMap::new();

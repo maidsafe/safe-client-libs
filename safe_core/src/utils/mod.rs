@@ -6,19 +6,19 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-#[macro_use]
-mod futures;
-
 /// Logging utilities.
 pub mod logging;
-
 /// Common utility functions for writing test cases.
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
+mod futures;
+
 pub use self::futures::FutureExt;
+
 use crate::errors::CoreError;
 use bincode::{deserialize, serialize};
+use log::error;
 use miscreant::aead::Aead;
 use miscreant::Aes128SivAead;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
@@ -219,6 +219,7 @@ pub fn bin_data_format(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use unwrap::unwrap;
 
     const SIZE: usize = 10;
 

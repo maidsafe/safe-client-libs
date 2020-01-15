@@ -11,7 +11,9 @@ use crate::errors::CoreError;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::Future;
+use log::debug;
 use tokio::runtime::current_thread::{self, Runtime};
+use unwrap::unwrap;
 
 /// Transmitter of messages to be run in the core event loop.
 pub type CoreMsgTx<C, T> = mpsc::UnboundedSender<CoreMsg<C, T>>;

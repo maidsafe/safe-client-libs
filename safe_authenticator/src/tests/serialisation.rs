@@ -21,9 +21,11 @@ use crate::{AuthError, AuthFuture, Authenticator};
 use futures::{future, Future};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use safe_core::btree_set;
 use safe_core::config_handler;
+use safe_core::core_structs::AccessContainerEntry;
 use safe_core::ipc::req::ContainerPermissions;
-use safe_core::ipc::{AccessContainerEntry, AppExchangeInfo, AuthReq, Permission};
+use safe_core::ipc::{AppExchangeInfo, AuthReq, Permission};
 use safe_core::utils::test_utils::gen_client_id;
 use safe_core::{mock_vault_path, utils};
 use safe_core::{test_create_balance, Client, FutureExt, MDataInfo};
@@ -32,6 +34,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+use unwrap::unwrap;
 
 #[test]
 #[ignore]

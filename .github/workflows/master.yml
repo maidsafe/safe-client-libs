@@ -250,6 +250,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.DEPLOY_USER_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: eu-west-2
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
     steps:
       # Checkout and get all the artifacts built in the previous jobs.
       - uses: actions/checkout@v1
@@ -339,11 +340,6 @@ jobs:
 
       # Get information for the release.
       - shell: bash
-        id: commit_message
-        run: |
-          commit_message=$(git log --format=%B -n 1 ${{ github.sha }})
-          echo "::set-output name=commit_message::$commit_message"
-      - shell: bash
         id: versioning
         run: |
           core_version=$(grep "^version" < safe_core/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
@@ -356,10 +352,10 @@ jobs:
       # Create `deploy` directory and put the artifacts into tar/zip archives for deployment with the release.
       - shell: bash
         run: make package-commit_hash-deploy-artifacts
-        if: "!startsWith(steps.commit_message.outputs.commit_message, 'Version change')"
+        if: "!startsWith(env.COMMIT_MESSAGE, 'Version change')"
       - shell: bash
         run: make package-versioned-deploy-artifacts
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       # Get release description (requires generated archives)
       - shell: bash
         id: release_description
@@ -369,7 +365,7 @@ jobs:
           description="${description//$'\n'/'%0A'}"
           description="${description//$'\r'/'%0D'}"
           echo "::set-output name=description::$description"
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
       # Upload all the release archives to S3.
       - name: Upload dev to S3
@@ -386,7 +382,7 @@ jobs:
           draft: false
           prerelease: false
           body: ${{ steps.release_description.outputs.description }}
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
       # Upload safe_app assets
       - uses: actions/upload-release-asset@v1.0.1
@@ -395,42 +391,42 @@ jobs:
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
       # Upload safe_auth assets
       - uses: actions/upload-release-asset@v1.0.1
@@ -439,55 +435,52 @@ jobs:
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
           asset_content_type: application/zip
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
     name: Publish
     needs: deploy
     runs-on: ubuntu-latest
+    # Is this a version change commit?
+    if: startsWith(github.event.head_commit.message, 'Version change')
     steps:
       - uses: actions/checkout@v1
-      - shell: bash
-        id: commit_message
-        run: |
-          commit_message=$(git log --format=%B -n 1 ${{ github.sha }})
-          echo "::set-output name=commit_message::$commit_message"
       - shell: bash
         id: versioning
         run: |
@@ -514,12 +507,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
       - uses: actions-rs/cargo@v1
         with:
           command: login
           args: ${{ secrets.CRATES_IO_TOKEN }}
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change')
 
       # Only publish crates if their Cargo.toml version != their crates.io version.
       # Otherwise, cargo publish would fail on individual crates that haven't had their versions changed.
@@ -527,24 +518,24 @@ jobs:
         with:
           command: publish
           args: --manifest-path=safe_core/Cargo.toml
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
+        if: startsWith(steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
       # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
         run: sleep 120
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
+        if: startsWith(steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
           args: --manifest-path=safe_authenticator/Cargo.toml
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
+        if: startsWith(steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
         # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
         run: sleep 120
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
+        if: startsWith(steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
           args: --manifest-path=safe_app/Cargo.toml
-        if: startsWith(steps.commit_message.outputs.commit_message, 'Version change') && steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version
+        if: startsWith(steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version
