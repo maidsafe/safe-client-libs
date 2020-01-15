@@ -31,6 +31,16 @@
     unused_results
 )]
 
+// #[macro_use]
+// extern crate lazy_static;
+// #[macro_use]
+// extern crate log;
+// #[macro_use]
+// extern crate unwrap;
+// /// Utility functions.
+// #[macro_use]
+// pub mod utils;
+
 pub mod ffi;
 
 pub use ffi::arrays::*;
@@ -58,6 +68,7 @@ pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
 /// Utility functions.
+#[macro_use]
 pub mod utils;
 
 #[cfg(not(feature = "mock-network"))]

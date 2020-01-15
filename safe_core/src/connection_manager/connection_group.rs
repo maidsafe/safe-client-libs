@@ -6,6 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::err;
 use crate::{client::SafeKey, utils, CoreError, CoreFuture};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
@@ -15,7 +16,7 @@ use futures::{
     Future,
 };
 use lazy_static::lazy_static;
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use quic_p2p::{
     self, Builder, Config as QuicP2pConfig, Error as QuicP2pError, Event, NodeInfo, Peer, QuicP2p,
     Token,
@@ -532,7 +533,7 @@ impl Inner {
                 peer_addr,
                 msg,
                 token,
-            } => self.handle_unsent_user_message(peer_addr, msg, token),
+            } => self.handle_unsent_user_message(peer_addr, &msg, token),
             NewMessage { peer_addr, msg } => {
                 let transition = self
                     .state
