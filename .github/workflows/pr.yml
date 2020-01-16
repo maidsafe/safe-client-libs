@@ -80,7 +80,7 @@ jobs:
 
   build-ios:
     name: Build iOS
-    runs-on: macOS-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         component: [safe_app, safe_authenticator]
@@ -235,7 +235,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
