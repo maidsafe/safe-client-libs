@@ -21,7 +21,7 @@ ffi_utils = "~0.14.0"
 fs2 = "~0.4.3"
 futures = "~0.1.17"
 env_logger = "~0.6.2"
-lazy_static = "~1.2.0"
+lazy_static = "~1.4.0"
 log = "~0.4.8"
 log4rs = { version = "~0.8.3", features = ["toml_format"] }
 lru-cache = "~0.1.1"
