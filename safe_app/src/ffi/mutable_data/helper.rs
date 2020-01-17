@@ -7,14 +7,14 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::errors::AppError;
+use crate::ffi::errors::Result;
 use crate::ffi::object_cache::{MDataPermissionsHandle, PubKeyHandle};
 use crate::object_cache::ObjectCache;
 use safe_nd::{MDataPermissionSet, PublicKey};
 use std::collections::BTreeMap;
 
 // Retrieve the sign key corresponding to the handle from the object cache
-pub fn get_user(object_cache: &ObjectCache, handle: PubKeyHandle) -> Result<PublicKey, AppError> {
+pub fn get_user(object_cache: &ObjectCache, handle: PubKeyHandle) -> Result<PublicKey> {
     let user = {
         let sign_key = object_cache.get_pub_sign_key(handle)?;
         *sign_key
@@ -35,7 +35,7 @@ pub fn insert_permissions(
 pub fn get_permissions(
     object_cache: &ObjectCache,
     handle: MDataPermissionsHandle,
-) -> Result<BTreeMap<PublicKey, MDataPermissionSet>, AppError> {
+) -> Result<BTreeMap<PublicKey, MDataPermissionSet>> {
     let output = object_cache.get_mdata_permissions(handle)?.clone();
 
     Ok(output)

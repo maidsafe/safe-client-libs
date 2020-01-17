@@ -15,8 +15,7 @@
 //!
 //! An example of a log message is:
 //!
-//! ```
-//! # /*
+//! ```text
 //! WARN 19:33:49.245434200 <main> [example::my_mod main.rs:10] Warning level message.
 //! ^           ^             ^              ^         ^                  ^
 //! |       timestamp         |           module       |               message
@@ -24,7 +23,6 @@
 //! |                    thread name           file and line no.
 //! |
 //! level (ERROR, WARN, INFO, DEBUG, or TRACE)
-//! # */
 //! ```
 //!
 //! Logging of the thread name is enabled or disabled via the `show_thread_name` parameter.  If
@@ -33,7 +31,7 @@
 //!
 //! The functions can safely be called multiple times concurrently.
 //!
-//! #Examples
+//! # Examples
 //!
 //! ```
 //! use log::{error, info};
@@ -43,6 +41,7 @@
 //!
 //! mod my_mod {
 //!     use log::warn;
+//!
 //!     pub fn show_warning() {
 //!         warn!("A warning");
 //!     }
@@ -56,8 +55,8 @@
 //! let _ = unnamed.join();
 //!
 //! let _named = unwrap!(thread::Builder::new()
-//!                         .name(String::from("Worker"))
-//!                         .spawn(|| error!("Message in named thread")));
+//!                       .name(String::from("Worker"))
+//!                       .spawn(|| error!("Message in named thread")));
 //!
 //! // WARN 16:10:44.989712300 <main> [example::my_mod main.rs:10] A warning
 //! // INFO 16:10:44.990716600 <unnamed> [example main.rs:19] Message in unnamed thread
@@ -65,11 +64,11 @@
 //! ```
 //!
 //! Environment variable `RUST_LOG` can be set and fine-tuned to get various modules logging to
-//! different levels. E.g. `RUST_LOG=mod0,mod1=debug,mod2,mod3` will have `mod0` & `mod1` logging at
-//! `Debug` and more severe levels while `mod2` & `mod3` logging at default (currently `Warn`) and
-//! more severe levels. `RUST_LOG=trace,mod0=error,mod1` is going to change the default log level to
-//! `Trace` and more severe. Thus `mod0` will log at `Error` level and `mod1` at `Trace` and more
-//! severe ones.
+//! different levels. E.g. `RUST_LOG=mod0,mod1=debug,mod2,mod3` will have `mod0` and `mod1` logging
+//! at `Debug` and more severe levels while `mod2` & `mod3` logging at default (currently `Warn`)
+//! and more severe levels. `RUST_LOG=trace,mod0=error,mod1` is going to change the default log
+//! level to `Trace` and more severe. Thus `mod0` will log at `Error` level and `mod1` at `Trace`
+//! and more severe ones.
 
 pub use self::async_log::MSG_TERMINATOR;
 pub use self::web_socket::validate_request as validate_web_socket_request;
@@ -83,6 +82,7 @@ use self::async_log::{
     AsyncWebSockAppenderCreator,
 };
 use crate::config_dir;
+use log::trace;
 use log::LevelFilter;
 use log4rs;
 use log4rs::config::{Appender, Config, Logger, Root};
@@ -97,6 +97,7 @@ use std::fs::File;
 use std::net::ToSocketAddrs;
 use std::path::Path;
 use std::sync::Once;
+use unwrap::unwrap;
 
 static INITIALISE_LOGGER: Once = Once::new();
 static CONFIG_FILE: &str = "log.toml";
@@ -433,6 +434,7 @@ fn init_once_guard<F: FnOnce() -> Result<(), String>>(init_fn: F) -> Result<(), 
 mod tests {
     use super::parse_loggers;
     use log::LevelFilter;
+    use unwrap::unwrap;
 
     #[test]
     fn test_parse_loggers_empty() {

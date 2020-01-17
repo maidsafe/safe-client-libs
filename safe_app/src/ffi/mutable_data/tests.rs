@@ -7,7 +7,7 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY};
+use crate::ffi::errors::{ERR_ACCESS_DENIED, ERR_INVALID_SUCCESSOR, ERR_NO_SUCH_ENTRY};
 use crate::ffi::mdata_info::*;
 use crate::ffi::mutable_data::entries::*;
 use crate::ffi::mutable_data::entry_actions::*;
@@ -21,10 +21,10 @@ use ffi_utils::test_utils::{
     call_0, call_1, call_vec, call_vec_u8, send_via_user_data, sender_as_user_data,
 };
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult};
+use safe_core::core_structs::{MDataKey, MDataValue};
 use safe_core::ffi::ipc::req::PermissionSet as FfiPermissionSet;
 use safe_core::ffi::MDataInfo;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
-use safe_core::ipc::resp::{MDataKey, MDataValue};
 use safe_core::MDataInfo as NativeMDataInfo;
 use safe_nd::{MDataAction, MDataPermissionSet};
 use std::sync::mpsc;
@@ -321,25 +321,22 @@ fn entries_crud_ffi() {
         )))
     }
 
-    // Retrieve added entry
-    {
-        let (tx, rx) = mpsc::channel::<Result<Vec<u8>, i32>>();
-        let mut ud = Default::default();
+    let values: Vec<MDataValue> = unsafe {
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_values(
+            &app,
+            &md_info_pub,
+            ud,
+            cb,
+        )))
+    };
 
-        unsafe {
-            mdata_get_value(
-                &app,
-                &md_info_pub,
-                KEY.as_ptr(),
-                KEY.len(),
-                sender_as_user_data(&tx, &mut ud),
-                get_value_cb,
-            )
-        };
-
-        let result = unwrap!(rx.recv());
-        assert_eq!(&unwrap!(result), &VALUE, "got back invalid value");
-    }
+    assert_eq!(
+        values,
+        vec![MDataValue {
+            content: VALUE.to_vec(),
+            entry_version: 0
+        }]
+    );
 
     // Check the version of a public MD
     let ver: u64 = unsafe {
@@ -466,37 +463,28 @@ fn entries_crud_ffi() {
         assert!(size > 0);
     }
 
-    // Retrieve added entry from private MD
-    {
-        let (tx, rx) = mpsc::channel::<Result<Vec<u8>, i32>>();
-        let mut ud = Default::default();
+    let values: Vec<MDataValue> = unsafe {
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_values(
+            &app,
+            &md_info_priv,
+            ud,
+            cb,
+        )))
+    };
 
-        unsafe {
-            mdata_get_value(
-                &app,
-                &md_info_priv,
-                key_enc.as_ptr(),
-                key_enc.len(),
-                sender_as_user_data(&tx, &mut ud),
-                get_value_cb,
-            )
-        };
+    let got_value_enc = &values[0].content;
+    assert_eq!(got_value_enc, &value_enc, "got back invalid value");
 
-        let result = unwrap!(rx.recv());
-        let got_value_enc = unwrap!(result);
-        assert_eq!(&got_value_enc, &value_enc, "got back invalid value");
-
-        let decrypted = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| mdata_info_decrypt(
-                &md_info_priv,
-                got_value_enc.as_ptr(),
-                got_value_enc.len(),
-                ud,
-                cb,
-            )))
-        };
-        assert_eq!(&decrypted, &VALUE, "decrypted invalid value");
-    }
+    let decrypted = unsafe {
+        unwrap!(call_vec_u8(|ud, cb| mdata_info_decrypt(
+            &md_info_priv,
+            got_value_enc.as_ptr(),
+            got_value_enc.len(),
+            ud,
+            cb,
+        )))
+    };
+    assert_eq!(&decrypted, &VALUE, "decrypted invalid value");
 
     // Check mdata_entries
     {
@@ -634,4 +622,254 @@ fn entries_crud_ffi() {
             send_via_user_data(user_data, result);
         }
     }
+}
+
+#[test]
+fn get_next_version_actions() {
+    let app = create_app();
+
+    const KEY: &[u8] = b"hello";
+    const KEY2: &[u8] = b"hello?";
+    const VALUE: &[u8] = b"world";
+    const VALUE2: &[u8] = b"world?";
+    const VALUE3: &[u8] = b"world!";
+
+    // Create a permissions set
+    let perm_set = MDataPermissionSet::new()
+        .allow(MDataAction::Read)
+        .allow(MDataAction::Insert)
+        .allow(MDataAction::Update)
+        .allow(MDataAction::Delete);
+
+    let app_pk_handle = unwrap!(run(&app, move |client, context| {
+        Ok(context
+            .object_cache()
+            .insert_pub_sign_key(client.public_key()))
+    }));
+
+    // Create permissions
+    let perms_h: MDataPermissionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_permissions_insert(
+            &app,
+            perms_h,
+            app_pk_handle,
+            &permission_set_into_repr_c(perm_set),
+            ud,
+            cb,
+        )))
+    }
+
+    // Create entries.
+    let entries_h: MDataEntriesHandle =
+        unsafe { unwrap!(call_1(|ud, cb| seq_mdata_entries_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| seq_mdata_entries_insert(
+            &app,
+            entries_h,
+            KEY.as_ptr(),
+            KEY.len(),
+            VALUE.as_ptr(),
+            VALUE.len(),
+            ud,
+            cb
+        )))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| seq_mdata_entries_insert(
+            &app,
+            entries_h,
+            KEY2.as_ptr(),
+            KEY2.len(),
+            VALUE.as_ptr(),
+            VALUE.len(),
+            ud,
+            cb
+        )))
+    };
+
+    // Try to create public MD with initial entries.
+    let md_info_pub: NativeMDataInfo = unsafe {
+        unwrap!(call_1(|ud, cb| mdata_info_random_public(
+            true, 10_000, ud, cb
+        )))
+    };
+    let md_info_pub = md_info_pub.into_repr_c();
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_put(
+            &app,
+            &md_info_pub,
+            perms_h,
+            entries_h,
+            ud,
+            cb
+        )))
+    };
+
+    // Create entry actions using "next version" constant.
+
+    let actions_h: MDataEntryActionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_entry_actions_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_entry_actions_update(
+            &app,
+            actions_h,
+            KEY.as_ptr(),
+            KEY.len(),
+            VALUE2.as_ptr(),
+            VALUE2.len(),
+            GET_NEXT_VERSION,
+            ud,
+            cb,
+        )))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_mutate_entries(
+            &app,
+            &md_info_pub,
+            actions_h,
+            ud,
+            cb
+        )))
+    }
+
+    let values: Vec<MDataValue> = unsafe {
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_values(
+            &app,
+            &md_info_pub,
+            ud,
+            cb,
+        )))
+    };
+
+    assert_eq!(
+        values,
+        vec![
+            MDataValue {
+                content: VALUE2.to_vec(),
+                entry_version: 1
+            },
+            MDataValue {
+                content: VALUE.to_vec(),
+                entry_version: 0
+            }
+        ]
+    );
+
+    // Get next version of two entries at once.
+
+    let actions_h: MDataEntryActionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_entry_actions_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_entry_actions_update(
+            &app,
+            actions_h,
+            KEY.as_ptr(),
+            KEY.len(),
+            VALUE3.as_ptr(),
+            VALUE3.len(),
+            GET_NEXT_VERSION,
+            ud,
+            cb,
+        )))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_entry_actions_update(
+            &app,
+            actions_h,
+            KEY2.as_ptr(),
+            KEY2.len(),
+            VALUE2.as_ptr(),
+            VALUE2.len(),
+            GET_NEXT_VERSION,
+            ud,
+            cb,
+        )))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_mutate_entries(
+            &app,
+            &md_info_pub,
+            actions_h,
+            ud,
+            cb
+        )))
+    }
+
+    let values: Vec<MDataValue> = unsafe {
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_values(
+            &app,
+            &md_info_pub,
+            ud,
+            cb,
+        )))
+    };
+
+    assert_eq!(
+        values,
+        vec![
+            MDataValue {
+                content: VALUE3.to_vec(),
+                entry_version: 2
+            },
+            MDataValue {
+                content: VALUE2.to_vec(),
+                entry_version: 1
+            }
+        ]
+    );
+
+    // Delete an entry.
+
+    let actions_h: MDataEntryActionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_entry_actions_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_entry_actions_delete(
+            &app,
+            actions_h,
+            KEY2.as_ptr(),
+            KEY2.len(),
+            GET_NEXT_VERSION,
+            ud,
+            cb,
+        )))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| mdata_mutate_entries(
+            &app,
+            &md_info_pub,
+            actions_h,
+            ud,
+            cb
+        )))
+    }
+
+    let values: Vec<MDataValue> = unsafe {
+        unwrap!(call_vec(|ud, cb| seq_mdata_list_values(
+            &app,
+            &md_info_pub,
+            ud,
+            cb,
+        )))
+    };
+
+    assert_eq!(
+        values,
+        vec![MDataValue {
+            content: VALUE3.to_vec(),
+            entry_version: 2,
+        },]
+    );
 }

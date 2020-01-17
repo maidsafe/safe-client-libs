@@ -6,12 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-//! FFI.
-
 #![allow(unsafe_code)]
 
 /// Type definitions for arrays that are FFI input params.
 pub mod arrays;
+/// FFI Error Codes
+pub mod error_codes;
 /// IPC utilities.
 pub mod ipc;
 /// NFS API.

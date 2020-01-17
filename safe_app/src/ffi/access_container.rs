@@ -7,7 +7,9 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
+use crate::ffi::errors::Error;
 use crate::{App, AppError};
+use ffi_utils::call_result_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK};
 use futures::Future;
 use safe_core::ffi::ipc::req::ContainerPermissions;
@@ -26,17 +28,20 @@ pub unsafe extern "C" fn access_container_refresh_access_info(
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
 
-        (*app).send(move |client, context| {
-            context
-                .refresh_access_info(client)
-                .then(move |res| {
-                    call_result_cb!(res, user_data, o_cb);
-                    Ok(())
-                })
-                .into_box()
-                .into()
-        })
-    })
+        (*app)
+            .send(move |client, context| {
+                context
+                    .refresh_access_info(client)
+                    .map_err(Error::from)
+                    .then(move |res| {
+                        call_result_cb!(res, user_data, o_cb);
+                        Ok(())
+                    })
+                    .into_box()
+                    .into()
+            })
+            .map_err(Error::from)
+    });
 }
 
 /// Retrieve a list of container names that an app has access to.
@@ -69,13 +74,14 @@ pub unsafe extern "C" fn access_container_fetch(
                     );
                     Ok(())
                 })
+                .map_err(Error::from)
                 .map_err(move |e| {
                     call_result_cb!(Err::<(), _>(e), user_data, o_cb);
                 })
                 .into_box()
                 .into()
         })
-    })
+    });
 }
 
 /// Retrieve `MDataInfo` for the given container name from the access container.
@@ -103,29 +109,29 @@ pub unsafe extern "C" fn access_container_get_container_mdata_info(
                         o_cb(user_data.0, FFI_RESULT_OK, &mdata_info);
                     } else {
                         call_result_cb!(
-                            Err::<(), _>(AppError::NoSuchContainer(name)),
+                            Err::<(), _>(Error::from(AppError::NoSuchContainer(name))),
                             user_data,
                             o_cb
                         );
                     }
                 })
                 .map_err(move |err| {
-                    call_result_cb!(Err::<(), _>(err), user_data, o_cb);
+                    call_result_cb!(Err::<(), _>(Error::from(err)), user_data, o_cb);
                 })
                 .into_box()
                 .into()
         })
-    })
+    });
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::errors::AppError;
     use crate::ffi::access_container::*;
     use crate::run;
     use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
     use ffi_utils::test_utils::{call_0, call_1, call_vec};
     use ffi_utils::ReprC;
+    use safe_core::btree_set;
     use safe_core::ffi::ipc::req::ContainerPermissions as FfiContainerPermissions;
     use safe_core::ipc::req::ContainerPermissions;
     use safe_core::ipc::req::{container_perms_from_repr_c, Permission};
@@ -133,6 +139,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::rc::Rc;
+    use unwrap::unwrap;
 
     // Test refreshing access info by fetching it from the network.
     #[test]
@@ -211,7 +218,7 @@ mod tests {
 
     impl ReprC for PermSet {
         type C = *const FfiContainerPermissions;
-        type Error = AppError;
+        type Error = Error;
 
         unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
             Ok(PermSet(

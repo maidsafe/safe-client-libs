@@ -19,15 +19,16 @@ use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::{future, Future, IntoFuture};
 use log::Record;
+use log::{error, trace};
 use safe_core::client::{test_create_balance, Client};
+use safe_core::core_structs::AccessContainerEntry;
+use safe_core::core_structs::UserMetadata;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
     AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataRequest as FfiShareMDataReq,
 };
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
-use safe_core::ipc::resp::AccessContainerEntry;
-use safe_core::ipc::resp::UserMetadata;
 use safe_core::ipc::{
     self, AppExchangeInfo, AuthGranted, AuthReq, ContainersReq, IpcMsg, IpcReq, ShareMDataReq,
 };
@@ -47,6 +48,7 @@ use std::slice;
 use std::str::FromStr;
 use std::sync::mpsc;
 use std::time::Duration;
+use unwrap::unwrap;
 
 /// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]

@@ -1,52 +1,35 @@
+# Travis CI file.
+#
+# Performs the following:
+#
+# 1. Runs the binary compatibility test, and generates a new reference binary if pushing to a branch.
+# 2. Checks if working tree is dirty after building (i.e. Cargo.lock should be updated).
+#
+# Both of these functions should eventually be moved to Github Actions and this file deprecated.
+
 env:
   global:
+    # Run all cargo commands with --verbose.
+    - CARGO_TERM_VERBOSE=true
     - RUST_BACKTRACE=1
-    - RUSTFLAGS="-C opt-level=2 -C codegen-units=8 -D warnings"
     - PATH=$PATH:$HOME/.cargo/bin
 language: rust
 rust:
   - stable
 stages:
-  - warmup
-  - tests
-  - tests-binary-compat
+  - test-binary
+  - build-binary
 jobs:
   include:
-    # Warm up the cache dependencies
-    - stage: warmup
-      script: set -x; scripts/build-real-core
-      os: linux
-    # Warm up the cache for a real build
-    - stage: warmup
-      script: set -x; scripts/build-real
-      os: linux
-    # Warm up the cache for a mock build
-    - stage: warmup
-      script: set -x; scripts/build-mock
-      os: linux
-    - stage: warmup
-      script: set -x; scripts/build-mock
-      os: osx
-
-    # Tests + clippy
-    - stage: tests
-      script: set -x; scripts/test-binary
-      os: linux
-    - stage: tests
-      script: set -x; scripts/test-mock && scripts/test-integration
-      os: linux
-    - stage: tests
-      script: set -x; scripts/test-mock && scripts/test-integration
-      os: osx
-    - stage: tests
-      script: set -x; scripts/rustfmt && scripts/clippy-all
-      if: type = pull_request
+    # Test binary compatibility
+    - stage: test-binary
+      script: scripts/test-binary
       os: linux
 
-    # Build tests for binary compatibility
-    - stage: tests-binary-compat
-      script: set -x; scripts/build-binary
-      # if: type = push
+    # Build tests for binary compatibility (only when pushing)
+    - stage: build-binary
+      script: scripts/build-binary
+      if: type = push
       os: linux
 sudo: false
 cache:
@@ -56,29 +39,8 @@ cache:
   directories:
     - "${HOME}/.cache/master"
 before_script:
-  # Expected version change PR title format:
-  # Version change: safe_app to 0.2.2; safe_authenticator to 0.2.3; safe_core to 0.26.0;
-  - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_authenticator[[:space:]]to[[:space:]]([^;]+) ]]; then
-      SAFE_AUTHENTICATOR_VERSION=v$(cargo pkgid --manifest-path=safe_authenticator/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
-      if [[ "v${BASH_REMATCH[1]}" != $SAFE_AUTHENTICATOR_VERSION ]]; then
-        echo "Version mismatch between commit message and Cargo.toml for safe_authenticator.";
-        false;
-      fi;
-    else
-      SAFE_AUTHENTICATOR_VERSION=${TRAVIS_COMMIT:0:7};
-    fi
-  - if [[ "$TRAVIS_COMMIT_MESSAGE" =~ [Vv]ersion[[:space:]]change.*safe_app[[:space:]]to[[:space:]]([^;]+) ]]; then
-      SAFE_APP_VERSION=v$(cargo pkgid --manifest-path=safe_app/Cargo.toml | sed -e "s/.*[:#]\(.*\)/\1/");
-      if [[ "v${BASH_REMATCH[1]}" != $SAFE_APP_VERSION ]]; then
-        echo "Version mismatch between commit message and Cargo.toml for safe_app.";
-        false;
-      fi;
-    else
-      SAFE_APP_VERSION=${TRAVIS_COMMIT:0:7};
-    fi
   - curl -sSL https://github.com/maidsafe/QA/raw/master/travis/cargo_install.sh > cargo_install.sh
   - bash cargo_install.sh cargo-prune;
-  - rustup component add rustfmt clippy
 after_script:
   - if [[ $TRAVIS_EVENT_TYPE = pull_request && -n $(git diff --shortstat 2> /dev/null | tail -n1) ]]; then
       echo "Working tree is dirty after building.  Probably Cargo.lock should be updated.";

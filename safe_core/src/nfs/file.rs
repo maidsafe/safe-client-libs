@@ -152,6 +152,7 @@ fn convert_date_time(sec: i64, nano_sec: u32) -> Result<DateTime<Utc>, NfsError>
 mod tests {
     use super::*;
     use bincode::{deserialize, serialize};
+    use unwrap::unwrap;
 
     // Test that serialising and deserialising a file restores the original file.
     #[test]

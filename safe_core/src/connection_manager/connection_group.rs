@@ -15,6 +15,7 @@ use futures::{
     Future,
 };
 use lazy_static::lazy_static;
+use log::{error, info, trace};
 use quic_p2p::{
     self, Builder, Config as QuicP2pConfig, Error as QuicP2pError, Event, NodeInfo, Peer, QuicP2p,
     Token,
@@ -34,6 +35,7 @@ use std::{
     time::Duration,
 };
 use tokio::prelude::FutureExt;
+use unwrap::unwrap;
 
 /// Request timeout in seconds.
 pub const REQUEST_TIMEOUT_SECS: u64 = 180;

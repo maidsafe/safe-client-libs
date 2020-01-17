@@ -13,11 +13,14 @@
 use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
+use futures::future;
 use futures::Future;
-use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
-use safe_core::ipc::AppKeys;
+use log::trace;
+use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys};
+use safe_core::fry;
+use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
-use safe_core::{recovery, Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{recoverable_apis, Client, CoreError, FutureExt, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
@@ -25,6 +28,56 @@ use std::collections::HashMap;
 
 /// Key of the authenticator entry in the access container.
 pub const AUTHENTICATOR_ENTRY: &str = "authenticator";
+
+/// Updates containers permissions (adds a given key to the permissions set)
+#[allow(clippy::implicit_hasher)]
+pub fn update_container_perms(
+    client: &AuthClient,
+    permissions: HashMap<String, ContainerPermissions>,
+    app_pk: PublicKey,
+) -> Box<AuthFuture<AccessContainerEntry>> {
+    let c2 = client.clone();
+
+    fetch_authenticator_entry(client)
+        .and_then(move |(_, mut root_containers)| {
+            let mut reqs = Vec::new();
+            let client = c2.clone();
+
+            for (container_key, access) in permissions {
+                let c2 = client.clone();
+                let mdata_info = fry!(root_containers
+                    .remove(&container_key)
+                    .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone())));
+                let perm_set = container_perms_into_permission_set(&access);
+
+                let fut = client
+                    .get_mdata_version(*mdata_info.address())
+                    .and_then(move |version| {
+                        recoverable_apis::set_mdata_user_permissions(
+                            &c2,
+                            *mdata_info.address(),
+                            app_pk,
+                            perm_set,
+                            version + 1,
+                        )
+                        .map(move |_| (container_key, mdata_info, access))
+                    })
+                    .map_err(AuthError::from);
+
+                reqs.push(fut);
+            }
+
+            future::join_all(reqs).into_box()
+        })
+        .map(|perms| {
+            perms
+                .into_iter()
+                .map(|(container_key, dir, access)| (container_key, (dir, access)))
+                .collect()
+        })
+        .map_err(AuthError::from)
+        .into_box()
+}
 
 /// Gets access container entry key corresponding to the given app.
 pub fn enc_key(
@@ -102,7 +155,7 @@ pub fn put_authenticator_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    recovery::mutate_mdata_entries(client, *access_container.address(), actions)
+    recoverable_apis::mutate_mdata_entries(client, *access_container.address(), actions)
         .map_err(From::from)
         .into_box()
 }
@@ -191,7 +244,7 @@ pub fn put_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+            recoverable_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
                 .map_err(AuthError::from)
         })
         .into_box()
@@ -223,7 +276,7 @@ pub fn delete_entry(
                 .map_err(AuthError::from)
         })
         .and_then(move |_| {
-            recovery::mutate_mdata_entries(&client3, *access_container.address(), actions)
+            recoverable_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
                 .map_err(AuthError::from)
         })
         .into_box()

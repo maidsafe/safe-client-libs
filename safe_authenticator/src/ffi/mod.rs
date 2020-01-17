@@ -12,20 +12,25 @@
 
 /// Apps management
 pub mod apps;
+/// Errors
+pub mod errors;
 /// Authenticator communication with apps
 pub mod ipc;
 /// Logging utilities
 pub mod logging;
 
-use crate::errors::AuthError;
+use crate::ffi::errors::{Error, Result};
 use crate::Authenticator;
+use ffi_utils::try_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
+use log::trace;
 use rand::thread_rng;
 use safe_core::{config_handler, test_create_balance, Client};
 use safe_nd::{ClientFullId, Coins};
 use std::ffi::{CStr, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::str::FromStr;
+use unwrap::unwrap;
 
 /// Create a registered client. This or any one of the other companion
 /// functions to get an authenticator instance must be called before initiating any
@@ -45,7 +50,7 @@ pub unsafe extern "C" fn create_acc(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         trace!("Authenticator - create a client account.");
 
         let acc_locator = String::clone_from_repr_c(account_locator)?;
@@ -90,7 +95,7 @@ pub unsafe extern "C" fn login(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         trace!("Authenticator - log in a registered client.");
 
         let acc_locator = String::clone_from_repr_c(account_locator)?;
@@ -117,11 +122,11 @@ pub unsafe extern "C" fn auth_reconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let user_data = OpaqueCtx(user_data);
         (*auth).send(move |client| {
             try_cb!(
-                client.restart_network().map_err(AuthError::from),
+                client.restart_network().map_err(Error::from),
                 user_data.0,
                 o_cb
             );
@@ -138,7 +143,7 @@ pub unsafe extern "C" fn auth_set_config_dir_path(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let new_path = CStr::from_ptr(new_path).to_str()?;
         config_handler::set_config_dir_path(OsStr::new(new_path));
         o_cb(user_data, FFI_RESULT_OK);
@@ -166,6 +171,7 @@ mod tests {
     use super::*;
     use crate::ffi::auth_is_mock;
     use crate::run;
+    use crate::AuthError;
     use ffi_utils::test_utils::call_1;
     use futures::Future;
     use safe_core::{utils, FutureExt};

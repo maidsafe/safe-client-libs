@@ -1,7 +1,7 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
-cd safe_core && cargo clippy --verbose --features="mock-network" --all-targets && cd .. &&
-cd safe_authenticator && cargo clippy --verbose --features="mock-network" --all-targets && cd .. &&
-cd safe_app && cargo clippy --verbose --features="mock-network" --all-targets && cd ..
+cargo clippy --features="mock-network" --all-targets --manifest-path=safe_core/Cargo.toml
+cargo clippy --features="mock-network" --all-targets --manifest-path=safe_authenticator/Cargo.toml
+cargo clippy --features="mock-network" --all-targets --manifest-path=safe_app/Cargo.toml

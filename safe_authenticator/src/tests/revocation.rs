@@ -7,6 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::utils::{corrupt_container, create_containers_req};
+use crate::assert_match;
 use crate::{
     app_auth::{app_state, AppState},
     client::AuthClient,
@@ -21,17 +22,20 @@ use crate::{
     {access_container, run, AuthFuture, Authenticator},
 };
 use futures::{future, Future};
+use log::debug;
+use safe_core::btree_set;
 use safe_core::{
     app_container_name,
     client::AuthActions,
+    core_structs::AccessContainerEntry,
     ipc::req::container_perms_into_permission_set,
-    ipc::resp::AccessContainerEntry,
     ipc::{AuthReq, Permission},
     Client, CoreError, FutureExt, MDataInfo,
 };
 use safe_nd::{Error as SndError, MDataAddress, MDataSeqEntryActions};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 fn verify_app_is_revoked(
     client: &AuthClient,

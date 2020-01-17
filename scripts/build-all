@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
-scripts/build-real &&
-  scripts/build-mock
+scripts/build-real
+scripts/build-mock

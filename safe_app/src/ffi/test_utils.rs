@@ -7,9 +7,10 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-use crate::errors::AppError;
+use crate::ffi::errors::{Error, Result};
 use crate::test_utils::{create_app_by_req, create_auth_req};
 use crate::App;
+use ffi_utils::call_result_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::AuthReq;
 use safe_core::ipc::req::AuthReq as NativeAuthReq;
@@ -22,7 +23,7 @@ pub unsafe extern "C" fn test_create_app(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, app: *mut App),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<()> {
         let app_id = String::clone_from_repr_c(app_id)?;
         let auth_req = create_auth_req(Some(app_id), None);
         match create_app_by_req(&auth_req) {
@@ -30,7 +31,7 @@ pub unsafe extern "C" fn test_create_app(
                 o_cb(user_data, FFI_RESULT_OK, Box::into_raw(Box::new(app)));
             }
             res @ Err(..) => {
-                call_result_cb!(res, user_data, o_cb);
+                call_result_cb!(res.map_err(Error::from), user_data, o_cb);
             }
         }
         Ok(())
@@ -44,14 +45,14 @@ pub unsafe extern "C" fn test_create_app_with_access(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, o_app: *mut App),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<()> {
         let auth_req = NativeAuthReq::clone_from_repr_c(auth_req)?;
         match create_app_by_req(&auth_req) {
             Ok(app) => {
                 o_cb(user_data, FFI_RESULT_OK, Box::into_raw(Box::new(app)));
             }
             res @ Err(..) => {
-                call_result_cb!(res, user_data, o_cb);
+                call_result_cb!(res.map_err(Error::from), user_data, o_cb);
             }
         }
         Ok(())
@@ -80,13 +81,15 @@ pub unsafe extern "C" fn test_simulate_network_disconnect(
 #[cfg(test)]
 mod tests {
     use super::test_create_app_with_access;
-    use crate::{App, AppError};
+    use crate::App;
     use ffi_utils::test_utils::call_1;
-    use ffi_utils::ErrorCode;
     use safe_authenticator::test_utils::rand_app;
+    use safe_core::btree_set;
+    use safe_core::ffi::error_codes::ERR_NO_SUCH_CONTAINER;
     use safe_core::ipc::req::AuthReq;
     use safe_core::ipc::Permission;
     use std::collections::HashMap;
+    use unwrap::unwrap;
 
     #[test]
     fn create_app_with_invalid_access() {
@@ -104,7 +107,7 @@ mod tests {
         let result: Result<*mut App, i32> =
             unsafe { call_1(|ud, cb| test_create_app_with_access(&auth_req, ud, cb)) };
         match result {
-            Err(error) if error == AppError::NoSuchContainer("_app".into()).error_code() => (),
+            Err(error) if error == ERR_NO_SUCH_CONTAINER => (),
             x => panic!("Unexpected {:?}", x),
         }
     }

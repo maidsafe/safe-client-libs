@@ -31,14 +31,9 @@
     unused_results
 )]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate unwrap;
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
-pub mod ffi;
+// Export FFI interface.
 
 pub use ffi::arrays::*;
 pub use ffi::ipc::req::*;
@@ -46,34 +41,10 @@ pub use ffi::ipc::resp::*;
 pub use ffi::nfs::*;
 pub use ffi::*;
 
-/// Utility functions.
-#[macro_use]
-pub mod utils;
-
-/// Client trait and related constants.
-pub mod client;
-/// Config file handling.
-pub mod config_handler;
-/// Cryptographic utilities.
-pub mod crypto;
-/// Event loop handling.
-pub mod event_loop;
-/// Utilities for handling `ImmutableData`.
-pub mod immutable_data;
-/// Inter-Process Communication utilities.
-pub mod ipc;
-/// NFS utilities.
-pub mod nfs;
-/// Implements the Self Encryption storage trait.
-pub mod self_encryption_storage;
-
-#[cfg(not(feature = "mock-network"))]
-mod connection_manager;
-mod errors;
-mod network_event;
+// Export public core interface.
 
 pub use self::client::{
-    mdata_info, recovery, test_create_balance, AuthActions, Client, ClientKeys, MDataInfo,
+    mdata_info, recoverable_apis, test_create_balance, AuthActions, Client, ClientKeys, MDataInfo,
 };
 #[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManager};
@@ -89,6 +60,34 @@ pub use self::self_encryption_storage::{
 pub use self::utils::logging;
 pub use self::utils::FutureExt;
 pub use quic_p2p::Config as QuicP2pConfig;
+
+/// Client trait and related constants.
+pub mod client;
+/// Config file handling.
+pub mod config_handler;
+/// Core structs and associated functionality
+pub mod core_structs;
+/// Cryptographic utilities.
+pub mod crypto;
+/// Event loop handling.
+pub mod event_loop;
+/// FFI.
+pub mod ffi;
+/// Utilities for handling `ImmutableData`.
+pub mod immutable_data;
+/// Inter-Process Communication utilities.
+pub mod ipc;
+/// NFS utilities.
+pub mod nfs;
+/// Implements the Self Encryption storage trait.
+pub mod self_encryption_storage;
+/// Utility functions.
+pub mod utils;
+
+#[cfg(not(feature = "mock-network"))]
+mod connection_manager;
+mod errors;
+mod network_event;
 
 /// All Maidsafe tagging should positive-offset from this.
 pub const MAIDSAFE_TAG: u64 = 5_483_000;

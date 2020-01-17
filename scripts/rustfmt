@@ -1,5 +1,5 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
-cargo fmt --verbose --all -- --check
+cargo fmt --all -- --check

@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 /// Information allowing to locate and access mutable data on the network.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]

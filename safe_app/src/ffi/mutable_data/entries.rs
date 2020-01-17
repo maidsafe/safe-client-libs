@@ -10,19 +10,21 @@
 //! FFI for mutable data entries, keys and values.
 
 use crate::errors::AppError;
+use crate::ffi::errors::{Error, Result};
 use crate::ffi::helper::send_sync;
 use crate::ffi::object_cache::MDataEntriesHandle;
 use crate::App;
 use ffi_utils::callback::Callback;
+use ffi_utils::try_cb;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
 };
-use safe_core::ffi::ipc::resp::MDataEntry;
-use safe_core::ipc::resp::{
+use safe_core::core_structs::{
     MDataEntry as NativeMDataEntry, MDataKey as NativeMDataKey, MDataValue as NativeMDataValue,
 };
+use safe_core::ffi::ipc::resp::MDataEntry;
 use safe_core::CoreError;
-use safe_nd::{Error, MDataSeqValue};
+use safe_nd::{Error as NdError, MDataSeqValue};
 use std::collections::BTreeMap;
 use std::os::raw::c_void;
 
@@ -112,17 +114,20 @@ pub unsafe extern "C" fn seq_mdata_entries_get(
 
         (*app).send(move |_, context| {
             let entries = try_cb!(
-                context.object_cache().get_seq_mdata_entries(entries_h),
+                context
+                    .object_cache()
+                    .get_seq_mdata_entries(entries_h)
+                    .map_err(Error::from),
                 user_data,
                 o_cb
             );
 
             let value = entries
                 .get(&key)
-                .ok_or(Error::NoSuchEntry)
+                .ok_or(NdError::NoSuchEntry)
                 .map_err(CoreError::from)
                 .map_err(AppError::from);
-            let value = try_cb!(value, user_data, o_cb);
+            let value = try_cb!(value.map_err(Error::from), user_data, o_cb);
 
             o_cb(
                 user_data.0,
@@ -155,7 +160,10 @@ pub unsafe extern "C" fn seq_mdata_list_entries(
     catch_unwind_cb(user_data, o_cb, || {
         (*app).send(move |_client, context| {
             let entries = try_cb!(
-                context.object_cache().get_seq_mdata_entries(entries_h),
+                context
+                    .object_cache()
+                    .get_seq_mdata_entries(entries_h)
+                    .map_err(Error::from),
                 user_data.0,
                 o_cb
             );
@@ -207,10 +215,10 @@ unsafe fn with_entries<C, F>(
     user_data: *mut c_void,
     o_cb: C,
     f: F,
-) -> Result<(), AppError>
+) -> Result<()>
 where
     C: Callback + Copy + Send + 'static,
-    F: FnOnce(&mut BTreeMap<Vec<u8>, MDataSeqValue>) -> Result<C::Args, AppError> + Send + 'static,
+    F: FnOnce(&mut BTreeMap<Vec<u8>, MDataSeqValue>) -> Result<C::Args> + Send + 'static,
 {
     send_sync(app, user_data, o_cb, move |_, context| {
         let mut entries = context.object_cache().get_seq_mdata_entries(entries_h)?;
@@ -232,7 +240,8 @@ mod tests {
         call_0, call_1, call_vec, send_via_user_data, sender_as_user_data,
     };
     use ffi_utils::vec_clone_from_raw_parts;
-    use safe_core::ipc::resp::{MDataEntry, MDataKey, MDataValue};
+    use safe_core::btree_map;
+    use safe_core::core_structs::{MDataEntry, MDataKey, MDataValue};
     use safe_core::utils;
     use safe_nd::{MDataAction, MDataPermissionSet, MDataSeqValue};
     use std::os::raw::c_void;

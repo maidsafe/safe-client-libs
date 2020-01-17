@@ -15,28 +15,32 @@ mod utils;
 
 use crate::access_container as access_container_tools;
 use crate::config::{self, KEY_APPS};
-use crate::errors::{AuthError, ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
+use crate::errors::AuthError;
+use crate::ffi::apps::AppPermissions as FfiAppPermissions;
 use crate::ffi::apps::*;
+use crate::ffi::errors::{ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
-};
-use crate::safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
-use crate::safe_core::ipc::{
-    self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::test_utils::{self, ChannelType};
 use crate::{app_container, run};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
-use ffi_utils::{ErrorCode, ReprC, StringError};
+use ffi_utils::{ReprC, StringError};
 use futures::{future, Future};
+use safe_core::btree_set;
 use safe_core::config_handler::Config;
+use safe_core::ffi::error_codes::ERR_NO_SUCH_CONTAINER;
+use safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
+use safe_core::ipc::{self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission};
 use safe_core::{app_container_name, mdata_info, AuthActions, Client};
+use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 #[cfg(feature = "mock-network")]
 mod mock_routing {
@@ -56,6 +60,7 @@ mod mock_routing {
     };
     use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
     use std::str::FromStr;
+    use unwrap::unwrap;
 
     // Test operation recovery for std dirs creation.
     // 1. Try to create a new user's account using `safe_authenticator::Authenticator::create_acc`
@@ -614,7 +619,7 @@ fn invalid_container_authentication() {
         })
     };
     match result {
-        Err(error) if error == AuthError::NoSuchContainer("_app".into()).error_code() => (),
+        Err(error) if error == ERR_NO_SUCH_CONTAINER => (),
         x => panic!("Unexpected {:?}", x),
     };
 }
@@ -887,15 +892,20 @@ fn containers_access_request() {
     );
 }
 
-struct RegisteredAppId(String);
+struct RegisteredAppId {
+    id: String,
+    perms: FfiAppPermissions,
+}
+
 impl ReprC for RegisteredAppId {
     type C = *const RegisteredApp;
     type Error = StringError;
 
     unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        Ok(RegisteredAppId(String::clone_from_repr_c(
-            (*repr_c).app_info.id,
-        )?))
+        Ok(RegisteredAppId {
+            id: String::clone_from_repr_c((*repr_c).app_info.id)?,
+            perms: (*repr_c).app_permissions,
+        })
     }
 }
 
@@ -1007,6 +1017,70 @@ fn lists_of_registered_and_revoked_apps() {
 
     assert_eq!(registered.len(), 2);
     assert_eq!(revoked.len(), 0);
+}
+
+// Test fetching of authenticated and registered apps.
+#[test]
+fn test_registered_apps() {
+    let authenticator = test_utils::create_account_and_login();
+
+    // Permissions for App1
+    let app1 = test_utils::rand_app();
+    let app1_id = app1.clone().id;
+    let app1_perms = AppPermissions {
+        transfer_coins: true,
+        perform_mutations: false,
+        get_balance: true,
+    };
+
+    let auth_req1 = AuthReq {
+        app: app1,
+        app_container: false,
+        app_permissions: app1_perms,
+        containers: Default::default(),
+    };
+
+    // Permissions for App2
+    let app2_perms = AppPermissions {
+        transfer_coins: false,
+        perform_mutations: true,
+        get_balance: false,
+    };
+
+    let auth_req2 = AuthReq {
+        app: test_utils::rand_app(),
+        app_container: false,
+        app_permissions: app2_perms,
+        containers: Default::default(),
+    };
+
+    // Register both the apps.
+    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req1));
+    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req2));
+
+    // There are now two registered apps.
+    let registered: Vec<RegisteredAppId> = unsafe {
+        unwrap!(call_vec(|ud, cb| auth_registered_apps(
+            &authenticator,
+            ud,
+            cb
+        ),))
+    };
+    assert_eq!(registered.len(), 2);
+
+    for app in registered {
+        if app1_id == app.id {
+            // Assert App1's Permissions
+            assert_eq!(app.perms.transfer_coins, app1_perms.transfer_coins);
+            assert_eq!(app.perms.get_balance, app1_perms.get_balance);
+            assert_eq!(app.perms.perform_mutations, app1_perms.perform_mutations);
+        } else {
+            // Assert App2's Permissions
+            assert_eq!(app.perms.transfer_coins, app2_perms.transfer_coins);
+            assert_eq!(app.perms.get_balance, app2_perms.get_balance);
+            assert_eq!(app.perms.perform_mutations, app2_perms.perform_mutations);
+        }
+    }
 }
 
 fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {

@@ -18,6 +18,7 @@ pub mod shared_secretbox {
     use std::fmt::{self, Debug};
     use std::ops::Deref;
     use std::sync::Arc;
+    use unwrap::unwrap;
 
     /// Shared symmetric encryption key.
     #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]

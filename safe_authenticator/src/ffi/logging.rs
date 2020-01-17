@@ -10,7 +10,8 @@
 //! This module is exactly the same as `safe_app::ffi::logging`, therefore changes to either one of
 //! them should also be reflected to the other to stay in sync.
 
-use super::AuthError;
+use crate::errors::AuthError;
+use crate::ffi::errors::Result;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::utils::logging;
 use std::ffi::CString;
@@ -25,7 +26,7 @@ pub unsafe extern "C" fn auth_init_logging(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<(), AuthError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<()> {
         if output_file_name_override.is_null() {
             logging::init(false)?;
         } else {
@@ -43,7 +44,7 @@ pub unsafe extern "C" fn auth_config_dir_path(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, log_path: *const c_char),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<(), AuthError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<()> {
         let config_dir = safe_core::config_dir()?;
         let config_dir_path = CString::new(
             config_dir
@@ -61,6 +62,7 @@ pub unsafe extern "C" fn auth_config_dir_path(
 mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_0, call_1};
+    use log::{debug, error};
     use safe_core::config_dir;
     use std::env;
     use std::fs::{self, File};
@@ -69,6 +71,7 @@ mod tests {
     use std::str::FromStr;
     use std::thread;
     use std::time::Duration;
+    use unwrap::unwrap;
 
     // Test path where log file is created.
     #[test]

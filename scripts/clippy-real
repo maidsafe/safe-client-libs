@@ -1,8 +1,8 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
-cd safe_core && cargo clippy --verbose --features=testing --all-targets && cd .. &&
-cd safe_authenticator && cargo clippy --verbose --features=testing --all-targets && cd .. &&
-cd safe_app && cargo clippy --verbose --features=testing --all-targets && cd .. &&
-cd tests && cargo clippy --verbose --all-targets && cd ..
+cargo clippy --features=testing --all-targets --manifest-path=safe_core/Cargo.toml
+cargo clippy --features=testing --all-targets --manifest-path=safe_authenticator/Cargo.toml
+cargo clippy --features=testing --all-targets --manifest-path=safe_app/Cargo.toml
+cargo clippy --all-targets --manifest-path=tests/Cargo.toml

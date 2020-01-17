@@ -17,6 +17,7 @@ use crate::utils::test_utils::{gen_app_id, gen_client_id};
 use crate::{utils, NetworkEvent, QuicP2pConfig};
 
 use super::connection_manager::ConnectionManager;
+use crate::btree_map;
 use bincode::serialize;
 use futures::sync::mpsc::{self, UnboundedReceiver};
 use futures::Future;
@@ -35,6 +36,7 @@ use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use threshold_crypto::SecretKey;
+use unwrap::unwrap;
 
 // Helper macro to fetch the response for a request and
 // assert that the expected error is returned.

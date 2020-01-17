@@ -26,26 +26,17 @@ maidsafe_logo.png",
     unused_qualifications,
     unused_results
 )]
-// Our unsafe FFI functions are missing safety documentation. It is probably not necessary for us to
-// provide this for every single function as that would be repetitive and verbose.
-#![allow(clippy::missing_safety_doc)]
+#![allow(
+    // Our unsafe FFI functions are missing safety documentation. It is probably not necessary for
+    // us to provide this for every single function as that would be repetitive and verbose.
+    clippy::missing_safety_doc,
+)]
 
-#[macro_use]
-extern crate ffi_utils;
-#[macro_use]
-extern crate log;
-#[cfg(test)]
-extern crate rand;
-#[macro_use]
-extern crate safe_core;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate unwrap;
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Re-export functions used in FFI so that they are accessible through the Rust API.
 
-pub use safe_core::ipc::AppKeys;
+pub use safe_core::core_structs::AppKeys;
 pub use safe_core::{
     app_container_name, immutable_data, ipc, mdata_info, nfs, utils, Client, ClientKeys, CoreError,
     CoreFuture, FutureExt, MDataInfo, DIR_TAG, MAIDSAFE_TAG,
@@ -54,11 +45,10 @@ pub use safe_nd::PubImmutableData;
 
 // Export FFI interface.
 
-pub mod ffi;
-
 pub use crate::ffi::access_container::*;
 pub use crate::ffi::cipher_opt::*;
 pub use crate::ffi::crypto::*;
+pub use crate::ffi::errors::codes::*;
 pub use crate::ffi::immutable_data::*;
 pub use crate::ffi::ipc::*;
 pub use crate::ffi::logging::*;
@@ -74,33 +64,38 @@ pub use crate::ffi::object_cache::*;
 pub use crate::ffi::test_utils::*;
 pub use crate::ffi::*;
 
+// Export public app interface.
+
+pub use crate::errors::AppError;
+pub use client::AppClient;
+
 pub mod cipher_opt;
-mod client;
-mod errors;
+pub mod ffi;
 pub mod object_cache;
 pub mod permissions;
-
-#[cfg(test)]
-mod tests;
 
 /// Utility functions to test apps functionality.
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
-pub use self::errors::*;
-pub use client::AppClient;
+mod client;
+pub mod errors;
+#[cfg(test)]
+mod tests;
 
 use self::object_cache::ObjectCache;
+use crate::ffi::errors::{Error as FfiError, Result as FfiResult};
 use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future, IntoFuture};
+use log::info;
+use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
 use safe_core::crypto::shared_secretbox;
-use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
-use safe_core::ipc::{AccessContInfo, AuthGranted, BootstrapConfig};
+use safe_core::ipc::{AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
+use safe_core::{event_loop, fry, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -108,6 +103,7 @@ use std::sync::mpsc;
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
 use tokio::runtime::current_thread::{Handle, Runtime};
+use unwrap::unwrap;
 
 macro_rules! try_tx {
     ($result:expr, $tx:ident) => {
@@ -129,7 +125,7 @@ pub struct App {
 
 impl App {
     /// Send a message to app's event loop.
-    pub fn send<F>(&self, f: F) -> Result<(), AppError>
+    pub fn send<F>(&self, f: F) -> FfiResult<()>
     where
         F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Item = (), Error = ()>>>
             + Send
@@ -137,7 +133,7 @@ impl App {
     {
         let msg = CoreMsg::new(f);
         let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.unbounded_send(msg).map_err(AppError::from)
+        core_tx.unbounded_send(msg).map_err(FfiError::from)
     }
 
     /// Create unregistered app.
@@ -375,7 +371,7 @@ impl AppContext {
 }
 
 /// Helper to execute a future by blocking the thread until the result arrives.
-pub fn run<F, I, T>(app: &App, f: F) -> Result<T, AppError>
+pub fn run<F, I, T>(app: &App, f: F) -> FfiResult<T>
 where
     F: FnOnce(&AppClient, &AppContext) -> I + Send + 'static,
     I: IntoFuture<Item = T, Error = AppError> + 'static,
@@ -392,7 +388,7 @@ where
             .into_box();
         Some(future)
     })?;
-    rx.recv()?
+    rx.recv()?.map_err(crate::ffi::errors::Error::from)
 }
 
 fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFuture<()>> {

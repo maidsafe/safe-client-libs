@@ -1,9 +1,9 @@
 #!/bin/bash
 
-set -x;
+set -e -x;
 
-cargo check --verbose --release --manifest-path=safe_core/Cargo.toml &&
-cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_core/Cargo.toml &&
-cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml &&
-cargo check --verbose --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml &&
-cargo check --verbose --release --lib --tests --manifest-path=tests/Cargo.toml
+cargo check --release --manifest-path=safe_core/Cargo.toml
+cargo check --features=testing --release --lib --tests --manifest-path=safe_core/Cargo.toml
+cargo check --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml
+cargo check --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml
+cargo check --release --lib --tests --manifest-path=tests/Cargo.toml

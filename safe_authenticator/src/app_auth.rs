@@ -10,19 +10,25 @@
 
 use super::{AuthError, AuthFuture};
 use crate::access_container;
+use crate::access_container::update_container_perms;
 use crate::app_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
-use crate::ipc::update_container_perms;
 use futures::future::{self, Either};
 use futures::Future;
+use log::trace;
 use safe_core::client;
+use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
-use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
-use safe_core::{app_container_name, client::AuthActions, recovery, Client, FutureExt, MDataInfo};
+use safe_core::ipc::resp::AuthGranted;
+use safe_core::{
+    app_container_name, client::AuthActions, recoverable_apis, Client, FutureExt, MDataInfo,
+};
+use safe_core::{btree_set, err, fry, ok};
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 /// Represents current app state
 #[derive(Debug, Eq, PartialEq)]
@@ -162,6 +168,7 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                     let app = AppInfo {
                         info: auth_req.app,
                         keys,
+                        perms: auth_req.app_permissions,
                     };
                     config::insert_app(&c3, apps, config::next_version(apps_version), app.clone())
                         .map(move |_| (app, app_state, app_id))
@@ -271,7 +278,12 @@ fn authenticate_new_app(
     client
         .list_auth_keys_and_version()
         .and_then(move |(_, version)| {
-            recovery::ins_auth_key(&c2, app_keys.public_key(), app_permissions, version + 1)
+            recoverable_apis::ins_auth_key_to_client_h(
+                &c2,
+                app_keys.public_key(),
+                app_permissions,
+                version + 1,
+            )
         })
         .map_err(AuthError::from)
         .and_then(move |_| {

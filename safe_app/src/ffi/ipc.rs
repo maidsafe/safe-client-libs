@@ -9,8 +9,9 @@
 
 //! App-related IPC utilities.
 
-use crate::errors::AppError;
+use crate::ffi::errors::{Error, Result};
 use bincode::serialize;
+use ffi_utils::ffi_error;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, NativeResult, ReprC, FFI_RESULT_OK,
 };
@@ -35,7 +36,7 @@ pub unsafe extern "C" fn encode_auth_req(
         encoded: *const c_char,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let req_id = ipc::gen_req_id();
         let req = NativeAuthReq::clone_from_repr_c(req)?;
 
@@ -58,7 +59,7 @@ unsafe extern "C" fn encode_auth_req_64(
         encoded: *const c_char,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let req_id = ipc::gen_req_id();
         let req = NativeAuthReq::clone_from_repr_c(req)?;
 
@@ -80,7 +81,7 @@ pub unsafe extern "C" fn encode_containers_req(
         encoded: *const c_char,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let req_id = ipc::gen_req_id();
         let req = NativeContainersReq::clone_from_repr_c(req)?;
 
@@ -103,7 +104,7 @@ pub unsafe extern "C" fn encode_unregistered_req(
         encoded: *const c_char,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let data = vec_clone_from_raw_parts(extra_data, extra_data_len);
 
         let req_id = ipc::gen_req_id();
@@ -125,7 +126,7 @@ pub unsafe extern "C" fn encode_share_mdata_req(
         encoded: *const c_char,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let req_id = ipc::gen_req_id();
         let req = NativeShareMDataReq::clone_from_repr_c(req)?;
 
@@ -135,7 +136,7 @@ pub unsafe extern "C" fn encode_share_mdata_req(
     })
 }
 
-fn encode_ipc(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
+fn encode_ipc(req_id: u32, req: IpcReq) -> Result<CString> {
     let encoded = ipc::encode_msg(&IpcMsg::Req {
         req_id,
         request: req,
@@ -144,7 +145,7 @@ fn encode_ipc(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
 }
 
 #[cfg(any(test, feature = "testing"))]
-fn encode_ipc_64(req_id: u32, req: IpcReq) -> Result<CString, AppError> {
+fn encode_ipc_64(req_id: u32, req: IpcReq) -> Result<CString> {
     let encoded = ipc::encode_msg_64(&IpcMsg::Req {
         req_id,
         request: req,
@@ -169,7 +170,7 @@ pub unsafe extern "C" fn decode_ipc_msg(
     o_revoked: extern "C" fn(user_data: *mut c_void),
     o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
 ) {
-    catch_unwind_cb(user_data, o_err, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_err, || -> Result<_> {
         let msg = String::clone_from_repr_c(msg)?;
         let msg = ipc::decode_msg(&msg)?;
 
@@ -206,7 +207,7 @@ unsafe extern "C" fn decode_ipc_msg_64(
     o_revoked: extern "C" fn(user_data: *mut c_void),
     o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
 ) {
-    catch_unwind_cb(user_data, o_err, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_err, || -> Result<_> {
         let msg = String::clone_from_repr_c(msg)?;
         let msg = ipc::decode_msg_64(&msg)?;
 
@@ -240,7 +241,7 @@ fn decode_ipc_msg_impl(
     o_share_mdata: extern "C" fn(user_data: *mut c_void, req_id: u32),
     o_revoked: extern "C" fn(user_data: *mut c_void),
     o_err: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, req_id: u32),
-) -> Result<(), AppError> {
+) -> Result<()> {
     match msg {
         IpcMsg::Resp {
             response: IpcResp::Auth(res),
@@ -251,7 +252,7 @@ fn decode_ipc_msg_impl(
                     o_auth(user_data, req_id, &auth_granted);
                 }
                 Err(err) => {
-                    let e = AppError::from(err);
+                    let e = Error::from(err);
                     let (error_code, description) = ffi_error!(e);
                     let res = NativeResult {
                         error_code,
@@ -262,7 +263,7 @@ fn decode_ipc_msg_impl(
                 }
             },
             Err(err) => {
-                let e = AppError::from(err);
+                let e = Error::from(err);
                 let (error_code, description) = ffi_error!(e);
                 let res = NativeResult {
                     error_code,
@@ -278,7 +279,7 @@ fn decode_ipc_msg_impl(
         } => match res {
             Ok(()) => o_containers(user_data, req_id),
             Err(err) => {
-                let e = AppError::from(err);
+                let e = Error::from(err);
                 let (error_code, description) = ffi_error!(e);
                 let res = NativeResult {
                     error_code,
@@ -302,7 +303,7 @@ fn decode_ipc_msg_impl(
                 );
             }
             Err(err) => {
-                let e = AppError::from(err);
+                let e = Error::from(err);
                 let (error_code, description) = ffi_error!(e);
                 let res = NativeResult {
                     error_code,
@@ -318,7 +319,7 @@ fn decode_ipc_msg_impl(
         } => match res {
             Ok(()) => o_share_mdata(user_data, req_id),
             Err(err) => {
-                let e = AppError::from(err);
+                let e = Error::from(err);
                 let (error_code, description) = ffi_error!(e);
                 let res = NativeResult {
                     error_code,
@@ -345,11 +346,13 @@ mod tests {
     use ffi_utils::ReprC;
     use safe_authenticator::ffi::ipc::encode_auth_resp;
     use safe_authenticator::test_utils as auth_utils;
+    use safe_core::btree_set;
+    use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
     use safe_core::crypto::{shared_box, shared_secretbox};
     use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
     use safe_core::ipc::{
-        self, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, BootstrapConfig,
-        ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData, ShareMDataReq,
+        self, AuthGranted, BootstrapConfig, ContainersReq, IpcMsg, IpcReq, IpcResp, Permission,
+        ShareMData, ShareMDataReq,
     };
     use safe_core::utils;
     use safe_core::utils::test_utils::{gen_app_id, gen_client_id};
@@ -357,6 +360,7 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
+    use unwrap::unwrap;
 
     // Test that encoding and decoding base64 is no longer backwards compatible, as expected.
     #[test]

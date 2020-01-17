@@ -24,18 +24,26 @@
     unused_qualifications,
     unused_results
 )]
-// Our unsafe FFI functions are missing safety documentation. It is probably not necessary for us to
-// provide this for every single function as that would be repetitive and verbose.
-#![allow(clippy::missing_safety_doc)]
+#![allow(
+    // Our unsafe FFI functions are missing safety documentation. It is probably not necessary for
+    // us to provide this for every single function as that would be repetitive and verbose.
+    clippy::missing_safety_doc,
+)]
 
-#[macro_use]
-extern crate ffi_utils;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate safe_core;
-#[macro_use]
-extern crate unwrap;
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
+
+// Export FFI interface
+
+pub use crate::ffi::apps::*;
+pub use crate::ffi::errors::codes::*;
+pub use crate::ffi::ipc::*;
+pub use crate::ffi::logging::*;
+pub use crate::ffi::*;
+
+// Export public auth interface.
+
+pub use self::errors::AuthError;
+pub use client::AuthClient;
 
 pub mod access_container;
 pub mod app_auth;
@@ -47,25 +55,19 @@ pub mod ffi;
 pub mod ipc;
 pub mod revocation;
 #[cfg(any(test, feature = "testing"))]
-#[macro_use]
 pub mod test_utils;
-
-pub use ffi::apps::*;
-pub use ffi::ipc::*;
-pub use ffi::logging::*;
-pub use ffi::*;
 
 mod client;
 mod std_dirs;
 #[cfg(test)]
 mod tests;
 
-pub use self::errors::AuthError;
-pub use client::AuthClient;
-
+use crate::ffi::errors::Error;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
+use log::{debug, info};
+use safe_core::ok;
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
 #[cfg(feature = "mock-network")]
@@ -77,6 +79,7 @@ use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
 use std::thread::JoinHandle;
 use tokio::runtime::current_thread::{Handle, Runtime};
+use unwrap::unwrap;
 
 /// Future type specialised with `AuthError` as an error type.
 pub type AuthFuture<T> = dyn Future<Item = T, Error = AuthError>;
@@ -103,13 +106,13 @@ pub struct Authenticator {
 
 impl Authenticator {
     /// Send a message to the authenticator event loop.
-    pub fn send<F>(&self, f: F) -> Result<(), AuthError>
+    pub fn send<F>(&self, f: F) -> crate::ffi::errors::Result<()>
     where
         F: FnOnce(&AuthClient) -> Option<Box<dyn Future<Item = (), Error = ()>>> + Send + 'static,
     {
         let msg = CoreMsg::new(|client, _| f(client));
         let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.unbounded_send(msg).map_err(AuthError::from)
+        core_tx.unbounded_send(msg).map_err(Error::from)
     }
 
     /// Create a new account.

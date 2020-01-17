@@ -6,25 +6,8 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-/// `FileHelper` provides functions for CRUD on file.
-pub mod file_helper;
+#![allow(missing_docs)]
 
-mod data_map;
-mod dir;
-mod errors;
-mod file;
-mod reader;
-#[cfg(test)]
-mod tests;
-mod writer;
-
-pub use self::dir::create_directory;
-pub use self::errors::NfsError;
-pub use self::file::File;
-pub use self::reader::Reader;
-pub use self::writer::{Mode, Writer};
-
-use futures::Future;
-
-/// Helper type for futures that can result in `NfsError`.
-pub type NfsFuture<T> = dyn Future<Item = T, Error = NfsError>;
+// These error codes are positive so as not to conflict with the shared error codes, which are negative
+pub const ERR_ACCOUNT_CONTAINERS_CREATION: i32 = 1;
+pub const ERR_PENDING_REVOCATION: i32 = 2;

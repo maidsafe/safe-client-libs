@@ -8,6 +8,7 @@
 // Software.
 
 use crate::errors::AppError;
+use crate::ffi::errors::Result;
 use bincode::{deserialize, serialize};
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, SafePtr, FFI_RESULT_OK};
 use safe_core::crypto::shared_secretbox;
@@ -34,7 +35,7 @@ pub unsafe extern "C" fn mdata_info_new_private(
         mdata_info: *const MDataInfo,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let name = XorName(*name);
         let sk = shared_secretbox::Key::from_raw(&*secret_key);
 
@@ -61,7 +62,7 @@ pub unsafe extern "C" fn mdata_info_random_public(
         mdata_info: *const MDataInfo,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let md_kind = md_kind_clone_from_repr_c(md_seq);
         let info = NativeMDataInfo::random_public(md_kind, type_tag)?;
         let info = info.into_repr_c();
@@ -83,7 +84,7 @@ pub unsafe extern "C" fn mdata_info_random_private(
         mdata_info: *const MDataInfo,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let md_kind = md_kind_clone_from_repr_c(md_seq);
         let info = NativeMDataInfo::random_private(md_kind, type_tag)?;
         let info = info.into_repr_c();
@@ -107,7 +108,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_key(
         enc_entry_key_len: usize,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let input = slice::from_raw_parts(input, input_len);
         let encoded = info.enc_entry_key(input).map_err(AppError::from)?;
@@ -136,7 +137,7 @@ pub unsafe extern "C" fn mdata_info_encrypt_entry_value(
         enc_entry_value_len: usize,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let input = slice::from_raw_parts(input, input_len);
         let encoded = info.enc_entry_value(input).map_err(AppError::from)?;
@@ -165,7 +166,7 @@ pub unsafe extern "C" fn mdata_info_decrypt(
         mdata_info_decrypt_len: usize,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let encoded = slice::from_raw_parts(input, input_len);
         let decoded = info.decrypt(encoded).map_err(AppError::from)?;
@@ -192,7 +193,7 @@ pub unsafe extern "C" fn mdata_info_serialise(
         encoded_len: usize,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let info = NativeMDataInfo::clone_from_repr_c(info)?;
         let encoded = serialize(&info).map_err(AppError::from)?;
 
@@ -218,7 +219,7 @@ pub unsafe extern "C" fn mdata_info_deserialise(
         mdata_info: *const MDataInfo,
     ),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
         let encoded = slice::from_raw_parts(encoded_ptr, encoded_len);
         let info: NativeMDataInfo = deserialize(encoded)?;
         let info = info.into_repr_c();
@@ -236,6 +237,7 @@ mod tests {
     use safe_core::crypto::shared_secretbox;
     use safe_core::{utils, MDataInfo};
     use safe_nd::{MDataKind as NativeMDataKind, XOR_NAME_LEN};
+    use unwrap::unwrap;
 
     // Test creating non-encrypted mdata info.
     #[test]

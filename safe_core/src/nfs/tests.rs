@@ -6,6 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use crate::btree_map;
 use crate::client::core_client::CoreClient;
 use crate::client::MDataInfo;
 use crate::crypto::shared_secretbox;
@@ -19,11 +20,13 @@ use crate::utils::{self, generate_random_vector, FutureExt};
 use crate::DIR_TAG;
 use futures::future::{self, Loop};
 use futures::Future;
+use log::trace;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
 use std;
 use std::sync::mpsc;
 use std::thread;
+use unwrap::unwrap;
 
 const APPEND_SIZE: usize = 10;
 const ORIG_SIZE: usize = 5555;
