@@ -14,7 +14,7 @@ futures = "~0.1.17"
 safe_app = { path = "../safe_app", version = "~0.12.0", features = ["testing"] }
 safe_authenticator = { path = "../safe_authenticator", version = "~0.12.0", features = ["testing"] }
 safe_core = { path = "../safe_core", version = "~0.37.3", features = ["testing"] }
-safe-nd = "~0.7.0"
+safe-nd = "~0.7.2"
 serde = "~1.0.24"
 serde_derive = "~1.0.24"
 serde_json = "~1.0.2"
