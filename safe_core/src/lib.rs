@@ -82,7 +82,6 @@ pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
 /// Utility functions.
-#[macro_use]
 pub mod utils;
 
 #[cfg(not(feature = "mock-network"))]
