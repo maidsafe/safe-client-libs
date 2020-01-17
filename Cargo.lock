@@ -751,9 +751,9 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 
 [[package]]
 name = "ffi_utils"
-version = "0.14.0"
+version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cf78079f62dd513a2717af2a9fd953b78f26b5effb3be2f64f2f661748be819"
+checksum = "7bf76a6a3cac03b8c083bc6b15b2f0539ed13f47561fe94ad4e521c388a94548"
 dependencies = [
  "base64 0.9.3",
  "jni",
@@ -975,9 +975,9 @@ dependencies = [
 
 [[package]]
 name = "lazy_static"
-version = "1.2.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a374c89b9db55895453a74c1e38861d9deec0b01b405a82516e9d5de4820dea1"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lazycell"

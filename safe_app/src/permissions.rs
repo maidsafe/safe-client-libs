@@ -15,6 +15,7 @@ use ffi_utils::ReprC;
 use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
 use safe_core::ipc::IpcError;
 use safe_nd::MDataPermissionSet;
+use serde_derive::{Deserialize, Serialize};
 
 /// Object representing a (User, Permission Set) pair.
 #[derive(Clone, Default, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]

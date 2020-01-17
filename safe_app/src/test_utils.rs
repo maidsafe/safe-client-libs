@@ -9,6 +9,7 @@
 
 use super::{App, AppError};
 use env_logger::{fmt::Formatter, Builder as LoggerBuilder};
+use log::trace;
 use log::Record;
 use safe_authenticator::test_utils as authenticator;
 use safe_authenticator::AuthError;
@@ -18,6 +19,7 @@ use safe_core::utils;
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use std::io::Write;
+use unwrap::unwrap;
 
 /// Initialise `env_logger` with custom settings.
 pub fn init_log() {

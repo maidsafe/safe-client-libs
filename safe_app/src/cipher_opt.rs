@@ -16,6 +16,7 @@ use bincode::{deserialize, serialize};
 use miscreant::aead::Aead;
 use miscreant::aead::Aes128SivAead;
 use safe_core::{utils, Client, CoreError};
+use serde_derive::{Deserialize, Serialize};
 use threshold_crypto::{Ciphertext, PublicKey};
 
 /// Cipher Options

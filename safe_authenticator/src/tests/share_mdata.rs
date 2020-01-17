@@ -19,8 +19,10 @@ use safe_core::core_structs::{AppAccess, UserMetadata, METADATA_KEY};
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::{self, AuthReq, IpcError, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
 use safe_core::Client;
+use safe_core::{btree_map, ok};
 use safe_nd::{MDataAction, MDataPermissionSet, MDataSeqValue, PublicKey, SeqMutableData};
 use std::collections::BTreeMap;
+use unwrap::unwrap;
 
 // Test making an empty request to share mutable data.
 #[test]

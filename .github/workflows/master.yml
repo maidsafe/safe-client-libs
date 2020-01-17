@@ -16,13 +16,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
           - os: windows-latest
             target: x86_64-pc-windows-gnu
-          - os: macOS-latest
+          - os: macos-latest
             target: x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v1
@@ -92,7 +92,7 @@ jobs:
 
   build-ios:
     name: Build iOS
-    runs-on: macOS-latest
+    runs-on: macos-latest
     strategy:
       matrix:
         component: [safe_app, safe_authenticator]
@@ -518,24 +518,24 @@ jobs:
         with:
           command: publish
           args: --manifest-path=safe_core/Cargo.toml
-        if: startsWith(steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
+        if: steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
       # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
         run: sleep 120
-        if: startsWith(steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
+        if: steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
           args: --manifest-path=safe_authenticator/Cargo.toml
-        if: startsWith(steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
+        if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
         # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
         run: sleep 120
-        if: startsWith(steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
+        if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
           args: --manifest-path=safe_app/Cargo.toml
-        if: startsWith(steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version
+        if: steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version

@@ -30,14 +30,7 @@
     clippy::missing_safety_doc,
 )]
 
-#[macro_use]
-extern crate ffi_utils;
-#[macro_use]
-extern crate log;
-#[macro_use]
-extern crate safe_core;
-#[macro_use]
-extern crate unwrap;
+// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Export FFI interface
 
@@ -47,7 +40,7 @@ pub use crate::ffi::ipc::*;
 pub use crate::ffi::logging::*;
 pub use crate::ffi::*;
 
-// Export public auth objects.
+// Export public auth interface.
 
 pub use self::errors::AuthError;
 pub use client::AuthClient;
@@ -62,7 +55,6 @@ pub mod ffi;
 pub mod ipc;
 pub mod revocation;
 #[cfg(any(test, feature = "testing"))]
-#[macro_use]
 pub mod test_utils;
 
 mod client;
@@ -74,6 +66,8 @@ use crate::ffi::errors::Error;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
+use log::{debug, info};
+use safe_core::ok;
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
 #[cfg(feature = "mock-network")]
@@ -85,6 +79,7 @@ use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
 use std::thread::JoinHandle;
 use tokio::runtime::current_thread::{Handle, Runtime};
+use unwrap::unwrap;
 
 /// Future type specialised with `AuthError` as an error type.
 pub type AuthFuture<T> = dyn Future<Item = T, Error = AuthError>;

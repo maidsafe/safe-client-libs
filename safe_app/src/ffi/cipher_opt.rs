@@ -11,6 +11,7 @@ use crate::cipher_opt::CipherOpt;
 use crate::ffi::errors::Error;
 use crate::ffi::object_cache::{CipherOptHandle, EncryptPubKeyHandle};
 use crate::App;
+use ffi_utils::{call_result_cb, try_cb};
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use std::os::raw::c_void;
 
@@ -118,6 +119,7 @@ mod tests {
     use crate::{run, App, AppContext};
     use ffi_utils::test_utils::{call_0, call_1};
     use safe_core::{utils, Client};
+    use unwrap::unwrap;
 
     // Test plaintext "encryption" and decryption.
     #[test]

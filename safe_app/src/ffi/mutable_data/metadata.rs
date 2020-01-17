@@ -42,6 +42,7 @@ mod tests {
     use bincode::deserialize;
     use ffi_utils::test_utils::call_vec_u8;
     use safe_core::core_structs::UserMetadata;
+    use unwrap::unwrap;
 
     // Test serializing and deserializing metadata.
     #[test]
