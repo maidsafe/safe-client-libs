@@ -38,7 +38,7 @@ pub struct ConnectionManager {
 impl ConnectionManager {
     /// Create a new connection manager.
     pub fn new(mut config: QuicP2pConfig, net_tx: &NetworkTx) -> Result<Self, CoreError> {
-        config.port = None; // Make sure we always use a random port for client connections.
+        config.port = Some(0); // Make sure we always use a random port for client connections.
 
         let inner = Rc::new(RefCell::new(Inner {
             config,
