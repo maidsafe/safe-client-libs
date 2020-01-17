@@ -556,7 +556,7 @@ impl Inner {
 
     fn handle_bootstrap_failure(&mut self) {
         /*
-        	TODO: handle this properly as part of the new bootstrap process
+            TODO: handle this properly as part of the new bootstrap process
 
                 let _ = self
                     .connection_hook
