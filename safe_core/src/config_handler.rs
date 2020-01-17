@@ -193,7 +193,6 @@ pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     fs::create_dir_all(dir.clone())?;
 
     let path = dir.join(CONFIG_FILE);
-    dbg!(&path);
     let mut file = File::create(&path)?;
     serde_json::to_writer_pretty(&mut file, config)?;
     file.sync_all()?;

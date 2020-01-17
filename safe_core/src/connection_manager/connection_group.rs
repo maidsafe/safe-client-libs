@@ -343,7 +343,6 @@ impl Connected {
             .remove(&msg_id)
             .map(|(sender, count)| {
                 let count = count - 1;
-                dbg!("Response no: {}", count);
                 if count == 0 {
                     sender.send(response)
                 } else {
