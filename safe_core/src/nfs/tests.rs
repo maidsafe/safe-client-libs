@@ -614,8 +614,6 @@ fn file_update_metadata() {
 }
 #[test]
 fn file_delete() {
-    env_logger::init();
-
     random_client(|client| {
         let c2 = client.clone();
         let c3 = client.clone();
