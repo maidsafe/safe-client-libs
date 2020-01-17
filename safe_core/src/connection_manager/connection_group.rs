@@ -530,7 +530,7 @@ impl Inner {
                 peer_addr,
                 msg,
                 token,
-            } => self.handle_unsent_user_message(peer_addr, msg, token),
+            } => self.handle_unsent_user_message(peer_addr, &msg, token),
             NewMessage { peer_addr, msg } => {
                 let transition = self
                     .state
