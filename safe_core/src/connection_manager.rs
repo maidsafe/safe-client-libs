@@ -14,8 +14,8 @@ use crate::{
 use crate::{fry, ok};
 use connection_group::ConnectionGroup;
 use futures::{future, Future};
-use quic_p2p::Config as QuicP2pConfig;
 use log::{error, trace};
+use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{Message, PublicId, Response};
 use std::{
     cell::RefCell,

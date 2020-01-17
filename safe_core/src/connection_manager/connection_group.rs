@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{client::SafeKey, utils, CoreError, CoreFuture};
+use crate::{client::SafeKey, err, utils, CoreError, CoreFuture};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
@@ -15,7 +15,7 @@ use futures::{
     Future,
 };
 use lazy_static::lazy_static;
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use quic_p2p::{
     self, Builder, Config as QuicP2pConfig, Error as QuicP2pError, Event, NodeInfo, Peer, QuicP2p,
     Token,
