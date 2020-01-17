@@ -16,6 +16,7 @@ use crate::ffi::object_cache::{
 };
 use crate::App;
 use bincode::{deserialize, serialize};
+use ffi_utils::{call_result_cb, try_cb};
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use rand::thread_rng;
 use safe_core::crypto::shared_box;
@@ -25,6 +26,7 @@ use std::os::raw::c_void;
 use std::slice;
 use threshold_crypto::{Ciphertext, PublicKey as AsymEncryptKey};
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 /// Special value that represents that a message should be signed by the app.
 #[no_mangle]

@@ -12,6 +12,7 @@ use crate::apps::{
 };
 use crate::ffi::errors::{Error, Result};
 use crate::Authenticator;
+use ffi_utils::call_result_cb;
 use ffi_utils::{
     catch_unwind_cb, vec_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
@@ -224,6 +225,7 @@ mod tests {
     use ffi_utils::test_utils::call_0;
     use safe_core::ipc::{AuthReq, IpcError};
     use std::collections::HashMap;
+    use unwrap::unwrap;
 
     use super::*;
 

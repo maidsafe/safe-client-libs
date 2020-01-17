@@ -9,6 +9,7 @@
 
 use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
+use log::trace;
 use lru_cache::LruCache;
 use rand::thread_rng;
 use safe_core::client::{Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};

@@ -21,6 +21,7 @@ use crate::{AuthError, AuthFuture, Authenticator};
 use futures::{future, Future};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use safe_core::btree_set;
 use safe_core::config_handler;
 use safe_core::core_structs::AccessContainerEntry;
 use safe_core::ipc::req::ContainerPermissions;
@@ -33,6 +34,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+use unwrap::unwrap;
 
 #[test]
 #[ignore]

@@ -16,6 +16,7 @@ use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
 use futures::future::{self, Either};
 use futures::Future;
+use log::trace;
 use safe_core::client;
 use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
@@ -23,9 +24,11 @@ use safe_core::ipc::resp::AuthGranted;
 use safe_core::{
     app_container_name, client::AuthActions, recoverable_apis, Client, FutureExt, MDataInfo,
 };
+use safe_core::{btree_set, err, fry, ok};
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
+use unwrap::unwrap;
 
 /// Represents current app state
 #[derive(Debug, Eq, PartialEq)]

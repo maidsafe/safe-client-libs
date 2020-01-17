@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 use std::sync::mpsc;
 use std::thread;
 use threshold_crypto::SecretKey;
+use unwrap::unwrap;
 
 // MD created by owner and given to a permitted App. Owner has listed that app is allowed to insert
 // only. App tries to insert - should pass. App tries to update - should fail. App tries to change

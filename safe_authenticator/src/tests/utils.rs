@@ -10,10 +10,13 @@ use crate::access_container::{fetch_authenticator_entry, put_authenticator_entry
 use crate::client::AuthClient;
 use crate::AuthFuture;
 use futures::Future;
+use log::trace;
+use safe_core::btree_set;
 use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::req::{ContainerPermissions, Permission};
 use safe_core::{utils, FutureExt};
 use std::collections::HashMap;
+use unwrap::unwrap;
 
 // Creates a containers request asking for "documents with permission to
 // insert", and "videos with all the permissions possible".

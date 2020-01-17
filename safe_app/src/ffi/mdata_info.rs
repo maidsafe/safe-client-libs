@@ -237,6 +237,7 @@ mod tests {
     use safe_core::crypto::shared_secretbox;
     use safe_core::{utils, MDataInfo};
     use safe_nd::{MDataKind as NativeMDataKind, XOR_NAME_LEN};
+    use unwrap::unwrap;
 
     // Test creating non-encrypted mdata info.
     #[test]

@@ -10,6 +10,7 @@
 use crate::ffi::errors::{Error, Result};
 use crate::test_utils::{create_app_by_req, create_auth_req};
 use crate::App;
+use ffi_utils::call_result_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
 use safe_core::ffi::ipc::req::AuthReq;
 use safe_core::ipc::req::AuthReq as NativeAuthReq;
@@ -83,10 +84,12 @@ mod tests {
     use crate::App;
     use ffi_utils::test_utils::call_1;
     use safe_authenticator::test_utils::rand_app;
+    use safe_core::btree_set;
     use safe_core::ffi::error_codes::ERR_NO_SUCH_CONTAINER;
     use safe_core::ipc::req::AuthReq;
     use safe_core::ipc::Permission;
     use std::collections::HashMap;
+    use unwrap::unwrap;
 
     #[test]
     fn create_app_with_invalid_access() {

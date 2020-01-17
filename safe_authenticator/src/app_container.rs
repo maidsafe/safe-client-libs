@@ -13,6 +13,7 @@ use crate::client::AuthClient;
 use crate::{AuthError, AuthFuture};
 use futures::Future;
 use safe_core::{app_container_name, nfs, Client, FutureExt, MDataInfo, DIR_TAG};
+use safe_core::{btree_map, fry, ok};
 use safe_nd::{MDataAction, MDataKind, MDataPermissionSet, MDataSeqEntryActions, PublicKey};
 
 /// Returns an app's dedicated container if available and stored in the access container,

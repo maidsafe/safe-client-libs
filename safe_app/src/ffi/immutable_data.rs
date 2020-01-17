@@ -15,6 +15,7 @@ use crate::ffi::object_cache::{
 };
 use crate::App;
 use bincode::{deserialize, serialize};
+use ffi_utils::{call_result_cb, try_cb};
 use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use futures::Future;
 use safe_core::ffi::arrays::XorNameArray;
@@ -370,6 +371,7 @@ mod tests {
     use crate::test_utils::create_app;
     use ffi_utils::test_utils::{call_0, call_1, call_vec_u8};
     use safe_core::utils;
+    use unwrap::unwrap;
 
     // Test immutable data operations.
     #[test]

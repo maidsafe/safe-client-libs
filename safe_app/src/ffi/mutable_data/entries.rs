@@ -15,6 +15,7 @@ use crate::ffi::helper::send_sync;
 use crate::ffi::object_cache::MDataEntriesHandle;
 use crate::App;
 use ffi_utils::callback::Callback;
+use ffi_utils::try_cb;
 use ffi_utils::{
     catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
 };
@@ -239,6 +240,7 @@ mod tests {
         call_0, call_1, call_vec, send_via_user_data, sender_as_user_data,
     };
     use ffi_utils::vec_clone_from_raw_parts;
+    use safe_core::btree_map;
     use safe_core::core_structs::{MDataEntry, MDataKey, MDataValue};
     use safe_core::utils;
     use safe_nd::{MDataAction, MDataPermissionSet, MDataSeqValue};
