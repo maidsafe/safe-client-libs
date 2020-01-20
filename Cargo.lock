@@ -673,7 +673,7 @@ dependencies = [
  "proc-macro2 1.0.8",
  "quote 1.0.2",
  "rustc_version",
- "syn 1.0.13",
+ "syn 1.0.14",
  "synstructure",
 ]
 
@@ -739,7 +739,7 @@ checksum = "0bc225b78e0391e4b8683440bf2e63c2deeeb2ce5189eab46e2b68c6d3725d08"
 dependencies = [
  "proc-macro2 1.0.8",
  "quote 1.0.2",
- "syn 1.0.13",
+ "syn 1.0.14",
  "synstructure",
 ]
 
@@ -1373,7 +1373,7 @@ checksum = "aeccfe4d5d8ea175d5f0e4a2ad0637e0f4121d63bd99d356fb1f39ab2e7c6097"
 dependencies = [
  "proc-macro2 1.0.8",
  "quote 1.0.2",
- "syn 1.0.13",
+ "syn 1.0.14",
 ]
 
 [[package]]
@@ -1860,7 +1860,7 @@ dependencies = [
 
 [[package]]
 name = "safe_app"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "bincode",
  "clap",
@@ -1900,7 +1900,7 @@ dependencies = [
 
 [[package]]
 name = "safe_authenticator"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "bincode",
  "env_logger 0.6.2",
@@ -1954,7 +1954,7 @@ dependencies = [
 
 [[package]]
 name = "safe_core"
-version = "0.37.3"
+version = "0.38.0"
 dependencies = [
  "bincode",
  "bytes",
@@ -2083,7 +2083,7 @@ checksum = "128f9e303a5a29922045a830221b8f78ec74a5f544944f3d5984f8ec3895ef64"
 dependencies = [
  "proc-macro2 1.0.8",
  "quote 1.0.2",
- "syn 1.0.13",
+ "syn 1.0.14",
 ]
 
 [[package]]
@@ -2238,9 +2238,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.13"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e4ff033220a41d1a57d8125eab57bf5263783dfdcc18688b1dacc6ce9651ef8"
+checksum = "af6f3550d8dff9ef7dc34d384ac6f107e5d31c8f57d9f28e0081503f547ac8f5"
 dependencies = [
  "proc-macro2 1.0.8",
  "quote 1.0.2",
@@ -2255,7 +2255,7 @@ checksum = "67656ea1dc1b41b1451851562ea232ec2e5a80242139f7e679ceccfb5d61f545"
 dependencies = [
  "proc-macro2 1.0.8",
  "quote 1.0.2",
- "syn 1.0.13",
+ "syn 1.0.14",
  "unicode-xid 0.2.0",
 ]
 

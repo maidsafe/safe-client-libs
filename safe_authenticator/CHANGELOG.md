@@ -1,5 +1,12 @@
 # SAFE Authenticator - Change Log
 
+## [0.13.0]
+- Update to safe-nd 0.7.2
+- Remove macro_use and update ffi_utils to 0.15.0
+- Make `RegisteredApp` struct include `AppPermissions` in FFI API
+- Use GHA for Android libs build
+- Define FFI-specific Result types
+
 ## [0.12.0]
 - Remove Rust Sodium dependency
 

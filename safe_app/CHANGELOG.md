@@ -1,5 +1,12 @@
 # SAFE App
 
+## [0.13.0]
+- Update to safe-nd 0.7.2
+- Remove macro_use and update ffi_utils to 0.15.0
+- Add support for GET_NEXT_VERSION in more places
+- Use GHA for Android libs build
+- Define FFI-specific Result types
+
 ## [0.12.0]
 - Remove Rust Sodium dependency
 
