@@ -61,7 +61,7 @@ jobs:
         run: |
           [[ -d "artifacts" ]] && rm -rf artifacts
           mkdir artifacts
-          find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+          /usr/bin/find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
       - uses: actions/upload-artifact@master
         with:
           name: safe_client_libs-${{ matrix.target }}-prod
@@ -84,7 +84,7 @@ jobs:
         run: |
           [[ -d "artifacts" ]] && rm -rf artifacts
           mkdir artifacts
-          find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+          /usr/bin/find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
       - uses: actions/upload-artifact@master
         with:
           name: safe_client_libs-${{ matrix.target }}-dev
