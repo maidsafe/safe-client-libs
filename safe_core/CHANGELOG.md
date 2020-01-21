@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.38.1]
+- Fix broken master workflow
+
 ## [0.38.0]
 - Update to safe-nd 0.7.2
 - Update to lazy_static 1.4.0
