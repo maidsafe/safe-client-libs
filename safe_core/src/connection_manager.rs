@@ -100,7 +100,8 @@ impl Inner {
             let _ = value.insert(fry!(ConnectionGroup::new(
                 self.config.clone(),
                 full_id,
-                connected_tx
+                connected_tx,
+                self.net_tx.clone(),
             )));
             Box::new(
                 connected_rx
@@ -145,7 +146,7 @@ impl Inner {
         trace!("Disconnecting group {:?}", pub_id);
 
         let group = self.groups.remove(&pub_id);
-
+        let _ = self.net_tx.unbounded_send(NetworkEvent::Disconnected);
         if let Some(mut group) = group {
             Box::new(group.close().map(move |res| {
                 // Drop the group once it's disconnected
