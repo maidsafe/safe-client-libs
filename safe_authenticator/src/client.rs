@@ -148,9 +148,8 @@ impl AuthClient {
             Some(seed) => ClientKeys::new(seed),
             None => ClientKeys::new(&mut thread_rng()),
         };
-        maid_keys.client_id = client_id.clone();
+        maid_keys.client_id = client_id;
 
-        let balance_full_id = SafeKey::client(client_id);
         let client_safe_key = maid_keys.client_safe_key();
 
         let acc = Account::new(maid_keys)?;
@@ -168,26 +167,18 @@ impl AuthClient {
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
-        {
-            trace!("Using throw-away connection group to insert a login packet.");
+        block_on_all(connection_manager.bootstrap(client_safe_key.clone()))?;
 
-            block_on_all(connection_manager.bootstrap(balance_full_id.clone()))?;
+        let response = req(
+            &mut connection_manager,
+            Request::CreateLoginPacket(new_login_packet),
+            &client_safe_key,
+        )?;
 
-            let response = req(
-                &mut connection_manager,
-                Request::CreateLoginPacket(new_login_packet),
-                &balance_full_id,
-            )?;
-
-            match response {
-                Response::Mutation(res) => res?,
-                _ => return Err(AuthError::from("Unexpected response")),
-            };
-
-            block_on_all(connection_manager.disconnect(&balance_full_id.public_id()))?;
-        }
-
-        block_on_all(connection_manager.bootstrap(client_safe_key))?;
+        match response {
+            Response::Mutation(res) => res?,
+            _ => return Err(AuthError::from("Unexpected response")),
+        };
 
         Ok(Self {
             inner: Rc::new(RefCell::new(Inner::new(
