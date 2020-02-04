@@ -168,7 +168,6 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                     let app = AppInfo {
                         info: auth_req.app,
                         keys,
-                        perms: auth_req.app_permissions,
                     };
                     config::insert_app(&c3, apps, config::next_version(apps_version), app.clone())
                         .map(move |_| (app, app_state, app_id))
