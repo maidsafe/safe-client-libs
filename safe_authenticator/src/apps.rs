@@ -18,7 +18,7 @@ use crate::{app_container, AuthError};
 use bincode::deserialize;
 use ffi_utils::{vec_into_raw_parts, ReprC};
 use futures::future::Future;
-use safe_core::client::Client;
+use safe_core::client::{AuthActions, Client};
 use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppAccess};
 use safe_core::ipc::req::{containers_from_repr_c, containers_into_vec, ContainerPermissions};
 use safe_core::ipc::{AppExchangeInfo, IpcError};
@@ -153,6 +153,7 @@ pub fn list_revoked(client: &AuthClient) -> Box<AuthFuture<Vec<AppExchangeInfo>>
 pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>>> {
     let c2 = client.clone();
     let c3 = client.clone();
+    let c4 = client.clone();
 
     config::list_apps(client)
         .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
@@ -162,41 +163,53 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
                 .map(move |entries| (access_container, entries, auth_cfg))
         })
         .and_then(move |(access_container, entries, auth_cfg)| {
-            let mut apps = Vec::new();
-            let nonce = access_container
-                .nonce()
-                .ok_or_else(|| AuthError::from("No nonce on access container's MDataInfo"))?;
+            c4.list_auth_keys_and_version().map_err(From::from).map(
+                move |(authorised_keys, _version)| {
+                    (authorised_keys, access_container, entries, auth_cfg)
+                },
+            )
+        })
+        .and_then(
+            move |(mut authorised_keys, access_container, entries, auth_cfg)| {
+                let mut apps = Vec::new();
+                let nonce = access_container
+                    .nonce()
+                    .ok_or_else(|| AuthError::from("No nonce on access container's MDataInfo"))?;
 
-            for app in auth_cfg.values() {
-                let key = access_container_enc_key(&app.info.id, &app.keys.enc_key, nonce)?;
+                for app in auth_cfg.values() {
+                    let key = access_container_enc_key(&app.info.id, &app.keys.enc_key, nonce)?;
 
-                // Empty entry means it has been deleted
-                let entry = match entries.get(&key) {
-                    Some(entry) if !entry.data.is_empty() => Some(entry),
-                    _ => None,
-                };
-
-                if let Some(entry) = entry {
-                    let plaintext = symmetric_decrypt(&entry.data, &app.keys.enc_key)?;
-                    let app_access = deserialize::<AccessContainerEntry>(&plaintext)?;
-
-                    let mut containers = HashMap::new();
-
-                    for (container_name, (_, permission_set)) in app_access {
-                        let _ = containers.insert(container_name, permission_set);
-                    }
-
-                    let registered_app = RegisteredApp {
-                        app_info: app.info.clone(),
-                        containers,
-                        app_perms: app.perms,
+                    // Empty entry means it has been deleted
+                    let entry = match entries.get(&key) {
+                        Some(entry) if !entry.data.is_empty() => Some(entry),
+                        _ => None,
                     };
 
-                    apps.push(registered_app);
+                    if let Some(entry) = entry {
+                        let plaintext = symmetric_decrypt(&entry.data, &app.keys.enc_key)?;
+                        let app_access = deserialize::<AccessContainerEntry>(&plaintext)?;
+
+                        let mut containers = HashMap::new();
+
+                        for (container_name, (_, permission_set)) in app_access {
+                            let _ = containers.insert(container_name, permission_set);
+                        }
+
+                        let app_public_key = app.keys.public_key();
+                        let app_perms = authorised_keys.remove(&app_public_key).unwrap_or_default();
+
+                        let registered_app = RegisteredApp {
+                            app_info: app.info.clone(),
+                            containers,
+                            app_perms,
+                        };
+
+                        apps.push(registered_app);
+                    }
                 }
-            }
-            Ok(apps)
-        })
+                Ok(apps)
+            },
+        )
         .into_box()
 }
 

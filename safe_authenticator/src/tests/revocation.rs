@@ -32,7 +32,7 @@ use safe_core::{
     ipc::{AuthReq, Permission},
     Client, CoreError, FutureExt, MDataInfo,
 };
-use safe_nd::{Error as SndError, MDataAddress, MDataSeqEntryActions};
+use safe_nd::{AppPermissions, Error as SndError, MDataAddress, MDataSeqEntryActions};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
@@ -83,7 +83,11 @@ fn verify_app_is_revoked(
         .into_box()
 }
 
-fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthFuture<()>> {
+fn verify_app_is_authenticated(
+    client: &AuthClient,
+    app_id: String,
+    expected_permissions: AppPermissions,
+) -> Box<AuthFuture<()>> {
     let c0 = client.clone();
     let c1 = client.clone();
     let c2 = client.clone();
@@ -103,8 +107,11 @@ fn verify_app_is_authenticated(client: &AuthClient, app_id: String) -> Box<AuthF
             let (auth_keys, app_id, app_keys) = unwrap!(res);
             let app_key = app_keys.public_key();
 
-            // Verify the app is authenticated.
-            assert!(auth_keys.contains_key(&app_key));
+            // Verify the app is authenticated with the expected permissions.
+            match auth_keys.get(&app_key) {
+                Some(app_permissions) => assert_eq!(*app_permissions, expected_permissions),
+                None => panic!("App is not authenticated"),
+            }
 
             // Fetch the access container entry
             access_container::fetch_entry(&c1, &app_id, app_keys)
@@ -491,7 +498,12 @@ mod mock_routing {
         // Check that the first app is now revoked, but the second app is not.
         unwrap!(run(&auth, move |client| {
             let app_0 = verify_app_is_revoked(client, app_id_0, ac_entries_0);
-            let app_1 = verify_app_is_authenticated(client, app_id_1);
+            let expected_permissions = AppPermissions {
+                get_balance: true,
+                transfer_coins: true,
+                perform_mutations: true,
+            };
+            let app_1 = verify_app_is_authenticated(client, app_id_1, expected_permissions);
 
             app_0.join(app_1).map(|_| ())
         }));
@@ -589,7 +601,12 @@ mod mock_routing {
         unwrap!(run(&auth, move |client| {
             let app_0 = verify_app_is_revoked(client, app_id_0, ac_entries_0);
             let app_1 = verify_app_is_revoked(client, app_id_1, ac_entries_1);
-            let app_2 = verify_app_is_authenticated(client, app_id_2);
+            let expected_permissions = AppPermissions {
+                get_balance: true,
+                transfer_coins: true,
+                perform_mutations: true,
+            };
+            let app_2 = verify_app_is_authenticated(client, app_id_2, expected_permissions);
 
             app_0.join3(app_1, app_2).map(|_| ())
         }));
@@ -655,7 +672,7 @@ fn app_revocation_and_reauth() {
     let app_id1 = auth_req1.app.id.clone();
     let auth_granted1 = unwrap!(register_app(&authenticator, &auth_req1));
 
-    let auth_req2 = AuthReq {
+    let mut auth_req2 = AuthReq {
         app: rand_app(),
         app_container: true,
         app_permissions: Default::default(),
@@ -729,7 +746,7 @@ fn app_revocation_and_reauth() {
     let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
     unwrap!(run(&authenticator, move |client| {
         let app_1 = verify_app_is_revoked(client, app_id1_clone, ac_entries);
-        let app_2 = verify_app_is_authenticated(client, app_id2_clone);
+        let app_2 = verify_app_is_authenticated(client, app_id2_clone, Default::default());
 
         app_1.join(app_2).map(|_| ())
     }));
@@ -764,7 +781,7 @@ fn app_revocation_and_reauth() {
     let (app_id1_clone, app_id2_clone) = (app_id1.clone(), app_id2.clone());
     unwrap!(run(&authenticator, move |client| {
         let app_1 = verify_app_is_revoked(client, app_id1_clone, ac_entries);
-        let app_2 = verify_app_is_authenticated(client, app_id2_clone);
+        let app_2 = verify_app_is_authenticated(client, app_id2_clone, Default::default());
 
         app_1.join(app_2).map(|_| ())
     }));
@@ -788,6 +805,13 @@ fn app_revocation_and_reauth() {
 
     // Try to reauthorise and revoke the second app again - as it should have reused its
     // app container, the subsequent reauthorisation + revocation should work correctly too.
+    // Update the `AppPermissions` this time to allow it to read the user's balance.
+    let new_app_permissions = AppPermissions {
+        get_balance: true,
+        perform_mutations: false,
+        transfer_coins: false,
+    };
+    auth_req2.app_permissions = new_app_permissions;
     let auth_granted2 = unwrap!(register_app(&authenticator, &auth_req2));
 
     // The second app should be able to access data from its own container,
@@ -800,10 +824,10 @@ fn app_revocation_and_reauth() {
     );
     let _ = unwrap!(fetch_file(&authenticator, app_container_md, "3.mp4",));
 
-    // Check that the second app is authenticated.
+    // Check that the second app is authenticated with the required permissions.
     let app_id2_clone = app_id2.clone();
     unwrap!(run(&authenticator, move |client| {
-        verify_app_is_authenticated(client, app_id2_clone)
+        verify_app_is_authenticated(client, app_id2_clone, new_app_permissions)
     }));
 
     revoke(&authenticator, &app_id2);
