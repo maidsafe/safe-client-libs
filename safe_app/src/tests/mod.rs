@@ -28,7 +28,7 @@ use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{Client, CoreError};
+use safe_core::{client::COST_OF_PUT, Client, CoreError};
 use safe_nd::{
     ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
     PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
@@ -465,8 +465,5 @@ fn account_info() {
         client.get_balance(None).map_err(AppError::from)
     }));
 
-    assert_eq!(
-        new_balance,
-        unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_nano(1))))
-    );
+    assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
 }

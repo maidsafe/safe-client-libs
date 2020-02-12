@@ -23,14 +23,14 @@ use bincode::{deserialize, serialize};
 use data_encoding::BASE32_NOPAD;
 #[cfg(any(test, feature = "testing"))]
 use ffi_utils;
-use quic_p2p::NodeInfo;
 use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::net::SocketAddr;
 use std::u32;
 
 /// `QuicP2P` bootstrap info, shared from Authenticator to apps.
-pub type BootstrapConfig = HashSet<NodeInfo>;
+pub type BootstrapConfig = HashSet<SocketAddr>;
 
 /// IPC message.
 #[allow(clippy::large_enum_variant)]

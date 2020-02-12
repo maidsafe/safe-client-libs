@@ -9,6 +9,7 @@
 use crate::self_encryption_storage::SEStorageError;
 use bincode::Error as SerialisationError;
 use futures::sync::mpsc::SendError;
+use quic_p2p::QuicP2pError;
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error as StdError;
@@ -59,7 +60,7 @@ pub enum CoreError {
     /// Io error.
     IoError(io::Error),
     /// QuicP2p error.
-    QuicP2p(quic_p2p::Error),
+    QuicP2p(QuicP2pError),
 }
 
 impl<'a> From<&'a str> for CoreError {
@@ -110,8 +111,8 @@ impl From<io::Error> for CoreError {
     }
 }
 
-impl From<quic_p2p::Error> for CoreError {
-    fn from(error: quic_p2p::Error) -> Self {
+impl From<QuicP2pError> for CoreError {
+    fn from(error: QuicP2pError) -> Self {
         Self::QuicP2p(error)
     }
 }

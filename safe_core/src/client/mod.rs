@@ -40,7 +40,6 @@ use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
-use lazy_static::lazy_static;
 use log::trace;
 use lru_cache::LruCache;
 use safe_nd::{
@@ -66,10 +65,8 @@ pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
 // FIXME: move to conn manager
 // const CONNECTION_TIMEOUT_SECS: u64 = 40;
 
-lazy_static! {
-    /// Expected cost of mutation operations.
-    pub static ref COST_OF_PUT: Coins = unwrap!(Coins::from_nano(1));
-}
+/// Expected cost of mutation operations.
+pub const COST_OF_PUT: Coins = Coins::from_nano(1);
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
@@ -1433,6 +1430,7 @@ mod tests {
     // Test putting, getting, and deleting unpub idata.
     #[test]
     fn unpub_idata_test() {
+        crate::utils::test_utils::init_log();
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = unwrap!(Coins::from_str("10"));
 
@@ -1774,7 +1772,7 @@ mod tests {
                     // Subtract to cover the cost of inserting the login packet
                     let expected_amt = unwrap!(Coins::from_str("10")
                         .ok()
-                        .and_then(|x| x.checked_sub(*COST_OF_PUT)));
+                        .and_then(|x| x.checked_sub(COST_OF_PUT)));
                     match res {
                         Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
                         res => panic!("Unexpected result: {:?}", res),
@@ -2800,7 +2798,7 @@ mod tests {
 
         let client_balance = unwrap!(wallet_get_balance(&client_id));
         let expected = unwrap!(Coins::from_str("30"));
-        let expected = unwrap!(expected.checked_sub(*COST_OF_PUT));
+        let expected = unwrap!(expected.checked_sub(COST_OF_PUT));
         assert_eq!(client_balance, expected);
 
         let new_client_balance = unwrap!(wallet_get_balance(&new_client_id));

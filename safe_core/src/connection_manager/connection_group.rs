@@ -16,14 +16,11 @@ use futures::{
 };
 use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
-use quic_p2p::{
-    self, Builder, Config as QuicP2pConfig, Error as QuicP2pError, Event, NodeInfo, Peer, QuicP2p,
-    Token,
-};
+use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, Peer, QuicP2p, QuicP2pError, Token};
 use rand::Rng;
 use safe_nd::{
-    ConnectionInfo, HandshakeRequest, HandshakeResponse, Message, MessageId, NodePublicId,
-    PublicId, Request, Response,
+    HandshakeRequest, HandshakeResponse, Message, MessageId, NodePublicId, PublicId, Request,
+    Response,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
@@ -53,9 +50,9 @@ struct Elder {
 }
 
 impl Elder {
-    fn new(node_info: NodeInfo) -> Self {
+    fn new(socket: SocketAddr) -> Self {
         Self {
-            peer: Peer::Node { node_info },
+            peer: Peer::Node(socket),
             public_id: None,
         }
     }
@@ -118,11 +115,11 @@ impl Bootstrapping {
         quic_p2p.bootstrap();
     }
 
-    fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2p, node_info: NodeInfo) {
+    fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2p, socket: SocketAddr) {
         let token = rand::thread_rng().gen();
         let handshake = HandshakeRequest::Bootstrap(self.full_id.public_id());
         let msg = Bytes::from(unwrap!(serialize(&handshake)));
-        quic_p2p.send(Peer::Node { node_info }, msg, token);
+        quic_p2p.send(Peer::Node(socket), msg, token);
     }
 
     fn handle_new_message(
@@ -151,10 +148,7 @@ impl Bootstrapping {
                 quic_p2p.disconnect_from(peer_addr);
 
                 // Transition to a new state
-                let pending_elders: Vec<_> = elders
-                    .into_iter()
-                    .map(|(_xor_name, ci)| convert_node_info(ci))
-                    .collect();
+                let pending_elders: Vec<_> = elders.into_iter().map(|(_xor_name, ci)| ci).collect();
 
                 return Transition::ToJoining(pending_elders);
             }
@@ -180,7 +174,7 @@ struct Joining {
 impl Joining {
     fn new(
         old_state: Bootstrapping,
-        mut pending_elders: Vec<NodeInfo>,
+        mut pending_elders: Vec<SocketAddr>,
         quic_p2p: &mut QuicP2p,
     ) -> Self {
         for elder in pending_elders.drain(..) {
@@ -224,11 +218,11 @@ impl Joining {
     }
 
     fn handle_connected_to(&mut self, quic_p2p: &mut QuicP2p, peer: Peer) {
-        if let Peer::Node { ref node_info } = &peer {
+        if let Peer::Node(socket) = &peer {
             let _ = self.connected_elders.insert(
-                node_info.peer_addr,
+                *socket,
                 JoiningElder {
-                    elder: Elder::new(node_info.clone()),
+                    elder: Elder::new(*socket),
                     sent_challenge: false,
                 },
             );
@@ -392,7 +386,7 @@ enum State {
 
 enum Transition {
     None,
-    ToJoining(Vec<NodeInfo>),
+    ToJoining(Vec<SocketAddr>),
     ToConnected,
     Terminate,
 }
@@ -443,10 +437,10 @@ impl State {
         }
     }
 
-    fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2p, node_info: NodeInfo) {
-        trace!("Bootstrapped; node_info: {:?}", node_info);
+    fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2p, socket: SocketAddr) {
+        trace!("Bootstrapped; SocketAddr: {:?}", socket);
         match self {
-            State::Bootstrapping(state) => state.handle_bootstrapped_to(quic_p2p, node_info),
+            State::Bootstrapping(state) => state.handle_bootstrapped_to(quic_p2p, socket),
             // This message is not expected for the rest of states
             _state => {
                 warn!("handle_bootstrapped_to called for invalid state");
@@ -522,20 +516,16 @@ impl Inner {
             BootstrapFailure => self.handle_bootstrap_failure(),
             BootstrappedTo { node } => self.state.handle_bootstrapped_to(&mut self.quic_p2p, node),
             ConnectedTo { peer } => self.state.handle_connected_to(&mut self.quic_p2p, peer),
-            SentUserMessage {
-                peer_addr,
-                msg,
-                token,
-            } => self.handle_sent_user_message(peer_addr, msg, token),
-            UnsentUserMessage {
-                peer_addr,
-                msg,
-                token,
-            } => self.handle_unsent_user_message(peer_addr, &msg, token),
-            NewMessage { peer_addr, msg } => {
-                let transition = self
-                    .state
-                    .handle_new_message(&mut self.quic_p2p, peer_addr, msg);
+            SentUserMessage { peer, msg, token } => {
+                self.handle_sent_user_message(peer.peer_addr(), msg, token)
+            }
+            UnsentUserMessage { peer, msg, token } => {
+                self.handle_unsent_user_message(peer.peer_addr(), &msg, token)
+            }
+            NewMessage { peer, msg } => {
+                let transition =
+                    self.state
+                        .handle_new_message(&mut self.quic_p2p, peer.peer_addr(), msg);
 
                 match transition {
                     Transition::None => (), // do nothing
@@ -548,7 +538,9 @@ impl Inner {
             Finish => {
                 info!("Received unexpected event: {}", event);
             }
-            ConnectionFailure { peer_addr, err } => self.handle_connection_failure(peer_addr, err),
+            ConnectionFailure { peer, err } => {
+                self.handle_connection_failure(peer.peer_addr(), err)
+            }
         }
     }
 
@@ -593,7 +585,7 @@ impl Inner {
         // TODO: unimplemented
     }
 
-    fn handle_connection_failure(&mut self, peer_addr: SocketAddr, err: quic_p2p::Error) {
+    fn handle_connection_failure(&mut self, peer_addr: SocketAddr, err: QuicP2pError) {
         if let QuicP2pError::ConnectionCancelled = err {
             if let Some(tx) = self.disconnect_tx.take() {
                 trace!("{}: Successfully disconnected", self.id);
@@ -633,15 +625,4 @@ fn setup_quic_p2p_event_loop(
             }
         }
     })
-}
-
-fn convert_node_info(ci: ConnectionInfo) -> NodeInfo {
-    let ConnectionInfo {
-        peer_addr,
-        peer_cert_der,
-    } = ci;
-    NodeInfo {
-        peer_addr,
-        peer_cert_der,
-    }
 }

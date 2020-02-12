@@ -174,7 +174,7 @@ mod tests {
     use crate::AuthError;
     use ffi_utils::test_utils::call_1;
     use futures::Future;
-    use safe_core::{utils, FutureExt};
+    use safe_core::{client::COST_OF_PUT, utils, FutureExt};
     use safe_nd::PubImmutableData;
     use std::ffi::CString;
     use std::os::raw::c_void;
@@ -342,10 +342,7 @@ mod tests {
         let new_balance: Coins = unwrap!(run(unsafe { &*auth }, |client| {
             client.get_balance(None).map_err(AuthError::from)
         }));
-        assert_eq!(
-            new_balance,
-            unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_nano(1))))
-        );
+        assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
 
         unsafe { auth_free(auth) };
     }

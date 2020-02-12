@@ -266,7 +266,7 @@ impl Vault {
             for operation in operations {
                 // Mutation operations must be checked for min COST_OF_PUT balance
                 if let Operation::Mutation = operation {
-                    if !self.has_sufficient_balance(balance, *COST_OF_PUT) {
+                    if !self.has_sufficient_balance(balance, COST_OF_PUT) {
                         return Err(SndError::InsufficientBalance);
                     }
                 }
@@ -304,7 +304,7 @@ impl Vault {
                         debug!("Performing mutations not authorised");
                         return Err(SndError::AccessDenied);
                     }
-                    if !self.has_sufficient_balance(balance, *COST_OF_PUT) {
+                    if !self.has_sufficient_balance(balance, COST_OF_PUT) {
                         return Err(SndError::InsufficientBalance);
                     }
                 }
@@ -318,7 +318,7 @@ impl Vault {
         if !unlimited_coins(&self.config) {
             let balance = unwrap!(self.get_coin_balance_mut(account));
             // Cannot fail - Balance is checked before
-            unwrap!(balance.debit_balance(*COST_OF_PUT));
+            unwrap!(balance.debit_balance(COST_OF_PUT));
         }
     }
 
@@ -349,7 +349,7 @@ impl Vault {
         let _ = self
             .cache
             .coin_balances
-            .insert(destination, CoinBalance::new(Coins::from_nano(0)?, owner));
+            .insert(destination, CoinBalance::new(Coins::from_nano(0), owner));
         Ok(())
     }
 
@@ -556,7 +556,7 @@ impl Vault {
                         .and_then(|_| self.get_balance(&source))
                         .and_then(|source_balance| {
                             let total_amount = amount
-                                .checked_add(*COST_OF_PUT)
+                                .checked_add(COST_OF_PUT)
                                 .ok_or(SndError::ExcessiveValue)?;
                             if !self.has_sufficient_balance(source_balance, total_amount) {
                                 return Err(SndError::InsufficientBalance);
@@ -602,7 +602,7 @@ impl Vault {
                     self.get_balance(&source)
                         .and_then(|source_balance| {
                             let debit_amt = amount
-                                .checked_add(*COST_OF_PUT)
+                                .checked_add(COST_OF_PUT)
                                 .ok_or(SndError::ExcessiveValue)?;
                             if !self.has_sufficient_balance(source_balance, debit_amt) {
                                 return Err(SndError::InsufficientBalance);
@@ -651,7 +651,7 @@ impl Vault {
                     let result = self
                         .get_balance(&source)
                         .and_then(|source_balance| {
-                            if !self.has_sufficient_balance(source_balance, *COST_OF_PUT) {
+                            if !self.has_sufficient_balance(source_balance, COST_OF_PUT) {
                                 return Err(SndError::InsufficientBalance);
                             }
                             self.commit_mutation(&source);

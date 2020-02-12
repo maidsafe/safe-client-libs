@@ -114,7 +114,7 @@ fn immutable_data_basics() {
 
     // Initial balance is 10 coins
     let balance = unwrap!(Coins::from_str("10"));
-    let balance = unwrap!(balance.checked_sub(*COST_OF_PUT));
+    let balance = unwrap!(balance.checked_sub(COST_OF_PUT));
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
@@ -134,7 +134,7 @@ fn immutable_data_basics() {
     );
 
     // The balance should be deducted twice
-    let balance = unwrap!(balance.checked_sub(*COST_OF_PUT));
+    let balance = unwrap!(balance.checked_sub(COST_OF_PUT));
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
@@ -1325,7 +1325,7 @@ fn low_balance_check() {
             &client_safe_key,
             Request::CreateBalance {
                 new_balance_owner,
-                amount: unwrap!(balance.checked_sub(*COST_OF_PUT)),
+                amount: unwrap!(balance.checked_sub(COST_OF_PUT)),
                 transaction_id: rand::random(),
             },
         );

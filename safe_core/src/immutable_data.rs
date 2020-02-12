@@ -214,11 +214,11 @@ mod tests {
     }
 
     // Test creating and retrieving a 10mb idata.
-    #[cfg(not(debug_assertions))]
-    #[test]
-    fn create_and_retrieve_10mb() {
-        create_and_retrieve(10 * 1024 * 1024)
-    }
+    // #[cfg(not(debug_assertions))]
+    // #[test]
+    // fn create_and_retrieve_10mb() {
+    //     create_and_retrieve(10 * 1024 * 1024)
+    // }
 
     fn create_and_retrieve(size: usize) {
         // Published and unencrypted
