@@ -1397,8 +1397,7 @@ dependencies = [
 [[package]]
 name = "quic-p2p"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b61c385be2b310e1707e7d6b2be496388799e7b9ef32d5764e404a44c2c72628"
+source = "git+https://github.com/lionel1704/quic-p2p?branch=fixed-port#38b28aace16aff4fb199eebf383e8156607fb361"
 dependencies = [
  "base64 0.10.1",
  "bincode",
@@ -1908,7 +1907,6 @@ dependencies = [
  "jni",
  "log 0.4.8",
  "lru-cache",
- "quic-p2p",
  "rand 0.6.5",
  "safe-nd",
  "safe_bindgen",
