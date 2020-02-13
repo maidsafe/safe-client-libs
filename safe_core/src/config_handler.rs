@@ -63,9 +63,9 @@ pub struct Config {
 #[cfg(any(target_os = "android", target_os = "androideabi", target_os = "ios"))]
 fn check_config_path_set() -> Result<(), CoreError> {
     if unwrap!(CONFIG_DIR_PATH.lock()).is_none() {
-        Err(CoreError::QuicP2p(quic_p2p::Error::Configuration(
-            "Boostrap cache directory not set".to_string(),
-        )))
+        Err(CoreError::QuicP2p(quic_p2p::QuicP2pError::Configuration{
+            e: "Boostrap cache directory not set".to_string(),
+        }))
     } else {
         Ok(())
     }
