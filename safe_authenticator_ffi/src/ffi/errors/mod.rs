@@ -11,9 +11,9 @@ pub mod codes;
 pub use crate::ffi::errors::codes::*;
 pub use safe_core::ffi::error_codes::*;
 
-use crate::errors::AuthError;
 use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
+use safe_authenticator::AuthError;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::CoreError;
@@ -30,7 +30,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// FFI Error type
 #[derive(Debug)]
-pub struct Error(pub AuthError);
+pub struct Error(AuthError);
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {

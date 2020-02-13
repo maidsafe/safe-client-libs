@@ -10,9 +10,9 @@
 //! This module is exactly the same as `safe_app::ffi::logging`, therefore changes to either one of
 //! them should also be reflected to the other to stay in sync.
 
-use crate::errors::AuthError;
 use crate::ffi::errors::Result;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, FFI_RESULT_OK};
+use safe_authenticator::errors::AuthError;
 use safe_core::utils::logging;
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
