@@ -73,9 +73,12 @@ impl ConnectionGroup {
         full_id: SafeKey,
         connection_hook: Sender<Result<(), CoreError>>,
     ) -> Result<Self, CoreError> {
-        let (event_tx, event_rx) = crossbeam_channel::unbounded();
+        let (node_tx, node_rx) = crossbeam_channel::unbounded();
+        let (client_tx, _client_rx) = crossbeam_channel::unbounded();
 
-        let mut quic_p2p = Builder::new(event_tx).with_config(config).build()?;
+        let mut quic_p2p = Builder::new(quic_p2p::EventSenders { node_tx, client_tx })
+            .with_config(config)
+            .build()?;
 
         let mut initial_state = Bootstrapping {
             connection_hook,
@@ -90,7 +93,7 @@ impl ConnectionGroup {
             state: State::Bootstrapping(initial_state),
         }));
 
-        let _ = setup_quic_p2p_event_loop(&inner, event_rx);
+        let _ = setup_quic_p2p_event_loop(&inner, node_rx);
 
         Ok(Self { inner })
     }

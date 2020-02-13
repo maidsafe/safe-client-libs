@@ -1596,7 +1596,7 @@ dependencies = [
 [[package]]
 name = "quic-p2p"
 version = "0.3.0"
-source = "git+https://github.com/maidsafe/quic-p2p?rev=f1991746a8#f1991746a82ef21ac69b26e17ba8c6a6b4c15653"
+source = "git+https://github.com/maidsafe/quic-p2p?rev=52f8ae2a#52f8ae2a44f41a4a2c36063b7c70276a7fdd1aa1"
 dependencies = [
  "base64 0.10.1",
  "bincode",
