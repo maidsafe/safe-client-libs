@@ -23,6 +23,9 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::mpsc::RecvError;
 
+/// Result type
+pub type Result<T> = std::result::Result<T, AuthError>;
+
 /// Authenticator errors.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]

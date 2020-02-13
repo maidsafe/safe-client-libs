@@ -2135,6 +2135,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "safe_authenticator_ffi"
+version = "0.13.0"
+dependencies = [
+ "bincode",
+ "env_logger 0.6.2",
+ "ffi_utils",
+ "futures",
+ "jni",
+ "log 0.4.8",
+ "lru-cache",
+ "quic-p2p",
+ "rand 0.6.5",
+ "safe-nd",
+ "safe_authenticator",
+ "safe_bindgen",
+ "safe_core",
+ "serde",
+ "threshold_crypto",
+ "tiny-keccak",
+ "tokio",
+ "unwrap",
+]
+
+[[package]]
 name = "safe_authenticator_jni"
 version = "0.1.0"
 dependencies = [
@@ -2597,6 +2621,7 @@ dependencies = [
  "safe-nd",
  "safe_app",
  "safe_authenticator",
+ "safe_authenticator_ffi",
  "safe_core",
  "serde",
  "serde_derive",

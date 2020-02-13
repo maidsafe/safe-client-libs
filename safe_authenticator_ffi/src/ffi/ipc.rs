@@ -6,19 +6,19 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::access_container;
-use crate::app_auth;
-use crate::config;
 use crate::ffi::errors::{Error, Result};
-use crate::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response};
-use crate::revocation::{flush_app_revocation_queue, revoke_app};
-use crate::{AuthError, Authenticator};
 use ffi_utils::{call_result_cb, ffi_error};
 use ffi_utils::{
     catch_unwind_cb, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::{stream, Future, Stream};
 use log::debug;
+use safe_authenticator::access_container;
+use safe_authenticator::app_auth;
+use safe_authenticator::config;
+use safe_authenticator::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response};
+use safe_authenticator::revocation::{flush_app_revocation_queue, revoke_app};
+use safe_authenticator::{AuthError, Authenticator};
 use safe_core::client::Client;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataRequest};
 use safe_core::ffi::ipc::resp::MetadataResponse;
@@ -232,7 +232,7 @@ pub unsafe extern "C" fn auth_flush_app_revocation_queue(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<()> {
         (*auth).send(move |client| {
             flush_app_revocation_queue(client)
                 .then(move |res| {
@@ -241,7 +241,8 @@ pub unsafe extern "C" fn auth_flush_app_revocation_queue(
                 })
                 .into_box()
                 .into()
-        })
+        });
+        Ok(())
     })
 }
 

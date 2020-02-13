@@ -6,17 +6,18 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::apps::{
-    apps_accessing_mutable_data, list_registered, list_revoked, remove_revoked_app,
-    RegisteredApp as NativeRegisteredApp,
-};
 use crate::ffi::errors::{Error, Result};
-use crate::Authenticator;
+use crate::helpers::registered_app_into_repr_c;
 use ffi_utils::call_result_cb;
 use ffi_utils::{
-    catch_unwind_cb, vec_from_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
+    catch_unwind_cb, vec_from_raw_parts, vec_into_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr,
+    FFI_RESULT_OK,
 };
 use futures::Future;
+use safe_authenticator::apps::{
+    apps_accessing_mutable_data, list_registered, list_revoked, remove_revoked_app,
+};
+use safe_authenticator::Authenticator;
 use safe_core::core_structs::AppAccess as NativeAppAccess;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
@@ -72,7 +73,7 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<()> {
         let app_id = String::clone_from_repr_c(app_id)?;
 
         (*auth).send(move |client| {
@@ -83,7 +84,8 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
                 })
                 .into_box()
                 .into()
-        })
+        });
+        Ok(())
     });
 }
 
@@ -146,11 +148,13 @@ pub unsafe extern "C" fn auth_registered_apps(
         (*auth).send(move |client| {
             list_registered(client)
                 .and_then(move |registered_apps| {
-                    let apps: Vec<_> = registered_apps
-                        .into_iter()
-                        .map(NativeRegisteredApp::into_repr_c)
-                        .collect::<std::result::Result<_, _>>()?;
-                    o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
+                    let mut vec = Vec::with_capacity(registered_apps.len());
+                    for app in registered_apps {
+                        vec.push(registered_app_into_repr_c(&app)?);
+                    }
+                    let (apps_ptr, apps_len) = vec_into_raw_parts(vec);
+
+                    o_cb(user_data.0, FFI_RESULT_OK, apps_ptr, apps_len);
 
                     Ok(())
                 })
@@ -213,16 +217,16 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 
 #[cfg(test)]
 mod tests {
-    use crate::app_auth::{app_state, AppState};
-    use crate::app_container::fetch;
-    use crate::errors::AuthError;
     use crate::ffi::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
-    use crate::revocation::revoke_app;
     use crate::test_utils::{
         create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
     };
-    use crate::{config, run};
     use ffi_utils::test_utils::call_0;
+    use safe_authenticator::app_auth::{app_state, AppState};
+    use safe_authenticator::app_container::fetch;
+    use safe_authenticator::errors::AuthError;
+    use safe_authenticator::revocation::revoke_app;
+    use safe_authenticator::{config, run};
     use safe_core::ipc::{AuthReq, IpcError};
     use std::collections::HashMap;
     use unwrap::unwrap;
