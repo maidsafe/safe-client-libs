@@ -27,7 +27,7 @@ log4rs = { version = "~0.8.3", features = ["toml_format"] }
 lru-cache = "~0.1.1"
 miscreant = { version = "0.4.2", features = ["soft-aes"] }
 pbkdf2 = { version = "0.3.0", default-features = false }
-quic-p2p = { git = "https://github.com/maidsafe/quic-p2p", rev = "52f8ae2a" }
+quic-p2p = { git = "https://github.com/lionel1704/quic-p2p", branch = "test" }
 rand = "0.6"
 regex = "~1.3.1"
 safe-nd = "~0.8.0"
