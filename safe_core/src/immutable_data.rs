@@ -61,6 +61,8 @@ pub fn gen_data_map(
 pub fn extract_value(
     client: &impl Client,
     data: &IData,
+    position: Option<u64>,
+    len: Option<u64>,
     decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let published = data.is_pub();
@@ -76,9 +78,19 @@ pub fn extract_value(
 
             Ok(SelfEncryptor::new(se_storage, data_map)?)
         })
-        .and_then(|self_encryptor| {
-            let length = self_encryptor.len();
-            self_encryptor.read(0, length).map_err(From::from)
+        .and_then(move |self_encryptor| {
+            let length = match len {
+                None => self_encryptor.len(),
+                Some(request_length) => request_length,
+            };
+
+            let read_position = match position {
+                None => 0,
+                Some(pos) => pos,
+            };
+            self_encryptor
+                .read(read_position, length)
+                .map_err(From::from)
         })
         .into_box()
 }
@@ -89,12 +101,14 @@ pub fn extract_value(
 pub fn get_value(
     client: &impl Client,
     address: IDataAddress,
+    position: Option<u64>,
+    len: Option<u64>,
     decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client2 = client.clone();
     client
         .get_idata(address)
-        .and_then(move |data| extract_value(&client2, &data, decryption_key))
+        .and_then(move |data| extract_value(&client2, &data, position, len, decryption_key))
         .into_box()
 }
 
@@ -258,7 +272,7 @@ mod tests {
                     })
                     .then(move |res| {
                         let address = unwrap!(res);
-                        get_value(&client3, address, Some(key))
+                        get_value(&client3, address, None, None, Some(key))
                     })
                     .then(|res| {
                         assert!(res.is_err());
@@ -284,7 +298,7 @@ mod tests {
                     })
                     .then(move |res| {
                         let address = unwrap!(res);
-                        get_value(&client3, address, None)
+                        get_value(&client3, address, None, None, None)
                     })
                     .then(|res| {
                         assert!(res.is_err());
@@ -310,7 +324,7 @@ mod tests {
                     .then(move |res| {
                         let data_name = unwrap!(res);
                         let address = IDataAddress::Unpub(data_name);
-                        get_value(&client3, address, None)
+                        get_value(&client3, address, None, None, None)
                     })
                     .then(|res| {
                         assert!(res.is_err());
@@ -334,7 +348,7 @@ mod tests {
                     .then(move |res| {
                         let data_name = unwrap!(res);
                         let address = IDataAddress::Pub(data_name);
-                        get_value(&client3, address, None)
+                        get_value(&client3, address, None, None, None)
                     })
                     .then(|res| {
                         assert!(res.is_err());
@@ -367,7 +381,7 @@ mod tests {
                     let data = unwrap!(res);
                     let address_before = *data.address();
                     // attempt to retrieve it with generated address (it should error)
-                    get_value(&client2, address_before, key2.clone())
+                    get_value(&client2, address_before, None, None, key2.clone())
                         .then(move |res| {
                             match res {
                                 Err(err) => {
@@ -399,7 +413,7 @@ mod tests {
                 .then(move |res| {
                     let address = unwrap!(res);
                     // now that it was put to the network we should be able to retrieve it
-                    get_value(&client5, address, key)
+                    get_value(&client5, address, None, None, key)
                 })
                 .then(move |res| {
                     let value_after = unwrap!(res);

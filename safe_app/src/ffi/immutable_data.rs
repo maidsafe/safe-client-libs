@@ -189,7 +189,7 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(
                 let idata_kind = IDataKind::from_flag(published);
                 let address = IDataAddress::from_kind(idata_kind, name);
 
-                immutable_data::get_value(client, address, None)
+                immutable_data::get_value(client, address, None, None, None)
                     .map_err(AppError::from)
                     .and_then(move |enc_data_map| {
                         let ser_data_map = CipherOpt::decrypt(&enc_data_map, &context2, &client2)?;

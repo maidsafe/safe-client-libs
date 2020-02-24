@@ -25,7 +25,7 @@ pub fn get(
     address: IDataAddress,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<DataMap>> {
-    immutable_data::get_value(client, address, encryption_key)
+    immutable_data::get_value(client, address, None, None, encryption_key)
         .map_err(From::from)
         .and_then(move |content| deserialize(&content).map_err(From::from))
         .into_box()
