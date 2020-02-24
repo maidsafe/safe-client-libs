@@ -1,6 +1,7 @@
 // Export FFI interface
 
 pub mod ffi;
+pub mod test_utils;
 
 pub use crate::ffi::apps::*;
 pub use crate::ffi::errors::codes::*;

@@ -36,6 +36,7 @@
 
 pub use self::errors::AuthError;
 pub use client::AuthClient;
+pub use errors::Result as AuthResult;
 
 pub mod access_container;
 pub mod app_auth;
@@ -53,7 +54,7 @@ mod std_dirs;
 #[cfg(test)]
 mod tests;
 
-use errors::{AuthError as Error, Result as AuthResult};
+use errors::AuthError as Error;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
