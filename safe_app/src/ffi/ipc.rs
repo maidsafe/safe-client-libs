@@ -344,8 +344,8 @@ mod tests {
     use crate::test_utils;
     use ffi_utils::test_utils::{call_1, call_2};
     use ffi_utils::ReprC;
-    use safe_authenticator::ffi::ipc::encode_auth_resp;
-    use safe_authenticator::test_utils as auth_utils;
+    use safe_authenticator_ffi::ipc::encode_auth_resp;
+    use safe_authenticator_ffi::test_utils as auth_utils;
     use safe_core::btree_set;
     use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
     use safe_core::crypto::{shared_box, shared_secretbox};
