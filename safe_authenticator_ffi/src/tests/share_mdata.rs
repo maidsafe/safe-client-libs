@@ -6,15 +6,16 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::AuthError;
 use crate::ffi::apps::*;
 use crate::ffi::errors::{ERR_INVALID_OWNER, ERR_NO_SUCH_DATA};
 use crate::ffi::ipc::encode_share_mdata_resp;
-use crate::run;
-use crate::test_utils::{self, Payload};
+use crate::test_utils::auth_decode_ipc_msg_helper;
 use bincode::serialize;
 use ffi_utils::test_utils::{call_1, call_vec};
 use futures::Future;
+use safe_authenticator::errors::AuthError;
+use safe_authenticator::run;
+use safe_authenticator::test_utils::{self, Payload};
 use safe_core::core_structs::{AppAccess, UserMetadata, METADATA_KEY};
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::{self, AuthReq, IpcError, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
@@ -38,10 +39,7 @@ fn share_zero_mdatas() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
-        &authenticator,
-        &encoded_msg
-    ));
+    let decoded = unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg));
     match decoded {
         (
             IpcMsg::Req {
@@ -101,10 +99,7 @@ fn share_some_mdatas() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
-        &authenticator,
-        &encoded_msg
-    ));
+    let decoded = unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg));
     match decoded {
         (
             IpcMsg::Req {
@@ -150,7 +145,7 @@ fn share_invalid_mdatas() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
+    match auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Err((ERR_NO_SUCH_DATA, None)) => (),
         x => panic!("Unexpected result: {:?}", x),
     }
@@ -223,10 +218,7 @@ fn share_some_mdatas_with_valid_metadata() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
-        &authenticator,
-        &encoded_msg
-    ));
+    let decoded = unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg));
     match decoded {
         (
             IpcMsg::Req {
@@ -303,7 +295,7 @@ fn share_some_mdatas_with_ownership_error() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
+    match auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Ok(..) => (),
         Err(err) => {
             assert_eq!(err, (ERR_INVALID_OWNER, None));
@@ -444,10 +436,7 @@ fn auth_apps_accessing_mdatas() {
         };
         let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-        let decoded = unwrap!(test_utils::auth_decode_ipc_msg_helper(
-            &authenticator,
-            &encoded_msg
-        ));
+        let decoded = unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg));
 
         match decoded {
             (

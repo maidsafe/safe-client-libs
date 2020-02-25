@@ -9,31 +9,31 @@
 #![allow(unsafe_code)]
 
 mod revocation;
-mod serialisation;
 mod share_mdata;
-mod utils;
 
-use crate::access_container as access_container_tools;
-use crate::config::{self, KEY_APPS};
-use crate::errors::AuthError;
 use crate::ffi::apps::AppPermissions as FfiAppPermissions;
 use crate::ffi::apps::*;
 use crate::ffi::errors::{ERR_INVALID_MSG, ERR_OPERATION_FORBIDDEN, ERR_UNKNOWN_APP};
 use crate::ffi::ipc::{
     auth_revoke_app, encode_auth_resp, encode_containers_resp, encode_unregistered_resp,
 };
-use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
-use crate::test_utils::{self, ChannelType};
-use crate::{app_container, run};
+use crate::test_utils::{auth_decode_ipc_msg_helper, err_cb, unregistered_cb};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{ReprC, StringError};
-use futures::{future, Future};
+use futures::Future;
+use safe_authenticator::config;
+use safe_authenticator::errors::AuthError;
+use safe_authenticator::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
+use safe_authenticator::test_utils::{
+    self, create_account_and_login, rand_app, register_app, ChannelType,
+};
+use safe_authenticator::{app_container, run};
 use safe_core::btree_set;
 use safe_core::config_handler::Config;
 use safe_core::ffi::error_codes::ERR_NO_SUCH_CONTAINER;
 use safe_core::ffi::ipc::req::AppExchangeInfo as FfiAppExchangeInfo;
 use safe_core::ipc::{self, AuthReq, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission};
-use safe_core::{app_container_name, mdata_info, AuthActions, Client};
+use safe_core::{app_container_name, AuthActions};
 use safe_nd::AppPermissions;
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -42,28 +42,24 @@ use std::time::Duration;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
 
-#[cfg(feature = "mock-network")]
-mod mock_routing {
-
-
 // Test app authentication.
 #[test]
 fn app_authentication() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
     // Try to send IpcResp::Auth - it should fail
     let msg = IpcMsg::Revoked {
         app_id: "hello".to_string(),
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
-    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
+    match auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Err((ERR_INVALID_MSG, None)) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
     // Try to send IpcReq::Auth - it should pass
     let req_id = ipc::gen_req_id();
-    let app_exchange_info = test_utils::rand_app();
+    let app_exchange_info = rand_app();
     let app_id = app_exchange_info.id.clone();
 
     let containers = utils::create_containers_req();
@@ -81,18 +77,17 @@ fn app_authentication() {
 
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    let (received_req_id, received_auth_req) = match unwrap!(
-        test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)
-    ) {
-        (
-            IpcMsg::Req {
-                req_id,
-                request: IpcReq::Auth(req),
-            },
-            _,
-        ) => (req_id, req),
-        x => panic!("Unexpected {:?}", x),
-    };
+    let (received_req_id, received_auth_req) =
+        match unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)) {
+            (
+                IpcMsg::Req {
+                    req_id,
+                    request: IpcReq::Auth(req),
+                },
+                _,
+            ) => (req_id, req),
+            x => panic!("Unexpected {:?}", x),
+        };
 
     assert_eq!(received_req_id, req_id);
     assert_eq!(received_auth_req, auth_req);
@@ -189,9 +184,9 @@ fn app_authentication() {
 // Try to authenticate with invalid container names.
 #[test]
 fn invalid_container_authentication() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
     let req_id = ipc::gen_req_id();
-    let app_exchange_info = test_utils::rand_app();
+    let app_exchange_info = rand_app();
 
     // Permissions for invalid container name
     let mut containers = HashMap::new();
@@ -245,7 +240,7 @@ fn unregistered_authentication() {
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
         request: IpcReq::Auth(AuthReq {
-            app: test_utils::rand_app(),
+            app: rand_app(),
             app_container: true,
             app_permissions: Default::default(),
             containers: utils::create_containers_req(),
@@ -305,21 +300,19 @@ fn unregistered_authentication() {
     assert_eq!(bootstrap_cfg, Config::new().quic_p2p.hard_coded_contacts);
 
     // Try to send IpcReq::Unregistered to logged in authenticator
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
-    let (received_req_id, received_data) = match unwrap!(test_utils::auth_decode_ipc_msg_helper(
-        &authenticator,
-        &encoded_msg
-    )) {
-        (
-            IpcMsg::Req {
-                req_id,
-                request: IpcReq::Unregistered(extra_data),
-            },
-            _,
-        ) => (req_id, extra_data),
-        x => panic!("Unexpected {:?}", x),
-    };
+    let (received_req_id, received_data) =
+        match unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)) {
+            (
+                IpcMsg::Req {
+                    req_id,
+                    request: IpcReq::Unregistered(extra_data),
+                },
+                _,
+            ) => (req_id, extra_data),
+            x => panic!("Unexpected {:?}", x),
+        };
 
     assert_eq!(received_req_id, req_id);
     assert_eq!(received_data, test_data);
@@ -330,10 +323,10 @@ fn unregistered_authentication() {
 // with the same app details.
 #[test]
 fn authenticated_app_can_be_authenticated_again() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
     let auth_req = AuthReq {
-        app: test_utils::rand_app(),
+        app: rand_app(),
         app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
@@ -346,10 +339,7 @@ fn authenticated_app_can_be_authenticated_again() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match unwrap!(test_utils::auth_decode_ipc_msg_helper(
-        &authenticator,
-        &encoded_msg
-    )) {
+    match unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)) {
         (
             IpcMsg::Req {
                 request: IpcReq::Auth(_),
@@ -382,10 +372,7 @@ fn authenticated_app_can_be_authenticated_again() {
     };
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
-    match unwrap!(test_utils::auth_decode_ipc_msg_helper(
-        &authenticator,
-        &encoded_msg
-    )) {
+    match unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)) {
         (
             IpcMsg::Req {
                 request: IpcReq::Auth(_),
@@ -400,14 +387,14 @@ fn authenticated_app_can_be_authenticated_again() {
 // Create and serialize a containers request for a random app, make sure we get an error.
 #[test]
 fn containers_unknown_app() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
     // Create IpcMsg::Req { req: IpcReq::Containers } for a random App (random id, name, vendor etc)
     let req_id = ipc::gen_req_id();
     let msg = IpcMsg::Req {
         req_id,
         request: IpcReq::Containers(ContainersReq {
-            app: test_utils::rand_app(),
+            app: rand_app(),
             containers: utils::create_containers_req(),
         }),
     };
@@ -419,7 +406,7 @@ fn containers_unknown_app() {
     // callback with error code for IpcError::UnknownApp
     // Check that the returned string is "safe_<app-id-base64>:payload" where payload is
     // IpcMsg::Resp(IpcResp::Auth(Err(UnknownApp)))"
-    match test_utils::auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
+    match auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
         Err((
             code,
             Some(IpcMsg::Resp {
@@ -434,20 +421,20 @@ fn containers_unknown_app() {
 // Test making a containers access request.
 #[test]
 fn containers_access_request() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
     // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for app_container
     // and containers "documents with permission to insert", "videos with all the permissions
     // possible",
     let auth_req = AuthReq {
-        app: test_utils::rand_app(),
+        app: rand_app(),
         app_container: true,
         app_permissions: Default::default(),
         containers: utils::create_containers_req(),
     };
     let app_id = auth_req.app.id.clone();
 
-    let auth_granted = unwrap!(test_utils::register_app(&authenticator, &auth_req));
+    let auth_granted = unwrap!(register_app(&authenticator, &auth_req));
 
     // Give one Containers request to authenticator for the same app asking for "downloads with
     // permission to update only"
@@ -535,7 +522,7 @@ impl ReprC for RevokedAppId {
 // 4. Re-register the first app. There should be two registered apps again.
 #[test]
 fn lists_of_registered_and_revoked_apps() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
     // Initially, there are no registered or revoked apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -554,21 +541,21 @@ fn lists_of_registered_and_revoked_apps() {
 
     // Register two apps.
     let auth_req1 = AuthReq {
-        app: test_utils::rand_app(),
+        app: rand_app(),
         app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
     };
 
     let auth_req2 = AuthReq {
-        app: test_utils::rand_app(),
+        app: rand_app(),
         app_container: false,
         app_permissions: Default::default(),
         containers: Default::default(),
     };
 
-    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req1));
-    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req2));
+    let _ = unwrap!(register_app(&authenticator, &auth_req1));
+    let _ = unwrap!(register_app(&authenticator, &auth_req2));
 
     // There are now two registered apps, but no revoked apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -612,7 +599,7 @@ fn lists_of_registered_and_revoked_apps() {
     assert_eq!(revoked.len(), 1);
 
     // Re-register the first app - now there must be 2 registered apps again
-    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req1));
+    let _ = unwrap!(register_app(&authenticator, &auth_req1));
 
     let registered: Vec<RegisteredAppId> = unsafe {
         unwrap!(call_vec(|ud, cb| auth_registered_apps(
@@ -631,10 +618,10 @@ fn lists_of_registered_and_revoked_apps() {
 // Test fetching of authenticated and registered apps.
 #[test]
 fn test_registered_apps() {
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = create_account_and_login();
 
     // Permissions for App1
-    let app1 = test_utils::rand_app();
+    let app1 = rand_app();
     let app1_id = app1.clone().id;
     let app1_perms = AppPermissions {
         transfer_coins: true,
@@ -657,15 +644,15 @@ fn test_registered_apps() {
     };
 
     let auth_req2 = AuthReq {
-        app: test_utils::rand_app(),
+        app: rand_app(),
         app_container: false,
         app_permissions: app2_perms,
         containers: Default::default(),
     };
 
     // Register both the apps.
-    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req1));
-    let _ = unwrap!(test_utils::register_app(&authenticator, &auth_req2));
+    let _ = unwrap!(register_app(&authenticator, &auth_req1));
+    let _ = unwrap!(register_app(&authenticator, &auth_req2));
 
     // There are now two registered apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -703,8 +690,8 @@ fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {
         auth_unregistered_decode_ipc_msg(
             ffi_msg.as_ptr(),
             sender_as_user_data(&tx, &mut ud),
-            test_utils::unregistered_cb,
-            test_utils::err_cb,
+            unregistered_cb,
+            err_cb,
         );
     };
 
@@ -712,6 +699,4 @@ fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {
         Ok(r) => r,
         Err(_) => Err((-1, None)),
     }
-}
-
 }

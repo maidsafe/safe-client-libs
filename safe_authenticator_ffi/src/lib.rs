@@ -36,6 +36,8 @@ maidsafe_logo.png",
 
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
+#[cfg(test)]
+mod tests;
 
 pub mod ffi;
 
