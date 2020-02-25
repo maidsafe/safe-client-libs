@@ -14,6 +14,7 @@
 pub mod apps;
 /// Errors
 pub mod errors;
+/// FFI helpers
 pub mod helpers;
 /// Authenticator communication with apps
 pub mod ipc;
@@ -174,6 +175,8 @@ mod tests {
     use crate::ffi::auth_is_mock;
     use ffi_utils::test_utils::call_1;
     use futures::Future;
+    use safe_authenticator::run;
+    use safe_authenticator::AuthError;
     use safe_core::{client::COST_OF_PUT, utils, FutureExt};
     use safe_nd::PubImmutableData;
     use std::ffi::CString;

@@ -1,3 +1,12 @@
+// Copyright 2018 MaidSafe.net limited.
+//
+// This SAFE Network Software is licensed to you under the MIT license <LICENSE-MIT
+// https://opensource.org/licenses/MIT> or the Modified BSD license <LICENSE-BSD
+// https://opensource.org/licenses/BSD-3-Clause>, at your option. This file may not be copied,
+// modified, or distributed except according to those terms. Please review the Licences for the
+// specific language governing permissions and limitations relating to use of the SAFE Network
+// Software.
+
 use crate::apps::RegisteredApp;
 use crate::ffi::apps::AppPermissions;
 use ffi_utils::{vec_into_raw_parts, ReprC};
@@ -7,6 +16,7 @@ use safe_core::ipc::AppExchangeInfo as NativeAppExchangeInfo;
 use safe_core::ipc::IpcError;
 use safe_nd::AppPermissions as NativeAppPermissions;
 
+/// Registered native app converter.
 #[allow(unsafe_code)]
 pub unsafe fn registered_app_into_repr_c(
     app: &NativeRegisteredApp,
@@ -27,6 +37,7 @@ pub unsafe fn registered_app_into_repr_c(
     })
 }
 
+/// Convert FFI registered app into native struct.
 #[allow(unsafe_code)]
 pub unsafe fn native_registered_app_into_native(
     app: &RegisteredApp,

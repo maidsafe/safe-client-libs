@@ -33,7 +33,7 @@ env_logger = { version = "~0.6.2", optional = true }
 [dev-dependencies]
 env_logger = "~0.6.2"
 safe_core = { path = "../safe_core", version = "~0.38.1", features = ["testing"] }
-safe_authenticator = { path = "../safe_authenticator", version = "~0.13.0" }
+safe_authenticator = { path = "../safe_authenticator", version = "~0.13.0",  features = ["testing"]  }
 
 [build-dependencies]
 ffi_utils = "~0.15.0"
@@ -44,8 +44,8 @@ threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
 [features]
-mock-network = ["testing", "safe_core/mock-network"]
-testing = ["safe_core/testing", "env_logger"]
+mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network"]
+testing = ["safe_core/testing", "safe_authenticator/testing", "env_logger"]
 bindings = ["safe_bindgen"]
 
 [lib]

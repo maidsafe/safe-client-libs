@@ -2137,7 +2137,6 @@ dependencies = [
  "quic-p2p",
  "rand 0.6.5",
  "safe-nd",
- "safe_bindgen",
  "safe_core",
  "serde",
  "threshold_crypto",
@@ -2179,6 +2178,7 @@ dependencies = [
  "jni",
  "log 0.4.8",
  "safe_authenticator",
+ "safe_authenticator_ffi",
  "safe_core",
  "unwrap",
 ]
