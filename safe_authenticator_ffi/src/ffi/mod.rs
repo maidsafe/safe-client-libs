@@ -249,7 +249,7 @@ mod tests {
         use std::sync::mpsc::{self, Receiver, Sender};
         use std::time::Duration;
 
-        crate::test_utils::init_log();
+        safe_authenticator::test_utils::init_log();
 
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));

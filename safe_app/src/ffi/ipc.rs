@@ -346,7 +346,7 @@ mod tests {
     use ffi_utils::ReprC;
     use safe_authenticator::test_utils as auth_utils;
     use safe_authenticator_ffi::ipc::encode_auth_resp;
-    use safe_authenticator_ffi::test_utils as auth_ffi_utils;
+    use safe_authenticator_ffi::test_utils::auth_decode_ipc_msg_helper;
     use safe_core::btree_set;
     use safe_core::core_structs::{AccessContInfo, AccessContainerEntry, AppKeys};
     use safe_core::crypto::{shared_box, shared_secretbox};
@@ -378,7 +378,7 @@ mod tests {
             unsafe { unwrap!(call_2(|ud, cb| encode_auth_req_64(&ffi_auth_req, ud, cb))) };
 
         // Try to decode ipc message, should fail.
-        match auth_ffi_utils::auth_decode_ipc_msg_helper(&auth, &encoded) {
+        match auth_decode_ipc_msg_helper(&auth, &encoded) {
             Err((-1, None)) => (),
             _ => panic!("Unexpected result"),
         }
@@ -388,7 +388,7 @@ mod tests {
             unsafe { unwrap!(call_2(|ud, cb| encode_auth_req(&ffi_auth_req, ud, cb))) };
 
         // Decode ipc message in the authenticator.
-        let decoded = unwrap!(auth_ffi_utils::auth_decode_ipc_msg_helper(&auth, &encoded));
+        let decoded = unwrap!(auth_decode_ipc_msg_helper(&auth, &encoded));
         let auth_req = match decoded {
             (
                 IpcMsg::Req {
