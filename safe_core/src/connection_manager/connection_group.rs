@@ -20,7 +20,7 @@ use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, Peer, QuicP2p, Qui
 use rand::Rng;
 use safe_nd::{
     HandshakeRequest, HandshakeResponse, Message, MessageId, NodePublicId, PublicId, Request,
-    Response,
+    RequestType, Response,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
@@ -304,7 +304,12 @@ impl Connected {
         let mut rng = rand::thread_rng();
 
         let (future_tx, future_rx) = oneshot::channel();
-        let _ = self.hooks.insert(msg_id, (future_tx, self.elders.len()));
+        let expected_responses = if is_get_request(&msg) {
+            1
+        } else {
+            self.elders.len()
+        };
+        let _ = self.hooks.insert(msg_id, (future_tx, expected_responses));
 
         let bytes = Bytes::from(unwrap!(serialize(msg)));
         {
@@ -376,6 +381,18 @@ impl Connected {
         }
 
         Transition::None
+    }
+}
+
+// Returns true when a message holds a GET request.
+fn is_get_request(msg: &Message) -> bool {
+    if let Message::Request { request, .. } = msg {
+        match request.get_type() {
+            RequestType::PublicGet | RequestType::PrivateGet => true,
+            _ => false,
+        }
+    } else {
+        false
     }
 }
 
