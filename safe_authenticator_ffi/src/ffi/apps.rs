@@ -246,14 +246,14 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 #[cfg(test)]
 mod tests {
     use crate::ffi::errors::{ERR_UNEXPECTED, ERR_UNKNOWN_APP};
-    use crate::test_utils::{
-        create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
-    };
     use ffi_utils::test_utils::call_0;
     use safe_authenticator::app_auth::{app_state, AppState};
     use safe_authenticator::app_container::fetch;
     use safe_authenticator::errors::AuthError;
     use safe_authenticator::revocation::revoke_app;
+    use safe_authenticator::test_utils::{
+        create_account_and_login, create_file, fetch_file, get_app_or_err, rand_app, register_app,
+    };
     use safe_authenticator::{config, run};
     use safe_core::ipc::{AuthReq, IpcError};
     use std::collections::HashMap;

@@ -1,6 +1,19 @@
+// Copyright 2018 MaidSafe.net limited.
+//
+// This SAFE Network Software is licensed to you under The General Public License (GPL), version 3.
+// Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
+// under the GPL Licence is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied. Please review the Licences for the specific language governing
+// permissions and limitations relating to use of the SAFE Network Software.
+
+//! Provides utilities to test the authenticator functionality.
+
+    #![allow(clippy::not_unsafe_ptr_arg_deref, unsafe_code)]
+
 use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use log::error;
+use safe_authenticator::test_utils::{ChannelType, Payload};
 use safe_authenticator::Authenticator;
 use safe_core::core_structs::UserMetadata;
 use safe_core::ffi::ipc::req::{
@@ -15,16 +28,6 @@ use std::slice;
 use std::sync::mpsc;
 use std::time::Duration;
 use unwrap::unwrap;
-
-/// Payload.
-#[derive(Debug)]
-pub enum Payload {
-    /// Metadata.
-    Metadata(Vec<(Option<UserMetadata>, XorName, u64)>),
-}
-
-/// Channel type.
-pub type ChannelType = Result<(IpcMsg, Option<Payload>), (i32, Option<IpcMsg>)>;
 
 // TODO: There should be a public function with a signature like this, and the
 //       FFI function `ipc::decode_ipc_msg` should be only wrapper over it.

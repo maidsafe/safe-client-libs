@@ -18,7 +18,7 @@ use safe_nd::{MDataAction, MDataKind, MDataPermissionSet, MDataSeqEntryActions, 
 
 /// Returns an app's dedicated container if available and stored in the access container,
 /// `None` otherwise.
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 pub fn fetch(client: &AuthClient, app_id: &str) -> Box<AuthFuture<Option<MDataInfo>>> {
     let app_cont_name = app_container_name(app_id);
 

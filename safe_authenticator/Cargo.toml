@@ -35,7 +35,6 @@ safe_core = { path = "../safe_core", version = "~0.38.1", features = ["testing"]
 [build-dependencies]
 ffi_utils = "~0.15.0"
 jni = "~0.12.0"
-safe_bindgen = { version = "~0.13.2", optional = true }
 safe-nd = "~0.8.0"
 threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
@@ -43,4 +42,3 @@ unwrap = "~1.2.0"
 [features]
 mock-network = ["testing", "safe_core/mock-network"]
 testing = ["safe_core/testing", "env_logger"]
-bindings = ["safe_bindgen"]
