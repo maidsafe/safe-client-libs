@@ -221,6 +221,11 @@ mod tests {
         create_and_retrieve(1024 * 1024)
     }
 
+    #[test]
+    fn create_and_retrieve_index_based() {
+        create_and_index_based_retrieve(1024);
+    }
+
     // Test creating and retrieving a 2mb idata.
     #[test]
     fn create_and_retrieve_2mb() {
@@ -232,6 +237,62 @@ mod tests {
     #[test]
     fn create_and_retrieve_10mb() {
         create_and_retrieve(10 * 1024 * 1024)
+    }
+
+    fn create_and_index_based_retrieve(size: usize) {
+        let value = unwrap!(utils::generate_random_vector(size));
+        {
+            // Read first half
+            random_client(move |client| {
+                let client2 = client.clone();
+                let client3 = client.clone();
+                create(client, &value, true, None)
+                    .then(move |res| {
+                        let data = unwrap!(res);
+                        let address = *data.address();
+                        client2.put_idata(data).map(move |_| address)
+                    })
+                    .then(move |res| {
+                        let address = unwrap!(res);
+                        get_value(&client3, address, None, Some(size as u64 / 2), None)
+                    })
+                    .then(move |res| {
+                        let fetched_value = unwrap!(res);
+                        assert_eq!(fetched_value, value[0..size / 2].to_vec());
+                        finish()
+                    })
+            });
+        }
+
+        let value2 = unwrap!(utils::generate_random_vector(size));
+        {
+            // Read Second half
+            random_client(move |client| {
+                let client2 = client.clone();
+                let client3 = client.clone();
+                create(client, &value2, true, None)
+                    .then(move |res| {
+                        let data = unwrap!(res);
+                        let address = *data.address();
+                        client2.put_idata(data).map(move |_| address)
+                    })
+                    .then(move |res| {
+                        let address = unwrap!(res);
+                        get_value(
+                            &client3,
+                            address,
+                            Some(size as u64 / 2),
+                            Some(size as u64 / 2),
+                            None,
+                        )
+                    })
+                    .then(move |res| {
+                        let fetched_value = unwrap!(res);
+                        assert_eq!(fetched_value, value2[size / 2..size].to_vec());
+                        finish()
+                    })
+            })
+        }
     }
 
     fn create_and_retrieve(size: usize) {
