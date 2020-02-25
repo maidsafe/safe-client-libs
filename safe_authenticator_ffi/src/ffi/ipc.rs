@@ -18,7 +18,7 @@ use safe_authenticator::app_auth;
 use safe_authenticator::config;
 use safe_authenticator::ipc::{decode_ipc_msg, decode_share_mdata_req, encode_response};
 use safe_authenticator::revocation::{flush_app_revocation_queue, revoke_app};
-use safe_authenticator::{AuthError, Authenticator, AuthResult};
+use safe_authenticator::{AuthError, AuthResult, Authenticator};
 use safe_core::client::Client;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataRequest};
 use safe_core::ffi::ipc::resp::MetadataResponse;

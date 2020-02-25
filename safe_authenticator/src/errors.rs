@@ -8,14 +8,14 @@
 
 //! Errors thrown by Authenticator routines.
 
-use safe_core::ffi::error_codes::*;
 use bincode::Error as SerialisationError;
-use ffi_utils::{StringError, ErrorCode};
+use ffi_utils::{ErrorCode, StringError};
 use futures::sync::mpsc::SendError;
+use safe_core::ffi::error_codes::*;
 use safe_core::ipc::IpcError;
-use safe_core::{core_error_code, safe_nd_error_core};
 use safe_core::nfs::NfsError;
 use safe_core::CoreError;
+use safe_core::{core_error_code, safe_nd_error_core};
 use safe_nd::Error as SndError;
 use std::error::Error;
 use std::ffi::NulError;
@@ -54,7 +54,6 @@ pub enum AuthError {
     /// Couldn't authenticate app that is pending revocation.
     PendingRevocation,
 }
-
 
 impl ErrorCode for AuthError {
     fn error_code(&self) -> i32 {

@@ -51,7 +51,7 @@ pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManag
 pub use self::config_handler::config_dir;
 #[cfg(not(feature = "mock-network"))]
 pub use self::connection_manager::ConnectionManager;
-pub use self::errors::{CoreError, core_error_code, safe_nd_error_core};
+pub use self::errors::{core_error_code, safe_nd_error_core, CoreError};
 pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::self_encryption_storage::{
