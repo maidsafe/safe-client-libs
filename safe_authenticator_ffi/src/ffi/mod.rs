@@ -21,11 +21,11 @@ pub mod ipc;
 pub mod logging;
 
 use crate::ffi::errors::{Error, Result};
-use ffi_utils::{try_cb, ErrorCode};
+use ffi_utils::try_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use log::trace;
 use rand::thread_rng;
-use safe_authenticator::{Authenticator, AuthError, AuthResult};
+use safe_authenticator::{AuthResult, Authenticator};
 use safe_core::{config_handler, test_create_balance, Client};
 use safe_nd::{ClientFullId, Coins};
 use std::ffi::{CStr, OsStr};
@@ -122,11 +122,13 @@ pub unsafe extern "C" fn auth_reconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> AuthResult<_,> {
+    catch_unwind_cb(user_data, o_cb, || -> AuthResult<_> {
         let user_data = OpaqueCtx(user_data);
         (*auth).send(move |client| {
             try_cb!(
-                client.restart_network().map_err(|_| Error::from("poda".to_string())),
+                client
+                    .restart_network()
+                    .map_err(|_| Error::from("poda".to_string())),
                 user_data.0,
                 o_cb
             );

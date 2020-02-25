@@ -1,4 +1,30 @@
+use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
+use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
+use log::error;
+use safe_authenticator::Authenticator;
+use safe_core::core_structs::UserMetadata;
+use safe_core::ffi::ipc::req::{
+    AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataRequest as FfiShareMDataReq,
+};
+use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
+use safe_core::ipc::{self, AuthReq, ContainersReq, IpcMsg, IpcReq, ShareMDataReq};
+use safe_nd::XorName;
+use std::ffi::{CStr, CString};
+use std::os::raw::{c_char, c_void};
+use std::slice;
+use std::sync::mpsc;
+use std::time::Duration;
+use unwrap::unwrap;
 
+/// Payload.
+#[derive(Debug)]
+pub enum Payload {
+    /// Metadata.
+    Metadata(Vec<(Option<UserMetadata>, XorName, u64)>),
+}
+
+/// Channel type.
+pub type ChannelType = Result<(IpcMsg, Option<Payload>), (i32, Option<IpcMsg>)>;
 
 // TODO: There should be a public function with a signature like this, and the
 //       FFI function `ipc::decode_ipc_msg` should be only wrapper over it.
