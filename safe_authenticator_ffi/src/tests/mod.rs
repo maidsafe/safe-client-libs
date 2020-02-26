@@ -10,6 +10,7 @@
 
 mod revocation;
 mod share_mdata;
+mod utils;
 
 use crate::ffi::apps::AppPermissions as FfiAppPermissions;
 use crate::ffi::apps::*;
