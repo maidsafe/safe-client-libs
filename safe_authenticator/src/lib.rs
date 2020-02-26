@@ -46,6 +46,8 @@ pub mod config;
 pub mod errors;
 pub mod ipc;
 pub mod revocation;
+
+/// default dir
 pub mod std_dirs;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;

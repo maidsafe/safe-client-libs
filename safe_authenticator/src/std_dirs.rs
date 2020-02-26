@@ -141,6 +141,7 @@ pub fn random_std_dirs() -> Result<Vec<(&'static str, MDataInfo)>, CoreError> {
 }
 
 /// A registration helper function to create the set of default dirs in the users root directory.
+#[allow(clippy::implicit_hasher)]
 pub fn create_std_dirs(
     client: &AuthClient,
     md_infos: &HashMap<String, MDataInfo>,
