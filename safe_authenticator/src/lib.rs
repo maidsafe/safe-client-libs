@@ -46,11 +46,11 @@ pub mod config;
 pub mod errors;
 pub mod ipc;
 pub mod revocation;
+pub mod std_dirs;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
 mod client;
-mod std_dirs;
 #[cfg(test)]
 mod tests;
 
