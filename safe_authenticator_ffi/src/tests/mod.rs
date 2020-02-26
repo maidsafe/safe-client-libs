@@ -24,7 +24,6 @@ use ffi_utils::{ReprC, StringError};
 use futures::Future;
 use safe_authenticator::config;
 use safe_authenticator::errors::AuthError;
-use safe_authenticator::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use safe_authenticator::test_utils::{
     self, create_account_and_login, rand_app, register_app, ChannelType,
 };
