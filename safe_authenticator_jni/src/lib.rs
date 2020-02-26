@@ -27,6 +27,7 @@ use jni::sys::{jbyte, jbyteArray, jint, jlong, jobject, jsize};
 use jni::{signature::JavaType, JNIEnv, JavaVM};
 use log::error;
 use safe_authenticator::*;
+use safe_authenticator_ffi::*;
 use safe_core::arrays::*;
 use safe_core::ffi::ipc::req::{
     AppExchangeInfo, AuthReq, ContainerPermissions, ContainersReq, PermissionSet, ShareMData,

@@ -24,5 +24,5 @@ android_logger = "~0.6.0"
 crate_type = ["cdylib"]
 
 [features]
-mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network"]
-testing = ["safe_core/testing", "safe_authenticator/testing"]
+mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network", "safe_authenticator_ffi/mock-network"]
+testing = ["safe_core/testing", "safe_authenticator/testing", "safe_authenticator_ffi/testing"]
