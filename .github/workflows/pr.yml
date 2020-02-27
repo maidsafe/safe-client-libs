@@ -83,7 +83,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        component: [safe_app, safe_authenticator]
+        component: [safe_app, safe_authenticator_ffi]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -215,19 +215,19 @@ jobs:
           name: safe_app-${{ matrix.target }}-${{ matrix.type}}
           path: target/${{ matrix.target }}/release/libsafe_app.so
 
-      # Build safe_authenticator native lib.
-      - name: build safe_authenticator
+      # Build safe_authenticator_ffi native lib.
+      - name: build safe_authenticator_ffi
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
+          args: --release --manifest-path=safe_authenticator_ffi/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
-      # Upload safe_authenticator native lib.
-      - name: upload safe_authenticator artifact
+      # Upload safe_authenticator_ffi native lib.
+      - name: upload safe_authenticator_ffi artifact
         uses: actions/upload-artifact@master
         with:
-          name: safe_authenticator-${{ matrix.target }}-${{ matrix.type}}
-          path: target/${{ matrix.target }}/release/libsafe_authenticator.so
+          name: safe_authenticator_ffi-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_authenticator_ffi.so
 
   # Run test suite.
   test:
