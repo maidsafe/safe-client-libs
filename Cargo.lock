@@ -452,22 +452,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
-name = "core-foundation"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25b9e03f145fd4f2bf705e07b900cd41fc636598fe5dc452fd0db1441c3f496d"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "core-foundation-sys"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7ca8a5221364ef15ce201e8ed2f609fc312682a8f4e0e3d4aa5879764e0fa3b"
-
-[[package]]
 name = "crc32fast"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -556,15 +540,6 @@ checksum = "4434400df11d95d556bac068ddfedd482915eb18fe8bea89bc80b6e4b1c179e5"
 dependencies = [
  "generic-array",
  "subtle 1.0.0",
-]
-
-[[package]]
-name = "ct-logs"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d3686f5fa27dbc1d76c751300376e167c5a43387f44bb451fd1c24776e49113"
-dependencies = [
- "sct",
 ]
 
 [[package]]
@@ -1418,12 +1393,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 
 [[package]]
-name = "openssl-probe"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
-
-[[package]]
 name = "ordered-float"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1616,32 +1585,7 @@ dependencies = [
  "err-derive",
  "futures 0.3.4",
  "log 0.4.8",
- "quinn 0.5.3 (git+https://github.com/lionel1704/quinn?branch=ios-fix)",
- "rcgen",
- "rustls",
- "serde",
- "serde_json",
- "structopt",
- "tokio 0.2.11",
- "unwrap",
- "webpki",
-]
-
-[[package]]
-name = "quic-p2p"
-version = "0.3.0"
-source = "git+https://github.com/maidsafe/quic-p2p?rev=52f8ae2a#52f8ae2a44f41a4a2c36063b7c70276a7fdd1aa1"
-dependencies = [
- "base64 0.10.1",
- "bincode",
- "bytes 0.4.12",
- "crossbeam-channel",
- "derive_more",
- "directories 1.0.2",
- "err-derive",
- "futures 0.3.4",
- "log 0.4.8",
- "quinn 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quinn",
  "rcgen",
  "rustls",
  "serde",
@@ -1668,28 +1612,8 @@ dependencies = [
  "futures 0.3.4",
  "libc",
  "mio",
- "quinn-proto 0.5.2 (git+https://github.com/lionel1704/quinn?branch=ios-fix)",
+ "quinn-proto",
  "rustls",
- "tokio 0.2.11",
- "tracing",
- "webpki",
-]
-
-[[package]]
-name = "quinn"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a550f3a1c4c2f8e7156d62b423d029a5a82d0973adc603be02693c106c70b754"
-dependencies = [
- "bytes 0.5.4",
- "ct-logs",
- "err-derive",
- "futures 0.3.4",
- "libc",
- "mio",
- "quinn-proto 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls",
- "rustls-native-certs",
  "tokio 0.2.11",
  "tracing",
  "webpki",
@@ -1699,23 +1623,6 @@ dependencies = [
 name = "quinn-proto"
 version = "0.5.2"
 source = "git+https://github.com/lionel1704/quinn?branch=ios-fix#e545f305fb31070dd128183fe143f52af114d839"
-dependencies = [
- "bytes 0.5.4",
- "err-derive",
- "lazy_static",
- "rand 0.7.3",
- "ring",
- "rustls",
- "slab",
- "tracing",
- "webpki",
-]
-
-[[package]]
-name = "quinn-proto"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36f238b2b3252726f41171302f3976bc22ef4d4845bad6bc2f4fce000a833ee7"
 dependencies = [
  "bytes 0.5.4",
  "err-derive",
@@ -2093,18 +2000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustls-native-certs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51ffebdbb48c14f84eba0b715197d673aff1dd22cc1007ca647e28483bbcc307"
-dependencies = [
- "openssl-probe",
- "rustls",
- "schannel",
- "security-framework",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2191,7 +2086,6 @@ dependencies = [
  "jni",
  "log 0.4.8",
  "lru-cache",
- "quic-p2p 0.3.0 (git+https://github.com/maidsafe/quic-p2p?rev=52f8ae2a)",
  "rand 0.6.5",
  "safe-nd",
  "safe_core",
@@ -2213,7 +2107,6 @@ dependencies = [
  "jni",
  "log 0.4.8",
  "lru-cache",
- "quic-p2p 0.3.0 (git+https://github.com/maidsafe/quic-p2p?rev=52f8ae2a)",
  "rand 0.6.5",
  "safe-nd",
  "safe_authenticator",
@@ -2278,7 +2171,7 @@ dependencies = [
  "lru-cache",
  "miscreant",
  "pbkdf2",
- "quic-p2p 0.3.0 (git+https://github.com/lionel1704/quic-p2p?branch=test)",
+ "quic-p2p",
  "rand 0.6.5",
  "regex 1.3.4",
  "safe-nd",
@@ -2312,16 +2205,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "schannel"
-version = "0.1.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "507a9e6e8ffe0a4e0ebb9a10293e62fdf7657c06f1b8bb07a8fcf697d2abf295"
-dependencies = [
- "lazy_static",
- "winapi 0.3.8",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2335,27 +2218,6 @@ checksum = "e3042af939fca8c3453b7af0f1c66e533a15a86169e39de2657310ade8f98d3c"
 dependencies = [
  "ring",
  "untrusted",
-]
-
-[[package]]
-name = "security-framework"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ef2429d7cefe5fd28bd1d2ed41c944547d4ff84776f5935b456da44593a16df"
-dependencies = [
- "core-foundation",
- "core-foundation-sys",
- "libc",
- "security-framework-sys",
-]
-
-[[package]]
-name = "security-framework-sys"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e31493fc37615debb8c5090a7aeb4a9730bc61e77ab10b9af59f1a202284f895"
-dependencies = [
- "core-foundation-sys",
 ]
 
 [[package]]
