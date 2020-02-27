@@ -127,9 +127,7 @@ pub unsafe extern "C" fn auth_reconnect(
         let user_data = OpaqueCtx(user_data);
         (*auth).send(move |client| {
             try_cb!(
-                client
-                    .restart_network()
-                    .map_err(|_| Error::from("poda".to_string())),
+                client.restart_network().map_err(|err| Error::from(err)),
                 user_data.0,
                 o_cb
             );

@@ -2176,7 +2176,6 @@ dependencies = [
  "ffi_utils",
  "jni",
  "log 0.4.8",
- "safe_authenticator",
  "safe_authenticator_ffi",
  "safe_core",
  "unwrap",
