@@ -127,7 +127,7 @@ pub unsafe extern "C" fn auth_reconnect(
         let user_data = OpaqueCtx(user_data);
         (*auth).send(move |client| {
             try_cb!(
-                client.restart_network().map_err(|err| Error::from(err)),
+                client.restart_network().map_err(Error::from),
                 user_data.0,
                 o_cb
             );
