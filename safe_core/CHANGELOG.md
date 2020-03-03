@@ -1,5 +1,18 @@
 # Safe Core - Change Log
 
+## [0.39.0]
+- Add position and index to get_value
+- Refactor the connection manager to use new quic-p2p API
+- Always use random port instead of default
+- Implement multi-vault connection manager
+- Implement the new handshake protocol and manage connection state transitions
+- Remove unused imports and linting
+- Remove macro_use style
+- Add support for GET_NEXT_VERSION in more places
+- Expose a new `gen_data_map` API which generates a file's data map without putting the chunks on the network
+- Make returned error codes to be positive numbers
+- Remove pedantic warnings
+
 ## [0.37.3]
 - Make another fix to automatic publishing
 

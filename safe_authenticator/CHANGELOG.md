@@ -1,5 +1,20 @@
 # SAFE Authenticator - Change Log
 
+## [0.14.0]
+- Do not store `AppPermissions` in the client's config root 
+- Refactor unnecessary disconnect during account creation
+- Remove unused imports and linting
+- Remove macro_use style
+- Rename `FfiAppPermissions` to `AppPermissions`
+- Make `RegisteredApp` struct include `AppPermissions`
+- Add support for GET_NEXT_VERSION in more places
+- Fix iOS static libs deployment issue
+- Use cargo lipo to generate universal iOS fat libs
+- Make returned error codes to be positive numbers
+- Remove pedantic warnings
+- Fix development build links in release description
+- Add missing iOS builds to GHA deploy + fix tagging for releases
+
 ## [0.12.0]
 - Remove Rust Sodium dependency
 
