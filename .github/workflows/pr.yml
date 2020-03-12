@@ -78,156 +78,156 @@ jobs:
         with:
           command: build
 
-  # build-ios:
-  #   name: Build iOS
-  #   runs-on: macos-latest
-  #   strategy:
-  #     matrix:
-  #       component: [safe_app, safe_authenticator]
-  #   steps:
-  #     - uses: actions/checkout@v1
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         override: true
-  #         target: aarch64-apple-ios
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         override: true
-  #         target: x86_64-apple-ios
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        component: [safe_app, safe_authenticator]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: aarch64-apple-ios
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: x86_64-apple-ios
 
-  #     # Cache.
-  #     - name: Cache cargo registry
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/registry
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo index
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo build
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-  #     # Install cargo-lipo for universal iOS libs.
-  #     - uses: actions-rs/cargo@v1
-  #       with:
-  #         command: install
-  #         args: cargo-lipo
+      # Install cargo-lipo for universal iOS libs.
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-lipo
 
-  #     # Build prod libraries.
-  #     - name: Build universal lib - prod
-  #       shell: bash
-  #       run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml
-  #     # Upload prod libs.
-  #     - uses: actions/upload-artifact@master
-  #       with:
-  #         name: ${{ matrix.component }}-apple-ios-prod
-  #         path: target/universal/release/lib${{ matrix.component }}.a
-  #     # Build dev libs.
-  #     - name: Build universal lib - dev
-  #       shell: bash
-  #       run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml --features=mock-network
-  #     # Upload dev libs.
-  #     - uses: actions/upload-artifact@master
-  #       with:
-  #         name: ${{ matrix.component }}-apple-ios-dev
-  #         path: target/universal/release/lib${{ matrix.component }}.a
+      # Build prod libraries.
+      - name: Build universal lib - prod
+        shell: bash
+        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml
+      # Upload prod libs.
+      - uses: actions/upload-artifact@master
+        with:
+          name: ${{ matrix.component }}-apple-ios-prod
+          path: target/universal/release/lib${{ matrix.component }}.a
+      # Build dev libs.
+      - name: Build universal lib - dev
+        shell: bash
+        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml --features=mock-network
+      # Upload dev libs.
+      - uses: actions/upload-artifact@master
+        with:
+          name: ${{ matrix.component }}-apple-ios-dev
+          path: target/universal/release/lib${{ matrix.component }}.a
 
-  # build-android:
-  #   name: Build Android
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       target: [armv7-linux-androideabi, x86_64-linux-android]
-  #       type: [dev, prod]
-  #   steps:
-  #     - uses: actions/checkout@v1
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: stable
-  #         profile: minimal
-  #         override: true
-  #         target: ${{ matrix.target }}
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [armv7-linux-androideabi, x86_64-linux-android]
+        type: [dev, prod]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: ${{ matrix.target }}
 
-  #     # Set output parameter for the feature flag.
-  #     - name: Set features output parameter for the dev build
-  #       id: set_dev_flag
-  #       if: matrix.type == 'dev'
-  #       run: echo ::set-output name=features::--features=mock-network
+      # Set output parameter for the feature flag.
+      - name: Set features output parameter for the dev build
+        id: set_dev_flag
+        if: matrix.type == 'dev'
+        run: echo ::set-output name=features::--features=mock-network
 
-  #     # Cache.
-  #     - name: Cache cargo registry
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/registry
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo index
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo build
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-  #     # Setup NDK build toolchain for arm.
-  #     - if: matrix.target == 'armv7-linux-androideabi'
-  #       name: Setup NDK toolchain for armv7
-  #       shell: bash
-  #       run: |
-  #         mkdir toolchains
-  #         /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch arm --api 21 --install-dir toolchains --force
-  #         echo "::set-env name=CC_armv7_linux_androideabi::arm-linux-androideabi-clang"
-  #         echo "::set-env name=CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER::arm-linux-androideabi-clang"
-  #         echo "::add-path::$PWD/toolchains/bin"
+      # Setup NDK build toolchain for arm.
+      - if: matrix.target == 'armv7-linux-androideabi'
+        name: Setup NDK toolchain for armv7
+        shell: bash
+        run: |
+          mkdir toolchains
+          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch arm --api 21 --install-dir toolchains --force
+          echo "::set-env name=CC_armv7_linux_androideabi::arm-linux-androideabi-clang"
+          echo "::set-env name=CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER::arm-linux-androideabi-clang"
+          echo "::add-path::$PWD/toolchains/bin"
 
-  #     # Setup NDK build toolchain for x86_64.
-  #     - if: matrix.target == 'x86_64-linux-android'
-  #       name: Setup NDK toolchain for x86_64
-  #       shell: bash
-  #       run: |
-  #         mkdir toolchains
-  #         /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
-  #         echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
-  #         echo "::add-path::$PWD/toolchains/bin"
+      # Setup NDK build toolchain for x86_64.
+      - if: matrix.target == 'x86_64-linux-android'
+        name: Setup NDK toolchain for x86_64
+        shell: bash
+        run: |
+          mkdir toolchains
+          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
+          echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
+          echo "::add-path::$PWD/toolchains/bin"
 
-  #   # Build safe_app native lib.
-  #     - name: build safe_app
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: build
-  #         args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
+    # Build safe_app native lib.
+      - name: build safe_app
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
-  #     # Upload safe_app native lib.
-  #     - name: upload safe_app artifact
-  #       uses: actions/upload-artifact@master
-  #       with:
-  #         name: safe_app-${{ matrix.target }}-${{ matrix.type}}
-  #         path: target/${{ matrix.target }}/release/libsafe_app.so
+      # Upload safe_app native lib.
+      - name: upload safe_app artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: safe_app-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_app.so
 
-  #     # Build safe_authenticator native lib.
-  #     - name: build safe_authenticator
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: build
-  #         args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
+      # Build safe_authenticator native lib.
+      - name: build safe_authenticator
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
-  #     # Upload safe_authenticator native lib.
-  #     - name: upload safe_authenticator artifact
-  #       uses: actions/upload-artifact@master
-  #       with:
-  #         name: safe_authenticator-${{ matrix.target }}-${{ matrix.type}}
-  #         path: target/${{ matrix.target }}/release/libsafe_authenticator.so
+      # Upload safe_authenticator native lib.
+      - name: upload safe_authenticator artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: safe_authenticator-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_authenticator.so
 
   # Run test suite.
   test:
