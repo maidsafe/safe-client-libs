@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - fleming
+      - baby-fleming-mobile
 
 env:
   # Run all cargo commands with --verbose.
@@ -91,161 +92,161 @@ jobs:
           name: safe_client_libs-${{ matrix.target }}-dev
           path: artifacts
 
-  # build-ios:
-  #   name: Build iOS
-  #   runs-on: macos-latest
-  #   strategy:
-  #     matrix:
-  #       component: [safe_app, safe_authenticator]
-  #   steps:
-  #     - uses: actions/checkout@v1
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         override: true
-  #         target: aarch64-apple-ios
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         override: true
-  #         target: x86_64-apple-ios
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        component: [safe_app, safe_authenticator]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: aarch64-apple-ios
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          target: x86_64-apple-ios
 
-  #     # Cache.
-  #     - name: Cache cargo registry
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/registry
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo index
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo build
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-  #     # Install cargo-lipo for universal iOS libs.
-  #     - uses: actions-rs/cargo@v1
-  #       with:
-  #         command: install
-  #         args: cargo-lipo
+      # Install cargo-lipo for universal iOS libs.
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-lipo
 
-  #     # Build prod libraries.
-  #     - name: Build universal lib - prod
-  #       shell: bash
-  #       run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml
-  #     # Upload prod libs.
-  #     - uses: actions/upload-artifact@master
-  #       with:
-  #         name: ${{ matrix.component }}-apple-ios-prod
-  #         path: target/universal/release/lib${{ matrix.component }}.a
-  #     # Build dev libs.
-  #     - name: Build universal lib - dev
-  #       shell: bash
-  #       run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml --features=mock-network
-  #     # Upload dev libs.
-  #     - uses: actions/upload-artifact@master
-  #       with:
-  #         name: ${{ matrix.component }}-apple-ios-dev
-  #         path: target/universal/release/lib${{ matrix.component }}.a
+      # Build prod libraries.
+      - name: Build universal lib - prod
+        shell: bash
+        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml
+      # Upload prod libs.
+      - uses: actions/upload-artifact@master
+        with:
+          name: ${{ matrix.component }}-apple-ios-prod
+          path: target/universal/release/lib${{ matrix.component }}.a
+      # Build dev libs.
+      - name: Build universal lib - dev
+        shell: bash
+        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml --features=mock-network
+      # Upload dev libs.
+      - uses: actions/upload-artifact@master
+        with:
+          name: ${{ matrix.component }}-apple-ios-dev
+          path: target/universal/release/lib${{ matrix.component }}.a
 
-  # build-android:
-  #   name: Build Android
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       target: [armv7-linux-androideabi, x86_64-linux-android]
-  #       type: [dev, prod]
-  #   steps:
-  #     - uses: actions/checkout@v1
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         toolchain: stable
-  #         profile: minimal
-  #         override: true
-  #         target: ${{ matrix.target }}
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [armv7-linux-androideabi, x86_64-linux-android]
+        type: [dev, prod]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: ${{ matrix.target }}
 
-  #     # Set output parameter for the feature flag.
-  #     - name: Set features output parameter for the dev build
-  #       id: set_dev_flag
-  #       if: matrix.type == 'dev'
-  #       run: echo ::set-output name=features::--features=mock-network
+      # Set output parameter for the feature flag.
+      - name: Set features output parameter for the dev build
+        id: set_dev_flag
+        if: matrix.type == 'dev'
+        run: echo ::set-output name=features::--features=mock-network
 
-  #     # Cache.
-  #     - name: Cache cargo registry
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/registry
-  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo index
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: ~/.cargo/git
-  #         key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-  #     - name: Cache cargo build
-  #       uses: actions/cache@v1
-  #       with:
-  #         path: target
-  #         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      # Cache.
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-  #     # Setup NDK build toolchain for arm.
-  #     - if: matrix.target == 'armv7-linux-androideabi'
-  #       name: Setup NDK toolchain for armv7
-  #       shell: bash
-  #       run: |
-  #         mkdir toolchains
-  #         /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch arm --api 21 --install-dir toolchains --force
-  #         echo "::set-env name=CC_armv7_linux_androideabi::arm-linux-androideabi-clang"
-  #         echo "::set-env name=CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER::arm-linux-androideabi-clang"
-  #         echo "::add-path::$PWD/toolchains/bin"
+      # Setup NDK build toolchain for arm.
+      - if: matrix.target == 'armv7-linux-androideabi'
+        name: Setup NDK toolchain for armv7
+        shell: bash
+        run: |
+          mkdir toolchains
+          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch arm --api 21 --install-dir toolchains --force
+          echo "::set-env name=CC_armv7_linux_androideabi::arm-linux-androideabi-clang"
+          echo "::set-env name=CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER::arm-linux-androideabi-clang"
+          echo "::add-path::$PWD/toolchains/bin"
 
-  #     # Setup NDK build toolchain for x86_64.
-  #     - if: matrix.target == 'x86_64-linux-android'
-  #       name: Setup NDK toolchain for x86_64
-  #       shell: bash
-  #       run: |
-  #         mkdir toolchains
-  #         /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
-  #         echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
-  #         echo "::add-path::$PWD/toolchains/bin"
+      # Setup NDK build toolchain for x86_64.
+      - if: matrix.target == 'x86_64-linux-android'
+        name: Setup NDK toolchain for x86_64
+        shell: bash
+        run: |
+          mkdir toolchains
+          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
+          echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
+          echo "::add-path::$PWD/toolchains/bin"
 
-  #   # Build safe_app native lib.
-  #     - name: build safe_app
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: build
-  #         args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
+    # Build safe_app native lib.
+      - name: build safe_app
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
-  #     # Upload safe_app native lib.
-  #     - name: upload safe_app artifact
-  #       uses: actions/upload-artifact@master
-  #       with:
-  #         name: safe_app-${{ matrix.target }}-${{ matrix.type}}
-  #         path: target/${{ matrix.target }}/release/libsafe_app.so
+      # Upload safe_app native lib.
+      - name: upload safe_app artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: safe_app-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_app.so
 
-  #     # Build safe_authenticator native lib.
-  #     - name: build safe_authenticator
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: build
-  #         args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
+      # Build safe_authenticator native lib.
+      - name: build safe_authenticator
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --manifest-path=safe_authenticator/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
 
-  #     # Upload safe_authenticator native lib.
-  #     - name: upload safe_authenticator artifact
-  #       uses: actions/upload-artifact@master
-  #       with:
-  #         name: safe_authenticator-${{ matrix.target }}-${{ matrix.type}}
-  #         path: target/${{ matrix.target }}/release/libsafe_authenticator.so
+      # Upload safe_authenticator native lib.
+      - name: upload safe_authenticator artifact
+        uses: actions/upload-artifact@master
+        with:
+          name: safe_authenticator-${{ matrix.target }}-${{ matrix.type}}
+          path: target/${{ matrix.target }}/release/libsafe_authenticator.so
 
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    needs: [build] #, build-android, build-ios]
+    needs: [build, build-android, build-ios]
     env:
       AWS_ACCESS_KEY_ID: AKIAVVODCRMSJ5MV63VB
       AWS_SECRET_ACCESS_KEY: ${{ secrets.DEPLOY_USER_SECRET_ACCESS_KEY }}
@@ -288,56 +289,56 @@ jobs:
         with:
           name: safe_client_libs-x86_64-apple-darwin-dev
           path: artifacts/dev/x86_64-apple-darwin/release
-      # # Android
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_app-armv7-linux-androideabi-prod
-      #     path: artifacts/prod/armv7-linux-androideabi/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_app-armv7-linux-androideabi-dev
-      #     path: artifacts/dev/armv7-linux-androideabi/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_authenticator-armv7-linux-androideabi-prod
-      #     path: artifacts/prod/armv7-linux-androideabi/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_authenticator-armv7-linux-androideabi-dev
-      #     path: artifacts/dev/armv7-linux-androideabi/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_app-x86_64-linux-android-prod
-      #     path: artifacts/prod/x86_64-linux-android/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_app-x86_64-linux-android-dev
-      #     path: artifacts/dev/x86_64-linux-android/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_authenticator-x86_64-linux-android-prod
-      #     path: artifacts/prod/x86_64-linux-android/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_authenticator-x86_64-linux-android-dev
-      #     path: artifacts/dev/x86_64-linux-android/release
-      # # iOS
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_app-apple-ios-prod
-      #     path: artifacts/prod/apple-ios/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_app-apple-ios-dev
-      #     path: artifacts/dev/apple-ios/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_authenticator-apple-ios-prod
-      #     path: artifacts/prod/apple-ios/release
-      # - uses: actions/download-artifact@master
-      #   with:
-      #     name: safe_authenticator-apple-ios-dev
-      #     path: artifacts/dev/apple-ios/release
+      # Android
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_app-armv7-linux-androideabi-prod
+          path: artifacts/prod/armv7-linux-androideabi/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_app-armv7-linux-androideabi-dev
+          path: artifacts/dev/armv7-linux-androideabi/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_authenticator-armv7-linux-androideabi-prod
+          path: artifacts/prod/armv7-linux-androideabi/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_authenticator-armv7-linux-androideabi-dev
+          path: artifacts/dev/armv7-linux-androideabi/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_app-x86_64-linux-android-prod
+          path: artifacts/prod/x86_64-linux-android/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_app-x86_64-linux-android-dev
+          path: artifacts/dev/x86_64-linux-android/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_authenticator-x86_64-linux-android-prod
+          path: artifacts/prod/x86_64-linux-android/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_authenticator-x86_64-linux-android-dev
+          path: artifacts/dev/x86_64-linux-android/release
+      # iOS
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_app-apple-ios-prod
+          path: artifacts/prod/apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_app-apple-ios-dev
+          path: artifacts/dev/apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_authenticator-apple-ios-prod
+          path: artifacts/prod/apple-ios/release
+      - uses: actions/download-artifact@master
+        with:
+          name: safe_authenticator-apple-ios-dev
+          path: artifacts/dev/apple-ios/release
 
       # Get information for the release.
       - shell: bash
@@ -407,27 +408,27 @@ jobs:
           asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # - uses: actions/upload-release-asset@v1.0.1
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #     asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
-      #     asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
-      #     asset_content_type: application/zip
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # - uses: actions/upload-release-asset@v1.0.1
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #     asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
-      #     asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
-      #     asset_content_type: application/zip
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # - uses: actions/upload-release-asset@v1.0.1
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #     asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
-      #     asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
-      #     asset_content_type: application/zip
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
+          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
+          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
+          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
       # Upload safe_auth assets
       - uses: actions/upload-release-asset@v1.0.1
@@ -451,27 +452,27 @@ jobs:
           asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # - uses: actions/upload-release-asset@v1.0.1
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #     asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
-      #     asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
-      #     asset_content_type: application/zip
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # - uses: actions/upload-release-asset@v1.0.1
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #     asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
-      #     asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
-      #     asset_content_type: application/zip
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # - uses: actions/upload-release-asset@v1.0.1
-      #   with:
-      #     upload_url: ${{ steps.create_release.outputs.upload_url }}
-      #     asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
-      #     asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
-      #     asset_content_type: application/zip
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      - uses: actions/upload-release-asset@v1.0.1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
+          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
+          asset_content_type: application/zip
+        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
