@@ -129,7 +129,7 @@ impl From<serde_json::error::Error> for CoreError {
 
 impl Debug for CoreError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        write!(formatter, "{} - ", self.description())?;
+        write!(formatter, "{} - ", self.to_string())?;
         match *self {
             Self::EncodeDecodeError(ref error) => {
                 write!(formatter, "CoreError::EncodeDecodeError -> {:?}", error)
@@ -218,30 +218,6 @@ impl Display for CoreError {
 }
 
 impl StdError for CoreError {
-    fn description(&self) -> &str {
-        match *self {
-            Self::EncodeDecodeError(_) => "Serialisation error",
-            Self::AsymmetricDecipherFailure => "Asymmetric decryption failure",
-            Self::SymmetricDecipherFailure => "Symmetric decryption failure",
-            Self::ReceivedUnexpectedData => "Received unexpected data",
-            Self::ReceivedUnexpectedEvent => "Received unexpected event",
-            Self::VersionCacheMiss => "Version cache miss",
-            Self::RootDirectoryExists => "Root directory already exists",
-            Self::RandomDataGenerationFailure => "Cannot obtain RNG",
-            Self::OperationForbidden => "Operation forbidden",
-            Self::Unexpected(_) => "Unexpected error",
-            Self::DataError(ref error) => error.description(),
-            Self::UnsupportedSaltSizeForPwHash => "Unsupported size of salt",
-            Self::UnsuccessfulPwHash => "Failed while password hashing",
-            Self::OperationAborted => "Operation aborted",
-            Self::SelfEncryption(ref error) => error.description(),
-            Self::RequestTimeout => "Request has timed out",
-            Self::ConfigError(ref error) => error.description(),
-            Self::IoError(ref error) => error.description(),
-            Self::QuicP2p(ref error) => error.description(),
-        }
-    }
-
     fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             Self::EncodeDecodeError(ref err) => Some(err),

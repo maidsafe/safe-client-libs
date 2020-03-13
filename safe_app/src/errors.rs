@@ -17,7 +17,6 @@ use safe_core::nfs::NfsError;
 use safe_core::{CoreError, SelfEncryptionStorageError};
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
-use std::error::Error;
 use std::ffi::NulError;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
@@ -220,26 +219,25 @@ impl From<String> for AppError {
 
 impl<T: 'static> From<SendError<T>> for AppError {
     fn from(err: SendError<T>) -> Self {
-        Self::from(err.description())
+        Self::from(err.to_string())
     }
 }
 
 impl From<NulError> for AppError {
     fn from(err: NulError) -> Self {
-        Self::from(err.description())
+        Self::from(err.to_string())
     }
 }
 
 impl From<RecvError> for AppError {
     fn from(err: RecvError) -> Self {
-        Self::from(err.description())
+        Self::from(err.to_string())
     }
 }
 
 impl From<RecvTimeoutError> for AppError {
-    fn from(_err: RecvTimeoutError) -> Self {
-        // TODO: change this to err.description() once that lands in stable.
-        Self::from("mpsc receive error")
+    fn from(err: RecvTimeoutError) -> Self {
+        Self::from(err.to_string())
     }
 }
 

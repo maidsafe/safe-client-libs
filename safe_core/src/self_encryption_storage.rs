@@ -99,10 +99,6 @@ impl Display for SEStorageError {
 }
 
 impl Error for SEStorageError {
-    fn description(&self) -> &str {
-        self.0.description()
-    }
-
     fn cause(&self) -> Option<&dyn Error> {
         self.0.source()
     }

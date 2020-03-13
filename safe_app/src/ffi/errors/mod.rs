@@ -138,9 +138,8 @@ impl From<RecvError> for Error {
 }
 
 impl From<RecvTimeoutError> for Error {
-    fn from(_err: RecvTimeoutError) -> Self {
-        // TODO: change this to err.description() once that lands in stable.
-        Self(AppError::from("mpsc receive error"))
+    fn from(err: RecvTimeoutError) -> Self {
+        Self(AppError::from(err.to_string()))
     }
 }
 
