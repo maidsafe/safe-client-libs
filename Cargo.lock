@@ -688,9 +688,9 @@ dependencies = [
 
 [[package]]
 name = "err-derive"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14ce82f12540e448ece75759f36d341dcca4148bb76fb393b087c24e00b15d07"
+checksum = "82f46c91bbed409ee74495549acbfcc7fae856e712e1df15afe75d0775eedc6c"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.9",
@@ -1605,7 +1605,7 @@ checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 [[package]]
 name = "quinn"
 version = "0.5.3"
-source = "git+https://github.com/lionel1704/quinn?branch=baby-fleming-mobile#e545f305fb31070dd128183fe143f52af114d839"
+source = "git+https://github.com/lionel1704/quinn?branch=baby-fleming-mobile#6f977aa3e3afcbad0a8a6a129ff094e7067712ef"
 dependencies = [
  "bytes 0.5.4",
  "err-derive",
@@ -1622,7 +1622,7 @@ dependencies = [
 [[package]]
 name = "quinn-proto"
 version = "0.5.2"
-source = "git+https://github.com/lionel1704/quinn?branch=baby-fleming-mobile#e545f305fb31070dd128183fe143f52af114d839"
+source = "git+https://github.com/lionel1704/quinn?branch=baby-fleming-mobile#6f977aa3e3afcbad0a8a6a129ff094e7067712ef"
 dependencies = [
  "bytes 0.5.4",
  "err-derive",
