@@ -12,7 +12,6 @@ use ffi_utils::StringError;
 use futures::sync::mpsc::SendError;
 use safe_nd::XorName;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::ffi::NulError;
 use std::str::Utf8Error;
 use threshold_crypto::error::FromBytesError;
@@ -47,7 +46,7 @@ pub enum IpcError {
 
 impl<T: 'static> From<SendError<T>> for IpcError {
     fn from(error: SendError<T>) -> Self {
-        Self::Unexpected(error.description().to_owned())
+        Self::Unexpected(error.to_string())
     }
 }
 
@@ -77,7 +76,7 @@ impl From<StringError> for IpcError {
 
 impl From<NulError> for IpcError {
     fn from(error: NulError) -> Self {
-        Self::from(error.description())
+        Self::from(error.to_string())
     }
 }
 

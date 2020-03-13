@@ -91,7 +91,6 @@ use log4rs::encode::pattern::PatternEncoder;
 use log4rs::file::Deserializers;
 use std::borrow::Borrow;
 use std::env;
-use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::fs::File;
 use std::net::ToSocketAddrs;
@@ -125,9 +124,7 @@ where
 }
 
 fn init_impl(show_thread_name: bool, op_file_name_override: Option<String>) -> Result<(), String> {
-    let path = config_dir()
-        .map_err(|e| e.description().to_string())?
-        .join(CONFIG_FILE);
+    let path = config_dir().map_err(|e| e.to_string())?.join(CONFIG_FILE);
     let log_config_path = if let Ok(_file) = File::open(&path) {
         trace!("Reading: {}", path.display());
         Some(path)

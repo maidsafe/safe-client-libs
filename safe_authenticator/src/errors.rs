@@ -15,7 +15,6 @@ use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::CoreError;
 use safe_nd::Error as SndError;
-use std::error::Error;
 use std::ffi::NulError;
 use std::fmt::{self, Display, Formatter};
 use std::io::Error as IoError;
@@ -91,7 +90,7 @@ impl Into<IpcError> for AuthError {
 
 impl<T: 'static> From<SendError<T>> for AuthError {
     fn from(error: SendError<T>) -> Self {
-        Self::Unexpected(error.description().to_owned())
+        Self::Unexpected(error.to_string())
     }
 }
 
@@ -109,13 +108,13 @@ impl From<IpcError> for AuthError {
 
 impl From<RecvError> for AuthError {
     fn from(error: RecvError) -> Self {
-        Self::from(error.description())
+        Self::from(error.to_string())
     }
 }
 
 impl From<NulError> for AuthError {
     fn from(error: NulError) -> Self {
-        Self::from(error.description())
+        Self::from(error.to_string())
     }
 }
 
