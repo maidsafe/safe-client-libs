@@ -17,7 +17,7 @@ use crate::{
     test_utils::{
         access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
         get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
-        try_access_container, try_revoke,
+        try_access_container, try_revoke, simulate_revocation_failure
     },
     {access_container, run, AuthFuture, Authenticator},
 };
@@ -171,8 +171,6 @@ mod mock_routing {
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
     use safe_core::utils::test_utils::Synchronizer;
-    use safe_core::ConnectionManager;
-    use safe_nd::{Request, Response};
     use std::{
         collections::HashMap,
         iter,
@@ -513,50 +511,6 @@ mod mock_routing {
 
             app_0.join3(app_1, app_2).map(|_| ())
         }));
-    }
-
-    // Try to revoke apps with the given ids, but simulate network failure so they
-    // would be initiated but not finished.
-    fn simulate_revocation_failure<T, S>(locator: &str, password: &str, app_ids: T)
-    where
-        T: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        // First, log in normally to obtain the access contained info.
-        let auth = unwrap!(Authenticator::login(locator, password, || ()));
-        let ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
-
-        // Then, log in with a request hook that makes mutation of the access container
-        // fail.
-        let auth = unwrap!(Authenticator::login_with_hook(
-            locator,
-            password,
-            || (),
-            move |mut cm| -> ConnectionManager {
-                let ac_info = ac_info.clone();
-
-                cm.set_request_hook(move |request| match *request {
-                    Request::DelMDataUserPermissions { address, .. } => {
-                        if *address.name() == ac_info.name() && address.tag() == ac_info.type_tag()
-                        {
-                            Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                });
-                cm
-            },
-        ));
-
-        // Then attempt to revoke each app from the iterator.
-        for app_id in app_ids {
-            match try_revoke(&auth, app_id.as_ref()) {
-                Err(_) => (),
-                x => panic!("Unexpected {:?}", x),
-            }
-        }
     }
 }
 

@@ -9,15 +9,16 @@
 #[cfg(feature = "mock-network")]
 mod mock_routing {
     use crate::auth_flush_app_revocation_queue;
+    use crate::tests::utils::create_containers_req;
     use ffi_utils::test_utils::call_0;
-    use safe_authenticator::test_utils::{create_authenticator, rand_app};
+    use futures::Future;
     use safe_authenticator::{
         app_auth::{app_state, AppState},
-        client::AuthClient,
         config,
-        test_utils::register_app,
+        test_utils::{create_authenticator, rand_app, register_app, simulate_revocation_failure},
         {run, Authenticator},
     };
+    use safe_core::ipc::AuthReq;
     use unwrap::unwrap;
 
     // Test flushing the app revocation queue.

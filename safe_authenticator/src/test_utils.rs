@@ -36,6 +36,8 @@ use std::fmt::Debug;
 use std::io::Write;
 use std::str::FromStr;
 use unwrap::unwrap;
+#[cfg(feature = "mock-network")]
+use safe_nd::{Request, Response, Error as SndError};
 
 /// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]
@@ -464,4 +466,48 @@ where
         )
     };
     setup_client_with_net_obs(&(), c, n, r)
+}
+
+#[cfg(feature = "mock-network")]
+/// Try to revoke apps with the given ids, but simulate network failure so they
+/// would be initiated but not finished.
+pub fn simulate_revocation_failure<T, S>(locator: &str, password: &str, app_ids: T)
+where
+    T: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    // First, log in normally to obtain the access contained info.
+    let auth = unwrap!(Authenticator::login(locator, password, || ()));
+    let ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
+
+    // Then, log in with a request hook that makes mutation of the access container
+    // fail.
+    let auth = unwrap!(Authenticator::login_with_hook(
+        locator,
+        password,
+        || (),
+        move |mut cm| -> ConnectionManager {
+            let ac_info = ac_info.clone();
+
+            cm.set_request_hook(move |request| match *request {
+                Request::DelMDataUserPermissions { address, .. } => {
+                    if *address.name() == ac_info.name() && address.tag() == ac_info.type_tag() {
+                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            });
+            cm
+        },
+    ));
+
+    // Then attempt to revoke each app from the iterator.
+    for app_id in app_ids {
+        match try_revoke(&auth, app_id.as_ref()) {
+            Err(_) => (),
+            x => panic!("Unexpected {:?}", x),
+        }
+    }
 }

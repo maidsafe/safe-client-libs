@@ -7,4 +7,5 @@ cargo test config_mock_vault_path --release --features=mock-network --manifest-p
 export SAFE_MOCK_IN_MEMORY_STORAGE=1 &&
 cargo test --release --features=mock-network --manifest-path=safe_core/Cargo.toml
 cargo test --release --features=mock-network --manifest-path=safe_authenticator/Cargo.toml
+cargo test --release --features=mock-network --manifest-path=safe_authenticator_ffi/Cargo.toml
 cargo test --release --features=mock-network --manifest-path=safe_app/Cargo.toml
