@@ -17,7 +17,7 @@ use crate::{
     test_utils::{
         access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
         get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
-        try_access_container, try_revoke, simulate_revocation_failure
+        simulate_revocation_failure, try_access_container, try_revoke,
     },
     {access_container, run, AuthFuture, Authenticator},
 };

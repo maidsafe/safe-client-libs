@@ -31,13 +31,13 @@ use safe_core::utils::test_utils::{gen_client_id, setup_client_with_net_obs};
 use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
 use safe_nd::{AppPermissions, Coins, PublicKey, XorName};
+#[cfg(feature = "mock-network")]
+use safe_nd::{Error as SndError, Request, Response};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Write;
 use std::str::FromStr;
 use unwrap::unwrap;
-#[cfg(feature = "mock-network")]
-use safe_nd::{Request, Response, Error as SndError};
 
 /// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]
