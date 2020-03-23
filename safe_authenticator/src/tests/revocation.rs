@@ -17,7 +17,7 @@ use crate::{
     test_utils::{
         access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
         get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,
-        simulate_revocation_failure, try_access_container, try_revoke,
+        try_access_container, try_revoke,
     },
     {access_container, run, AuthFuture, Authenticator},
 };
@@ -164,7 +164,8 @@ fn verify_app_is_authenticated(
 mod mock_routing {
     use super::*;
     use crate::test_utils::{
-        get_container_from_authenticator_entry, register_rand_app, try_revoke,
+        get_container_from_authenticator_entry, register_rand_app, simulate_revocation_failure,
+        try_revoke,
     };
     use rand::rngs::StdRng;
     use rand::FromEntropy;
