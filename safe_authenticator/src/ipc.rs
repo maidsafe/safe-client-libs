@@ -79,9 +79,6 @@ pub fn decode_ipc_msg(
                         })),
                         AppState::Revoked | AppState::NotAuthenticated => {
                             // App is not authenticated
-                            // let (error_code, description) =
-                            //     ffi_error!(FFIError::from(IpcError::UnknownApp));
-
                             let error_code = safe_core::ffi::error_codes::ERR_UNKNOWN_APP;
                             let description = AuthError::from(IpcError::UnknownApp).to_string();
 

@@ -30,7 +30,7 @@ use std::time::Duration;
 use unwrap::unwrap;
 
 // TODO: There should be a public function with a signature like this, and the
-//       FFI function `ipc::decode_ipc_msg` should be only wrapper over it.
+// FFI function `ipc::decode_ipc_msg` should be only wrapper over it.
 /// Helper to decode IpcMsg.
 pub fn auth_decode_ipc_msg_helper(authenticator: &Authenticator, msg: &str) -> ChannelType {
     let (tx, rx) = mpsc::channel::<ChannelType>();

@@ -16,7 +16,6 @@ maidsafe_logo.png",
     test(attr(forbid(warnings)))
 )]
 // For explanation of lint checks, run `rustc -W help`.
-#![deny(unsafe_code)]
 #![warn(
     missing_docs,
     trivial_casts,
@@ -30,6 +29,7 @@ maidsafe_logo.png",
     // Our unsafe FFI functions are missing safety documentation. It is probably not necessary for
     // us to provide this for every single function as that would be repetitive and verbose.
     clippy::missing_safety_doc,
+    unsafe_code
 )]
 
 // Export FFI interface

@@ -17,7 +17,6 @@ use safe_core::ipc::IpcError;
 use safe_nd::AppPermissions as NativeAppPermissions;
 
 /// Registered native app converter.
-#[allow(unsafe_code)]
 pub unsafe fn registered_app_into_repr_c(
     app: &NativeRegisteredApp,
 ) -> Result<RegisteredApp, IpcError> {
@@ -38,7 +37,6 @@ pub unsafe fn registered_app_into_repr_c(
 }
 
 /// Convert FFI registered app into native struct.
-#[allow(unsafe_code)]
 pub unsafe fn native_registered_app_into_native(
     app: &RegisteredApp,
 ) -> Result<NativeRegisteredApp, IpcError> {

@@ -8,8 +8,6 @@
 
 //! FFI routines.
 
-#![allow(unsafe_code)]
-
 /// Apps management
 pub mod apps;
 /// Errors

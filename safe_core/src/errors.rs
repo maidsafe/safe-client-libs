@@ -174,7 +174,7 @@ impl Debug for CoreError {
     }
 }
 
-/// TODO
+/// Get error code for a CoreError type.
 pub fn core_error_code(err: &CoreError) -> i32 {
     match *err {
         CoreError::EncodeDecodeError(_) => ERR_ENCODE_DECODE_ERROR,
@@ -228,7 +228,7 @@ pub fn core_error_code(err: &CoreError) -> i32 {
     }
 }
 
-/// TODO
+/// Get error code for a safe_nd Error type.
 pub fn safe_nd_error_core(err: &SndError) -> i32 {
     match *err {
         SndError::AccessDenied => ERR_ACCESS_DENIED,
