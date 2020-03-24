@@ -28,8 +28,8 @@ export RUST_BACKTRACE=1
 
 declare -a targets=(\
     "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin")
-    # "armv7-linux-androideabi" "x86_64-linux-android" \
-    # "apple-ios")
+    "armv7-linux-androideabi" "x86_64-linux-android" \
+    "apple-ios")
 
 function run_packaging() {
     local name=$1

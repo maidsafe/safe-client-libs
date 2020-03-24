@@ -1574,7 +1574,7 @@ dependencies = [
 [[package]]
 name = "quic-p2p"
 version = "0.4.0"
-source = "git+https://github.com/lionel1704/quic-p2p?branch=quinn-v6#7e62068947add588390d83bcc0b12660edd27b04"
+source = "git+https://github.com/lionel1704/quic-p2p?branch=quinn-v6#9521708b0df0baf1f3f2ad193343b175787bac3e"
 dependencies = [
  "base64 0.10.1",
  "bincode",
