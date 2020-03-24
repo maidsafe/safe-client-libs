@@ -21,8 +21,6 @@
     unused_results
 )]
 
-mod real_network;
-
 use futures::future::Future;
 use safe_app::{run, App, Client, PubImmutableData};
 use safe_core::utils;

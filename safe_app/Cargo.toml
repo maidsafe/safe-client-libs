@@ -1,6 +1,5 @@
 [package]
 authors = ["MaidSafe Developers <dev@maidsafe.net>"]
-build = "build.rs"
 description = "SAFE App"
 documentation = "https://docs.rs/safe_app"
 edition = "2018"
@@ -22,7 +21,6 @@ lru-cache = "~0.1.1"
 miscreant = { version = "0.4.2", features = ["soft-aes"] }
 rand = "0.6"
 safe_authenticator = { path = "../safe_authenticator", version = "~0.14.0", optional = true }
-safe_authenticator_ffi = { path = "../safe_authenticator_ffi", version = "~0.14.0", optional = true }
 safe_core = { path = "../safe_core", version = "~0.39.0" }
 safe-nd = "~0.8.0"
 self_encryption = "~0.16.0"
@@ -37,7 +35,6 @@ unwrap = "~1.2.0"
 clap = "~2.33.0"
 env_logger = "~0.6.2"
 safe_authenticator = { path = "../safe_authenticator", version = "~0.14.0", features = ["testing"] }
-safe_authenticator_ffi = { path = "../safe_authenticator_ffi", version = "~0.14.0", features = ["testing"] }
 safe_core = { path = "../safe_core", version = "~0.39.0", features = ["testing"] }
 
 [build-dependencies]
@@ -49,8 +46,8 @@ threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
 [features]
-mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network", "safe_authenticator_ffi/mock-network"]
-testing = ["safe_core/testing", "safe_authenticator/testing", "safe_authenticator_ffi/testing", "env_logger"]
+mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network"]
+testing = ["safe_core/testing", "safe_authenticator/testing", "env_logger"]
 bindings = ["safe_bindgen"]
 
 [lib]

@@ -82,23 +82,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android_log-sys"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8052e2d8aabbb8d556d6abbcce2a22b9590996c5f849b9c7ce4544a2e3b984e"
-
-[[package]]
-name = "android_logger"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bad99185bc195e796e1591740c26716667b58ac9210a48731f71f803fc6ca43a"
-dependencies = [
- "android_log-sys",
- "lazy_static",
- "log 0.4.8",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -804,7 +787,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "429a449983b4ef2cae75c920146cd9f86566b9dd1a310c012907fed222d0f6a9"
 dependencies = [
  "base64 0.9.3",
- "jni",
  "log 0.4.8",
  "regex 0.2.11",
  "serde",
@@ -2098,7 +2080,6 @@ dependencies = [
  "rand 0.6.5",
  "safe-nd",
  "safe_authenticator",
- "safe_authenticator_ffi",
  "safe_bindgen",
  "safe_core",
  "self_encryption",
@@ -2107,19 +2088,6 @@ dependencies = [
  "threshold_crypto",
  "tiny-keccak",
  "tokio 0.1.22",
- "unwrap",
-]
-
-[[package]]
-name = "safe_app_jni"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "ffi_utils",
- "jni",
- "log 0.4.8",
- "safe_app",
- "safe_core",
  "unwrap",
 ]
 
@@ -2164,19 +2132,6 @@ dependencies = [
  "threshold_crypto",
  "tiny-keccak",
  "tokio 0.1.22",
- "unwrap",
-]
-
-[[package]]
-name = "safe_authenticator_jni"
-version = "0.1.1"
-dependencies = [
- "android_logger",
- "ffi_utils",
- "jni",
- "log 0.4.8",
- "safe_authenticator_ffi",
- "safe_core",
  "unwrap",
 ]
 
@@ -2630,7 +2585,6 @@ dependencies = [
  "safe-nd",
  "safe_app",
  "safe_authenticator",
- "safe_authenticator_ffi",
  "safe_core",
  "serde",
  "serde_derive",

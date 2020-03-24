@@ -11,15 +11,13 @@ mod append_only_data;
 mod coins;
 mod unpublished_mutable_data;
 
-use crate::ffi::test_utils::test_create_app_with_access;
 use crate::test_utils::{create_app, create_random_auth_req, gen_app_exchange_info};
-use crate::test_utils::{create_app_by_req, create_auth_req, create_auth_req_with_access};
+use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
 use crate::{run, App, AppError};
-use ffi_utils::test_utils::call_1;
+// use ffi_utils::test_utils::call_1;
 use futures::Future;
 use log::trace;
-use safe_authenticator::test_utils as authenticator;
-use safe_authenticator::test_utils::revoke;
+use safe_authenticator::test_utils as authenticator_test_utils;
 use safe_authenticator::{run as auth_run, AuthError, Authenticator};
 use safe_core::btree_set;
 use safe_core::ipc::req::{AppExchangeInfo, AuthReq};
@@ -73,24 +71,71 @@ fn refresh_access_info() {
 
 // Test fetching containers that an app has access to.
 #[test]
-#[allow(unsafe_code)]
+#[cfg(feature = "mock-network")]
+// #[allow(unsafe_code)]
 fn get_access_info() {
     let mut container_permissions = HashMap::new();
     let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
     let _ = container_permissions.insert("_downloads".to_string(), btree_set![Permission::Insert]);
 
-    let auth_req = create_auth_req(None, Some(container_permissions));
-    let auth_req_ffi = unwrap!(auth_req.into_repr_c());
+    // let auth_req = create_auth_req(None, Some(container_permissions));
+    // let auth_req_ffi = unwrap!(auth_req.into_repr_c());
 
-    let app: *mut App = unsafe {
-        unwrap!(call_1(|ud, cb| test_create_app_with_access(
-            &auth_req_ffi,
-            ud,
-            cb
-        ),))
+    // let app: *mut App =
+    //     unwrap!(call_1(|ud, cb| test_create_app_with_access(
+    //         &auth_req_ffi,
+    //         ud,
+    //         cb
+    //     ),))
+    //     ;
+
+    // Register a hook prohibiting mutations and login
+    let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
+        cm.set_request_hook(move |req| {
+            if req.get_type() == RequestType::Mutation {
+                Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+            } else {
+                // Pass-throughh
+                None
+            }
+        });
+        cm
     };
 
-    unwrap!(run(unsafe { &*app }, move |client, context| {
+    // Login to the client
+    let auth = authenticator_test_utils::create_account_and_login();
+
+    // Register and login to the app
+    let app_info = gen_app_exchange_info();
+    let app_id = app_info.id.clone();
+
+    let auth_granted = unwrap!(authenticator_test_utils::register_app(
+        &auth,
+        &AuthReq {
+            app: app_info,
+            app_container: true,
+            app_permissions: AppPermissions {
+                transfer_coins: true,
+                perform_mutations: true,
+                get_balance: true,
+            },
+            containers: container_permissions,
+        },
+    ));
+
+    let app = unwrap!(App::registered_with_hook(
+        app_id,
+        auth_granted,
+        || (),
+        // |_| ()
+        cm_hook,
+    ));
+
+    unwrap!(run(&app, move |client, context| {
+        // context.get_access_info(client).then(move |res| {
+        //     let info = unwrap!(res);
+        //     Ok(info.len())
+        // })
         context.get_access_info(client).then(move |res| {
             let info = unwrap!(res);
             assert!(info.contains_key(&"_videos".to_string()));
@@ -105,7 +150,24 @@ fn get_access_info() {
 
             Ok(())
         })
-    }));
+    }))
+
+    // unwrap!(run(unsafe { &*app }, move |client, context| {
+    //     context.get_access_info(client).then(move |res| {
+    //         let info = unwrap!(res);
+    //         assert!(info.contains_key(&"_videos".to_string()));
+    //         assert!(info.contains_key(&"_downloads".to_string()));
+    //         assert_eq!(info.len(), 3); // third item is the app container
+
+    //         let (ref _md_info, ref perms) = info["_videos"];
+    //         assert_eq!(perms, &btree_set![Permission::Read]);
+
+    //         let (ref _md_info, ref perms) = info["_downloads"];
+    //         assert_eq!(perms, &btree_set![Permission::Insert]);
+
+    //         Ok(())
+    //     })
+    // }));
 }
 
 // Make sure we can login to a registered app with low balance.
@@ -126,13 +188,13 @@ pub fn login_registered_with_low_balance() {
     };
 
     // Login to the client
-    let auth = authenticator::create_account_and_login();
+    let auth = authenticator_test_utils::create_account_and_login();
 
     // Register and login to the app
     let app_info = gen_app_exchange_info();
     let app_id = app_info.id.clone();
 
-    let auth_granted = unwrap!(authenticator::register_app(
+    let auth_granted = unwrap!(authenticator_test_utils::register_app(
         &auth,
         &AuthReq {
             app: app_info,
@@ -157,7 +219,7 @@ fn authorise_app(
     app_id: &str,
     app_container: bool,
 ) -> App {
-    let auth_granted = unwrap!(authenticator::register_app(
+    let auth_granted = unwrap!(authenticator_test_utils::register_app(
         auth,
         &AuthReq {
             app: app_info.clone(),
@@ -200,7 +262,7 @@ fn app_container_creation() {
     trace!("Authorising an app for the first time with `app_container` set to `true`.");
 
     {
-        let auth = authenticator::create_account_and_login();
+        let auth = authenticator_test_utils::create_account_and_login();
 
         let app_info = gen_app_exchange_info();
         let app_id = app_info.id.clone();
@@ -210,7 +272,7 @@ fn app_container_creation() {
     }
 
     trace!("Authorising a new app with `app_container` set to `false`.");
-    let auth = authenticator::create_account_and_login();
+    let auth = authenticator_test_utils::create_account_and_login();
     let app_info = gen_app_exchange_info();
     let app_id = app_info.id.clone();
 
@@ -239,7 +301,7 @@ fn app_container_creation() {
     assert_eq!(orig_balance, new_balance);
 
     trace!("Authorising a new app with `app_container` set to `false`.");
-    let auth = authenticator::create_account_and_login();
+    let auth = authenticator_test_utils::create_account_and_login();
 
     let app_info = gen_app_exchange_info();
     let app_id = app_info.id.clone();
@@ -250,7 +312,7 @@ fn app_container_creation() {
     }
 
     trace!("Revoking the app.");
-    revoke(&auth, &app_id);
+    authenticator_test_utils::revoke(&auth, &app_id);
 
     trace!("Re-authorising the app with `app_container` set to `true`.");
     {

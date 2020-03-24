@@ -13,8 +13,7 @@
 use super::errors::AppError;
 use crate::cipher_opt::CipherOpt;
 use crate::client::AppClient;
-use crate::ffi::nfs::FileContext;
-use crate::ffi::object_cache::*;
+
 use safe_core::{crypto::shared_box, SelfEncryptionStorage};
 use safe_nd::{
     ClientFullId, MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataUnseqEntries,
@@ -24,6 +23,47 @@ use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, HashMap};
 use threshold_crypto;
+
+// use safe_core::nfs::File as NativeFile;
+// use safe_core::nfs::{Reader, Writer};
+
+/// Null Handle
+pub const NULL_OBJECT_HANDLE: u64 = 0;
+
+/// Handle
+pub type ObjectHandle = u64;
+
+/// Disambiguating `ObjectHandle`
+pub type CipherOptHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type EncryptPubKeyHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type EncryptSecKeyHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type MDataEntriesHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type MDataEntryActionsHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type MDataPermissionsHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type SelfEncryptorReaderHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type SelfEncryptorWriterHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type SignPubKeyHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type PubKeyHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type SignSecKeyHandle = ObjectHandle;
+/// Disambiguating `ObjectHandle`
+pub type FileContextHandle = ObjectHandle;
+
+/// Holds context for file operations, depending on the mode.
+pub struct FileContext {
+    // reader: Option<Reader<AppClient>>,
+// writer: Option<Writer<AppClient>>,
+// original_file: NativeFile,
+}
 
 /// Contains session object cache
 pub struct ObjectCache {
@@ -278,25 +318,5 @@ impl<V> Store<V> {
 
     fn clear(&self) {
         self.inner.borrow_mut().clear()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use safe_core::utils::test_utils::gen_client_id;
-
-    // Test resetting the object cache.
-    #[test]
-    fn reset() {
-        let object_cache = ObjectCache::new();
-        let client_id = gen_client_id();
-        let pk = *client_id.public_id().public_key();
-
-        let handle = object_cache.insert_pub_sign_key(pk);
-        assert!(object_cache.get_pub_sign_key(handle).is_ok());
-
-        object_cache.reset();
-        assert!(object_cache.get_pub_sign_key(handle).is_err());
     }
 }

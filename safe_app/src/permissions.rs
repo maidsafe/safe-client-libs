@@ -9,11 +9,7 @@
 
 //! Permissions utilities
 
-use crate::ffi::mutable_data::permissions::UserPermissionSet as FfiUserPermissionSet;
-use crate::ffi::object_cache::SignPubKeyHandle;
-use ffi_utils::ReprC;
-use safe_core::ipc::req::{permission_set_clone_from_repr_c, permission_set_into_repr_c};
-use safe_core::ipc::IpcError;
+use crate::object_cache::SignPubKeyHandle;
 use safe_nd::MDataPermissionSet;
 use serde_derive::{Deserialize, Serialize};
 
@@ -24,29 +20,4 @@ pub struct UserPermissionSet {
     pub user_h: SignPubKeyHandle,
     /// User's permission set.
     pub perm_set: MDataPermissionSet,
-}
-
-impl UserPermissionSet {
-    /// Construct FFI wrapper for the native Rust object, consuming self.
-    pub fn into_repr_c(self) -> FfiUserPermissionSet {
-        FfiUserPermissionSet {
-            user_h: self.user_h,
-            perm_set: permission_set_into_repr_c(self.perm_set),
-        }
-    }
-}
-
-impl ReprC for UserPermissionSet {
-    type C = *const FfiUserPermissionSet;
-    type Error = IpcError;
-
-    #[allow(unsafe_code)]
-    unsafe fn clone_from_repr_c(repr_c: Self::C) -> Result<Self, Self::Error> {
-        let FfiUserPermissionSet { user_h, perm_set } = *repr_c;
-
-        Ok(Self {
-            user_h,
-            perm_set: permission_set_clone_from_repr_c(perm_set)?,
-        })
-    }
 }

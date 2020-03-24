@@ -27,9 +27,7 @@ use safe_app::ffi::mutable_data::{mdata_entries, mdata_mutate_entries, mdata_put
 use safe_app::App;
 use safe_authenticator::test_utils::*;
 use safe_authenticator::{AuthError, Authenticator};
-use safe_authenticator_ffi::ffi::apps::*;
-use safe_authenticator_ffi::ffi::ipc::*;
-use safe_authenticator_ffi::ffi::*;
+
 use safe_core::btree_set;
 use safe_core::core_structs::{MDataEntry, MDataKey, MDataValue};
 use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
