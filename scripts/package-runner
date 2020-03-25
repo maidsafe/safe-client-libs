@@ -27,7 +27,7 @@ export RUST_BACKTRACE=1
 [[ ! -d "deploy" ]] && mkdir -p deploy/prod deploy/dev
 
 declare -a targets=(\
-    "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin")
+    "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
     "armv7-linux-androideabi" "x86_64-linux-android" \
     "apple-ios")
 
