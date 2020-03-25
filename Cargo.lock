@@ -1573,8 +1573,9 @@ dependencies = [
 
 [[package]]
 name = "quic-p2p"
-version = "0.4.0"
-source = "git+https://github.com/lionel1704/quic-p2p?branch=quinn-v6#9521708b0df0baf1f3f2ad193343b175787bac3e"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae212c9a93beeb003cba5bea4a0d8af7a5b557619a3a04e7e12bf2c9f90cb055"
 dependencies = [
  "base64 0.10.1",
  "bincode",
