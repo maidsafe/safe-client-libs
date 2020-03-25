@@ -132,10 +132,6 @@ fn get_access_info() {
     ));
 
     unwrap!(run(&app, move |client, context| {
-        // context.get_access_info(client).then(move |res| {
-        //     let info = unwrap!(res);
-        //     Ok(info.len())
-        // })
         context.get_access_info(client).then(move |res| {
             let info = unwrap!(res);
             assert!(info.contains_key(&"_videos".to_string()));
@@ -151,23 +147,6 @@ fn get_access_info() {
             Ok(())
         })
     }))
-
-    // unwrap!(run(unsafe { &*app }, move |client, context| {
-    //     context.get_access_info(client).then(move |res| {
-    //         let info = unwrap!(res);
-    //         assert!(info.contains_key(&"_videos".to_string()));
-    //         assert!(info.contains_key(&"_downloads".to_string()));
-    //         assert_eq!(info.len(), 3); // third item is the app container
-
-    //         let (ref _md_info, ref perms) = info["_videos"];
-    //         assert_eq!(perms, &btree_set![Permission::Read]);
-
-    //         let (ref _md_info, ref perms) = info["_downloads"];
-    //         assert_eq!(perms, &btree_set![Permission::Insert]);
-
-    //         Ok(())
-    //     })
-    // }));
 }
 
 // Make sure we can login to a registered app with low balance.
