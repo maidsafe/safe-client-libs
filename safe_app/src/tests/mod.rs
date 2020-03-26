@@ -70,36 +70,10 @@ fn refresh_access_info() {
 
 // Test fetching containers that an app has access to.
 #[test]
-#[cfg(feature = "mock-network")]
-// #[allow(unsafe_code)]
 fn get_access_info() {
     let mut container_permissions = HashMap::new();
     let _ = container_permissions.insert("_videos".to_string(), btree_set![Permission::Read]);
     let _ = container_permissions.insert("_downloads".to_string(), btree_set![Permission::Insert]);
-
-    // let auth_req = create_auth_req(None, Some(container_permissions));
-    // let auth_req_ffi = unwrap!(auth_req.into_repr_c());
-
-    // let app: *mut App =
-    //     unwrap!(call_1(|ud, cb| test_create_app_with_access(
-    //         &auth_req_ffi,
-    //         ud,
-    //         cb
-    //     ),))
-    //     ;
-
-    // Register a hook prohibiting mutations and login
-    let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
-        cm.set_request_hook(move |req| {
-            if req.get_type() == RequestType::Mutation {
-                Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-            } else {
-                // Pass-throughh
-                None
-            }
-        });
-        cm
-    };
 
     // Login to the client
     let auth = authenticator_test_utils::create_account_and_login();
@@ -122,12 +96,10 @@ fn get_access_info() {
         },
     ));
 
-    let app = unwrap!(App::registered_with_hook(
+    let app = unwrap!(App::registered(
         app_id,
         auth_granted,
         || (),
-        // |_| ()
-        cm_hook,
     ));
 
     unwrap!(run(&app, move |client, context| {
