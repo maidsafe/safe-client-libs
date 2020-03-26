@@ -1,5 +1,10 @@
 # SAFE App
 
+## [0.15.0]
+- Update quic-p2p to 0.5.0
+- Remove the FFI module
+- Attempt to bootstrap multiple times before returning an error
+
 ## [0.14.0]
 - Add position and index to get_value
 - Remove unused imports and linting

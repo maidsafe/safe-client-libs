@@ -1,5 +1,10 @@
 # SAFE Authenticator - Change Log
 
+## [0.15.0]
+- Update quic-p2p to 0.5.0
+- Move the FFI module into a separate crate
+- Attempt to bootstrap multiple times before returning an error
+
 ## [0.14.0]
 - Do not store `AppPermissions` in the client's config root 
 - Refactor unnecessary disconnect during account creation
