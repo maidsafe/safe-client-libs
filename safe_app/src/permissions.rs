@@ -9,15 +9,12 @@
 
 //! Permissions utilities
 
-use crate::object_cache::SignPubKeyHandle;
 use safe_nd::MDataPermissionSet;
 use serde_derive::{Deserialize, Serialize};
 
 /// Object representing a (User, Permission Set) pair.
 #[derive(Clone, Default, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct UserPermissionSet {
-    /// User's sign key handle.
-    pub user_h: SignPubKeyHandle,
     /// User's permission set.
     pub perm_set: MDataPermissionSet,
 }

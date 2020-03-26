@@ -14,7 +14,6 @@ mod unpublished_mutable_data;
 use crate::test_utils::{create_app, create_random_auth_req, gen_app_exchange_info};
 use crate::test_utils::{create_app_by_req, create_auth_req_with_access};
 use crate::{run, App, AppError};
-// use ffi_utils::test_utils::call_1;
 use futures::Future;
 use log::trace;
 use safe_authenticator::test_utils as authenticator_test_utils;

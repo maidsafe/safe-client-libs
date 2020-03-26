@@ -44,7 +44,6 @@ pub use crate::errors::AppError;
 pub use client::AppClient;
 
 pub mod cipher_opt;
-pub mod object_cache;
 pub mod permissions;
 
 /// Utility functions to test apps functionality.
@@ -56,7 +55,6 @@ pub mod errors;
 #[cfg(test)]
 mod tests;
 
-use self::object_cache::ObjectCache;
 use bincode::deserialize;
 use futures::stream::Stream;
 use futures::sync::mpsc as futures_mpsc;
@@ -270,12 +268,10 @@ pub enum AppContext {
 
 #[allow(missing_docs)]
 pub struct Unregistered {
-    object_cache: ObjectCache,
 }
 
 #[allow(missing_docs)]
 pub struct Registered {
-    object_cache: ObjectCache,
     app_id: String,
     sym_enc_key: shared_secretbox::Key,
     access_container_info: AccessContInfo,
@@ -285,7 +281,6 @@ pub struct Registered {
 impl AppContext {
     fn unregistered() -> Self {
         Self::Unregistered(Rc::new(Unregistered {
-            object_cache: ObjectCache::new(),
         }))
     }
 
@@ -295,7 +290,6 @@ impl AppContext {
         access_container_info: AccessContInfo,
     ) -> Self {
         Self::Registered(Rc::new(Registered {
-            object_cache: ObjectCache::new(),
             app_id,
             sym_enc_key,
             access_container_info,
@@ -303,13 +297,6 @@ impl AppContext {
         }))
     }
 
-    /// Object cache
-    pub fn object_cache(&self) -> &ObjectCache {
-        match *self {
-            Self::Unregistered(ref context) => &context.object_cache,
-            Self::Registered(ref context) => &context.object_cache,
-        }
-    }
 
     /// Symmetric encryption/decryption key.
     pub fn sym_enc_key(&self) -> Result<&shared_secretbox::Key, AppError> {
