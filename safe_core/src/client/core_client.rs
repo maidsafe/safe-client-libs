@@ -9,7 +9,9 @@
 use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::ConnectionManager;
-use crate::client::{req, AuthActions, Client, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use crate::client::{
+    attempt_bootstrap, req, AuthActions, Client, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
+};
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
@@ -103,13 +105,11 @@ impl CoreClient {
 
         // Create the connection manager
         let mut connection_manager =
-            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, balance_client_id.clone())?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         {
-            block_on_all(connection_manager.bootstrap(balance_client_id.clone()))?;
-
             // Create the balance for the client
             let response = req(
                 &mut connection_manager,

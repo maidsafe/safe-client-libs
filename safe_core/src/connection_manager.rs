@@ -112,7 +112,9 @@ impl Inner {
                             // Do not swallow the original error in case if it's not a timeout.
                             err
                         } else {
-                            CoreError::RequestTimeout
+                            CoreError::from(
+                                "Connection timed out when bootstrapping to the network",
+                            )
                         }
                     }),
             )

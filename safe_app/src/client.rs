@@ -12,7 +12,7 @@ use crate::{AppContext, AppMsgTx};
 use log::trace;
 use lru_cache::LruCache;
 use rand::thread_rng;
-use safe_core::client::{Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use safe_core::client::{attempt_bootstrap, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
 use safe_core::config_handler::Config;
 use safe_core::core_structs::AppKeys;
 use safe_core::crypto::{shared_box, shared_secretbox};
@@ -23,7 +23,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
-use tokio::runtime::current_thread::{block_on_all, Handle};
+use tokio::runtime::current_thread::Handle;
 
 /// Client object used by `safe_app`.
 pub struct AppClient {
@@ -56,8 +56,7 @@ impl AppClient {
                 .collect();
         }
 
-        let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
-        block_on_all(connection_manager.bootstrap(app_keys.app_safe_key()))?;
+        let connection_manager = attempt_bootstrap(&qp2p_config, &net_tx, app_keys.app_safe_key())?;
 
         Ok(Self {
             inner: Rc::new(RefCell::new(Inner::new(
@@ -137,8 +136,7 @@ impl AppClient {
             .cloned()
             .collect();
 
-        let mut connection_manager = ConnectionManager::new(qp2p_config, &net_tx.clone())?;
-        let _ = block_on_all(connection_manager.bootstrap(keys.app_safe_key()));
+        let mut connection_manager = attempt_bootstrap(&qp2p_config, &net_tx, keys.app_safe_key())?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 

@@ -42,6 +42,7 @@ use crate::utils::FutureExt;
 use futures::{future, sync::mpsc, Future};
 use log::trace;
 use lru_cache::LruCache;
+use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
@@ -1117,8 +1118,7 @@ where
     let full_id = SafeKey::client(identity.clone());
     let (net_tx, _net_rx) = mpsc::unbounded();
 
-    let mut cm = ConnectionManager::new(Config::new().quic_p2p, &net_tx)?;
-    block_on_all(cm.bootstrap(full_id.clone()).map_err(CoreError::from))?;
+    let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone())?;
 
     let res = func(&mut cm, &full_id);
 
@@ -1357,6 +1357,32 @@ pub fn req(
             signature: Some(signature),
         },
     ))
+}
+
+/// Utility function that bootstraps a client to the network. If there is a failure then it retries.
+/// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
+pub fn attempt_bootstrap(
+    qp2p_config: &QuicP2pConfig,
+    net_tx: &NetworkTx,
+    safe_key: SafeKey,
+) -> Result<ConnectionManager, CoreError> {
+    let mut attempts: u32 = 0;
+
+    loop {
+        let mut connection_manager = ConnectionManager::new(qp2p_config.clone(), &net_tx.clone())?;
+        let res = block_on_all(connection_manager.bootstrap(safe_key.clone()));
+        match res {
+            Ok(()) => return Ok(connection_manager),
+            Err(err) => {
+                attempts += 1;
+                if attempts < 3 {
+                    trace!("Error connecting to network! Retrying... ({})", attempts);
+                } else {
+                    return Err(err);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

@@ -18,7 +18,9 @@ use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, CryptoRng, Rng, SeedableRng};
 use safe_core::client::account::Account;
-use safe_core::client::{req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use safe_core::client::{
+    attempt_bootstrap, req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
+};
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::fry;
@@ -163,11 +165,9 @@ impl AuthClient {
 
         // Create the connection manager
         let mut connection_manager =
-            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_safe_key.clone())?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
-
-        block_on_all(connection_manager.bootstrap(client_safe_key.clone()))?;
 
         let response = req(
             &mut connection_manager,
@@ -278,13 +278,11 @@ impl AuthClient {
 
         // Create the connection manager
         let mut connection_manager =
-            ConnectionManager::new(Config::new().quic_p2p, &net_tx.clone())?;
+            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_full_id.clone())?;
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         let (account_buffer, signature) = {
             trace!("Using throw-away connection group to get a login packet.");
-
-            block_on_all(connection_manager.bootstrap(client_full_id.clone()))?;
 
             let response = req(
                 &mut connection_manager,
