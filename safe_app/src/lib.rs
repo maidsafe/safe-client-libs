@@ -267,8 +267,7 @@ pub enum AppContext {
 }
 
 #[allow(missing_docs)]
-pub struct Unregistered {
-}
+pub struct Unregistered {}
 
 #[allow(missing_docs)]
 pub struct Registered {
@@ -280,8 +279,7 @@ pub struct Registered {
 
 impl AppContext {
     fn unregistered() -> Self {
-        Self::Unregistered(Rc::new(Unregistered {
-        }))
+        Self::Unregistered(Rc::new(Unregistered {}))
     }
 
     fn registered(
@@ -296,7 +294,6 @@ impl AppContext {
             access_info: RefCell::new(HashMap::new()),
         }))
     }
-
 
     /// Symmetric encryption/decryption key.
     pub fn sym_enc_key(&self) -> Result<&shared_secretbox::Key, AppError> {

@@ -96,11 +96,7 @@ fn get_access_info() {
         },
     ));
 
-    let app = unwrap!(App::registered(
-        app_id,
-        auth_granted,
-        || (),
-    ));
+    let app = unwrap!(App::registered(app_id, auth_granted, || (),));
 
     unwrap!(run(&app, move |client, context| {
         context.get_access_info(client).then(move |res| {
