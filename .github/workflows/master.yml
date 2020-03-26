@@ -57,6 +57,10 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
+          args: --release --manifest-path=safe_authenticator_ffi/Cargo.toml
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
           args: --release --manifest-path=safe_app/Cargo.toml
       - shell: bash
         run: |
@@ -74,6 +78,12 @@ jobs:
           command: build
           args: >
             --release --manifest-path=safe_authenticator/Cargo.toml
+            --features=mock-network
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: >
+            --release --manifest-path=safe_authenticator_ffi/Cargo.toml
             --features=mock-network
       - uses: actions-rs/cargo@v1
         with:
@@ -433,50 +443,50 @@ jobs:
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
+          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
+          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
+          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
+          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
+          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
+          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
+          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
+          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
+          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
+          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
       - uses: actions/upload-release-asset@v1.0.1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
-          asset_name: safe_authenticator-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
+          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
+          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
           asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
     name: Publish
-    needs: deploy
+    # needs: deploy
     runs-on: ubuntu-latest
     # Is this a version change commit?
     if: startsWith(github.event.head_commit.message, 'Version change')
@@ -530,6 +540,15 @@ jobs:
           command: publish
           args: --manifest-path=safe_authenticator/Cargo.toml
         if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
+      # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
+      - shell: bash
+        name: Sleep
+        run: sleep 120
+      - uses: actions-rs/cargo@v1
+        with:
+          command: publish
+          args: --manifest-path=safe_authenticator_ffi/Cargo.toml
+        # if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version TODO: Add after first release
         # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
