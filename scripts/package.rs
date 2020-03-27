@@ -49,7 +49,7 @@ const TARGET_ANDROID_X86: &str = "i686-linux-android";
 const TARGET_ANDROID_X64: &str = "x86_64-linux-android";
 const TARGET_ANDROID_ARMEABIV7A: &str = "armv7-linux-androideabi";
 
-const CRATES: &[&str] = &["safe_app", "safe_authenticator"];
+const CRATES: &[&str] = &["safe_app", "safe_authenticator", "safe_authenticator_ffi"];
 
 const TARGET_TRIPLES: &[TargetTriple] = &[
     TargetTriple {
