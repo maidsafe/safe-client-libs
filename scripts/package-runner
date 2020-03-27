@@ -48,8 +48,6 @@ function run_packaging() {
 }
 
 for target in "${targets[@]}"; do
-    run_packaging "safe_app" "$deployment_type" "$target" "dev"
-    run_packaging "safe_app" "$deployment_type" "$target" "prod"
     run_packaging "safe_authenticator_ffi" "$deployment_type" "$target" "dev"
     run_packaging "safe_authenticator_ffi" "$deployment_type" "$target" "prod"
 done

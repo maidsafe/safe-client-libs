@@ -106,7 +106,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        component: [safe_app, safe_authenticator_ffi]
+        component: [safe_authenticator_ffi]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -224,20 +224,6 @@ jobs:
           echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
           echo "::add-path::$PWD/toolchains/bin"
 
-    # Build safe_app native lib.
-      - name: build safe_app
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
-
-      # Upload safe_app native lib.
-      - name: upload safe_app artifact
-        uses: actions/upload-artifact@master
-        with:
-          name: safe_app-${{ matrix.target }}-${{ matrix.type}}
-          path: target/${{ matrix.target }}/release/libsafe_app.so
-
       # Build safe_authenticator_ffi native lib.
       - name: build safe_authenticator_ffi
         uses: actions-rs/cargo@v1
@@ -301,28 +287,12 @@ jobs:
       # Android
       - uses: actions/download-artifact@master
         with:
-          name: safe_app-armv7-linux-androideabi-prod
-          path: artifacts/prod/armv7-linux-androideabi/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_app-armv7-linux-androideabi-dev
-          path: artifacts/dev/armv7-linux-androideabi/release
-      - uses: actions/download-artifact@master
-        with:
           name: safe_authenticator_ffi-armv7-linux-androideabi-prod
           path: artifacts/prod/armv7-linux-androideabi/release
       - uses: actions/download-artifact@master
         with:
           name: safe_authenticator_ffi-armv7-linux-androideabi-dev
           path: artifacts/dev/armv7-linux-androideabi/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_app-x86_64-linux-android-prod
-          path: artifacts/prod/x86_64-linux-android/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_app-x86_64-linux-android-dev
-          path: artifacts/dev/x86_64-linux-android/release
       - uses: actions/download-artifact@master
         with:
           name: safe_authenticator_ffi-x86_64-linux-android-prod
@@ -332,14 +302,6 @@ jobs:
           name: safe_authenticator_ffi-x86_64-linux-android-dev
           path: artifacts/dev/x86_64-linux-android/release
       # iOS
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_app-apple-ios-prod
-          path: artifacts/prod/apple-ios/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_app-apple-ios-dev
-          path: artifacts/dev/apple-ios/release
       - uses: actions/download-artifact@master
         with:
           name: safe_authenticator_ffi-apple-ios-prod
@@ -371,7 +333,7 @@ jobs:
       - shell: bash
         id: release_description
         run: |
-          description=$(./scripts/get-release-description ${{ steps.versioning.outputs.app_version }} ${{ steps.versioning.outputs.auth_version }})
+          description=$(./scripts/get-release-description ${{ steps.versioning.outputs.auth_version }})
           description="${description//'%'/'%25'}"
           description="${description//$'\n'/'%0A'}"
           description="${description//$'\r'/'%0D'}"
@@ -393,50 +355,6 @@ jobs:
           draft: false
           prerelease: false
           body: ${{ steps.release_description.outputs.description }}
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-
-      # Upload safe_app assets
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-unknown-linux-gnu.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-pc-windows-gnu.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-apple-darwin.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-x86_64-linux-android.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-armv7-linux-androideabi.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
-          asset_name: safe_app-${{ steps.versioning.outputs.app_version }}-apple-ios.tar.gz
-          asset_content_type: application/zip
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
       # Upload safe_auth assets
@@ -486,7 +404,7 @@ jobs:
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
     name: Publish
-    # needs: deploy
+    needs: deploy
     runs-on: ubuntu-latest
     # Is this a version change commit?
     if: startsWith(github.event.head_commit.message, 'Version change')
@@ -541,15 +459,8 @@ jobs:
           args: --manifest-path=safe_authenticator/Cargo.toml
         if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
       # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
-      - shell: bash
-        name: Sleep
-        run: sleep 120
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --manifest-path=safe_authenticator_ffi/Cargo.toml
-        # if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version TODO: Add after first release
-        # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
+      # if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version TODO: Add after first release
+      # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
         run: sleep 120

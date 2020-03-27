@@ -83,7 +83,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        component: [safe_app, safe_authenticator_ffi]
+        component: [safe_authenticator_ffi]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
@@ -200,20 +200,6 @@ jobs:
           /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
           echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
           echo "::add-path::$PWD/toolchains/bin"
-
-    # Build safe_app native lib.
-      - name: build safe_app
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path=safe_app/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
-
-      # Upload safe_app native lib.
-      - name: upload safe_app artifact
-        uses: actions/upload-artifact@master
-        with:
-          name: safe_app-${{ matrix.target }}-${{ matrix.type}}
-          path: target/${{ matrix.target }}/release/libsafe_app.so
 
       # Build safe_authenticator_ffi native lib.
       - name: build safe_authenticator_ffi
