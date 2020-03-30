@@ -30,6 +30,7 @@ threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
 tokio = "~0.1.22"
 unwrap = "~1.2.0"
+safe_authenticator_ffi = { path = "../safe_authenticator_ffi", version = "~0.15.0", optional = true }
 
 [dev-dependencies]
 clap = "~2.33.0"
@@ -46,7 +47,7 @@ threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
 [features]
-mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network"]
+mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network", "safe_authenticator_ffi/mock-network"]
 testing = ["safe_core/testing", "safe_authenticator/testing", "env_logger"]
 bindings = ["safe_bindgen"]
 

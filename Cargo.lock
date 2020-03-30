@@ -2034,6 +2034,7 @@ dependencies = [
  "rand 0.6.5",
  "safe-nd",
  "safe_authenticator",
+ "safe_authenticator_ffi",
  "safe_bindgen",
  "safe_core",
  "self_encryption",
