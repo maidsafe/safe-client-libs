@@ -1,5 +1,8 @@
 # SAFE Authenticator FFI
 
+| [![](http://meritbadge.herokuapp.com/safe_authenticator_ffi)](https://crates.io/crates/safe_authenticator_ffi) | [![Documentation](https://docs.rs/safe_authenticator_ffi/badge.svg)](https://docs.rs/safe_authenticator_ffi) |
+|:----------:|:----------:|
+
 ## Build Instructions
 
 `safe_authenticator` can interface conditionally against either the routing crate or a mock used for local testing.]

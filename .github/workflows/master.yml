@@ -464,7 +464,6 @@ jobs:
           command: publish
           args: --manifest-path=safe_authenticator/Cargo.toml
         if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
-      # if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version TODO: Add after first release
       # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
       - shell: bash
         name: Sleep
@@ -479,7 +478,7 @@ jobs:
       - shell: bash
         name: Sleep
         run: sleep 120
-        if: steps.versioning.outputs.auth_ffi_version != steps.versioning.outputs.old_auth_ffi_version
+        if: steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version
       - uses: actions-rs/cargo@v1
         with:
           command: publish
