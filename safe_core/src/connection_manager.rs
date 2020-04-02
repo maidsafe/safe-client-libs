@@ -100,7 +100,8 @@ impl Inner {
             let _ = value.insert(fry!(ConnectionGroup::new(
                 self.config.clone(),
                 full_id,
-                connected_tx
+                connected_tx,
+                self.net_tx.clone(),
             )));
             Box::new(
                 connected_rx

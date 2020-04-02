@@ -6,7 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::{client::SafeKey, err, utils, CoreError, CoreFuture};
+use crate::{
+    client::SafeKey,
+    err,
+    network_event::{NetworkEvent, NetworkTx},
+    utils, CoreError, CoreFuture,
+};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
@@ -72,6 +77,7 @@ impl ConnectionGroup {
         config: QuicP2pConfig,
         full_id: SafeKey,
         connection_hook: Sender<Result<(), CoreError>>,
+        net_tx: NetworkTx,
     ) -> Result<Self, CoreError> {
         let (node_tx, node_rx) = crossbeam_channel::unbounded();
         let (client_tx, _client_rx) = crossbeam_channel::unbounded();
@@ -89,6 +95,7 @@ impl ConnectionGroup {
         let inner = Arc::new(Mutex::new(Inner {
             quic_p2p,
             disconnect_tx: None,
+            net_tx,
             id: GROUP_COUNTER.fetch_add(1, Ordering::SeqCst),
             state: State::Bootstrapping(initial_state),
         }));
@@ -496,6 +503,7 @@ impl State {
 struct Inner {
     quic_p2p: QuicP2p,
     disconnect_tx: Option<Sender<()>>,
+    net_tx: NetworkTx,
     id: u64,
     state: State,
 }
@@ -609,8 +617,15 @@ impl Inner {
         if let QuicP2pError::ConnectionCancelled = err {
             if let Some(tx) = self.disconnect_tx.take() {
                 trace!("{}: Successfully disconnected", self.id);
-                let _ = tx.send(());
+                let _ = tx.send(()).unwrap();
                 return;
+            } else {
+                let _ = self
+                    .net_tx
+                    .unbounded_send(NetworkEvent::Disconnected)
+                    .unwrap();
+                // This means that there was a network disconnection
+                let _ = self.quic_p2p.disconnect_from(peer_addr);
             }
         }
         trace!(
