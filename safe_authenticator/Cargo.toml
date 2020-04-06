@@ -41,6 +41,3 @@ unwrap = "~1.2.0"
 [features]
 mock-network = ["testing", "safe_core/mock-network"]
 testing = ["safe_core/testing", "env_logger"]
-
-[lib]
-crate_type = ["staticlib", "rlib", "cdylib"]

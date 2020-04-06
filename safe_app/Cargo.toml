@@ -50,9 +50,6 @@ mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-ne
 testing = ["safe_core/testing", "safe_authenticator/testing", "env_logger"]
 bindings = ["safe_bindgen"]
 
-[lib]
-crate_type = ["staticlib", "rlib", "cdylib"]
-
 [[example]]
 bench = false
 name = "client_stress_test"

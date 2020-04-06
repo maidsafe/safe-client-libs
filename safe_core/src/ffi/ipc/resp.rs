@@ -38,6 +38,7 @@ impl Drop for AppKeys {
     fn drop(&mut self) {
         unsafe {
             let _ = vec_from_raw_parts(self.full_id as *mut u8, self.full_id_len);
+            let _ = vec_from_raw_parts(self.enc_secret_key as *mut u8, self.enc_secret_key_len);
         }
     }
 }
