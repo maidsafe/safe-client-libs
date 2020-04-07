@@ -270,7 +270,57 @@ impl Joining {
 
 struct Connected {
     elders: HashMap<SocketAddr, Elder>,
-    hooks: HashMap<MessageId, (Sender<Response>, usize)>, // to be replaced with Accumulator for multiple vaults.
+    hook_manager: ConnectedHookManager, 
+}
+
+struct ConnectedHookManager {
+    hooks: HashMap<MessageId, (Sender<Response>, usize)>, 
+}
+
+/// Manage hooks and their responses
+/// Separated out to make this easier to test.
+impl ConnectedHookManager {
+    pub fn new() -> Self {
+
+        Self{
+            hooks: Default::default()
+        }
+    }
+
+    fn await_responses(&mut self, msg_id : MessageId, value: (Sender<Response>, usize) ) -> Result<(), String> {
+        let _ = self.hooks.insert(msg_id, value );
+        Ok(())
+    }
+
+     /// Handle a response from one of the elders.
+     fn handle_response(&mut self, msg_id: MessageId, response: Response) {
+        trace!(
+            "Handling response for msg_id: {:?}, resp: {:?}",
+            msg_id,
+            response
+        );
+        let _ = self
+            // here we remove
+            // and then insert with a lower count
+            // TODO: we need to merge CRDT messages.
+            .hooks
+            .remove(&msg_id)
+            .map(|(sender, count)| {
+                let count = count - 1;
+                if count == 0 {
+                    sender.send(response)
+                } else {
+                    // here do the merges
+                    let _ = self.hooks.insert(msg_id, (sender, count));
+                    Ok(())
+                }
+            })
+            .or_else(|| {
+                trace!("No hook found for message ID {:?}", msg_id);
+                None
+            });
+    }
+
 }
 
 impl Connected {
@@ -279,7 +329,7 @@ impl Connected {
         let _ = old_state.connection_hook.send(Ok(()));
 
         Self {
-            hooks: Default::default(),
+            hook_manager: ConnectedHookManager::new(),
             elders: old_state
                 .connected_elders
                 .into_iter()
@@ -303,13 +353,15 @@ impl Connected {
         trace!("Sending message {:?}", msg_id);
         let mut rng = rand::thread_rng();
 
-        let (future_tx, future_rx) = oneshot::channel();
+        let (sender_future, response_future) = oneshot::channel();
         let expected_responses = if is_get_request(&msg) {
             1
         } else {
             self.elders.len()
         };
-        let _ = self.hooks.insert(msg_id, (future_tx, expected_responses));
+
+        // TODO: await responses for
+        let _ = self.hook_manager.await_responses(msg_id, (sender_future, expected_responses));
 
         let bytes = Bytes::from(unwrap!(serialize(msg)));
         {
@@ -320,7 +372,7 @@ impl Connected {
         }
 
         Box::new(
-            future_rx
+            response_future
                 .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
                 .map_err(|e| {
                     if let Some(err) = e.into_inner() {
@@ -332,32 +384,7 @@ impl Connected {
         )
     }
 
-    /// Handle a response from one of the elders.
-    fn handle_response(&mut self, sender_addr: SocketAddr, msg_id: MessageId, response: Response) {
-        trace!(
-            "Response from: {:?}, msg_id: {:?}, resp: {:?}",
-            sender_addr,
-            msg_id,
-            response
-        );
-        let _ = self
-            .hooks
-            .remove(&msg_id)
-            .map(|(sender, count)| {
-                let count = count - 1;
-                if count == 0 {
-                    sender.send(response)
-                } else {
-                    let _ = self.hooks.insert(msg_id, (sender, count));
-                    Ok(())
-                }
-            })
-            .or_else(|| {
-                trace!("No hook found for message ID {:?}", msg_id);
-                None
-            });
-    }
-
+   
     fn handle_new_message(
         &mut self,
         _quic_p2p: &mut QuicP2p,
@@ -370,7 +397,15 @@ impl Connected {
             Ok(Message::Response {
                 response,
                 message_id,
-            }) => self.handle_response(peer_addr, message_id, response),
+            }) => {
+                trace!(
+                    "Response from: {:?}, msg_id: {:?}, resp: {:?}",
+                    peer_addr,
+                    message_id,
+                    response
+                );
+                self.hook_manager.handle_response(message_id, response)
+            },
             Ok(Message::Notification { notification }) => {
                 trace!("Got transaction notification: {:?}", notification);
             }
@@ -531,7 +566,7 @@ impl Inner {
     fn handle_quic_p2p_event(&mut self, event: Event) {
         use Event::*;
         // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
-        // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.handle_response(sender, token, response)` should be called.
+        // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.hook_manager.handle_response(message_id, response)` should be called.
         match event {
             BootstrapFailure => self.handle_bootstrap_failure(),
             BootstrappedTo { node } => self.state.handle_bootstrapped_to(&mut self.quic_p2p, node),
@@ -645,4 +680,65 @@ fn setup_quic_p2p_event_loop(
             }
         }
     })
+}
+
+
+
+
+#[test]
+fn connected_group_get_response_ok() -> Result<(), String> {
+    let mut test_hook_manager = ConnectedHookManager::new();
+
+    // set up a message
+    let message_id = safe_nd::MessageId::new();
+
+    let (sender_future, response_future) = oneshot::channel();
+    let expected_responses = 1; // for IData
+
+    // our pseudo data
+    let immutable_data = safe_nd::PubImmutableData::new(vec![6]);
+
+    let response = safe_nd::Response::GetIData( Ok(safe_nd::IData::from( immutable_data ) ) );
+
+    let _ = test_hook_manager.await_responses(message_id, (sender_future, expected_responses));
+    let _ = test_hook_manager.handle_response(message_id, response.clone());
+
+    response_future
+        .map( move |i| {
+                assert_eq!(&i, &response );
+            }).wait();
+    Ok(())
+               
+
+}
+
+// basic test to ensure future response is being properly evaluated and our test fails for bad responses
+#[test]
+fn connected_group_get_response_fail_with_bad_data() -> Result<(), String> {
+    let mut test_hook_manager = ConnectedHookManager::new();
+ 
+    // set up a message
+    let message_id = safe_nd::MessageId::new();
+
+    let (sender_future, response_future) = oneshot::channel();
+    let expected_responses = 1; // for IData
+
+    // our expected data
+    let immutable_data = safe_nd::PubImmutableData::new(vec![6]);
+
+    // our nonsense response we receive
+    let immutable_data_bad = safe_nd::PubImmutableData::new(vec![7]);
+
+    let response = safe_nd::Response::GetIData( Ok(safe_nd::IData::from( immutable_data ) ) );
+    let bad_response = safe_nd::Response::GetIData( Ok(safe_nd::IData::from( immutable_data_bad ) ) );
+
+    let _ = test_hook_manager.await_responses(message_id, (sender_future, expected_responses));
+    let _ = test_hook_manager.handle_response(message_id, bad_response );
+
+    response_future
+        .map( move |i| {
+                println!("got: {:?}", i);
+                assert_ne!(&i, &response );
+            }).wait();
+    Ok(())
 }
