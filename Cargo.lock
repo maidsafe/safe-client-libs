@@ -2120,7 +2120,7 @@ dependencies = [
  "env_logger 0.6.2",
  "ffi_utils",
  "fs2",
- "futures 0.1.29",
+ "futures 0.3.4",
  "hmac",
  "lazy_static",
  "log 0.4.8",

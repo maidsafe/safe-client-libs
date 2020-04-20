@@ -84,7 +84,7 @@ macro_rules! try_tx {
     };
 }
 
-type AppFuture<T> = dyn Future<Item = T, Error = AppError>;
+type AppFuture<T> = dyn Future<Output=Result<T, AppError>>;
 type AppMsgTx = CoreMsgTx<AppClient, AppContext>;
 
 /// Handle to an application instance.
@@ -97,7 +97,7 @@ impl App {
     /// Send a message to app's event loop.
     pub fn send<F>(&self, f: F) -> Result<(), AppError>
     where
-        F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Item = (), Error = ()>>>
+        F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Output=Result<Item, Error>>>>
             + Send
             + 'static,
     {
@@ -330,7 +330,7 @@ impl AppContext {
 pub fn run<F, I, T>(app: &App, f: F) -> Result<T, AppError>
 where
     F: FnOnce(&AppClient, &AppContext) -> I + Send + 'static,
-    I: IntoFuture<Item = T, Error = AppError> + 'static,
+    I: IntoFuture<Output=Result<T, AppError>> + 'static,
     T: Send + 'static,
 {
     let (tx, rx) = mpsc::channel();

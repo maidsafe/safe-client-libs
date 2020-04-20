@@ -428,7 +428,7 @@ pub fn compare_access_container_entries(
 pub fn random_client<Run, I, T, E>(r: Run) -> T
 where
     Run: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: IntoFuture<Item = T, Error = E> + 'static,
+    I: IntoFuture<Output=Result<T, E>> + 'static,
     T: Send + 'static,
     E: Debug,
 {
@@ -442,7 +442,7 @@ pub fn random_client_with_net_obs<NetObs, Run, I, T, E>(n: NetObs, r: Run) -> T
 where
     NetObs: FnMut(NetworkEvent) + 'static,
     Run: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: IntoFuture<Item = T, Error = E> + 'static,
+    I: IntoFuture<Output=Result<T, E>> + 'static,
     T: Send + 'static,
     E: Debug,
 {

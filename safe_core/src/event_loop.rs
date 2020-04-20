@@ -21,14 +21,14 @@ pub type CoreMsgTx<C, T> = mpsc::UnboundedSender<CoreMsg<C, T>>;
 pub type CoreMsgRx<C, T> = mpsc::UnboundedReceiver<CoreMsg<C, T>>;
 
 /// The final future which the event loop will run.
-pub type TailFuture = Box<dyn Future<Item = (), Error = ()>>;
+pub type TailFuture = Box<dyn Future<Output=Result<Item, Error>>>;
 type TailFutureFn<C, T> = dyn FnMut(&C, &T) -> Option<TailFuture> + Send + 'static;
 
 /// The message format that core event loop understands.
 pub struct CoreMsg<C: Client, T>(Option<Box<TailFutureFn<C, T>>>);
 
 /// Future trait returned from core operations.
-pub type CoreFuture<T> = dyn Future<Item = T, Error = CoreError>;
+pub type CoreFuture<T> = dyn Future<Output=Result<T, CoreError>>;
 
 impl<C: Client, T> CoreMsg<C, T> {
     /// Construct a new message to ask core event loop to do something. If the
