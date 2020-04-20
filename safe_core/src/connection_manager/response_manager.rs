@@ -17,18 +17,18 @@ type ResponseRequiredCount = usize;
 type VoteCount = usize;
 type VoteMap = HashMap<Response, VoteCount>;
 
-pub struct ConnectionHookManager {
+pub struct ResponseManager {
     /// MessageId to send_future channel map
-    hooks: HashMap<MessageId, (Sender<Response>, VoteMap, ResponseRequiredCount)>,
+    requests: HashMap<MessageId, (Sender<Response>, VoteMap, ResponseRequiredCount)>,
     /// Number of responses to aggregate before returning to a client
     response_threshold: usize,
 }
 
-/// Manage request hooks and their responses
-impl ConnectionHookManager {
+/// Manage requests and their responses
+impl ResponseManager {
     pub fn new(response_threshold: ResponseRequiredCount) -> Self {
         Self {
-            hooks: Default::default(),
+            requests: Default::default(),
             response_threshold,
         }
     }
@@ -39,8 +39,8 @@ impl ConnectionHookManager {
         value: (Sender<Response>, ResponseRequiredCount),
     ) -> Result<(), String> {
         let (sender, count) = value;
-        let the_hook = (sender, VoteMap::default(), count);
-        let _ = self.hooks.insert(msg_id, the_hook);
+        let the_request = (sender, VoteMap::default(), count);
+        let _ = self.requests.insert(msg_id, the_request);
         Ok(())
     }
 
@@ -54,7 +54,7 @@ impl ConnectionHookManager {
 
         let _ = self
             // first remove the response and see how we deal with it (we re-add later if needed)
-            .hooks
+            .requests
             .remove(&msg_id)
             .map(|(sender, mut vote_map, count)| {
                 let vote_response = response.clone();
@@ -74,18 +74,15 @@ impl ConnectionHookManager {
                     let _ = vote_map.insert(vote_response, 1);
                 }
 
-                trace!("vote map looks like: {:?}", &vote_map);
+                trace!("Response vote map looks like: {:?}", &vote_map);
 
                 // if 50+% successfull responses, we roll with it.
                 if current_count <= self.response_threshold {
                     let mut vote_met_threshold = false;
 
-                    let _the_response = &response;
-
                     for (_response_key, votes) in vote_map.iter() {
                         if votes >= &self.response_threshold {
-                            // the_response = response_key;
-                            trace!("Met the threshold");
+                            trace!("Response request, votes met the required threshold.");
                             vote_met_threshold = true;
                         }
                     }
@@ -109,11 +106,11 @@ impl ConnectionHookManager {
                     }
                 }
                 let _ = self
-                    .hooks
+                    .requests
                     .insert(msg_id, (sender, vote_map, current_count));
             })
             .or_else(|| {
-                trace!("No hook found for message ID {:?}", msg_id);
+                trace!("No request found for message ID {:?}", msg_id);
                 None
             });
         Ok(())
@@ -129,10 +126,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn connection_hook_manager_get_response_ok() -> Result<(), String> {
+    fn response_manager_get_response_ok() -> Result<(), String> {
         let response_threshold = 1;
 
-        let mut test_hook_manager = ConnectionHookManager::new(response_threshold);
+        let mut response_manager = ResponseManager::new(response_threshold);
 
         // set up a message
         let message_id = safe_nd::MessageId::new();
@@ -145,8 +142,8 @@ mod tests {
 
         let response = safe_nd::Response::GetIData(Ok(safe_nd::IData::from(immutable_data)));
 
-        test_hook_manager.await_responses(message_id, (sender_future, expected_responses))?;
-        test_hook_manager.handle_response(message_id, response.clone())?;
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
+        response_manager.handle_response(message_id, response.clone())?;
 
         let _ = response_future
             .map(move |i| {
@@ -158,10 +155,10 @@ mod tests {
 
     // basic test to ensure future response is being properly evaluated and our test fails for bad responses
     #[test]
-    fn connection_hook_manager_get_response_fail_with_bad_data() -> Result<(), String> {
+    fn response_manager_get_response_fail_with_bad_data() -> Result<(), String> {
         let response_threshold = 1;
 
-        let mut test_hook_manager = ConnectionHookManager::new(response_threshold);
+        let mut response_manager = ResponseManager::new(response_threshold);
 
         // set up a message
         let message_id = safe_nd::MessageId::new();
@@ -179,8 +176,8 @@ mod tests {
         let bad_response =
             safe_nd::Response::GetIData(Ok(safe_nd::IData::from(immutable_data_bad)));
 
-        test_hook_manager.await_responses(message_id, (sender_future, expected_responses))?;
-        test_hook_manager.handle_response(message_id, bad_response)?;
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
+        response_manager.handle_response(message_id, bad_response)?;
 
         let _ = response_future
             .map(move |i| {
@@ -191,10 +188,10 @@ mod tests {
     }
 
     #[test]
-    fn connection_hook_manager_get_success_even_with_some_failed_responses() -> Result<(), String> {
+    fn response_manager_get_success_even_with_some_failed_responses() -> Result<(), String> {
         let response_threshold = 4;
 
-        let mut test_hook_manager = ConnectionHookManager::new(response_threshold);
+        let mut response_manager = ResponseManager::new(response_threshold);
 
         // set up a message
         let message_id = safe_nd::MessageId::new();
@@ -227,10 +224,10 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        test_hook_manager.await_responses(message_id, (sender_future, expected_responses))?;
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
 
         for resp in responses_to_handle {
-            test_hook_manager.handle_response(message_id, resp)?;
+            response_manager.handle_response(message_id, resp)?;
         }
 
         let _ = response_future
@@ -242,10 +239,10 @@ mod tests {
     }
 
     #[test]
-    fn connection_hook_manager_get_fails_even_with_some_success_responses() -> Result<(), String> {
+    fn response_manager_get_fails_even_with_some_success_responses() -> Result<(), String> {
         let response_threshold = 4;
 
-        let mut test_hook_manager = ConnectionHookManager::new(response_threshold);
+        let mut response_manager = ResponseManager::new(response_threshold);
 
         // set up a message
         let message_id = safe_nd::MessageId::new();
@@ -277,14 +274,14 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        test_hook_manager.await_responses(message_id, (sender_future, expected_responses))?;
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
 
         for resp in responses_to_handle {
-            test_hook_manager.handle_response(message_id, resp)?;
+            response_manager.handle_response(message_id, resp)?;
         }
 
         // last response should be bad to ensure we dont just default to it
-        test_hook_manager.handle_response(message_id, bad_response.clone())?;
+        response_manager.handle_response(message_id, bad_response.clone())?;
 
         let _ = response_future
             .map(move |i| {
@@ -295,11 +292,11 @@ mod tests {
     }
 
     #[test]
-    fn connection_hook_manager_get_with_most_responses_when_nothing_meets_threshold(
-    ) -> Result<(), String> {
+    fn response_manager_get_with_most_responses_when_nothing_meets_threshold() -> Result<(), String>
+    {
         let response_threshold = 4;
 
-        let mut test_hook_manager = ConnectionHookManager::new(response_threshold);
+        let mut response_manager = ResponseManager::new(response_threshold);
 
         // set up a message
         let message_id = safe_nd::MessageId::new();
@@ -332,10 +329,10 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        test_hook_manager.await_responses(message_id, (sender_future, expected_responses))?;
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
 
         for resp in responses_to_handle {
-            test_hook_manager.handle_response(message_id, resp)?;
+            response_manager.handle_response(message_id, resp)?;
         }
 
         let _ = response_future
@@ -347,11 +344,10 @@ mod tests {
     }
 
     #[test]
-    fn connection_hook_manager_get_with_most_responses_when_divergent_success() -> Result<(), String>
-    {
+    fn response_manager_get_with_most_responses_when_divergent_success() -> Result<(), String> {
         let response_threshold = 4;
 
-        let mut test_hook_manager = ConnectionHookManager::new(response_threshold);
+        let mut response_manager = ResponseManager::new(response_threshold);
 
         // set up a message
         let message_id = safe_nd::MessageId::new();
@@ -382,10 +378,10 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        test_hook_manager.await_responses(message_id, (sender_future, expected_responses))?;
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
 
         for resp in responses_to_handle {
-            test_hook_manager.handle_response(message_id, resp)?;
+            response_manager.handle_response(message_id, resp)?;
         }
 
         let _ = response_future

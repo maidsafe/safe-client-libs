@@ -34,7 +34,7 @@ use std::{
 use tokio::prelude::FutureExt;
 use unwrap::unwrap;
 
-use super::connection_hook_manager::ConnectionHookManager;
+use super::response_manager::ResponseManager;
 
 /// Request timeout in seconds.
 pub const REQUEST_TIMEOUT_SECS: u64 = 180;
@@ -272,7 +272,7 @@ impl Joining {
 
 struct Connected {
     elders: HashMap<SocketAddr, Elder>,
-    hook_manager: ConnectionHookManager,
+    response_manager: ResponseManager,
 }
 
 impl Connected {
@@ -280,10 +280,10 @@ impl Connected {
         // trigger the connection future
         let _ = old_state.connection_hook.send(Ok(()));
 
-        let response_threshold : usize  = old_state.connected_elders.len() / 2 + 1;
+        let response_threshold: usize = old_state.connected_elders.len() / 2 + 1;
 
         Self {
-            hook_manager: ConnectionHookManager::new(response_threshold),
+            response_manager: ResponseManager::new(response_threshold),
             elders: old_state
                 .connected_elders
                 .into_iter()
@@ -315,7 +315,7 @@ impl Connected {
         };
 
         let _ = self
-            .hook_manager
+            .response_manager
             .await_responses(msg_id, (sender_future, expected_responses));
 
         let bytes = Bytes::from(unwrap!(serialize(msg)));
@@ -358,7 +358,7 @@ impl Connected {
                     message_id,
                     response
                 );
-                let _ = self.hook_manager.handle_response(message_id, response);
+                let _ = self.response_manager.handle_response(message_id, response);
             }
             Ok(Message::Notification { notification }) => {
                 trace!("Got transaction notification: {:?}", notification);
@@ -520,7 +520,7 @@ impl Inner {
     fn handle_quic_p2p_event(&mut self, event: Event) {
         use Event::*;
         // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
-        // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.hook_manager.handle_response(message_id, response)` should be called.
+        // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.response_manager.handle_response(message_id, response)` should be called.
         match event {
             BootstrapFailure => self.handle_bootstrap_failure(),
             BootstrappedTo { node } => self.state.handle_bootstrapped_to(&mut self.quic_p2p, node),

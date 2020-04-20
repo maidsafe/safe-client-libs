@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 mod connection_group;
-mod connection_hook_manager;
+mod response_manager;
 
 use crate::{
     client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError, CoreFuture,
