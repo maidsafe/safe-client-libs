@@ -153,6 +153,41 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    #[should_panic]
+    fn response_manager_failed_assert_is_caught_in_response() {
+        // This test is to ensure that our _other_ tests are runnning properly and would actually capture
+        // a failure in responses.
+
+        let response_threshold = 1;
+
+        let mut response_manager = ResponseManager::new(response_threshold);
+
+        // set up a message
+        let message_id = safe_nd::MessageId::new();
+
+        let (sender_future, response_future) = oneshot::channel();
+        let expected_responses = 1; // for IData
+
+        // our pseudo data
+        let immutable_data = safe_nd::PubImmutableData::new(vec![6]);
+        let bad_immutable_data = safe_nd::PubImmutableData::new(vec![42]);
+
+        let response = safe_nd::Response::GetIData(Ok(safe_nd::IData::from(immutable_data)));
+        let bad_immutable_data_response =
+            safe_nd::Response::GetIData(Ok(safe_nd::IData::from(bad_immutable_data)));
+
+        let _ = response_manager.await_responses(message_id, (sender_future, expected_responses));
+        let _ = response_manager.handle_response(message_id, response);
+
+        let _ = response_future
+            .map(move |i| {
+                // actual received response and bad response are different. So test should panic.
+                assert_eq!(&i, &bad_immutable_data_response);
+            })
+            .wait();
+    }
+
     // basic test to ensure future response is being properly evaluated and our test fails for bad responses
     #[test]
     fn response_manager_get_response_fail_with_bad_data() -> Result<(), String> {
