@@ -10,7 +10,7 @@ version = "0.2.0"
 
 [dependencies]
 ffi_utils = "~0.16.0"
-futures = "~0.1.17"
+futures = "~0.3.4"
 safe_app = { path = "../safe_app", version = "~0.15.1", features = ["testing"] }
 safe_authenticator = { path = "../safe_authenticator", version = "~0.15.0", features = ["testing"] }
 safe_core = { path = "../safe_core", version = "~0.40.0", features = ["testing"] }

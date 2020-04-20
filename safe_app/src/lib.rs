@@ -57,8 +57,8 @@ mod tests;
 
 use bincode::deserialize;
 use futures::stream::Stream;
-use futures::sync::mpsc as futures_mpsc;
-use futures::{future, Future, IntoFuture};
+use futures::channel::mpsc as futures_mpsc;
+use futures::{future, Future, future::IntoFuture};
 use log::info;
 use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
 use safe_core::crypto::shared_secretbox;
@@ -84,7 +84,7 @@ macro_rules! try_tx {
     };
 }
 
-type AppFuture<T> = dyn Future<Item = T, Error = AppError>;
+type AppFuture<T> = dyn Future<Output=Result<T, AppError>>;
 type AppMsgTx = CoreMsgTx<AppClient, AppContext>;
 
 /// Handle to an application instance.
@@ -97,7 +97,7 @@ impl App {
     /// Send a message to app's event loop.
     pub fn send<F>(&self, f: F) -> Result<(), AppError>
     where
-        F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Item = (), Error = ()>>>
+        F: FnOnce(&AppClient, &AppContext) -> Option<Box<dyn Future<Output=Result<Item, Error>>>>
             + Send
             + 'static,
     {
@@ -302,13 +302,13 @@ impl AppContext {
 
     /// Refresh access info by fetching it from the network.
     pub fn refresh_access_info(&self, client: &AppClient) -> Box<AppFuture<()>> {
-        let reg = Rc::clone(fry!(self.as_registered()));
+        let reg = Rc::clone(r#try!(self.as_registered()));
         refresh_access_info(reg, client)
     }
 
     /// Fetch a list of containers that this app has access to
     pub fn get_access_info(&self, client: &AppClient) -> Box<AppFuture<AccessContainerEntry>> {
-        let reg = Rc::clone(fry!(self.as_registered()));
+        let reg = Rc::clone(r#try!(self.as_registered()));
 
         fetch_access_info(Rc::clone(&reg), client)
             .map(move |_| {
@@ -330,7 +330,7 @@ impl AppContext {
 pub fn run<F, I, T>(app: &App, f: F) -> Result<T, AppError>
 where
     F: FnOnce(&AppClient, &AppContext) -> I + Send + 'static,
-    I: IntoFuture<Item = T, Error = AppError> + 'static,
+    I: IntoFuture<Output=Result<T, AppError>> + 'static,
     T: Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
@@ -348,7 +348,7 @@ where
 }
 
 fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFuture<()>> {
-    let entry_key = fry!(access_container_enc_key(
+    let entry_key = r#try!(access_container_enc_key(
         &context.app_id,
         &context.sym_enc_key,
         &context.access_container_info.nonce,

@@ -91,7 +91,7 @@ fn flush_app_revocation_queue_impl(
                             // remove it from the queue and return an error.
                             config::remove_from_app_revocation_queue(&c3, queue, version, &app_id)
                                 .and_then(|_| {
-                                    err!(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
+                                    Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
                                 })
                                 .into_box()
                         }
@@ -99,7 +99,7 @@ fn flush_app_revocation_queue_impl(
                             if moved_apps.contains(&app_id) {
                                 // If this app has already been moved to the back of the queue,
                                 // return the error.
-                                err!(error)
+                                Err(error)
                             } else {
                                 // Move the app to the end of the queue.
                                 moved_apps.push(app_id.clone());
@@ -151,7 +151,7 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
                     } else {
                         // If the access container entry was not found, the entry must have been
                         // deleted with the app having stayed on the revocation queue.
-                        ok!(())
+                        Ok(())
                     }
                 },
             )
@@ -171,7 +171,7 @@ fn delete_app_auth_key(client: &AuthClient, key: PublicKey) -> Box<AuthFuture<()
                 client.del_auth_key(key, version + 1)
             } else {
                 // The key has been removed already
-                ok!(())
+                Ok(())
             }
         })
         .or_else(|error| match error {

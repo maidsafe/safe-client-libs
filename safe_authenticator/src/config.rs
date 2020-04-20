@@ -201,7 +201,7 @@ where
     T: Default + DeserializeOwned + Serialize + 'static,
 {
     let parent = client.config_root_dir();
-    let key = fry!(parent.enc_entry_key(key));
+    let key = r#try!(parent.enc_entry_key(key));
 
     client
         .get_seq_mdata_value(parent.name(), parent.type_tag(), key)
@@ -233,9 +233,9 @@ where
 {
     let parent = client.config_root_dir();
 
-    let key = fry!(parent.enc_entry_key(key));
-    let encoded = fry!(serialize(content));
-    let encoded = fry!(parent.enc_entry_value(&encoded));
+    let key = r#try!(parent.enc_entry_key(key));
+    let encoded = r#try!(serialize(content));
+    let encoded = r#try!(parent.enc_entry_value(&encoded));
 
     let actions = if new_version == 0 {
         MDataSeqEntryActions::new().ins(key.clone(), encoded, 0)

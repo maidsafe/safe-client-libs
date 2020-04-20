@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use futures::sync::oneshot::Sender;
+use futures::channel::oneshot::Sender;
 use log::trace;
 
 use safe_nd::{MessageId, Response};
@@ -119,7 +119,7 @@ impl ResponseManager {
 
 #[cfg(test)]
 mod tests {
-    use futures::{sync::oneshot, Future};
+    use futures::{channel::oneshot, Future};
     use rand::seq::SliceRandom;
     use rand::thread_rng;
 
@@ -149,7 +149,7 @@ mod tests {
             .map(move |i| {
                 assert_eq!(&i, &response);
             })
-            .wait();
+            .await;
         Ok(())
     }
 
@@ -218,7 +218,7 @@ mod tests {
             .map(move |i| {
                 assert_ne!(&i, &response);
             })
-            .wait();
+            .await;
         Ok(())
     }
 
@@ -269,7 +269,7 @@ mod tests {
             .map(move |i| {
                 assert_eq!(&i, &response);
             })
-            .wait();
+            .await;
         Ok(())
     }
 
@@ -322,7 +322,7 @@ mod tests {
             .map(move |i| {
                 assert_eq!(&i, &bad_response);
             })
-            .wait();
+            .await;
         Ok(())
     }
 
@@ -374,7 +374,7 @@ mod tests {
             .map(move |i| {
                 assert_eq!(&i, &response);
             })
-            .wait();
+            .await;
         Ok(())
     }
 
@@ -423,7 +423,7 @@ mod tests {
             .map(move |i| {
                 assert_eq!(&i, &other_response);
             })
-            .wait();
+            .await;
         Ok(())
     }
 }

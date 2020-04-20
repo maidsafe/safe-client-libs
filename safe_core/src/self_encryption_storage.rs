@@ -33,7 +33,7 @@ impl<C: Client> SelfEncryptionStorage<C> {
 impl<C: Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
-    fn get(&self, name: &[u8]) -> Box<dyn Future<Item = Vec<u8>, Error = Self::Error>> {
+    fn get(&self, name: &[u8]) -> Box<dyn Future<Output=Result<Vec<u8>, Self::Error>>> {
         trace!("Self encrypt invoked GetIData.");
 
         if name.len() != XOR_NAME_LEN {
@@ -65,7 +65,7 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
         &mut self,
         _: Vec<u8>,
         data: Vec<u8>,
-    ) -> Box<dyn Future<Item = (), Error = Self::Error>> {
+    ) -> Box<dyn Future<Output=Result<(), Self::Error>>> {
         trace!("Self encrypt invoked PutIData.");
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data).into()
@@ -130,9 +130,9 @@ impl<C: Client> SelfEncryptionStorageDryRun<C> {
 impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
     type Error = SEStorageError;
 
-    fn get(&self, _name: &[u8]) -> Box<dyn Future<Item = Vec<u8>, Error = Self::Error>> {
+    fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData dry run.");
-        err!(CoreError::Unexpected(
+        Err(CoreError::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned()
         ))
     }
@@ -141,11 +141,11 @@ impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
         &mut self,
         _: Vec<u8>,
         _data: Vec<u8>,
-    ) -> Box<dyn Future<Item = (), Error = Self::Error>> {
+    ) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutIData dry run.");
         // We do nothing here just return ok so self-encrpytion can finish
         // and generate chunk addresses and datamap if required
-        ok!(())
+        Ok(())
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {

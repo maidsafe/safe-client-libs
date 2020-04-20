@@ -10,7 +10,7 @@
 use crate::ffi::error_codes::*;
 use crate::self_encryption_storage::SEStorageError;
 use bincode::Error as SerialisationError;
-use futures::sync::mpsc::SendError;
+use futures::channel::mpsc::SendError;
 use quic_p2p::QuicP2pError;
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
@@ -77,8 +77,8 @@ impl From<String> for CoreError {
     }
 }
 
-impl<T> From<SendError<T>> for CoreError {
-    fn from(error: SendError<T>) -> Self {
+impl From<SendError> for CoreError {
+    fn from(error: SendError) -> Self {
         Self::from(format!("Couldn't send message to the channel: {}", error))
     }
 }

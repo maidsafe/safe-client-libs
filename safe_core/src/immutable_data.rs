@@ -122,19 +122,19 @@ fn write_with_self_encryptor<S>(
 where
     S: Storage<Error = SEStorageError> + Clone + 'static,
 {
-    let self_encryptor = fry!(SelfEncryptor::new(se_storage.clone(), DataMap::None));
+    let self_encryptor = r#try!(SelfEncryptor::new(se_storage.clone(), DataMap::None));
     self_encryptor
         .write(value, 0)
         .and_then(move |_| self_encryptor.close())
         .map_err(From::from)
         .and_then(move |(data_map, _)| {
-            let serialised_data_map = fry!(serialize(&data_map));
+            let serialised_data_map = r#try!(serialize(&data_map));
 
             let value = if let Some(key) = encryption_key {
-                let cipher_text = fry!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
-                fry!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
+                let cipher_text = r#try!(utils::symmetric_encrypt(&serialised_data_map, &key, None));
+                r#try!(serialize(&DataTypeEncoding::Serialised(cipher_text)))
             } else {
-                fry!(serialize(&DataTypeEncoding::Serialised(
+                r#try!(serialize(&DataTypeEncoding::Serialised(
                     serialised_data_map
                 ),))
             };
@@ -160,18 +160,18 @@ where
     } else {
         UnpubImmutableData::new(value, client.public_key()).into()
     };
-    let serialised_data = fry!(serialize(&data));
+    let serialised_data = r#try!(serialize(&data));
 
     if data.validate_size() {
-        ok!(data)
+        Ok(data)
     } else {
-        let self_encryptor = fry!(SelfEncryptor::new(se_storage.clone(), DataMap::None));
+        let self_encryptor = r#try!(SelfEncryptor::new(se_storage.clone(), DataMap::None));
         self_encryptor
             .write(&serialised_data, 0)
             .and_then(move |_| self_encryptor.close())
             .map_err(From::from)
             .and_then(move |(data_map, _)| {
-                let value = fry!(serialize(&DataTypeEncoding::DataMap(data_map)));
+                let value = r#try!(serialize(&DataTypeEncoding::DataMap(data_map)));
                 pack(se_storage, client, value, published)
             })
             .into_box()
@@ -182,16 +182,16 @@ fn unpack<S>(se_storage: S, client: impl Client, data: &IData) -> Box<CoreFuture
 where
     S: Storage<Error = SEStorageError> + Clone + 'static,
 {
-    match fry!(deserialize(data.value())) {
-        DataTypeEncoding::Serialised(value) => ok!(value),
+    match r#try!(deserialize(data.value())) {
+        DataTypeEncoding::Serialised(value) => Ok(value),
         DataTypeEncoding::DataMap(data_map) => {
-            let self_encryptor = fry!(SelfEncryptor::new(se_storage.clone(), data_map));
+            let self_encryptor = r#try!(SelfEncryptor::new(se_storage.clone(), data_map));
             let length = self_encryptor.len();
             self_encryptor
                 .read(0, length)
                 .map_err(From::from)
                 .and_then(move |serialised_data| {
-                    let data = fry!(deserialize(&serialised_data));
+                    let data = r#try!(deserialize(&serialised_data));
                     unpack(se_storage, client, &data)
                 })
                 .into_box()

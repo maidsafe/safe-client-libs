@@ -19,7 +19,7 @@ use crate::{utils, NetworkEvent, QuicP2pConfig};
 use super::connection_manager::ConnectionManager;
 use crate::btree_map;
 use bincode::serialize;
-use futures::sync::mpsc::{self, UnboundedReceiver};
+use futures::channel::mpsc::{self, UnboundedReceiver};
 use futures::Future;
 use rand::thread_rng;
 use safe_nd::{
@@ -74,7 +74,7 @@ fn process_request(
     };
     unwrap!(connection_manager
         .send(&sender.public_id(), &message)
-        .wait())
+        .await)
 }
 
 // Test the basics idata operations.
@@ -97,7 +97,7 @@ fn immutable_data_basics() {
 
     // First PutIData should succeed
     let put_request = Request::PutIData(orig_data.clone());
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         put_request.clone(),
@@ -105,7 +105,7 @@ fn immutable_data_basics() {
     );
 
     // Now GetIData should pass
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         get_request.clone(),
@@ -115,7 +115,7 @@ fn immutable_data_basics() {
     // Initial balance is 10 coins
     let balance = unwrap!(Coins::from_str("10"));
     let balance = unwrap!(balance.checked_sub(COST_OF_PUT));
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::GetBalance,
@@ -123,10 +123,10 @@ fn immutable_data_basics() {
     );
 
     // Subsequent PutIData for same data should succeed - De-duplication
-    send_req_expect_ok!(&mut connection_manager, &client_safe_key, put_request, ());
+    send_req_expect_Ok(&mut connection_manager, &client_safe_key, put_request, ());
 
     // GetIData should succeed
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         get_request,
@@ -135,7 +135,7 @@ fn immutable_data_basics() {
 
     // The balance should be deducted twice
     let balance = unwrap!(balance.checked_sub(COST_OF_PUT));
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::GetBalance,
@@ -171,7 +171,7 @@ fn mutable_data_basics() {
     );
 
     // PutMData
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
@@ -184,7 +184,7 @@ fn mutable_data_basics() {
 
     let data2: MData = SeqMutableData::new(name, tag2, owner_key).into();
     let data2_address = *data2.address();
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data2.clone()),
@@ -200,7 +200,7 @@ fn mutable_data_basics() {
     assert_eq!(response, Response::GetMDataVersion(Ok(0)));
 
     // GetMData should return the entire MutableData object
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(data2_address),
@@ -209,21 +209,21 @@ fn mutable_data_basics() {
 
     // ListMDataEntries, ListMDataKeys and ListMDataValues should all respond
     // with empty collections.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data2_address),
         MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
     );
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataKeys(data2_address),
         BTreeSet::new()
     );
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataValues(data2_address),
@@ -248,7 +248,7 @@ fn mutable_data_basics() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -281,7 +281,7 @@ fn mutable_data_basics() {
     }
 
     // First MData with a diff. type tag still should be empty
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data1_address),
@@ -319,7 +319,7 @@ fn mutable_data_basics() {
         res => panic!("Unexpected response: {:?}", res),
     }
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::GetMDataValue {
@@ -360,7 +360,7 @@ fn mutable_data_basics() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -412,7 +412,7 @@ fn mutable_data_reclaim() {
     let address: MDataAddress = *data.address();
 
     // PutMData
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
@@ -430,7 +430,7 @@ fn mutable_data_reclaim() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -448,7 +448,7 @@ fn mutable_data_reclaim() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -492,7 +492,7 @@ fn mutable_data_reclaim() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -516,7 +516,7 @@ fn mutable_data_entry_versioning() {
     let address = *data.address();
 
     // PutMData
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
@@ -534,7 +534,7 @@ fn mutable_data_entry_versioning() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -594,7 +594,7 @@ fn mutable_data_entry_versioning() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -630,7 +630,7 @@ fn mutable_data_entry_versioning() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -661,7 +661,7 @@ fn mutable_data_permissions() {
     let address: MDataAddress = *data.address();
 
     // Put it to the network.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
@@ -680,7 +680,7 @@ fn mutable_data_permissions() {
     // Owner can do anything by default.
     let value0_v1 = unwrap!(utils::generate_random_vector(10));
     let actions = MDataSeqEntryActions::new().update(key0.to_vec(), value0_v1, 1);
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -742,7 +742,7 @@ fn mutable_data_permissions() {
     );
 
     // Grant read and update permission for app.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         update_perms_req,
@@ -789,7 +789,7 @@ fn mutable_data_permissions() {
     ]
     .into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager2,
         &app_safe_key,
         Request::MutateMDataEntries {
@@ -825,7 +825,7 @@ fn mutable_data_permissions() {
         permissions,
         version: 2,
     };
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         valid_update_perms_req,
@@ -833,7 +833,7 @@ fn mutable_data_permissions() {
     );
 
     // App can now update entries.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager2,
         &app_safe_key,
         insertion_request,
@@ -841,7 +841,7 @@ fn mutable_data_permissions() {
     );
 
     // Revoke all permissions from app.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager2,
         &client_safe_key,
         Request::DelMDataUserPermissions {
@@ -862,7 +862,7 @@ fn mutable_data_permissions() {
 
     // Grant the app permission to manage permissions.
     let permissions = MDataPermissionSet::new().allow(MDataAction::ManagePermissions);
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::SetMDataUserPermissions {
@@ -884,7 +884,7 @@ fn mutable_data_permissions() {
 
     // App can modify its own permission.
     let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager2,
         &app_safe_key,
         Request::SetMDataUserPermissions {
@@ -899,7 +899,7 @@ fn mutable_data_permissions() {
     // The app can now mutate the entries.
     let value1_v1 = unwrap!(utils::generate_random_vector(10));
     let actions = MDataSeqEntryActions::new().update(key1.to_vec(), value1_v1, 1);
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager2,
         &app_safe_key,
         Request::MutateMDataEntries {
@@ -941,7 +941,7 @@ fn mutable_data_ownership() {
     // Putting it with correct owner succeeds.
     let data: MData = SeqMutableData::new(name, tag, owner_key).into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &app_safe_key,
         Request::PutMData(data),
@@ -963,12 +963,12 @@ fn pub_idata_rpc() {
     // Put pub idata as an owner. Should succeed.
     {
         let put_request = Request::PutIData(orig_data.clone());
-        send_req_expect_ok!(&mut connection_manager, &client_safe_key, put_request, ());
+        send_req_expect_Ok(&mut connection_manager, &client_safe_key, put_request, ());
     }
 
     // Get pub idata. Should succeed.
     {
-        send_req_expect_ok!(
+        send_req_expect_Ok(
             &mut connection_manager,
             &client_safe_key,
             get_request.clone(),
@@ -987,7 +987,7 @@ fn pub_idata_rpc() {
 
     // Get pub idata while not being an owner. Should succeed.
     {
-        send_req_expect_ok!(&mut app_conn_manager, &app_key, get_request, orig_data);
+        send_req_expect_Ok(&mut app_conn_manager, &app_key, get_request, orig_data);
     }
 }
 
@@ -1002,12 +1002,12 @@ fn unpub_idata_rpc() {
     // Construct put request.
     {
         let put_request = Request::PutIData(data.clone());
-        send_req_expect_ok!(&mut connection_manager, &client_safe_key, put_request, ());
+        send_req_expect_Ok(&mut connection_manager, &client_safe_key, put_request, ());
     }
 
     // Construct get request.
     let get_request = Request::GetIData(address);
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         get_request.clone(),
@@ -1052,7 +1052,7 @@ fn unpub_md() {
     let data: MData = UnseqMutableData::new(name, tag, client_safe_key.public_key()).into();
 
     // Put Unseq MData as owner - Should pass.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
@@ -1060,7 +1060,7 @@ fn unpub_md() {
     );
 
     // Get Unseq MData as owner - Should pass.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(*data.address()),
@@ -1116,7 +1116,7 @@ fn auth_keys() {
         },
     };
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         ins_auth_key_req,
@@ -1178,7 +1178,7 @@ fn auth_keys() {
         version: 2,
     };
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         del_auth_key_req,
@@ -1235,7 +1235,7 @@ fn auth_actions_from_app() {
     let address = *data.address();
 
     // Upload MData for testing
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
@@ -1243,7 +1243,7 @@ fn auth_actions_from_app() {
     );
 
     // Assert if the inserted data is correct.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(address),
@@ -1298,7 +1298,7 @@ fn low_balance_check() {
 
         // Put MutableData so we can test getting it later.
         // Do this before exhausting the balance (below).
-        send_req_expect_ok!(
+        send_req_expect_Ok(
             &mut connection_manager,
             &client_safe_key,
             Request::PutMData(data.clone()),
@@ -1346,7 +1346,7 @@ fn low_balance_check() {
         }
 
         // Try getting MutableData (should succeed regardless of low balance)
-        send_req_expect_ok!(
+        send_req_expect_Ok(
             &mut connection_manager,
             &client_safe_key,
             Request::GetMData(*data.address()),
@@ -1412,7 +1412,7 @@ fn config_mock_vault_path() {
 
     let data: MData = UnseqMutableData::new(name, tag, owner_key).into();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
@@ -1420,7 +1420,7 @@ fn config_mock_vault_path() {
     );
 
     // Try getting MutableData back.
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut conn_manager,
         &client_safe_key,
         Request::GetMData(*data.address()),
@@ -1457,7 +1457,7 @@ fn request_hooks() {
 
     let data = SeqMutableData::new(name, tag, owner_key);
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data.clone().into()),
@@ -1478,7 +1478,7 @@ fn request_hooks() {
 
     let data2 = SeqMutableData::new(name2, tag2, owner_key);
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data2.clone().into()),
@@ -1514,7 +1514,7 @@ fn request_hooks() {
     // Now remove the hook function and try again - this should succeed now
     conn_manager.remove_request_hook();
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         &mut conn_manager,
         &client_safe_key,
         Request::MutateMDataEntries {
@@ -1581,7 +1581,7 @@ fn register_new_app(
     );
     let (_, version): (_, u64) = unwrap!(response.try_into());
 
-    send_req_expect_ok!(
+    send_req_expect_Ok(
         conn_manager,
         client_safe_key,
         Request::InsAuthKey {

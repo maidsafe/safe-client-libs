@@ -9,7 +9,7 @@
 use bincode::Error as SerialisationError;
 use data_encoding::DecodeError;
 use ffi_utils::StringError;
-use futures::sync::mpsc::SendError;
+use futures::channel::mpsc::SendError;
 use safe_nd::XorName;
 use serde::{Deserialize, Serialize};
 use std::ffi::NulError;
@@ -44,8 +44,8 @@ pub enum IpcError {
     Unexpected(String),
 }
 
-impl<T: 'static> From<SendError<T>> for IpcError {
-    fn from(error: SendError<T>) -> Self {
+impl From<SendError> for IpcError {
+    fn from(error: SendError) -> Self {
         Self::Unexpected(error.to_string())
     }
 }

@@ -61,7 +61,7 @@ fn share_some_mdatas() {
     let authenticator = test_utils::create_account_and_login();
 
     let user = unwrap!(run(&authenticator, move |client| {
-        ok!(client.public_key())
+        Ok(client.public_key())
     }));
 
     const NUM_MDATAS: usize = 3;
@@ -168,7 +168,7 @@ fn share_some_mdatas_with_valid_metadata() {
     let app_key = app_auth.app_keys.public_key();
 
     let user = unwrap!(run(&authenticator, move |client| {
-        ok!(client.public_key())
+        Ok(client.public_key())
     }));
 
     const NUM_MDATAS: usize = 3;
@@ -266,7 +266,7 @@ fn share_some_mdatas_with_ownership_error() {
     let authenticator = test_utils::create_account_and_login();
 
     let user = unwrap!(run(&authenticator, move |client| {
-        ok!(client.public_key())
+        Ok(client.public_key())
     }));
 
     let name = rand::random();
@@ -345,7 +345,7 @@ fn auth_apps_accessing_mdatas() {
     let authenticator = test_utils::create_account_and_login();
 
     let user = unwrap!(run(&authenticator, move |client| {
-        ok!(client.public_key())
+        Ok(client.public_key())
     }));
 
     const NUM_MDATAS: usize = 3;

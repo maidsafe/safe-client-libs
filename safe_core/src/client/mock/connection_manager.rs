@@ -79,7 +79,7 @@ impl ConnectionManager {
         #[cfg(any(feature = "testing", test))]
         {
             if let Some(resp) = self.intercept_request(msg.clone()) {
-                return ok!(resp);
+                return Ok(resp);
             }
         }
 
@@ -97,9 +97,9 @@ impl ConnectionManager {
 
         // Send response back to a client
         if let Message::Response { response, .. } = msg {
-            ok!(response)
+            Ok(response)
         } else {
-            err!(CoreError::Unexpected(
+            Err(CoreError::Unexpected(
                 "Logic error: Vault error returned invalid response".to_string()
             ))
         }
@@ -108,7 +108,7 @@ impl ConnectionManager {
     /// Bootstrap to any known contact.
     pub fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
         let _ = unwrap!(self.groups.lock()).insert(full_id.public_id());
-        ok!(())
+        Ok(())
     }
 
     /// Restart the connection to the groups.
@@ -124,7 +124,7 @@ impl ConnectionManager {
             trace!("Disconnected from the network; sending the notification.");
             let _ = self.net_tx.unbounded_send(NetworkEvent::Disconnected);
         }
-        ok!(())
+        Ok(())
     }
 
     /// Add some coins to a wallet's PublicKey

@@ -14,7 +14,7 @@ use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use crate::{fry, ok};
 use bincode::{deserialize, serialize};
-use futures::{Future, IntoFuture};
+use futures::{Future, future::IntoFuture};
 use log::trace;
 use safe_nd::{Error as SndError, MDataSeqEntryActions};
 use serde::{Deserialize, Serialize};
@@ -116,21 +116,21 @@ where
     let parent2 = parent.clone();
     trace!("Deleting file with name {}.", name);
 
-    let key = fry!(parent.enc_entry_key(name.as_bytes()));
+    let key = r#try!(parent.enc_entry_key(name.as_bytes()));
 
     let version_fut = match version {
         Version::GetNext => client
             .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
             .map(move |value| (value.version + 1))
             .into_box(),
-        Version::Custom(version) => ok!(version),
+        Version::Custom(version) => Ok(version),
     }
     .map_err(NfsError::from);
 
     version_fut
         .and_then(move |version| {
             if published {
-                ok!(version)
+                Ok(version)
             } else {
                 fetch(client, parent2, name2)
                     .and_then(move |(_, file)| {
@@ -188,7 +188,7 @@ where
                 .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
                 .map(move |value| (key, content, value.version + 1, parent))
                 .into_box(),
-            Version::Custom(version) => ok!((key, content, version, parent)),
+            Version::Custom(version) => Ok((key, content, version, parent)),
         })
         .and_then(move |(key, content, version, parent)| {
             client2

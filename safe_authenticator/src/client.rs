@@ -407,7 +407,7 @@ impl AuthClient {
         let acc_loc = &auth_inner.acc_loc;
         let account_packet_id = SafeKey::client(create_client_id(&acc_loc.0));
         let account_pub_id = account_packet_id.public_id();
-        let updated_packet = fry!(Self::prepare_account_packet_update(
+        let updated_packet = r#try!(Self::prepare_account_packet_update(
             *acc_loc,
             account,
             keys,
@@ -546,7 +546,7 @@ impl UserCred {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::sync::mpsc;
+    use futures::channel::mpsc;
     use futures::Future;
     use safe_core::client::test_create_balance;
     use safe_core::ok;
@@ -951,7 +951,7 @@ mod tests {
             move |client| {
                 client.get_balance(None).and_then(move |balance| {
                     assert_eq!(balance, five_coins);
-                    ok!(())
+                    Ok(())
                 })
             },
         );

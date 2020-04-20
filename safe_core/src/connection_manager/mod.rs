@@ -8,13 +8,14 @@
 
 mod connection_group;
 mod response_manager;
+use tokio::time::timeout;
 
 use crate::{
     client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError, CoreFuture,
 };
 use crate::{fry, ok};
 use connection_group::ConnectionGroup;
-use futures::{future, Future};
+use futures::future::{self, TryFutureExt};
 use log::{error, trace};
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{Message, PublicId, Response};
@@ -24,7 +25,6 @@ use std::{
     rc::Rc,
     time::Duration,
 };
-use tokio::util::FutureExt;
 
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
 
@@ -57,13 +57,13 @@ impl ConnectionManager {
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
-    pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
-        self.inner.borrow_mut().send(pub_id, msg)
+    pub async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
+        self.inner.borrow_mut().send(pub_id, msg).await
     }
 
     /// Connect to Client Handlers that manage the provided ID.
-    pub fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
-        self.inner.borrow_mut().bootstrap(full_id)
+    pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
+        self.inner.borrow_mut().bootstrap(full_id).await
     }
 
     /// Reconnect to the network.
@@ -72,8 +72,8 @@ impl ConnectionManager {
     }
 
     /// Disconnect from a group.
-    pub fn disconnect(&mut self, pub_id: &PublicId) -> Box<CoreFuture<()>> {
-        self.inner.borrow_mut().disconnect(pub_id)
+    pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(),CoreError> {
+        self.inner.borrow_mut().disconnect(pub_id).await
     }
 }
 
@@ -92,72 +92,69 @@ impl Drop for Inner {
 }
 
 impl Inner {
-    fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
+    async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
-        let (connected_tx, connected_rx) = futures::oneshot();
+        let (connected_tx, connected_rx) = futures::channel::oneshot::channel();
 
         if let Entry::Vacant(value) = self.groups.entry(full_id.public_id()) {
-            let _ = value.insert(fry!(ConnectionGroup::new(
+            let _ = value.insert(r#try!(ConnectionGroup::new(
                 self.config.clone(),
                 full_id,
                 connected_tx
             )));
-            Box::new(
-                connected_rx
-                    .map_err(|err| CoreError::from(format!("{}", err)))
-                    .and_then(|res| res)
-                    .timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS))
-                    .map_err(|e| {
-                        if let Some(err) = e.into_inner() {
-                            // Do not swallow the original error in case if it's not a timeout.
-                            err
-                        } else {
-                            CoreError::from(
+
+            match timeout( Duration::from_secs(CONNECTION_TIMEOUT_SECS), connected_rx ).await {
+                Ok(response) => {
+                    response.map_err(|err| {
+                        CoreError::from(format!("{}", err))
+    
+                    })?
+                }, 
+                Err(_) => Err( CoreError::from(
                                 "Connection timed out when bootstrapping to the network",
-                            )
-                        }
-                    }),
-            )
+                            ))
+            }
+       
         } else {
             trace!("Group {} is already connected", full_id.public_id());
-            ok!(())
+            Ok(())
         }
     }
 
-    fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
+    async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
         let msg_id = if let Message::Request { message_id, .. } = msg {
             *message_id
         } else {
-            return Box::new(future::err(CoreError::Unexpected(
+            return Err(CoreError::Unexpected(
                 "Not a Request".to_string(),
-            )));
+            ) );
         };
 
-        let conn_group = fry!(self.groups.get_mut(&pub_id).ok_or_else(|| {
+        let conn_group = r#try!(self.groups.get_mut(&pub_id).ok_or_else(|| {
             CoreError::Unexpected(
                 "No connection group found - did you call `bootstrap`?".to_string(),
             )
         }));
 
-        conn_group.send(msg_id, msg)
+        conn_group.send(msg_id, msg).await
     }
 
     /// Disconnect from a group.
-    pub fn disconnect(&mut self, pub_id: &PublicId) -> Box<CoreFuture<()>> {
+    pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(), CoreError> {
         trace!("Disconnecting group {:?}", pub_id);
 
         let group = self.groups.remove(&pub_id);
 
         if let Some(mut group) = group {
-            Box::new(group.close().map(move |res| {
+            group.close().await.map(move |res| {
                 // Drop the group once it's disconnected
                 let _ = group;
                 res
-            }))
+            })
         } else {
             error!("No group found for {}", pub_id); // FIXME: handle properly
-            ok!(())
+            Ok(())
         }
     }
 }
