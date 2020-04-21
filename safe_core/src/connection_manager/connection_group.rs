@@ -13,7 +13,9 @@ use crossbeam_channel::{self, Receiver};
 use futures::{
     channel::oneshot::{self, Sender},
     Future,
+    future::TryFutureExt
 };
+
 use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
 use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, Peer, QuicP2p, QuicP2pError, Token};
@@ -31,7 +33,6 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
-use tokio::prelude::FutureExt;
 use unwrap::unwrap;
 
 use super::response_manager::ResponseManager;

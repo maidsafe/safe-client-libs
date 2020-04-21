@@ -14,7 +14,7 @@ use crate::{
 };
 use crate::{fry, ok};
 use connection_group::ConnectionGroup;
-use futures::{future, Future};
+use futures::{future, Future, future::TryFutureExt};
 use log::{error, trace};
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{Message, PublicId, Response};
@@ -24,7 +24,6 @@ use std::{
     rc::Rc,
     time::Duration,
 };
-use tokio::util::FutureExt;
 
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
 
