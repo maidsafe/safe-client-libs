@@ -133,8 +133,7 @@ where
 
     unwrap!(
         core_tx.unbounded_send(CoreMsg::new(move |client, _context| {
-            let fut = r(client)
-                .into_future()
+            let fut = r(client).await
                 .map_err(|e| panic!("{:?}", e))
                 .map(move |value| {
                     unwrap!(result_tx.send(value));

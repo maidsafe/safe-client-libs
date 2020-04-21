@@ -179,7 +179,7 @@ fn main() {
 
         unwrap!(tx.send(public_key));
 
-        ok!(()).into()
+        Ok(()).into()
     }));
 
     let public_key = unwrap!(rx.recv());

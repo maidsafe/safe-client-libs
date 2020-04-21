@@ -45,7 +45,7 @@ pub fn update_container_perms(
 
             for (container_key, access) in permissions {
                 let c2 = client.clone();
-                let mdata_info = fry!(root_containers
+                let mdata_info = r#try!(root_containers
                     .remove(&container_key)
                     .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone())));
                 let perm_set = container_perms_into_permission_set(&access);
@@ -119,7 +119,7 @@ pub fn fetch_authenticator_entry(
 
     let key = {
         let sk = client.secret_symmetric_key();
-        fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk))
+        r#try!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk))
     };
 
     client
@@ -143,8 +143,8 @@ pub fn put_authenticator_entry(
     let access_container = client.access_container();
     let (key, ciphertext) = {
         let sk = client.secret_symmetric_key();
-        let key = fry!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
-        let ciphertext = fry!(encode_authenticator_entry(new_value, &sk));
+        let key = r#try!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
+        let ciphertext = r#try!(encode_authenticator_entry(new_value, &sk));
 
         (key, ciphertext)
     };
@@ -189,7 +189,7 @@ pub fn fetch_entry(
         app_id
     );
     let access_container = client.access_container();
-    let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
+    let key = r#try!(enc_key(&access_container, app_id, &app_keys.enc_key));
     trace!("Fetching entry using entry key {:?}", key);
 
     client
@@ -219,8 +219,8 @@ pub fn put_entry(
     let client3 = client.clone();
     let access_container = client.access_container();
     let acc_cont_info = access_container.clone();
-    let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
-    let ciphertext = fry!(encode_app_entry(permissions, &app_keys.enc_key));
+    let key = r#try!(enc_key(&access_container, app_id, &app_keys.enc_key));
+    let ciphertext = r#try!(encode_app_entry(permissions, &app_keys.enc_key));
 
     let actions = if version == 0 {
         MDataSeqEntryActions::new().ins(key, ciphertext, 0)
@@ -261,7 +261,7 @@ pub fn delete_entry(
 
     let access_container = client.access_container();
     let acc_cont_info = access_container.clone();
-    let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
+    let key = r#try!(enc_key(&access_container, app_id, &app_keys.enc_key));
     let client2 = client.clone();
     let client3 = client.clone();
     let actions = MDataSeqEntryActions::new().del(key, version);

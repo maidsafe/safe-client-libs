@@ -25,6 +25,7 @@ use safe_nd::{
     RequestType, Response,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
+use tokio::time::timeout;
 use std::{
     collections::HashMap,
     mem,
@@ -101,13 +102,13 @@ impl ConnectionGroup {
         Ok(Self { inner })
     }
 
-    pub fn send(&mut self, msg_id: MessageId, msg: &Message) -> Box<CoreFuture<Response>> {
-        unwrap!(self.inner.lock()).send(msg_id, msg)
+    pub async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
+        unwrap!(self.inner.lock()).send(msg_id, msg).await
     }
 
     /// Terminate the QUIC connections gracefully.
-    pub fn close(&mut self) -> Box<CoreFuture<()>> {
-        unwrap!(self.inner.lock()).close()
+    pub async fn close(&mut self) -> Result<(), CoreError> {
+        unwrap!(self.inner.lock()).close().await
     }
 }
 
@@ -299,12 +300,12 @@ impl Connected {
         }
     }
 
-    fn send(
+    async fn send(
         &mut self,
         quic_p2p: &mut QuicP2p,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Box<CoreFuture<Response>> {
+    ) -> Result<Response, CoreError> {
         trace!("Sending message {:?}", msg_id);
         let mut rng = rand::thread_rng();
 
@@ -326,18 +327,17 @@ impl Connected {
                 quic_p2p.send(peer, bytes.clone(), token);
             }
         }
+        
+        match timeout( Duration::from_secs(REQUEST_TIMEOUT_SECS), response_future ).await {
+            Ok(response) => {
+                response.map_err(|err| {
+                    CoreError::from(format!("{}", err))
 
-        Box::new(
-            response_future
-                .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-                .map_err(|e| {
-                    if let Some(err) = e.into_inner() {
-                        CoreError::from(format!("{}", err)) // TODO: introduce a wrapper error type?
-                    } else {
-                        CoreError::RequestTimeout
-                    }
-                }),
-        )
+                })
+            }, 
+            Err(_) => Err( CoreError::RequestTimeout )
+        }
+
     }
 
     fn handle_new_message(
@@ -434,16 +434,16 @@ impl State {
         State::Terminated
     }
 
-    fn send(
+    async fn send(
         &mut self,
         quic_p2p: &mut QuicP2p,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Box<CoreFuture<Response>> {
+    ) -> Result<Response, CoreError> {
         match self {
-            State::Connected(state) => state.send(quic_p2p, msg_id, msg),
+            State::Connected(state) => state.send(quic_p2p, msg_id, msg).await,
             // This message is not expected for the rest of states
-            _state => err!(CoreError::OperationForbidden),
+            _state => Err(CoreError::OperationForbidden),
         }
     }
 
@@ -503,19 +503,19 @@ impl Inner {
         let _ = old_state.apply_transition(&mut self.quic_p2p, Transition::Terminate);
     }
 
-    fn send(&mut self, msg_id: MessageId, msg: &Message) -> Box<CoreFuture<Response>> {
-        self.state.send(&mut self.quic_p2p, msg_id, msg)
+    async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
+        self.state.send(&mut self.quic_p2p, msg_id, msg).await
     }
 
     /// Terminate the QUIC connections gracefully.
-    fn close(&mut self) -> Box<CoreFuture<()>> {
+    async fn close(&mut self) -> Result<(), CoreError> {
         trace!("{}: Terminating connection", self.id);
 
         let (disconnect_tx, disconnect_rx) = oneshot::channel();
         self.terminate();
         self.disconnect_tx = Some(disconnect_tx);
 
-        Box::new(disconnect_rx.map_err(|e| CoreError::Unexpected(format!("{}", e))))
+        disconnect_rx.await.map_err(|e| CoreError::Unexpected(format!("{}", e)) )
     }
 
     fn handle_quic_p2p_event(&mut self, event: Event) {

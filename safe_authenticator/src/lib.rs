@@ -157,7 +157,7 @@ impl Authenticator {
                         if let Ok(NetworkEvent::Disconnected) = net_event {
                             disconnect_notifier();
                         }
-                        ok!(())
+                        Ok(())
                     })
                     .for_each(|_| Ok(()));
                 let _ = el.spawn(net_obs_fut);
@@ -244,7 +244,7 @@ impl Authenticator {
                         if let Ok(NetworkEvent::Disconnected) = net_event {
                             disconnect_notifier();
                         }
-                        ok!(())
+                        Ok(())
                     })
                     .for_each(|_| Ok(()));
                 let _ = el.spawn(net_obs_fut);

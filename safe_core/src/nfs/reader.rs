@@ -58,7 +58,7 @@ impl<C: Client> Reader<C> {
         );
 
         if (position + length) > self.size() {
-            err!(NfsError::InvalidRange)
+            Err(NfsError::InvalidRange)
         } else {
             debug!(
                 "Reading {len} bytes of data from file starting at offset of {pos} bytes ...",

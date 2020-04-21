@@ -33,6 +33,16 @@ const MAX_ATTEMPTS: usize = 10;
 pub fn put_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()>> {
     let client2 = client.clone();
 
+    // match client
+    // .put_seq_mutable_data(data.clone()).await {
+    //     Ok(response) => response
+    //     Err(e) => {
+    //         match e {
+    //             CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
+    //             error => Either::B(future::err(error))
+    //         }
+    //     }
+    // }
     client
         .put_seq_mutable_data(data.clone())
         .or_else(move |error| match error {

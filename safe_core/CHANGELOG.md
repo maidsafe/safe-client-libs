@@ -328,7 +328,7 @@
 - Routing crate updated to version 0.4.*
 
 ## [0.2.0]
-- [MAID-1295](https://maidsafe.atlassian.net/browse/MAID-1295) Remove all unwraps() AND Check for Ok(try!( and see if really required (ie., for error conversion etc)
+- [MAID-1295](https://maidsafe.atlassian.net/browse/MAID-1295) Remove all unwraps() AND Check for Ok(r#try!( and see if really required (ie., for error conversion etc)
 - [MAID-1296](https://maidsafe.atlassian.net/browse/MAID-1296) Remove unwanted errors and Unexpected should take an &str instead of String
 - [MAID-1297](https://maidsafe.atlassian.net/browse/MAID-1297) Evaluate test_utils in client
 - [MAID-1298](https://maidsafe.atlassian.net/browse/MAID-1298) Put debug statements

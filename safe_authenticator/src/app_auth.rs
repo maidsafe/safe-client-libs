@@ -64,7 +64,7 @@ pub fn app_state(client: &AuthClient, apps: &Apps, app_id: &str) -> Box<AuthFutu
             })
             .into_box()
     } else {
-        ok!(AppState::NotAuthenticated)
+        Ok(AppState::NotAuthenticated)
     }
 }
 
@@ -176,9 +176,9 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                 AppState::Authenticated | AppState::Revoked => {
                     let app_entry_name = sha3_256(app_id.as_bytes());
                     if let Some(app) = apps.remove(&app_entry_name) {
-                        ok!((app, app_state, app_id))
+                        Ok((app, app_state, app_id))
                     } else {
-                        err!(AuthError::from(
+                        Err(AuthError::from(
                             "Logical error - couldn't find a revoked app in config"
                         ))
                     }
@@ -214,7 +214,7 @@ fn authenticated_app(
 
     let app_keys = app.keys.clone();
     let app_pk = app.keys.public_key();
-    let bootstrap_config = fry!(client::bootstrap_config());
+    let bootstrap_config = r#try!(client::bootstrap_config());
 
     access_container::fetch_entry(client, &app_id, app_keys.clone())
         .and_then(move |(_version, perms)| {
@@ -287,7 +287,7 @@ fn authenticate_new_app(
         .map_err(AuthError::from)
         .and_then(move |_| {
             if permissions.is_empty() {
-                ok!((Default::default(), app_pk))
+                Ok((Default::default(), app_pk))
             } else {
                 update_container_perms(&c3, permissions, app_pk)
                     .map(move |perms| (perms, app_pk))
@@ -298,12 +298,12 @@ fn authenticate_new_app(
             if app_container {
                 app_container::fetch_or_create(&c4, &app_id, app_pk)
                     .and_then(move |mdata_info| {
-                        ok!(insert_app_container(perms, &app_id, mdata_info))
+                        Ok(insert_app_container(perms, &app_id, mdata_info))
                     })
                     .map(move |perms| (perms, app))
                     .into_box()
             } else {
-                ok!((perms, app))
+                Ok((perms, app))
             }
         })
         .and_then(move |(perms, app)| {

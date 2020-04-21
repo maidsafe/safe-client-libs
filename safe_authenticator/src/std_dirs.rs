@@ -54,7 +54,7 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
                 }
                 Err(AuthError::CoreError(CoreError::DataError(SndError::NoSuchData))) => {
                     // Access container hasn't been created yet
-                    let access_cont_value = fry!(random_std_dirs())
+                    let access_cont_value = r#try!(random_std_dirs())
                         .into_iter()
                         .map(|(name, md_info)| (String::from(name), md_info))
                         .collect();
@@ -66,7 +66,7 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
                         .map(|_| ())
                         .into_box()
                 }
-                Err(e) => err!(e),
+                Err(e) => Err(e),
             }
         })
         .into_box();
@@ -86,7 +86,7 @@ fn create_config_dir(client: &AuthClient, config_dir: &MDataInfo) -> Box<AuthFut
     let config_dir_entries =
         btree_map![KEY_APPS.to_vec() => MDataSeqValue { data: Vec::new(), version: 0 }];
 
-    let config_dir_entries = fry!(mdata_info::encrypt_entries(config_dir, &config_dir_entries));
+    let config_dir_entries = r#try!(mdata_info::encrypt_entries(config_dir, &config_dir_entries));
 
     create_directory(client, config_dir, config_dir_entries, btree_map![])
         .map_err(From::from)
@@ -101,16 +101,16 @@ fn create_access_container(
     let enc_key = client.secret_symmetric_key();
 
     // Create access container
-    let authenticator_key = fry!(access_container_enc_key(
+    let authenticator_key = r#try!(access_container_enc_key(
         AUTHENTICATOR_ENTRY,
         &enc_key,
-        fry!(access_container.nonce().ok_or_else(|| AuthError::from(
+        r#try!(access_container.nonce().ok_or_else(|| AuthError::from(
             "Expected to have nonce on access container MDataInfo"
         ))),
     )
     .map_err(AuthError::from));
-    let access_cont_value = fry!(symmetric_encrypt(
-        &fry!(serialize(default_entries)),
+    let access_cont_value = r#try!(symmetric_encrypt(
+        &r#try!(serialize(default_entries)),
         &enc_key,
         None,
     ));

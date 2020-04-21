@@ -41,7 +41,7 @@ pub fn decode_ipc_msg(
         } => {
             // Ok status should be returned for all app states (including
             // Revoked and Authenticated).
-            ok!(Ok(IpcMsg::Req {
+            Ok(Ok(IpcMsg::Req {
                 req_id,
                 request: IpcReq::Auth(auth_req),
             }))
@@ -49,14 +49,14 @@ pub fn decode_ipc_msg(
         IpcMsg::Req {
             request: IpcReq::Unregistered(extra_data),
             req_id,
-        } => ok!(Ok(IpcMsg::Req {
+        } => Ok(Ok(IpcMsg::Req {
             req_id,
             request: IpcReq::Unregistered(extra_data),
         })),
         IpcMsg::Req {
             request: IpcReq::ShareMData(share_mdata_req),
             req_id,
-        } => ok!(Ok(IpcMsg::Req {
+        } => Ok(Ok(IpcMsg::Req {
             req_id,
             request: IpcReq::ShareMData(share_mdata_req),
         })),
@@ -95,7 +95,7 @@ pub fn decode_ipc_msg(
                 .into_box()
         }
         IpcMsg::Resp { .. } | IpcMsg::Revoked { .. } | IpcMsg::Err(..) => {
-            return err!(AuthError::IpcError(IpcError::InvalidMsg));
+            return Err(AuthError::IpcError(IpcError::InvalidMsg));
         }
     }
 }

@@ -115,17 +115,17 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         request: IpcReq::Auth(auth_req),
                         req_id,
                     }) => {
-                        let repr_c = fry!(auth_req.into_repr_c().map_err(AuthError::IpcError));
+                        let repr_c = r#try!(auth_req.into_repr_c().map_err(AuthError::IpcError));
                         o_auth(user_data.0, req_id, &repr_c);
-                        ok!(())
+                        Ok(())
                     }
                     Ok(IpcMsg::Req {
                         request: IpcReq::Containers(cont_req),
                         req_id,
                     }) => {
-                        let repr_c = fry!(cont_req.into_repr_c().map_err(AuthError::IpcError));
+                        let repr_c = r#try!(cont_req.into_repr_c().map_err(AuthError::IpcError));
                         o_containers(user_data.0, req_id, &repr_c);
-                        ok!(())
+                        Ok(())
                     }
                     Ok(IpcMsg::Req {
                         request: IpcReq::Unregistered(extra_data),
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                             extra_data.as_safe_ptr(),
                             extra_data.len(),
                         );
-                        ok!(())
+                        Ok(())
                     }
                     Ok(IpcMsg::Req {
                         request: IpcReq::ShareMData(share_mdata_req),
@@ -167,19 +167,19 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                         })
                         .into_box(),
                     Err((error_code, description, err)) => {
-                        let res = fry!(NativeResult {
+                        let res = r#try!(NativeResult {
                             error_code,
                             description: Some(description),
                         }
                         .into_repr_c());
                         o_err(user_data.0, &res, err.as_ptr());
-                        ok!(())
+                        Ok(())
                     }
                     Ok(IpcMsg::Resp { .. }) | Ok(IpcMsg::Revoked { .. }) | Ok(IpcMsg::Err(..)) => {
                         let err =
                             Error::from(AuthError::Unexpected("Unexpected msg type".to_owned()));
                         call_result_cb!(Err::<(), _>(err), user_data, o_err);
-                        ok!(())
+                        Ok(())
                     }
                 })
                 .map_err(move |err| {

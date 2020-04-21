@@ -132,7 +132,7 @@ impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
 
     fn get(&self, _name: &[u8]) -> Box<dyn Future<Output=Result<Vec<u8>, Self::Error>>> {
         trace!("Self encrypt invoked GetIData dry run.");
-        err!(CoreError::Unexpected(
+        Err(CoreError::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned()
         ))
     }
@@ -145,7 +145,7 @@ impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
         trace!("Self encrypt invoked PutIData dry run.");
         // We do nothing here just return ok so self-encrpytion can finish
         // and generate chunk addresses and datamap if required
-        ok!(())
+        Ok(())
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {

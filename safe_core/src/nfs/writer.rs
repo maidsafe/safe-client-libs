@@ -50,16 +50,16 @@ impl<C: Client> Writer<C> {
             Mode::Append => data_map::get(client, file.data_address(), encryption_key.clone())
                 .map(Some)
                 .into_box(),
-            Mode::Overwrite => ok!(None),
+            Mode::Overwrite => Ok(None),
         };
         let client = client.clone();
         fut.or_else(|err| -> Box<NfsFuture<Option<DataMap>>> {
             // If the returned error is NoSuchData, fallback to OverWrite mode by returning
             // None, otherwise pass error through.
             if let NfsError::CoreError(CoreError::DataError(SndError::NoSuchData)) = err {
-                ok!(None)
+                Ok(None)
             } else {
-                err!(err)
+                Err(err)
             }
         })
         .and_then(move |data_map| SequentialEncryptor::new(storage, data_map).map_err(From::from))

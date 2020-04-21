@@ -95,7 +95,7 @@ pub fn remove(client: AuthClient, app_id: &str) -> Box<AuthFuture<bool>> {
             match ac_entries.remove(&app_cont_name) {
                 None => {
                     // App container doesn't exist
-                    ok!(false)
+                    Ok(false)
                 }
                 Some(mdata_info) => {
                     let c3 = c2.clone();
@@ -139,7 +139,7 @@ pub fn remove(client: AuthClient, app_id: &str) -> Box<AuthFuture<bool>> {
 
 // Creates a new app's dedicated container
 fn create(client: &AuthClient, app_pk: PublicKey) -> Box<AuthFuture<MDataInfo>> {
-    let dir = fry!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map_err(AuthError::from));
+    let dir = r#try!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map_err(AuthError::from));
     nfs::create_directory(
         client,
         &dir,
