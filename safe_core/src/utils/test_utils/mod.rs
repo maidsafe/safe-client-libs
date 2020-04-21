@@ -138,10 +138,9 @@ where
                 .map(move |value| {
                     unwrap!(result_tx.send(value));
                     unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()));
-                })
-                .into_box();
+                });
 
-            Some(fut)
+            Some(Box::new(fut))
         }))
     );
 

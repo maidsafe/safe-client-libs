@@ -8,6 +8,7 @@
 
 mod connection_group;
 mod response_manager;
+use tokio::time::timeout;
 
 use crate::{
     client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError, CoreFuture,
@@ -56,13 +57,13 @@ impl ConnectionManager {
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
-    pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
-        self.inner.borrow_mut().send(pub_id, msg)
+    pub async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
+        self.inner.borrow_mut().send(pub_id, msg).await
     }
 
     /// Connect to Client Handlers that manage the provided ID.
-    pub fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
-        self.inner.borrow_mut().bootstrap(full_id)
+    pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
+        self.inner.borrow_mut().bootstrap(full_id).await
     }
 
     /// Reconnect to the network.
@@ -71,8 +72,8 @@ impl ConnectionManager {
     }
 
     /// Disconnect from a group.
-    pub fn disconnect(&mut self, pub_id: &PublicId) -> Box<CoreFuture<()>> {
-        self.inner.borrow_mut().disconnect(pub_id)
+    pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(),CoreError> {
+        self.inner.borrow_mut().disconnect(pub_id).await
     }
 }
 
@@ -91,7 +92,7 @@ impl Drop for Inner {
 }
 
 impl Inner {
-    fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
+    async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
         let (connected_tx, connected_rx) = futures::channel::oneshot::channel();
@@ -102,22 +103,32 @@ impl Inner {
                 full_id,
                 connected_tx
             )));
-            Box::new(
-                connected_rx
-                    .map_err(|err| CoreError::from(format!("{}", err)))
-                    .and_then(|res| res)
-                    .timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS))
-                    .map_err(|e| {
-                        if let Some(err) = e.into_inner() {
-                            // Do not swallow the original error in case if it's not a timeout.
-                            err
-                        } else {
-                            CoreError::from(
+
+            match timeout( Duration::from_secs(CONNECTION_TIMEOUT_SECS), connected_rx ).await {
+                Ok(response) => {
+                    response.map_err(|err| {
+                        CoreError::from(format!("{}", err))
+    
+                    })?
+                }, 
+                Err(_) => Err( CoreError::from(
                                 "Connection timed out when bootstrapping to the network",
-                            )
-                        }
-                    }),
-            )
+                            ))
+            }
+                // .map_err(|err| CoreError::from(format!("{}", err)))
+                // .and_then(|res| res)
+                // // .timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS))
+                // .map_err(|e| {
+                //     if let Some(err) = e.into_inner() {
+                //         // Do not swallow the original error in case if it's not a timeout.
+                //         err
+                //     } else {
+                //         CoreError::from(
+                //             "Connection timed out when bootstrapping to the network",
+                //         )
+                //     }
+                // }),
+            
         } else {
             trace!("Group {} is already connected", full_id.public_id());
             Ok(())
