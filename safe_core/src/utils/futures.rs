@@ -46,17 +46,17 @@ macro_rules! err {
     }};
 }
 
-/// Additional future combinators.
-pub trait FutureExt: Future + Sized {
-    /// Box this future. Similar to `boxed` combinator, but does not require
-    /// the future to implement `Send`.
-    fn into_box(self) -> Box<dyn Future<Output=Result<Self::Item, Self::Error>>>;
-}
+// /// Additional future combinators.
+// pub trait FutureExt: Future + Sized {
+//     /// Box this future. Similar to `boxed` combinator, but does not require
+//     /// the future to implement `Send`.
+//     fn into_box(self) -> Box<dyn Future<Output=Result<Self::Item, Self::Error>>>;
+// }
 
-impl<F: Future + 'static> FutureExt for F {
-    // TODO: when trait/impl specialization lands, try to implement this so that
-    // it's a no-op when called on already boxed futures.
-    fn into_box(self) -> Box<dyn Future<Output=Result<Self::Item, Self::Error>>> {
-        Box::new(self)
-    }
-}
+// impl<F: Future + 'static> FutureExt for F {
+//     // TODO: when trait/impl specialization lands, try to implement this so that
+//     // it's a no-op when called on already boxed futures.
+//     fn into_box(self) -> Box<dyn Future<Output=Result<Self::Item, Self::Error>>> {
+//         Box::new(self)
+//     }
+// }

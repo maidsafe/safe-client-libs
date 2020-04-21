@@ -56,7 +56,7 @@ pub fn finish() -> Result<(), ()> {
 pub fn random_client<Run, I, T, E>(r: Run) -> T
 where
     Run: FnOnce(&CoreClient) -> I + Send + 'static,
-    I: IntoFuture<Output=Result<T, E>> + 'static,
+    I: Future<Output=Result<T, E>> + 'static,
     T: Send + 'static,
     E: Debug,
 {
@@ -81,7 +81,7 @@ where
     Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: IntoFuture<Output=Result<T, E>> + 'static,
+    I: Future<Output=Result<T, E>> + 'static,
     T: Send + 'static,
     E: Debug,
     F: Debug,
@@ -108,7 +108,7 @@ where
     Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: IntoFuture<Output=Result<T, E>> + 'static,
+    I: Future<Output=Result<T, E>> + 'static,
     T: Send + 'static,
     E: Debug,
     F: Debug,

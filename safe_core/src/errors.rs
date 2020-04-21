@@ -77,8 +77,8 @@ impl From<String> for CoreError {
     }
 }
 
-impl<T> From<SendError<T>> for CoreError {
-    fn from(error: SendError<T>) -> Self {
+impl From<SendError> for CoreError {
+    fn from(error: SendError) -> Self {
         Self::from(format!("Couldn't send message to the channel: {}", error))
     }
 }

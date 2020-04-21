@@ -44,8 +44,8 @@ pub enum IpcError {
     Unexpected(String),
 }
 
-impl<T: 'static> From<SendError<T>> for IpcError {
-    fn from(error: SendError<T>) -> Self {
+impl From<SendError> for IpcError {
+    fn from(error: SendError) -> Self {
         Self::Unexpected(error.to_string())
     }
 }
