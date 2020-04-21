@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use futures::sync::mpsc;
+use futures::channel::mpsc;
 
 /// Network Events will be translated into values starting from this number for
 /// propagating them beyond the FFI boudaries when required

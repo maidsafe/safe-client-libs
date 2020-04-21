@@ -14,7 +14,7 @@ use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use crate::{fry, ok};
 use bincode::{deserialize, serialize};
-use futures::{Future, IntoFuture};
+use futures::{Future, future::IntoFuture};
 use log::trace;
 use safe_nd::{Error as SndError, MDataSeqEntryActions};
 use serde::{Deserialize, Serialize};

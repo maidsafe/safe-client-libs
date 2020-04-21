@@ -58,8 +58,8 @@ mod tests;
 
 use errors::AuthError as Error;
 use futures::stream::Stream;
-use futures::sync::mpsc;
-use futures::{Future, IntoFuture};
+use futures::channel::mpsc;
+use futures::{Future, future::IntoFuture};
 use log::{debug, info};
 use safe_core::ok;
 #[cfg(any(test, feature = "testing"))]

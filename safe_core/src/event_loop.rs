@@ -9,7 +9,7 @@
 use crate::client::Client;
 use crate::errors::CoreError;
 use futures::stream::Stream;
-use futures::sync::mpsc;
+use futures::channel::mpsc;
 use futures::Future;
 use log::debug;
 use tokio::runtime::current_thread::{self, Runtime};

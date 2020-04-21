@@ -39,7 +39,7 @@ use crate::event_loop::{CoreFuture, CoreMsgTx};
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::FutureExt;
-use futures::{future, sync::mpsc, Future};
+use futures::{future, channel::mpsc, Future};
 use log::trace;
 use lru_cache::LruCache;
 use quic_p2p::Config as QuicP2pConfig;

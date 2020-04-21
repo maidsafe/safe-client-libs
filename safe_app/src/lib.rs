@@ -57,8 +57,8 @@ mod tests;
 
 use bincode::deserialize;
 use futures::stream::Stream;
-use futures::sync::mpsc as futures_mpsc;
-use futures::{future, Future, IntoFuture};
+use futures::channel::mpsc as futures_mpsc;
+use futures::{future, Future, future::IntoFuture};
 use log::info;
 use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
 use safe_core::crypto::shared_secretbox;

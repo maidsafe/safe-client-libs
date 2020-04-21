@@ -95,7 +95,7 @@ impl Inner {
     fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
-        let (connected_tx, connected_rx) = futures::oneshot();
+        let (connected_tx, connected_rx) = futures::channel::oneshot::channel();
 
         if let Entry::Vacant(value) = self.groups.entry(full_id.public_id()) {
             let _ = value.insert(fry!(ConnectionGroup::new(

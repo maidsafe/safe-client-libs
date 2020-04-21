@@ -373,7 +373,7 @@ mod mock_routing {
                         move |routing| sync.hook(routing),
                     ));
 
-                    let _ = barrier.wait();
+                    let _ = barrier.await;
                     try_revoke(&auth, &app_id)
                 })
             })
@@ -478,7 +478,7 @@ mod mock_routing {
                         move |routing| sync.hook(routing),
                     ));
 
-                    let _ = barrier.wait();
+                    let _ = barrier.await;
                     try_revoke(&auth, &app_id)
                 })
             })

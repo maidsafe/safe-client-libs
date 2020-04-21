@@ -10,7 +10,7 @@
 use crate::ffi::error_codes::*;
 use crate::self_encryption_storage::SEStorageError;
 use bincode::Error as SerialisationError;
-use futures::sync::mpsc::SendError;
+use futures::channel::mpsc::SendError;
 use quic_p2p::QuicP2pError;
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;

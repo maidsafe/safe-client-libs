@@ -62,7 +62,8 @@ impl<T: Clone + Rng> Hook<T> {
 
     // Invoke request hook.
     fn request(&self, _req: &Request) -> Option<Response> {
-        self.inner.wait(self.id);
+        self.inner.await;
+        // self.inner.wait(self.id);
         None
     }
 

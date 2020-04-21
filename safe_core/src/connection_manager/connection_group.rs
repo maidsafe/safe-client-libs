@@ -11,7 +11,7 @@ use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
 use futures::{
-    sync::oneshot::{self, Sender},
+    channel::oneshot::{self, Sender},
     Future,
 };
 use lazy_static::lazy_static;
@@ -510,7 +510,7 @@ impl Inner {
     fn close(&mut self) -> Box<CoreFuture<()>> {
         trace!("{}: Terminating connection", self.id);
 
-        let (disconnect_tx, disconnect_rx) = futures::oneshot();
+        let (disconnect_tx, disconnect_rx) = oneshot::channel();
         self.terminate();
         self.disconnect_tx = Some(disconnect_tx);
 

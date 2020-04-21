@@ -15,7 +15,7 @@ use crate::errors::AuthError;
 use crate::ipc::decode_ipc_msg;
 use crate::{access_container, app_auth, config, revocation, run, Authenticator};
 use env_logger::{fmt::Formatter, Builder as LoggerBuilder};
-use futures::{future, Future, IntoFuture};
+use futures::{future, Future, future::IntoFuture};
 use log::trace;
 use log::Record;
 use safe_core::client::{test_create_balance, Client};

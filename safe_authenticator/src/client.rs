@@ -546,7 +546,7 @@ impl UserCred {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::sync::mpsc;
+    use futures::channel::mpsc;
     use futures::Future;
     use safe_core::client::test_create_balance;
     use safe_core::ok;

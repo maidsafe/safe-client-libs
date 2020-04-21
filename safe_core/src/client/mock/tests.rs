@@ -19,7 +19,7 @@ use crate::{utils, NetworkEvent, QuicP2pConfig};
 use super::connection_manager::ConnectionManager;
 use crate::btree_map;
 use bincode::serialize;
-use futures::sync::mpsc::{self, UnboundedReceiver};
+use futures::channel::mpsc::{self, UnboundedReceiver};
 use futures::Future;
 use rand::thread_rng;
 use safe_nd::{
@@ -74,7 +74,7 @@ fn process_request(
     };
     unwrap!(connection_manager
         .send(&sender.public_id(), &message)
-        .wait())
+        .await)
 }
 
 // Test the basics idata operations.
