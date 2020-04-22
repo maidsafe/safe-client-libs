@@ -12,7 +12,7 @@ use futures::stream::Stream;
 use futures::channel::mpsc;
 use futures::Future;
 use log::debug;
-use tokio::runtime::current_thread::{self, Runtime};
+use tokio::runtime::*;
 use unwrap::unwrap;
 
 /// Transmitter of messages to be run in the core event loop.

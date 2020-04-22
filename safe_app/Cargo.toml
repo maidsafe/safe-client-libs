@@ -28,7 +28,7 @@ serde = "~1.0.27"
 serde_derive = "~1.0.27"
 threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
-tokio = "~0.1.22"
+tokio = { version="~0.2.18", features=["full"] }
 unwrap = "~1.2.0"
 
 [dev-dependencies]
