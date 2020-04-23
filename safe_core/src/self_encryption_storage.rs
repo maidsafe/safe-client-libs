@@ -25,7 +25,6 @@ pub struct SelfEncryptionStorage<C: Client> {
     published: bool,
 }
 
-#[async_trait]
 impl<C: Client> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {

@@ -17,11 +17,11 @@ use std::collections::BTreeMap;
 
 /// Create a new directory based on the provided `MDataInfo`.
 pub async fn create_directory(
-    client: &impl Client,
+    client: &impl Client + std::marker::Sync,
     dir: &MDataInfo,
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
-) -> Future<Output=Result<(), NfsError>> {
+) -> Result<(), NfsError> {
     let pub_key = client.owner_key();
 
     let dir_md =

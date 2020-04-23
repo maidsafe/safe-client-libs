@@ -74,24 +74,25 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
     Ok(Config::new().quic_p2p.hard_coded_contacts)
 }
 
-fn send(client: &impl Client, request: Request) -> Box<CoreFuture<Response>> {
+async fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
     // `sign` should be false for GETs on published data, true otherwise.
     let sign = request.get_type() != RequestType::PublicGet;
     let request = client.compose_message(request, sign);
     let inner = client.inner();
     let cm = &mut inner.borrow_mut().connection_manager;
-    cm.send(&client.public_id(), &request)
+    cm.send(&client.public_id(), &request).await
 }
 
 // Sends a mutation request to a new routing.
-fn send_mutation(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
-    Box::new(send(client, req).and_then(move |result| {
-        trace!("mutation result: {:?}", result);
-        match result {
-            Response::Mutation(result) => result.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }))
+async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreError> {
+    let response = send(client, req).await?;
+    match response {
+        Response::Mutation(result) => {
+            trace!("mutation result: {:?}", result);
+            result.map_err(CoreError::from)
+        },
+        _ => Err(CoreError::ReceivedUnexpectedEvent),
+    }
 }
 
 // Sends a request either using a default user's identity, or reconnects to another group
@@ -125,8 +126,10 @@ async fn send_as_helper(
     let mut cm2 = cm.clone();
 
     // Box::new(
-        cm.bootstrap(identity).await
-            .and_then(move |_| cm2.send(&pub_id, &message))
+        let _bootraspped = cm.bootstrap(identity).await;
+        cm2.send(&pub_id, &message ).await
+            // .and_then(move |_| 
+            //     ))
     // )
 }
 
@@ -361,10 +364,9 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put sequenced mutable data to the network
-    #[async_trait]
-    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Future<Output=Result<(), CoreError>> {
+    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Result<(), CoreError> {
         trace!("Put Sequenced MData at {:?}", data.name());
-        send_mutation(self, Request::PutMData(MData::Seq(data)))
+        send_mutation(self, Request::PutMData(MData::Seq(data))).await
     }
 
     /// Fetch unpublished mutable data from the network
