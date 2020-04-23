@@ -38,7 +38,7 @@
 pub use ffi::arrays::*;
 pub use ffi::ipc::req::*;
 pub use ffi::ipc::resp::*;
-pub use ffi::nfs::*;
+// pub use ffi::nfs::*;
 pub use ffi::*;
 
 // Export public core interface.
@@ -78,7 +78,7 @@ pub mod immutable_data;
 /// Inter-Process Communication utilities.
 pub mod ipc;
 /// NFS utilities.
-pub mod nfs;
+// pub mod nfs;
 /// Implements the Self Encryption storage trait.
 pub mod self_encryption_storage;
 /// Utility functions.

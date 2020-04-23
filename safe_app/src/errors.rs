@@ -13,7 +13,6 @@ use bincode::Error as SerialisationError;
 use ffi_utils::StringError;
 use futures::channel::mpsc::SendError;
 use safe_core::ipc::IpcError;
-use safe_core::nfs::NfsError;
 use safe_core::{CoreError, SelfEncryptionStorageError};
 use safe_nd::Error as SndError;
 use self_encryption::SelfEncryptionError;
@@ -34,8 +33,6 @@ pub enum AppError {
     SndError(SndError),
     /// IPC error.
     IpcError(IpcError),
-    /// NFS error.
-    NfsError(NfsError),
     /// Generic encoding / decoding failure.
     EncodeDecodeError,
     /// Forbidden operation.
@@ -87,7 +84,7 @@ impl Display for AppError {
             Self::CoreError(ref error) => write!(formatter, "Core error: {}", error),
             Self::SndError(ref error) => write!(formatter, "Safe ND error: {}", error),
             Self::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
-            Self::NfsError(ref error) => write!(formatter, "NFS error: {}", error),
+            // Self::NfsError(ref error) => write!(formatter, "NFS error: {}", error),
             Self::EncodeDecodeError => write!(formatter, "Serialisation error"),
             Self::OperationForbidden => write!(formatter, "Forbidden operation"),
             Self::NoSuchContainer(ref name) => {
@@ -153,18 +150,6 @@ impl From<IpcError> for AppError {
             IpcError::EncodeDecodeError => Self::EncodeDecodeError,
             IpcError::Unexpected(reason) => Self::Unexpected(reason),
             _ => Self::IpcError(err),
-        }
-    }
-}
-
-impl From<NfsError> for AppError {
-    fn from(err: NfsError) -> Self {
-        match err {
-            NfsError::CoreError(err) => Self::CoreError(err),
-            NfsError::EncodeDecodeError(_) => Self::EncodeDecodeError,
-            NfsError::SelfEncryption(err) => Self::SelfEncryption(err),
-            NfsError::Unexpected(reason) => Self::Unexpected(reason),
-            _ => Self::NfsError(err),
         }
     }
 }
