@@ -182,7 +182,7 @@ fn unpack<S>(se_storage: S, client: impl Client, data: &IData) -> Box<CoreFuture
 where
     S: Storage<Error = SEStorageError> + Clone + 'static,
 {
-    match r#try!(deserialize(data.value())) {
+    match deserialize(data.value())? {
         DataTypeEncoding::Serialised(value) => Ok(value),
         DataTypeEncoding::DataMap(data_map) => {
             let self_encryptor = r#try!(SelfEncryptor::new(se_storage.clone(), data_map));
@@ -192,7 +192,7 @@ where
                 .map_err(From::from)
                 .and_then(move |serialised_data| {
                     let data = r#try!(deserialize(&serialised_data));
-                    unpack(se_storage, client, &data)
+                    *unpack(se_storage, client, &data)
                 })
                 .into_box()
         }

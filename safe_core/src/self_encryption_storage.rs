@@ -34,7 +34,7 @@ impl<C: Client> SelfEncryptionStorage<C> {
 }
 
 #[async_trait]
-impl<C: std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
+impl<C: std::marker::Send + std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
     async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -97,11 +97,11 @@ impl<C: std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
 
 /// Errors arising from storage object being used by self-encryptors.
 #[derive(Debug)]
-pub struct SEStorageError(pub Box<CoreError>);
+pub struct SEStorageError(pub CoreError);
 
 impl Display for SEStorageError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        Display::fmt(&*self.0, formatter)
+        Display::fmt(&self.0, formatter)
     }
 }
 
@@ -113,7 +113,7 @@ impl Error for SEStorageError {
 
 impl From<CoreError> for SEStorageError {
     fn from(error: CoreError) -> Self {
-        Self(Box::new(error))
+        Self(error)
     }
 }
 
