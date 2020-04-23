@@ -84,7 +84,6 @@ impl Display for AppError {
             Self::CoreError(ref error) => write!(formatter, "Core error: {}", error),
             Self::SndError(ref error) => write!(formatter, "Safe ND error: {}", error),
             Self::IpcError(ref error) => write!(formatter, "IPC error: {:?}", error),
-            // Self::NfsError(ref error) => write!(formatter, "NFS error: {}", error),
             Self::EncodeDecodeError => write!(formatter, "Serialisation error"),
             Self::OperationForbidden => write!(formatter, "Forbidden operation"),
             Self::NoSuchContainer(ref name) => {

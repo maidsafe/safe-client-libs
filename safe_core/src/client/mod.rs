@@ -324,15 +324,15 @@ pub trait Client: Clone + 'static {
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&address) {
             trace!("ImmutableData found in cache.");
-            return data.clone();
+            return Ok(data.clone());
         }
 
         let inner = Rc::downgrade(&self.inner());
-        let res = send(self, Request::GetIData(address)).await;
+        let res = send(self, Request::GetIData(address)).await?;
         let data = match res {
                 Response::GetIData(res) => res.map_err(CoreError::from),
                 _ => return Err(CoreError::ReceivedUnexpectedEvent),
-            };
+            }?;
 
         if let Some(inner) = inner.upgrade() {
             // Put to cache
@@ -341,7 +341,7 @@ pub trait Client: Clone + 'static {
                 .cache
                 .insert(*data.address(), data.clone());
         };
-        data
+        Ok(data)
     }
 
     /// Delete unpublished immutable data from the network.
