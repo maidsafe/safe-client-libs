@@ -29,6 +29,7 @@ use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataIn
 use safe_nd::{
     ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
 };
+use async_trait::async_trait;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -470,6 +471,7 @@ fn create_client_id(seeder: &[u8]) -> ClientFullId {
 
 impl AuthActions for AuthClient {}
 
+#[async_trait]
 impl Client for AuthClient {
     type Context = ();
 

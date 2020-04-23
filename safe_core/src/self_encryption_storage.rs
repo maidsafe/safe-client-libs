@@ -14,15 +14,18 @@ use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData, XorName
 use self_encryption::{Storage, StorageError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
+use async_trait::async_trait;
 
 /// Network storage is the concrete type which self-encryption crate will use
 /// to put or get data from the network.
+// #[async_trait]
 #[derive(Clone)]
 pub struct SelfEncryptionStorage<C: Client> {
     client: C,
     published: bool,
 }
 
+// #[async_trait]
 impl<C: Client> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {
@@ -30,16 +33,17 @@ impl<C: Client> SelfEncryptionStorage<C> {
     }
 }
 
-impl<C: Client> Storage for SelfEncryptionStorage<C> {
+#[async_trait]
+impl<C: std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
-    fn get(&self, name: &[u8]) -> Box<dyn Future<Output=Result<Vec<u8>, Self::Error>>> {
+    async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData.");
 
         if name.len() != XOR_NAME_LEN {
             let err = CoreError::Unexpected("Requested `name` is incorrect size.".to_owned());
             let err = SEStorageError::from(err);
-            return Box::new(futures::failed(err));
+            return Err(err);
         }
 
         let name = {
@@ -54,28 +58,31 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
             IDataAddress::Unpub(name)
         };
 
-        self.client
-            .get_idata(address)
-            .map(|data| data.value().clone())
-            .map_err(From::from)
-            .into_box()
+        match self.client
+                .get_idata(address).await {
+                    Ok(data) => Ok(data.value().clone()),
+                    Err(error) => Err(SEStorageError::from(error))
+                }
+                
+                
     }
 
-    fn put(
+    async fn put(
         &mut self,
         _: Vec<u8>,
         data: Vec<u8>,
-    ) -> Box<dyn Future<Output=Result<(), Self::Error>>> {
+    ) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutIData.");
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data).into()
         } else {
             UnpubImmutableData::new(data, self.client.public_key()).into()
         };
-        self.client
-            .put_idata(immutable_data)
-            .map_err(From::from)
-            .into_box()
+        match self.client
+                .put_idata(immutable_data).await {
+                    Ok(r) => Ok(r),
+                    Err(error) => Err(SEStorageError::from(error))
+                }
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {
@@ -130,11 +137,13 @@ impl<C: Client> SelfEncryptionStorageDryRun<C> {
 impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
     type Error = SEStorageError;
 
+
+
     fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData dry run.");
-        Err(CoreError::Unexpected(
+        Err(SEStorageError::from(CoreError::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned()
-        ))
+        )))
     }
 
     fn put(

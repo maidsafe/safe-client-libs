@@ -133,6 +133,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eab1c04a571841102f5345a8fc0f6bb3d31c315dec879b5c6e42e40ce7ffa34e"
 
 [[package]]
+name = "async-trait"
+version = "0.1.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da71fef07bc806586090247e971229289f64c210a278ee5ae419314eb386b31d"
+dependencies = [
+ "proc-macro2 1.0.9",
+ "quote 1.0.2",
+ "syn 1.0.16",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1964,6 +1975,7 @@ dependencies = [
 name = "safe_app"
 version = "0.15.1"
 dependencies = [
+ "async-trait",
  "bincode",
  "clap",
  "env_logger 0.6.2",
@@ -1991,6 +2003,7 @@ dependencies = [
 name = "safe_authenticator"
 version = "0.15.0"
 dependencies = [
+ "async-trait",
  "bincode",
  "env_logger 0.6.2",
  "ffi_utils",
@@ -2012,6 +2025,7 @@ dependencies = [
 name = "safe_authenticator_ffi"
 version = "0.15.0"
 dependencies = [
+ "async-trait",
  "bincode",
  "env_logger 0.6.2",
  "ffi_utils",
@@ -2053,6 +2067,7 @@ dependencies = [
 name = "safe_core"
 version = "0.40.0"
 dependencies = [
+ "async-trait",
  "bincode",
  "bytes 0.4.12",
  "chrono",
@@ -2452,6 +2467,7 @@ dependencies = [
 name = "tests"
 version = "0.2.0"
 dependencies = [
+ "async-trait",
  "ffi_utils",
  "futures 0.3.4",
  "safe-nd",

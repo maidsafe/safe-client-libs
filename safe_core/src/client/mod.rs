@@ -15,7 +15,7 @@ pub mod core_client;
 pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
-
+use async_trait::async_trait;
 mod id;
 #[cfg(feature = "mock-network")]
 mod mock;
@@ -57,7 +57,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
 use threshold_crypto;
-use tokio::runtime::current_thread::{block_on_all, Handle};
+use tokio::runtime::*;
 use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
@@ -74,24 +74,25 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
     Ok(Config::new().quic_p2p.hard_coded_contacts)
 }
 
-fn send(client: &impl Client, request: Request) -> Box<CoreFuture<Response>> {
+async fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
     // `sign` should be false for GETs on published data, true otherwise.
     let sign = request.get_type() != RequestType::PublicGet;
     let request = client.compose_message(request, sign);
     let inner = client.inner();
     let cm = &mut inner.borrow_mut().connection_manager;
-    cm.send(&client.public_id(), &request)
+    cm.send(&client.public_id(), &request).await
 }
 
 // Sends a mutation request to a new routing.
-fn send_mutation(client: &impl Client, req: Request) -> Box<CoreFuture<()>> {
-    Box::new(send(client, req).and_then(move |result| {
-        trace!("mutation result: {:?}", result);
-        match result {
-            Response::Mutation(result) => result.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }))
+async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreError> {
+    let response = send(client, req).await?;
+    match response {
+        Response::Mutation(result) => {
+            trace!("mutation result: {:?}", result);
+            result.map_err(CoreError::from)
+        },
+        _ => Err(CoreError::ReceivedUnexpectedEvent),
+    }
 }
 
 // Sends a request either using a default user's identity, or reconnects to another group
@@ -107,11 +108,11 @@ macro_rules! send_as {
     };
 }
 
-fn send_as_helper(
+async fn send_as_helper(
     client: &impl Client,
     request: Request,
     client_id: Option<&ClientFullId>,
-) -> Box<CoreFuture<Response>> {
+) -> CoreFuture<Response> {
     let (message, identity) = match client_id {
         Some(id) => (sign_request(request, id), SafeKey::client(id.clone())),
         None => (client.compose_message(request, true), client.full_id()),
@@ -124,16 +125,19 @@ fn send_as_helper(
     let cm = &mut inner.borrow_mut().connection_manager;
     let mut cm2 = cm.clone();
 
-    Box::new(
-        cm.bootstrap(identity)
-            .and_then(move |_| cm2.send(&pub_id, &message)),
-    )
+    // Box::new(
+        let _bootstrapped = cm.bootstrap(identity).await;
+        cm2.send(&pub_id, &message ).await
+            // .and_then(move |_| 
+            //     ))
+    // )
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
 /// interface all requests from high-level APIs to the actual routing layer and manage all
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
+#[async_trait]
 pub trait Client: Clone + 'static {
     /// Associated message type.
     type Context;
@@ -306,40 +310,38 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put immutable data to the network.
-    fn put_idata(&self, data: impl Into<IData>) -> Box<CoreFuture<()>> {
+    async fn put_idata(&self, data: impl Into<IData>) -> Result<(), CoreError> {
         let idata: IData = data.into();
         trace!("Put IData at {:?}", idata.name());
-        send_mutation(self, Request::PutIData(idata))
+        send_mutation(self, Request::PutIData(idata)).await
     }
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
-    fn get_idata(&self, address: IDataAddress) -> Box<CoreFuture<IData>> {
+    async fn get_idata(&self, address: IDataAddress) -> Result<IData, CoreError> {
         trace!("Fetch Immutable Data");
 
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&address) {
             trace!("ImmutableData found in cache.");
-            return future::ok(data.clone()).into_box();
+            return data.clone();
         }
 
         let inner = Rc::downgrade(&self.inner());
-        send(self, Request::GetIData(address))
-            .and_then(|res| match res {
+        let res = send(self, Request::GetIData(address)).await;
+        let data = match res {
                 Response::GetIData(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .map(move |data| {
-                if let Some(inner) = inner.upgrade() {
-                    // Put to cache
-                    let _ = inner
-                        .borrow_mut()
-                        .cache
-                        .insert(*data.address(), data.clone());
-                }
-                data
-            })
-            .into_box()
+                _ => return Err(CoreError::ReceivedUnexpectedEvent),
+            };
+
+        if let Some(inner) = inner.upgrade() {
+            // Put to cache
+            let _ = inner
+                .borrow_mut()
+                .cache
+                .insert(*data.address(), data.clone());
+        };
+        data
     }
 
     /// Delete unpublished immutable data from the network.
@@ -360,9 +362,9 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put sequenced mutable data to the network
-    fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
+    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Result<(), CoreError> {
         trace!("Put Sequenced MData at {:?}", data.name());
-        send_mutation(self, Request::PutMData(MData::Seq(data)))
+        send_mutation(self, Request::PutMData(MData::Seq(data))).await
     }
 
     /// Fetch unpublished mutable data from the network

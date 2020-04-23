@@ -22,6 +22,7 @@ use std::collections::HashSet;
 use std::env;
 use std::sync::{Arc, Mutex};
 use unwrap::unwrap;
+use async_trait::async_trait;
 
 lazy_static! {
     static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));
@@ -37,6 +38,7 @@ pub type ResponseHookFn = dyn FnMut(Response) -> Response + 'static;
 /// Contains a reference to crossbeam channel provided by quic-p2p for capturing the events.
 #[allow(unused)]
 #[derive(Clone)]
+// #[async_trait]
 pub struct ConnectionManager {
     vault: Arc<Mutex<Vault>>,
     request_hook: Option<Arc<RequestHookFn>>,
@@ -75,7 +77,7 @@ impl ConnectionManager {
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
-    pub fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Box<CoreFuture<Response>> {
+    pub async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
         #[cfg(any(feature = "testing", test))]
         {
             if let Some(resp) = self.intercept_request(msg.clone()) {
@@ -92,7 +94,7 @@ impl ConnectionManager {
                 _ => false,
             };
             let mut vault = vault::lock(&self.vault, writing);
-            unwrap!(vault.process_request(pub_id.clone(), &msg))
+            unwrap!(vault.process_request(pub_id.clone(), &msg).await)
         };
 
         // Send response back to a client

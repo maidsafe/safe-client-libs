@@ -31,7 +31,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
-use tokio::runtime::current_thread::{block_on_all, Handle};
+use tokio::runtime::*;
 use unwrap::unwrap;
 
 /// Barebones Client object used for testing purposes.

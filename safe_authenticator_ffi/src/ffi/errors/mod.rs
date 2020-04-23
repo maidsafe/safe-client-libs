@@ -15,7 +15,6 @@ use ffi_utils::{ErrorCode, StringError};
 use futures::channel::mpsc::SendError;
 use safe_authenticator::AuthError;
 use safe_core::ipc::IpcError;
-use safe_core::nfs::NfsError;
 use safe_core::CoreError;
 use safe_nd::Error as SndError;
 use std::ffi::NulError;
@@ -114,12 +113,6 @@ impl From<String> for Error {
     }
 }
 
-impl From<NfsError> for Error {
-    fn from(error: NfsError) -> Self {
-        Self(AuthError::NfsError(error))
-    }
-}
-
 impl From<Utf8Error> for Error {
     fn from(_err: Utf8Error) -> Self {
         Self(AuthError::EncodeDecodeError)
@@ -149,15 +142,6 @@ impl ErrorCode for Error {
                 IpcError::ShareMDataDenied => ERR_SHARE_MDATA_DENIED,
                 IpcError::InvalidOwner(..) => ERR_INVALID_OWNER,
                 IpcError::IncompatibleMockStatus => ERR_INCOMPATIBLE_MOCK_STATUS,
-            },
-            AuthError::NfsError(ref err) => match *err {
-                NfsError::CoreError(ref err) => core_error_code(err),
-                NfsError::FileExists => ERR_FILE_EXISTS,
-                NfsError::FileNotFound => ERR_FILE_NOT_FOUND,
-                NfsError::InvalidRange => ERR_INVALID_RANGE,
-                NfsError::EncodeDecodeError(_) => ERR_ENCODE_DECODE_ERROR,
-                NfsError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
-                NfsError::Unexpected(_) => ERR_UNEXPECTED,
             },
             AuthError::EncodeDecodeError => ERR_ENCODE_DECODE_ERROR,
             AuthError::IoError(_) => ERR_IO_ERROR,

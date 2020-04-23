@@ -11,6 +11,7 @@ repository = "https://github.com/maidsafe/safe_client_libs"
 version = "0.15.1"
 
 [dependencies]
+async-trait = "~0.1.30"
 bincode = "~1.1.4"
 env_logger = { version = "~0.6.2", optional = true }
 ffi_utils = "0.16.0"
