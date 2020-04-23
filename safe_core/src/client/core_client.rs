@@ -34,6 +34,7 @@ use tiny_keccak::sha3_256;
 use tokio::runtime::*;
 use unwrap::unwrap;
 
+use async_trait::async_trait;
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
     inner: Rc<RefCell<Inner<CoreClient, ()>>>,
@@ -155,6 +156,7 @@ impl CoreClient {
     }
 }
 
+// #[async_trait]
 impl Client for CoreClient {
     type Context = ();
 

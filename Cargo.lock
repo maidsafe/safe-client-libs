@@ -809,12 +809,6 @@ checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 
 [[package]]
 name = "futures"
-version = "0.1.29"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b980f2816d6ee8673b6517b52cb0e808a180efc92e5c19d02cdda79066703ef"
-
-[[package]]
-name = "futures"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c329ae8753502fb44ae4fc2b622fa2a94652c41e795143765ba0927f92ab780"
@@ -1519,7 +1513,7 @@ dependencies = [
  "derive_more",
  "directories 1.0.2",
  "err-derive",
- "futures 0.3.4",
+ "futures",
  "log 0.4.8",
  "quinn",
  "rcgen",
@@ -1546,7 +1540,7 @@ checksum = "cea81de5e0f97f552239ce4eff6fa8e8b0e3ec0ba5a8f1d84fb2096f4ba2ad41"
 dependencies = [
  "bytes 0.5.4",
  "err-derive",
- "futures 0.3.4",
+ "futures",
  "libc",
  "mio",
  "quinn-proto",
@@ -1980,7 +1974,7 @@ dependencies = [
  "clap",
  "env_logger 0.6.2",
  "ffi_utils",
- "futures 0.3.4",
+ "futures",
  "jni",
  "log 0.4.8",
  "lru-cache",
@@ -2007,7 +2001,7 @@ dependencies = [
  "bincode",
  "env_logger 0.6.2",
  "ffi_utils",
- "futures 0.3.4",
+ "futures",
  "jni",
  "log 0.4.8",
  "lru-cache",
@@ -2029,7 +2023,7 @@ dependencies = [
  "bincode",
  "env_logger 0.6.2",
  "ffi_utils",
- "futures 0.3.4",
+ "futures",
  "jni",
  "log 0.4.8",
  "lru-cache",
@@ -2077,7 +2071,8 @@ dependencies = [
  "env_logger 0.6.2",
  "ffi_utils",
  "fs2",
- "futures 0.3.4",
+ "futures",
+ "futures-util",
  "hmac",
  "lazy_static",
  "log 0.4.8",
@@ -2131,19 +2126,19 @@ dependencies = [
 [[package]]
 name = "self_encryption"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9fca883fe25a508bdbaf83a785de1de989cb34b91a649f5759fdae4fc85d1c1"
 dependencies = [
  "aes",
+ "async-trait",
  "bincode",
  "block-modes",
  "brotli",
- "futures 0.1.29",
+ "futures",
  "memmap",
  "rand 0.6.5",
  "rand_chacha 0.1.1",
  "serde",
  "tiny-keccak",
+ "tokio",
  "unwrap",
 ]
 
@@ -2469,7 +2464,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "ffi_utils",
- "futures 0.3.4",
+ "futures",
  "safe-nd",
  "safe_app",
  "safe_authenticator",

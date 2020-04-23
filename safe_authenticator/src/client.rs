@@ -11,6 +11,7 @@ use crate::errors::AuthError;
 use crate::test_utils::divide_seed;
 use crate::AuthFuture;
 use crate::AuthMsgTx;
+use async_trait::async_trait;
 use futures::future;
 use futures::Future;
 use log::trace;
@@ -29,7 +30,6 @@ use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataIn
 use safe_nd::{
     ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
 };
-use async_trait::async_trait;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;

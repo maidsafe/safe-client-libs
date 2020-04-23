@@ -8,3 +8,7 @@
 
 [workspace]
 members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_core", "tests"]
+
+[patch.crates-io]
+
+self_encryption = { path="../self_encryption" }

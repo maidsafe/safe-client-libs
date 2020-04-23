@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{Client, CoreError, FutureExt};
-use crate::{err, ok};
+// use crate::{err, ok};
 use futures::{self, Future};
 use log::trace;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData, XorName, XOR_NAME_LEN};
@@ -34,7 +34,7 @@ impl<C: Client> SelfEncryptionStorage<C> {
 }
 
 #[async_trait]
-impl<C: std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
+impl<C: std::marker::Send + std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
     async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -101,7 +101,7 @@ pub struct SEStorageError(pub Box<CoreError>);
 
 impl Display for SEStorageError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        Display::fmt(&*self.0, formatter)
+        Display::fmt(&self.0, formatter)
     }
 }
 
@@ -134,19 +134,20 @@ impl<C: Client> SelfEncryptionStorageDryRun<C> {
     }
 }
 
-impl<C: Client> Storage for SelfEncryptionStorageDryRun<C> {
+#[async_trait]
+impl<C: std::marker::Send + std::marker::Sync + Client> Storage for SelfEncryptionStorageDryRun<C> {
     type Error = SEStorageError;
 
 
 
-    fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
+    async fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData dry run.");
         Err(SEStorageError::from(CoreError::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned()
         )))
     }
 
-    fn put(
+    async fn put(
         &mut self,
         _: Vec<u8>,
         _data: Vec<u8>,

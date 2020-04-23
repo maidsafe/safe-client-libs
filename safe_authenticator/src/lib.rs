@@ -57,9 +57,9 @@ mod client;
 mod tests;
 
 use errors::AuthError as Error;
-use futures::stream::Stream;
 use futures::channel::mpsc;
-use futures::{Future, future::IntoFuture};
+use futures::stream::Stream;
+use futures::{future::IntoFuture, Future};
 use log::{debug, info};
 use safe_core::ok;
 #[cfg(any(test, feature = "testing"))]
@@ -76,7 +76,7 @@ use tokio::runtime::current_thread::{Handle, Runtime};
 use unwrap::unwrap;
 
 /// Future type specialised with `AuthError` as an error type.
-pub type AuthFuture<T> = dyn Future<Output=Result<T, AuthError>>;
+pub type AuthFuture<T> = dyn Future<Output = Result<T, AuthError>>;
 /// Transmitter of `AuthClient` messages.
 pub type AuthMsgTx = CoreMsgTx<AuthClient, ()>;
 
@@ -102,7 +102,9 @@ impl Authenticator {
     /// Send a message to the authenticator event loop.
     pub fn send<F>(&self, f: F) -> AuthResult<()>
     where
-        F: FnOnce(&AuthClient) -> Option<Box<dyn Future<Output=Result<Item, Error>>>> + Send + 'static,
+        F: FnOnce(&AuthClient) -> Option<Box<dyn Future<Output = Result<Item, Error>>>>
+            + Send
+            + 'static,
     {
         let msg = CoreMsg::new(|client, _| f(client));
         let core_tx = unwrap!(self.core_tx.lock());
@@ -300,7 +302,7 @@ impl Authenticator {
 pub fn run<F, I, T>(authenticator: &Authenticator, f: F) -> Result<T, AuthError>
 where
     F: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: IntoFuture<Output=Result<T, AuthError>> + 'static,
+    I: IntoFuture<Output = Result<T, AuthError>> + 'static,
     T: Send + 'static,
 {
     let (tx, rx) = std_mpsc::channel();

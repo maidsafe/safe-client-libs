@@ -179,7 +179,7 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                         Ok((app, app_state, app_id))
                     } else {
                         Err(AuthError::from(
-                            "Logical error - couldn't find a revoked app in config"
+                            "Logical error - couldn't find a revoked app in config",
                         ))
                     }
                 }
