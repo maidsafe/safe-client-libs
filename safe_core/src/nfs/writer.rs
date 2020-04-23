@@ -63,12 +63,12 @@ impl<C: std::marker::Sync + Client> Writer<C> {
             }
         })?;
 
-        let encryptor = SequentialEncryptor::new(storage, data_map);
+        let self_encryptor = SequentialEncryptor::new(storage, data_map);
 
         Ok(Self {
             client,
             file,
-            self_encryptor,
+            self_encryptor: self_encryptor.await,
             encryption_key,
         } )
 
