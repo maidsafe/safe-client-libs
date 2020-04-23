@@ -18,7 +18,7 @@ use async_trait::async_trait;
 
 /// Create a new directory based on the provided `MDataInfo`.
 pub async fn create_directory(
-    client: &impl Client,
+    client: &(impl Client + std::marker::Sync),
     dir: &MDataInfo,
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
@@ -29,7 +29,7 @@ pub async fn create_directory(
         SeqMutableData::new_with_data(dir.name(), dir.type_tag(), contents, perms, pub_key);
 
     trace!("Creating new directory: {:?}", dir);
-    client
+    client.clone()
         .put_seq_mutable_data(dir_md).await
         .or_else(move |err| {
             trace!("Error: {:?}", err);

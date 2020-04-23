@@ -37,7 +37,7 @@ pub struct Writer<C: Client> {
     encryption_key: Option<shared_secretbox::Key>,
 }
 
-impl<C: Client> Writer<C> {
+impl<C: std::marker::Sync + Client> Writer<C> {
     /// Create new instance of Writer.
     pub async fn new(
         client: &C,

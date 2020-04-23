@@ -34,7 +34,7 @@ impl<C: Client> SelfEncryptionStorage<C> {
 }
 
 #[async_trait]
-impl<C: Client> Storage for SelfEncryptionStorage<C> {
+impl<C: std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
     async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -58,8 +58,13 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
             IDataAddress::Unpub(name)
         };
 
-            self.client
-                .get_idata(address).await.value().clone()
+        match self.client
+                .get_idata(address).await {
+                    Ok(data) => Ok(data.value().clone()),
+                    Err(error) => Err(SEStorageError::from(error))
+                }
+                
+                
     }
 
     async fn put(
@@ -73,8 +78,11 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
         } else {
             UnpubImmutableData::new(data, self.client.public_key()).into()
         };
-        self.client
-                .put_idata(immutable_data).await
+        match self.client
+                .put_idata(immutable_data).await {
+                    Ok(r) => Ok(r),
+                    Err(error) => Err(SEStorageError::from(error))
+                }
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {

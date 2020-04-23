@@ -126,7 +126,7 @@ async fn send_as_helper(
     let mut cm2 = cm.clone();
 
     // Box::new(
-        let _bootraspped = cm.bootstrap(identity).await;
+        let _bootstrapped = cm.bootstrap(identity).await;
         cm2.send(&pub_id, &message ).await
             // .and_then(move |_| 
             //     ))
