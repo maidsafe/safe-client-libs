@@ -18,13 +18,14 @@ use async_trait::async_trait;
 
 /// Network storage is the concrete type which self-encryption crate will use
 /// to put or get data from the network.
-#[async_trait]
+// #[async_trait]
 #[derive(Clone)]
 pub struct SelfEncryptionStorage<C: Client> {
     client: C,
     published: bool,
 }
 
+// #[async_trait]
 impl<C: Client> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {

@@ -23,7 +23,8 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
-use tokio::runtime::current_thread::Handle;
+use tokio::runtime::*;
+use async_trait::async_trait;
 
 /// Client object used by `safe_app`.
 pub struct AppClient {
@@ -154,6 +155,7 @@ impl AppClient {
     }
 }
 
+#[async_trait]
 impl Client for AppClient {
     type Context = AppContext;
 

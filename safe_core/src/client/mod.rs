@@ -57,7 +57,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
 use threshold_crypto;
-use tokio::runtime::current_thread::{block_on_all, Handle};
+use tokio::runtime::*;
 use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
@@ -310,40 +310,38 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put immutable data to the network.
-    fn put_idata(&self, data: impl Into<IData>) -> Box<CoreFuture<()>> {
+    async fn put_idata(&self, data: impl Into<IData>) -> Result<(), CoreError> {
         let idata: IData = data.into();
         trace!("Put IData at {:?}", idata.name());
-        send_mutation(self, Request::PutIData(idata))
+        send_mutation(self, Request::PutIData(idata)).await
     }
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
-    fn get_idata(&self, address: IDataAddress) -> Box<CoreFuture<IData>> {
+    async fn get_idata(&self, address: IDataAddress) -> Result<IData, CoreError> {
         trace!("Fetch Immutable Data");
 
         let inner = self.inner();
         if let Some(data) = inner.borrow_mut().cache.get_mut(&address) {
             trace!("ImmutableData found in cache.");
-            return future::ok(data.clone()).into_box();
+            return data.clone();
         }
 
         let inner = Rc::downgrade(&self.inner());
-        send(self, Request::GetIData(address))
-            .and_then(|res| match res {
+        let res = send(self, Request::GetIData(address)).await;
+        let data = match res {
                 Response::GetIData(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            })
-            .map(move |data| {
-                if let Some(inner) = inner.upgrade() {
-                    // Put to cache
-                    let _ = inner
-                        .borrow_mut()
-                        .cache
-                        .insert(*data.address(), data.clone());
-                }
-                data
-            })
-            .into_box()
+                _ => return Err(CoreError::ReceivedUnexpectedEvent),
+            };
+
+        if let Some(inner) = inner.upgrade() {
+            // Put to cache
+            let _ = inner
+                .borrow_mut()
+                .cache
+                .insert(*data.address(), data.clone());
+        };
+        data
     }
 
     /// Delete unpublished immutable data from the network.

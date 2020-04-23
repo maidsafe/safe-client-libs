@@ -14,10 +14,11 @@ use futures::Future;
 use log::trace;
 use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqEntries, PublicKey, SeqMutableData};
 use std::collections::BTreeMap;
+use async_trait::async_trait;
 
 /// Create a new directory based on the provided `MDataInfo`.
 pub async fn create_directory(
-    client: &impl Client + std::marker::Sync,
+    client: &impl Client,
     dir: &MDataInfo,
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
