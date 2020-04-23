@@ -9,7 +9,7 @@
 use crate::client::Client;
 use crate::crypto::shared_secretbox;
 use crate::err;
-use crate::nfs::{data_map, File, NfsError, NfsFuture};
+use crate::nfs::{data_map, File, NfsError};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use futures::Future;
@@ -31,7 +31,7 @@ impl<C: Client> Reader<C> {
         storage: SelfEncryptionStorage<C>,
         file: &File,
         encryption_key: Option<shared_secretbox::Key>,
-    ) -> Box<NfsFuture<Self>> {
+    ) -> Box<Result<Self, NfsError>> {
         data_map::get(&client, file.data_address(), encryption_key)
             .and_then(move |data_map| {
                 let self_encryptor = SelfEncryptor::new(storage, data_map)?;
@@ -50,7 +50,7 @@ impl<C: Client> Reader<C> {
     }
 
     /// Read data from file/blob.
-    pub fn read(&self, position: u64, length: u64) -> Box<NfsFuture<Vec<u8>>> {
+    pub fn read(&self, position: u64, length: u64) -> Box<Result<Vec<u8>, NfsError>> {
         trace!(
             "Reader reading from pos: {} and size: {}.",
             position,

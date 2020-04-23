@@ -9,7 +9,7 @@
 use crate::client::{Client, MDataInfo};
 use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
-use crate::nfs::{File, Mode, NfsError, NfsFuture, Reader, Writer};
+use crate::nfs::{File, Mode, NfsError, Reader, Writer};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 use crate::utils::FutureExt;
 use crate::{fry, ok};
@@ -29,7 +29,7 @@ pub enum Version {
 }
 
 /// Insert the file into the directory.
-pub fn insert<S>(client: impl Client, parent: MDataInfo, name: S, file: &File) -> Box<NfsFuture<()>>
+pub fn insert<S>(client: impl Client, parent: MDataInfo, name: S, file: &File) -> Box<Result<(), NfsError>>
 where
     S: AsRef<str>,
 {
@@ -57,7 +57,7 @@ where
 }
 
 /// Get a file and its version from the directory.
-pub fn fetch<S>(client: impl Client, parent: MDataInfo, name: S) -> Box<NfsFuture<(u64, File)>>
+pub fn fetch<S>(client: impl Client, parent: MDataInfo, name: S) -> Box<Result<u64, File>>
 where
     S: AsRef<str>,
 {
@@ -83,7 +83,7 @@ pub fn read<C: Client>(
     client: C,
     file: &File,
     encryption_key: Option<shared_secretbox::Key>,
-) -> Box<NfsFuture<Reader<C>>> {
+) -> Box<Result<Reader<C>, NfsError>> {
     trace!("Reading file {:?}", file);
     Reader::new(
         client.clone(),
@@ -105,7 +105,7 @@ pub fn delete<S>(
     name: S,
     published: bool,
     version: Version,
-) -> Box<NfsFuture<u64>>
+) -> Box<Result<u64, NfsError>>
 where
     S: AsRef<str>,
 {
@@ -165,7 +165,7 @@ pub fn update<S>(
     name: S,
     file: &File,
     version: Version,
-) -> Box<NfsFuture<u64>>
+) -> Box<Result<u64, NfsError>>
 where
     S: AsRef<str>,
 {
@@ -212,7 +212,7 @@ pub fn write<C: Client>(
     file: File,
     mode: Mode,
     encryption_key: Option<shared_secretbox::Key>,
-) -> Box<NfsFuture<Writer<C>>> {
+) -> Box<Result<Writer<C>, NfsError>> {
     trace!("Creating a writer for a file");
 
     Writer::new(

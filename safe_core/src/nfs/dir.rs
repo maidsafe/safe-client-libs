@@ -8,7 +8,7 @@
 
 use crate::client::{Client, MDataInfo};
 use crate::errors::CoreError;
-use crate::nfs::{NfsError, NfsFuture};
+use crate::nfs::{NfsError};
 use crate::utils::FutureExt;
 use futures::Future;
 use log::trace;
@@ -21,7 +21,7 @@ pub fn create_directory(
     dir: &MDataInfo,
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
-) -> Box<NfsFuture<()>> {
+) -> Box<Result<(), NfsError>> {
     let pub_key = client.owner_key();
 
     let dir_md =
