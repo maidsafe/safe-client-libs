@@ -37,13 +37,13 @@ impl<C: Client> SelfEncryptionStorage<C> {
 impl<C: Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
-    async fn get(&self, name: &[u8]) -> Box<dyn Future<Output=Result<Vec<u8>, Self::Error>>> {
+    async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData.");
 
         if name.len() != XOR_NAME_LEN {
             let err = CoreError::Unexpected("Requested `name` is incorrect size.".to_owned());
             let err = SEStorageError::from(err);
-            return Box::new(futures::failed(err));
+            return Err(err);
         }
 
         let name = {
@@ -58,25 +58,15 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
             IDataAddress::Unpub(name)
         };
 
-        Box::new( async {
             self.client
-                .get_idata(address).value().clone()
-                {
-                    Ok(data ) =>  Ok( data.value().clone()),
-                    Err( e ) =>  From::from(e)
-                }
-
-        } )
-            // .map(|data| data.value().clone())
-            // .map_err(From::from)
-            // .into_box()
+                .get_idata(address).await.value().clone()
     }
 
     async fn put(
         &mut self,
         _: Vec<u8>,
         data: Vec<u8>,
-    ) -> Future<Output=Result<(), Self::Error>> {
+    ) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutIData.");
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data).into()
