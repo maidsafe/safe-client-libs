@@ -15,7 +15,7 @@ pub mod core_client;
 pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
-
+use async_trait::async_trait;
 mod id;
 #[cfg(feature = "mock-network")]
 mod mock;
@@ -107,11 +107,11 @@ macro_rules! send_as {
     };
 }
 
-fn send_as_helper(
+async fn send_as_helper(
     client: &impl Client,
     request: Request,
     client_id: Option<&ClientFullId>,
-) -> Box<CoreFuture<Response>> {
+) -> CoreFuture<Response> {
     let (message, identity) = match client_id {
         Some(id) => (sign_request(request, id), SafeKey::client(id.clone())),
         None => (client.compose_message(request, true), client.full_id()),
@@ -124,16 +124,17 @@ fn send_as_helper(
     let cm = &mut inner.borrow_mut().connection_manager;
     let mut cm2 = cm.clone();
 
-    Box::new(
-        cm.bootstrap(identity)
-            .and_then(move |_| cm2.send(&pub_id, &message)),
-    )
+    // Box::new(
+        cm.bootstrap(identity).await
+            .and_then(move |_| cm2.send(&pub_id, &message))
+    // )
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
 /// interface all requests from high-level APIs to the actual routing layer and manage all
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
+#[async_trait]
 pub trait Client: Clone + 'static {
     /// Associated message type.
     type Context;
@@ -360,7 +361,8 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put sequenced mutable data to the network
-    fn put_seq_mutable_data(&self, data: SeqMutableData) -> Box<CoreFuture<()>> {
+    #[async_trait]
+    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Future<Output=Result<(), CoreError>> {
         trace!("Put Sequenced MData at {:?}", data.name());
         send_mutation(self, Request::PutMData(MData::Seq(data)))
     }

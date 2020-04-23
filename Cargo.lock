@@ -1975,6 +1975,7 @@ dependencies = [
 name = "safe_app"
 version = "0.15.1"
 dependencies = [
+ "async-trait",
  "bincode",
  "clap",
  "env_logger 0.6.2",
@@ -2002,6 +2003,7 @@ dependencies = [
 name = "safe_authenticator"
 version = "0.15.0"
 dependencies = [
+ "async-trait",
  "bincode",
  "env_logger 0.6.2",
  "ffi_utils",
@@ -2023,6 +2025,7 @@ dependencies = [
 name = "safe_authenticator_ffi"
 version = "0.15.0"
 dependencies = [
+ "async-trait",
  "bincode",
  "env_logger 0.6.2",
  "ffi_utils",
@@ -2464,6 +2467,7 @@ dependencies = [
 name = "tests"
 version = "0.2.0"
 dependencies = [
+ "async-trait",
  "ffi_utils",
  "futures 0.3.4",
  "safe-nd",

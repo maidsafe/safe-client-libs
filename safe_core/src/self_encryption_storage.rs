@@ -73,7 +73,7 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
         } else {
             UnpubImmutableData::new(data, self.client.public_key()).into()
         };
-        match self.client
+        self.client
                 .put_idata(immutable_data).await
     }
 

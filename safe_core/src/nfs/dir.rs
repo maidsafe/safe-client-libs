@@ -16,12 +16,12 @@ use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqEntries, PublicKey,
 use std::collections::BTreeMap;
 
 /// Create a new directory based on the provided `MDataInfo`.
-pub fn create_directory(
+pub async fn create_directory(
     client: &impl Client,
     dir: &MDataInfo,
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
-) -> Box<Result<(), NfsError>> {
+) -> Future<Output=Result<(), NfsError>> {
     let pub_key = client.owner_key();
 
     let dir_md =
@@ -29,15 +29,13 @@ pub fn create_directory(
 
     trace!("Creating new directory: {:?}", dir);
     client
-        .put_seq_mutable_data(dir_md)
+        .put_seq_mutable_data(dir_md).await
         .or_else(move |err| {
             trace!("Error: {:?}", err);
             match err {
                 // This dir has been already created
                 CoreError::DataError(SndError::DataExists) => Ok(()),
-                e => Err(e),
+                e => Err(NfsError::from(e)),
             }
         })
-        .map_err(NfsError::from)
-        .into_box()
 }
