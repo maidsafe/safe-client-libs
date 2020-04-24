@@ -13,7 +13,9 @@ use crate::self_encryption_storage::{
     SEStorageError, SelfEncryptionStorage, SelfEncryptionStorageDryRun,
 };
 use crate::utils::{self, FutureExt};
-use crate::{fry, ok};
+// use crate::{fry, ok};
+use crate::{CoreError};
+
 use bincode::{deserialize, serialize};
 use futures::Future;
 use log::trace;
@@ -178,7 +180,7 @@ where
     }
 }
 
-fn unpack<S>(se_storage: S, client: impl Client, data: &IData) -> Box<CoreFuture<Vec<u8>>>
+async fn unpack<S>(se_storage: S, client: impl Client, data: &IData) -> Result<Vec<u8>, CoreError>
 where
     S: Storage<Error = SEStorageError> + Clone + 'static,
 {
@@ -187,14 +189,15 @@ where
         DataTypeEncoding::DataMap(data_map) => {
             let self_encryptor = r#try!(SelfEncryptor::new(se_storage.clone(), data_map));
             let length = self_encryptor.len();
-            self_encryptor
-                .read(0, length)
-                .map_err(From::from)
-                .and_then(move |serialised_data| {
-                    let data = r#try!(deserialize(&serialised_data));
-                    *unpack(se_storage, client, &data)
-                })
-                .into_box()
+            let serialised_data = *self_encryptor
+                    .read(0, length).await;
+
+                // .map_err(From::from)
+                // .and_then(move |&serialised_data| {
+                    let data = *deserialize(&serialised_data).await;
+                    unpack(se_storage, client, &data).await
+                // })
+                // .into_box()
         }
     }
 }
