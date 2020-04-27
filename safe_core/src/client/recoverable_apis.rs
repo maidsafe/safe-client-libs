@@ -30,26 +30,19 @@ const MAX_ATTEMPTS: usize = 10;
 /// If the data already exists, it tries to mutate it so its entries and permissions
 /// are the same as those of the data being put, except it wont delete existing
 /// entries or remove existing permissions.
-pub async fn put_mdata(client: &impl Client, data: SeqMutableData) -> Result<(), CoreError>  {
+pub async fn put_mdata(client: &impl Client + std::marker::Sync, data: SeqMutableData) -> Result<(), CoreError>  {
     let client2 = client.clone();
 
-    // match client
-    // .put_seq_mutable_data(data.clone()).await {
-    //     Ok(response) => response
-    //     Err(e) => {
-    //         match e {
-    //             CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
-    //             error => Either::B(future::err(error))
-    //         }
-    //     }
-    // }
-    client
-        .put_seq_mutable_data(data.clone())
-        .or_else(move |error| match error {
-            CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
-            error => Either::B(future::err(error)),
-        })
-        .into_box()
+    match client
+        .put_seq_mutable_data(data.clone()).await {
+        Ok(response) => response
+        Err(e) => {
+            match e {
+                CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
+                error => Either::B(future::err(error))
+            }
+        }
+    }
 }
 
 /// Mutates mutable data entries and tries to recover from errors.
@@ -164,25 +157,22 @@ async fn update_mdata(client: &impl Client, data: SeqMutableData) -> Result<(), 
     let client3 = client.clone();
 
     let address = *data.address();
-    let f0 = client.list_seq_mdata_entries(*data.name(), data.tag());
-    let f1 = client.list_mdata_permissions(address);
-    let f2 = client.get_mdata_version(address);
+    let entries = client.list_seq_mdata_entries(*data.name(), data.tag()).await;
+    let permissions = client.list_mdata_permissions(address).await;
+    let version = client.get_mdata_version(address).await;
 
-    f0.join3(f1, f2)
-        .and_then(move |(entries, permissions, version)| {
+    let next_version = version +1;
+
             update_mdata_permissions(
                 &client2,
                 address,
                 &permissions,
                 data.permissions(),
-                version + 1,
-            )
-            .map(move |_| (data, entries))
-        })
-        .and_then(move |(data, entries)| {
-            update_mdata_entries(&client3, address, &entries, data.entries().clone())
-        })
-        .into_box()
+                next_version,
+            ).await;
+
+            update_mdata_entries(&client3, address, &entries, data.entries().clone()).await
+
 }
 
 // Update the mutable data on the network so it has all the `desired_entries`.
@@ -207,7 +197,7 @@ async fn update_mdata_entries(
         })
         .collect::<BTreeMap<_, _>>();
 
-    mutate_mdata_entries(client, address, actions.into())
+    mutate_mdata_entries(client, address, actions.into()).await
 }
 
 async fn update_mdata_permissions(
@@ -232,18 +222,26 @@ async fn update_mdata_permissions(
         .collect();
 
     let state = (client.clone(), permissions, version);
+    
+    
+    let success = false;
+    let version_to_try = version;
 
-
-    future::loop_fn(state, move |(client, mut permissions, version)| {
+    while !success {
         if let Some((user, set)) = permissions.pop() {
-            let f = set_mdata_user_permissions(&client, address, user, set, version)
-                .map(move |_| Loop::Continue((client, permissions, version + 1)));
-            Either::A(f)
-        } else {
-            Either::B(future::ok(Loop::Break(())))
+            match set_mdata_user_permissions(&client.clone(), address, user, set, version_to_try).await {
+                Ok(()) => {
+                    success = true;
+                },
+                Err(error) => {
+                    version_to_try += 1;
+                }
+            }
+
         }
-    })
-    .into_box()
+    };
+
+    Ok(())
 }
 
 // Modify the given entry actions to fix the entry errors.
