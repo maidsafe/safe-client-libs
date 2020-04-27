@@ -35,7 +35,7 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event_loop::{CoreFuture, CoreMsgTx};
+use crate::event_loop::{Result, CoreMsg, CoreError};
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::FutureExt;
@@ -112,7 +112,7 @@ async fn send_as_helper(
     client: &impl Client,
     request: Request,
     client_id: Option<&ClientFullId>,
-) -> CoreFuture<Response> {
+) -> Result<Response, CoreError> {
     let (message, identity) = match client_id {
         Some(id) => (sign_request(request, id), SafeKey::client(id.clone())),
         None => (client.compose_message(request, true), client.full_id()),
@@ -221,19 +221,19 @@ pub trait Client: Clone + 'static {
     }
 
     /// Put unsequenced mutable data to the network
-    fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Box<CoreFuture<()>> {
+    async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError> {
         trace!("Put Unsequenced MData at {:?}", data.name());
         send_mutation(self, Request::PutMData(MData::Unseq(data)))
     }
 
     /// Transfer coin balance
-    fn transfer_coins(
+    async fn transfer_coins(
         &self,
         client_id: Option<&ClientFullId>,
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<Transaction>> {
+    ) -> Result<Transaction, CoreError> {
         trace!("Transfer {} coins to {:?}", amount, destination);
         send_as!(
             self,
@@ -254,7 +254,7 @@ pub trait Client: Clone + 'static {
         new_balance_owner: PublicKey,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<Transaction>> {
+    ) -> Result<Transaction, CoreError> {
         trace!(
             "Create a new balance for {:?} with {} coins.",
             new_balance_owner,
@@ -281,7 +281,7 @@ pub trait Client: Clone + 'static {
         amount: Coins,
         transaction_id: Option<u64>,
         new_login_packet: LoginPacket,
-    ) -> Box<CoreFuture<Transaction>> {
+    ) -> Result<Transaction, CoreError> {
         trace!(
             "Insert a login packet for {:?} preloading the wallet with {} coins.",
             new_owner,
@@ -303,7 +303,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get the current coin balance.
-    fn get_balance(&self, client_id: Option<&ClientFullId>) -> Box<CoreFuture<Coins>> {
+    fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> {
         trace!("Get balance for {:?}", client_id);
 
         send_as!(self, Request::GetBalance, Response::GetBalance, client_id)
@@ -345,7 +345,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Delete unpublished immutable data from the network.
-    fn del_unpub_idata(&self, name: XorName) -> Box<CoreFuture<()>> {
+    fn del_unpub_idata(&self, name: XorName) -> Result<(), CoreError> {
         let inner = self.inner();
         if inner
             .borrow_mut()
@@ -368,7 +368,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetch unpublished mutable data from the network
-    fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
+    fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> {
         trace!("Fetch Unsequenced Mutable Data");
 
         send(self, Request::GetMData(MDataAddress::Unseq { name, tag }))
@@ -390,7 +390,7 @@ pub trait Client: Clone + 'static {
         name: XorName,
         tag: u64,
         key: Vec<u8>,
-    ) -> Box<CoreFuture<MDataSeqValue>> {
+    ) -> Result<MDataSeqValue, CoreError> {
         trace!("Fetch MDataValue for {:?}", name);
 
         send(
@@ -418,7 +418,7 @@ pub trait Client: Clone + 'static {
         name: XorName,
         tag: u64,
         key: Vec<u8>,
-    ) -> Box<CoreFuture<Vec<u8>>> {
+    ) -> Result<Vec<u8>, CoreError> {
         trace!("Fetch MDataValue for {:?}", name);
 
         send(
@@ -441,7 +441,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetch sequenced mutable data from the network
-    fn get_seq_mdata(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
+    fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> {
         trace!("Fetch Sequenced Mutable Data");
 
         send(self, Request::GetMData(MDataAddress::Seq { name, tag }))
@@ -463,7 +463,7 @@ pub trait Client: Clone + 'static {
         name: XorName,
         tag: u64,
         actions: MDataSeqEntryActions,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation(
@@ -481,7 +481,7 @@ pub trait Client: Clone + 'static {
         name: XorName,
         tag: u64,
         actions: MDataUnseqEntryActions,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation(
@@ -494,7 +494,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
-    fn get_seq_mdata_shell(&self, name: XorName, tag: u64) -> Box<CoreFuture<SeqMutableData>> {
+    fn get_seq_mdata_shell(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> {
         trace!("GetMDataShell for {:?}", name);
 
         send(
@@ -514,7 +514,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
-    fn get_unseq_mdata_shell(&self, name: XorName, tag: u64) -> Box<CoreFuture<UnseqMutableData>> {
+    fn get_unseq_mdata_shell(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> {
         trace!("GetMDataShell for {:?}", name);
 
         send(
@@ -534,7 +534,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get a current version of `MutableData` from the network.
-    fn get_mdata_version(&self, address: MDataAddress) -> Box<CoreFuture<u64>> {
+    fn get_mdata_version(&self, address: MDataAddress) -> Result<u64, CoreError> {
         trace!("GetMDataVersion for {:?}", address);
 
         send(self, Request::GetMDataVersion(address))
@@ -550,7 +550,7 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Box<CoreFuture<BTreeMap<Vec<u8>, Vec<u8>>>> {
+    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, CoreError> {
         trace!("ListMDataEntries for {:?}", name);
 
         send(
@@ -571,7 +571,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Return a complete list of entries in `MutableData`.
-    fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Box<CoreFuture<MDataSeqEntries>> {
+    fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Result<MDataSeqEntries, CoreError> {
         trace!("ListSeqMDataEntries for {:?}", name);
 
         send(
@@ -592,7 +592,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Return a list of keys in `MutableData` stored on the network.
-    fn list_mdata_keys(&self, address: MDataAddress) -> Box<CoreFuture<BTreeSet<Vec<u8>>>> {
+    fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError> {
         trace!("ListMDataKeys for {:?}", address);
 
         send(self, Request::ListMDataKeys(address))
@@ -608,7 +608,7 @@ pub trait Client: Clone + 'static {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Box<CoreFuture<Vec<MDataSeqValue>>> {
+    ) -> Result<Vec<MDataSeqValue>, CoreError> {
         trace!("List MDataValues for {:?}", name);
 
         send(
@@ -633,7 +633,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: MDataAddress,
         user: PublicKey,
-    ) -> Box<CoreFuture<MDataPermissionSet>> {
+    ) -> Result<MDataPermissionSet, CoreError> {
         trace!("GetMDataUserPermissions for {:?}", address);
 
         send(self, Request::ListMDataUserPermissions { address, user })
@@ -645,7 +645,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Returns a list of values in an Unsequenced Mutable Data
-    fn list_unseq_mdata_values(&self, name: XorName, tag: u64) -> Box<CoreFuture<Vec<Vec<u8>>>> {
+    fn list_unseq_mdata_values(&self, name: XorName, tag: u64) -> Result<Vec<Vec<u8>>, CoreError> {
         trace!("List MDataValues for {:?}", name);
 
         send(
@@ -667,13 +667,13 @@ pub trait Client: Clone + 'static {
     // ======= Append Only Data =======
     //
     /// Put AppendOnly Data into the Network
-    fn put_adata(&self, data: AData) -> Box<CoreFuture<()>> {
+    fn put_adata(&self, data: AData) -> Result<(), CoreError> {
         trace!("Put AppendOnly Data {:?}", data.name());
         send_mutation(self, Request::PutAData(data))
     }
 
     /// Get AppendOnly Data from the Network
-    fn get_adata(&self, address: ADataAddress) -> Box<CoreFuture<AData>> {
+    fn get_adata(&self, address: ADataAddress) -> Result<AData, CoreError> {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
         send(self, Request::GetAData(address))
@@ -689,7 +689,7 @@ pub trait Client: Clone + 'static {
         &self,
         data_index: ADataIndex,
         address: ADataAddress,
-    ) -> Box<CoreFuture<AData>> {
+    ) -> Result<AData, CoreError> {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
         send(
@@ -707,7 +707,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetch Value for the provided key from AppendOnly Data at {:?}
-    fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Box<CoreFuture<Vec<u8>>> {
+    fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Result<Vec<u8>, CoreError> {
         trace!(
             "Fetch Value for the provided key from AppendOnly Data at {:?}",
             address.name()
@@ -726,7 +726,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         range: (ADataIndex, ADataIndex),
-    ) -> Box<CoreFuture<ADataEntries>> {
+    ) -> Result<ADataEntries, CoreError> {
         trace!(
             "Get Range of entries from AppendOnly Data at {:?}",
             address.name()
@@ -741,7 +741,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get latest indices from an AppendOnly Data.
-    fn get_adata_indices(&self, address: ADataAddress) -> Box<CoreFuture<ADataIndices>> {
+    fn get_adata_indices(&self, address: ADataAddress) -> Result<ADataIndices, CoreError> {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -756,7 +756,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get the last data entry from an AppendOnly Data.
-    fn get_adata_last_entry(&self, address: ADataAddress) -> Box<CoreFuture<ADataEntry>> {
+    fn get_adata_last_entry(&self, address: ADataAddress) -> Result<ADataEntry, CoreError> {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -775,7 +775,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions_index: ADataIndex,
-    ) -> Box<CoreFuture<ADataUnpubPermissions>> {
+    ) -> Result<ADataUnpubPermissions, CoreError> {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -806,7 +806,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         permissions_index: ADataIndex,
-    ) -> Box<CoreFuture<ADataPubPermissions>> {
+    ) -> Result<ADataPubPermissions, CoreError> {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -838,7 +838,7 @@ pub trait Client: Clone + 'static {
         address: ADataAddress,
         permissions_index: ADataIndex,
         user: ADataUser,
-    ) -> Box<CoreFuture<ADataPubPermissionSet>> {
+    ) -> Result<ADataPubPermissionSet, CoreError> {
         trace!(
             "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
             address.name()
@@ -865,7 +865,7 @@ pub trait Client: Clone + 'static {
         address: ADataAddress,
         permissions_index: ADataIndex,
         public_key: PublicKey,
-    ) -> Box<CoreFuture<ADataUnpubPermissionSet>> {
+    ) -> Result<ADataUnpubPermissionSet, CoreError> {
         trace!(
             "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
             address.name()
@@ -892,7 +892,7 @@ pub trait Client: Clone + 'static {
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
         permissions_index: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!(
             "Add Permissions to UnPub AppendOnly Data {:?}",
             address.name()
@@ -914,7 +914,7 @@ pub trait Client: Clone + 'static {
         address: ADataAddress,
         permissions: ADataPubPermissions,
         permissions_index: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("Add Permissions to AppendOnly Data {:?}", address.name());
 
         send_mutation(
@@ -933,7 +933,7 @@ pub trait Client: Clone + 'static {
         address: ADataAddress,
         owner: ADataOwner,
         owners_index: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("Set Owners to AppendOnly Data {:?}", address.name());
 
         send_mutation(
@@ -951,7 +951,7 @@ pub trait Client: Clone + 'static {
         &self,
         address: ADataAddress,
         owners_index: ADataIndex,
-    ) -> Box<CoreFuture<ADataOwner>> {
+    ) -> Result<ADataOwner, CoreError> {
         trace!("Get Owners from AppendOnly Data at {:?}", address.name());
 
         send(
@@ -969,12 +969,12 @@ pub trait Client: Clone + 'static {
     }
 
     /// Append to Published Seq AppendOnly Data
-    fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Box<CoreFuture<()>> {
+    fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> {
         send_mutation(self, Request::AppendSeq { append, index })
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
-    fn append_unseq_adata(&self, append: ADataAppendOperation) -> Box<CoreFuture<()>> {
+    fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> {
         send_mutation(self, Request::AppendUnseq(append))
     }
 
@@ -982,7 +982,7 @@ pub trait Client: Clone + 'static {
     fn list_mdata_permissions(
         &self,
         address: MDataAddress,
-    ) -> Box<CoreFuture<BTreeMap<PublicKey, MDataPermissionSet>>> {
+    ) -> Result<BTreeMap<PublicKey, MDataPermissionSet>, CoreError> {
         trace!("List MDataPermissions for {:?}", address);
 
         send(self, Request::ListMDataPermissions(address))
@@ -1000,7 +1000,7 @@ pub trait Client: Clone + 'static {
         user: PublicKey,
         permissions: MDataPermissionSet,
         version: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("SetMDataUserPermissions for {:?}", address);
 
         send_mutation(
@@ -1020,7 +1020,7 @@ pub trait Client: Clone + 'static {
         address: MDataAddress,
         user: PublicKey,
         version: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("DelMDataUserPermissions for {:?}", address);
 
         send_mutation(
@@ -1041,7 +1041,7 @@ pub trait Client: Clone + 'static {
         tag: u64,
         new_owner: PublicKey,
         version: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         unimplemented!();
     }
 
@@ -1087,7 +1087,7 @@ pub trait Client: Clone + 'static {
         &self,
         client_id: Option<&ClientFullId>,
         amount: Coins,
-    ) -> Box<CoreFuture<Transaction>> {
+    ) -> Result<Transaction, CoreError> {
         let new_balance_owner = client_id.map_or_else(
             || self.public_key(),
             |client_id| *client_id.public_id().public_key(),
@@ -1236,7 +1236,7 @@ pub trait AuthActions: Client + Clone + 'static {
     /// Fetches a list of authorised keys and version.
     fn list_auth_keys_and_version(
         &self,
-    ) -> Box<CoreFuture<(BTreeMap<PublicKey, AppPermissions>, u64)>> {
+    ) -> Result<(BTreeMap<PublicKey, AppPermissions>, u64), CoreError> {
         trace!("ListAuthKeysAndVersion");
 
         send(self, Request::ListAuthKeysAndVersion)
@@ -1253,7 +1253,7 @@ pub trait AuthActions: Client + Clone + 'static {
         key: PublicKey,
         permissions: AppPermissions,
         version: u64,
-    ) -> Box<CoreFuture<()>> {
+    ) -> Result<(), CoreError> {
         trace!("InsAuthKey ({:?})", key);
 
         send_mutation(
@@ -1267,21 +1267,21 @@ pub trait AuthActions: Client + Clone + 'static {
     }
 
     /// Removes an authorised key.
-    fn del_auth_key(&self, key: PublicKey, version: u64) -> Box<CoreFuture<()>> {
+    fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError> {
         trace!("DelAuthKey ({:?})", key);
 
         send_mutation(self, Request::DelAuthKey { key, version })
     }
 
     /// Delete MData from network
-    fn delete_mdata(&self, address: MDataAddress) -> Box<CoreFuture<()>> {
+    fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError> {
         trace!("Delete entire Mutable Data at {:?}", address);
 
         send_mutation(self, Request::DeleteMData(address))
     }
 
     /// Delete AData from network.
-    fn delete_adata(&self, address: ADataAddress) -> Box<CoreFuture<()>> {
+    fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError> {
         trace!("Delete entire Unpublished AppendOnly Data at {:?}", address);
 
         send_mutation(self, Request::DeleteAData(address))

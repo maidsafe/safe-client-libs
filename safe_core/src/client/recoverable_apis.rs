@@ -30,7 +30,7 @@ const MAX_ATTEMPTS: usize = 10;
 /// If the data already exists, it tries to mutate it so its entries and permissions
 /// are the same as those of the data being put, except it wont delete existing
 /// entries or remove existing permissions.
-pub fn put_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()>> {
+pub async fn put_mdata(client: &impl Client, data: SeqMutableData) -> Result<(), CoreError>  {
     let client2 = client.clone();
 
     // match client
@@ -53,17 +53,17 @@ pub fn put_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<(
 }
 
 /// Mutates mutable data entries and tries to recover from errors.
-pub fn mutate_mdata_entries(
+pub async fn mutate_mdata_entries(
     client: &impl Client,
     address: MDataAddress,
     actions: MDataSeqEntryActions,
-) -> Box<CoreFuture<()>> {
+) -> Result<(), CoreError>  {
     let state = (0, actions);
     let client = client.clone();
 
     future::loop_fn(state, move |(attempts, actions)| {
         client
-            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone())
+            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone()).await
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
                 CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
@@ -88,19 +88,19 @@ pub fn mutate_mdata_entries(
 }
 
 /// Sets user permission on the mutable data and tries to recover from errors.
-pub fn set_mdata_user_permissions(
+pub async fn set_mdata_user_permissions(
     client: &impl Client,
     address: MDataAddress,
     user: PublicKey,
     permissions: MDataPermissionSet,
     version: u64,
-) -> Box<CoreFuture<()>> {
+) -> Result<(), CoreError> {
     let state = (0, version);
     let client = client.clone();
 
     future::loop_fn(state, move |(attempts, version)| {
         client
-            .set_mdata_user_permissions(address, user, permissions.clone(), version)
+            .set_mdata_user_permissions(address, user, permissions.clone(), version).await
             .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
                 CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
@@ -124,12 +124,12 @@ pub fn set_mdata_user_permissions(
 }
 
 /// Deletes user permission on the mutable data and tries to recover from errors.
-pub fn del_mdata_user_permissions(
+pub async fn del_mdata_user_permissions(
     client: &impl Client,
     address: MDataAddress,
     user: PublicKey,
     version: u64,
-) -> Box<CoreFuture<()>> {
+) -> Result<(), CoreError> {
     let state = (0, version);
     let client = client.clone();
 
@@ -159,7 +159,7 @@ pub fn del_mdata_user_permissions(
     .into_box()
 }
 
-fn update_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()>> {
+async fn update_mdata(client: &impl Client, data: SeqMutableData) -> Result<(), CoreError> {
     let client2 = client.clone();
     let client3 = client.clone();
 
@@ -186,12 +186,12 @@ fn update_mdata(client: &impl Client, data: SeqMutableData) -> Box<CoreFuture<()
 }
 
 // Update the mutable data on the network so it has all the `desired_entries`.
-fn update_mdata_entries(
+async fn update_mdata_entries(
     client: &impl Client,
     address: MDataAddress,
     current_entries: &MDataSeqEntries,
     desired_entries: MDataSeqEntries,
-) -> Box<CoreFuture<()>> {
+) -> Result<(), CoreError> {
     let actions = desired_entries
         .into_iter()
         .filter_map(|(key, value)| {
@@ -210,13 +210,13 @@ fn update_mdata_entries(
     mutate_mdata_entries(client, address, actions.into())
 }
 
-fn update_mdata_permissions(
+async fn update_mdata_permissions(
     client: &impl Client,
     address: MDataAddress,
     current_permissions: &BTreeMap<PublicKey, MDataPermissionSet>,
     desired_permissions: BTreeMap<PublicKey, MDataPermissionSet>,
     version: u64,
-) -> Box<CoreFuture<()>> {
+) -> Result<(), CoreError> {
     let permissions: Vec<_> = desired_permissions
         .into_iter()
         .map(|(user, desired_set)| {
@@ -232,6 +232,8 @@ fn update_mdata_permissions(
         .collect();
 
     let state = (client.clone(), permissions, version);
+
+
     future::loop_fn(state, move |(client, mut permissions, version)| {
         if let Some((user, set)) = permissions.pop() {
             let f = set_mdata_user_permissions(&client, address, user, set, version)
@@ -310,12 +312,12 @@ fn union_permission_sets(a: MDataPermissionSet, b: MDataPermissionSet) -> MDataP
 
 /// Insert key to Client Handler.
 /// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
-pub fn ins_auth_key_to_client_h(
+pub async fn ins_auth_key_to_client_h(
     client: &(impl Client + AuthActions),
     key: PublicKey,
     permissions: AppPermissions,
     version: u64,
-) -> Box<CoreFuture<()>> {
+) -> Result<(), CoreError>  {
     let state = (0, version);
     let client = client.clone();
 
