@@ -16,6 +16,7 @@ pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
 use async_trait::async_trait;
+
 mod id;
 #[cfg(feature = "mock-network")]
 mod mock;
@@ -35,7 +36,7 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event_loop::{Result, CoreMsg, CoreError};
+use crate::event_loop::CoreMsg;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::FutureExt;

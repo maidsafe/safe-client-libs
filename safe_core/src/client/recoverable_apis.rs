@@ -109,32 +109,61 @@ pub async fn set_mdata_user_permissions(
     permissions: MDataPermissionSet,
     version: u64,
 ) -> Result<(), CoreError> {
-    let state = (0, version);
+    let version_to_try = version;
+    let attempt = 0;
+    let done_trying = false;
     let client = client.clone();
+    let response = Result<(), CoreError>;
 
-    future::loop_fn(state, move |(attempts, version)| {
-        client
-            .set_mdata_user_permissions(address, user, permissions.clone(), version).await
-            .map(|_| Loop::Break(()))
+    // future::loop_fn(state, move |(attempts, version)| {
+    while !dont_trying && attempts < MAX_ATTEMPTS {
+        reponse = match client
+            .set_mdata_user_permissions(address, user, permissions.clone(), version_to_try).await {
+                Ok(()) => {
+                    done_trying=true;
+                    Ok(())
+                },
+                Err(error) => {
+                    match error {
+                        CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
+                            if attempts < MAX_ATTEMPTS {
+                                // Ok(Loop::Continue((attempts + 1, current_version + 1)))
+                                version_to_try = version_to_try +1;
+                                attempt = attempt + 1;
+                                // ok but we continue anyway
+                                Ok(())
+                            } else {
+                                Err(error)
+                            }
+                        }
+                        CoreError::RequestTimeout => {
+                            if attempts < MAX_ATTEMPTS {
+                                // Ok(Loop::Continue((attempts + 1, version)))
+                                version_to_try = version_to_try +1;
+                                attempt = attempt + 1;
+                                // ok but we continue anyway
+                                Ok(())
+                            } else {
+                                done_trying=true;
+                                Err(CoreError::RequestTimeout)
+                            }
+                        }
+                        error => {
+                            done_trying=true;
+                            Err(error),
+                        }
+
+                    }
+                }
+            }
+
+    }
+
+            // .map(|_| Loop::Break(()))
             .or_else(move |error| match error {
-                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, current_version + 1)))
-                    } else {
-                        Err(error)
-                    }
-                }
-                CoreError::RequestTimeout => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, version)))
-                    } else {
-                        Err(CoreError::RequestTimeout)
-                    }
-                }
-                error => Err(error),
             })
-    })
-    .into_box()
+    // })
+    // .into_box()
 }
 
 /// Deletes user permission on the mutable data and tries to recover from errors.

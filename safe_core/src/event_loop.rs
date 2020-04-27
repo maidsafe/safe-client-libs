@@ -30,7 +30,7 @@ pub struct CoreMsg<C: Client, T>(Option<Box<TailFutureFn<C, T>>>);
 
 /// Future trait returned from core operations.
 // pub type CoreFuture<T> = dyn Future<Output=Result<T, CoreError>>;
-pub type CoreFuture<T> = Result<T, CoreError>;
+// pub type CoreFuture<T> = Result<T, CoreError>;
 
 impl<C: Client, T> CoreMsg<C, T> {
     /// Construct a new message to ask core event loop to do something. If the
