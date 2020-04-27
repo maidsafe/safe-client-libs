@@ -460,7 +460,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Mutates sequenced `MutableData` entries in bulk
-    fn mutate_seq_mdata_entries(
+    async fn mutate_seq_mdata_entries(
         &self,
         name: XorName,
         tag: u64,
@@ -474,7 +474,7 @@ pub trait Client: Clone + 'static {
                 address: MDataAddress::Seq { name, tag },
                 actions: MDataEntryActions::Seq(actions),
             },
-        )
+        ).await
     }
 
     /// Mutates unsequenced `MutableData` entries in bulk
@@ -1165,7 +1165,7 @@ pub fn wallet_create_balance(
 }
 
 /// Transfer coins
-pub async fn wallet_transfer_coins(
+pub fn wallet_transfer_coins(
     client_id: &ClientFullId,
     destination: XorName,
     amount: Coins,
@@ -1195,9 +1195,10 @@ pub async fn wallet_transfer_coins(
 /// This trait implements functions that are supposed to be called only by `CoreClient` and `AuthClient`.
 /// Applications are not allowed to `DELETE MData` and get/mutate auth keys, hence `AppClient` does not implement
 /// this trait.
+#[async_trait]
 pub trait AuthActions: Client + Clone + 'static {
     /// Fetches a list of authorised keys and version.
-    fn list_auth_keys_and_version(
+    async fn list_auth_keys_and_version(
         &self,
     ) -> Result<(BTreeMap<PublicKey, AppPermissions>, u64), CoreError> {
         trace!("ListAuthKeysAndVersion");

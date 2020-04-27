@@ -47,37 +47,58 @@ pub async fn put_mdata(client: &impl Client + std::marker::Sync, data: SeqMutabl
 
 /// Mutates mutable data entries and tries to recover from errors.
 pub async fn mutate_mdata_entries(
-    client: &impl Client,
+    client: &impl Client + std::marker::Sync,
     address: MDataAddress,
     actions: MDataSeqEntryActions,
 ) -> Result<(), CoreError>  {
-    let state = (0, actions);
     let client = client.clone();
 
-    future::loop_fn(state, move |(attempts, actions)| {
-        client
-            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone()).await
-            .map(|_| Loop::Break(()))
-            .or_else(move |error| match error {
-                CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
-                    if attempts < MAX_ATTEMPTS {
-                        let actions = fix_entry_actions(actions, &errors);
-                        Ok(Loop::Continue((attempts + 1, actions.into())))
-                    } else {
-                        Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
+    let mut attempts = 0;
+    let mut done_trying = false;
+    let mut response : Result<(), CoreError>;
+
+    while !done_trying && attempts < MAX_ATTEMPTS {
+
+        response = match client
+            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone()).await {
+                Ok(()) => {
+                    done_trying=true;
+                    Ok(())
+                },
+                Err(error) => { 
+                    match error {
+                        CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
+                            if attempts < MAX_ATTEMPTS {
+                                let actions = fix_entry_actions(actions, &errors);
+                                attempts + 1;
+                                // okay but we'll keep trying for now
+                                Ok(())
+                            } else {
+                                done_trying = true;
+                                Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
+                            }
+                        },
+                        CoreError::RequestTimeout => {
+                            if attempts < MAX_ATTEMPTS {
+                                attempts + 1;
+                                // okay but we'll keep trying for now
+                                Ok(())
+                            } else {
+                                done_trying=true;
+                                Err(CoreError::RequestTimeout)
+
+                            }
+                        }
+                        error => { 
+                            done_trying=true;
+                            Err(error)
+                        },
                     }
+
                 }
-                CoreError::RequestTimeout => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, actions)))
-                    } else {
-                        Err(CoreError::RequestTimeout)
-                    }
-                }
-                error => Err(error),
-            })
-    })
-    .into_box()
+            };
+    }
+    response
 }
 
 /// Sets user permission on the mutable data and tries to recover from errors.
@@ -177,7 +198,7 @@ async fn update_mdata(client: &impl Client + std::marker::Sync, data: SeqMutable
 
 // Update the mutable data on the network so it has all the `desired_entries`.
 async fn update_mdata_entries(
-    client: &impl Client,
+    client: &impl Client + std::marker::Sync,
     address: MDataAddress,
     current_entries: &MDataSeqEntries,
     desired_entries: MDataSeqEntries,
