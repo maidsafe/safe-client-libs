@@ -8,12 +8,13 @@
 
 use crate::client::Client;
 use crate::errors::CoreError;
-use futures::stream::Stream;
+// use futures::stream::Stream;
 use futures::channel::mpsc;
 use futures::Future;
 use log::debug;
 use tokio::runtime::*;
 use unwrap::unwrap;
+use futures_util::stream::StreamExt;
 
 /// Transmitter of messages to be run in the core event loop.
 pub type CoreMsgTx<C, T> = mpsc::UnboundedSender<CoreMsg<C, T>>;
@@ -61,7 +62,8 @@ pub fn run<C: Client, T>(mut el: Runtime, client: &C, context: &T, el_rx: CoreMs
     let keep_alive = el_rx.for_each(|core_msg| {
         if let Some(mut f) = core_msg.0 {
             if let Some(tail) = f(client, context) {
-                current_thread::spawn(tail);
+                // use std::thread::current_thread;
+                std::thread::current_thread::spawn(tail);
             }
             Ok(())
         } else {

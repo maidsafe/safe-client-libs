@@ -2261,6 +2261,7 @@ dependencies = [
  "ffi_utils",
  "fs2",
  "futures",
+ "futures-util",
  "hmac",
  "lazy_static",
  "log 0.4.8",
