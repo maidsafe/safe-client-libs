@@ -152,7 +152,7 @@ pub async fn del_mdata_user_permissions(
     .into_box()
 }
 
-async fn update_mdata(client: &impl Client, data: SeqMutableData) -> Result<(), CoreError> {
+async fn update_mdata(client: &impl Client + std::marker::Sync, data: SeqMutableData) -> Result<(), CoreError> {
     let client2 = client.clone();
     let client3 = client.clone();
 
