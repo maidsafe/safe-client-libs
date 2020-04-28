@@ -9,6 +9,7 @@
 
 use crate::errors::AppError;
 use crate::{AppContext, AppMsgTx};
+use async_trait::async_trait;
 use log::trace;
 use lru_cache::LruCache;
 use rand::thread_rng;
@@ -24,7 +25,6 @@ use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
 use tokio::runtime::*;
-use async_trait::async_trait;
 
 /// Client object used by `safe_app`.
 pub struct AppClient {

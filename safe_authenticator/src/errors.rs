@@ -172,7 +172,6 @@ impl From<String> for AuthError {
     }
 }
 
-
 impl From<SerialisationError> for AuthError {
     fn from(_err: SerialisationError) -> Self {
         Self::EncodeDecodeError
