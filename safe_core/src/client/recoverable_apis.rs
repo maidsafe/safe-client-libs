@@ -9,10 +9,7 @@
 use super::Client;
 use crate::client::AuthActions;
 use crate::errors::CoreError;
-use crate::event_loop::CoreFuture;
-use crate::utils::FutureExt;
-use futures::future::{self, Either, Loop};
-use futures::Future;
+use futures::future::{self, FutureExt, TryFutureExt};
 use safe_nd::{
     AppPermissions, EntryError, Error as SndError, MDataAction, MDataAddress, MDataPermissionSet,
     MDataSeqEntries, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey,
@@ -35,7 +32,7 @@ pub async fn put_mdata(client: &impl Client + std::marker::Sync, data: SeqMutabl
 
     match client
         .put_seq_mutable_data(data.clone()).await {
-        Ok(response) => response
+        Ok(response) => response,
         Err(e) => {
             match e {
                 CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
@@ -361,37 +358,58 @@ fn union_permission_sets(a: MDataPermissionSet, b: MDataPermissionSet) -> MDataP
 /// Insert key to Client Handler.
 /// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
 pub async fn ins_auth_key_to_client_h(
-    client: &(impl Client + AuthActions),
+    client: &(impl Client + AuthActions + std::marker::Sync),
     key: PublicKey,
     permissions: AppPermissions,
     version: u64,
 ) -> Result<(), CoreError>  {
-    let state = (0, version);
-    let client = client.clone();
+    // let state = (0, version);
 
-    future::loop_fn(state, move |(attempts, version)| {
-        client
-            .ins_auth_key(key, permissions, version)
-            .map(|_| Loop::Break(()))
-            .or_else(move |error| match error {
-                CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, current_version + 1)))
-                    } else {
-                        Err(error)
+    let attempts: usize = 0;
+    let version_to_try = version;
+    let client = client.clone();
+    let done_trying = false;
+    let mut response: Result<(),CoreError>;
+
+    while !done_trying && attempts < MAX_ATTEMPTS {
+        response =  match client
+            .ins_auth_key(key, permissions, version_to_try).await {
+                Ok(_) => {
+                    done_trying = true;
+                    Ok(())
+                },
+                Err(error) => {
+                    match error {
+                        CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
+                            if attempts < MAX_ATTEMPTS {
+                                attempts = attempts + 1;
+                                version_to_try = version_to_try + 1;
+                                // not really, but we keep trying for now
+                                Ok(())
+                            } else {
+                                done_trying = true;
+                                Err(error)
+                            }
+                        }
+                        CoreError::RequestTimeout => {
+                            if attempts < MAX_ATTEMPTS {
+                                attempts = attempts + 1;
+                                version_to_try = version_to_try + 1;
+                                done_trying = true;
+                                Ok(())
+                            } else {
+                                Err(CoreError::RequestTimeout)
+                            }
+                        }
+                        error => Err(error),
                     }
                 }
-                CoreError::RequestTimeout => {
-                    if attempts < MAX_ATTEMPTS {
-                        Ok(Loop::Continue((attempts + 1, version)))
-                    } else {
-                        Err(CoreError::RequestTimeout)
-                    }
-                }
-                error => Err(error),
-            })
-    })
-    .into_box()
+            }
+
+    };
+
+    response
+    
 }
 
 #[cfg(test)]
