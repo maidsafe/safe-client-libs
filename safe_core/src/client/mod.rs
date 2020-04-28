@@ -97,7 +97,7 @@ async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreErr
 }
 
 async fn send_as_helper(
-    client: &impl Client,
+    client: &impl Client + std::marker::Send,
     request: Request,
     client_id: Option<&ClientFullId>,
 ) -> Result<Response, CoreError> {
@@ -126,7 +126,7 @@ async fn send_as_helper(
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
 #[async_trait]
-pub trait Client: Clone + 'static {
+pub trait Client: Clone + 'static + std::marker::Send {
     /// Associated message type.
     type Context;
 
@@ -211,7 +211,8 @@ pub trait Client: Clone + 'static {
     /// Put unsequenced mutable data to the network
     async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError> {
         trace!("Put Unsequenced MData at {:?}", data.name());
-        send_mutation(self, Request::PutMData(MData::Unseq(data))).await
+        send_mutation(self, Request::PutMData(MData::Unseq(data))).await?;
+        Ok(())
     }
 
     /// Transfer coin balance
@@ -236,7 +237,7 @@ pub trait Client: Clone + 'static {
             Ok( Response::Transaction(result) ) => {
                 match result {
                     Ok(transaction) => Ok( transaction ),
-                    Err(error) => CoreError::from(error)
+                    Err(error) => Err(CoreError::from(error))
                 }
             },
             Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
@@ -271,7 +272,7 @@ pub trait Client: Clone + 'static {
                     Response::Transaction(result) => {
                         match result {
                             Ok(transaction) => Ok( transaction ),
-                            Err(error) => CoreError::from(error)
+                            Err(error) => Err(CoreError::from(error))
                         }
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent)
@@ -315,7 +316,7 @@ pub trait Client: Clone + 'static {
                     Response::Transaction(result) => {
                         match result {
                             Ok(transaction) => Ok( transaction ),
-                            Err(error) => CoreError::from(error)
+                            Err(error) => Err(CoreError::from(error))
                         }
                     },
                     _ => Err(CoreError::ReceivedUnexpectedEvent)
