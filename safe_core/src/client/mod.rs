@@ -211,7 +211,7 @@ pub trait Client: Clone + 'static {
     /// Put unsequenced mutable data to the network
     async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError> {
         trace!("Put Unsequenced MData at {:?}", data.name());
-        send_mutation(self, Request::PutMData(MData::Unseq(data)))
+        send_mutation(self, Request::PutMData(MData::Unseq(data))).await
     }
 
     /// Transfer coin balance
@@ -382,7 +382,7 @@ pub trait Client: Clone + 'static {
 
         let _ = Rc::downgrade(&self.inner());
         trace!("Delete Unpublished IData at {:?}", name);
-        send_mutation(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name)))
+        send_mutation(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name))).await
     }
 
     /// Put sequenced mutable data to the network
@@ -901,7 +901,7 @@ pub trait Client: Clone + 'static {
                 permissions,
                 permissions_index,
             },
-        )
+        ).await
     }
 
     /// Add Pub AData Permissions
@@ -920,7 +920,7 @@ pub trait Client: Clone + 'static {
                 permissions,
                 permissions_index,
             },
-        )
+        ).await
     }
 
     /// Set new Owners to AData
@@ -939,7 +939,7 @@ pub trait Client: Clone + 'static {
                 owner,
                 owners_index,
             },
-        )
+        ).await
     }
 
     /// Set new Owners to AData
@@ -964,12 +964,12 @@ pub trait Client: Clone + 'static {
 
     /// Append to Published Seq AppendOnly Data
     async fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> {
-        send_mutation(self, Request::AppendSeq { append, index })
+        send_mutation(self, Request::AppendSeq { append, index }).await
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
     async fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> {
-        send_mutation(self, Request::AppendUnseq(append))
+        send_mutation(self, Request::AppendUnseq(append)).await
     }
 
     /// Return a list of permissions in `MutableData` stored on the network.
@@ -1004,7 +1004,7 @@ pub trait Client: Clone + 'static {
                 permissions,
                 version,
             },
-        )
+        ).await
     }
 
     /// Updates or inserts a permissions set for a user
@@ -1023,7 +1023,7 @@ pub trait Client: Clone + 'static {
                 user,
                 version,
             },
-        )
+        ).await
     }
 
     /// Sends an ownership transfer request.
@@ -1076,7 +1076,7 @@ pub trait Client: Clone + 'static {
 
     /// Set the coin balance to a specific value for testing
     #[cfg(any(test, feature = "testing"))]
-    fn test_set_balance(
+    async fn test_set_balance(
         &self,
         client_id: Option<&ClientFullId>,
         amount: Coins,
@@ -1100,7 +1100,7 @@ pub trait Client: Clone + 'static {
                         transaction_id: rand::random(),
                     },
             client_id
-        ).await {
+        ).await? {
             Response::Transaction(result) => {
                 match result {
                     Ok(transaction) => Ok( transaction ),
@@ -1248,7 +1248,7 @@ pub trait AuthActions: Client + Clone + 'static {
     }
 
     /// Adds a new authorised key.
-    fn ins_auth_key(
+    async fn ins_auth_key(
         &self,
         key: PublicKey,
         permissions: AppPermissions,
@@ -1263,28 +1263,28 @@ pub trait AuthActions: Client + Clone + 'static {
                 permissions,
                 version,
             },
-        )
+        ).await
     }
 
     /// Removes an authorised key.
-    fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError> {
+    async fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError> {
         trace!("DelAuthKey ({:?})", key);
 
-        send_mutation(self, Request::DelAuthKey { key, version })
+        send_mutation(self, Request::DelAuthKey { key, version }).await
     }
 
     /// Delete MData from network
-    fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError> {
+    async fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError> {
         trace!("Delete entire Mutable Data at {:?}", address);
 
-        send_mutation(self, Request::DeleteMData(address))
+        send_mutation(self, Request::DeleteMData(address)).await
     }
 
     /// Delete AData from network.
-    fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError> {
+    async fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError> {
         trace!("Delete entire Unpublished AppendOnly Data at {:?}", address);
 
-        send_mutation(self, Request::DeleteAData(address))
+        send_mutation(self, Request::DeleteAData(address)).await
     }
 }
 
