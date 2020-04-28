@@ -233,7 +233,7 @@ pub trait Client: Clone + 'static {
             },
             client_id
         ).await {
-            Response::Transaction(result) => {
+            Ok( Response::Transaction(result) ) => {
                 match result {
                     Ok(transaction) => Ok( transaction ),
                     Err(error) => CoreError::from(error)
@@ -465,7 +465,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Fetch sequenced mutable data from the network
-    fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> {
+    async fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> {
         trace!("Fetch Sequenced Mutable Data");
 
         match send(self, Request::GetMData(MDataAddress::Seq { name, tag })).await? {
@@ -557,7 +557,7 @@ pub trait Client: Clone + 'static {
     async fn get_mdata_version(&self, address: MDataAddress) -> Result<u64, CoreError> {
         trace!("GetMDataVersion for {:?}", address);
 
-        match send(self, Request::GetMDataVersion(address)).await {
+        match send(self, Request::GetMDataVersion(address)).await? {
                 Response::GetMDataVersion(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -590,11 +590,10 @@ pub trait Client: Clone + 'static {
     async fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Result<MDataSeqEntries, CoreError> {
         trace!("ListSeqMDataEntries for {:?}", name);
 
-        send(
+        match send(
             self,
             Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
-        )
-        .and_then(|res| match res {
+        ).await? {
             Response::ListMDataEntries(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|entries| match entries {
@@ -603,22 +602,23 @@ pub trait Client: Clone + 'static {
                     })
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
-        })
-        .into_box()
+
+        }
+        
     }
 
     /// Return a list of keys in `MutableData` stored on the network.
-    fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError> {
+    async fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError> {
         trace!("ListMDataKeys for {:?}", address);
 
-        match send(self, Request::ListMDataKeys(address)).await?{
+        match send(self, Request::ListMDataKeys(address)).await? {
                 Response::ListMDataKeys(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
     }
 
     /// Return a list of values in a Sequenced Mutable Data
-    fn list_seq_mdata_values(
+    async fn list_seq_mdata_values(
         &self,
         name: XorName,
         tag: u64,
@@ -675,9 +675,9 @@ pub trait Client: Clone + 'static {
     // ======= Append Only Data =======
     //
     /// Put AppendOnly Data into the Network
-    fn put_adata(&self, data: AData) -> Result<(), CoreError> {
+    async fn put_adata(&self, data: AData) -> Result<(), CoreError> {
         trace!("Put AppendOnly Data {:?}", data.name());
-        send_mutation(self, Request::PutAData(data))
+        send_mutation(self, Request::PutAData(data)).await
     }
 
     /// Get AppendOnly Data from the Network
@@ -717,7 +717,7 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        match send(self, Request::GetADataValue { address, key }).await {
+        match send(self, Request::GetADataValue { address, key }).await? {
                 Response::GetADataValue(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -734,7 +734,7 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        match send(self, Request::GetADataRange { address, range }).await{
+        match send(self, Request::GetADataRange { address, range }).await? {
                 Response::GetADataRange(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -747,7 +747,7 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        match send(self, Request::GetADataIndices(address)).await {
+        match send(self, Request::GetADataIndices(address)).await? {
                 Response::GetADataIndices(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -761,9 +761,14 @@ pub trait Client: Clone + 'static {
         );
 
         match send(self, Request::GetADataLastEntry(address)).await? {
+
                 Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+
+            
+        },
+                
+            
     }
 
     /// Get permissions at the provided index.
@@ -777,21 +782,24 @@ pub trait Client: Clone + 'static {
             address.name()
         );
 
-        send(
+        match send(
             self,
             Request::GetADataPermissions {
                 address,
                 permissions_index,
             },
-        ).await?{
+        ).await? {
             Response::GetADataPermissions(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|permissions| match permissions {
                         ADataPermissions::Unpub(data) => Ok(data),
                         ADataPermissions::Pub(_) => Err(CoreError::ReceivedUnexpectedData),
                     })
+
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+            
         }
     }
 
@@ -875,7 +883,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Add AData Permissions
-    fn add_unpub_adata_permissions(
+    async fn add_unpub_adata_permissions(
         &self,
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
@@ -897,7 +905,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Add Pub AData Permissions
-    fn add_pub_adata_permissions(
+    async fn add_pub_adata_permissions(
         &self,
         address: ADataAddress,
         permissions: ADataPubPermissions,
@@ -916,7 +924,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Set new Owners to AData
-    fn set_adata_owners(
+    async fn set_adata_owners(
         &self,
         address: ADataAddress,
         owner: ADataOwner,
@@ -955,12 +963,12 @@ pub trait Client: Clone + 'static {
     }
 
     /// Append to Published Seq AppendOnly Data
-    fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> {
+    async fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> {
         send_mutation(self, Request::AppendSeq { append, index })
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
-    fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> {
+    async fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> {
         send_mutation(self, Request::AppendUnseq(append))
     }
 
@@ -979,7 +987,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Updates or inserts a permissions set for a user
-    fn set_mdata_user_permissions(
+    async fn set_mdata_user_permissions(
         &self,
         address: MDataAddress,
         user: PublicKey,
@@ -1000,7 +1008,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Updates or inserts a permissions set for a user
-    fn del_mdata_user_permissions(
+    async fn del_mdata_user_permissions(
         &self,
         address: MDataAddress,
         user: PublicKey,
@@ -1095,13 +1103,13 @@ pub trait Client: Clone + 'static {
         ).await {
             Response::Transaction(result) => {
                 match result {
-                    Ok(transactino) => Ok( transactino ),
+                    Ok(transaction) => Ok( transaction ),
                     Err(error) => CoreError::from(error)
                 }
             },
             Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
         }
-    }
+    
 }
 
 /// Creates a throw-away client to execute requests sequentially.
