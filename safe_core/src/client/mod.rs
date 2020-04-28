@@ -266,13 +266,20 @@ pub trait Client: Clone + 'static {
                     },
             client_id
         ).await {
-            Response::Transaction(result) => {
-                match result {
-                    Ok(transaction) => Ok( transaction ),
-                    Err(error) => CoreError::from(error)
+            Ok( res ) => {
+                match res {
+                    Response::Transaction(result) => {
+                        match result {
+                            Ok(transaction) => Ok( transaction ),
+                            Err(error) => CoreError::from(error)
+                        }
+                    },
+                    _ => Err(CoreError::ReceivedUnexpectedEvent)
                 }
             },
-            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+
+            Err(error) => Err(CoreError::from(error))
+          
         }
     }
 
@@ -303,13 +310,20 @@ pub trait Client: Clone + 'static {
             },
             client_id
         ).await {
-            Response::Transaction(result) => {
-                match result {
-                    Ok(transaction) => Ok( transaction ),
-                    Err(error) => CoreError::from(error)
+            Ok( res ) => {
+                match res {
+                    Response::Transaction(result) => {
+                        match result {
+                            Ok(transaction) => Ok( transaction ),
+                            Err(error) => CoreError::from(error)
+                        }
+                    },
+                    _ => Err(CoreError::ReceivedUnexpectedEvent)
                 }
             },
-            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+
+            Err(error) => Err(CoreError::from(error))
+
         }
     }
 
@@ -322,13 +336,19 @@ pub trait Client: Clone + 'static {
             Request::GetBalance,
             client_id
         ).await {
-            Response::GetBalance(result) => {
-                match result {
-                    Ok(coins) => Ok( coins ),
-                    Err(error) => CoreError::from(error)
+            Ok( res ) => {
+                match res {
+                    Response::GetBalance(result) => {
+                        match result {
+                            Ok(coins) => Ok( coins ),
+                            Err(error) => Err( CoreError::from(error) )
+                        }
+                    },
+                    _ => Err(CoreError::ReceivedUnexpectedEvent)
+
                 }
             },
-            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+            Err(error)=> Err(CoreError::from(error))
         }
         
     }
@@ -1099,14 +1119,21 @@ pub trait Client: Clone + 'static {
                         transaction_id: rand::random(),
                     },
             client_id
-        ).await? {
-            Response::Transaction(result) => {
-                match result {
-                    Ok(transaction) => Ok( transaction ),
-                    Err(error) => CoreError::from(error)
+        ).await {
+            Ok( res ) => {
+                match res {
+                    Response::Transaction(result) => {
+                        match result {
+                            Ok(transaction) => Ok( transaction ),
+                            Err(error) => Err(CoreError::from(error))
+                        }
+                    },
+                    _ => Err(CoreError::ReceivedUnexpectedEvent)
                 }
             },
-            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+
+            Err(error) => Err(CoreError::from(error))
+          
         }
     }
     

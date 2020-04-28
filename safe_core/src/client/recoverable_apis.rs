@@ -32,7 +32,7 @@ pub async fn put_mdata(client: &impl Client + std::marker::Sync, data: SeqMutabl
 
     match client
         .put_seq_mutable_data(data.clone()).await {
-        Ok(response) => response,
+        Ok(response) => Ok(response),
         Err(e) => {
             match e {
                 CoreError::DataError(SndError::DataExists) => Either::A(update_mdata(&client2, data)),
@@ -165,7 +165,7 @@ pub async fn set_mdata_user_permissions(
 
 /// Deletes user permission on the mutable data and tries to recover from errors.
 pub async fn del_mdata_user_permissions(
-    client: &impl Client,
+    client: &impl Client + std::marker::Sync,
     address: MDataAddress,
     user: PublicKey,
     version: u64,
