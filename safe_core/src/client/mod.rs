@@ -244,7 +244,7 @@ pub trait Client: Clone + 'static {
 }
 
     /// Creates a new balance on the network.
-    fn create_balance(
+    async fn create_balance(
         &self,
         client_id: Option<&ClientFullId>,
         new_balance_owner: PublicKey,
@@ -277,7 +277,7 @@ pub trait Client: Clone + 'static {
 }
 
     /// Insert a given login packet at the specified destination
-    fn insert_login_packet_for(
+    async fn insert_login_packet_for(
         &self,
         client_id: Option<&ClientFullId>,
         new_owner: PublicKey,
@@ -314,7 +314,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get the current coin balance.
-    fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> {
+    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> {
         trace!("Get balance for {:?}", client_id);
 
         match send_as_helper(
@@ -369,7 +369,7 @@ pub trait Client: Clone + 'static {
     }
 
     /// Delete unpublished immutable data from the network.
-    fn del_unpub_idata(&self, name: XorName) -> Result<(), CoreError> {
+    async fn del_unpub_idata(&self, name: XorName) -> Result<(), CoreError> {
         let inner = self.inner();
         if inner
             .borrow_mut()
