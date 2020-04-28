@@ -240,8 +240,8 @@ pub trait Client: Clone + 'static {
                 }
             },
             Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+        }
     }
-}
 
     /// Creates a new balance on the network.
     async fn create_balance(
@@ -273,8 +273,8 @@ pub trait Client: Clone + 'static {
                 }
             },
             Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+        }
     }
-}
 
     /// Insert a given login packet at the specified destination
     async fn insert_login_packet_for(
@@ -766,7 +766,7 @@ pub trait Client: Clone + 'static {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
 
             
-        },
+        }
                 
             
     }
@@ -799,8 +799,7 @@ pub trait Client: Clone + 'static {
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
-            
-        }
+        
     }
 
     /// Get permissions at the provided index.
@@ -1109,6 +1108,7 @@ pub trait Client: Clone + 'static {
             },
             Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
         }
+    }
     
 }
 
