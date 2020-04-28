@@ -28,8 +28,8 @@ use tokio::runtime::*;
 
 /// Client object used by `safe_app`.
 pub struct AppClient {
-    inner: Rc<RefCell<Inner<AppClient, AppContext>>>,
-    app_inner: Rc<RefCell<AppInner>>,
+    inner: Arc<Mutex<Inner<AppClient, AppContext>>>,
+    app_inner: Arc<Mutex<AppInner>>,
 }
 
 impl AppClient {
@@ -60,7 +60,7 @@ impl AppClient {
         let connection_manager = attempt_bootstrap(&qp2p_config, &net_tx, app_keys.app_safe_key())?;
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(Inner::new(
+            inner: Arc::new(Mutex::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -69,7 +69,7 @@ impl AppClient {
                 core_tx,
                 net_tx,
             ))),
-            app_inner: Rc::new(RefCell::new(AppInner::new(app_keys, pk, config))),
+            app_inner: Arc::new(Mutex::new(AppInner::new(app_keys, pk, config))),
         })
     }
 
@@ -142,7 +142,7 @@ impl AppClient {
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(Inner::new(
+            inner: Arc::new(Mutex::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -150,7 +150,7 @@ impl AppClient {
                 core_tx,
                 net_tx,
             ))),
-            app_inner: Rc::new(RefCell::new(AppInner::new(keys, owner, Some(config)))),
+            app_inner: Arc::new(Mutex::new(AppInner::new(keys, owner, Some(config)))),
         })
     }
 }
@@ -173,7 +173,7 @@ impl Client for AppClient {
         app_inner.config.clone()
     }
 
-    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>> {
+    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>> {
         self.inner.clone()
     }
 
@@ -196,8 +196,8 @@ impl Client for AppClient {
 impl Clone for AppClient {
     fn clone(&self) -> Self {
         Self {
-            inner: Rc::clone(&self.inner),
-            app_inner: Rc::clone(&self.app_inner),
+            inner: Arc::clone(&self.inner),
+            app_inner: Arc::clone(&self.app_inner),
         }
     }
 }

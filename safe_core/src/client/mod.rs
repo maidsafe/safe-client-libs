@@ -36,11 +36,12 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event_loop::CoreMsg;
+use crate::event_loop::{CoreMsg, CoreMsgTx};
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
-use crate::utils::FutureExt;
 use futures::{future, channel::mpsc, Future};
+use std::sync::{Arc, Mutex};
+
 use log::trace;
 use lru_cache::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
@@ -75,18 +76,21 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
     Ok(Config::new().quic_p2p.hard_coded_contacts)
 }
 
-async fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
+fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
     // `sign` should be false for GETs on published data, true otherwise.
     let sign = request.get_type() != RequestType::PublicGet;
     let request = client.compose_message(request, sign);
     let inner = client.inner();
-    let cm = &mut inner.borrow_mut().connection_manager;
-    cm.send(&client.public_id(), &request).await
+    let cm = &mut inner.lock().unwrap().connection_manager;
+    futures::executor::block_on(
+        cm.send(&client.public_id(), &request)
+    )
 }
+
 
 // Sends a mutation request to a new routing.
 async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreError> {
-    let response = send(client, req).await?;
+    let response = send(client, req)?;
     match response {
         Response::Mutation(result) => {
             trace!("mutation result: {:?}", result);
@@ -96,8 +100,8 @@ async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreErr
     }
 }
 
-async fn send_as_helper(
-    client: &impl Client + std::marker::Send,
+fn send_as_helper(
+    client: &impl Client,
     request: Request,
     client_id: Option<&ClientFullId>,
 ) -> Result<Response, CoreError> {
@@ -110,12 +114,15 @@ async fn send_as_helper(
 
     let inner = client.inner();
 
-    let cm = &mut inner.borrow_mut().connection_manager;
+    let cm = &mut inner.lock().unwrap().connection_manager;
     let mut cm2 = cm.clone();
 
-    // Box::new(
+    futures::executor::block_on( async {
         let _bootstrapped = cm.bootstrap(identity).await;
         cm2.send(&pub_id, &message ).await
+
+    } )
+    // Box::new(
             // .and_then(move |_| 
             //     ))
     // )
@@ -126,7 +133,7 @@ async fn send_as_helper(
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
 #[async_trait]
-pub trait Client: Clone + 'static + std::marker::Send {
+pub trait Client: Clone + 'static + Send + Sync {
     /// Associated message type.
     type Context;
 
@@ -151,7 +158,11 @@ pub trait Client: Clone + 'static + std::marker::Send {
 
     /// Return an associated `ClientInner` type which is expected to contain fields associated with
     /// the implementing type.
-    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>>;
+    // fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>;
+
+    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>
+        // where Client::Context: Send;
+        where Self: Sized ;
 
     /// Return the public encryption key.
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
@@ -191,7 +202,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
     /// Set request timeout.
     fn set_timeout(&self, duration: Duration) {
         let inner = self.inner();
-        inner.borrow_mut().timeout = duration;
+        inner.lock().unwrap().timeout = duration;
     }
 
     /// Restart the client and reconnect to the network.
@@ -199,17 +210,17 @@ pub trait Client: Clone + 'static + std::marker::Send {
         trace!("Restarting the network connection");
 
         let inner = self.inner();
-        let mut inner = inner.borrow_mut();
+        let mut inner = inner.lock().unwrap();
 
         inner.connection_manager.restart_network();
 
-        inner.net_tx.unbounded_send(NetworkEvent::Connected)?;
+        inner.net_tx.unbounded_send(NetworkEvent::Connected).map_err(|error| CoreError::from( format!("{:?}",error)) )?;
 
         Ok(())
     }
 
     /// Put unsequenced mutable data to the network
-    async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError> {
+    async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError> where Self: Sized {
         trace!("Put Unsequenced MData at {:?}", data.name());
         send_mutation(self, Request::PutMData(MData::Unseq(data))).await?;
         Ok(())
@@ -222,7 +233,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Result<Transaction, CoreError> {
+    ) -> Result<Transaction, CoreError> where Self: Sized {
         trace!("Transfer {} coins to {:?}", amount, destination);
     
         match send_as_helper(
@@ -233,13 +244,26 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
             client_id
-        ).await {
-            Ok( Response::Transaction(result) ) => {
-                match result {
-                    Ok(transaction) => Ok( transaction ),
-                    Err(error) => Err(CoreError::from(error))
+        ) {
+            Ok( res ) => {
+                match res {
+                    Response::Transaction(result) => {
+                        match result {
+                            Ok(transaction) => Ok( transaction ),
+                            Err(error) => Err(CoreError::from(error))
+                        }
+                    },
+                    _ => Err(CoreError::ReceivedUnexpectedEvent)
+
                 }
             },
+
+            // Ok( Response::Transaction(result) ) => {
+            //     match result {
+            //         Ok(transaction) => Ok( transaction ),
+            //         Err(error) => Err(CoreError::from(error))
+            //     }
+            // },
             Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
         }
     }
@@ -251,7 +275,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         new_balance_owner: PublicKey,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Result<Transaction, CoreError> {
+    ) -> Result<Transaction, CoreError> where Self: Sized {
         trace!(
             "Create a new balance for {:?} with {} coins.",
             new_balance_owner,
@@ -266,7 +290,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                         transaction_id: transaction_id.unwrap_or_else(rand::random),
                     },
             client_id
-        ).await {
+        ) {
             Ok( res ) => {
                 match res {
                     Response::Transaction(result) => {
@@ -292,7 +316,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         amount: Coins,
         transaction_id: Option<u64>,
         new_login_packet: LoginPacket,
-    ) -> Result<Transaction, CoreError> {
+    ) -> Result<Transaction, CoreError> where Self: Sized {
         trace!(
             "Insert a login packet for {:?} preloading the wallet with {} coins.",
             new_owner,
@@ -310,7 +334,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 new_login_packet,
             },
             client_id
-        ).await {
+        ) {
             Ok( res ) => {
                 match res {
                     Response::Transaction(result) => {
@@ -329,14 +353,14 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Get the current coin balance.
-    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> {
+    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> where Self: Sized {
         trace!("Get balance for {:?}", client_id);
 
         match send_as_helper(
             self,
             Request::GetBalance,
             client_id
-        ).await {
+        ) {
             Ok( res ) => {
                 match res {
                     Response::GetBalance(result) => {
@@ -355,7 +379,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Put immutable data to the network.
-    async fn put_idata(&self, data: impl Into<IData>) -> Result<(), CoreError> {
+    async fn put_idata<D: Into<IData> + Send>(&self, data: D) -> Result<(), CoreError> where Self: Sized + Send {
         let idata: IData = data.into();
         trace!("Put IData at {:?}", idata.name());
         send_mutation(self, Request::PutIData(idata)).await
@@ -363,17 +387,17 @@ pub trait Client: Clone + 'static + std::marker::Send {
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
-    async fn get_idata(&self, address: IDataAddress) -> Result<IData, CoreError> {
+    async fn get_idata(&self, address: IDataAddress) -> Result<IData, CoreError> where Self: Sized {
         trace!("Fetch Immutable Data");
 
         let inner = self.inner();
-        if let Some(data) = inner.borrow_mut().cache.get_mut(&address) {
+        if let Some(data) = inner.lock().unwrap().cache.get_mut(&address) {
             trace!("ImmutableData found in cache.");
             return Ok(data.clone());
         }
 
-        let inner = Rc::downgrade(&self.inner());
-        let res = send(self, Request::GetIData(address)).await?;
+        let inner = Arc::downgrade(&self.inner());
+        let res = send(self, Request::GetIData(address))?;
         let data = match res {
                 Response::GetIData(res) => res.map_err(CoreError::from),
                 _ => return Err(CoreError::ReceivedUnexpectedEvent),
@@ -382,7 +406,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         if let Some(inner) = inner.upgrade() {
             // Put to cache
             let _ = inner
-                .borrow_mut()
+                .lock().unwrap()
                 .cache
                 .insert(*data.address(), data.clone());
         };
@@ -390,10 +414,11 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Delete unpublished immutable data from the network.
-    async fn del_unpub_idata(&self, name: XorName) -> Result<(), CoreError> {
+    async fn del_unpub_idata(&self, name: XorName) -> Result<(), CoreError>
+        where Self: Sized  {
         let inner = self.inner();
         if inner
-            .borrow_mut()
+            .lock().unwrap()
             .cache
             .remove(&IDataAddress::Unpub(name))
             .is_some()
@@ -401,22 +426,25 @@ pub trait Client: Clone + 'static + std::marker::Send {
             trace!("Deleted UnpubImmutableData from cache.");
         }
 
-        let _ = Rc::downgrade(&self.inner());
+        // let inner = self.inner().clone();
+        let inner = self.inner().clone();
+
+        let _ = Arc::downgrade(&inner);
         trace!("Delete Unpublished IData at {:?}", name);
         send_mutation(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name))).await
     }
 
     /// Put sequenced mutable data to the network
-    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Result<(), CoreError> {
+    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Result<(), CoreError> where Self: Sized  {
         trace!("Put Sequenced MData at {:?}", data.name());
         send_mutation(self, Request::PutMData(MData::Seq(data))).await
     }
 
     /// Fetch unpublished mutable data from the network
-    async fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> {
+    async fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> where Self: Sized {
         trace!("Fetch Unsequenced Mutable Data");
 
-        match send(self, Request::GetMData(MDataAddress::Unseq { name, tag })).await? {
+        match send(self, Request::GetMData(MDataAddress::Unseq { name, tag }))? {
             
                 Response::GetMData(res) => {
                     res.map_err(CoreError::from).and_then(|mdata| match mdata {
@@ -435,7 +463,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         name: XorName,
         tag: u64,
         key: Vec<u8>,
-    ) -> Result<MDataSeqValue, CoreError> {
+    ) -> Result<MDataSeqValue, CoreError> where Self: Sized {
         trace!("Fetch MDataValue for {:?}", name);
 
         match send(
@@ -444,7 +472,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address: MDataAddress::Seq { name, tag },
                 key,
             },
-        ).await? {
+        )? {
         
             Response::GetMDataValue(res) => {
                 res.map_err(CoreError::from).and_then(|value| match value {
@@ -463,7 +491,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         name: XorName,
         tag: u64,
         key: Vec<u8>,
-    ) -> Result<Vec<u8>, CoreError> {
+    ) -> Result<Vec<u8>, CoreError> where Self: Sized {
         trace!("Fetch MDataValue for {:?}", name);
 
         match send(
@@ -472,7 +500,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address: MDataAddress::Unseq { name, tag },
                 key,
             },
-        ).await? {
+        )? {
         
             Response::GetMDataValue(res) => {
                 res.map_err(CoreError::from).and_then(|value| match value {
@@ -486,10 +514,10 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Fetch sequenced mutable data from the network
-    async fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> {
+    async fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> where Self: Sized {
         trace!("Fetch Sequenced Mutable Data");
 
-        match send(self, Request::GetMData(MDataAddress::Seq { name, tag })).await? {
+        match send(self, Request::GetMData(MDataAddress::Seq { name, tag }))? {
             
                 Response::GetMData(res) => {
                     res.map_err(CoreError::from).and_then(|mdata| match mdata {
@@ -508,7 +536,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         name: XorName,
         tag: u64,
         actions: MDataSeqEntryActions,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation(
@@ -521,12 +549,12 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Mutates unsequenced `MutableData` entries in bulk
-    fn mutate_unseq_mdata_entries(
+    async fn mutate_unseq_mdata_entries(
         &self,
         name: XorName,
         tag: u64,
         actions: MDataUnseqEntryActions,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation(
@@ -535,17 +563,17 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address: MDataAddress::Unseq { name, tag },
                 actions: MDataEntryActions::Unseq(actions),
             },
-        )
+        ).await
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
-    async fn get_seq_mdata_shell(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> {
+    async fn get_seq_mdata_shell(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> where Self: Sized {
         trace!("GetMDataShell for {:?}", name);
 
         match send(
             self,
             Request::GetMDataShell(MDataAddress::Seq { name, tag }),
-        ).await? {
+        )? {
             Response::GetMDataShell(res) => {
                 res.map_err(CoreError::from).and_then(|mdata| match mdata {
                     MData::Seq(data) => Ok(data),
@@ -557,13 +585,13 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
-    async fn get_unseq_mdata_shell(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> {
+    async fn get_unseq_mdata_shell(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> where Self: Sized {
         trace!("GetMDataShell for {:?}", name);
 
         match send(
             self,
             Request::GetMDataShell(MDataAddress::Unseq { name, tag }),
-        ).await? {
+        )? {
             Response::GetMDataShell(res) => {
                 res.map_err(CoreError::from).and_then(|mdata| match mdata {
                     MData::Unseq(data) => Ok(data),
@@ -575,10 +603,10 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Get a current version of `MutableData` from the network.
-    async fn get_mdata_version(&self, address: MDataAddress) -> Result<u64, CoreError> {
+    async fn get_mdata_version(&self, address: MDataAddress) -> Result<u64, CoreError> where Self: Sized {
         trace!("GetMDataVersion for {:?}", address);
 
-        match send(self, Request::GetMDataVersion(address)).await? {
+        match send(self, Request::GetMDataVersion(address))? {
                 Response::GetMDataVersion(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -589,13 +617,13 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, CoreError> {
+    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, CoreError> where Self: Sized {
         trace!("ListMDataEntries for {:?}", name);
 
         match send(
             self,
             Request::ListMDataEntries(MDataAddress::Unseq { name, tag }),
-        ).await? {
+        )? {
             Response::ListMDataEntries(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|entries| match entries {
@@ -608,13 +636,13 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Return a complete list of entries in `MutableData`.
-    async fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Result<MDataSeqEntries, CoreError> {
+    async fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Result<MDataSeqEntries, CoreError> where Self: Sized {
         trace!("ListSeqMDataEntries for {:?}", name);
 
         match send(
             self,
             Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
-        ).await? {
+        )? {
             Response::ListMDataEntries(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|entries| match entries {
@@ -629,10 +657,10 @@ pub trait Client: Clone + 'static + std::marker::Send {
     }
 
     /// Return a list of keys in `MutableData` stored on the network.
-    async fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError> {
+    async fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError> where Self: Sized {
         trace!("ListMDataKeys for {:?}", address);
 
-        match send(self, Request::ListMDataKeys(address)).await? {
+        match send(self, Request::ListMDataKeys(address))? {
                 Response::ListMDataKeys(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -643,13 +671,13 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Result<Vec<MDataSeqValue>, CoreError> {
+    ) -> Result<Vec<MDataSeqValue>, CoreError> where Self: Sized {
         trace!("List MDataValues for {:?}", name);
 
         match send(
             self,
             Request::ListMDataValues(MDataAddress::Seq { name, tag }),
-        ).await? {
+        )? {
             Response::ListMDataValues(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|values| match values {
@@ -666,23 +694,23 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         address: MDataAddress,
         user: PublicKey,
-    ) -> Result<MDataPermissionSet, CoreError> {
+    ) -> Result<MDataPermissionSet, CoreError> where Self: Sized {
         trace!("GetMDataUserPermissions for {:?}", address);
 
-        match send(self, Request::ListMDataUserPermissions { address, user }).await? {
+        match send(self, Request::ListMDataUserPermissions { address, user })? {
                 Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
     }
 
     /// Returns a list of values in an Unsequenced Mutable Data
-    async fn list_unseq_mdata_values(&self, name: XorName, tag: u64) -> Result<Vec<Vec<u8>>, CoreError> {
+    async fn list_unseq_mdata_values(&self, name: XorName, tag: u64) -> Result<Vec<Vec<u8>>, CoreError> where Self: Sized {
         trace!("List MDataValues for {:?}", name);
 
         match send(
             self,
             Request::ListMDataValues(MDataAddress::Unseq { name, tag }),
-        ).await? {
+        )? {
             Response::ListMDataValues(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|values| match values {
@@ -696,16 +724,16 @@ pub trait Client: Clone + 'static + std::marker::Send {
     // ======= Append Only Data =======
     //
     /// Put AppendOnly Data into the Network
-    async fn put_adata(&self, data: AData) -> Result<(), CoreError> {
+    async fn put_adata(&self, data: AData) -> Result<(), CoreError> where Self: Sized {
         trace!("Put AppendOnly Data {:?}", data.name());
         send_mutation(self, Request::PutAData(data)).await
     }
 
     /// Get AppendOnly Data from the Network
-    async fn get_adata(&self, address: ADataAddress) -> Result<AData, CoreError> {
+    async fn get_adata(&self, address: ADataAddress) -> Result<AData, CoreError> where Self: Sized {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
-        match send(self, Request::GetAData(address)).await? {
+        match send(self, Request::GetAData(address))? {
                 Response::GetAData(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -716,7 +744,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         data_index: ADataIndex,
         address: ADataAddress,
-    ) -> Result<AData, CoreError> {
+    ) -> Result<AData, CoreError> where Self: Sized {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
         match send(
@@ -725,20 +753,20 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address,
                 data_index,
             },
-        ).await? {
+        )? {
             Response::GetADataShell(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
 
     /// Fetch Value for the provided key from AppendOnly Data at {:?}
-    async fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Result<Vec<u8>, CoreError> {
+    async fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Result<Vec<u8>, CoreError> where Self: Sized {
         trace!(
             "Fetch Value for the provided key from AppendOnly Data at {:?}",
             address.name()
         );
 
-        match send(self, Request::GetADataValue { address, key }).await? {
+        match send(self, Request::GetADataValue { address, key })? {
                 Response::GetADataValue(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -749,39 +777,39 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         address: ADataAddress,
         range: (ADataIndex, ADataIndex),
-    ) -> Result<ADataEntries, CoreError> {
+    ) -> Result<ADataEntries, CoreError> where Self: Sized {
         trace!(
             "Get Range of entries from AppendOnly Data at {:?}",
             address.name()
         );
 
-        match send(self, Request::GetADataRange { address, range }).await? {
+        match send(self, Request::GetADataRange { address, range })? {
                 Response::GetADataRange(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
     }
 
     /// Get latest indices from an AppendOnly Data.
-    async fn get_adata_indices(&self, address: ADataAddress) -> Result<ADataIndices, CoreError> {
+    async fn get_adata_indices(&self, address: ADataAddress) -> Result<ADataIndices, CoreError> where Self: Sized  {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
         );
 
-        match send(self, Request::GetADataIndices(address)).await? {
+        match send(self, Request::GetADataIndices(address))? {
                 Response::GetADataIndices(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
     }
 
     /// Get the last data entry from an AppendOnly Data.
-    async fn get_adata_last_entry(&self, address: ADataAddress) -> Result<ADataEntry, CoreError> {
+    async fn get_adata_last_entry(&self, address: ADataAddress) -> Result<ADataEntry, CoreError> where Self: Sized {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
         );
 
-        match send(self, Request::GetADataLastEntry(address)).await? {
+        match send(self, Request::GetADataLastEntry(address))? {
 
                 Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -797,7 +825,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         address: ADataAddress,
         permissions_index: ADataIndex,
-    ) -> Result<ADataUnpubPermissions, CoreError> {
+    ) -> Result<ADataUnpubPermissions, CoreError> where Self: Sized {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -809,7 +837,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address,
                 permissions_index,
             },
-        ).await? {
+        )? {
             Response::GetADataPermissions(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|permissions| match permissions {
@@ -828,7 +856,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         address: ADataAddress,
         permissions_index: ADataIndex,
-    ) -> Result<ADataPubPermissions, CoreError> {
+    ) -> Result<ADataPubPermissions, CoreError> where Self: Sized {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -840,7 +868,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address,
                 permissions_index,
             },
-        ).await? {
+        )? {
             Response::GetADataPermissions(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|permissions| match permissions {
@@ -858,7 +886,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         address: ADataAddress,
         permissions_index: ADataIndex,
         user: ADataUser,
-    ) -> Result<ADataPubPermissionSet, CoreError> {
+    ) -> Result<ADataPubPermissionSet, CoreError> where Self: Sized {
         trace!(
             "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
             address.name()
@@ -871,7 +899,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 permissions_index,
                 user,
             },
-        ).await? {
+        )? {
             Response::GetPubADataUserPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -883,7 +911,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         address: ADataAddress,
         permissions_index: ADataIndex,
         public_key: PublicKey,
-    ) -> Result<ADataUnpubPermissionSet, CoreError> {
+    ) -> Result<ADataUnpubPermissionSet, CoreError> where Self: Sized {
         trace!(
             "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
             address.name()
@@ -896,7 +924,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 permissions_index,
                 public_key,
             },
-        ).await? {
+        )? {
             Response::GetUnpubADataUserPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -908,7 +936,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
         permissions_index: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!(
             "Add Permissions to UnPub AppendOnly Data {:?}",
             address.name()
@@ -930,7 +958,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         address: ADataAddress,
         permissions: ADataPubPermissions,
         permissions_index: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!("Add Permissions to AppendOnly Data {:?}", address.name());
 
         send_mutation(
@@ -949,7 +977,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         address: ADataAddress,
         owner: ADataOwner,
         owners_index: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!("Set Owners to AppendOnly Data {:?}", address.name());
 
         send_mutation(
@@ -967,7 +995,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         address: ADataAddress,
         owners_index: ADataIndex,
-    ) -> Result<ADataOwner, CoreError> {
+    ) -> Result<ADataOwner, CoreError> where Self: Sized {
         trace!("Get Owners from AppendOnly Data at {:?}", address.name());
 
         match send(
@@ -976,19 +1004,19 @@ pub trait Client: Clone + 'static + std::marker::Send {
                 address,
                 owners_index,
             },
-        ).await? {
+        )? {
             Response::GetADataOwners(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
 
     /// Append to Published Seq AppendOnly Data
-    async fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> {
+    async fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> where Self: Sized  {
         send_mutation(self, Request::AppendSeq { append, index }).await
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
-    async fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> {
+    async fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> where Self: Sized {
         send_mutation(self, Request::AppendUnseq(append)).await
     }
 
@@ -996,10 +1024,10 @@ pub trait Client: Clone + 'static + std::marker::Send {
     async fn list_mdata_permissions(
         &self,
         address: MDataAddress,
-    ) -> Result<BTreeMap<PublicKey, MDataPermissionSet>, CoreError> {
+    ) -> Result<BTreeMap<PublicKey, MDataPermissionSet>, CoreError> where Self: Sized {
         trace!("List MDataPermissions for {:?}", address);
 
-        match send(self, Request::ListMDataPermissions(address)).await? {
+        match send(self, Request::ListMDataPermissions(address))? {
          
                 Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1013,7 +1041,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         user: PublicKey,
         permissions: MDataPermissionSet,
         version: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized  {
         trace!("SetMDataUserPermissions for {:?}", address);
 
         send_mutation(
@@ -1033,7 +1061,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         address: MDataAddress,
         user: PublicKey,
         version: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!("DelMDataUserPermissions for {:?}", address);
 
         send_mutation(
@@ -1066,7 +1094,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
     fn set_network_limits(&self, max_ops_count: Option<u64>) {
         let inner = self.inner();
         inner
-            .borrow_mut()
+            .lock().unwrap()
             .connection_manager
             .set_network_limits(max_ops_count);
     }
@@ -1078,7 +1106,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
     #[doc(hidden)]
     fn simulate_network_disconnect(&self) {
         let inner = self.inner();
-        inner.borrow_mut().connection_manager.simulate_disconnect();
+        inner.lock().unwrap().connection_manager.simulate_disconnect();
     }
 
     #[cfg(any(
@@ -1089,7 +1117,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
     fn set_simulate_timeout(&self, enabled: bool) {
         let inner = self.inner();
         inner
-            .borrow_mut()
+            .lock().unwrap()
             .connection_manager
             .set_simulate_timeout(enabled);
     }
@@ -1100,7 +1128,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
         &self,
         client_id: Option<&ClientFullId>,
         amount: Coins,
-    ) -> Result<Transaction, CoreError> {
+    ) -> Result<Transaction, CoreError> where Self: Sized {
         let new_balance_owner = client_id.map_or_else(
             || self.public_key(),
             |client_id| *client_id.public_id().public_key(),
@@ -1120,7 +1148,7 @@ pub trait Client: Clone + 'static + std::marker::Send {
                         transaction_id: rand::random(),
                     },
             client_id
-        ).await {
+        ) {
             Ok( res ) => {
                 match res {
                     Response::Transaction(result) => {
@@ -1142,24 +1170,24 @@ pub trait Client: Clone + 'static + std::marker::Send {
 
 /// Creates a throw-away client to execute requests sequentially.
 /// This function is blocking.
-fn temp_client<F, R>(identity: &ClientFullId, mut func: F) -> Result<R, CoreError>
+async fn temp_client<F, R>(identity: &ClientFullId, mut func: F) -> Result<R, CoreError>
 where
     F: FnMut(&mut ConnectionManager, &SafeKey) -> Result<R, CoreError>,
 {
     let full_id = SafeKey::client(identity.clone());
     let (net_tx, _net_rx) = mpsc::unbounded();
 
-    let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone())?;
+    let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone()).await?;
 
     let res = func(&mut cm, &full_id);
 
-    block_on_all(cm.disconnect(&full_id.public_id()))?;
+    cm.disconnect(&full_id.public_id()).await?;
 
     res
 }
 
 /// Create a new mock balance at an arbitrary address.
-pub fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<(), CoreError> {
+pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<(), CoreError> {
     trace!("Create test balance of {} for {:?}", amount, owner);
 
     temp_client(owner, move |mut cm, full_id| {
@@ -1169,7 +1197,7 @@ pub fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<(), Co
             x => return Err(CoreError::from(format!("Unexpected ID type {:?}", x))),
         };
 
-        let response = req(
+        let response = futures::executor::block_on( req(
             &mut cm,
             Request::CreateBalance {
                 new_balance_owner,
@@ -1177,29 +1205,29 @@ pub fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<(), Co
                 transaction_id: rand::random(),
             },
             &full_id,
-        )?;
+        ))?;
 
         match response {
             Response::Transaction(res) => res.map(|_| Ok(()))?,
             _ => Err(CoreError::from("Unexpected response")),
         }
-    })
+    }).await
 }
 
 /// Get the balance at the given key's location
-pub fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreError> {
+pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreError> {
     trace!("Get balance for {:?}", wallet_sk);
 
     temp_client(wallet_sk, move |mut cm, full_id| {
-        match req(&mut cm, Request::GetBalance, &full_id)? {
+        match futures::executor::block_on( req(&mut cm, Request::GetBalance, &full_id) )? {
             Response::GetBalance(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
-    })
+    }).await
 }
 
 /// Creates a new coin balance on the network.
-pub fn wallet_create_balance(
+pub async fn wallet_create_balance(
     client_id: &ClientFullId,
     new_balance_owner: PublicKey,
     amount: Coins,
@@ -1214,7 +1242,7 @@ pub fn wallet_create_balance(
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
 
     temp_client(client_id, move |mut cm, full_id| {
-        let response = req(
+        let response = futures::executor::block_on( req(
             &mut cm,
             Request::CreateBalance {
                 new_balance_owner,
@@ -1222,16 +1250,16 @@ pub fn wallet_create_balance(
                 transaction_id,
             },
             &full_id,
-        )?;
+        ))?;
         match response {
             Response::Transaction(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
-    })
+    }).await
 }
 
 /// Transfer coins
-pub fn wallet_transfer_coins(
+pub async fn wallet_transfer_coins(
     client_id: &ClientFullId,
     destination: XorName,
     amount: Coins,
@@ -1242,7 +1270,8 @@ pub fn wallet_transfer_coins(
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
 
     temp_client(client_id, move |mut cm, full_id| {
-        let response = req(
+        
+        let response = futures::executor::block_on(req(
             &mut cm,
             Request::TransferCoins {
                 destination,
@@ -1250,12 +1279,12 @@ pub fn wallet_transfer_coins(
                 transaction_id,
             },
             &full_id,
-        )?;
+        ))?;
         match response {
             Response::Transaction(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
-    })
+    }).await
 }
 
 /// This trait implements functions that are supposed to be called only by `CoreClient` and `AuthClient`.
@@ -1266,10 +1295,10 @@ pub trait AuthActions: Client + Clone + 'static {
     /// Fetches a list of authorised keys and version.
     async fn list_auth_keys_and_version(
         &self,
-    ) -> Result<(BTreeMap<PublicKey, AppPermissions>, u64), CoreError> {
+    ) -> Result<(BTreeMap<PublicKey, AppPermissions>, u64), CoreError> where Self: Sized {
         trace!("ListAuthKeysAndVersion");
 
-        match send(self, Request::ListAuthKeysAndVersion).await? {
+        match send(self, Request::ListAuthKeysAndVersion)? {
                 Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             }
@@ -1281,7 +1310,7 @@ pub trait AuthActions: Client + Clone + 'static {
         key: PublicKey,
         permissions: AppPermissions,
         version: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), CoreError> where Self: Sized {
         trace!("InsAuthKey ({:?})", key);
 
         send_mutation(
@@ -1295,21 +1324,21 @@ pub trait AuthActions: Client + Clone + 'static {
     }
 
     /// Removes an authorised key.
-    async fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError> {
+    async fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError> where Self: Sized {
         trace!("DelAuthKey ({:?})", key);
 
         send_mutation(self, Request::DelAuthKey { key, version }).await
     }
 
     /// Delete MData from network
-    async fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError> {
+    async fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError> where Self: Sized {
         trace!("Delete entire Mutable Data at {:?}", address);
 
         send_mutation(self, Request::DeleteMData(address)).await
     }
 
     /// Delete AData from network.
-    async fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError> {
+    async fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError> where Self: Sized {
         trace!("Delete entire Unpublished AppendOnly Data at {:?}", address);
 
         send_mutation(self, Request::DeleteAData(address)).await
@@ -1333,7 +1362,7 @@ fn sign_request(request: Request, client_id: &ClientFullId) -> Message {
 /// Struct containing fields expected by the `Client` trait. Implementers of `Client` should be
 /// composed around this struct.
 #[allow(unused)] // FIXME
-pub struct Inner<C: Client, T> {
+pub struct Inner<C: Client + Sync + Send, T> {
     connection_manager: ConnectionManager,
     el_handle: Handle,
     cache: LruCache<IDataAddress, IData>,
@@ -1342,7 +1371,7 @@ pub struct Inner<C: Client, T> {
     net_tx: NetworkTx,
 }
 
-impl<C: Client, T> Inner<C, T> {
+impl<C: Client + Sync + Send, T> Inner<C, T> {
     /// Create a new `ClientInner` object.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -1352,7 +1381,7 @@ impl<C: Client, T> Inner<C, T> {
         timeout: Duration,
         core_tx: CoreMsgTx<C, T>,
         net_tx: NetworkTx,
-    ) -> Inner<C, T> {
+    ) -> Inner<C, T> where Self: Sized {
         Self {
             el_handle,
             connection_manager,
@@ -1364,14 +1393,14 @@ impl<C: Client, T> Inner<C, T> {
     }
 
     /// Get the connection manager associated with the client
-    pub fn cm(&mut self) -> &mut ConnectionManager {
+    pub fn cm(&mut self) -> &mut ConnectionManager where Self: Sized {
         &mut self.connection_manager
     }
 }
 
 /// Send a request and wait for a response.
 /// This function is blocking.
-pub fn req(
+pub async fn req(
     cm: &mut ConnectionManager,
     request: Request,
     full_id_new: &SafeKey,
@@ -1379,19 +1408,19 @@ pub fn req(
     let message_id = MessageId::new();
     let signature = full_id_new.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
 
-    block_on_all(cm.send(
+    cm.send(
         &full_id_new.public_id(),
         &Message::Request {
             request,
             message_id,
             signature: Some(signature),
         },
-    ))
+    ).await
 }
 
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
-pub fn attempt_bootstrap(
+pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
     net_tx: &NetworkTx,
     safe_key: SafeKey,
@@ -1400,7 +1429,7 @@ pub fn attempt_bootstrap(
 
     loop {
         let mut connection_manager = ConnectionManager::new(qp2p_config.clone(), &net_tx.clone())?;
-        let res = block_on_all(connection_manager.bootstrap(safe_key.clone()));
+        let res = connection_manager.bootstrap(safe_key.clone()).await;
         match res {
             Ok(()) => return Ok(connection_manager),
             Err(err) => {

@@ -8,21 +8,23 @@
 
 use crate::client::Client;
 use crate::crypto::shared_secretbox;
-use crate::event_loop::CoreFuture;
 use crate::self_encryption_storage::{
     SEStorageError, SelfEncryptionStorage, SelfEncryptionStorageDryRun,
 };
-use crate::utils::{self, FutureExt};
+use crate::utils;
 // use crate::{fry, ok};
 use crate::{CoreError};
 
 use bincode::{deserialize, serialize};
 use futures::Future;
 use log::trace;
-
+use std::sync::Arc;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
 use self_encryption::{DataMap, SelfEncryptor, Storage};
 use serde::{Deserialize, Serialize};
+use async_recursion::async_recursion;
+
+use futures::future::{BoxFuture, FutureExt};
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
@@ -33,7 +35,7 @@ enum DataTypeEncoding {
 /// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
 /// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 pub async fn create(
-    client: &(impl Client + std::marker::Sync + std::marker::Send),
+    client: &(impl Client + Sync + Send),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -48,7 +50,7 @@ pub async fn create(
 /// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 /// The DataMap is generated but the chunks are not uploaded to the network.
 pub async fn gen_data_map(
-    client: &(impl Client + std::marker::Sync + std::marker::Send),
+    client: &(impl Client + Sync + Send),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -61,8 +63,8 @@ pub async fn gen_data_map(
 
 /// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
 pub async fn extract_value(
-    client: &(impl Client + std::marker::Sync + std::marker::Send),
-    data: &IData,
+    client: &(impl Client + Sync + Send),
+    data: IData,
     position: Option<u64>,
     len: Option<u64>,
     decryption_key: Option<shared_secretbox::Key>,
@@ -105,7 +107,7 @@ pub async fn extract_value(
 /// provided). This combines `get_idata` in `Client` and `extract_value` in this module into one
 /// function.
 pub async fn get_value(
-    client: &(impl Client + std::marker::Sync + std::marker::Send),
+    client: &(impl Client + Sync + Send),
     address: IDataAddress,
     position: Option<u64>,
     len: Option<u64>,
@@ -114,22 +116,23 @@ pub async fn get_value(
     let client2 = client.clone();
     let data = client
         .get_idata(address).await?;
-    extract_value(&client2, &data, position, len, decryption_key).await
+    extract_value(&client2, data, position, len, decryption_key).await
 }
 
 async fn write_with_self_encryptor<S>(
     se_storage: S,
-    client: &(impl Client + std::marker::Sync + std::marker::Send),
+    client: &(impl Client + Sync + Send),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<IData, CoreError>
 where
-    S: Storage<Error = SEStorageError> + Clone + 'static,
+    S: Storage<Error = SEStorageError> + Clone + Send + Sync + 'static,
 {
     let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
     self_encryptor
         .write(value, 0).await?;
+
         let ( data_map, _ ) = self_encryptor.close().await?;
 
         // .and_then(move |_| self_encryptor.close())
@@ -146,64 +149,96 @@ where
             ),)?
         };
 
-        pack(se_storage, client, value, published).await
+        // let arc
+        //  = 
+         pack(se_storage, client, value, published).await
+        // Arc::into_raw( arc)
+
+
         // })
         // .into_box()
 }
 
 // TODO: consider rewriting these two function to not use recursion.
 
+#[async_recursion]
 async fn pack<S>(
     se_storage: S,
-    client: &(impl Client + std::marker::Sync + std::marker::Send),
+    client: &(impl Client + Sync + Send),
     value: Vec<u8>,
     published: bool,
 ) -> Result<IData, CoreError>
 where
-    S: Storage<Error = SEStorageError> + Clone + 'static,
+    S: Storage<Error = SEStorageError> + Clone + 'static + Sync + Send,
 {
     let data: IData = if published {
         PubImmutableData::new(value).into()
     } else {
         UnpubImmutableData::new(value, client.public_key()).into()
     };
-    let serialised_data = serialize(&data)?;
+    let serialised_data = match serialize(&data) {
+        Ok(the_data) => the_data, 
+        Err(error) => {
+            // return async move{
+
+            //     Arc::new(Err(CoreError::from(error) ))
+            // }.await
+            return Err(CoreError::from(error) ) 
+            // error.await
+        }
+            // return Box::new(error)
+    };
 
     if data.validate_size() {
-        Ok(data)
-    } else {
-        let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
-        let _ = self_encryptor
-            .write(&serialised_data, 0).await?;
-        let ( data_map, _ ) = self_encryptor.close().await?;
 
-            // .and_then(move |_| self_encryptor.close())
-            // .map_err(From::from)
-            // .and_then(move |(data_map, _)| {
-            let value = serialize(&DataTypeEncoding::DataMap(data_map))?;
-            pack(se_storage, client, value, published).await
-            // })
-            // .into_box()
+           Ok(data)
+
+    } else {
+            let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
+            
+            // TODO make read/write properly x-thread compatible in self_encrypt
+            let _ = self_encryptor
+                .write(&serialised_data, 0).await?;
+
+            let ( data_map, _ ) = self_encryptor.close().await?;
+    
+                // .and_then(move |_| self_encryptor.close())
+                // .map_err(From::from)
+                // .and_then(move |(data_map, _)| {
+                let value = serialize(&DataTypeEncoding::DataMap(data_map))?;
+
+                // this is an Arc
+                pack(se_storage, client, value, published).await
+                // })
+                // .into_box()
+
+        // .boxed()
     }
 }
 
-async fn unpack<S>(se_storage: S, client: &(impl Client + std::marker::Sync + std::marker::Send)
-, data: &IData) -> Result<Vec<u8>, CoreError>
+
+#[async_recursion]
+async fn unpack<S>(se_storage: S, client: &(impl Client + Sync + Send)
+, data: IData) -> Result<Vec<u8>, CoreError>
 where
-    S: Storage<Error = SEStorageError> + Clone + 'static,
+    S: Storage<Error = SEStorageError> + Clone + 'static + Send + Sync,
 {
     match deserialize(data.value())? {
-        DataTypeEncoding::Serialised(value) => Ok(value),
+        DataTypeEncoding::Serialised(value) => Ok(value) ,
         DataTypeEncoding::DataMap(data_map) => {
             let self_encryptor = SelfEncryptor::new(se_storage.clone(), data_map)?;
             let length = self_encryptor.len();
+           
             let serialised_data = self_encryptor
                     .read(0, length).await?;
 
-                // .map_err(From::from)
-                // .and_then(move |&serialised_data| {
+            //     // .map_err(From::from)
+            //     // .and_then(move |&serialised_data| {
                     let data = deserialize(&serialised_data)?;
-                    unpack(se_storage, client, &data).await
+                    unpack(se_storage, client, data).await
+                // let vec = Vec::new();
+
+                // Ok(vec)
                 // })
                 // .into_box()
         }

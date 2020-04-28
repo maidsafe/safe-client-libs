@@ -52,7 +52,7 @@ fn refresh_access_info() {
     ),));
 
     unwrap!(run(&app, move |client, context| {
-        let reg = Rc::clone(unwrap!(context.as_registered()));
+        let reg = Arc::clone(unwrap!(context.as_registered()));
         assert!(reg.access_info.borrow().is_empty());
 
         context.refresh_access_info(client).then(move |result| {

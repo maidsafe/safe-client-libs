@@ -27,7 +27,7 @@ use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
 use safe_nd::{ClientFullId, Coins, LoginPacket, PublicKey, Request, Response};
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::str::FromStr;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
@@ -37,13 +37,13 @@ use unwrap::unwrap;
 use async_trait::async_trait;
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
-    inner: Rc<RefCell<Inner<CoreClient, ()>>>,
+    inner: Arc<Mutex<Inner<CoreClient, ()>>>,
     keys: ClientKeys,
 }
 
 impl CoreClient {
     /// This will create a basic Client object which is sufficient only for testing purposes.
-    pub fn new(
+    pub async fn new(
         acc_locator: &str,
         acc_password: &str,
         el_handle: Handle,
@@ -57,10 +57,10 @@ impl CoreClient {
             core_tx,
             net_tx,
             |cm| cm,
-        )
+        ).await
     }
 
-    fn new_impl<F>(
+    async fn new_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
         el_handle: Handle,
@@ -106,7 +106,7 @@ impl CoreClient {
 
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, balance_client_id.clone())?;
+            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, balance_client_id.clone()).await?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
@@ -120,7 +120,7 @@ impl CoreClient {
                     transaction_id: rand::random(),
                 },
                 &balance_client_id,
-            )?;
+            ).await?;
             let _ = match response {
                 Response::Transaction(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
@@ -130,20 +130,22 @@ impl CoreClient {
                 &mut connection_manager,
                 Request::CreateLoginPacket(new_login_packet),
                 &balance_client_id,
-            )?;
+            ).await?;
 
             match response {
                 Response::Mutation(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
             };
 
-            block_on_all(connection_manager.disconnect(&balance_pub_id))?;
+            // block_on_all(connection_manager.disconnect(&balance_pub_id))?;
+            connection_manager.disconnect(&balance_pub_id).await?;
         }
 
-        block_on_all(connection_manager.bootstrap(maid_keys.client_safe_key()))?;
+        connection_manager.bootstrap(maid_keys.client_safe_key()).await?;
+        // block_on_all(connection_manager.bootstrap(maid_keys.client_safe_key()))?;
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(Inner {
+            inner: Arc::new(Mutex::new(Inner {
                 el_handle,
                 connection_manager,
                 cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -156,7 +158,7 @@ impl CoreClient {
     }
 }
 
-// #[async_trait]
+#[async_trait]
 impl Client for CoreClient {
     type Context = ();
 
@@ -172,7 +174,7 @@ impl Client for CoreClient {
         None
     }
 
-    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>> {
+    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>> {
         self.inner.clone()
     }
 
@@ -189,12 +191,13 @@ impl Client for CoreClient {
     }
 }
 
+#[async_trait]
 impl AuthActions for CoreClient {}
 
 impl Clone for CoreClient {
-    fn clone(&self) -> Self {
+    fn clone(&self) -> Self where Self: Sized {
         CoreClient {
-            inner: Rc::clone(&self.inner),
+            inner: Arc::clone(&self.inner),
             keys: self.keys.clone(),
         }
     }

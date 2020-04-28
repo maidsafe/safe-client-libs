@@ -22,7 +22,7 @@ pub type CoreMsgTx<C, T> = mpsc::UnboundedSender<CoreMsg<C, T>>;
 pub type CoreMsgRx<C, T> = mpsc::UnboundedReceiver<CoreMsg<C, T>>;
 
 /// The final future which the event loop will run.
-pub type TailFuture = Box<dyn Future<Output=Result<(), ()>>>;
+pub type TailFuture = Box<dyn Future<Output=Result<(), ()>> + Send >;
 type TailFutureFn<C, T> = dyn FnMut(&C, &T) -> Option<TailFuture> + Send + 'static;
 
 /// The message format that core event loop understands.
@@ -58,19 +58,37 @@ impl<C: Client, T> CoreMsg<C, T> {
 
 /// Run the core event loop. This will block until the event loop is alive.
 /// Hence must typically be called inside a spawned thread.
-pub fn run<C: Client, T>(mut el: Runtime, client: &C, context: &T, el_rx: CoreMsgRx<C, T>) {
-    let keep_alive = el_rx.for_each(|core_msg| {
-        if let Some(mut f) = core_msg.0 {
-            if let Some(tail) = f(client, context) {
-                // use std::thread::current_thread;
-                std::thread::current_thread::spawn(tail);
-            }
-            Ok(())
-        } else {
-            Err(())
-        }
-    });
+pub fn run<C: Client, T>(mut event_loop: Runtime, client: &C, context: &T, mut receiver: CoreMsgRx<C, T>) {
 
-    let _ = el.block_on(keep_alive);
+
+    let keep_alive = async move {
+        while let Some(msg) = receiver.next().await {
+
+            if let Some(mut f) = msg.0 {
+                if let Some(tail) = f(client, context) {
+                    std::thread::spawn(||tail);
+                }
+                // Ok(())
+            } 
+            // else {
+            //     // Err(())
+            // }
+        }
+
+    };
+
+
+    // let keep_alive = receiver.for_each(|core_msg| {
+    //     if let Some(mut f) = core_msg.0 {
+    //         if let Some(tail) = f(client, context) {
+    //             std::thread::spawn(tail);
+    //         }
+    //         Ok(())
+    //     } else {
+    //         Err(())
+    //     }
+    // });
+
+    let _ = event_loop.block_on(keep_alive);
     debug!("Exiting Core Event Loop");
 }

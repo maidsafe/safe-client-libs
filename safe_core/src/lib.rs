@@ -52,13 +52,12 @@ pub use self::config_handler::config_dir;
 #[cfg(not(feature = "mock-network"))]
 pub use self::connection_manager::ConnectionManager;
 pub use self::errors::{core_error_code, safe_nd_error_core, CoreError};
-pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
+pub use self::event_loop::{CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::self_encryption_storage::{
     SEStorageError as SelfEncryptionStorageError, SelfEncryptionStorage,
 };
 pub use self::utils::logging;
-pub use self::utils::FutureExt;
 pub use quic_p2p::Config as QuicP2pConfig;
 
 /// Client trait and related constants.

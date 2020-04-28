@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{Client, CoreError, FutureExt};
+use super::{Client, CoreError};
 // use crate::{err, ok};
 use futures::{self, Future};
 use log::trace;
@@ -20,13 +20,13 @@ use async_trait::async_trait;
 /// to put or get data from the network.
 // #[async_trait]
 #[derive(Clone)]
-pub struct SelfEncryptionStorage<C: Client> {
+pub struct SelfEncryptionStorage<C: Client + Send + Sync> {
     client: C,
     published: bool,
 }
 
 // #[async_trait]
-impl<C: Client> SelfEncryptionStorage<C> {
+impl<C: Client + Send + Sync > SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {
         Self { client, published }
@@ -34,7 +34,7 @@ impl<C: Client> SelfEncryptionStorage<C> {
 }
 
 #[async_trait]
-impl<C: std::marker::Send + std::marker::Sync + Client> Storage for SelfEncryptionStorage<C> {
+impl<C: Send + Sync + Client> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
     async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -135,10 +135,8 @@ impl<C: Client> SelfEncryptionStorageDryRun<C> {
 }
 
 #[async_trait]
-impl<C: std::marker::Send + std::marker::Sync + Client> Storage for SelfEncryptionStorageDryRun<C> {
+impl<C: Send + Sync + Client> Storage for SelfEncryptionStorageDryRun<C> {
     type Error = SEStorageError;
-
-
 
     async fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData dry run.");

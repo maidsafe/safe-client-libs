@@ -14,8 +14,6 @@ pub mod test_utils;
 
 mod futures;
 
-pub use self::futures::FutureExt;
-
 use crate::errors::CoreError;
 use bincode::{deserialize, serialize};
 use log::error;

@@ -16,7 +16,7 @@ use crate::client::core_client::CoreClient;
 use crate::client::{Client, COST_OF_PUT};
 use crate::event_loop::{self, CoreMsg, CoreMsgTx};
 use crate::network_event::{NetworkEvent, NetworkTx};
-use crate::utils::{self, FutureExt};
+use crate::utils::{self};
 use futures::stream::Stream;
 use futures::channel::mpsc;
 use futures::{Future, future::IntoFuture};
@@ -54,10 +54,10 @@ pub fn finish() -> Result<(), ()> {
 
 /// Create random registered client and run it inside an event loop. Use this to
 /// create a `CoreClient` automatically and randomly.
-pub fn random_client<Run, I, T, E>(r: Run) -> T
+pub async fn random_client<Run, I, T, E>(r: Run) -> T
 where
     Run: FnOnce(&CoreClient) -> I + Send + 'static,
-    I: Future<Output=Result<T, E>> + 'static,
+    I: Future<Output=Result<T, E>> + Send +'static,
     T: Send + 'static,
     E: Debug,
 {
@@ -67,7 +67,9 @@ where
     let c = |el_h, core_tx, net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
-        CoreClient::new(&acc_locator, &acc_password, el_h, core_tx, net_tx)
+        futures::executor::block_on(
+            CoreClient::new(&acc_locator, &acc_password, el_h, core_tx, net_tx)
+        )
     };
     setup_client_with_net_obs(&(), c, n, r)
 }
@@ -82,7 +84,7 @@ where
     Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: Future<Output=Result<T, E>> + 'static,
+    I: Future<Output=Result<T, E>> + Send + 'static,
     T: Send + 'static,
     E: Debug,
     F: Debug,
@@ -109,7 +111,7 @@ where
     Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: Future<Output=Result<T, E>> + 'static,
+    I: Future<Output=Result<T, E>> + Send + 'static,
     T: Send + 'static,
     E: Debug,
     F: Debug,
@@ -118,7 +120,7 @@ where
     let event_loop_handle = event_loop.handle();
 
     let (core_tx, core_rx) = mpsc::unbounded();
-    let (net_tx, net_rx) = mpsc::unbounded();
+    let (net_tx, mut net_rx) = mpsc::unbounded();
     let client = unwrap!(c(event_loop_handle.clone(), core_tx.clone(), net_tx));
 
     let net_fut = async move {

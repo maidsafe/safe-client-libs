@@ -30,6 +30,7 @@ maidsafe_logo.png",
 // Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Re-export functions used in FFI so that they are accessible through the Rust API.
+use std::sync::{Arc, Mutex};
 
 pub use safe_core::core_structs::AppKeys;
 pub use safe_core::{
@@ -261,9 +262,9 @@ impl Drop for App {
 #[derive(Clone)]
 pub enum AppContext {
     /// Context of unregistered app.
-    Unregistered(Rc<Unregistered>),
+    Unregistered(Arc<Unregistered>),
     /// Context of registered app.
-    Registered(Rc<Registered>),
+    Registered(Arc<Registered>),
 }
 
 #[allow(missing_docs)]
@@ -279,7 +280,7 @@ pub struct Registered {
 
 impl AppContext {
     fn unregistered() -> Self {
-        Self::Unregistered(Rc::new(Unregistered {}))
+        Self::Unregistered(Arc::new(Unregistered {}))
     }
 
     fn registered(
@@ -287,11 +288,11 @@ impl AppContext {
         sym_enc_key: shared_secretbox::Key,
         access_container_info: AccessContInfo,
     ) -> Self {
-        Self::Registered(Rc::new(Registered {
+        Self::Registered(Arc::new(Registered {
             app_id,
             sym_enc_key,
             access_container_info,
-            access_info: RefCell::new(HashMap::new()),
+            access_info: Mutex::new(HashMap::new()),
         }))
     }
 
@@ -302,15 +303,15 @@ impl AppContext {
 
     /// Refresh access info by fetching it from the network.
     pub fn refresh_access_info(&self, client: &AppClient) -> Box<AppFuture<()>> {
-        let reg = Rc::clone(r#try!(self.as_registered()));
+        let reg = Arc::clone(r#try!(self.as_registered()));
         refresh_access_info(reg, client)
     }
 
     /// Fetch a list of containers that this app has access to
     pub fn get_access_info(&self, client: &AppClient) -> Box<AppFuture<AccessContainerEntry>> {
-        let reg = Rc::clone(r#try!(self.as_registered()));
+        let reg = Arc::clone(r#try!(self.as_registered()));
 
-        fetch_access_info(Rc::clone(&reg), client)
+        fetch_access_info(Arc::clone(&reg), client)
             .map(move |_| {
                 let access_info = reg.access_info.borrow();
                 access_info.clone()
@@ -318,7 +319,7 @@ impl AppContext {
             .into_box()
     }
 
-    fn as_registered(&self) -> Result<&Rc<Registered>, AppError> {
+    fn as_registered(&self) -> Result<&Arc<Registered>, AppError> {
         match *self {
             Self::Registered(ref a) => Ok(a),
             Self::Unregistered(_) => Err(AppError::OperationForbidden),
@@ -365,7 +366,7 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
             let encoded = utils::symmetric_decrypt(&value.data, &context.sym_enc_key)?;
             let decoded = deserialize(&encoded)?;
 
-            *context.access_info.borrow_mut() = decoded;
+            *context.access_info.lock().unwrap() = decoded;
 
             Ok(())
         })

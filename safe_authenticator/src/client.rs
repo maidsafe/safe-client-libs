@@ -40,8 +40,8 @@ use unwrap::unwrap;
 
 /// Client object used by `safe_authenticator`.
 pub struct AuthClient {
-    inner: Rc<RefCell<Inner<AuthClient, ()>>>,
-    auth_inner: Rc<RefCell<AuthInner>>,
+    inner: Arc<Mutex<Inner<AuthClient, ()>>>,
+    auth_inner: Arc<Mutex<AuthInner>>,
 }
 
 impl AuthClient {
@@ -182,7 +182,7 @@ impl AuthClient {
         };
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(Inner::new(
+            inner: Arc::new(Mutex::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -190,7 +190,7 @@ impl AuthClient {
                 core_tx,
                 net_tx,
             ))),
-            auth_inner: Rc::new(RefCell::new(AuthInner {
+            auth_inner: Arc::new(Mutex::new(AuthInner {
                 acc,
                 acc_loc: acc_locator,
                 user_cred,
@@ -313,7 +313,7 @@ impl AuthClient {
         block_on_all(connection_manager.bootstrap(id_packet))?;
 
         Ok(Self {
-            inner: Rc::new(RefCell::new(Inner::new(
+            inner: Arc::new(Mutex::new(Inner::new(
                 el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
@@ -321,7 +321,7 @@ impl AuthClient {
                 core_tx,
                 net_tx,
             ))),
-            auth_inner: Rc::new(RefCell::new(AuthInner {
+            auth_inner: Arc::new(Mutex::new(AuthInner {
                 acc,
                 acc_loc: acc_locator,
                 user_cred,
@@ -344,7 +344,7 @@ impl AuthClient {
     pub fn set_config_root_dir(&self, dir: MDataInfo) -> bool {
         trace!("Setting configuration root Dir ID.");
 
-        let mut auth_inner = self.auth_inner.borrow_mut();
+        let mut auth_inner = self.auth_inner.lock().unwrap();
         let acc = &mut auth_inner.acc;
 
         if acc.config_root == dir {
@@ -370,7 +370,7 @@ impl AuthClient {
     pub fn set_access_container(&self, dir: MDataInfo) -> bool {
         trace!("Setting user root Dir ID.");
 
-        let mut auth_inner = self.auth_inner.borrow_mut();
+        let mut auth_inner = self.auth_inner.lock().unwrap();
         let account = &mut auth_inner.acc;
 
         if account.access_container == dir {
@@ -415,7 +415,7 @@ impl AuthClient {
             &account_packet_id
         ));
 
-        let mut client_inner = self.inner.borrow_mut();
+        let mut client_inner = self.inner.lock().unwrap();
 
         let mut cm = client_inner.cm().clone();
         let mut cm2 = cm.clone();
@@ -457,7 +457,7 @@ impl AuthClient {
 
     /// Sets the current status of std/root dirs creation.
     pub fn set_std_dirs_created(&self, val: bool) {
-        let mut auth_inner = self.auth_inner.borrow_mut();
+        let mut auth_inner = self.auth_inner.lock().unwrap();
         let account = &mut auth_inner.acc;
         account.root_dirs_created = val;
     }
@@ -488,7 +488,7 @@ impl Client for AuthClient {
         None
     }
 
-    fn inner(&self) -> Rc<RefCell<Inner<Self, Self::Context>>> {
+    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>> {
         self.inner.clone()
     }
 
@@ -517,8 +517,8 @@ impl fmt::Debug for AuthClient {
 impl Clone for AuthClient {
     fn clone(&self) -> Self {
         Self {
-            inner: Rc::clone(&self.inner),
-            auth_inner: Rc::clone(&self.auth_inner),
+            inner: Arc::clone(&self.inner),
+            auth_inner: Arc::clone(&self.auth_inner),
         }
     }
 }
@@ -623,13 +623,13 @@ mod tests {
                 AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
             },
             |_| finish(),
-        );
+        ).await;
 
         setup_client(
             &(),
             |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
             |_| finish(),
-        );
+        ).await;
     }
 
     // Test logging in using a seeded account.

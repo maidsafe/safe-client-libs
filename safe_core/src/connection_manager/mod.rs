@@ -11,9 +11,9 @@ mod response_manager;
 use tokio::time::timeout;
 
 use crate::{
-    client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError, CoreFuture,
+    client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError,
 };
-use crate::{fry, ok};
+// use crate::{fry, ok};
 use connection_group::ConnectionGroup;
 use futures::future::{self, TryFutureExt};
 use log::{error, trace};
@@ -24,6 +24,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     rc::Rc,
     time::Duration,
+    sync::{Mutex, Arc}
 };
 
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
@@ -32,7 +33,7 @@ const CONNECTION_TIMEOUT_SECS: u64 = 30;
 /// Contains a reference to crossbeam channel provided by quic-p2p for capturing the events.
 #[derive(Clone)]
 pub struct ConnectionManager {
-    inner: Rc<RefCell<Inner>>,
+    inner: Arc<Mutex<Inner>>,
 }
 
 impl ConnectionManager {
@@ -40,7 +41,7 @@ impl ConnectionManager {
     pub fn new(mut config: QuicP2pConfig, net_tx: &NetworkTx) -> Result<Self, CoreError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
 
-        let inner = Rc::new(RefCell::new(Inner {
+        let inner = Arc::new(Mutex::new(Inner {
             config,
             groups: HashMap::default(),
             net_tx: net_tx.clone(),
@@ -52,18 +53,23 @@ impl ConnectionManager {
     /// Returns `true` if this connection manager is already connected to a Client Handlers
     /// group serving the provided public ID.
     pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {
-        let inner = self.inner.borrow();
-        inner.groups.contains_key(&pub_id)
+        match self.inner.lock() {
+            Ok( inner ) => {
+
+                inner.groups.contains_key(&pub_id)
+            },
+            Err(error) => false
+        }
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
     pub async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
-        self.inner.borrow_mut().send(pub_id, msg).await
+        self.inner.lock().unwrap().send(pub_id, msg).await
     }
 
     /// Connect to Client Handlers that manage the provided ID.
     pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
-        self.inner.borrow_mut().bootstrap(full_id).await
+        self.inner.lock().unwrap().bootstrap(full_id).await
     }
 
     /// Reconnect to the network.
@@ -73,7 +79,7 @@ impl ConnectionManager {
 
     /// Disconnect from a group.
     pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(),CoreError> {
-        self.inner.borrow_mut().disconnect(pub_id).await
+        self.inner.lock().unwrap().disconnect(pub_id).await
     }
 }
 
