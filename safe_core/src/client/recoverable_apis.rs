@@ -207,9 +207,9 @@ async fn update_mdata(client: &impl Client + std::marker::Sync, data: SeqMutable
     let client3 = client.clone();
 
     let address = *data.address();
-    let entries = client.list_seq_mdata_entries(*data.name(), data.tag()).await;
-    let permissions = client.list_mdata_permissions(address).await;
-    let version = client.get_mdata_version(address).await;
+    let entries = client.list_seq_mdata_entries(*data.name(), data.tag()).await?;
+    let permissions = client.list_mdata_permissions(address).await?;
+    let version = client.get_mdata_version(address).await?;
 
     let next_version = version +1;
 

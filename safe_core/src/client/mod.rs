@@ -16,7 +16,7 @@ pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
 use async_trait::async_trait;
-
+use futures::future::FutureExt;
 mod id;
 #[cfg(feature = "mock-network")]
 mod mock;
@@ -94,21 +94,6 @@ async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreErr
         },
         _ => Err(CoreError::ReceivedUnexpectedEvent),
     }
-}
-
-// Sends a request either using a default user's identity, or reconnects to another group
-// to use another identity.
-macro_rules! send_as {
-    ($client:expr, $request:expr, $response:path, $secret_key:expr) => {
-        async {
-
-            match send_as_helper($client, $request, $secret_key).await? {
-                $response(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-    
-            }
-        }
-    };
 }
 
 async fn send_as_helper(
@@ -238,17 +223,25 @@ pub trait Client: Clone + 'static {
         transaction_id: Option<u64>,
     ) -> Result<Transaction, CoreError> {
         trace!("Transfer {} coins to {:?}", amount, destination);
-        send_as!(
+    
+        match send_as_helper(
             self,
             Request::TransferCoins {
                 destination,
                 amount,
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
-            Response::Transaction,
             client_id
-        )
+        ).await {
+            Response::Transaction(result) => {
+                match result {
+                    Ok(transaction) => Ok( transaction ),
+                    Err(error) => CoreError::from(error)
+                }
+            },
+            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
     }
+}
 
     /// Creates a new balance on the network.
     fn create_balance(
@@ -264,17 +257,24 @@ pub trait Client: Clone + 'static {
             amount
         );
 
-        send_as!(
+        match send_as_helper(
             self,
             Request::CreateBalance {
-                new_balance_owner,
-                amount,
-                transaction_id: transaction_id.unwrap_or_else(rand::random),
-            },
-            Response::Transaction,
+                        new_balance_owner,
+                        amount,
+                        transaction_id: transaction_id.unwrap_or_else(rand::random),
+                    },
             client_id
-        )
+        ).await {
+            Response::Transaction(result) => {
+                match result {
+                    Ok(transaction) => Ok( transaction ),
+                    Err(error) => CoreError::from(error)
+                }
+            },
+            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
     }
+}
 
     /// Insert a given login packet at the specified destination
     fn insert_login_packet_for(
@@ -292,7 +292,8 @@ pub trait Client: Clone + 'static {
         );
 
         let transaction_id = transaction_id.unwrap_or_else(rand::random);
-        send_as!(
+
+        match send_as_helper(
             self,
             Request::CreateLoginPacketFor {
                 new_owner,
@@ -300,16 +301,36 @@ pub trait Client: Clone + 'static {
                 transaction_id,
                 new_login_packet,
             },
-            Response::Transaction,
             client_id
-        )
+        ).await {
+            Response::Transaction(result) => {
+                match result {
+                    Ok(transaction) => Ok( transaction ),
+                    Err(error) => CoreError::from(error)
+                }
+            },
+            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+        }
     }
 
     /// Get the current coin balance.
     fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> {
         trace!("Get balance for {:?}", client_id);
 
-        send_as!(self, Request::GetBalance, Response::GetBalance, client_id)
+        match send_as_helper(
+            self,
+            Request::GetBalance,
+            client_id
+        ).await {
+            Response::GetBalance(result) => {
+                match result {
+                    Ok(coins) => Ok( coins ),
+                    Err(error) => CoreError::from(error)
+                }
+            },
+            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+        }
+        
     }
 
     /// Put immutable data to the network.
@@ -1062,16 +1083,24 @@ pub trait Client: Clone + 'static {
             amount,
         );
 
-        send_as!(
+
+        match send_as_helper(
             self,
             Request::CreateBalance {
-                new_balance_owner,
-                amount,
-                transaction_id: rand::random(),
-            },
-            Response::Transaction,
+                        new_balance_owner,
+                        amount,
+                        transaction_id: rand::random(),
+                    },
             client_id
-        )
+        ).await {
+            Response::Transaction(result) => {
+                match result {
+                    Ok(transactino) => Ok( transactino ),
+                    Err(error) => CoreError::from(error)
+                }
+            },
+            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+        }
     }
 }
 
