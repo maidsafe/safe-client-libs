@@ -235,13 +235,17 @@ fn app_container_creation() {
 
     trace!("Making sure no mutations are done when re-authorising the app now.");
     let orig_balance: Money = unwrap!(auth_run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AuthError::from)
     }));
 
     let _ = authorise_app(&auth, &app_info, &app_id, true);
 
     let new_balance: Money = unwrap!(auth_run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AuthError::from)
     }));
 
     assert_eq!(orig_balance, new_balance);
@@ -460,7 +464,9 @@ fn account_info() {
     let app = unwrap!(create_app_by_req(&app_auth_req));
 
     let orig_balance: Money = unwrap!(run(&app, |client, _| {
-        client.get_balance(None).map_err(AppError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AppError::from)
     }));
 
     unwrap!(run(&app, |client, _| {
@@ -470,7 +476,9 @@ fn account_info() {
     }));
 
     let new_balance: Money = unwrap!(run(&app, |client, _| {
-        client.get_balance(None).map_err(AppError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AppError::from)
     }));
 
     assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));

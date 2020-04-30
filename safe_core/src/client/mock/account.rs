@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, VecDeque};
 pub const DEFAULT_MAX_CREDITS: usize = 100;
 // pub const DEFAULT_COINS: &str = "100";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct CoinBalance {
     owner: PublicKey,
     value: Money,
@@ -65,7 +65,7 @@ impl CoinBalance {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Credit {
     amount: Money,
     transaction_id: u64, // TODO: use Uuid

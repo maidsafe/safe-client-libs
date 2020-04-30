@@ -819,7 +819,9 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     // Create account.
     let (auth, ..) = create_authenticator();
     let balance_0 = unwrap!(run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AuthError::from)
     }));
 
     // There are no apps, so the queue is empty.
@@ -828,7 +830,9 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     }));
 
     let balance_1 = unwrap!(run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AuthError::from)
     }));
     assert_eq!(balance_0, balance_1);
 
@@ -846,7 +850,9 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
     revoke(&auth, &app_id);
 
     let balance_2 = unwrap!(run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AuthError::from)
     }));
 
     // The queue is empty again.
@@ -854,7 +860,9 @@ fn flushing_empty_app_revocation_queue_does_not_mutate_network() {
         revocation::flush_app_revocation_queue(client)
     }));
     let balance_3 = unwrap!(run(&auth, |client| {
-        client.get_balance(None).map_err(AuthError::from)
+        client
+            .get_balance(client.public_id().name(), None)
+            .map_err(AuthError::from)
     }));
     assert_eq!(balance_2, balance_3);
 }

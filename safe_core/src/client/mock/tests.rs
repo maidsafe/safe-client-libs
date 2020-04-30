@@ -1313,9 +1313,10 @@ fn low_balance_check() {
             &client_safe_key,
             Request::GetBalance(*client_safe_key.public_id().name()),
         );
+
         let balance: Money = match rpc_response {
             Response::GetBalance(res) => unwrap!(res),
-            _ => panic!("Unexpected response"),
+            _ => panic!("Unexpected response to mock get balance req."),
         };
 
         // Exhaust the account balance by transferring everything to a new wallet
@@ -1334,7 +1335,7 @@ fn low_balance_check() {
 
         match response {
             Response::MoneyReceipt(Ok(_)) => (),
-            x => panic!("Unexpected Error {:?}", x),
+            x => panic!("Unexpected low balance check error {:?}", x),
         }
 
         let response = process_request(
@@ -1344,7 +1345,7 @@ fn low_balance_check() {
         );
         match response {
             Response::Mutation(res) => assert_eq!(*unlimited, res.is_ok()), // Should succeed if unlimited is true
-            res => panic!("Unexpected response {:?}", res),
+            res => panic!("Unexpected low balance check, mutation response {:?}", res),
         }
 
         // Try getting MutableData (should succeed regardless of low balance)
@@ -1361,8 +1362,6 @@ fn low_balance_check() {
 #[test]
 #[should_panic]
 fn invalid_config_mock_vault_path() {
-    use std;
-
     // Don't run this test when SAFE env vars are set.
     if std::env::var("SAFE_MOCK_IN_MEMORY_STORAGE").is_ok()
         || std::env::var("SAFE_MOCK_VAULT_PATH").is_ok()
@@ -1386,8 +1385,6 @@ fn invalid_config_mock_vault_path() {
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
 #[test]
 fn config_mock_vault_path() {
-    use std;
-
     // Don't run this test when the env var is set.
     if std::env::var("SAFE_MOCK_IN_MEMORY_STORAGE").is_ok() {
         return;

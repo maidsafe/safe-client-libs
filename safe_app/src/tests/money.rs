@@ -39,7 +39,7 @@ fn coin_app_deny_permissions() {
         let c2 = client.clone();
 
         client
-            .get_balance(None)
+            .get_balance(client.public_id().name(), None)
             .then(move |res| {
                 match res {
                     Err(CoreError::DataError(Error::AccessDenied)) => (),
@@ -86,7 +86,7 @@ fn coin_app_allow_permissions() {
         let c2 = client.clone();
 
         client
-            .get_balance(None)
+            .get_balance(client.public_id().name(), None)
             .then(move |res| {
                 match res {
                     Ok(balance) => println!("{:?}", balance),

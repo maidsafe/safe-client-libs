@@ -16,10 +16,11 @@ use fs2::FileExt;
 use log::{debug, trace, warn};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
-    Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction, MDataAddress,
-    MDataKind, Message, Money, MoneyReceipt, PublicId, PublicKey, Request, RequestType, Response,
-    Result as SndResult, SeqAppendOnly, TransactionId, UnseqAppendOnly, XorName,
+    ClientFullId, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
+    MDataAddress, MDataKind, Message, Money, MoneyReceipt, PublicId, PublicKey, Request,
+    RequestType, Response, Result as SndResult, SeqAppendOnly, UnseqAppendOnly, XorName,
 };
+
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::env;
@@ -43,6 +44,8 @@ pub struct Vault {
     cache: Cache,
     config: Config,
     store: Box<dyn Store>,
+    // TODO: Use proper section type ID for this. At the mo we're just simulating the verification with a client Id
+    section_identity: ClientFullId,
 }
 
 // Initializes mock-vault path with the following precedence:
@@ -161,7 +164,9 @@ enum Operation {
 impl Vault {
     pub fn new(config: Config) -> Self {
         let store = init_vault_store(&config);
+        let mut rng = rand::thread_rng();
 
+        let section_identity = ClientFullId::new_bls(&mut rng);
         Vault {
             cache: Cache {
                 coin_balances: HashMap::new(),
@@ -171,6 +176,7 @@ impl Vault {
             },
             config,
             store,
+            section_identity,
         }
     }
 
@@ -261,6 +267,7 @@ impl Vault {
     ) -> Result<(), SndError> {
         let requester = XorName::from(requester_pk);
         let balance = self.get_balance(&owner)?;
+
         // Checks if the requester is the owner
         if owner == requester {
             for operation in operations {
@@ -304,6 +311,7 @@ impl Vault {
                         debug!("Performing mutations not authorised");
                         return Err(SndError::AccessDenied);
                     }
+
                     if !self.has_sufficient_balance(balance, COST_OF_PUT) {
                         return Err(SndError::InsufficientBalance);
                     }
@@ -360,19 +368,11 @@ impl Vault {
         amount: Money,
         transaction_id: u64,
     ) -> SndResult<MoneyReceipt> {
-        let unlimited = unlimited_money(&self.config);
-        // match self.get_coin_balance_mut(&source) {
-        //     Some(balance) => {
-        //         if !unlimited {
-        //             balance.debit_balance(amount)?
-        //         }
-        //     }
-        //     None => return Err(SndError::NoSuchBalance),
-        // };
         match self.get_coin_balance_mut(&to) {
             Some(balance) => balance.credit_balance(amount, transaction_id)?,
             None => return Err(SndError::NoSuchBalance),
         };
+
         Ok(MoneyReceipt {
             id: transaction_id,
             amount,
@@ -395,10 +395,6 @@ impl Vault {
             None => return Err(SndError::NoSuchBalance),
         };
 
-        // match self.get_coin_balance_mut(&to) {
-        //     Some(balance) => balance.credit_balance(amount, transaction_id)?,
-        //     None => return Err(SndError::NoSuchBalance),
-        // };
         Ok(())
     }
 
@@ -420,9 +416,10 @@ impl Vault {
         };
 
         // Get the requester's public key.
-        let result = match requester.clone() {
+        let request_validation = match requester.clone() {
             PublicId::App(pk) => Ok((true, *pk.public_key(), *pk.owner().public_key())),
             PublicId::Client(pk) => Ok((false, *pk.public_key(), *pk.public_key())),
+            // TODO: use actual node identity lark instead of client for section
             PublicId::Node(_) => Err(SndError::AccessDenied),
         }
         .and_then(|(is_app, requester_pk, owner_pk)| {
@@ -455,7 +452,7 @@ impl Vault {
         });
 
         // Return errors as a response message corresponding to the incoming request message.
-        let (requester_pk, owner_pk) = match result {
+        let (requester_pk, owner_pk) = match request_validation {
             Ok(s) => s,
             Err(err) => {
                 let response = request.error_response(err);
@@ -546,15 +543,23 @@ impl Vault {
                 amount,
                 new_account,
                 transaction_id,
+                transfer_proof,
             } => {
+                debug!("DepositMoney request being handled.");
+
                 let source: XorName = owner_pk.into();
 
                 let result = if amount.as_nano() == 0 {
                     Err(SndError::InvalidOperation)
                 } else {
-                    self.authorise_operations(&[Operation::TransferMoney], source, requester_pk)
-                        .and_then(|()| self.deposit_money(source, to, amount, transaction_id))
+                    // TODO deserialise and validate proof
+                    // But this is NOT the normal auth operation, as balance has been withdrawn and validated at home section
+                    // we just validate PK of section...
+                    // ...so what with the proof?
+
+                    self.deposit_money(source, to, amount, transaction_id)
                 };
+
                 Response::MoneyReceipt(result)
             }
             Request::TransferMoney {
@@ -564,7 +569,7 @@ impl Vault {
                 transaction_id,
             } => {
                 let source: XorName = owner_pk.into();
-
+                debug!("TransferMoney request being handled.");
                 let result = if amount.as_nano() == 0 {
                     Err(SndError::InvalidOperation)
                 } else {
@@ -572,24 +577,41 @@ impl Vault {
                         .and_then(|()| self.withdraw_money(source, to, amount, transaction_id))
                         .and_then(|()| {
                             // Trigger deposit step
-                            let deposit_message =  Message::Request {
-                                request: Request::DepositMoney{ from: source, to, amount, transaction_id:  transaction_id, new_account: false },
-                                message_id,
-                                signature: signature.clone()
+                            let serialised_proof = unwrap!(serialize(&message));
+                            let deposit_request = Request::DepositMoney {
+                                from: source,
+                                to,
+                                amount,
+                                transaction_id,
+                                new_account: false,
+                                transfer_proof: serialised_proof,
                             };
-                            match self.process_request(requester, &deposit_message)? {
-                                Message::Response{
-                                    response ,
-                                    .. 
-                                } => Ok(response), 
-                                   _ => {
-                                    panic!("Unexpected response to deposit Money")
-                                }
+
+                            let signature = self
+                                .section_identity
+                                .sign(&unwrap!(serialize(&(&deposit_request, message_id))));
+
+                            let deposit_message = Message::Request {
+                                request: deposit_request,
+                                message_id,
+                                signature: Some(signature),
+                            };
+
+                            // We're now mocking a request to _another_ section, where the deposit would happen
+                            match self.process_request(
+                                PublicId::Client(self.section_identity.public_id().clone()),
+                                &deposit_message,
+                            )? {
+                                Message::Response { response, .. } => Ok(response),
+                                _ => panic!("Unexpected response to deposit Money"),
                             }
                         })
                 };
-                // Response::MoneyReceipt(result)
-                result?
+
+                match result {
+                    Ok(response) => response,
+                    Err(error) => Response::MoneyReceipt(Err(error)),
+                }
             }
             Request::CreateBalance {
                 amount,
@@ -600,15 +622,12 @@ impl Vault {
                 let source = owner_pk.into();
                 let recipient = to.into();
 
-
-                // same source and recipient?
                 let result = if source == recipient {
                     let real_or_random_transaction_id: u64 =
                         transaction_id.unwrap_or(rand::random());
-                    // creating a mock balance, source is recipient so we just
-                    // use that pk
+                    // creating a mock balance, source is recipient so we just use that pk?
                     self.mock_create_balance(owner_pk, amount);
-                    Ok(MoneyReceipt{
+                    Ok(MoneyReceipt {
                         id: real_or_random_transaction_id,
                         amount,
                     })
@@ -628,50 +647,49 @@ impl Vault {
                             if !self.has_sufficient_balance(source_balance, total_amount) {
                                 return Err(SndError::InsufficientBalance);
                             }
-                            
+
                             self.create_balance(recipient, to)
                         })
                         .and_then(|()| {
                             self.commit_mutation(&source);
-                            
                             // and also withdraw money
                             self.withdraw_money(source, recipient, amount, transaction_id)
-                           
                         })
                         .and_then(|()| {
                             // Trigger deposit step
-                            let deposit_message =  Message::Request {
-                                request: Request::DepositMoney{ from: source, to: recipient, amount, transaction_id, new_account: false },
-                                message_id,
-                                signature: signature.clone()
+                            let serialised_proof = unwrap!(serialize(&message));
+                            let deposit_request = Request::DepositMoney {
+                                from: source,
+                                to: recipient,
+                                amount,
+                                transaction_id,
+                                new_account: false,
+                                transfer_proof: serialised_proof,
                             };
-                            // self.process_request(requester, &deposit_message)?.request
-                            match self.process_request(requester, &deposit_message)? {
-                                Message::Response{
-                                    response ,
-                                    .. 
-                                } => {
-                                    match response {
-                                        Response::MoneyReceipt(res) => {
-                                            res
-                                        },
-                                        _ => {
-                                            panic!("Unexpected response to DepositMoney")
-                                        }
-                                    }
-                                }, 
-                                   _ => {
-                                    panic!("Unexpected response to DepositMoney")
-                                }
+                            let signature = self
+                                .section_identity
+                                .sign(&unwrap!(serialize(&(&deposit_request, message_id))));
+                            let deposit_message = Message::Request {
+                                request: deposit_request,
+                                message_id,
+                                signature: Some(signature),
+                            };
+                            match self.process_request(
+                                PublicId::Client(self.section_identity.public_id().clone()),
+                                &deposit_message,
+                            )? {
+                                Message::Response { response, .. } => match response {
+                                    Response::MoneyReceipt(res) => res,
+                                    _ => panic!("Unexpected response to DepositMoney"),
+                                },
+                                _ => panic!("Unexpected response to DepositMoney"),
                             }
                         })
                 };
                 Response::MoneyReceipt(result)
-                // result
             }
             Request::GetBalance(xorname) => {
-                // todo deal with xorname
-                let coin_balance_id = owner_pk.into();
+                let coin_balance_id = xorname;
 
                 let result = self
                     .authorise_operations(&[Operation::GetBalance], coin_balance_id, requester_pk)
@@ -720,13 +738,28 @@ impl Vault {
                         })
                         .and_then(|()| {
                             // Trigger deposit step
-                            let deposit_message =  Message::Request {
-                                request: Request::DepositMoney{ from: source, to: new_balance_dest, amount, transaction_id, new_account: false },
-                                message_id,
-                                signature: signature.clone()
+                            let serialised_proof = unwrap!(serialize(&message));
+                            let deposit_request = Request::DepositMoney {
+                                from: source,
+                                to: new_balance_dest,
+                                amount,
+                                transaction_id,
+                                new_account: false,
+                                transfer_proof: serialised_proof,
                             };
-                            self.process_request(requester, &deposit_message)
-                            
+                            let signature = self
+                                .section_identity
+                                .sign(&unwrap!(serialize(&(&deposit_request, message_id))));
+
+                            let deposit_message = Message::Request {
+                                request: deposit_request,
+                                message_id,
+                                signature: Some(signature),
+                            };
+                            self.process_request(
+                                PublicId::Client(self.section_identity.public_id().clone()),
+                                &deposit_message,
+                            )
                         })
                         .and_then(|_| {
                             if self
@@ -766,6 +799,7 @@ impl Vault {
                             if !self.has_sufficient_balance(source_balance, COST_OF_PUT) {
                                 return Err(SndError::InsufficientBalance);
                             }
+
                             self.commit_mutation(&source);
                             Ok(())
                         })
@@ -1415,6 +1449,7 @@ impl Vault {
         data: Data,
         requester: PublicId,
     ) -> SndResult<()> {
+        // println!("PUT ting data");
         let (name, key) = match requester.clone() {
             PublicId::Client(client_public_id) => {
                 (*client_public_id.name(), *client_public_id.public_key())
@@ -1501,7 +1536,10 @@ impl<'a> Drop for VaultGuard<'a> {
 }
 
 pub fn lock(vault: &Mutex<Vault>, writing: bool) -> VaultGuard {
-    let mut inner = unwrap!(vault.lock());
+    let mut inner = match vault.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
 
     if let Some(cache) = inner.store.load(writing) {
         inner.cache = cache;

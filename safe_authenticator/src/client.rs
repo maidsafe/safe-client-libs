@@ -925,14 +925,14 @@ mod tests {
                 })
                 .then(move |result| match result {
                     Err(CoreError::DataError(SndError::LoginPacketExists)) => {
-                        c4.get_balance(Some(&client_id))
+                        c4.get_balance(client_id.public_id().name(), Some(&client_id))
                     }
                     res => panic!("Unexpected {:?}", res),
                 })
                 // The new balance should exist
                 .and_then(move |balance| {
                     assert_eq!(balance, unwrap!(Money::from_str("3")));
-                    c2.get_balance(None)
+                    c2.get_balance(c2.public_id().name(), None)
                 })
                 .and_then(move |balance| {
                     let expected = calculate_new_balance(
@@ -949,10 +949,12 @@ mod tests {
             &(),
             |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
             move |client| {
-                client.get_balance(None).and_then(move |balance| {
-                    assert_eq!(balance, five_money);
-                    ok!(())
-                })
+                client
+                    .get_balance(client_full_id.public_id().name(), Some(&client_full_id))
+                    .and_then(move |balance| {
+                        assert_eq!(balance, five_money);
+                        ok!(())
+                    })
             },
         );
     }

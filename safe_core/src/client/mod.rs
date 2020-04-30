@@ -15,7 +15,6 @@ pub mod core_client;
 pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
-use rand;
 
 mod id;
 #[cfg(feature = "mock-network")]
@@ -101,24 +100,8 @@ macro_rules! send_as {
     ($client:expr, $request:expr, $response:path, $secret_key:expr) => {
         send_as_helper($client, $request, $secret_key)
             .and_then(|res| match res {
-                Response::MoneyReceipt(result) => match result {
-                    Ok(response) => Ok(response),
-                    Err(err) => Err(CoreError::from(err)),
-                },
-                _ => Err(CoreError::from("Unexpected response")),
-            })
-            .into_box()
-    };
-}
-macro_rules! send_as_and_get_money {
-    ($client:expr, $request:expr, $response:path, $secret_key:expr) => {
-        send_as_helper($client, $request, $secret_key)
-            .and_then(|res| match res {
-                Response::MoneyReceipt(result) => match result {
-                    Ok(response) => Ok(response.amount),
-                    Err(err) => Err(CoreError::from(err)),
-                },
-                _ => Err(CoreError::from("Unexpected response")),
+                $response(res) => res.map_err(CoreError::from),
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             })
             .into_box()
     };
@@ -330,14 +313,14 @@ pub trait Client: Clone + 'static {
     }
 
     /// Get the current coin balance.
-    fn get_balance(&self, client_id: Option<&ClientFullId>) -> Box<CoreFuture<Money>> {
-        trace!("Get balance for {:?}", client_id);
-        let our_id = self.public_id();
-        let xorname =
-            client_id.map_or_else(|| our_id.name(), |client_id| client_id.public_id().name());
-        send_as_and_get_money!(
+    fn get_balance(
+        &self,
+        balance_xorname: &XorName,
+        client_id: Option<&ClientFullId>,
+    ) -> Box<CoreFuture<Money>> {
+        send_as!(
             self,
-            Request::GetBalance(*xorname),
+            Request::GetBalance(*balance_xorname),
             Response::GetBalance,
             client_id
         )
@@ -1497,7 +1480,7 @@ mod tests {
                         Err(e) => panic!("Unexpected: {:?}", e),
                     })
                 })
-                .and_then(move |_| client4.get_balance(None))
+                .and_then(move |_| client4.get_balance(client4.public_id().name(), None))
                 .and_then(move |balance| {
                     let expected_bal = calculate_new_balance(start_bal, Some(2), None);
                     assert_eq!(balance, expected_bal);
@@ -1563,7 +1546,7 @@ mod tests {
                         res => panic!("Unexpected: {:?}", res),
                     }
                 })
-                .and_then(move |_| client4.get_balance(None))
+                .and_then(move |_| client4.get_balance(client4.public_id().name(), None))
                 .and_then(move |balance| {
                     let expected_bal = calculate_new_balance(start_bal, Some(2), None);
                     assert_eq!(balance, expected_bal);
@@ -1852,7 +1835,7 @@ mod tests {
             let c3 = client.clone();
             let c4 = client.clone();
             client
-                .get_balance(None)
+                .get_balance(client.public_id().name(), None)
                 .then(move |res| {
                     // Subtract to cover the cost of inserting the login packet
                     let expected_amt = unwrap!(Money::from_str("10")
@@ -1874,7 +1857,7 @@ mod tests {
                         }
                         res => panic!("Unexpected error: {:?}", res),
                     }
-                    c4.get_balance(None)
+                    c4.get_balance(c4.public_id().name(), None)
                 })
                 .then(move |res| {
                     let expected_amt = unwrap!(Money::from_str("40"));
@@ -1923,21 +1906,25 @@ mod tests {
                 })
                 .and_then(move |(transaction, client_id)| {
                     assert_eq!(transaction.amount, unwrap!(Money::from_str("5.0")));
-                    client3.get_balance(Some(&client_id)).and_then(|balance| {
-                        assert_eq!(balance, unwrap!(Money::from_str("95.0")));
-                        Ok(())
-                    })
+                    client3
+                        .get_balance(client_id.public_id().name(), Some(&client_id))
+                        .and_then(|balance| {
+                            assert_eq!(balance, unwrap!(Money::from_str("95.0")));
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
-                    client4.get_balance(None).and_then(move |balance| {
-                        let expected = calculate_new_balance(
-                            init_bal,
-                            Some(1),
-                            Some(unwrap!(Money::from_str("95"))),
-                        );
-                        assert_eq!(balance, expected);
-                        Ok(())
-                    })
+                    client4
+                        .get_balance(client4.public_id().name(), None)
+                        .and_then(move |balance| {
+                            let expected = calculate_new_balance(
+                                init_bal,
+                                Some(1),
+                                Some(unwrap!(Money::from_str("95"))),
+                            );
+                            assert_eq!(balance, expected);
+                            Ok(())
+                        })
                 })
                 .and_then(move |_| {
                     let random_pk = gen_bls_keypair().public_key();
@@ -1978,13 +1965,15 @@ mod tests {
 
             client
                 .test_set_balance(None, unwrap!(Money::from_str("100.0")))
-                .and_then(move |_| client1.get_balance(None))
+                .and_then(move |_| client1.get_balance(client1.public_id().name(), None))
                 .and_then(move |balance| {
                     assert_eq!(balance, unwrap!(Money::from_str("100.0")));
                     Ok(wallet1)
                 })
         });
 
+        println!("------------------- random client time-----------------------");
+        // The `random_client()` initializes the client with 10 money.
         random_client(move |client| {
             let c2 = client.clone();
             let c3 = client.clone();
@@ -1995,13 +1984,13 @@ mod tests {
             let c8 = client.clone();
             let init_bal = unwrap!(Money::from_str("10"));
             client
-                .get_balance(None)
+                .get_balance(client.public_id().name(), None)
                 .and_then(move |orig_balance| {
                     c2.transfer_money(None, wallet1, unwrap!(Money::from_str("5.0")), None)
                         .map(move |_| orig_balance)
                 })
                 .and_then(move |orig_balance| {
-                    c3.get_balance(None)
+                    c3.get_balance(c3.public_id().name(), None)
                         .map(move |new_balance| (new_balance, orig_balance))
                 })
                 .and_then(move |(new_balance, orig_balance)| {
@@ -2009,6 +1998,7 @@ mod tests {
                         new_balance,
                         unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
                     );
+
                     c4.transfer_money(None, wallet1, unwrap!(Money::from_str("5000")), None)
                 })
                 .then(move |res| {
@@ -2018,8 +2008,8 @@ mod tests {
                     }
                     Ok(())
                 })
-                // Check if money are refunded
-                .and_then(move |_| c5.get_balance(None))
+                // Check if money is refunded
+                .and_then(move |_| c5.get_balance(c5.public_id().name(), None))
                 .and_then(move |balance| {
                     let expected = calculate_new_balance(
                         init_bal,
@@ -2142,7 +2132,7 @@ mod tests {
                         })
                 })
                 // Check if money are refunded
-                .and_then(move |_| client2.get_balance(None))
+                .and_then(move |_| client2.get_balance(client2.public_id().name(), None))
                 .and_then(move |balance| {
                     let expected_bal = calculate_new_balance(start_bal, Some(2), None);
                     assert_eq!(balance, expected_bal);
@@ -2928,7 +2918,7 @@ mod tests {
                     let mdata = UnseqMutableData::new(name, tag, c3.public_key());
                     c3.put_unseq_mutable_data(mdata)
                 })
-                .and_then(move |_| c4.get_balance(None))
+                .and_then(move |_| c4.get_balance(c4.public_id().name(), None))
                 .and_then(move |balance| {
                     c5.delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
                         .map(move |_| balance)
@@ -2939,7 +2929,7 @@ mod tests {
                 })
                 .and_then(move |balance| c7.del_unpub_idata(address).map(move |_| balance))
                 .and_then(move |balance| {
-                    c8.get_balance(None)
+                    c8.get_balance(c8.public_id().name(), None)
                         .map(move |bal| assert_eq!(bal, balance))
                 })
         });

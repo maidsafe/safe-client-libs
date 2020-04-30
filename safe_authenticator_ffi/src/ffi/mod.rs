@@ -327,7 +327,9 @@ mod tests {
         };
 
         let orig_balance: Money = unwrap!(run(unsafe { &*auth }, |client| {
-            client.get_balance(None).map_err(AuthError::from)
+            client
+                .get_balance(client.public_id().name(), None)
+                .map_err(AuthError::from)
         }));
 
         unsafe {
@@ -339,7 +341,9 @@ mod tests {
         }
 
         let new_balance: Money = unwrap!(run(unsafe { &*auth }, |client| {
-            client.get_balance(None).map_err(AuthError::from)
+            client
+                .get_balance(client.public_id().name(), None)
+                .map_err(AuthError::from)
         }));
         assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
 
