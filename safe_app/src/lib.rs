@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 
 pub use safe_core::core_structs::AppKeys;
 pub use safe_core::{
-    app_container_name, immutable_data, ipc, mdata_info, nfs, utils, Client, ClientKeys, CoreError,
+    app_container_name, immutable_data, ipc, mdata_info, utils, Client, ClientKeys, CoreError,
     CoreFuture, FutureExt, MDataInfo, DIR_TAG, MAIDSAFE_TAG,
 };
 pub use safe_nd::PubImmutableData;
@@ -59,7 +59,7 @@ mod tests;
 use bincode::deserialize;
 use futures::channel::mpsc as futures_mpsc;
 use futures::stream::Stream;
-use futures::{future, future::IntoFuture, Future};
+use futures::{future, Future};
 use log::info;
 use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
 use safe_core::crypto::shared_secretbox;
@@ -313,7 +313,7 @@ impl AppContext {
 
         fetch_access_info(Arc::clone(&reg), client)
             .map(move |_| {
-                let access_info = reg.access_info.borrow();
+                let access_info = reg.access_info.lock().unwrap();
                 access_info.clone()
             })
             .into_box()
@@ -331,7 +331,7 @@ impl AppContext {
 pub fn run<F, I, T>(app: &App, f: F) -> Result<T, AppError>
 where
     F: FnOnce(&AppClient, &AppContext) -> I + Send + 'static,
-    I: IntoFuture<Output = Result<T, AppError>> + 'static,
+    I: Future<Output = Result<T, AppError>> + 'static,
     T: Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
@@ -374,7 +374,7 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
 }
 
 fn fetch_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFuture<()>> {
-    if context.access_info.borrow().is_empty() {
+    if context.access_info.lock().unwrap().is_empty() {
         refresh_access_info(context, client)
     } else {
         future::ok(()).into_box()

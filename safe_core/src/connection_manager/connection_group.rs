@@ -12,8 +12,7 @@ use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
 use futures::{
     channel::oneshot::{self, Sender},
-    Future,
-    future::TryFutureExt
+    future::TryFutureExt,
 };
 
 use lazy_static::lazy_static;
@@ -25,7 +24,6 @@ use safe_nd::{
     RequestType, Response,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::time::timeout;
 use std::{
     collections::HashMap,
     mem,
@@ -34,6 +32,7 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
+use tokio::time::timeout;
 use unwrap::unwrap;
 
 use super::response_manager::ResponseManager;
@@ -327,17 +326,11 @@ impl Connected {
                 quic_p2p.send(peer, bytes.clone(), token);
             }
         }
-        
-        match timeout( Duration::from_secs(REQUEST_TIMEOUT_SECS), response_future ).await {
-            Ok(response) => {
-                response.map_err(|err| {
-                    CoreError::from(format!("{}", err))
 
-                })
-            }, 
-            Err(_) => Err( CoreError::RequestTimeout )
+        match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), response_future).await {
+            Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
+            Err(_) => Err(CoreError::RequestTimeout),
         }
-
     }
 
     fn handle_new_message(
@@ -515,7 +508,9 @@ impl Inner {
         self.terminate();
         self.disconnect_tx = Some(disconnect_tx);
 
-        disconnect_rx.await.map_err(|e| CoreError::Unexpected(format!("{}", e)) )
+        disconnect_rx
+            .await
+            .map_err(|e| CoreError::Unexpected(format!("{}", e)))
     }
 
     fn handle_quic_p2p_event(&mut self, event: Event) {

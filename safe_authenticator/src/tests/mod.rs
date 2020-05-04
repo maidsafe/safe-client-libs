@@ -32,6 +32,7 @@ mod mock_routing {
     use crate::{test_utils, Authenticator};
     use futures::Future;
     use safe_core::ipc::AuthReq;
+    use safe_core::nfs::NfsError;
     use safe_core::utils::generate_random_string;
     use safe_core::utils::test_utils::gen_client_id;
     use safe_core::{
@@ -279,14 +280,12 @@ mod mock_routing {
             || (),
             cm_hook,
         ));
-
-        // TODO repair this test
-        // match test_utils::register_app(&auth, &auth_req) {
-        //     Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
-        //         SndError::InsufficientBalance,
-        //     )))) => (),
-        //     x => panic!("Unexpected {:?}", x),
-        // }
+        match test_utils::register_app(&auth, &auth_req) {
+            Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
+                SndError::InsufficientBalance,
+            )))) => (),
+            x => panic!("Unexpected {:?}", x),
+        }
 
         // Simulate a network failure for the `MutateMDataEntries` request, which
         // is supposed to setup the access container entry for the app

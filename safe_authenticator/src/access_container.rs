@@ -17,10 +17,10 @@ use futures::future;
 use futures::Future;
 use log::trace;
 use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys};
-use safe_core::fry;
+// use safe_core::fry;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
-use safe_core::{recoverable_apis, Client, CoreError, FutureExt, MDataInfo};
+use safe_core::{recoverable_apis, Client, CoreError, MDataInfo};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
@@ -31,52 +31,55 @@ pub const AUTHENTICATOR_ENTRY: &str = "authenticator";
 
 /// Updates containers permissions (adds a given key to the permissions set)
 #[allow(clippy::implicit_hasher)]
-pub fn update_container_perms(
+pub async fn update_container_perms(
     client: &AuthClient,
     permissions: HashMap<String, ContainerPermissions>,
     app_pk: PublicKey,
-) -> Box<AuthFuture<AccessContainerEntry>> {
+) -> Result<AccessContainerEntry, AuthError> {
     let c2 = client.clone();
 
-    fetch_authenticator_entry(client)
-        .and_then(move |(_, mut root_containers)| {
-            let mut reqs = Vec::new();
-            let client = c2.clone();
+    let (_, mut root_containers) = fetch_authenticator_entry(client).await?;
+    // .and_then(move |(_, mut root_containers)| {
+    let mut perms = Vec::new();
+    let client = c2.clone();
 
-            for (container_key, access) in permissions {
-                let c2 = client.clone();
-                let mdata_info = r#try!(root_containers
-                    .remove(&container_key)
-                    .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone())));
-                let perm_set = container_perms_into_permission_set(&access);
+    for (container_key, access) in permissions {
+        let c2 = client.clone();
+        let mdata_info = root_containers
+            .remove(&container_key)
+            .ok_or_else(|| AuthError::NoSuchContainer(container_key.clone()))?;
+        let perm_set = container_perms_into_permission_set(&access);
 
-                let fut = client
-                    .get_mdata_version(*mdata_info.address())
-                    .and_then(move |version| {
-                        recoverable_apis::set_mdata_user_permissions(
-                            &c2,
-                            *mdata_info.address(),
-                            app_pk,
-                            perm_set,
-                            version + 1,
-                        )
-                        .map(move |_| (container_key, mdata_info, access))
-                    })
-                    .map_err(AuthError::from);
+        let version = client.get_mdata_version(*mdata_info.address()).await?;
 
-                reqs.push(fut);
-            }
+        // .and_then(move |version| {
+        let req = recoverable_apis::set_mdata_user_permissions(
+            c2,
+            *mdata_info.address(),
+            app_pk,
+            perm_set,
+            version + 1,
+        )
+        .await?;
 
-            future::join_all(reqs).into_box()
-        })
-        .map(|perms| {
-            perms
-                .into_iter()
-                .map(|(container_key, dir, access)| (container_key, (dir, access)))
-                .collect()
-        })
-        .map_err(AuthError::from)
-        .into_box()
+        // .map(move |_| (container_key, mdata_info, access))
+        // })
+        // .map_err(AuthError::from);
+
+        perms.push((container_key, mdata_info, access));
+    }
+
+    // future::join_all(reqs).into_box()
+    // })
+
+    // .map(|perms| {
+    Ok(perms
+        .into_iter()
+        .map(|(container_key, dir, access)| (container_key, (dir, access)))
+        .collect::<AccessContainerEntry>())
+    // .map_err(AuthError::from)
+    // })
+    // .into_box()
 }
 
 /// Gets access container entry key corresponding to the given app.
@@ -111,40 +114,40 @@ pub fn encode_authenticator_entry(
 }
 
 /// Gets an authenticator entry from the access container
-pub fn fetch_authenticator_entry(
+pub async fn fetch_authenticator_entry(
     client: &AuthClient,
-) -> Box<AuthFuture<(u64, HashMap<String, MDataInfo>)>> {
+) -> Result<(u64, HashMap<String, MDataInfo>), AuthError> {
     let c2 = client.clone();
     let access_container = client.access_container();
 
     let key = {
         let sk = client.secret_symmetric_key();
-        r#try!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk))
+        enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk)?
     };
 
     client
         .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
+        .await
         .map_err(From::from)
         .and_then(move |value| {
             let enc_key = c2.secret_symmetric_key();
             decode_authenticator_entry(&value.data, &enc_key)
                 .map(|decoded| (value.version, decoded))
         })
-        .into_box()
 }
 
 /// Updates the authenticator entry.
 #[allow(clippy::implicit_hasher)]
-pub fn put_authenticator_entry(
+pub async fn put_authenticator_entry(
     client: &AuthClient,
     new_value: &HashMap<String, MDataInfo>,
     version: u64,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     let access_container = client.access_container();
     let (key, ciphertext) = {
         let sk = client.secret_symmetric_key();
-        let key = r#try!(enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk));
-        let ciphertext = r#try!(encode_authenticator_entry(new_value, &sk));
+        let key = enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk)?;
+        let ciphertext = encode_authenticator_entry(new_value, &sk)?;
 
         (key, ciphertext)
     };
@@ -155,9 +158,14 @@ pub fn put_authenticator_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    recoverable_apis::mutate_mdata_entries(client, *access_container.address(), actions)
-        .map_err(From::from)
-        .into_box()
+    match recoverable_apis::mutate_mdata_entries(client.clone(), *access_container.address(), actions)
+        .await
+    {
+        Ok(result) => Ok(result),
+        Err(err) => Err(AuthError::from(err)),
+    }
+    // .map_err(From::from)
+    // .into_box()
 }
 
 /// Decodes raw app entry.
@@ -179,40 +187,41 @@ pub fn encode_app_entry(
 }
 
 /// Gets an access container entry
-pub fn fetch_entry(
-    client: &AuthClient,
-    app_id: &str,
+pub async fn fetch_entry(
+    client: AuthClient,
+    app_id: String,
     app_keys: AppKeys,
-) -> Box<AuthFuture<(u64, Option<AccessContainerEntry>)>> {
+) -> Result<(u64, Option<AccessContainerEntry>), AuthError> {
     trace!(
         "Fetching access container entry for app with ID {}...",
         app_id
     );
     let access_container = client.access_container();
-    let key = r#try!(enc_key(&access_container, app_id, &app_keys.enc_key));
+    let key = enc_key(&access_container, &app_id, &app_keys.enc_key)?;
     trace!("Fetching entry using entry key {:?}", key);
 
-    client
+    let result = client
         .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
-        .then(move |result| match result {
-            Err(CoreError::DataError(SndError::NoSuchEntry)) => Ok((0, None)),
-            Err(err) => Err(AuthError::from(err)),
-            Ok(value) => {
-                let decoded = Some(decode_app_entry(&value.data, &app_keys.enc_key)?);
-                Ok((value.version, decoded))
-            }
-        })
-        .into_box()
+        .await;
+
+    match result {
+        Err(CoreError::DataError(SndError::NoSuchEntry)) => Ok((0, None)),
+        Err(err) => Err(AuthError::from(err)),
+        Ok(value) => {
+            let decoded = Some(decode_app_entry(&value.data, &app_keys.enc_key)?);
+            Ok((value.version, decoded))
+        }
+    }
 }
 
 /// Adds a new entry to the authenticator access container
-pub fn put_entry(
+pub async fn put_entry(
     client: &AuthClient,
     app_id: &str,
     app_keys: &AppKeys,
     permissions: &AccessContainerEntry,
     version: u64,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     trace!("Putting access container entry for app {}...", app_id);
 
     let client2 = client.clone();
@@ -230,54 +239,60 @@ pub fn put_entry(
 
     let app_pk: PublicKey = app_keys.public_key();
 
-    client
+    let shell_version = client
         .get_mdata_version(*access_container.address())
+        .await?;
+    // .map_err(AuthError::from)
+    // .and_then(move |shell_version| {
+    client2
+        .set_mdata_user_permissions(
+            *acc_cont_info.address(),
+            app_pk,
+            MDataPermissionSet::new().allow(MDataAction::Read),
+            shell_version + 1,
+        )
+        .await?;
+    // .map_err(AuthError::from)
+    // })
+    // .and_then(move |_| {
+    recoverable_apis::mutate_mdata_entries(client3, *access_container.address(), actions)
+        .await
         .map_err(AuthError::from)
-        .and_then(move |shell_version| {
-            client2
-                .set_mdata_user_permissions(
-                    *acc_cont_info.address(),
-                    app_pk,
-                    MDataPermissionSet::new().allow(MDataAction::Read),
-                    shell_version + 1,
-                )
-                .map_err(AuthError::from)
-        })
-        .and_then(move |_| {
-            recoverable_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
-                .map_err(AuthError::from)
-        })
-        .into_box()
+    // })
+    // .into_box()
 }
 
 /// Deletes entry from the access container.
-pub fn delete_entry(
+pub async fn delete_entry(
     client: &AuthClient,
     app_id: &str,
     app_keys: &AppKeys,
     version: u64,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     // TODO: make sure this can't be called for authenticator Entry-0
 
     let access_container = client.access_container();
     let acc_cont_info = access_container.clone();
-    let key = r#try!(enc_key(&access_container, app_id, &app_keys.enc_key));
+    let key = enc_key(&access_container, app_id, &app_keys.enc_key)?;
     let client2 = client.clone();
     let client3 = client.clone();
     let actions = MDataSeqEntryActions::new().del(key, version);
     let app_pk: PublicKey = app_keys.public_key();
 
-    client
+    let shell_version = client
         .get_mdata_version(*access_container.address())
+        .await?;
+    // .map_err(AuthError::from)
+    // .and_then(move |shell_version| {
+    client2
+        .del_mdata_user_permissions(*acc_cont_info.address(), app_pk, shell_version + 1)
+        .await?;
+    // .map_err(AuthError::from)
+    // })
+    // .and_then(move |_| {
+    recoverable_apis::mutate_mdata_entries(client3, *access_container.address(), actions)
+        .await
         .map_err(AuthError::from)
-        .and_then(move |shell_version| {
-            client2
-                .del_mdata_user_permissions(*acc_cont_info.address(), app_pk, shell_version + 1)
-                .map_err(AuthError::from)
-        })
-        .and_then(move |_| {
-            recoverable_apis::mutate_mdata_entries(&client3, *access_container.address(), actions)
-                .map_err(AuthError::from)
-        })
-        .into_box()
+    // })
+    // .into_box()
 }

@@ -27,80 +27,79 @@ const MAX_ATTEMPTS: usize = 10;
 /// If the data already exists, it tries to mutate it so its entries and permissions
 /// are the same as those of the data being put, except it wont delete existing
 /// entries or remove existing permissions.
-pub async fn put_mdata(client: (impl Client + std::marker::Sync + std::marker::Send), data: SeqMutableData) -> Result<(), CoreError>  {
+pub async fn put_mdata(
+    client: (impl Client + Sync + Send),
+    data: SeqMutableData,
+) -> Result<(), CoreError> {
     let client2 = client.clone();
 
-    match client
-        .put_seq_mutable_data(data.clone()).await {
+    match client.put_seq_mutable_data(data.clone()).await {
         Ok(response) => Ok(response),
-        Err(e) => {
-            match e {
-                CoreError::DataError(SndError::DataExists) => update_mdata(client2, data).await,
-                error => Err(error)
-            }
-        }
+        Err(e) => match e {
+            CoreError::DataError(SndError::DataExists) => update_mdata(client2, data).await,
+            error => Err(error),
+        },
     }
 }
 
 /// Mutates mutable data entries and tries to recover from errors.
 pub async fn mutate_mdata_entries(
-    client: (impl Client + std::marker::Sync + std::marker::Send),
+    client: (impl Client + Sync + Send),
     address: MDataAddress,
     actions: MDataSeqEntryActions,
-) -> Result<(), CoreError>  {
+) -> Result<(), CoreError> {
     let client = client.clone();
 
-    let mut attempts = 0;
+    let attempts = 0;
     let mut done_trying = false;
-    let mut response: Result<(),CoreError> =  Err(CoreError::RequestTimeout);
+    let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
     while !done_trying && attempts < MAX_ATTEMPTS {
-
         response = match client
-            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone()).await {
-                Ok(()) => {
-                    done_trying=true;
-                    Ok(())
-                },
-                Err(error) => { 
-                    match error {
-                        CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
-                            if attempts < MAX_ATTEMPTS {
-                                let actions = fix_entry_actions(actions.clone(), &errors);
-                                attempts + 1;
-                                // okay but we'll keep trying for now
-                                Ok(())
-                            } else {
-                                done_trying = true;
-                                Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
-                            }
-                        },
-                        CoreError::RequestTimeout => {
-                            if attempts < MAX_ATTEMPTS {
-                                attempts + 1;
-                                // okay but we'll keep trying for now
-                                Ok(())
-                            } else {
-                                done_trying=true;
-                                Err(CoreError::RequestTimeout)
-
-                            }
+            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone())
+            .await
+        {
+            Ok(()) => {
+                done_trying = true;
+                Ok(())
+            }
+            Err(error) => {
+                match error {
+                    CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
+                        if attempts < MAX_ATTEMPTS {
+                            let _actions = fix_entry_actions(actions.clone(), &errors);
+                            attempts + 1;
+                            // okay but we'll keep trying for now
+                            Ok(())
+                        } else {
+                            done_trying = true;
+                            Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
                         }
-                        error => { 
-                            done_trying=true;
-                            Err(error)
-                        },
                     }
-
+                    CoreError::RequestTimeout => {
+                        if attempts < MAX_ATTEMPTS {
+                            attempts + 1;
+                            // okay but we'll keep trying for now
+                            Ok(())
+                        } else {
+                            done_trying = true;
+                            Err(CoreError::RequestTimeout)
+                        }
+                    }
+                    error => {
+                        done_trying = true;
+                        Err(error)
+                    }
                 }
-            };
+            }
+        };
     }
     response
 }
 
 /// Sets user permission on the mutable data and tries to recover from errors.
 pub async fn set_mdata_user_permissions(
-    client: (impl Client + std::marker::Sync),
+    client: (impl Client + Sync),
     address: MDataAddress,
     user: PublicKey,
     permissions: MDataPermissionSet,
@@ -110,99 +109,99 @@ pub async fn set_mdata_user_permissions(
     let mut attempts = 0;
     let mut done_trying = false;
     let client = client.clone();
-    let mut response: Result<(),CoreError> =  Err(CoreError::RequestTimeout);
+    let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
     // future::loop_fn(state, move |(attempts, version)| {
     while !done_trying && attempts < MAX_ATTEMPTS {
         response = match client
-            .set_mdata_user_permissions(address, user, permissions.clone(), version_to_try).await {
-                Ok(()) => {
-                    done_trying=true;
-                    Ok(())
-                },
-                Err(error) => {
-                    match error {
-                        CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
-                            if attempts < MAX_ATTEMPTS {
-                                // Ok(Loop::Continue((attempts + 1, current_version + 1)))
-                                version_to_try = version_to_try +1;
-                                attempts = attempts + 1;
-                                // but but we continue anyway
-                                Err(error)
-                            } else {
-                                done_trying=true;
-                                Err(error)
-                            }
-                        }
-                        CoreError::RequestTimeout => {
-                            if attempts < MAX_ATTEMPTS {
-                                // Ok(Loop::Continue((attempts + 1, version)))
-                                version_to_try = version_to_try +1;
-                                attempts = attempts + 1;
-                                // but we continue anyway
-                                Err(CoreError::RequestTimeout)
-
-                            } else {
-                                done_trying=true;
-                                Err(CoreError::RequestTimeout)
-                            }
-                        }
-                        error => {
-                            done_trying=true;
+            .set_mdata_user_permissions(address, user, permissions.clone(), version_to_try)
+            .await
+        {
+            Ok(()) => {
+                done_trying = true;
+                Ok(())
+            }
+            Err(error) => {
+                match error {
+                    CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
+                        if attempts < MAX_ATTEMPTS {
+                            // Ok(Loop::Continue((attempts + 1, current_version + 1)))
+                            version_to_try = version_to_try + 1;
+                            attempts = attempts + 1;
+                            // but but we continue anyway
+                            Err(error)
+                        } else {
+                            done_trying = true;
                             Err(error)
                         }
-
+                    }
+                    CoreError::RequestTimeout => {
+                        if attempts < MAX_ATTEMPTS {
+                            // Ok(Loop::Continue((attempts + 1, version)))
+                            version_to_try = version_to_try + 1;
+                            attempts = attempts + 1;
+                            // but we continue anyway
+                            Err(CoreError::RequestTimeout)
+                        } else {
+                            done_trying = true;
+                            Err(CoreError::RequestTimeout)
+                        }
+                    }
+                    error => {
+                        done_trying = true;
+                        Err(error)
                     }
                 }
             }
-
+        }
     }
 
     response
-            // .map(|_| Loop::Break(()))
-            // .or_else(move |error| match error {
-            // })
+    // .map(|_| Loop::Break(()))
+    // .or_else(move |error| match error {
+    // })
     // })
     // .into_box()
 }
 
 /// Deletes user permission on the mutable data and tries to recover from errors.
 pub async fn del_mdata_user_permissions(
-    client: (impl Client + std::marker::Sync + std::marker::Send),
+    client: (impl Client + Sync + Send),
     address: MDataAddress,
     user: PublicKey,
     version: u64,
 ) -> Result<(), CoreError> {
-    
     let mut attempts: usize = 0;
     let mut version_to_try = version;
     let client = client.clone();
     let mut done_trying = false;
-    let mut response: Result<(),CoreError> =  Err(CoreError::RequestTimeout);
+    let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
     while !done_trying && attempts < MAX_ATTEMPTS {
-
-        response = match client.del_mdata_user_permissions(address, user, version).await {
+        response = match client
+            .del_mdata_user_permissions(address, user, version)
+            .await
+        {
             Ok(_) => {
                 done_trying = true;
                 Ok(())
-            },
+            }
             Err(error) => {
                 match error {
                     CoreError::DataError(SndError::NoSuchKey) => {
-                        done_trying=true;
+                        done_trying = true;
                         Ok(())
-                    },
+                    }
 
                     // CoreError::DataError(SndError::NoSuchKey) => Ok(Loop::Break(())),
-                    CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
+                    CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
                         if attempts < MAX_ATTEMPTS {
                             attempts = attempts + 1;
                             version_to_try = version_to_try + 1;
 
                             Err(error)
 
-                            // Ok(Loop::Continue((attempts + 1, current_version + 1)))
+                        // Ok(Loop::Continue((attempts + 1, current_version + 1)))
                         } else {
                             done_trying = true;
                             Err(error)
@@ -213,11 +212,10 @@ pub async fn del_mdata_user_permissions(
                             attempts = attempts + 1;
                             version_to_try = version_to_try + 1;
                             Err(CoreError::RequestTimeout)
-
                         } else {
                             Err(CoreError::RequestTimeout)
                         }
-                    },
+                    }
                     error => Err(error),
                 }
             }
@@ -252,32 +250,37 @@ pub async fn del_mdata_user_permissions(
     // .into_box()
 }
 
-async fn update_mdata(client: (impl Client + std::marker::Sync + std::marker::Send), data: SeqMutableData) -> Result<(), CoreError> {
+async fn update_mdata(
+    client: (impl Client + Sync + Send),
+    data: SeqMutableData,
+) -> Result<(), CoreError> {
     let client2 = client.clone();
     let client3 = client.clone();
 
     let address = *data.address();
-    let entries = client.list_seq_mdata_entries(*data.name(), data.tag()).await?;
+    let entries = client
+        .list_seq_mdata_entries(*data.name(), data.tag())
+        .await?;
     let permissions = client.list_mdata_permissions(address).await?;
     let version = client.get_mdata_version(address).await?;
 
-    let next_version = version +1;
+    let next_version = version + 1;
 
-            update_mdata_permissions(
-                client2,
-                address,
-                &permissions,
-                data.permissions(),
-                next_version,
-            ).await;
+    update_mdata_permissions(
+        client2,
+        address,
+        &permissions,
+        data.permissions(),
+        next_version,
+    )
+    .await;
 
-            update_mdata_entries(client3, address, &entries, data.entries().clone()).await
-
+    update_mdata_entries(client3, address, &entries, data.entries().clone()).await
 }
 
 // Update the mutable data on the network so it has all the `desired_entries`.
 async fn update_mdata_entries(
-    client: (impl Client + std::marker::Sync + std::marker::Send),
+    client: (impl Client + Sync + Send),
     address: MDataAddress,
     current_entries: &MDataSeqEntries,
     desired_entries: MDataSeqEntries,
@@ -301,7 +304,7 @@ async fn update_mdata_entries(
 }
 
 async fn update_mdata_permissions(
-    client: (impl Client + std::marker::Sync + std::marker::Send),
+    client: (impl Client + Sync + Send),
     address: MDataAddress,
     current_permissions: &BTreeMap<PublicKey, MDataPermissionSet>,
     desired_permissions: BTreeMap<PublicKey, MDataPermissionSet>,
@@ -321,25 +324,25 @@ async fn update_mdata_permissions(
         })
         .collect();
 
-    let state = (client.clone(), permissions.clone(), version);
-    
-    
+    let _state = (client.clone(), permissions.clone(), version);
+
     let mut success = false;
     let mut version_to_try = version;
 
     while !success {
         if let Some((user, set)) = permissions.pop() {
-            match set_mdata_user_permissions(client.clone(), address, user, set, version_to_try).await {
+            match set_mdata_user_permissions(client.clone(), address, user, set, version_to_try)
+                .await
+            {
                 Ok(()) => {
                     success = true;
-                },
-                Err(error) => {
+                }
+                Err(_error) => {
                     version_to_try += 1;
                 }
             }
-
         }
-    };
+    }
 
     Ok(())
 }
@@ -411,58 +414,55 @@ fn union_permission_sets(a: MDataPermissionSet, b: MDataPermissionSet) -> MDataP
 /// Insert key to Client Handler.
 /// Covers the `InvalidSuccessor` error case (it should not fail if the key already exists).
 pub async fn ins_auth_key_to_client_h(
-    client: &(impl Client + AuthActions + std::marker::Sync),
+    client: &(impl Client + AuthActions + Sync),
     key: PublicKey,
     permissions: AppPermissions,
     version: u64,
-) -> Result<(), CoreError>  {
+) -> Result<(), CoreError> {
     // let state = (0, version);
 
     let mut attempts: usize = 0;
     let mut version_to_try = version;
     let client = client.clone();
     let mut done_trying = false;
-    let mut response: Result<(),CoreError> =  Err(CoreError::RequestTimeout);
+    let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
     while !done_trying && attempts < MAX_ATTEMPTS {
-        response =  match client
-            .ins_auth_key(key, permissions, version_to_try).await {
-                Ok(_) => {
-                    done_trying = true;
-                    Ok(())
-                },
-                Err(error) => {
-                    match error {
-                        CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
-                            if attempts < MAX_ATTEMPTS {
-                                attempts = attempts + 1;
-                                version_to_try = version_to_try + 1;
-                                // not really, but we keep trying for now
-                                Ok(())
-                            } else {
-                                done_trying = true;
-                                Err(error)
-                            }
+        response = match client.ins_auth_key(key, permissions, version_to_try).await {
+            Ok(_) => {
+                done_trying = true;
+                Ok(())
+            }
+            Err(error) => {
+                match error {
+                    CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
+                        if attempts < MAX_ATTEMPTS {
+                            attempts = attempts + 1;
+                            version_to_try = version_to_try + 1;
+                            // not really, but we keep trying for now
+                            Ok(())
+                        } else {
+                            done_trying = true;
+                            Err(error)
                         }
-                        CoreError::RequestTimeout => {
-                            if attempts < MAX_ATTEMPTS {
-                                attempts = attempts + 1;
-                                version_to_try = version_to_try + 1;
-                                done_trying = true;
-                                Ok(())
-                            } else {
-                                Err(CoreError::RequestTimeout)
-                            }
-                        }
-                        error => Err(error),
                     }
+                    CoreError::RequestTimeout => {
+                        if attempts < MAX_ATTEMPTS {
+                            attempts = attempts + 1;
+                            version_to_try = version_to_try + 1;
+                            done_trying = true;
+                            Ok(())
+                        } else {
+                            Err(CoreError::RequestTimeout)
+                        }
+                    }
+                    error => Err(error),
                 }
             }
-
-    };
+        }
+    }
 
     response
-    
 }
 
 #[cfg(test)]

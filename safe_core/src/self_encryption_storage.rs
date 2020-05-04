@@ -8,13 +8,13 @@
 
 use super::{Client, CoreError};
 // use crate::{err, ok};
-use futures::{self, Future};
+use async_trait::async_trait;
+use futures::{self};
 use log::trace;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData, XorName, XOR_NAME_LEN};
 use self_encryption::{Storage, StorageError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
-use async_trait::async_trait;
 
 /// Network storage is the concrete type which self-encryption crate will use
 /// to put or get data from the network.
@@ -26,7 +26,7 @@ pub struct SelfEncryptionStorage<C: Client + Send + Sync> {
 }
 
 // #[async_trait]
-impl<C: Client + Send + Sync > SelfEncryptionStorage<C> {
+impl<C: Client + Send + Sync> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {
         Self { client, published }
@@ -58,31 +58,23 @@ impl<C: Send + Sync + Client> Storage for SelfEncryptionStorage<C> {
             IDataAddress::Unpub(name)
         };
 
-        match self.client
-                .get_idata(address).await {
-                    Ok(data) => Ok(data.value().clone()),
-                    Err(error) => Err(SEStorageError::from(error))
-                }
-                
-                
+        match self.client.get_idata(address).await {
+            Ok(data) => Ok(data.value().clone()),
+            Err(error) => Err(SEStorageError::from(error)),
+        }
     }
 
-    async fn put(
-        &mut self,
-        _: Vec<u8>,
-        data: Vec<u8>,
-    ) -> Result<(), Self::Error> {
+    async fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutIData.");
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data).into()
         } else {
             UnpubImmutableData::new(data, self.client.public_key()).into()
         };
-        match self.client
-                .put_idata(immutable_data).await {
-                    Ok(r) => Ok(r),
-                    Err(error) => Err(SEStorageError::from(error))
-                }
+        match self.client.put_idata(immutable_data).await {
+            Ok(r) => Ok(r),
+            Err(error) => Err(SEStorageError::from(error)),
+        }
     }
 
     fn generate_address(&self, data: &[u8]) -> Vec<u8> {
@@ -141,15 +133,11 @@ impl<C: Send + Sync + Client> Storage for SelfEncryptionStorageDryRun<C> {
     async fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetIData dry run.");
         Err(SEStorageError::from(CoreError::Unexpected(
-            "Cannot get from storage since it's a dry run.".to_owned()
+            "Cannot get from storage since it's a dry run.".to_owned(),
         )))
     }
 
-    async fn put(
-        &mut self,
-        _: Vec<u8>,
-        _data: Vec<u8>,
-    ) -> Result<(), Self::Error> {
+    async fn put(&mut self, _: Vec<u8>, _data: Vec<u8>) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutIData dry run.");
         // We do nothing here just return ok so self-encrpytion can finish
         // and generate chunk addresses and datamap if required

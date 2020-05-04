@@ -36,10 +36,10 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event_loop::{CoreMsg, CoreMsgTx};
+use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
-use futures::{future, channel::mpsc, Future};
+use futures::{channel::mpsc, future, Future};
 use std::sync::{Arc, Mutex};
 
 use log::trace;
@@ -54,9 +54,9 @@ use safe_nd::{
     MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
     Request, RequestType, Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
 };
-use std::cell::RefCell;
+
 use std::collections::{BTreeMap, BTreeSet};
-use std::rc::Rc;
+
 use std::time::Duration;
 use threshold_crypto;
 use tokio::runtime::*;
@@ -82,11 +82,8 @@ fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
     let request = client.compose_message(request, sign);
     let inner = client.inner();
     let cm = &mut inner.lock().unwrap().connection_manager;
-    futures::executor::block_on(
-        cm.send(&client.public_id(), &request)
-    )
+    futures::executor::block_on(cm.send(&client.public_id(), &request))
 }
-
 
 // Sends a mutation request to a new routing.
 async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreError> {
@@ -95,7 +92,7 @@ async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreErr
         Response::Mutation(result) => {
             trace!("mutation result: {:?}", result);
             result.map_err(CoreError::from)
-        },
+        }
         _ => Err(CoreError::ReceivedUnexpectedEvent),
     }
 }
@@ -117,14 +114,13 @@ fn send_as_helper(
     let cm = &mut inner.lock().unwrap().connection_manager;
     let mut cm2 = cm.clone();
 
-    futures::executor::block_on( async {
+    futures::executor::block_on(async {
         let _bootstrapped = cm.bootstrap(identity).await;
-        cm2.send(&pub_id, &message ).await
-
-    } )
+        cm2.send(&pub_id, &message).await
+    })
     // Box::new(
-            // .and_then(move |_| 
-            //     ))
+    // .and_then(move |_|
+    //     ))
     // )
 }
 
@@ -161,8 +157,9 @@ pub trait Client: Clone + 'static + Send + Sync {
     // fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>;
 
     fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>
-        // where Client::Context: Send;
-        where Self: Sized ;
+    // where Client::Context: Send;
+    where
+        Self: Sized;
 
     /// Return the public encryption key.
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
@@ -214,13 +211,19 @@ pub trait Client: Clone + 'static + Send + Sync {
 
         inner.connection_manager.restart_network();
 
-        inner.net_tx.unbounded_send(NetworkEvent::Connected).map_err(|error| CoreError::from( format!("{:?}",error)) )?;
+        inner
+            .net_tx
+            .unbounded_send(NetworkEvent::Connected)
+            .map_err(|error| CoreError::from(format!("{:?}", error)))?;
 
         Ok(())
     }
 
     /// Put unsequenced mutable data to the network
-    async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError> where Self: Sized {
+    async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Put Unsequenced MData at {:?}", data.name());
         send_mutation(self, Request::PutMData(MData::Unseq(data))).await?;
         Ok(())
@@ -233,9 +236,12 @@ pub trait Client: Clone + 'static + Send + Sync {
         destination: XorName,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Result<Transaction, CoreError> where Self: Sized {
+    ) -> Result<Transaction, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Transfer {} coins to {:?}", amount, destination);
-    
+
         match send_as_helper(
             self,
             Request::TransferCoins {
@@ -243,19 +249,14 @@ pub trait Client: Clone + 'static + Send + Sync {
                 amount,
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
-            client_id
+            client_id,
         ) {
-            Ok( res ) => {
-                match res {
-                    Response::Transaction(result) => {
-                        match result {
-                            Ok(transaction) => Ok( transaction ),
-                            Err(error) => Err(CoreError::from(error))
-                        }
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent)
-
-                }
+            Ok(res) => match res {
+                Response::Transaction(result) => match result {
+                    Ok(transaction) => Ok(transaction),
+                    Err(error) => Err(CoreError::from(error)),
+                },
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
             // Ok( Response::Transaction(result) ) => {
@@ -264,7 +265,7 @@ pub trait Client: Clone + 'static + Send + Sync {
             //         Err(error) => Err(CoreError::from(error))
             //     }
             // },
-            Err(error) => Err(CoreError::ReceivedUnexpectedEvent)
+            Err(_error) => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -275,7 +276,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         new_balance_owner: PublicKey,
         amount: Coins,
         transaction_id: Option<u64>,
-    ) -> Result<Transaction, CoreError> where Self: Sized {
+    ) -> Result<Transaction, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Create a new balance for {:?} with {} coins.",
             new_balance_owner,
@@ -285,26 +289,21 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send_as_helper(
             self,
             Request::CreateBalance {
-                        new_balance_owner,
-                        amount,
-                        transaction_id: transaction_id.unwrap_or_else(rand::random),
-                    },
-            client_id
+                new_balance_owner,
+                amount,
+                transaction_id: transaction_id.unwrap_or_else(rand::random),
+            },
+            client_id,
         ) {
-            Ok( res ) => {
-                match res {
-                    Response::Transaction(result) => {
-                        match result {
-                            Ok(transaction) => Ok( transaction ),
-                            Err(error) => Err(CoreError::from(error))
-                        }
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent)
-                }
+            Ok(res) => match res {
+                Response::Transaction(result) => match result {
+                    Ok(transaction) => Ok(transaction),
+                    Err(error) => Err(CoreError::from(error)),
+                },
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
-            Err(error) => Err(CoreError::from(error))
-          
+            Err(error) => Err(CoreError::from(error)),
         }
     }
 
@@ -316,7 +315,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         amount: Coins,
         transaction_id: Option<u64>,
         new_login_packet: LoginPacket,
-    ) -> Result<Transaction, CoreError> where Self: Sized {
+    ) -> Result<Transaction, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Insert a login packet for {:?} preloading the wallet with {} coins.",
             new_owner,
@@ -333,53 +335,44 @@ pub trait Client: Clone + 'static + Send + Sync {
                 transaction_id,
                 new_login_packet,
             },
-            client_id
+            client_id,
         ) {
-            Ok( res ) => {
-                match res {
-                    Response::Transaction(result) => {
-                        match result {
-                            Ok(transaction) => Ok( transaction ),
-                            Err(error) => Err(CoreError::from(error))
-                        }
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent)
-                }
+            Ok(res) => match res {
+                Response::Transaction(result) => match result {
+                    Ok(transaction) => Ok(transaction),
+                    Err(error) => Err(CoreError::from(error)),
+                },
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
-            Err(error) => Err(CoreError::from(error))
-
+            Err(error) => Err(CoreError::from(error)),
         }
     }
 
     /// Get the current coin balance.
-    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError> where Self: Sized {
+    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Get balance for {:?}", client_id);
 
-        match send_as_helper(
-            self,
-            Request::GetBalance,
-            client_id
-        ) {
-            Ok( res ) => {
-                match res {
-                    Response::GetBalance(result) => {
-                        match result {
-                            Ok(coins) => Ok( coins ),
-                            Err(error) => Err( CoreError::from(error) )
-                        }
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent)
-
-                }
+        match send_as_helper(self, Request::GetBalance, client_id) {
+            Ok(res) => match res {
+                Response::GetBalance(result) => match result {
+                    Ok(coins) => Ok(coins),
+                    Err(error) => Err(CoreError::from(error)),
+                },
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
-            Err(error)=> Err(CoreError::from(error))
+            Err(error) => Err(CoreError::from(error)),
         }
-        
     }
 
     /// Put immutable data to the network.
-    async fn put_idata<D: Into<IData> + Send>(&self, data: D) -> Result<(), CoreError> where Self: Sized + Send {
+    async fn put_idata<D: Into<IData> + Send>(&self, data: D) -> Result<(), CoreError>
+    where
+        Self: Sized + Send,
+    {
         let idata: IData = data.into();
         trace!("Put IData at {:?}", idata.name());
         send_mutation(self, Request::PutIData(idata)).await
@@ -387,7 +380,10 @@ pub trait Client: Clone + 'static + Send + Sync {
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
-    async fn get_idata(&self, address: IDataAddress) -> Result<IData, CoreError> where Self: Sized {
+    async fn get_idata(&self, address: IDataAddress) -> Result<IData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Fetch Immutable Data");
 
         let inner = self.inner();
@@ -399,14 +395,15 @@ pub trait Client: Clone + 'static + Send + Sync {
         let inner = Arc::downgrade(&self.inner());
         let res = send(self, Request::GetIData(address))?;
         let data = match res {
-                Response::GetIData(res) => res.map_err(CoreError::from),
-                _ => return Err(CoreError::ReceivedUnexpectedEvent),
-            }?;
+            Response::GetIData(res) => res.map_err(CoreError::from),
+            _ => return Err(CoreError::ReceivedUnexpectedEvent),
+        }?;
 
         if let Some(inner) = inner.upgrade() {
             // Put to cache
             let _ = inner
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .cache
                 .insert(*data.address(), data.clone());
         };
@@ -415,10 +412,13 @@ pub trait Client: Clone + 'static + Send + Sync {
 
     /// Delete unpublished immutable data from the network.
     async fn del_unpub_idata(&self, name: XorName) -> Result<(), CoreError>
-        where Self: Sized  {
+    where
+        Self: Sized,
+    {
         let inner = self.inner();
         if inner
-            .lock().unwrap()
+            .lock()
+            .unwrap()
             .cache
             .remove(&IDataAddress::Unpub(name))
             .is_some()
@@ -435,26 +435,28 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Put sequenced mutable data to the network
-    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Result<(), CoreError> where Self: Sized  {
+    async fn put_seq_mutable_data(&self, data: SeqMutableData) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Put Sequenced MData at {:?}", data.name());
         send_mutation(self, Request::PutMData(MData::Seq(data))).await
     }
 
     /// Fetch unpublished mutable data from the network
-    async fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> where Self: Sized {
+    async fn get_unseq_mdata(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Fetch Unsequenced Mutable Data");
 
         match send(self, Request::GetMData(MDataAddress::Unseq { name, tag }))? {
-            
-                Response::GetMData(res) => {
-                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
-                        MData::Unseq(data) => Ok(data),
-                        MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
-                    })
-                }
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-            
+            Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                MData::Unseq(data) => Ok(data),
+                MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+            }),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
@@ -463,7 +465,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         name: XorName,
         tag: u64,
         key: Vec<u8>,
-    ) -> Result<MDataSeqValue, CoreError> where Self: Sized {
+    ) -> Result<MDataSeqValue, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Fetch MDataValue for {:?}", name);
 
         match send(
@@ -473,7 +478,6 @@ pub trait Client: Clone + 'static + Send + Sync {
                 key,
             },
         )? {
-        
             Response::GetMDataValue(res) => {
                 res.map_err(CoreError::from).and_then(|value| match value {
                     MDataValue::Seq(val) => Ok(val),
@@ -482,7 +486,6 @@ pub trait Client: Clone + 'static + Send + Sync {
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
-        
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
@@ -491,7 +494,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         name: XorName,
         tag: u64,
         key: Vec<u8>,
-    ) -> Result<Vec<u8>, CoreError> where Self: Sized {
+    ) -> Result<Vec<u8>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Fetch MDataValue for {:?}", name);
 
         match send(
@@ -501,7 +507,6 @@ pub trait Client: Clone + 'static + Send + Sync {
                 key,
             },
         )? {
-        
             Response::GetMDataValue(res) => {
                 res.map_err(CoreError::from).and_then(|value| match value {
                     MDataValue::Unseq(val) => Ok(val),
@@ -510,24 +515,22 @@ pub trait Client: Clone + 'static + Send + Sync {
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
-        
     }
 
     /// Fetch sequenced mutable data from the network
-    async fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> where Self: Sized {
+    async fn get_seq_mdata(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Fetch Sequenced Mutable Data");
 
         match send(self, Request::GetMData(MDataAddress::Seq { name, tag }))? {
-            
-                Response::GetMData(res) => {
-                    res.map_err(CoreError::from).and_then(|mdata| match mdata {
-                        MData::Seq(data) => Ok(data),
-                        MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
-                    })
-                }
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-            
+            Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
+                MData::Seq(data) => Ok(data),
+                MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+            }),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Mutates sequenced `MutableData` entries in bulk
@@ -536,7 +539,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         name: XorName,
         tag: u64,
         actions: MDataSeqEntryActions,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation(
@@ -545,7 +551,8 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address: MDataAddress::Seq { name, tag },
                 actions: MDataEntryActions::Seq(actions),
             },
-        ).await
+        )
+        .await
     }
 
     /// Mutates unsequenced `MutableData` entries in bulk
@@ -554,7 +561,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         name: XorName,
         tag: u64,
         actions: MDataUnseqEntryActions,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Mutate MData for {:?}", name);
 
         send_mutation(
@@ -563,11 +573,19 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address: MDataAddress::Unseq { name, tag },
                 actions: MDataEntryActions::Unseq(actions),
             },
-        ).await
+        )
+        .await
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
-    async fn get_seq_mdata_shell(&self, name: XorName, tag: u64) -> Result<SeqMutableData, CoreError> where Self: Sized {
+    async fn get_seq_mdata_shell(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Result<SeqMutableData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("GetMDataShell for {:?}", name);
 
         match send(
@@ -585,7 +603,14 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Get a shell (bare bones) version of `MutableData` from the network.
-    async fn get_unseq_mdata_shell(&self, name: XorName, tag: u64) -> Result<UnseqMutableData, CoreError> where Self: Sized {
+    async fn get_unseq_mdata_shell(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Result<UnseqMutableData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("GetMDataShell for {:?}", name);
 
         match send(
@@ -603,13 +628,16 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Get a current version of `MutableData` from the network.
-    async fn get_mdata_version(&self, address: MDataAddress) -> Result<u64, CoreError> where Self: Sized {
+    async fn get_mdata_version(&self, address: MDataAddress) -> Result<u64, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("GetMDataVersion for {:?}", address);
 
         match send(self, Request::GetMDataVersion(address))? {
-                Response::GetMDataVersion(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::GetMDataVersion(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Return a complete list of entries in `MutableData`.
@@ -617,7 +645,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, CoreError> where Self: Sized {
+    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("ListMDataEntries for {:?}", name);
 
         match send(
@@ -636,7 +667,14 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Return a complete list of entries in `MutableData`.
-    async fn list_seq_mdata_entries(&self, name: XorName, tag: u64) -> Result<MDataSeqEntries, CoreError> where Self: Sized {
+    async fn list_seq_mdata_entries(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Result<MDataSeqEntries, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("ListSeqMDataEntries for {:?}", name);
 
         match send(
@@ -651,19 +689,20 @@ pub trait Client: Clone + 'static + Send + Sync {
                     })
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
-
         }
-        
     }
 
     /// Return a list of keys in `MutableData` stored on the network.
-    async fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError> where Self: Sized {
+    async fn list_mdata_keys(&self, address: MDataAddress) -> Result<BTreeSet<Vec<u8>>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("ListMDataKeys for {:?}", address);
 
         match send(self, Request::ListMDataKeys(address))? {
-                Response::ListMDataKeys(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::ListMDataKeys(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Return a list of values in a Sequenced Mutable Data
@@ -671,7 +710,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         name: XorName,
         tag: u64,
-    ) -> Result<Vec<MDataSeqValue>, CoreError> where Self: Sized {
+    ) -> Result<Vec<MDataSeqValue>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("List MDataValues for {:?}", name);
 
         match send(
@@ -694,17 +736,27 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         address: MDataAddress,
         user: PublicKey,
-    ) -> Result<MDataPermissionSet, CoreError> where Self: Sized {
+    ) -> Result<MDataPermissionSet, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("GetMDataUserPermissions for {:?}", address);
 
         match send(self, Request::ListMDataUserPermissions { address, user })? {
-                Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Returns a list of values in an Unsequenced Mutable Data
-    async fn list_unseq_mdata_values(&self, name: XorName, tag: u64) -> Result<Vec<Vec<u8>>, CoreError> where Self: Sized {
+    async fn list_unseq_mdata_values(
+        &self,
+        name: XorName,
+        tag: u64,
+    ) -> Result<Vec<Vec<u8>>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("List MDataValues for {:?}", name);
 
         match send(
@@ -724,19 +776,25 @@ pub trait Client: Clone + 'static + Send + Sync {
     // ======= Append Only Data =======
     //
     /// Put AppendOnly Data into the Network
-    async fn put_adata(&self, data: AData) -> Result<(), CoreError> where Self: Sized {
+    async fn put_adata(&self, data: AData) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Put AppendOnly Data {:?}", data.name());
         send_mutation(self, Request::PutAData(data)).await
     }
 
     /// Get AppendOnly Data from the Network
-    async fn get_adata(&self, address: ADataAddress) -> Result<AData, CoreError> where Self: Sized {
+    async fn get_adata(&self, address: ADataAddress) -> Result<AData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
         match send(self, Request::GetAData(address))? {
-                Response::GetAData(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::GetAData(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Get AppendOnly Data Shell from the Network
@@ -744,7 +802,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         data_index: ADataIndex,
         address: ADataAddress,
-    ) -> Result<AData, CoreError> where Self: Sized {
+    ) -> Result<AData, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
         match send(
@@ -760,16 +821,23 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Fetch Value for the provided key from AppendOnly Data at {:?}
-    async fn get_adata_value(&self, address: ADataAddress, key: Vec<u8>) -> Result<Vec<u8>, CoreError> where Self: Sized {
+    async fn get_adata_value(
+        &self,
+        address: ADataAddress,
+        key: Vec<u8>,
+    ) -> Result<Vec<u8>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Fetch Value for the provided key from AppendOnly Data at {:?}",
             address.name()
         );
 
         match send(self, Request::GetADataValue { address, key })? {
-                Response::GetADataValue(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::GetADataValue(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Get a Set of Entries for the requested range from an AData.
@@ -777,47 +845,51 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         address: ADataAddress,
         range: (ADataIndex, ADataIndex),
-    ) -> Result<ADataEntries, CoreError> where Self: Sized {
+    ) -> Result<ADataEntries, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get Range of entries from AppendOnly Data at {:?}",
             address.name()
         );
 
         match send(self, Request::GetADataRange { address, range })? {
-                Response::GetADataRange(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::GetADataRange(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Get latest indices from an AppendOnly Data.
-    async fn get_adata_indices(&self, address: ADataAddress) -> Result<ADataIndices, CoreError> where Self: Sized  {
+    async fn get_adata_indices(&self, address: ADataAddress) -> Result<ADataIndices, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
         );
 
         match send(self, Request::GetADataIndices(address))? {
-                Response::GetADataIndices(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::GetADataIndices(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Get the last data entry from an AppendOnly Data.
-    async fn get_adata_last_entry(&self, address: ADataAddress) -> Result<ADataEntry, CoreError> where Self: Sized {
+    async fn get_adata_last_entry(&self, address: ADataAddress) -> Result<ADataEntry, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
         );
 
         match send(self, Request::GetADataLastEntry(address))? {
-
-                Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-
-            
+            Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
-                
-            
     }
 
     /// Get permissions at the provided index.
@@ -825,7 +897,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         address: ADataAddress,
         permissions_index: ADataIndex,
-    ) -> Result<ADataUnpubPermissions, CoreError> where Self: Sized {
+    ) -> Result<ADataUnpubPermissions, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -844,11 +919,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                         ADataPermissions::Unpub(data) => Ok(data),
                         ADataPermissions::Pub(_) => Err(CoreError::ReceivedUnexpectedData),
                     })
-
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
-        
     }
 
     /// Get permissions at the provided index.
@@ -856,7 +929,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         address: ADataAddress,
         permissions_index: ADataIndex,
-    ) -> Result<ADataPubPermissions, CoreError> where Self: Sized {
+    ) -> Result<ADataPubPermissions, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get latest indices from AppendOnly Data at {:?}",
             address.name()
@@ -886,7 +962,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         address: ADataAddress,
         permissions_index: ADataIndex,
         user: ADataUser,
-    ) -> Result<ADataPubPermissionSet, CoreError> where Self: Sized {
+    ) -> Result<ADataPubPermissionSet, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
             address.name()
@@ -911,7 +990,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         address: ADataAddress,
         permissions_index: ADataIndex,
         public_key: PublicKey,
-    ) -> Result<ADataUnpubPermissionSet, CoreError> where Self: Sized {
+    ) -> Result<ADataUnpubPermissionSet, CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Get permissions for a specified user(s) from AppendOnly Data at {:?}",
             address.name()
@@ -936,7 +1018,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         address: ADataAddress,
         permissions: ADataUnpubPermissions,
         permissions_index: u64,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!(
             "Add Permissions to UnPub AppendOnly Data {:?}",
             address.name()
@@ -949,7 +1034,8 @@ pub trait Client: Clone + 'static + Send + Sync {
                 permissions,
                 permissions_index,
             },
-        ).await
+        )
+        .await
     }
 
     /// Add Pub AData Permissions
@@ -958,7 +1044,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         address: ADataAddress,
         permissions: ADataPubPermissions,
         permissions_index: u64,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Add Permissions to AppendOnly Data {:?}", address.name());
 
         send_mutation(
@@ -968,7 +1057,8 @@ pub trait Client: Clone + 'static + Send + Sync {
                 permissions,
                 permissions_index,
             },
-        ).await
+        )
+        .await
     }
 
     /// Set new Owners to AData
@@ -977,7 +1067,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         address: ADataAddress,
         owner: ADataOwner,
         owners_index: u64,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Set Owners to AppendOnly Data {:?}", address.name());
 
         send_mutation(
@@ -987,7 +1080,8 @@ pub trait Client: Clone + 'static + Send + Sync {
                 owner,
                 owners_index,
             },
-        ).await
+        )
+        .await
     }
 
     /// Set new Owners to AData
@@ -995,7 +1089,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         address: ADataAddress,
         owners_index: ADataIndex,
-    ) -> Result<ADataOwner, CoreError> where Self: Sized {
+    ) -> Result<ADataOwner, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Get Owners from AppendOnly Data at {:?}", address.name());
 
         match send(
@@ -1011,12 +1108,22 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Append to Published Seq AppendOnly Data
-    async fn append_seq_adata(&self, append: ADataAppendOperation, index: u64) -> Result<(), CoreError> where Self: Sized  {
+    async fn append_seq_adata(
+        &self,
+        append: ADataAppendOperation,
+        index: u64,
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         send_mutation(self, Request::AppendSeq { append, index }).await
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
-    async fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError> where Self: Sized {
+    async fn append_unseq_adata(&self, append: ADataAppendOperation) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         send_mutation(self, Request::AppendUnseq(append)).await
     }
 
@@ -1024,14 +1131,16 @@ pub trait Client: Clone + 'static + Send + Sync {
     async fn list_mdata_permissions(
         &self,
         address: MDataAddress,
-    ) -> Result<BTreeMap<PublicKey, MDataPermissionSet>, CoreError> where Self: Sized {
+    ) -> Result<BTreeMap<PublicKey, MDataPermissionSet>, CoreError>
+    where
+        Self: Sized,
+    {
         trace!("List MDataPermissions for {:?}", address);
 
         match send(self, Request::ListMDataPermissions(address))? {
-         
-                Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Updates or inserts a permissions set for a user
@@ -1041,7 +1150,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         user: PublicKey,
         permissions: MDataPermissionSet,
         version: u64,
-    ) -> Result<(), CoreError> where Self: Sized  {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("SetMDataUserPermissions for {:?}", address);
 
         send_mutation(
@@ -1052,7 +1164,8 @@ pub trait Client: Clone + 'static + Send + Sync {
                 permissions,
                 version,
             },
-        ).await
+        )
+        .await
     }
 
     /// Updates or inserts a permissions set for a user
@@ -1061,7 +1174,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         address: MDataAddress,
         user: PublicKey,
         version: u64,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("DelMDataUserPermissions for {:?}", address);
 
         send_mutation(
@@ -1071,7 +1187,8 @@ pub trait Client: Clone + 'static + Send + Sync {
                 user,
                 version,
             },
-        ).await
+        )
+        .await
     }
 
     /// Sends an ownership transfer request.
@@ -1094,7 +1211,8 @@ pub trait Client: Clone + 'static + Send + Sync {
     fn set_network_limits(&self, max_ops_count: Option<u64>) {
         let inner = self.inner();
         inner
-            .lock().unwrap()
+            .lock()
+            .unwrap()
             .connection_manager
             .set_network_limits(max_ops_count);
     }
@@ -1106,7 +1224,11 @@ pub trait Client: Clone + 'static + Send + Sync {
     #[doc(hidden)]
     fn simulate_network_disconnect(&self) {
         let inner = self.inner();
-        inner.lock().unwrap().connection_manager.simulate_disconnect();
+        inner
+            .lock()
+            .unwrap()
+            .connection_manager
+            .simulate_disconnect();
     }
 
     #[cfg(any(
@@ -1117,7 +1239,8 @@ pub trait Client: Clone + 'static + Send + Sync {
     fn set_simulate_timeout(&self, enabled: bool) {
         let inner = self.inner();
         inner
-            .lock().unwrap()
+            .lock()
+            .unwrap()
             .connection_manager
             .set_simulate_timeout(enabled);
     }
@@ -1128,7 +1251,10 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         client_id: Option<&ClientFullId>,
         amount: Coins,
-    ) -> Result<Transaction, CoreError> where Self: Sized {
+    ) -> Result<Transaction, CoreError>
+    where
+        Self: Sized,
+    {
         let new_balance_owner = client_id.map_or_else(
             || self.public_key(),
             |client_id| *client_id.public_id().public_key(),
@@ -1139,33 +1265,26 @@ pub trait Client: Clone + 'static + Send + Sync {
             amount,
         );
 
-
         match send_as_helper(
             self,
             Request::CreateBalance {
-                        new_balance_owner,
-                        amount,
-                        transaction_id: rand::random(),
-                    },
-            client_id
+                new_balance_owner,
+                amount,
+                transaction_id: rand::random(),
+            },
+            client_id,
         ) {
-            Ok( res ) => {
-                match res {
-                    Response::Transaction(result) => {
-                        match result {
-                            Ok(transaction) => Ok( transaction ),
-                            Err(error) => Err(CoreError::from(error))
-                        }
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent)
-                }
+            Ok(res) => match res {
+                Response::Transaction(result) => match result {
+                    Ok(transaction) => Ok(transaction),
+                    Err(error) => Err(CoreError::from(error)),
+                },
+                _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
-            Err(error) => Err(CoreError::from(error))
-          
+            Err(error) => Err(CoreError::from(error)),
         }
     }
-    
 }
 
 /// Creates a throw-away client to execute requests sequentially.
@@ -1197,7 +1316,7 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<
             x => return Err(CoreError::from(format!("Unexpected ID type {:?}", x))),
         };
 
-        let response = futures::executor::block_on( req(
+        let response = futures::executor::block_on(req(
             &mut cm,
             Request::CreateBalance {
                 new_balance_owner,
@@ -1211,19 +1330,26 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<
             Response::Transaction(res) => res.map(|_| Ok(()))?,
             _ => Err(CoreError::from("Unexpected response")),
         }
-    }).await
+    })
+    .await
 }
 
 /// Get the balance at the given key's location
 pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreError> {
     trace!("Get balance for {:?}", wallet_sk);
 
-    temp_client(wallet_sk, move |mut cm, full_id| {
-        match futures::executor::block_on( req(&mut cm, Request::GetBalance, &full_id) )? {
+    temp_client(
+        wallet_sk,
+        move |mut cm, full_id| match futures::executor::block_on(req(
+            &mut cm,
+            Request::GetBalance,
+            &full_id,
+        ))? {
             Response::GetBalance(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
-        }
-    }).await
+        },
+    )
+    .await
 }
 
 /// Creates a new coin balance on the network.
@@ -1242,7 +1368,7 @@ pub async fn wallet_create_balance(
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
 
     temp_client(client_id, move |mut cm, full_id| {
-        let response = futures::executor::block_on( req(
+        let response = futures::executor::block_on(req(
             &mut cm,
             Request::CreateBalance {
                 new_balance_owner,
@@ -1255,7 +1381,8 @@ pub async fn wallet_create_balance(
             Response::Transaction(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
-    }).await
+    })
+    .await
 }
 
 /// Transfer coins
@@ -1270,7 +1397,6 @@ pub async fn wallet_transfer_coins(
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
 
     temp_client(client_id, move |mut cm, full_id| {
-        
         let response = futures::executor::block_on(req(
             &mut cm,
             Request::TransferCoins {
@@ -1284,7 +1410,8 @@ pub async fn wallet_transfer_coins(
             Response::Transaction(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
-    }).await
+    })
+    .await
 }
 
 /// This trait implements functions that are supposed to be called only by `CoreClient` and `AuthClient`.
@@ -1295,13 +1422,16 @@ pub trait AuthActions: Client + Clone + 'static {
     /// Fetches a list of authorised keys and version.
     async fn list_auth_keys_and_version(
         &self,
-    ) -> Result<(BTreeMap<PublicKey, AppPermissions>, u64), CoreError> where Self: Sized {
+    ) -> Result<(BTreeMap<PublicKey, AppPermissions>, u64), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("ListAuthKeysAndVersion");
 
         match send(self, Request::ListAuthKeysAndVersion)? {
-                Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
+            Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
     }
 
     /// Adds a new authorised key.
@@ -1310,7 +1440,10 @@ pub trait AuthActions: Client + Clone + 'static {
         key: PublicKey,
         permissions: AppPermissions,
         version: u64,
-    ) -> Result<(), CoreError> where Self: Sized {
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("InsAuthKey ({:?})", key);
 
         send_mutation(
@@ -1320,25 +1453,35 @@ pub trait AuthActions: Client + Clone + 'static {
                 permissions,
                 version,
             },
-        ).await
+        )
+        .await
     }
 
     /// Removes an authorised key.
-    async fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError> where Self: Sized {
+    async fn del_auth_key(&self, key: PublicKey, version: u64) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("DelAuthKey ({:?})", key);
 
         send_mutation(self, Request::DelAuthKey { key, version }).await
     }
 
     /// Delete MData from network
-    async fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError> where Self: Sized {
+    async fn delete_mdata(&self, address: MDataAddress) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Delete entire Mutable Data at {:?}", address);
 
         send_mutation(self, Request::DeleteMData(address)).await
     }
 
     /// Delete AData from network.
-    async fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError> where Self: Sized {
+    async fn delete_adata(&self, address: ADataAddress) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
         trace!("Delete entire Unpublished AppendOnly Data at {:?}", address);
 
         send_mutation(self, Request::DeleteAData(address)).await
@@ -1381,7 +1524,10 @@ impl<C: Client + Sync + Send, T> Inner<C, T> {
         timeout: Duration,
         core_tx: CoreMsgTx<C, T>,
         net_tx: NetworkTx,
-    ) -> Inner<C, T> where Self: Sized {
+    ) -> Inner<C, T>
+    where
+        Self: Sized,
+    {
         Self {
             el_handle,
             connection_manager,
@@ -1393,7 +1539,10 @@ impl<C: Client + Sync + Send, T> Inner<C, T> {
     }
 
     /// Get the connection manager associated with the client
-    pub fn cm(&mut self) -> &mut ConnectionManager where Self: Sized {
+    pub fn cm(&mut self) -> &mut ConnectionManager
+    where
+        Self: Sized,
+    {
         &mut self.connection_manager
     }
 }
@@ -1415,7 +1564,8 @@ pub async fn req(
             message_id,
             signature: Some(signature),
         },
-    ).await
+    )
+    .await
 }
 
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.

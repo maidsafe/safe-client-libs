@@ -11,9 +11,10 @@ use crate::config_handler::{get_config, Config};
 use crate::{
     client::SafeKey,
     network_event::{NetworkEvent, NetworkTx},
-    CoreError, CoreFuture,
+    CoreError,
 };
 use crate::{err, ok};
+use async_trait::async_trait;
 use lazy_static::lazy_static;
 use log::trace;
 use quic_p2p::{self, Config as QuicP2pConfig};
@@ -22,7 +23,6 @@ use std::collections::HashSet;
 use std::env;
 use std::sync::{Arc, Mutex};
 use unwrap::unwrap;
-use async_trait::async_trait;
 
 lazy_static! {
     static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));
@@ -102,13 +102,13 @@ impl ConnectionManager {
             Ok(response)
         } else {
             Err(CoreError::Unexpected(
-                "Logic error: Vault error returned invalid response".to_string()
+                "Logic error: Vault error returned invalid response".to_string(),
             ))
         }
     }
 
     /// Bootstrap to any known contact.
-    pub fn bootstrap(&mut self, full_id: SafeKey) -> Box<CoreFuture<()>> {
+    pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(), CoreError> {
         let _ = unwrap!(self.groups.lock()).insert(full_id.public_id());
         Ok(())
     }
@@ -119,7 +119,7 @@ impl ConnectionManager {
     }
 
     /// Disconnect from a group.
-    pub fn disconnect(&mut self, pub_id: &PublicId) -> Box<CoreFuture<()>> {
+    pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(), CoreError> {
         let mut groups = unwrap!(self.groups.lock());
         let _ = groups.remove(pub_id);
         if groups.is_empty() {

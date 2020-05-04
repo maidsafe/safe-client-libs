@@ -33,11 +33,11 @@
 // Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Export public auth interface.
-
+use futures_util::future::TryFutureExt;
 pub use self::errors::AuthError;
 pub use client::AuthClient;
 pub use errors::Result as AuthResult;
-
+use futures_util::future::FutureExt;
 pub mod access_container;
 pub mod app_auth;
 pub mod app_container;
@@ -46,7 +46,7 @@ pub mod config;
 pub mod errors;
 pub mod ipc;
 pub mod revocation;
-
+use core::pin::Pin;
 /// default dir
 pub mod std_dirs;
 #[cfg(any(test, feature = "testing"))]
@@ -59,20 +59,21 @@ mod tests;
 use errors::AuthError as Error;
 use futures::channel::mpsc;
 use futures::stream::Stream;
-use futures::{future::IntoFuture, Future};
+use futures_util::stream::StreamExt;
+use futures::{future::IntoFuture, Future, future::BoxFuture};
 use log::{debug, info};
-use safe_core::ok;
+// use safe_core::ok;
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
+use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
 use safe_nd::ClientFullId;
 use std::sync::mpsc as std_mpsc;
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
 use std::thread::JoinHandle;
-use tokio::runtime::current_thread::{Handle, Runtime};
+use tokio::runtime::*;
 use unwrap::unwrap;
 
 /// Future type specialised with `AuthError` as an error type.
@@ -102,13 +103,13 @@ impl Authenticator {
     /// Send a message to the authenticator event loop.
     pub fn send<F>(&self, f: F) -> AuthResult<()>
     where
-        F: FnOnce(&AuthClient) -> Option<Box<dyn Future<Output = Result<Item, Error>>>>
+        F: FnOnce(&AuthClient) -> Option<Pin<Box<dyn Future<Output = Result<(), ()> > + Send>>>
             + Send
             + 'static,
     {
         let msg = CoreMsg::new(|client, _| f(client));
         let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.unbounded_send(msg).map_err(Error::from)
+        core_tx.unbounded_send(msg).map_err(|error| AuthError::from( format!("Failed to send auth message: {:?}", error )))
     }
 
     /// Create a new account.
@@ -127,7 +128,7 @@ impl Authenticator {
 
         Self::create_acc_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::registered(&locator, &password, client_id, el_h, core_tx, net_tx)
+                futures::executor::block_on(AuthClient::registered(&locator, &password, client_id, el_h, core_tx, net_tx) )
             },
             disconnect_notifier,
         )
@@ -154,34 +155,60 @@ impl Authenticator {
                 let core_tx2 = core_tx.clone();
                 let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-                let net_obs_fut = net_rx
-                    .then(move |net_event| {
-                        if let Ok(NetworkEvent::Disconnected) = net_event {
-                            disconnect_notifier();
-                        }
-                        Ok(())
-                    })
-                    .for_each(|_| Ok(()));
+                
+                let net_obs_fut : BoxFuture<Result<(),()>> = async {
+ 
+                    if let Ok( Some( NetworkEvent::Disconnected) ) = net_rx.try_next() {
+                        disconnect_notifier();
+                    };
+                    Ok(())
+
+                }.boxed();
+        
                 let _ = el.spawn(net_obs_fut);
 
-                let client = try_tx!(create_client_fn(el_h, core_tx.clone(), net_tx), tx);
+                let client = try_tx!(create_client_fn(*el_h, core_tx.clone(), net_tx), tx);
+
+                // unwrap!(
+                //     core_tx.unbounded_send(CoreMsg::new(move |client, &()| std_dirs::create(
+                //         client
+                //     )
+                //     .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))
+                //     .then(move |res| {
+                //         match res {
+                //             Ok(_) => unwrap!(tx.send(Ok(core_tx2))),
+                //             Err(error) => unwrap!(tx.send(Err((Some(core_tx2), error)))),
+                //         }
+
+                //         Ok(())
+                //     })
+                //     .into_box()
+                //     .into()))
+                // );
+
 
                 unwrap!(
-                    core_tx.unbounded_send(CoreMsg::new(move |client, &()| std_dirs::create(
-                        client
-                    )
-                    .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))
-                    .then(move |res| {
-                        match res {
-                            Ok(_) => unwrap!(tx.send(Ok(core_tx2))),
-                            Err(error) => unwrap!(tx.send(Err((Some(core_tx2), error)))),
-                        }
+                    core_tx.unbounded_send(
+                        CoreMsg::new(move |&C, &()| {
+                            let cloned_client_red = &client.clone();
+                            let fut = async {
+                                let res = std_dirs::create(cloned_client_red).await
+                                    .map_err(|error| AuthError::AccountContainersCreation(error.to_string()));
 
-                        Ok(())
-                    })
-                    .into_box()
-                    .into()))
-                );
+                                    match res {
+                                        Ok(_) => unwrap!(tx.send(Ok(core_tx2))),
+                                        Err(error) => unwrap!(tx.send(Err((Some(core_tx2), error)))),
+                                    }
+                
+                                    Ok(())
+                            }
+                            // .then(move |res| {
+                            // })
+                            .boxed();
+
+                            Some(fut)
+                        }
+                )));
 
                 event_loop::run(el, &client, &(), core_rx);
             })
@@ -192,7 +219,7 @@ impl Authenticator {
             Err((None, e)) => return Err(e),
             Err((Some(core_tx), e)) => {
                 // Make sure to shut down the event loop
-                core_tx.unbounded_send(CoreMsg::build_terminator())?;
+                core_tx.unbounded_send(CoreMsg::build_terminator()).map_err(|error| AuthError::from("Could not terminate event loop".to_string()))?;
                 return Err(e);
             }
         };
@@ -214,7 +241,7 @@ impl Authenticator {
 
         Self::login_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::login(&locator, &password, el_h, core_tx, net_tx)
+                futures::executor::block_on(AuthClient::login(&locator, &password, el_h, core_tx, net_tx))
             },
             disconnect_notifier,
         )
@@ -241,17 +268,18 @@ impl Authenticator {
                 let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
                 let core_tx_clone = core_tx.clone();
 
-                let net_obs_fut = net_rx
-                    .then(move |net_event| {
-                        if let Ok(NetworkEvent::Disconnected) = net_event {
+                let net_obs_fut : BoxFuture<Result<(),()>> = async {
+ 
+                        if let Ok( Some( NetworkEvent::Disconnected) ) = net_rx.try_next() {
                             disconnect_notifier();
-                        }
+                        };
                         Ok(())
-                    })
-                    .for_each(|_| Ok(()));
+
+                }.boxed();
+                
                 let _ = el.spawn(net_obs_fut);
 
-                let client = try_tx!(create_client_fn(el_h, core_tx_clone, net_tx), tx);
+                let client: AuthClient = try_tx!(create_client_fn(*el_h, core_tx_clone, net_tx), tx);
 
                 if client.std_dirs_created() {
                     unwrap!(tx.send(Ok(core_tx)));
@@ -262,17 +290,46 @@ impl Authenticator {
                     let core_tx2 = core_tx.clone();
                     let core_tx3 = core_tx.clone();
 
-                    unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
-                        std_dirs::create(client)
-                            .map(move |()| {
+
+
+                    unwrap!(core_tx.unbounded_send(CoreMsg::new( |&C, &()| {
+                        // Box::new(
+                            let cloned_client = client.clone();
+                            Some(async {
+                                std_dirs::create(&cloned_client).await
+                                    .map_err(move |e| {
+                                        unwrap!(tx2.send(Err((Some(core_tx3), e))));
+                                    });
+                                
                                 unwrap!(tx.send(Ok(core_tx2)));
-                            })
-                            .map_err(move |e| {
-                                unwrap!(tx2.send(Err((Some(core_tx3), e))));
-                            })
-                            .into_box()
-                            .into()
+                                Ok(())
+                            }.boxed())
+
+                            // .map(move |_| {
+                            // })
+                        // )
+                            // .into_box()
+                            // .into()
                     })));
+
+                    // unwrap!(core_tx.unbounded_send(CoreMsg::new(move |client, &()| {
+                    //     Some( 
+                    //         Box::new( async {
+                    //         std_dirs::create(client).await
+                    //         .map_err(move |e| {
+                    //             unwrap!(tx2.send(Err((Some(core_tx3), e))));
+                    //         })?;
+                    //         tx.send(Ok(core_tx2))
+                    //     // )
+                    //     // })
+                    //     // .into_box()
+                    //     .into() 
+
+                    //     } ) )
+
+                    //         // .map(move |()| {
+                    //         // unwrap!(
+                    // })));
                 }
 
                 event_loop::run(el, &client, &(), core_rx);
@@ -284,7 +341,8 @@ impl Authenticator {
             Err((None, e)) => return Err(e),
             Err((Some(core_tx), e)) => {
                 // Make sure to shut down the event loop
-                core_tx.unbounded_send(CoreMsg::build_terminator())?;
+                core_tx.unbounded_send(CoreMsg::build_terminator())
+                    .map_err(|error| AuthError::from("Could not terminate event loop".to_string()))?;
                 return Err(e);
             }
         };
@@ -302,21 +360,22 @@ impl Authenticator {
 pub fn run<F, I, T>(authenticator: &Authenticator, f: F) -> Result<T, AuthError>
 where
     F: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: IntoFuture<Output = Result<T, AuthError>> + 'static,
+    I: Future<Output = Result<T, AuthError>> + Send + 'static,
     T: Send + 'static,
 {
     let (tx, rx) = std_mpsc::channel();
 
     unwrap!(authenticator.send(move |client| {
         let future = f(client)
-            .into_future()
-            .then(move |result| {
+            // .into_future()
+            .map(move |result| {
                 unwrap!(tx.send(result));
                 Ok(())
             })
-            .into_box();
+            .boxed();
+            // .into_box();
 
-        Some(future)
+        Some(future )
     }));
 
     unwrap!(rx.recv())
@@ -334,7 +393,7 @@ impl Authenticator {
         let client_id = gen_client_id();
         Self::login_impl(
             move |el_h, core_tx, net_tx| {
-                AuthClient::registered_with_seed(&seed, client_id, el_h, core_tx, net_tx)
+                futures::executor::block_on(AuthClient::registered_with_seed(&seed, client_id, el_h, core_tx, net_tx))
             },
             disconnect_notifier,
         )
@@ -348,7 +407,9 @@ impl Authenticator {
     {
         let seed = seed.into();
         Self::login_impl(
-            move |el_h, core_tx, net_tx| AuthClient::login_with_seed(&seed, el_h, core_tx, net_tx),
+            move |el_h, core_tx, net_tx| {
+                futures::executor::block_on(AuthClient::login_with_seed(&seed, el_h, core_tx, net_tx) )
+            },
             disconnect_notifier,
         )
     }

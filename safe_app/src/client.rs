@@ -160,16 +160,16 @@ impl Client for AppClient {
     type Context = AppContext;
 
     fn full_id(&self) -> SafeKey {
-        let app_inner = self.app_inner.borrow();
+        let app_inner = self.app_inner.lock().unwrap();
         app_inner.keys.app_safe_key()
     }
 
     fn owner_key(&self) -> PublicKey {
-        self.app_inner.borrow().owner_key
+        self.app_inner.lock().unwrap().owner_key
     }
 
     fn config(&self) -> Option<BootstrapConfig> {
-        let app_inner = self.app_inner.borrow();
+        let app_inner = self.app_inner.lock().unwrap();
         app_inner.config.clone()
     }
 
@@ -178,17 +178,17 @@ impl Client for AppClient {
     }
 
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
-        let app_inner = self.app_inner.borrow();
+        let app_inner = self.app_inner.lock().unwrap();
         app_inner.keys.clone().enc_public_key
     }
 
     fn secret_encryption_key(&self) -> shared_box::SecretKey {
-        let app_inner = self.app_inner.borrow();
+        let app_inner = self.app_inner.lock().unwrap();
         app_inner.keys.clone().enc_secret_key
     }
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {
-        let app_inner = self.app_inner.borrow();
+        let app_inner = self.app_inner.lock().unwrap();
         app_inner.keys.clone().enc_key
     }
 }

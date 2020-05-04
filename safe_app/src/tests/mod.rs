@@ -53,11 +53,11 @@ fn refresh_access_info() {
 
     unwrap!(run(&app, move |client, context| {
         let reg = Arc::clone(unwrap!(context.as_registered()));
-        assert!(reg.access_info.borrow().is_empty());
+        assert!(reg.access_info.lock().unwrap().is_empty());
 
         context.refresh_access_info(client).then(move |result| {
             unwrap!(result);
-            let access_info = reg.access_info.borrow();
+            let access_info = reg.access_info.lock().unwrap();
             assert_eq!(
                 unwrap!(access_info.get("_videos")).1,
                 *unwrap!(container_permissions.get("_videos"))

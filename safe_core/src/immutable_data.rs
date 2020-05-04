@@ -13,18 +13,18 @@ use crate::self_encryption_storage::{
 };
 use crate::utils;
 // use crate::{fry, ok};
-use crate::{CoreError};
+use crate::CoreError;
 
 use bincode::{deserialize, serialize};
-use futures::Future;
+
 use log::trace;
-use std::sync::Arc;
+
+use async_recursion::async_recursion;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
 use self_encryption::{DataMap, SelfEncryptor, Storage};
 use serde::{Deserialize, Serialize};
-use async_recursion::async_recursion;
 
-use futures::future::{BoxFuture, FutureExt};
+use futures::future::FutureExt;
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
@@ -73,34 +73,33 @@ pub async fn extract_value(
     let se_storage = SelfEncryptionStorage::new(client.clone(), published);
     let value = unpack(se_storage.clone(), &client.clone(), data).await?;
 
-        // .and_then(move |value| {
-            let data_map = if let Some(key) = decryption_key {
-                let plain_text = utils::symmetric_decrypt(&value, &key)?;
-                deserialize(&plain_text)?
-            } else {
-                deserialize(&value)?
-            };
+    // .and_then(move |value| {
+    let data_map = if let Some(key) = decryption_key {
+        let plain_text = utils::symmetric_decrypt(&value, &key)?;
+        deserialize(&plain_text)?
+    } else {
+        deserialize(&value)?
+    };
 
-        let self_encryptor = SelfEncryptor::new(se_storage, data_map)?;
-        // })
-        // .and_then(move |self_encryptor| {
-            let length = match len {
-                None => self_encryptor.len(),
-                Some(request_length) => request_length,
-            };
+    let self_encryptor = SelfEncryptor::new(se_storage, data_map)?;
+    // })
+    // .and_then(move |self_encryptor| {
+    let length = match len {
+        None => self_encryptor.len(),
+        Some(request_length) => request_length,
+    };
 
-            let read_position = match position {
-                None => 0,
-                Some(pos) => pos,
-            };
-            match self_encryptor
-                .read(read_position, length).await {
-                    Ok(data) => Ok(data), 
-                    Err(error) => Err(CoreError::from(error))
-                }
-                // .map_err(From::from)
-        // })
-        // .into_box()
+    let read_position = match position {
+        None => 0,
+        Some(pos) => pos,
+    };
+    match self_encryptor.read(read_position, length).await {
+        Ok(data) => Ok(data),
+        Err(error) => Err(CoreError::from(error)),
+    }
+    // .map_err(From::from)
+    // })
+    // .into_box()
 }
 
 /// Get immutable data from the network and extract its value, decrypting it in the process (if keys
@@ -114,8 +113,7 @@ pub async fn get_value(
     decryption_key: Option<shared_secretbox::Key>,
 ) -> Result<Vec<u8>, CoreError> {
     let client2 = client.clone();
-    let data = client
-        .get_idata(address).await?;
+    let data = client.get_idata(address).await?;
     extract_value(&client2, data, position, len, decryption_key).await
 }
 
@@ -130,33 +128,29 @@ where
     S: Storage<Error = SEStorageError> + Clone + Send + Sync + 'static,
 {
     let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
-    self_encryptor
-        .write(value, 0).await?;
+    self_encryptor.write(value, 0).await?;
 
-        let ( data_map, _ ) = self_encryptor.close().await?;
+    let (data_map, _) = self_encryptor.close().await?;
 
-        // .and_then(move |_| self_encryptor.close())
-        // .map_err(From::from)
-        // .and_then(move |(data_map, _)| {
-        let serialised_data_map = serialize(&data_map)?;
+    // .and_then(move |_| self_encryptor.close())
+    // .map_err(From::from)
+    // .and_then(move |(data_map, _)| {
+    let serialised_data_map = serialize(&data_map)?;
 
-        let value = if let Some(key) = encryption_key {
-            let cipher_text = utils::symmetric_encrypt(&serialised_data_map, &key, None)?;
-            serialize(&DataTypeEncoding::Serialised(cipher_text))?
-        } else {
-            serialize(&DataTypeEncoding::Serialised(
-                serialised_data_map
-            ),)?
-        };
+    let value = if let Some(key) = encryption_key {
+        let cipher_text = utils::symmetric_encrypt(&serialised_data_map, &key, None)?;
+        serialize(&DataTypeEncoding::Serialised(cipher_text))?
+    } else {
+        serialize(&DataTypeEncoding::Serialised(serialised_data_map))?
+    };
 
-        // let arc
-        //  = 
-         pack(se_storage, client, value, published).await
-        // Arc::into_raw( arc)
+    // let arc
+    //  =
+    pack(se_storage, client, value, published).await
+    // Arc::into_raw( arc)
 
-
-        // })
-        // .into_box()
+    // })
+    // .into_box()
 }
 
 // TODO: consider rewriting these two function to not use recursion.
@@ -177,70 +171,67 @@ where
         UnpubImmutableData::new(value, client.public_key()).into()
     };
     let serialised_data = match serialize(&data) {
-        Ok(the_data) => the_data, 
+        Ok(the_data) => the_data,
         Err(error) => {
             // return async move{
 
             //     Arc::new(Err(CoreError::from(error) ))
             // }.await
-            return Err(CoreError::from(error) ) 
+            return Err(CoreError::from(error));
             // error.await
-        }
-            // return Box::new(error)
+        } // return Box::new(error)
     };
 
     if data.validate_size() {
-
-           Ok(data)
-
+        Ok(data)
     } else {
-            let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
-            
-            // TODO make read/write properly x-thread compatible in self_encrypt
-            let _ = self_encryptor
-                .write(&serialised_data, 0).await?;
+        let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
 
-            let ( data_map, _ ) = self_encryptor.close().await?;
-    
-                // .and_then(move |_| self_encryptor.close())
-                // .map_err(From::from)
-                // .and_then(move |(data_map, _)| {
-                let value = serialize(&DataTypeEncoding::DataMap(data_map))?;
+        // TODO make read/write properly x-thread compatible in self_encrypt
+        let _ = self_encryptor.write(&serialised_data, 0).await?;
 
-                // this is an Arc
-                pack(se_storage, client, value, published).await
-                // })
-                // .into_box()
+        let (data_map, _) = self_encryptor.close().await?;
+
+        // .and_then(move |_| self_encryptor.close())
+        // .map_err(From::from)
+        // .and_then(move |(data_map, _)| {
+        let value = serialize(&DataTypeEncoding::DataMap(data_map))?;
+
+        // this is an Arc
+        pack(se_storage, client, value, published).await
+        // })
+        // .into_box()
 
         // .boxed()
     }
 }
 
-
 #[async_recursion]
-async fn unpack<S>(se_storage: S, client: &(impl Client + Sync + Send)
-, data: IData) -> Result<Vec<u8>, CoreError>
+async fn unpack<S>(
+    se_storage: S,
+    client: &(impl Client + Sync + Send),
+    data: IData,
+) -> Result<Vec<u8>, CoreError>
 where
     S: Storage<Error = SEStorageError> + Clone + 'static + Send + Sync,
 {
     match deserialize(data.value())? {
-        DataTypeEncoding::Serialised(value) => Ok(value) ,
+        DataTypeEncoding::Serialised(value) => Ok(value),
         DataTypeEncoding::DataMap(data_map) => {
             let self_encryptor = SelfEncryptor::new(se_storage.clone(), data_map)?;
             let length = self_encryptor.len();
-           
-            let serialised_data = self_encryptor
-                    .read(0, length).await?;
+
+            let serialised_data = self_encryptor.read(0, length).await?;
 
             //     // .map_err(From::from)
             //     // .and_then(move |&serialised_data| {
-                    let data = deserialize(&serialised_data)?;
-                    unpack(se_storage, client, data).await
-                // let vec = Vec::new();
+            let data = deserialize(&serialised_data)?;
+            unpack(se_storage, client, data).await
+            // let vec = Vec::new();
 
-                // Ok(vec)
-                // })
-                // .into_box()
+            // Ok(vec)
+            // })
+            // .into_box()
         }
     }
 }

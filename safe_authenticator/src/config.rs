@@ -12,14 +12,16 @@
 use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
-use futures::future::{self, Either, Loop};
+use futures::future::{self, Either};
 use futures::Future;
 use log::trace;
 use safe_core::core_structs::AppKeys;
-use safe_core::fry;
+// use safe_core::fry;
+use futures_util::future::FutureExt;
+use futures_util::future::TryFutureExt;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::IpcError;
-use safe_core::{Client, CoreError, FutureExt};
+use safe_core::{Client, CoreError};
 use safe_nd::{EntryError, Error as SndError, MDataSeqEntryActions};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -58,68 +60,67 @@ pub fn next_version(version: Option<u64>) -> u64 {
 }
 
 /// Retrieves apps registered with the authenticator.
-pub fn list_apps(client: &AuthClient) -> Box<AuthFuture<(Option<u64>, Apps)>> {
-    get_entry(client, KEY_APPS)
+pub async fn list_apps(client: &AuthClient) -> Result<(Option<u64>, Apps), AuthError> {
+    get_entry(client, KEY_APPS).await
 }
 
 /// Retrieves an app info by the given app ID.
-pub fn get_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<AppInfo>> {
+pub async fn get_app(client: &AuthClient, app_id: &str) -> Result<AppInfo, AuthError> {
     let app_id_hash = sha3_256(app_id.as_bytes());
-    list_apps(client)
-        .and_then(move |(_, config)| {
-            config
-                .get(&app_id_hash)
-                .cloned()
-                .ok_or_else(|| AuthError::IpcError(IpcError::UnknownApp))
-        })
-        .into_box()
+    let (_, config) = list_apps(client).await?;
+    config
+        .get(&app_id_hash)
+        .cloned()
+        .ok_or_else(|| AuthError::IpcError(IpcError::UnknownApp))
 }
 
 /// Register the given app with authenticator.
-pub fn insert_app(
+pub async fn insert_app(
     client: &AuthClient,
     apps: Apps,
     new_version: u64,
     app: AppInfo,
-) -> Box<AuthFuture<(u64, Apps)>> {
+) -> Result<(u64, Apps), AuthError> {
     let client = client.clone();
     let hash = sha3_256(app.info.id.as_bytes());
 
     mutate_entry(&client, KEY_APPS, apps, new_version, move |apps| {
         apps.insert(hash, app.clone()).is_none()
     })
+    .await
 }
 
 /// Remove the given app from the list of registered apps.
-pub fn remove_app(
+pub async fn remove_app(
     client: &AuthClient,
     apps: Apps,
     new_version: u64,
     app_id: &str,
-) -> Box<AuthFuture<(u64, Apps)>> {
+) -> Result<(u64, Apps), AuthError> {
     let hash = sha3_256(app_id.as_bytes());
     mutate_entry(client, KEY_APPS, apps, new_version, move |apps| {
         apps.remove(&hash).is_some()
     })
+    .await
 }
 
 /// Get authenticator's revocation queue.
 /// Returns version and the revocation queue in a tuple.
 /// If the queue is not found on the config file, returns `None`.
-pub fn get_app_revocation_queue(
+pub async fn get_app_revocation_queue(
     client: &AuthClient,
-) -> Box<AuthFuture<(Option<u64>, RevocationQueue)>> {
-    get_entry(client, KEY_APP_REVOCATION_QUEUE)
+) -> Result<(Option<u64>, RevocationQueue), AuthError> {
+    get_entry(client, KEY_APP_REVOCATION_QUEUE).await
 }
 
 /// Push new `app_id` into the revocation queue and put it onto the network.
 /// Does nothing if the queue already contains `app_id`.
-pub fn push_to_app_revocation_queue(
+pub async fn push_to_app_revocation_queue(
     client: &AuthClient,
     queue: RevocationQueue,
     new_version: u64,
     app_id: &str,
-) -> Box<AuthFuture<(u64, RevocationQueue)>> {
+) -> Result<(u64, RevocationQueue), AuthError> {
     trace!("Pushing app to revocation queue with ID {}...", app_id);
 
     let app_id = app_id.to_string();
@@ -137,16 +138,17 @@ pub fn push_to_app_revocation_queue(
             }
         },
     )
+    .await
 }
 
 /// Remove `app_id` from the revocation queue.
 /// Does nothing if the queue doesn't contain `app_id`.
-pub fn remove_from_app_revocation_queue(
+pub async fn remove_from_app_revocation_queue(
     client: &AuthClient,
     queue: RevocationQueue,
     new_version: u64,
     app_id: &str,
-) -> Box<AuthFuture<(u64, RevocationQueue)>> {
+) -> Result<(u64, RevocationQueue), AuthError> {
     trace!("Removing app from revocation queue with ID {}...", app_id);
 
     let app_id = app_id.to_string();
@@ -164,16 +166,17 @@ pub fn remove_from_app_revocation_queue(
             }
         },
     )
+    .await
 }
 
 /// Moves `app_id` to the back of the revocation queue.
 /// Does nothing if the queue doesn't contain `app_id`.
-pub fn repush_to_app_revocation_queue(
+pub async fn repush_to_app_revocation_queue(
     client: &AuthClient,
     queue: RevocationQueue,
     new_version: u64,
     app_id: &str,
-) -> Box<AuthFuture<(u64, RevocationQueue)>> {
+) -> Result<(u64, RevocationQueue), AuthError> {
     let app_id = app_id.to_string();
     mutate_entry(
         client,
@@ -194,18 +197,21 @@ pub fn repush_to_app_revocation_queue(
             }
         },
     )
+    .await
 }
 
-fn get_entry<T>(client: &AuthClient, key: &[u8]) -> Box<AuthFuture<(Option<u64>, T)>>
+async fn get_entry<T>(client: &AuthClient, key: &[u8]) -> Result<(Option<u64>, T), AuthError>
 where
     T: Default + DeserializeOwned + Serialize + 'static,
 {
     let parent = client.config_root_dir();
-    let key = r#try!(parent.enc_entry_key(key));
+    let key = parent.enc_entry_key(key)?;
 
-    client
+    match client
         .get_seq_mdata_value(parent.name(), parent.type_tag(), key)
-        .and_then(move |value| {
+        .await
+    {
+        Ok(value) => {
             let decoded = parent.decrypt(&value.data)?;
             let decoded = if decoded.is_empty() {
                 Default::default()
@@ -214,28 +220,37 @@ where
             };
 
             Ok((Some(value.version), decoded))
-        })
-        .or_else(|error| match error {
+        }
+        Err(error) => match error {
             CoreError::DataError(SndError::NoSuchEntry) => Ok((None, Default::default())),
             _ => Err(AuthError::from(error)),
-        })
-        .into_box()
+        },
+    }
+
+    // .and_then(move |value| {
+
+    // })
+    // .or_else(|error| match error {
+    //     CoreError::DataError(SndError::NoSuchEntry) => Ok((None, Default::default())),
+    //     _ => Err(AuthError::from(error)),
+    // })
+    // .into_box()
 }
 
-fn update_entry<T>(
+async fn update_entry<T>(
     client: &AuthClient,
     key: &[u8],
     content: &T,
     new_version: u64,
-) -> Box<AuthFuture<()>>
+) -> Result<(), AuthError>
 where
     T: Serialize,
 {
     let parent = client.config_root_dir();
 
-    let key = r#try!(parent.enc_entry_key(key));
-    let encoded = r#try!(serialize(content));
-    let encoded = r#try!(parent.enc_entry_value(&encoded));
+    let key = parent.enc_entry_key(key)?;
+    let encoded = serialize(content)?;
+    let encoded = parent.enc_entry_value(&encoded)?;
 
     let actions = if new_version == 0 {
         MDataSeqEntryActions::new().ins(key.clone(), encoded, 0)
@@ -245,6 +260,7 @@ where
 
     client
         .mutate_seq_mdata_entries(parent.name(), parent.type_tag(), actions)
+        .await
         .or_else(move |error| {
             // As we are mutating only one entry, let's make the common errors
             // more convenient to handle.
@@ -265,49 +281,81 @@ where
             Err(error)
         })
         .map_err(From::from)
-        .into_box()
+    // .into_box()
 }
 
 /// Atomically mutate the given value and store it in the network.
-fn mutate_entry<T, F>(
+async fn mutate_entry<T, F>(
     client: &AuthClient,
     key: &[u8],
     item: T,
     new_version: u64,
     f: F,
-) -> Box<AuthFuture<(u64, T)>>
+) -> Result<(u64, T), AuthError>
 where
-    T: Default + DeserializeOwned + Serialize + 'static,
+    T: Default + DeserializeOwned + Serialize + 'static + Clone,
     F: Fn(&mut T) -> bool + 'static,
 {
     let client = client.clone();
     let key = key.to_vec();
-
-    future::loop_fn(
-        (key, new_version, item),
-        move |(key, new_version, mut item)| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-
-            if f(&mut item) {
-                let f = update_entry(&c2, &key, &item, new_version)
-                    .map(move |_| Loop::Break((new_version, item)))
-                    .or_else(move |error| match error {
+    let mut new_version = new_version;
+    let mut done_trying = false;
+    let mut f = f;
+    let mut the_item: T = item;
+    // future::loop_fn(
+    // (key, new_version, item),
+    let mut result: Result<(), AuthError> = Ok(());
+    // Err(AuthError::from("[Authenticator] Error mutating entry."));
+    while !done_trying {
+        // move |(key, new_version, mut item)| {
+        let c2 = client.clone();
+        let c3 = client.clone();
+        // let i2 = the_item.clone();
+        if f(&mut the_item) {
+            match update_entry(&c2, &key, &the_item, new_version).await {
+                Ok(thing) => {
+                    // go with version / item we have
+                    done_trying = true;
+                }
+                Err(error) => {
+                    match error {
                         AuthError::CoreError(CoreError::DataError(SndError::InvalidSuccessor(
                             _,
                         ))) => {
-                            let f = get_entry(&c3, &key).map(move |(version, item)| {
-                                Loop::Continue((key, next_version(version), item))
-                            });
-                            Either::A(f)
+                            let (version, item) = match get_entry(&c3, &key).await {
+                                Ok(v_item_tuple) => v_item_tuple,
+                                Err(error) => {
+                                    done_trying=true;
+                                    result = Err(error);
+
+                                    //just for compiling out of this for now. Not to actually be used.
+                                    (None, the_item.clone())
+                                }
+                            };
+
+                            new_version = next_version(version);
+                            the_item = item;
+                        },
+                       
+                        _ => {
+                            result = Err(error);
+                            done_trying = true;
                         }
-                        _ => Either::B(future::err(error)),
-                    });
-                Either::A(f)
-            } else {
-                Either::B(future::ok(Loop::Break((new_version - 1, item))))
-            }
-        },
-    )
-    .into_box()
+                    }
+                }
+            };
+        
+            
+        } else {
+            done_trying = true;
+            new_version = new_version - 1;
+            result = Ok(());
+        }
+    }
+
+    match result {
+        Ok(_) => Ok( ( new_version, the_item )),
+        Err(error) => Err(error)
+    }
+
 }

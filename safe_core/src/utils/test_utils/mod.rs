@@ -17,16 +17,16 @@ use crate::client::{Client, COST_OF_PUT};
 use crate::event_loop::{self, CoreMsg, CoreMsgTx};
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::{self};
-use futures::stream::Stream;
+
 use futures::channel::mpsc;
-use futures::{Future, future::IntoFuture};
-use tokio::stream::StreamExt;
+use futures::Future;
 use log::trace;
 use rand;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;
 use tokio::runtime::*;
+use tokio::stream::StreamExt;
 use unwrap::unwrap;
 
 /// Generates a random BLS secret and public keypair.
@@ -57,7 +57,7 @@ pub fn finish() -> Result<(), ()> {
 pub async fn random_client<Run, I, T, E>(r: Run) -> T
 where
     Run: FnOnce(&CoreClient) -> I + Send + 'static,
-    I: Future<Output=Result<T, E>> + Send +'static,
+    I: Future<Output = Result<T, E>> + Send + 'static,
     T: Send + 'static,
     E: Debug,
 {
@@ -67,9 +67,13 @@ where
     let c = |el_h, core_tx, net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
-        futures::executor::block_on(
-            CoreClient::new(&acc_locator, &acc_password, el_h, core_tx, net_tx)
-        )
+        futures::executor::block_on(CoreClient::new(
+            &acc_locator,
+            &acc_password,
+            el_h,
+            core_tx,
+            net_tx,
+        ))
     };
     setup_client_with_net_obs(&(), c, n, r)
 }
@@ -84,7 +88,7 @@ where
     Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: Future<Output=Result<T, E>> + Send + 'static,
+    I: Future<Output = Result<T, E>> + Send + 'static,
     T: Send + 'static,
     E: Debug,
     F: Debug,
@@ -111,12 +115,12 @@ where
     Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: Future<Output=Result<T, E>> + Send + 'static,
+    I: Future<Output = Result<T, E>> + Send + 'static,
     T: Send + 'static,
     E: Debug,
     F: Debug,
 {
-    let mut event_loop = unwrap!(Runtime::new());
+    let event_loop = unwrap!(Runtime::new());
     let event_loop_handle = event_loop.handle();
 
     let (core_tx, core_rx) = mpsc::unbounded();
@@ -127,28 +131,27 @@ where
         while let Some(msg) = net_rx.next().await {
             n(msg);
         }
-
     };
 
     let _ = event_loop.spawn(net_fut);
 
     let core_tx_clone = core_tx.clone();
     let (result_tx, result_rx) = std_mpsc::channel();
-
+    use futures_util::future::FutureExt;
     unwrap!(
         core_tx.unbounded_send(CoreMsg::new(move |client, _context| {
             let client_future = r(client);
             let fut = async move {
                 match client_future.await {
-                    Ok( value ) => {
+                    Ok(value) => {
                         unwrap!(result_tx.send(value));
                         unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()));
                         Ok(())
-                    },
-                    Err(error) =>  panic!("{:?}", error)
+                    }
+                    Err(error) => panic!("{:?}", error),
                 }
-            };
-            Some(Box::new(fut))
+            }.boxed();
+            Some(fut)
         }))
     );
 

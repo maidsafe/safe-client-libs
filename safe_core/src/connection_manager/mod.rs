@@ -10,12 +10,10 @@ mod connection_group;
 mod response_manager;
 use tokio::time::timeout;
 
-use crate::{
-    client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError,
-};
+use crate::{client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError};
 // use crate::{fry, ok};
 use connection_group::ConnectionGroup;
-use futures::future::{self, TryFutureExt};
+use futures::future::TryFutureExt;
 use log::{error, trace};
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{Message, PublicId, Response};
@@ -23,8 +21,8 @@ use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap},
     rc::Rc,
+    sync::{Arc, Mutex},
     time::Duration,
-    sync::{Mutex, Arc}
 };
 
 const CONNECTION_TIMEOUT_SECS: u64 = 30;
@@ -54,11 +52,8 @@ impl ConnectionManager {
     /// group serving the provided public ID.
     pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {
         match self.inner.lock() {
-            Ok( inner ) => {
-
-                inner.groups.contains_key(&pub_id)
-            },
-            Err(error) => false
+            Ok(inner) => inner.groups.contains_key(&pub_id),
+            Err(_error) => false,
         }
     }
 
@@ -68,7 +63,7 @@ impl ConnectionManager {
     }
 
     /// Connect to Client Handlers that manage the provided ID.
-    pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
+    pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(), CoreError> {
         self.inner.lock().unwrap().bootstrap(full_id).await
     }
 
@@ -78,7 +73,7 @@ impl ConnectionManager {
     }
 
     /// Disconnect from a group.
-    pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(),CoreError> {
+    pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(), CoreError> {
         self.inner.lock().unwrap().disconnect(pub_id).await
     }
 }
@@ -98,7 +93,7 @@ impl Drop for Inner {
 }
 
 impl Inner {
-    async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(),CoreError> {
+    async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(), CoreError> {
         trace!("Trying to bootstrap with group {:?}", full_id.public_id());
 
         let (connected_tx, connected_rx) = futures::channel::oneshot::channel();
@@ -110,16 +105,11 @@ impl Inner {
                 connected_tx
             )));
 
-            match timeout( Duration::from_secs(CONNECTION_TIMEOUT_SECS), connected_rx ).await {
-                Ok(response) => {
-                    response.map_err(|err| {
-                        CoreError::from(format!("{}", err))
-    
-                    })?
-                }, 
-                Err(_) => Err( CoreError::from(
-                                "Connection timed out when bootstrapping to the network",
-                            ))
+            match timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS), connected_rx).await {
+                Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err)))?,
+                Err(_) => Err(CoreError::from(
+                    "Connection timed out when bootstrapping to the network",
+                )),
             }
        
         } else {
@@ -132,9 +122,7 @@ impl Inner {
         let msg_id = if let Message::Request { message_id, .. } = msg {
             *message_id
         } else {
-            return Err(CoreError::Unexpected(
-                "Not a Request".to_string(),
-            ) );
+            return Err(CoreError::Unexpected("Not a Request".to_string()));
         };
 
         let conn_group = r#try!(self.groups.get_mut(&pub_id).ok_or_else(|| {

@@ -13,7 +13,7 @@ use crate::AuthFuture;
 use crate::AuthMsgTx;
 use async_trait::async_trait;
 use futures::future;
-use futures::Future;
+// use futures::future::TryFutureExt;
 use log::trace;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
@@ -22,9 +22,10 @@ use safe_core::client::account::Account;
 use safe_core::client::{
     attempt_bootstrap, req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
 };
+// use futures_util::future::TryFutureExt;
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
-use safe_core::fry;
+// use safe_core::fry;
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
@@ -33,9 +34,10 @@ use safe_nd::{
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tiny_keccak::sha3_256;
-use tokio::runtime::current_thread::{block_on_all, Handle};
+use tokio::runtime::*;
 use unwrap::unwrap;
 
 /// Client object used by `safe_authenticator`.
@@ -47,7 +49,7 @@ pub struct AuthClient {
 impl AuthClient {
     /// This is a Gateway function to the Maidsafe network. This will help
     /// create a fresh acc for the user in the SAFE-network.
-    pub(crate) fn registered(
+    pub(crate) async fn registered(
         acc_locator: &str,
         acc_password: &str,
         client_id: ClientFullId,
@@ -65,6 +67,7 @@ impl AuthClient {
             None::<&mut StdRng>,
             |cm| cm,
         )
+        .await
     }
 
     /// This is one of the Gateway functions to the Maidsafe network, the others being `registered`,
@@ -74,7 +77,7 @@ impl AuthClient {
     /// `registered` function where the secrets can be what's easy to remember for the user while
     /// also being strong.
     #[cfg(any(test, feature = "testing"))]
-    pub(crate) fn registered_with_seed(
+    pub(crate) async fn registered_with_seed(
         seed: &str,
         client_id: ClientFullId,
         el_handle: Handle,
@@ -96,6 +99,7 @@ impl AuthClient {
             Some(&mut rng),
             |cm| cm,
         )
+        .await
     }
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
@@ -127,7 +131,7 @@ impl AuthClient {
     // This is a Gateway function to the Maidsafe network. This will help create a fresh acc for the
     // user in the SAFE-network.
     #[allow(clippy::too_many_arguments)]
-    fn registered_impl<F, R>(
+    async fn registered_impl<F, R>(
         acc_locator: &[u8],
         acc_password: &[u8],
         client_id: ClientFullId,
@@ -166,7 +170,7 @@ impl AuthClient {
 
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_safe_key.clone())?;
+            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_safe_key.clone()).await?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
@@ -174,7 +178,8 @@ impl AuthClient {
             &mut connection_manager,
             Request::CreateLoginPacket(new_login_packet),
             &client_safe_key,
-        )?;
+        )
+        .await?;
 
         match response {
             Response::Mutation(res) => res?,
@@ -200,7 +205,7 @@ impl AuthClient {
 
     /// This is a Gateway function to the Maidsafe network. This will help login to an already
     /// existing account of the user in the SAFE-network.
-    pub(crate) fn login(
+    pub(crate) async fn login(
         acc_locator: &str,
         acc_password: &str,
         el_handle: Handle,
@@ -215,11 +220,12 @@ impl AuthClient {
             net_tx,
             |routing| routing,
         )
+        .await
     }
 
     /// Login using seeded account.
     #[cfg(any(test, feature = "testing"))]
-    pub(crate) fn login_with_seed(
+    pub(crate) async fn login_with_seed(
         seed: &str,
         el_handle: Handle,
         core_tx: AuthMsgTx,
@@ -229,6 +235,7 @@ impl AuthClient {
         Self::login_impl(arr[0], arr[1], el_handle, core_tx, net_tx, |routing| {
             routing
         })
+        .await
     }
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
@@ -254,7 +261,7 @@ impl AuthClient {
         )
     }
 
-    fn login_impl<F>(
+    async fn login_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
         el_handle: Handle,
@@ -279,7 +286,7 @@ impl AuthClient {
 
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_full_id.clone())?;
+            attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_full_id.clone()).await?;
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         let (account_buffer, signature) = {
@@ -289,9 +296,12 @@ impl AuthClient {
                 &mut connection_manager,
                 Request::GetLoginPacket(acc_locator),
                 &client_full_id,
-            )?;
+            )
+            .await?;
 
-            block_on_all(connection_manager.disconnect(&client_full_id.public_id()))?;
+            futures::executor::block_on(
+                connection_manager.disconnect(&client_full_id.public_id()),
+            )?;
 
             match response {
                 Response::GetLoginPacket(res) => res?,
@@ -310,7 +320,7 @@ impl AuthClient {
 
         trace!("Creating an actual client...");
 
-        block_on_all(connection_manager.bootstrap(id_packet))?;
+        futures::executor::block_on(connection_manager.bootstrap(id_packet))?;
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
@@ -332,7 +342,7 @@ impl AuthClient {
     /// Get Maidsafe specific configuration's Root Directory ID if available in
     /// account packet used for current login.
     pub fn config_root_dir(&self) -> MDataInfo {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.config_root.clone()
     }
 
@@ -358,7 +368,7 @@ impl AuthClient {
     /// Get User's Access Container if available in account packet used for
     /// current login
     pub fn access_container(&self) -> MDataInfo {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.access_container.clone()
     }
 
@@ -399,21 +409,21 @@ impl AuthClient {
     }
 
     /// Updates user's account packet.
-    pub fn update_account_packet(&self) -> Box<AuthFuture<()>> {
+    pub async fn update_account_packet(&self) -> Result<(), AuthError> {
         trace!("Updating account packet.");
 
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         let account = &auth_inner.acc;
         let keys = &auth_inner.user_cred;
         let acc_loc = &auth_inner.acc_loc;
         let account_packet_id = SafeKey::client(create_client_id(&acc_loc.0));
         let account_pub_id = account_packet_id.public_id();
-        let updated_packet = r#try!(Self::prepare_account_packet_update(
+        let updated_packet = Self::prepare_account_packet_update(
             *acc_loc,
             account,
             keys,
             &account_packet_id
-        ));
+        )?;
 
         let mut client_inner = self.inner.lock().unwrap();
 
@@ -428,30 +438,32 @@ impl AuthClient {
 
         let account_pub_id2 = account_pub_id.clone();
 
-        Box::new(
-            future::lazy(move || cm.bootstrap(account_packet_id))
-                .and_then(move |_| {
-                    cm2.send(
-                        &account_pub_id,
-                        &Message::Request {
-                            request,
-                            message_id,
-                            signature: Some(signature),
-                        },
-                    )
-                })
-                .and_then(move |resp| match resp {
-                    Response::Mutation(res) => res.map_err(CoreError::from),
-                    _ => Err(CoreError::from("Unexpected response")),
-                })
-                .and_then(move |_resp| cm4.disconnect(&account_pub_id2))
-                .map_err(AuthError::from),
-        )
+        futures::executor::block_on(cm.bootstrap(account_packet_id))?;
+
+        let resp = futures::executor::block_on(cm2
+            .send(
+                &account_pub_id,
+                &Message::Request {
+                    request,
+                    message_id,
+                    signature: Some(signature),
+                },
+            )
+        )?;
+
+        let resp = match resp {
+            Response::Mutation(res) => res.map_err(CoreError::from),
+            _ => return Err(AuthError::from(CoreError::from("Unexpected response"))),
+        };
+
+        futures::executor::block_on(cm4.disconnect(&account_pub_id2));
+
+        Ok(())
     }
 
     /// Returns the current status of std/root dirs creation.
     pub fn std_dirs_created(&self) -> bool {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.root_dirs_created
     }
 
@@ -476,7 +488,7 @@ impl Client for AuthClient {
     type Context = ();
 
     fn full_id(&self) -> SafeKey {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.maid_keys.client_safe_key()
     }
 
@@ -493,17 +505,17 @@ impl Client for AuthClient {
     }
 
     fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.maid_keys.enc_public_key
     }
 
     fn secret_encryption_key(&self) -> shared_box::SecretKey {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.maid_keys.enc_secret_key.clone()
     }
 
     fn secret_symmetric_key(&self) -> shared_secretbox::Key {
-        let auth_inner = self.auth_inner.borrow();
+        let auth_inner = self.auth_inner.lock().unwrap();
         auth_inner.acc.maid_keys.enc_key.clone()
     }
 }
@@ -623,13 +635,15 @@ mod tests {
                 AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
             },
             |_| finish(),
-        ).await;
+        )
+        .await;
 
         setup_client(
             &(),
             |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
             |_| finish(),
-        ).await;
+        )
+        .await;
     }
 
     // Test logging in using a seeded account.

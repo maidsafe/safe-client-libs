@@ -26,9 +26,9 @@ use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
 use safe_nd::{ClientFullId, Coins, LoginPacket, PublicKey, Request, Response};
-use std::cell::RefCell;
-use std::sync::{Arc, Mutex};
+
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 use tokio::runtime::*;
@@ -57,7 +57,8 @@ impl CoreClient {
             core_tx,
             net_tx,
             |cm| cm,
-        ).await
+        )
+        .await
     }
 
     async fn new_impl<F>(
@@ -120,7 +121,8 @@ impl CoreClient {
                     transaction_id: rand::random(),
                 },
                 &balance_client_id,
-            ).await?;
+            )
+            .await?;
             let _ = match response {
                 Response::Transaction(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
@@ -130,7 +132,8 @@ impl CoreClient {
                 &mut connection_manager,
                 Request::CreateLoginPacket(new_login_packet),
                 &balance_client_id,
-            ).await?;
+            )
+            .await?;
 
             match response {
                 Response::Mutation(res) => res?,
@@ -141,7 +144,9 @@ impl CoreClient {
             connection_manager.disconnect(&balance_pub_id).await?;
         }
 
-        connection_manager.bootstrap(maid_keys.client_safe_key()).await?;
+        connection_manager
+            .bootstrap(maid_keys.client_safe_key())
+            .await?;
         // block_on_all(connection_manager.bootstrap(maid_keys.client_safe_key()))?;
 
         Ok(Self {
@@ -195,7 +200,10 @@ impl Client for CoreClient {
 impl AuthActions for CoreClient {}
 
 impl Clone for CoreClient {
-    fn clone(&self) -> Self where Self: Sized {
+    fn clone(&self) -> Self
+    where
+        Self: Sized,
+    {
         CoreClient {
             inner: Arc::clone(&self.inner),
             keys: self.keys.clone(),

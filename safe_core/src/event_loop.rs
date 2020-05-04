@@ -7,22 +7,22 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::client::Client;
-use crate::errors::CoreError;
+
 // use futures::stream::Stream;
 use futures::channel::mpsc;
 use futures::Future;
+use futures_util::stream::StreamExt;
 use log::debug;
 use tokio::runtime::*;
 use unwrap::unwrap;
-use futures_util::stream::StreamExt;
-
+use core::pin::Pin;
 /// Transmitter of messages to be run in the core event loop.
 pub type CoreMsgTx<C, T> = mpsc::UnboundedSender<CoreMsg<C, T>>;
 /// Receiver of messages to be run in the core event loop.
 pub type CoreMsgRx<C, T> = mpsc::UnboundedReceiver<CoreMsg<C, T>>;
 
 /// The final future which the event loop will run.
-pub type TailFuture = Box<dyn Future<Output=Result<(), ()>> + Send >;
+pub type TailFuture = Pin<Box<dyn Future<Output = Result<(), ()>> + Send>>;
 type TailFutureFn<C, T> = dyn FnMut(&C, &T) -> Option<TailFuture> + Send + 'static;
 
 /// The message format that core event loop understands.
@@ -58,25 +58,25 @@ impl<C: Client, T> CoreMsg<C, T> {
 
 /// Run the core event loop. This will block until the event loop is alive.
 /// Hence must typically be called inside a spawned thread.
-pub fn run<C: Client, T>(mut event_loop: Runtime, client: &C, context: &T, mut receiver: CoreMsgRx<C, T>) {
-
-
+pub fn run<C: Client, T>(
+    mut event_loop: Runtime,
+    client: &C,
+    context: &T,
+    mut receiver: CoreMsgRx<C, T>,
+) {
     let keep_alive = async move {
         while let Some(msg) = receiver.next().await {
-
             if let Some(mut f) = msg.0 {
                 if let Some(tail) = f(client, context) {
-                    std::thread::spawn(||tail);
+                    std::thread::spawn(|| tail);
                 }
                 // Ok(())
-            } 
+            }
             // else {
             //     // Err(())
             // }
         }
-
     };
-
 
     // let keep_alive = receiver.for_each(|core_msg| {
     //     if let Some(mut f) = core_msg.0 {

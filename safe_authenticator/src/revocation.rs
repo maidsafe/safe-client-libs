@@ -12,49 +12,48 @@ use super::{AuthError, AuthFuture};
 use crate::access_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, RevocationQueue};
-use futures::future::{self, Either, Loop};
+use futures::future::{self, Either};
 use futures::Future;
 use log::trace;
 use safe_core::recoverable_apis;
-use safe_core::{client::AuthActions, Client, CoreError, FutureExt, MDataInfo};
-use safe_core::{err, ok};
+use safe_core::{client::AuthActions, Client, CoreError, MDataInfo};
 use safe_nd::{Error as SndError, PublicKey};
 use std::collections::HashMap;
 
 type Containers = HashMap<String, MDataInfo>;
 
 /// Revoke app access using a revocation queue.
-pub fn revoke_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
+pub async fn revoke_app(client: &AuthClient, app_id: &str) -> Result<(), AuthError> {
     let app_id = app_id.to_string();
     let client = client.clone();
     let c2 = client.clone();
 
-    config::get_app_revocation_queue(&client)
-        .and_then(move |(version, queue)| {
-            config::push_to_app_revocation_queue(
-                &client,
-                queue,
-                config::next_version(version),
-                &app_id,
-            )
-        })
-        .and_then(move |(version, queue)| flush_app_revocation_queue_impl(&c2, queue, version + 1))
-        .into_box()
+    let (version, queue) = config::get_app_revocation_queue(&client).await?;
+    // .and_then(move |(version, queue)| {
+    let (version, queue) = config::push_to_app_revocation_queue(
+        &client,
+        queue,
+        config::next_version(version),
+        &app_id,
+    )
+    .await?;
+    // })
+    // .and_then(move |(version, queue)|
+    flush_app_revocation_queue_impl(&c2, queue, version + 1).await
+    // )
+    // .into_box()
 }
 
 /// Revoke all apps currently in the revocation queue.
-pub fn flush_app_revocation_queue(client: &AuthClient) -> Box<AuthFuture<()>> {
+pub async fn flush_app_revocation_queue(client: &AuthClient) -> Result<(), AuthError> {
     let client = client.clone();
 
-    config::get_app_revocation_queue(&client)
-        .and_then(move |(version, queue)| {
-            if let Some(version) = version {
-                flush_app_revocation_queue_impl(&client, queue, version + 1)
-            } else {
-                future::ok(()).into_box()
-            }
-        })
-        .into_box()
+    let (version, queue) = config::get_app_revocation_queue(&client).await?;
+    if let Some(version) = version {
+        flush_app_revocation_queue_impl(&client, queue, version + 1).await
+    } else {
+        Ok(())
+    }
 }
 
 // Try to revoke all apps in the revocation queue. If app revocation results in an error, move the
@@ -64,65 +63,75 @@ pub fn flush_app_revocation_queue(client: &AuthClient) -> Box<AuthFuture<()>> {
 //
 // The exception to this is if we encounter a `SymmetricDecipherFailure` error, which we know is
 // irrecoverable, so in this case we remove the app from the queue and return an error immediately.
-fn flush_app_revocation_queue_impl(
+async fn flush_app_revocation_queue_impl(
     client: &AuthClient,
     queue: RevocationQueue,
     version: u64,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     let client = client.clone();
-    let moved_apps = Vec::new();
+    let mut moved_apps = Vec::new();
 
-    future::loop_fn(
-        (queue, version, moved_apps),
-        move |(queue, version, mut moved_apps)| {
-            let c2 = client.clone();
-            let c3 = client.clone();
+    let mut the_queue = queue;
+    let mut version_to_try = version;
+    let mut done_trying = false;
+    let mut response: Result<(), AuthError> = Ok(());
 
-            if let Some(app_id) = queue.front().cloned() {
-                let f = revoke_single_app(&c2, &app_id)
-                    .then(move |result| match result {
-                        Ok(_) => {
-                            config::remove_from_app_revocation_queue(&c3, queue, version, &app_id)
-                                .map(|(version, queue)| (version, queue, moved_apps))
-                                .into_box()
-                        }
-                        Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
-                            // The app entry can't be decrypted. No way to revoke app, so just
-                            // remove it from the queue and return an error.
-                            config::remove_from_app_revocation_queue(&c3, queue, version, &app_id)
-                                .and_then(|_| {
-                                    Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
-                                })
-                                .into_box()
-                        }
-                        Err(error) => {
-                            if moved_apps.contains(&app_id) {
-                                // If this app has already been moved to the back of the queue,
-                                // return the error.
-                                Err(error)
-                            } else {
-                                // Move the app to the end of the queue.
-                                moved_apps.push(app_id.clone());
-                                config::repush_to_app_revocation_queue(&c3, queue, version, &app_id)
-                                    .map(|(version, queue)| (version, queue, moved_apps))
-                                    .into_box()
-                            }
-                        }
-                    })
-                    .and_then(move |(version, queue, moved_apps)| {
-                        Ok(Loop::Continue((queue, version + 1, moved_apps)))
-                    });
-                Either::A(f)
-            } else {
-                Either::B(future::ok(Loop::Break(())))
+    while !done_trying {
+        let c2 = client.clone();
+        let c3 = client.clone();
+
+        if let Some(app_id) = the_queue.front().cloned() {
+            match revoke_single_app(&c2, &app_id).await {
+                Ok(_) => {
+                    let (version, queue) =
+                        config::remove_from_app_revocation_queue(&c3, the_queue, version, &app_id)
+                            .await?;
+
+                    version_to_try = version;
+                    the_queue = queue;
+                }
+                Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
+                    // The app entry can't be decrypted. No way to revoke app, so just
+                    // remove it from the queue and return an error.
+                    let (version, queue) =
+                        config::remove_from_app_revocation_queue(&c3, the_queue, version, &app_id)
+                            .await?;
+
+                    the_queue = queue;
+
+                    // are we?
+                    done_trying = true;
+                    response = Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
+                }
+                Err(error) => {
+                    if moved_apps.contains(&app_id) {
+                        // If this app has already been moved to the back of the queue,
+                        // return the error.
+                        response = Err(error)
+                    } else {
+                        // Move the app to the end of the queue.
+                        moved_apps.push(app_id.clone());
+                        let (version, queue) =
+                            config::repush_to_app_revocation_queue(&c3, the_queue, version, &app_id)
+                                .await?;
+                        version_to_try = version;
+                        the_queue = queue;
+                    }
+                }
             }
-        },
-    )
-    .into_box()
+
+            version_to_try = version + 1;
+        } else {
+            done_trying = true;
+            response = Ok(())
+        }
+    }
+
+    response
 }
 
 // Revoke access for a single app
-fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
+async fn revoke_single_app(client: &AuthClient, app_id: &str) -> Result<(), AuthError> {
     trace!("Revoking app with ID {}...", app_id);
 
     let c2 = client.clone();
@@ -136,93 +145,96 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
     //    make sure that we use correct encryption keys if the previous revoke
     //    attempt has failed)
     // 4. Remove the revoked app from the access container
-    config::get_app(client, app_id)
-        .and_then(move |app| delete_app_auth_key(&c2, app.keys.public_key()).map(move |_| app))
-        .and_then(move |app| {
-            access_container::fetch_entry(&c3, &app.info.id, app.keys.clone()).and_then(
-                move |(version, ac_entry)| {
-                    if let Some(ac_entry) = ac_entry {
-                        let containers: Containers = ac_entry
-                            .into_iter()
-                            .map(|(name, (mdata_info, _))| (name, mdata_info))
-                            .collect();
+    let app = config::get_app(client, app_id).await?;
+    // .and_then(move |app|
+    delete_app_auth_key(&c2, app.keys.public_key()).await?;
+    // .map(move |_| app)
+    // )
+    // .and_then(move |app| {
+    let (version, ac_entry) =
+        access_container::fetch_entry(c3, app.info.id.clone(), app.keys.clone()).await?;
+    // .and_then(
+    // move |(version, ac_entry)| {
+    if let Some(ac_entry) = ac_entry {
+        let containers: Containers = ac_entry
+            .into_iter()
+            .map(|(name, (mdata_info, _))| (name, mdata_info))
+            .collect();
 
-                        clear_from_access_container_entry(&c4, app, version, containers)
-                    } else {
-                        // If the access container entry was not found, the entry must have been
-                        // deleted with the app having stayed on the revocation queue.
-                        Ok(())
-                    }
-                },
-            )
-        })
-        .into_box()
+        clear_from_access_container_entry(&c4, app, version, containers).await
+    } else {
+        // If the access container entry was not found, the entry must have been
+        // deleted with the app having stayed on the revocation queue.
+        Ok(())
+    }
+    // },
+    // )
+    // })
+    // .into_box()
 }
 
 // Delete the app auth key from the Maid Manager - this prevents the app from
 // performing any more mutations.
-fn delete_app_auth_key(client: &AuthClient, key: PublicKey) -> Box<AuthFuture<()>> {
+async fn delete_app_auth_key(client: &AuthClient, key: PublicKey) -> Result<(), AuthError> {
     let client = client.clone();
 
-    client
-        .list_auth_keys_and_version()
-        .and_then(move |(listed_keys, version)| {
+    match client.list_auth_keys_and_version().await {
+        Ok((listed_keys, version)) => {
             if listed_keys.contains_key(&key) {
-                client.del_auth_key(key, version + 1)
+                client
+                    .del_auth_key(key, version + 1)
+                    .await
+                    .map_err(AuthError::from)
             } else {
                 // The key has been removed already
                 Ok(())
             }
-        })
-        .or_else(|error| match error {
+        }
+        Err(error) => match error {
             CoreError::DataError(SndError::NoSuchKey) => Ok(()),
             error => Err(AuthError::from(error)),
-        })
-        .into_box()
+        },
+    }
+    // .and_then(move |(listed_keys, version)| {
+    // })
+    //     .or_else(|error|
+    // )
+    //     .into_box()
 }
 
-fn clear_from_access_container_entry(
+async fn clear_from_access_container_entry(
     client: &AuthClient,
     app: AppInfo,
     ac_entry_version: u64,
     containers: Containers,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     let c2 = client.clone();
 
-    revoke_container_perms(client, &containers, app.keys.public_key())
-        .map(move |_| (app, ac_entry_version))
-        .and_then(move |(app, version)| {
-            access_container::delete_entry(&c2, &app.info.id, &app.keys, version + 1)
-        })
-        .into_box()
+    revoke_container_perms(client, &containers, app.keys.public_key()).await?;
+    // .map(move |_| (app, ac_entry_version))
+    // .and_then(move |(app, version)| {
+    access_container::delete_entry(&c2, &app.info.id, &app.keys, ac_entry_version + 1).await
+    // })
+    // .into_box()
 }
 
 // Revoke containers permissions
-fn revoke_container_perms(
+async fn revoke_container_perms(
     client: &AuthClient,
     containers: &Containers,
     pk: PublicKey,
-) -> Box<AuthFuture<()>> {
-    let reqs: Vec<_> = containers
-        .values()
-        .map(|mdata_info| {
-            let mdata_info = mdata_info.clone();
-            let c2 = client.clone();
+) -> Result<(), AuthError> {
+    for mdata_info in containers.values() {
+        let mdata_info = mdata_info.clone();
+        let c2 = client.clone();
 
-            client
-                .clone()
-                .get_mdata_version(*mdata_info.address())
-                .and_then(move |version| {
-                    recoverable_apis::del_mdata_user_permissions(
-                        &c2,
-                        *mdata_info.address(),
-                        pk,
-                        version + 1,
-                    )
-                })
-                .map_err(From::from)
-        })
-        .collect();
+        let version = client
+            .clone()
+            .get_mdata_version(*mdata_info.address())
+            .await?;
 
-    future::join_all(reqs).map(move |_| ()).into_box()
+        recoverable_apis::del_mdata_user_permissions(c2, *mdata_info.address(), pk, version + 1)
+            .await?;
+    }
+    Ok(())
 }

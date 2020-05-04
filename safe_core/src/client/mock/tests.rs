@@ -72,9 +72,7 @@ fn process_request(
         message_id,
         signature,
     };
-    unwrap!(connection_manager
-        .send(&sender.public_id(), &message)
-        .await)
+    unwrap!(connection_manager.send(&sender.public_id(), &message).await)
 }
 
 // Test the basics idata operations.
@@ -101,7 +99,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         put_request.clone(),
-        ()
+        (),
     );
 
     // Now GetIData should pass
@@ -109,7 +107,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         get_request.clone(),
-        orig_data
+        orig_data,
     );
 
     // Initial balance is 10 coins
@@ -119,7 +117,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetBalance,
-        balance
+        balance,
     );
 
     // Subsequent PutIData for same data should succeed - De-duplication
@@ -130,7 +128,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         get_request,
-        orig_data
+        orig_data,
     );
 
     // The balance should be deducted twice
@@ -139,7 +137,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetBalance,
-        balance
+        balance,
     );
 }
 
@@ -175,7 +173,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        ()
+        (),
     );
 
     // It should be possible to put an MData using the same name but a
@@ -188,7 +186,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data2.clone()),
-        ()
+        (),
     );
 
     // GetMDataVersion should respond with 0
@@ -204,7 +202,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(data2_address),
-        data2
+        data2,
     );
 
     // ListMDataEntries, ListMDataKeys and ListMDataValues should all respond
@@ -213,21 +211,21 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data2_address),
-        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
+        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new()),
     );
 
     send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataKeys(data2_address),
-        BTreeSet::new()
+        BTreeSet::new(),
     );
 
     send_req_expect_Ok(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataValues(data2_address),
-        MDataValues::from(Vec::<MDataSeqValue>::new())
+        MDataValues::from(Vec::<MDataSeqValue>::new()),
     );
 
     // Add couple of entries
@@ -253,9 +251,9 @@ fn mutable_data_basics() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address: data2_address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 
     let response = process_request(
@@ -285,7 +283,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data1_address),
-        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
+        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new()),
     );
 
     // ListMDataKeys
@@ -324,12 +322,12 @@ fn mutable_data_basics() {
         &client_safe_key,
         Request::GetMDataValue {
             address: data2_address,
-            key: key0.to_vec()
+            key: key0.to_vec(),
         },
         MDataValue::Seq(MDataSeqValue {
             data: value0_v0,
-            version: 0
-        })
+            version: 0,
+        }),
     );
 
     // GetMDataValue with non-existing key
@@ -365,9 +363,9 @@ fn mutable_data_basics() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address: data2_address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 
     let response = process_request(
@@ -416,7 +414,7 @@ fn mutable_data_reclaim() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        ()
+        (),
     );
 
     // Mutate the entries: insert, delete and insert again
@@ -435,9 +433,9 @@ fn mutable_data_reclaim() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 
     let actions: MDataSeqEntryActions = btree_map![
@@ -453,9 +451,9 @@ fn mutable_data_reclaim() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 
     // GetMDataVersion should respond with 0 as the mdata itself hasn't changed.
@@ -497,9 +495,9 @@ fn mutable_data_reclaim() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 }
 
@@ -520,7 +518,7 @@ fn mutable_data_entry_versioning() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        ()
+        (),
     );
 
     // Insert a new entry
@@ -541,7 +539,7 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-        ()
+        (),
     );
 
     // Attempt to update it without version bump fails.
@@ -601,7 +599,7 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-        ()
+        (),
     );
 
     // Delete without version bump fails.
@@ -637,7 +635,7 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-        ()
+        (),
     );
 }
 
@@ -665,7 +663,7 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        ()
+        (),
     );
 
     // ListMDataPermissions responds with empty collection.
@@ -685,9 +683,9 @@ fn mutable_data_permissions() {
         &client_safe_key,
         Request::MutateMDataEntries {
             address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 
     // Create app and authorise it.
@@ -746,7 +744,7 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         update_perms_req,
-        ()
+        (),
     );
 
     // The version is bumped.
@@ -796,7 +794,7 @@ fn mutable_data_permissions() {
             address,
             actions: actions.into(),
         },
-        ()
+        (),
     );
 
     // Attempt to modify permissions without proper version bump fails
@@ -829,7 +827,7 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         valid_update_perms_req,
-        ()
+        (),
     );
 
     // App can now update entries.
@@ -837,7 +835,7 @@ fn mutable_data_permissions() {
         &mut connection_manager2,
         &app_safe_key,
         insertion_request,
-        ()
+        (),
     );
 
     // Revoke all permissions from app.
@@ -847,9 +845,9 @@ fn mutable_data_permissions() {
         Request::DelMDataUserPermissions {
             address,
             user: app_safe_key.public_key(),
-            version: 3
+            version: 3,
         },
-        ()
+        (),
     );
 
     // App can no longer mutate the entries.
@@ -869,9 +867,9 @@ fn mutable_data_permissions() {
             address,
             user: app_safe_key.public_key(),
             permissions,
-            version: 4
+            version: 4,
         },
-        ()
+        (),
     );
 
     // The app still can't mutate the entries.
@@ -891,9 +889,9 @@ fn mutable_data_permissions() {
             address,
             user: app_safe_key.public_key(),
             permissions,
-            version: 5
+            version: 5,
         },
-        ()
+        (),
     );
 
     // The app can now mutate the entries.
@@ -904,9 +902,9 @@ fn mutable_data_permissions() {
         &app_safe_key,
         Request::MutateMDataEntries {
             address,
-            actions: actions.into()
+            actions: actions.into(),
         },
-        ()
+        (),
     );
 }
 
@@ -945,7 +943,7 @@ fn mutable_data_ownership() {
         &mut connection_manager,
         &app_safe_key,
         Request::PutMData(data),
-        ()
+        (),
     );
 }
 
@@ -972,7 +970,7 @@ fn pub_idata_rpc() {
             &mut connection_manager,
             &client_safe_key,
             get_request.clone(),
-            orig_data.clone()
+            orig_data.clone(),
         );
     }
 
@@ -1011,7 +1009,7 @@ fn unpub_idata_rpc() {
         &mut connection_manager,
         &client_safe_key,
         get_request.clone(),
-        data
+        data,
     );
 
     let app_perms = AppPermissions {
@@ -1056,7 +1054,7 @@ fn unpub_md() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
-        ()
+        (),
     );
 
     // Get Unseq MData as owner - Should pass.
@@ -1064,7 +1062,7 @@ fn unpub_md() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(*data.address()),
-        data
+        data,
     );
 }
 
@@ -1120,7 +1118,7 @@ fn auth_keys() {
         &mut connection_manager,
         &client_safe_key,
         ins_auth_key_req,
-        ()
+        (),
     );
 
     response = process_request(
@@ -1182,7 +1180,7 @@ fn auth_keys() {
         &mut connection_manager,
         &client_safe_key,
         del_auth_key_req,
-        ()
+        (),
     );
 
     // Retrieve the list of auth keys and version
@@ -1239,7 +1237,7 @@ fn auth_actions_from_app() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
-        ()
+        (),
     );
 
     // Assert if the inserted data is correct.
@@ -1247,7 +1245,7 @@ fn auth_actions_from_app() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(address),
-        data
+        data,
     );
 
     // Delete MData called by apps should fail
@@ -1302,7 +1300,7 @@ fn low_balance_check() {
             &mut connection_manager,
             &client_safe_key,
             Request::PutMData(data.clone()),
-            ()
+            (),
         );
 
         let vec_data = unwrap!(utils::generate_random_vector(10));
@@ -1350,7 +1348,7 @@ fn low_balance_check() {
             &mut connection_manager,
             &client_safe_key,
             Request::GetMData(*data.address()),
-            data
+            data,
         );
     }
 }
@@ -1416,7 +1414,7 @@ fn config_mock_vault_path() {
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
-        ()
+        (),
     );
 
     // Try getting MutableData back.
@@ -1424,7 +1422,7 @@ fn config_mock_vault_path() {
         &mut conn_manager,
         &client_safe_key,
         Request::GetMData(*data.address()),
-        data
+        data,
     );
 
     unwrap!(std::fs::remove_dir_all("./tmp"));
@@ -1461,7 +1459,7 @@ fn request_hooks() {
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data.clone().into()),
-        ()
+        (),
     );
 
     // Check that this MData is not available
@@ -1482,7 +1480,7 @@ fn request_hooks() {
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data2.clone().into()),
-        ()
+        (),
     );
 
     // Try adding some entries - this should fail, as the hook function
@@ -1521,7 +1519,7 @@ fn request_hooks() {
             address: *data2.address(),
             actions: actions,
         },
-        ()
+        (),
     );
 }
 
@@ -1587,9 +1585,9 @@ fn register_new_app(
         Request::InsAuthKey {
             key: *app_full_id.public_id().public_key(),
             version: version + 1,
-            permissions
+            permissions,
         },
-        ()
+        (),
     );
     let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
     let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));

@@ -2013,6 +2013,7 @@ dependencies = [
  "env_logger 0.6.2",
  "ffi_utils",
  "futures",
+ "futures-util",
  "jni",
  "log 0.4.8",
  "lru-cache",

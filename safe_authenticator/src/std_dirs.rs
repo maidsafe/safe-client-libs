@@ -12,12 +12,13 @@ use crate::config::KEY_APPS;
 use crate::{AuthError, AuthFuture};
 use bincode::serialize;
 use futures::{future, Future};
+use futures_util::future::FutureExt;
+use safe_core::btree_map;
 use safe_core::core_structs::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_directory;
 use safe_core::utils::symmetric_encrypt;
-use safe_core::{btree_map, err, fry};
-use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
+use safe_core::{Client, CoreError, MDataInfo, DIR_TAG};
 use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
 use std::collections::HashMap;
 
@@ -35,7 +36,7 @@ pub static DEFAULT_PRIVATE_DIRS: [&str; 6] = [
 pub static DEFAULT_PUBLIC_DIRS: [&str; 1] = ["_public"];
 
 /// Create the root directories and the standard directories for the access container.
-pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
+pub async fn create(client: &AuthClient) -> Result<(), AuthError> {
     let c2 = client.clone();
     let c3 = client.clone();
     let c4 = client.clone();
@@ -45,75 +46,63 @@ pub fn create(client: &AuthClient) -> Box<AuthFuture<()>> {
     let config_dir = client.config_root_dir();
 
     // Try to get default dirs from the access container
-    let access_cont_fut = access_container::fetch_authenticator_entry(&c2)
-        .then(move |res| {
-            match res {
-                Ok((_, default_containers)) => {
-                    // Make sure that all default dirs have been created
-                    create_std_dirs(&c3, &default_containers)
-                }
-                Err(AuthError::CoreError(CoreError::DataError(SndError::NoSuchData))) => {
-                    // Access container hasn't been created yet
-                    let access_cont_value = r#try!(random_std_dirs())
-                        .into_iter()
-                        .map(|(name, md_info)| (String::from(name), md_info))
-                        .collect();
-                    let std_dirs_fut = create_std_dirs(&c3, &access_cont_value);
-                    let access_cont_fut =
-                        create_access_container(&c3, &access_container, &access_cont_value);
+    let res = access_container::fetch_authenticator_entry(&c2).await;
+    let access_cont = match res {
+        Ok((_, default_containers)) => {
+            // Make sure that all default dirs have been created
+            create_std_dirs(&c3, &default_containers).await
+        }
+        Err(AuthError::CoreError(CoreError::DataError(SndError::NoSuchData))) => {
+            // Access container hasn't been created yet
+            let access_cont_value = random_std_dirs()?
+                .into_iter()
+                .map(|(name, md_info)| (String::from(name), md_info))
+                .collect();
+            let std_dirs_fut = create_std_dirs(&c3, &access_cont_value).await?;
+            let access_cont_fut =
+                create_access_container(&c3, &access_container, &access_cont_value).await?;
+            Ok(())
+        }
+        Err(e) => Err(e),
+    };
 
-                    future::join_all(vec![std_dirs_fut, access_cont_fut])
-                        .map(|_| ())
-                        .into_box()
-                }
-                Err(e) => Err(e),
-            }
-        })
-        .into_box();
+    create_config_dir_on_network(&c2, &config_dir).await?;
 
-    future::join_all(vec![access_cont_fut, create_config_dir(&c2, &config_dir)])
-        .map_err(From::from)
-        .and_then(move |_| {
-            // Update account packet - root directories have been created successfully
-            // (so we don't have to recover them after login).
-            c4.set_std_dirs_created(true);
-            c4.update_account_packet().map_err(From::from).into_box()
-        })
-        .into_box()
+    // Update account packet - root directories have been created successfully
+    // (so we don't have to recover them after login).
+    c4.set_std_dirs_created(true);
+    c4.update_account_packet().await.map_err(From::from)
 }
 
-fn create_config_dir(client: &AuthClient, config_dir: &MDataInfo) -> Box<AuthFuture<()>> {
+async fn create_config_dir_on_network(
+    client: &AuthClient,
+    config_dir: &MDataInfo,
+) -> Result<(), AuthError> {
     let config_dir_entries =
         btree_map![KEY_APPS.to_vec() => MDataSeqValue { data: Vec::new(), version: 0 }];
 
-    let config_dir_entries = r#try!(mdata_info::encrypt_entries(config_dir, &config_dir_entries));
+    let config_dir_entries = mdata_info::encrypt_entries(config_dir, &config_dir_entries)?;
 
     create_directory(client, config_dir, config_dir_entries, btree_map![])
+        .await
         .map_err(From::from)
-        .into_box()
 }
 
-fn create_access_container(
+async fn create_access_container(
     client: &AuthClient,
     access_container: &MDataInfo,
     default_entries: &HashMap<String, MDataInfo>,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     let enc_key = client.secret_symmetric_key();
 
+    let access_container_nonce = access_container
+        .nonce()
+        .ok_or_else(|| AuthError::from("Expected to have nonce on access container MDataInfo"))?;
     // Create access container
-    let authenticator_key = r#try!(access_container_enc_key(
-        AUTHENTICATOR_ENTRY,
-        &enc_key,
-        r#try!(access_container.nonce().ok_or_else(|| AuthError::from(
-            "Expected to have nonce on access container MDataInfo"
-        ))),
-    )
-    .map_err(AuthError::from));
-    let access_cont_value = r#try!(symmetric_encrypt(
-        &r#try!(serialize(default_entries)),
-        &enc_key,
-        None,
-    ));
+    let authenticator_key =
+        access_container_enc_key(AUTHENTICATOR_ENTRY, &enc_key, access_container_nonce)?;
+
+    let access_cont_value = symmetric_encrypt(&serialize(default_entries)?, &enc_key, None)?;
 
     create_directory(
         client,
@@ -123,8 +112,8 @@ fn create_access_container(
         ],
         btree_map![],
     )
+    .await
     .map_err(From::from)
-    .into_box()
 }
 
 /// Generates a list of `MDataInfo` for standard dirs.
@@ -142,18 +131,17 @@ pub fn random_std_dirs() -> Result<Vec<(&'static str, MDataInfo)>, CoreError> {
 
 /// A registration helper function to create the set of default dirs in the users root directory.
 #[allow(clippy::implicit_hasher)]
-pub fn create_std_dirs(
+pub async fn create_std_dirs(
     client: &AuthClient,
     md_infos: &HashMap<String, MDataInfo>,
-) -> Box<AuthFuture<()>> {
+) -> Result<(), AuthError> {
     let client = client.clone();
-    let creations: Vec<_> = md_infos
-        .iter()
-        .map(|(_, md_info)| {
-            create_directory(&client, md_info, btree_map![], btree_map![]).map_err(AuthError::from)
-        })
-        .collect();
-    future::join_all(creations).map(|_| ()).into_box()
+
+    for (_, md_info) in md_infos {
+        create_directory(&client, md_info, btree_map![], btree_map![]).await?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
