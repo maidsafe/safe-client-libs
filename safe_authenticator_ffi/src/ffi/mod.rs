@@ -177,7 +177,6 @@ mod tests {
     use safe_nd::PubImmutableData;
     use std::ffi::CString;
     use std::os::raw::c_void;
-    use Authenticator;
 
     // Test mock detection when compiled against mock-routing.
     #[test]

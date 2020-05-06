@@ -22,7 +22,7 @@ pub use self::resp::{AuthGranted, IpcResp};
 use bincode::{deserialize, serialize};
 use data_encoding::BASE32_NOPAD;
 #[cfg(any(test, feature = "testing"))]
-use rand::{self, Rng};
+use rand::{self};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::net::SocketAddr;
@@ -104,6 +104,8 @@ pub fn decode_msg_64(encoded: &str) -> Result<IpcMsg, IpcError> {
 
 /// Generate unique request ID.
 pub fn gen_req_id() -> u32 {
+    use rand::Rng;
+
     // Generate the number in range 1..MAX inclusive.
     rand::thread_rng().gen_range(0, u32::max_value()) + 1
 }

@@ -557,7 +557,6 @@ mod tests {
     use safe_nd::{Error as SndError, MDataKind, Money};
     use std::str::FromStr;
     use tokio::runtime::current_thread::Runtime;
-    use AuthMsgTx;
 
     // Test account creation.
     // It should succeed the first time and fail the second time with the same secrets.
@@ -774,7 +773,6 @@ mod tests {
     #[test]
     fn restart_network() {
         use crate::test_utils::random_client_with_net_obs;
-        use futures;
         use safe_core::NetworkEvent;
         use std::sync::mpsc;
         use std::thread;
@@ -861,7 +859,7 @@ mod tests {
         let acc_loc = unwrap!(Account::generate_network_id(&keyword, &pin));
 
         let maid_keys = ClientKeys::new(&mut thread_rng());
-        let acc = unwrap!(Account::new(maid_keys.clone()));
+        let acc = unwrap!(Account::new(maid_keys));
 
         let acc_ciphertext = unwrap!(acc.encrypt(&password, &pin));
 

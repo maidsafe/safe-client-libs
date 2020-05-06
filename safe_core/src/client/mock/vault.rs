@@ -363,7 +363,7 @@ impl Vault {
 
     fn deposit_money(
         &mut self,
-        source: XorName,
+        _source: XorName,
         to: XorName,
         amount: Money,
         transaction_id: u64,
@@ -381,9 +381,9 @@ impl Vault {
     fn withdraw_money(
         &mut self,
         source: XorName,
-        to: XorName,
+        _to: XorName,
         amount: Money,
-        transaction_id: u64,
+        _transaction_id: u64,
     ) -> SndResult<()> {
         let unlimited = unlimited_money(&self.config);
         match self.get_coin_balance_mut(&source) {
@@ -539,11 +539,11 @@ impl Vault {
             // Put money in target account. Triggered after Transfer/Create have subtracted from sender
             Request::DepositMoney {
                 to,
-                from,
+                from: _,
                 amount,
-                new_account,
+                new_account: _,
                 transaction_id,
-                transfer_proof,
+                transfer_proof: _,
             } => {
                 debug!("DepositMoney request being handled.");
 
@@ -564,7 +564,7 @@ impl Vault {
             }
             Request::TransferMoney {
                 to,
-                from,
+                from: _,
                 amount,
                 transaction_id,
             } => {
@@ -616,7 +616,7 @@ impl Vault {
             Request::CreateBalance {
                 amount,
                 to,
-                from,
+                from: _,
                 transaction_id,
             } => {
                 let source = owner_pk.into();
@@ -624,7 +624,7 @@ impl Vault {
 
                 let result = if source == recipient {
                     let real_or_random_transaction_id: u64 =
-                        transaction_id.unwrap_or(rand::random());
+                        transaction_id.unwrap_or_else(rand::random);
                     // creating a mock balance, source is recipient so we just use that pk?
                     self.mock_create_balance(owner_pk, amount);
                     Ok(MoneyReceipt {
@@ -637,7 +637,7 @@ impl Vault {
                         req_perms.push(Operation::TransferMoney);
                     }
 
-                    let transaction_id = transaction_id.unwrap_or(rand::random());
+                    let transaction_id = transaction_id.unwrap_or_else(rand::random);
                     self.authorise_operations(req_perms.as_slice(), source, requester_pk)
                         .and_then(|_| self.get_balance(&source))
                         .and_then(|source_balance| {

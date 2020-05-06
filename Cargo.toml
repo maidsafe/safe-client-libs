@@ -10,5 +10,5 @@
 members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_core", "tests"]
 
 [patch.crates-io]
-# safe-nd =  { git = "https://github.com/oetyng/safe-nd.git", rev = "1a14742a17ffd9098f0fba85f88819515c486214" }
-safe-nd =  { path = "../safe-nd"  }
+safe-nd =  { git = "https://github.com/oetyng/safe-nd.git", rev = "8366a171acde3c1266c7813a6e5819b4c96e3e43" }
+# safe-nd =  { path = "../safe-nd"  }
