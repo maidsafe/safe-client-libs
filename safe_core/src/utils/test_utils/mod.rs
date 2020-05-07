@@ -21,7 +21,6 @@ use futures::stream::Stream;
 use futures::sync::mpsc;
 use futures::{Future, IntoFuture};
 use log::trace;
-use rand;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
 use std::sync::mpsc as std_mpsc;

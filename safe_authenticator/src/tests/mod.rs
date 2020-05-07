@@ -38,7 +38,9 @@ mod mock_routing {
     use safe_core::{
         app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
     };
-    use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
+    use safe_nd::{
+        ClientRequest, Coins, Error as SndError, MDataRequest, Request, RequestType, Response,
+    };
     use std::str::FromStr;
     use unwrap::unwrap;
 
@@ -73,7 +75,9 @@ mod mock_routing {
 
                 cm.set_request_hook(move |req| {
                     match req {
-                        Request::PutMData(data) if data.tag() == safe_core::DIR_TAG => {
+                        Request::MData(MDataRequest::Put(data))
+                            if data.tag() == safe_core::DIR_TAG =>
+                        {
                             put_mdata_counter += 1;
 
                             if put_mdata_counter > 4 {
@@ -191,7 +195,7 @@ mod mock_routing {
                     // Simulate a network failure after
                     // the `mutate_mdata_entries` operation (relating to
                     // the addition of the app to the user's config dir)
-                    Request::InsAuthKey { .. } => {
+                    Request::Client(ClientRequest::InsAuthKey { .. }) => {
                         Some(Response::Mutation(Err(SndError::InsufficientBalance)))
                     }
                     // Pass-through
@@ -232,7 +236,7 @@ mod mock_routing {
 
             cm.set_request_hook(move |req| {
                 match *req {
-                    Request::SetMDataUserPermissions { .. } => {
+                    Request::MData(MDataRequest::SetUserPermissions { .. }) => {
                         reqs_counter += 1;
 
                         if reqs_counter == 2 {
@@ -264,7 +268,7 @@ mod mock_routing {
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
                 match *req {
-                    Request::PutMData { .. } => {
+                    Request::MData(MDataRequest::Put { .. }) => {
                         Some(Response::Mutation(Err(SndError::InsufficientBalance)))
                     }
 
@@ -292,7 +296,7 @@ mod mock_routing {
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
                 match *req {
-                    Request::MutateMDataEntries { .. } => {
+                    Request::MData(MDataRequest::MutateEntries { .. }) => {
                         Some(Response::Mutation(Err(SndError::InsufficientBalance)))
                     }
 

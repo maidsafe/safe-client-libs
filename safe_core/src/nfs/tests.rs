@@ -23,7 +23,6 @@ use futures::Future;
 use log::trace;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
-use std;
 use std::sync::mpsc;
 use std::thread;
 use unwrap::unwrap;

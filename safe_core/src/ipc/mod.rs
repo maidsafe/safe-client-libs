@@ -21,9 +21,7 @@ pub use self::resp::{AuthGranted, IpcResp};
 
 use bincode::{deserialize, serialize};
 use data_encoding::BASE32_NOPAD;
-#[cfg(any(test, feature = "testing"))]
-use ffi_utils;
-use rand::{self, Rng};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::net::SocketAddr;
