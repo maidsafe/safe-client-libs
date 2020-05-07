@@ -206,7 +206,6 @@ mod tests {
     use futures::Future;
     use safe_nd::Error as SndError;
     use unwrap::unwrap;
-    use utils;
     use utils::test_utils::{finish, random_client};
 
     // Test creating and retrieving a 1kb idata.

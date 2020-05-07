@@ -32,7 +32,7 @@ use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
 use safe_nd::{AppPermissions, Coins, PublicKey, XorName};
 #[cfg(feature = "mock-network")]
-use safe_nd::{Error as SndError, Request, Response};
+use safe_nd::{Error as SndError, MDataRequest, Request, Response};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Write;
@@ -490,7 +490,7 @@ where
             let ac_info = ac_info.clone();
 
             cm.set_request_hook(move |request| match *request {
-                Request::DelMDataUserPermissions { address, .. } => {
+                Request::MData(MDataRequest::DelUserPermissions { address, .. }) => {
                     if *address.name() == ac_info.name() && address.tag() == ac_info.type_tag() {
                         Some(Response::Mutation(Err(SndError::InsufficientBalance)))
                     } else {

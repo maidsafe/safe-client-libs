@@ -27,7 +27,8 @@ use safe_core::fry;
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
-    ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
+    ClientFullId, LoginPacket, LoginPacketRequest, Message, MessageId, PublicId, PublicKey,
+    Request, Response, XorName,
 };
 use std::cell::RefCell;
 use std::fmt;
@@ -171,7 +172,7 @@ impl AuthClient {
 
         let response = req(
             &mut connection_manager,
-            Request::CreateLoginPacket(new_login_packet),
+            Request::LoginPacket(LoginPacketRequest::Create(new_login_packet)),
             &client_safe_key,
         )?;
 
@@ -286,7 +287,7 @@ impl AuthClient {
 
             let response = req(
                 &mut connection_manager,
-                Request::GetLoginPacket(acc_locator),
+                Request::LoginPacket(LoginPacketRequest::Get(acc_locator)),
                 &client_full_id,
             )?;
 
@@ -421,7 +422,7 @@ impl AuthClient {
         let mut cm4 = cm.clone();
 
         let message_id = MessageId::new();
-        let request = Request::UpdateLoginPacket(updated_packet);
+        let request = Request::LoginPacket(LoginPacketRequest::Update(updated_packet));
         let signature =
             account_packet_id.sign(&unwrap!(bincode::serialize(&(&request, message_id))));
 
@@ -557,7 +558,6 @@ mod tests {
     use safe_nd::{Coins, Error as SndError, MDataKind};
     use std::str::FromStr;
     use tokio::runtime::current_thread::Runtime;
-    use AuthMsgTx;
 
     // Test account creation.
     // It should succeed the first time and fail the second time with the same secrets.
@@ -774,7 +774,6 @@ mod tests {
     #[test]
     fn restart_network() {
         use crate::test_utils::random_client_with_net_obs;
-        use futures;
         use safe_core::NetworkEvent;
         use std::sync::mpsc;
         use std::thread;
