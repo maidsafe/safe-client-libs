@@ -23,8 +23,3 @@ pub use self::errors::NfsError;
 pub use self::file::File;
 pub use self::reader::Reader;
 pub use self::writer::{Mode, Writer};
-
-use futures::Future;
-
-// /// Helper type for futures that can result in `NfsError`.
-// pub type NfsFuture<T> = dyn Future<Output=Result<T, NfsError>>;

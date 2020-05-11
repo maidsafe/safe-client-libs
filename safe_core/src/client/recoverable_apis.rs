@@ -9,7 +9,7 @@
 use super::Client;
 use crate::client::AuthActions;
 use crate::errors::CoreError;
-use futures::future::{self, FutureExt, TryFutureExt};
+use futures::future::FutureExt;
 use safe_nd::{
     AppPermissions, EntryError, Error as SndError, MDataAction, MDataAddress, MDataPermissionSet,
     MDataSeqEntries, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey,
@@ -111,7 +111,6 @@ pub async fn set_mdata_user_permissions(
     let client = client.clone();
     let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
-    // future::loop_fn(state, move |(attempts, version)| {
     while !done_trying && attempts < MAX_ATTEMPTS {
         response = match client
             .set_mdata_user_permissions(address, user, permissions.clone(), version_to_try)
@@ -125,7 +124,6 @@ pub async fn set_mdata_user_permissions(
                 match error {
                     CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
                         if attempts < MAX_ATTEMPTS {
-                            // Ok(Loop::Continue((attempts + 1, current_version + 1)))
                             version_to_try = version_to_try + 1;
                             attempts = attempts + 1;
                             // but but we continue anyway
@@ -137,7 +135,6 @@ pub async fn set_mdata_user_permissions(
                     }
                     CoreError::RequestTimeout => {
                         if attempts < MAX_ATTEMPTS {
-                            // Ok(Loop::Continue((attempts + 1, version)))
                             version_to_try = version_to_try + 1;
                             attempts = attempts + 1;
                             // but we continue anyway
@@ -157,11 +154,6 @@ pub async fn set_mdata_user_permissions(
     }
 
     response
-    // .map(|_| Loop::Break(()))
-    // .or_else(move |error| match error {
-    // })
-    // })
-    // .into_box()
 }
 
 /// Deletes user permission on the mutable data and tries to recover from errors.
@@ -186,68 +178,38 @@ pub async fn del_mdata_user_permissions(
                 done_trying = true;
                 Ok(())
             }
-            Err(error) => {
-                match error {
-                    CoreError::DataError(SndError::NoSuchKey) => {
-                        done_trying = true;
-                        Ok(())
-                    }
-
-                    // CoreError::DataError(SndError::NoSuchKey) => Ok(Loop::Break(())),
-                    CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
-                        if attempts < MAX_ATTEMPTS {
-                            attempts = attempts + 1;
-                            version_to_try = version_to_try + 1;
-
-                            Err(error)
-
-                        // Ok(Loop::Continue((attempts + 1, current_version + 1)))
-                        } else {
-                            done_trying = true;
-                            Err(error)
-                        }
-                    }
-                    CoreError::RequestTimeout => {
-                        if attempts < MAX_ATTEMPTS {
-                            attempts = attempts + 1;
-                            version_to_try = version_to_try + 1;
-                            Err(CoreError::RequestTimeout)
-                        } else {
-                            Err(CoreError::RequestTimeout)
-                        }
-                    }
-                    error => Err(error),
+            Err(error) => match error {
+                CoreError::DataError(SndError::NoSuchKey) => {
+                    done_trying = true;
+                    Ok(())
                 }
-            }
+
+                CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
+                    if attempts < MAX_ATTEMPTS {
+                        attempts = attempts + 1;
+                        version_to_try = version_to_try + 1;
+
+                        Err(error)
+                    } else {
+                        done_trying = true;
+                        Err(error)
+                    }
+                }
+                CoreError::RequestTimeout => {
+                    if attempts < MAX_ATTEMPTS {
+                        attempts = attempts + 1;
+                        version_to_try = version_to_try + 1;
+                        Err(CoreError::RequestTimeout)
+                    } else {
+                        Err(CoreError::RequestTimeout)
+                    }
+                }
+                error => Err(error),
+            },
         }
     }
 
     response
-
-    // future::loop_fn(state, move |(attempts, version)| {
-    //     client
-    //         .del_mdata_user_permissions(address, user, version)
-    //         .map(|_| Loop::Break(()))
-    //         .or_else(move |error| match error {
-    //             // CoreError::DataError(SndError::NoSuchKey) => Ok(Loop::Break(())),
-    //             CoreError::DataError(SndError::InvalidSuccessor(current_version)) => {
-    //                 if attempts < MAX_ATTEMPTS {
-    //                     Ok(Loop::Continue((attempts + 1, current_version + 1)))
-    //                 } else {
-    //                     Err(error)
-    //                 }
-    //             }
-    //             CoreError::RequestTimeout => {
-    //                 if attempts < MAX_ATTEMPTS {
-    //                     Ok(Loop::Continue((attempts + 1, version)))
-    //                 } else {
-    //                     Err(CoreError::RequestTimeout)
-    //                 }
-    //             }
-    //             error => Err(error),
-    //         })
-    // })
-    // .into_box()
 }
 
 async fn update_mdata(
@@ -419,8 +381,6 @@ pub async fn ins_auth_key_to_client_h(
     permissions: AppPermissions,
     version: u64,
 ) -> Result<(), CoreError> {
-    // let state = (0, version);
-
     let mut attempts: usize = 0;
     let mut version_to_try = version;
     let client = client.clone();

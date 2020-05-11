@@ -39,7 +39,7 @@ use crate::errors::CoreError;
 use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
-use futures::{channel::mpsc, future, Future};
+use futures::channel::mpsc;
 use std::sync::{Arc, Mutex};
 
 use log::trace;
@@ -118,10 +118,6 @@ fn send_as_helper(
         let _bootstrapped = cm.bootstrap(identity).await;
         cm2.send(&pub_id, &message).await
     })
-    // Box::new(
-    // .and_then(move |_|
-    //     ))
-    // )
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
@@ -154,10 +150,7 @@ pub trait Client: Clone + 'static + Send + Sync {
 
     /// Return an associated `ClientInner` type which is expected to contain fields associated with
     /// the implementing type.
-    // fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>;
-
     fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>
-    // where Client::Context: Send;
     where
         Self: Sized;
 
@@ -258,13 +251,6 @@ pub trait Client: Clone + 'static + Send + Sync {
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
-
-            // Ok( Response::Transaction(result) ) => {
-            //     match result {
-            //         Ok(transaction) => Ok( transaction ),
-            //         Err(error) => Err(CoreError::from(error))
-            //     }
-            // },
             Err(_error) => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }

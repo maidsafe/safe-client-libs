@@ -70,9 +70,7 @@ pub async fn decode_ipc_msg(
             let c2 = client.clone();
 
             let (_config_version, config) = config::list_apps(client).await?;
-            // .and_then(move |(_config_version, config)|
             let app_state = app_state(&c2, &config, &app_id).await?;
-            // .and_then(move |app_state| {
             match app_state {
                 AppState::Authenticated => Ok(Ok(IpcMsg::Req {
                     req_id,
@@ -92,8 +90,6 @@ pub async fn decode_ipc_msg(
                     Ok(Err((error_code, description, encoded_response)))
                 }
             }
-            // })
-            // .into_box()
         }
         IpcMsg::Resp { .. } | IpcMsg::Revoked { .. } | IpcMsg::Err(..) => {
             return Err(AuthError::IpcError(IpcError::InvalidMsg));
@@ -128,7 +124,6 @@ pub async fn decode_share_mdata_req(
 
         // let future = client
         let shell = client.get_seq_mdata_shell(name, type_tag).await?;
-        // .and_then(move |shell| {
         if *shell.owner() == user {
             let metadata = match client
                 .get_seq_mdata_value(name, type_tag, METADATA_KEY.into())
@@ -158,21 +153,11 @@ pub async fn decode_share_mdata_req(
             }?;
 
             results.push(metadata)
-
-        // .then(move |res| match res {
-        // });
-        // Either::A(future_metadata)
         } else {
             results.push(Err(ShareMDataError::InvalidOwner(name, type_tag)))
         }
-        // })
-        // .map_err(AuthError::from);
-
-        // results.push(future);
     }
 
-    // future::join_all(results)
-    // .and_then(move |results| {
     let mut metadata_cont = Vec::with_capacity(num_mdata);
     let mut invalids = Vec::with_capacity(num_mdata);
 
@@ -189,5 +174,4 @@ pub async fn decode_share_mdata_req(
     } else {
         Err(AuthError::IpcError(IpcError::InvalidOwner(invalids)))
     }
-    // })sssbox()
 }

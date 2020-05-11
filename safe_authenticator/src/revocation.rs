@@ -29,7 +29,6 @@ pub async fn revoke_app(client: &AuthClient, app_id: &str) -> Result<(), AuthErr
     let c2 = client.clone();
 
     let (version, queue) = config::get_app_revocation_queue(&client).await?;
-    // .and_then(move |(version, queue)| {
     let (version, queue) = config::push_to_app_revocation_queue(
         &client,
         queue,
@@ -37,11 +36,8 @@ pub async fn revoke_app(client: &AuthClient, app_id: &str) -> Result<(), AuthErr
         &app_id,
     )
     .await?;
-    // })
-    // .and_then(move |(version, queue)|
+
     flush_app_revocation_queue_impl(&c2, queue, version + 1).await
-    // )
-    // .into_box()
 }
 
 /// Revoke all apps currently in the revocation queue.
@@ -111,9 +107,10 @@ async fn flush_app_revocation_queue_impl(
                     } else {
                         // Move the app to the end of the queue.
                         moved_apps.push(app_id.clone());
-                        let (version, queue) =
-                            config::repush_to_app_revocation_queue(&c3, the_queue, version, &app_id)
-                                .await?;
+                        let (version, queue) = config::repush_to_app_revocation_queue(
+                            &c3, the_queue, version, &app_id,
+                        )
+                        .await?;
                         version_to_try = version;
                         the_queue = queue;
                     }
@@ -146,15 +143,12 @@ async fn revoke_single_app(client: &AuthClient, app_id: &str) -> Result<(), Auth
     //    attempt has failed)
     // 4. Remove the revoked app from the access container
     let app = config::get_app(client, app_id).await?;
-    // .and_then(move |app|
+
     delete_app_auth_key(&c2, app.keys.public_key()).await?;
-    // .map(move |_| app)
-    // )
-    // .and_then(move |app| {
+
     let (version, ac_entry) =
         access_container::fetch_entry(c3, app.info.id.clone(), app.keys.clone()).await?;
-    // .and_then(
-    // move |(version, ac_entry)| {
+
     if let Some(ac_entry) = ac_entry {
         let containers: Containers = ac_entry
             .into_iter()
@@ -167,10 +161,6 @@ async fn revoke_single_app(client: &AuthClient, app_id: &str) -> Result<(), Auth
         // deleted with the app having stayed on the revocation queue.
         Ok(())
     }
-    // },
-    // )
-    // })
-    // .into_box()
 }
 
 // Delete the app auth key from the Maid Manager - this prevents the app from
@@ -195,11 +185,6 @@ async fn delete_app_auth_key(client: &AuthClient, key: PublicKey) -> Result<(), 
             error => Err(AuthError::from(error)),
         },
     }
-    // .and_then(move |(listed_keys, version)| {
-    // })
-    //     .or_else(|error|
-    // )
-    //     .into_box()
 }
 
 async fn clear_from_access_container_entry(
@@ -211,11 +196,8 @@ async fn clear_from_access_container_entry(
     let c2 = client.clone();
 
     revoke_container_perms(client, &containers, app.keys.public_key()).await?;
-    // .map(move |_| (app, ac_entry_version))
-    // .and_then(move |(app, version)| {
+
     access_container::delete_entry(&c2, &app.info.id, &app.keys, ac_entry_version + 1).await
-    // })
-    // .into_box()
 }
 
 // Revoke containers permissions

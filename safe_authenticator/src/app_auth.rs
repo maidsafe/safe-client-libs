@@ -58,7 +58,6 @@ pub async fn app_state(
 
         let res = access_container::fetch_entry(client.clone(), app_id.to_string(), app_keys).await;
 
-        // .then(move |res| {
         match res {
             Ok((_version, Some(_))) => Ok(AppState::Authenticated),
             Ok((_, None)) => {
@@ -67,8 +66,6 @@ pub async fn app_state(
             }
             Err(e) => Err(e),
         }
-    // })
-    // .into_box()
     } else {
         Ok(AppState::NotAuthenticated)
     }
@@ -121,7 +118,7 @@ async fn update_access_container(
 
     trace!("Updating access container entry for app {}...", app_id);
     let res = access_container::fetch_entry(client.clone(), app_id.clone(), app_keys.clone()).await;
-    // .then(move |res| {
+
     let version = match res {
         // Updating an existing entry
         Ok((version, Some(_))) => version + 1,
@@ -130,12 +127,8 @@ async fn update_access_container(
         // Error has occurred while trying to get an existing entry
         Err(e) => return Err(e),
     };
-    // Ok((version, app_keys, permissions))
-    // })
-    // .and_then(move |(version, app_keys, permissions)| {
+
     access_container::put_entry(&c2, &app_id, &app_keys, &permissions, version).await
-    // })
-    // .into_box()
 }
 
 /// Authenticate an app request.
@@ -161,14 +154,9 @@ pub async fn authenticate(
 
     let (apps_version, mut apps) = config::list_apps(client).await?;
     check_revocation(client, app_id.clone()).await?;
-    // .join(check_revocation(client, app_id.clone()))
-    // .and_then(move |((apps_version, apps), ())| {
+
     let app_state = app_state(&c2, &apps, &app_id).await?;
-    // .map(move |app_state|
-    // (apps_version, apps, app_state, app_id)
-    // )
-    // })
-    // .and_then(move |(apps_version, mut apps, app_state, app_id)| {
+
     // Determine an app state. If it's revoked we can reuse existing
     // keys stored in the config. And if it is authorised, we just
     // return the app info from the config.
@@ -183,13 +171,10 @@ pub async fn authenticate(
             };
             config::insert_app(&c3, apps, config::next_version(apps_version), app.clone()).await?;
             (app, app_state, app_id)
-            // .map(move |_| (app, app_state, app_id)).await
-            // .into_box()
         }
         AppState::Authenticated | AppState::Revoked => {
             let app_entry_name = sha3_256(app_id.as_bytes());
             if let Some(app) = apps.remove(&app_entry_name) {
-                // Ok((app, app_state, app_id))
                 (app, app_state, app_id)
             } else {
                 return Err(AuthError::from(
@@ -198,8 +183,7 @@ pub async fn authenticate(
             }
         }
     };
-    // })
-    // .and_then(move |(app, app_state, app_id)| {
+
     match app_state {
         AppState::Authenticated => {
             // Return info of the already registered app
@@ -210,8 +194,6 @@ pub async fn authenticate(
             authenticate_new_app(&c4, app, app_container, app_permissions, permissions).await
         }
     }
-    // })
-    // .into_box()
 }
 
 /// Return info of an already registered app.
@@ -233,31 +215,19 @@ async fn authenticated_app(
     let (_version, perms) =
         access_container::fetch_entry(client.clone(), app_id.clone(), app_keys.clone()).await?;
 
-    // .and_then(move |(_version, perms)| {
     let perms = perms.unwrap_or_else(AccessContainerEntry::default);
 
     // TODO: check if we need to update app permissions
 
     // Check whether we need to create/update dedicated container
     if app_container && !app_container_exists(&perms, &app_id) {
-        // .and_then(
-        // let future = app_container::fetch_or_create(&c2, &app_id, app_pk).and_then(
         let mdata_info = app_container::fetch_or_create(&c2, &app_id, app_pk).await?;
-        // move |mdata_info| {
         let perms = insert_app_container(perms.clone(), &app_id, mdata_info);
         update_access_container(&c2, &app, perms.clone())
             .map(move |_| perms)
             .await;
-        // },
-        // );
-        // Either::A(future)
     }
-    // else {
-    //     // Either::B(future::ok(perms))
-    //     Ok(perms)
-    // }
-    // })
-    // .and_then(move |perms| {
+
     let access_container_info = c3.access_container();
     let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
@@ -267,8 +237,6 @@ async fn authenticated_app(
         access_container_info,
         access_container_entry: perms,
     })
-    // })
-    // .into_box()
 }
 
 /// Register a new or revoked app in Maid Managers and in the access container.
@@ -298,7 +266,6 @@ async fn authenticate_new_app(
 
     let (_, version) = client.list_auth_keys_and_version().await?;
 
-    // .and_then(move |(_, version)| {
     recoverable_apis::ins_auth_key_to_client_h(
         &c2,
         app_keys.public_key(),
@@ -306,41 +273,24 @@ async fn authenticate_new_app(
         version + 1,
     )
     .await?;
-    // })
-    // .map_err(AuthError::from)
-    // .and_then(move |_| {
+
     let (mut perms, app_pk) = if permissions.is_empty() {
         (Default::default(), app_pk)
     } else {
         let mut perms = update_container_perms(&c3, permissions, app_pk).await?;
-        // .map(move |perms| (perms, app_pk))
         (perms, app_pk)
-        // .into_box()
     };
-    // })
-    // .and_then(move |(perms, app_pk)| {
+
     if app_container {
         let mdata_info = app_container::fetch_or_create(&c4, &app_id, app_pk).await?;
-        // .and_then(move |mdata_info| {
+
         perms = insert_app_container(perms, &app_id, mdata_info);
-        // })
-        // .map(move |perms|
-        // (perms, app)
-        // )
-        // .into_box()
     }
-    // else {
-    //     Ok((perms, app))
-    // }
-    // })
-    // .and_then(move |(perms, app)| {
 
     update_access_container(&c5, &app, perms.clone()).await?;
 
     let access_container_entry = perms;
-    // .map(move |_| perms)
-    // })
-    // .and_then(move |access_container_entry| {
+
     let access_container_info = c6.access_container();
     let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
@@ -350,18 +300,14 @@ async fn authenticate_new_app(
         access_container_info,
         access_container_entry,
     })
-    // })
-    // .into_box()
 }
 
 async fn check_revocation(client: &AuthClient, app_id: String) -> Result<(), AuthError> {
     let (_, queue) = config::get_app_revocation_queue(client).await?;
-    // .and_then(move |(_, queue)| {
+
     if queue.contains(&app_id) {
         Err(AuthError::PendingRevocation)
     } else {
         Ok(())
     }
-    // })
-    // .into_box()
 }

@@ -13,7 +13,6 @@ use crate::AuthFuture;
 use crate::AuthMsgTx;
 use async_trait::async_trait;
 use futures::future;
-// use futures::future::TryFutureExt;
 use log::trace;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
@@ -22,10 +21,8 @@ use safe_core::client::account::Account;
 use safe_core::client::{
     attempt_bootstrap, req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
 };
-// use futures_util::future::TryFutureExt;
 use safe_core::config_handler::Config;
 use safe_core::crypto::{shared_box, shared_secretbox};
-// use safe_core::fry;
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
 use safe_nd::{
@@ -418,12 +415,8 @@ impl AuthClient {
         let acc_loc = &auth_inner.acc_loc;
         let account_packet_id = SafeKey::client(create_client_id(&acc_loc.0));
         let account_pub_id = account_packet_id.public_id();
-        let updated_packet = Self::prepare_account_packet_update(
-            *acc_loc,
-            account,
-            keys,
-            &account_packet_id
-        )?;
+        let updated_packet =
+            Self::prepare_account_packet_update(*acc_loc, account, keys, &account_packet_id)?;
 
         let mut client_inner = self.inner.lock().unwrap();
 
@@ -440,16 +433,14 @@ impl AuthClient {
 
         futures::executor::block_on(cm.bootstrap(account_packet_id))?;
 
-        let resp = futures::executor::block_on(cm2
-            .send(
-                &account_pub_id,
-                &Message::Request {
-                    request,
-                    message_id,
-                    signature: Some(signature),
-                },
-            )
-        )?;
+        let resp = futures::executor::block_on(cm2.send(
+            &account_pub_id,
+            &Message::Request {
+                request,
+                message_id,
+                signature: Some(signature),
+            },
+        ))?;
 
         let resp = match resp {
             Response::Mutation(res) => res.map_err(CoreError::from),

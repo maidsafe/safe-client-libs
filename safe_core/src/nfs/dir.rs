@@ -9,16 +9,13 @@
 use crate::client::{Client, MDataInfo};
 use crate::errors::CoreError;
 use crate::nfs::NfsError;
-// use crate::utils::FutureExt;
-use async_trait::async_trait;
-use futures::Future;
 use log::trace;
 use safe_nd::{Error as SndError, MDataPermissionSet, MDataSeqEntries, PublicKey, SeqMutableData};
 use std::collections::BTreeMap;
 
 /// Create a new directory based on the provided `MDataInfo`.
 pub async fn create_directory(
-    client: &(impl Client + std::marker::Sync),
+    client: &(impl Client + Sync),
     dir: &MDataInfo,
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,

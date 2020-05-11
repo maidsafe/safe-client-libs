@@ -140,14 +140,12 @@ impl CoreClient {
                 _ => return Err(CoreError::from("Unexpected response")),
             };
 
-            // block_on_all(connection_manager.disconnect(&balance_pub_id))?;
             connection_manager.disconnect(&balance_pub_id).await?;
         }
 
         connection_manager
             .bootstrap(maid_keys.client_safe_key())
             .await?;
-        // block_on_all(connection_manager.bootstrap(maid_keys.client_safe_key()))?;
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner {

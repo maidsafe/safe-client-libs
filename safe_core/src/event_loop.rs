@@ -7,15 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::client::Client;
-
-// use futures::stream::Stream;
+use core::pin::Pin;
 use futures::channel::mpsc;
 use futures::Future;
 use futures_util::stream::StreamExt;
 use log::debug;
 use tokio::runtime::*;
 use unwrap::unwrap;
-use core::pin::Pin;
 /// Transmitter of messages to be run in the core event loop.
 pub type CoreMsgTx<C, T> = mpsc::UnboundedSender<CoreMsg<C, T>>;
 /// Receiver of messages to be run in the core event loop.
@@ -27,10 +25,6 @@ type TailFutureFn<C, T> = dyn FnMut(&C, &T) -> Option<TailFuture> + Send + 'stat
 
 /// The message format that core event loop understands.
 pub struct CoreMsg<C: Client, T>(Option<Box<TailFutureFn<C, T>>>);
-
-/// Future trait returned from core operations.
-// pub type CoreFuture<T> = dyn Future<Output=Result<T, CoreError>>;
-// pub type CoreFuture<T> = Result<T, CoreError>;
 
 impl<C: Client, T> CoreMsg<C, T> {
     /// Construct a new message to ask core event loop to do something. If the
@@ -70,24 +64,9 @@ pub fn run<C: Client, T>(
                 if let Some(tail) = f(client, context) {
                     std::thread::spawn(|| tail);
                 }
-                // Ok(())
             }
-            // else {
-            //     // Err(())
-            // }
         }
     };
-
-    // let keep_alive = receiver.for_each(|core_msg| {
-    //     if let Some(mut f) = core_msg.0 {
-    //         if let Some(tail) = f(client, context) {
-    //             std::thread::spawn(tail);
-    //         }
-    //         Ok(())
-    //     } else {
-    //         Err(())
-    //     }
-    // });
 
     let _ = event_loop.block_on(keep_alive);
     debug!("Exiting Core Event Loop");

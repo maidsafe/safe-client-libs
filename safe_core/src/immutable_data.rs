@@ -12,7 +12,6 @@ use crate::self_encryption_storage::{
     SEStorageError, SelfEncryptionStorage, SelfEncryptionStorageDryRun,
 };
 use crate::utils;
-// use crate::{fry, ok};
 use crate::CoreError;
 
 use bincode::{deserialize, serialize};
@@ -73,7 +72,6 @@ pub async fn extract_value(
     let se_storage = SelfEncryptionStorage::new(client.clone(), published);
     let value = unpack(se_storage.clone(), &client.clone(), data).await?;
 
-    // .and_then(move |value| {
     let data_map = if let Some(key) = decryption_key {
         let plain_text = utils::symmetric_decrypt(&value, &key)?;
         deserialize(&plain_text)?
@@ -82,8 +80,7 @@ pub async fn extract_value(
     };
 
     let self_encryptor = SelfEncryptor::new(se_storage, data_map)?;
-    // })
-    // .and_then(move |self_encryptor| {
+
     let length = match len {
         None => self_encryptor.len(),
         Some(request_length) => request_length,
@@ -97,9 +94,6 @@ pub async fn extract_value(
         Ok(data) => Ok(data),
         Err(error) => Err(CoreError::from(error)),
     }
-    // .map_err(From::from)
-    // })
-    // .into_box()
 }
 
 /// Get immutable data from the network and extract its value, decrypting it in the process (if keys
@@ -132,9 +126,6 @@ where
 
     let (data_map, _) = self_encryptor.close().await?;
 
-    // .and_then(move |_| self_encryptor.close())
-    // .map_err(From::from)
-    // .and_then(move |(data_map, _)| {
     let serialised_data_map = serialize(&data_map)?;
 
     let value = if let Some(key) = encryption_key {
@@ -144,13 +135,7 @@ where
         serialize(&DataTypeEncoding::Serialised(serialised_data_map))?
     };
 
-    // let arc
-    //  =
     pack(se_storage, client, value, published).await
-    // Arc::into_raw( arc)
-
-    // })
-    // .into_box()
 }
 
 // TODO: consider rewriting these two function to not use recursion.
@@ -173,13 +158,8 @@ where
     let serialised_data = match serialize(&data) {
         Ok(the_data) => the_data,
         Err(error) => {
-            // return async move{
-
-            //     Arc::new(Err(CoreError::from(error) ))
-            // }.await
             return Err(CoreError::from(error));
-            // error.await
-        } // return Box::new(error)
+        }
     };
 
     if data.validate_size() {
@@ -192,17 +172,10 @@ where
 
         let (data_map, _) = self_encryptor.close().await?;
 
-        // .and_then(move |_| self_encryptor.close())
-        // .map_err(From::from)
-        // .and_then(move |(data_map, _)| {
         let value = serialize(&DataTypeEncoding::DataMap(data_map))?;
 
         // this is an Arc
         pack(se_storage, client, value, published).await
-        // })
-        // .into_box()
-
-        // .boxed()
     }
 }
 
@@ -223,15 +196,8 @@ where
 
             let serialised_data = self_encryptor.read(0, length).await?;
 
-            //     // .map_err(From::from)
-            //     // .and_then(move |&serialised_data| {
             let data = deserialize(&serialised_data)?;
             unpack(se_storage, client, data).await
-            // let vec = Vec::new();
-
-            // Ok(vec)
-            // })
-            // .into_box()
         }
     }
 }

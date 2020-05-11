@@ -11,10 +11,8 @@ use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
 use crate::nfs::{File, Mode, NfsError, Reader, Writer};
 use crate::self_encryption_storage::SelfEncryptionStorage;
-// use crate::utils::FutureExt;
-// use crate::{fry, ok};
+
 use bincode::{deserialize, serialize};
-use futures::{future::IntoFuture, Future};
 use log::trace;
 use safe_nd::{Error as SndError, MDataSeqEntryActions};
 use serde::{Deserialize, Serialize};
@@ -42,15 +40,10 @@ where
     trace!("Inserting file with name '{}'", name);
 
     let encoded = serialize(&file)?;
-    // .map_err(From::from)
-    // .and_then(|encoded| {
+
     let key = parent.enc_entry_key(name.as_bytes())?;
     let value = parent.enc_entry_value(&encoded)?;
 
-    // Ok((key, value))
-    // })
-    // .into_future()
-    // .and_then(move |(key, value)| {
     client
         .mutate_seq_mdata_entries(
             parent.name(),
@@ -59,8 +52,6 @@ where
         )
         .await
         .map_err(From::from)
-    // })
-    // .into_box()
 }
 
 /// Get a file and its version from the directory.
@@ -131,27 +122,13 @@ where
                 .await?;
             value.version + 1
         }
-        // .map(move |value| (value.version + 1))
-        // .into_box(),
         Version::Custom(version) => version,
     };
-    // .map_err(NfsError::from);
-
     // version_fut
-    //     .and_then(move |version| {
     if !published {
-        //     Ok(new_version)
-        // } else {
         let (_, file) = fetch(client, parent2, name2).await?;
-        // .and_then(move |(_, file)| {
         client2.del_unpub_idata(*file.data_map_name()).await?;
-        // .map(move |_| version)
-        // .map_err(NfsError::from)
-        // })
-        // .into_box()
     }
-    // })
-    // .and_then(move |version| {
     client3
         .mutate_seq_mdata_entries(
             parent.name(),
@@ -161,10 +138,6 @@ where
         .await?;
 
     Ok(new_version)
-    // .map(move |()| version)
-    // .map_err(convert_error)
-    // })
-    // .into_box()
 }
 
 /// Update the file.
@@ -196,9 +169,7 @@ where
             let value = client
                 .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
                 .await?;
-            // .map(move |value|
             value.version + 1
-            // .into_box(),
         }
         Version::Custom(version) => version,
     };

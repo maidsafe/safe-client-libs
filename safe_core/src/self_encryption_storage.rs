@@ -7,9 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::{Client, CoreError};
-// use crate::{err, ok};
 use async_trait::async_trait;
-use futures::{self};
 use log::trace;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData, XorName, XOR_NAME_LEN};
 use self_encryption::{Storage, StorageError};
@@ -25,7 +23,6 @@ pub struct SelfEncryptionStorage<C: Client + Send + Sync> {
     published: bool,
 }
 
-// #[async_trait]
 impl<C: Client + Send + Sync> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {

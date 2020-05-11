@@ -12,7 +12,6 @@ use crate::access_container;
 use crate::client::AuthClient;
 use crate::{AuthError, AuthFuture};
 use futures::Future;
-// use futures_util::future::TryFutureExt;
 use futures_util::future::FutureExt;
 use safe_core::btree_map;
 use safe_core::{app_container_name, Client, MDataInfo, DIR_TAG};
@@ -33,10 +32,7 @@ pub async fn fetch(client: &AuthClient, app_id: &str) -> Result<Option<MDataInfo
     let app_cont_name = app_container_name(app_id);
 
     let (_, mut ac_entries) = access_container::fetch_authenticator_entry(client).await?;
-    // .and_then(move |(_, mut ac_entries)|
     Ok(ac_entries.remove(&app_cont_name))
-    // )
-    // .into_box()
 }
 
 /// Checks if an app's dedicated container is available and stored in the access container.
@@ -52,7 +48,7 @@ pub async fn fetch_or_create(
 
     let (ac_entry_version, mut ac_entries) =
         access_container::fetch_authenticator_entry(client).await?;
-    // .and_then(move |(ac_entry_version, mut ac_entries)| {
+
     match ac_entries.remove(&app_cont_name) {
         Some(mdata_info) => {
             // Reuse the already existing app container and update
@@ -65,33 +61,24 @@ pub async fn fetch_or_create(
                 .allow(MDataAction::ManagePermissions);
 
             let version = c2.get_mdata_version(*mdata_info.address()).await?;
-            // .and_then(move |version| {
+
             c2.set_mdata_user_permissions(*mdata_info.address(), app_pk, ps, version + 1)
                 .await?;
 
             Ok(mdata_info)
-            // .map(move |_| mdata_info)
-            // .map_err(From::from)
-            // })
-            // .into_box()
         }
         None => {
             // If the container is not found, create it
             let md_info = create(&c2, app_pk).await?;
-            // .and_then(move |md_info| {
+
             let _ = ac_entries.insert(app_cont_name, md_info.clone());
 
             access_container::put_authenticator_entry(&c3, &ac_entries, ac_entry_version + 1)
                 .await?;
-            // .map(move |()| md_info)
 
             Ok(md_info)
-            // })
-            // .into_box()
         }
     }
-    // })
-    // .into_box()
 }
 
 /// Removes an app's dedicated container if it's available and stored in the user's root dir.
@@ -103,7 +90,6 @@ pub async fn remove(client: AuthClient, app_id: &str) -> Result<bool, AuthError>
     let (ac_entry_version, mut ac_entries) =
         access_container::fetch_authenticator_entry(&client).await?;
 
-    // .and_then(move |(ac_entry_version, mut ac_entries)| {
     match ac_entries.remove(&app_cont_name) {
         None => {
             // App container doesn't exist
@@ -115,7 +101,6 @@ pub async fn remove(client: AuthClient, app_id: &str) -> Result<bool, AuthError>
             let entries = c2
                 .list_seq_mdata_entries(mdata_info.name(), mdata_info.type_tag())
                 .await?;
-            // .and_then(move |entries| {
             // Remove all entries in MData
             let actions = entries
                 .iter()
@@ -125,10 +110,7 @@ pub async fn remove(client: AuthClient, app_id: &str) -> Result<bool, AuthError>
 
             c3.mutate_seq_mdata_entries(mdata_info.name(), mdata_info.type_tag(), actions)
                 .await?;
-            // })
-            // .map_err(From::from);
 
-            // .and_then(move |_| {
             // Remove MDataInfo from the access container
             access_container::put_authenticator_entry(&client, &ac_entries, ac_entry_version + 1)
                 .await?;
@@ -137,14 +119,8 @@ pub async fn remove(client: AuthClient, app_id: &str) -> Result<bool, AuthError>
 
             // TODO(nbaksalyar): when MData deletion is implemented properly,
             // also delete the actual MutableData related to app
-            // }).await
-            // .map_err(From::from)
-            // .map(move |_| true)
-            // .into_box()
         }
     }
-    // })
-    // .into_box()
 }
 
 /// Create a new directory based on the provided `MDataInfo`.
@@ -173,7 +149,6 @@ async fn create_directory(
             }
         })
         .map_err(AuthError::from)
-    // .into_box()
 }
 
 // Creates a new app's dedicated container
@@ -193,8 +168,4 @@ async fn create(client: &AuthClient, app_pk: PublicKey) -> Result<MDataInfo, Aut
     .await;
 
     Ok(dir)
-
-    // .map(move |()| dir)
-    // .map_err(From::from)
-    // .into_box()
 }

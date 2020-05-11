@@ -14,11 +14,10 @@ use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
 use futures::future::{self, Either};
 use futures::Future;
-use log::trace;
-use safe_core::core_structs::AppKeys;
-// use safe_core::fry;
 use futures_util::future::FutureExt;
 use futures_util::future::TryFutureExt;
+use log::trace;
+use safe_core::core_structs::AppKeys;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::IpcError;
 use safe_core::{Client, CoreError};
@@ -226,15 +225,6 @@ where
             _ => Err(AuthError::from(error)),
         },
     }
-
-    // .and_then(move |value| {
-
-    // })
-    // .or_else(|error| match error {
-    //     CoreError::DataError(SndError::NoSuchEntry) => Ok((None, Default::default())),
-    //     _ => Err(AuthError::from(error)),
-    // })
-    // .into_box()
 }
 
 async fn update_entry<T>(
@@ -281,7 +271,6 @@ where
             Err(error)
         })
         .map_err(From::from)
-    // .into_box()
 }
 
 /// Atomically mutate the given value and store it in the network.
@@ -302,15 +291,13 @@ where
     let mut done_trying = false;
     let mut f = f;
     let mut the_item: T = item;
-    // future::loop_fn(
-    // (key, new_version, item),
+
     let mut result: Result<(), AuthError> = Ok(());
-    // Err(AuthError::from("[Authenticator] Error mutating entry."));
+
     while !done_trying {
-        // move |(key, new_version, mut item)| {
         let c2 = client.clone();
         let c3 = client.clone();
-        // let i2 = the_item.clone();
+
         if f(&mut the_item) {
             match update_entry(&c2, &key, &the_item, new_version).await {
                 Ok(thing) => {
@@ -325,7 +312,7 @@ where
                             let (version, item) = match get_entry(&c3, &key).await {
                                 Ok(v_item_tuple) => v_item_tuple,
                                 Err(error) => {
-                                    done_trying=true;
+                                    done_trying = true;
                                     result = Err(error);
 
                                     //just for compiling out of this for now. Not to actually be used.
@@ -335,8 +322,8 @@ where
 
                             new_version = next_version(version);
                             the_item = item;
-                        },
-                       
+                        }
+
                         _ => {
                             result = Err(error);
                             done_trying = true;
@@ -344,8 +331,6 @@ where
                     }
                 }
             };
-        
-            
         } else {
             done_trying = true;
             new_version = new_version - 1;
@@ -354,8 +339,7 @@ where
     }
 
     match result {
-        Ok(_) => Ok( ( new_version, the_item )),
-        Err(error) => Err(error)
+        Ok(_) => Ok((new_version, the_item)),
+        Err(error) => Err(error),
     }
-
 }

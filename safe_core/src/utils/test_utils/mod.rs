@@ -150,7 +150,8 @@ where
                     }
                     Err(error) => panic!("{:?}", error),
                 }
-            }.boxed();
+            }
+            .boxed();
             Some(fut)
         }))
     );

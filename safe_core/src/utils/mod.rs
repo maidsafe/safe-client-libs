@@ -12,8 +12,6 @@ pub mod logging;
 #[cfg(any(test, feature = "testing"))]
 pub mod test_utils;
 
-mod futures;
-
 use crate::errors::CoreError;
 use bincode::{deserialize, serialize};
 use log::error;

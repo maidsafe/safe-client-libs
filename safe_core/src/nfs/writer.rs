@@ -11,10 +11,7 @@ use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
 use crate::nfs::{data_map, File, NfsError};
 use crate::self_encryption_storage::SelfEncryptionStorage;
-// use crate::utils::FutureExt;
-// use crate::{err, ok};
 use chrono::Utc;
-use futures::Future;
 use log::trace;
 use safe_nd::Error as SndError;
 use self_encryption::{DataMap, SequentialEncryptor};
@@ -37,7 +34,7 @@ pub struct Writer<C: Client> {
     encryption_key: Option<shared_secretbox::Key>,
 }
 
-impl<C: std::marker::Sync + Client> Writer<C> {
+impl<C: Sync + Client> Writer<C> {
     /// Create new instance of Writer.
     pub async fn new(
         client: &C,
@@ -88,7 +85,6 @@ impl<C: std::marker::Sync + Client> Writer<C> {
             data.len()
         );
         self.self_encryptor.write(data).await.map_err(From::from)
-        // .into_box()
     }
 
     /// close() should be invoked only after all the data is completely written. The file/blob is

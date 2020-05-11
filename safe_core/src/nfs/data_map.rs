@@ -12,9 +12,7 @@ use crate::client::Client;
 use crate::crypto::shared_secretbox;
 use crate::immutable_data;
 use crate::nfs::NfsError;
-// use crate::utils::FutureExt;
 use bincode::{deserialize, serialize};
-use futures::{future, Future};
 use safe_nd::{IDataAddress, XorName};
 use self_encryption::DataMap;
 

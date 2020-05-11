@@ -10,14 +10,11 @@
 //!
 //! Access container is stored in the user's session packet.
 
-use super::{AuthError, AuthFuture};
+use super::AuthError;
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
-use futures::future;
-use futures::Future;
 use log::trace;
 use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys};
-// use safe_core::fry;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
 use safe_core::{recoverable_apis, Client, CoreError, MDataInfo};
@@ -39,7 +36,6 @@ pub async fn update_container_perms(
     let c2 = client.clone();
 
     let (_, mut root_containers) = fetch_authenticator_entry(client).await?;
-    // .and_then(move |(_, mut root_containers)| {
     let mut perms = Vec::new();
     let client = c2.clone();
 
@@ -52,7 +48,6 @@ pub async fn update_container_perms(
 
         let version = client.get_mdata_version(*mdata_info.address()).await?;
 
-        // .and_then(move |version| {
         let req = recoverable_apis::set_mdata_user_permissions(
             c2,
             *mdata_info.address(),
@@ -62,24 +57,13 @@ pub async fn update_container_perms(
         )
         .await?;
 
-        // .map(move |_| (container_key, mdata_info, access))
-        // })
-        // .map_err(AuthError::from);
-
         perms.push((container_key, mdata_info, access));
     }
 
-    // future::join_all(reqs).into_box()
-    // })
-
-    // .map(|perms| {
     Ok(perms
         .into_iter()
         .map(|(container_key, dir, access)| (container_key, (dir, access)))
         .collect::<AccessContainerEntry>())
-    // .map_err(AuthError::from)
-    // })
-    // .into_box()
 }
 
 /// Gets access container entry key corresponding to the given app.
@@ -158,14 +142,16 @@ pub async fn put_authenticator_entry(
         MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
-    match recoverable_apis::mutate_mdata_entries(client.clone(), *access_container.address(), actions)
-        .await
+    match recoverable_apis::mutate_mdata_entries(
+        client.clone(),
+        *access_container.address(),
+        actions,
+    )
+    .await
     {
         Ok(result) => Ok(result),
         Err(err) => Err(AuthError::from(err)),
     }
-    // .map_err(From::from)
-    // .into_box()
 }
 
 /// Decodes raw app entry.
@@ -242,8 +228,6 @@ pub async fn put_entry(
     let shell_version = client
         .get_mdata_version(*access_container.address())
         .await?;
-    // .map_err(AuthError::from)
-    // .and_then(move |shell_version| {
     client2
         .set_mdata_user_permissions(
             *acc_cont_info.address(),
@@ -252,14 +236,10 @@ pub async fn put_entry(
             shell_version + 1,
         )
         .await?;
-    // .map_err(AuthError::from)
-    // })
-    // .and_then(move |_| {
+
     recoverable_apis::mutate_mdata_entries(client3, *access_container.address(), actions)
         .await
         .map_err(AuthError::from)
-    // })
-    // .into_box()
 }
 
 /// Deletes entry from the access container.
@@ -282,17 +262,11 @@ pub async fn delete_entry(
     let shell_version = client
         .get_mdata_version(*access_container.address())
         .await?;
-    // .map_err(AuthError::from)
-    // .and_then(move |shell_version| {
     client2
         .del_mdata_user_permissions(*acc_cont_info.address(), app_pk, shell_version + 1)
         .await?;
-    // .map_err(AuthError::from)
-    // })
-    // .and_then(move |_| {
+
     recoverable_apis::mutate_mdata_entries(client3, *access_container.address(), actions)
         .await
         .map_err(AuthError::from)
-    // })
-    // .into_box()
 }

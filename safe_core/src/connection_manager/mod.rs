@@ -11,7 +11,6 @@ mod response_manager;
 use tokio::time::timeout;
 
 use crate::{client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError};
-// use crate::{fry, ok};
 use connection_group::ConnectionGroup;
 use futures::future::TryFutureExt;
 use log::{error, trace};
@@ -111,7 +110,6 @@ impl Inner {
                     "Connection timed out when bootstrapping to the network",
                 )),
             }
-       
         } else {
             trace!("Group {} is already connected", full_id.public_id());
             Ok(())
