@@ -541,6 +541,40 @@ impl Vault {
             }
             // ===== Money =====
             // Put money in target account. Triggered after Transfer/Create have subtracted from sender
+            Request::Money(MoneyRequest::GetTransferValidation {
+                to,
+                from: _,
+                amount,
+                transaction_id,
+                dependencies
+            }) => {
+                // TODO: 
+                // 1. full steps of AT2 validation...
+                // 2 sign
+                // 3 return signed keyshare
+
+                // setup fake share
+                use threshold_crypto::{SecretKeySet};
+                let threshold = 1; 
+                let mut rng = rand::thread_rng();
+                let sk_set = SecretKeySet::random(threshold, &mut rng);
+
+                // this should be retrieved from Elder node
+                let sk_share = sk_set.secret_key_share(0);
+
+                match bincode::serialize(&request) {
+                    Ok(vec) => {
+                        let signed_message = sk_share.sign(vec);
+                        Response::GetTransferValidation(Ok(signed_message))
+
+                    },
+                    Err(error) => {
+                       request.error_response(safe_nd::Error::NetworkOther( format!("Error seriliasizing request: {:?}", error ) ) )
+                    }
+                }
+
+            }
+
             Request::Money(MoneyRequest::DepositMoney {
                 to,
                 from: _,
