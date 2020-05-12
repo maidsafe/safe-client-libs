@@ -57,6 +57,11 @@ impl ResponseManager {
             .requests
             .remove(&msg_id)
             .map(|(sender, mut vote_map, count)| {
+
+                // TODO:
+                // 1. If we have a GetTransferValidation response we store ALL responses.
+                // 2. Return when we have quorum, and return full signed repsonse to client... ??
+
                 let vote_response = response.clone();
 
                 // drop the count as we have this new response.
