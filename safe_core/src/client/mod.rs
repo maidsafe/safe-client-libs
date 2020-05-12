@@ -36,7 +36,6 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
 use futures::channel::mpsc;
@@ -59,7 +58,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use std::time::Duration;
 use threshold_crypto;
-use tokio::runtime::*;
+
 use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
@@ -150,7 +149,7 @@ pub trait Client: Clone + 'static + Send + Sync {
 
     /// Return an associated `ClientInner` type which is expected to contain fields associated with
     /// the implementing type.
-    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>>
+    fn inner(&self) -> Arc<Mutex<Inner>>
     where
         Self: Sized;
 
@@ -1491,35 +1490,29 @@ fn sign_request(request: Request, client_id: &ClientFullId) -> Message {
 /// Struct containing fields expected by the `Client` trait. Implementers of `Client` should be
 /// composed around this struct.
 #[allow(unused)] // FIXME
-pub struct Inner<C: Client + Sync + Send, T> {
+pub struct Inner {
     connection_manager: ConnectionManager,
-    el_handle: Handle,
     cache: LruCache<IDataAddress, IData>,
     timeout: Duration,
-    core_tx: CoreMsgTx<C, T>,
     net_tx: NetworkTx,
 }
 
-impl<C: Client + Sync + Send, T> Inner<C, T> {
+impl Inner {
     /// Create a new `ClientInner` object.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        el_handle: Handle,
         connection_manager: ConnectionManager,
         cache: LruCache<IDataAddress, IData>,
         timeout: Duration,
-        core_tx: CoreMsgTx<C, T>,
         net_tx: NetworkTx,
-    ) -> Inner<C, T>
+    ) -> Inner
     where
         Self: Sized,
     {
         Self {
-            el_handle,
             connection_manager,
             cache,
             timeout,
-            core_tx,
             net_tx,
         }
     }

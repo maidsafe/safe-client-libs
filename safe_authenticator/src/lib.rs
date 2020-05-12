@@ -56,69 +56,36 @@ mod client;
 #[cfg(test)]
 mod tests;
 
-use errors::AuthError as Error;
 use futures::channel::mpsc;
-use futures::stream::Stream;
-use futures::{future::BoxFuture, future::IntoFuture, Future};
+
+use futures::{future::BoxFuture, Future};
 use futures_util::stream::StreamExt;
-use log::{debug, info};
+
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
+use safe_core::{NetworkEvent, NetworkTx};
 use safe_nd::ClientFullId;
-use std::sync::mpsc as std_mpsc;
-use std::sync::mpsc::sync_channel;
-use std::sync::Mutex;
-use std::thread::JoinHandle;
-use tokio::runtime::*;
-use unwrap::unwrap;
 
 /// Future type specialised with `AuthError` as an error type.
 pub type AuthFuture<T> = dyn Future<Output = Result<T, AuthError>>;
-/// Transmitter of `AuthClient` messages.
-pub type AuthMsgTx = CoreMsgTx<AuthClient, ()>;
 
-macro_rules! try_tx {
-    ($result:expr, $tx:ident) => {
-        match $result {
-            Ok(res) => res,
-            Err(e) => {
-                return unwrap!($tx.send(Err((None, AuthError::from(e)))));
-            }
-        }
-    };
-}
-
-/// Authenticator instance.
+/// Authenticator instance which manages client and disconnect notifier.
 pub struct Authenticator {
-    /// Channel to communicate with the core event loop.
-    pub core_tx: Mutex<AuthMsgTx>,
-    _core_joiner: JoinHandle<()>,
+    /// AuthClient instance
+    pub client: AuthClient,
+    /// Network connection notifier
+    pub network_observer: Pin<Box<dyn Future<Output = Result<(), ()>>>>,
 }
 
 impl Authenticator {
-    /// Send a message to the authenticator event loop.
-    pub fn send<F>(&self, f: F) -> AuthResult<()>
-    where
-        F: FnOnce(&AuthClient) -> Option<Pin<Box<dyn Future<Output = Result<(), ()>> + Send>>>
-            + Send
-            + 'static,
-    {
-        let msg = CoreMsg::new(|client, _| f(client));
-        let core_tx = unwrap!(self.core_tx.lock());
-        core_tx
-            .unbounded_send(msg)
-            .map_err(|error| AuthError::from(format!("Failed to send auth message: {:?}", error)))
-    }
-
     /// Create a new account.
-    pub fn create_acc<S, N>(
+    pub async fn create_client_with_acc<S, N>(
         locator: S,
         password: S,
         client_id: ClientFullId,
-        disconnect_notifier: N,
+        mut disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
         N: FnMut() + Send + 'static,
@@ -127,94 +94,34 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        Self::create_acc_impl(
-            move |el_h, core_tx, net_tx| {
-                futures::executor::block_on(AuthClient::registered(
-                    &locator, &password, client_id, el_h, core_tx, net_tx,
-                ))
-            },
-            disconnect_notifier,
-        )
-    }
+        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-    /// Create a new account.
-    fn create_acc_impl<F: 'static + Send, N>(
-        create_client_fn: F,
-        mut disconnect_notifier: N,
-    ) -> Result<Self, AuthError>
-    where
-        N: FnMut() + Send + 'static,
-        F: FnOnce(Handle, AuthMsgTx, NetworkTx) -> Result<AuthClient, AuthError>,
-    {
-        let (tx, rx) = sync_channel(0);
+        let network_observer: BoxFuture<Result<(), ()>> = async move {
+            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
+                disconnect_notifier();
+            };
+            Ok(())
+        }
+        .boxed();
 
-        let joiner = std::thread::Builder::new()
-            .name(String::from("Core Event Loop"))
-            .spawn(move || {
-                let mut el = try_tx!(Runtime::new(), tx);
-                let el_h = el.handle();
+        let client = AuthClient::registered(&locator, &password, client_id, net_tx).await?;
 
-                let (core_tx, core_rx) = mpsc::unbounded();
-                let core_tx2 = core_tx.clone();
-                let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
-
-                let net_obs_fut: BoxFuture<Result<(), ()>> = async {
-                    if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
-                        disconnect_notifier();
-                    };
-                    Ok(())
-                }
-                .boxed();
-
-                let _ = el.spawn(net_obs_fut);
-
-                let client = try_tx!(create_client_fn(*el_h, core_tx.clone(), net_tx), tx);
-
-                unwrap!(core_tx.unbounded_send(CoreMsg::new(move |&C, &()| {
-                    let cloned_client_red = &client.clone();
-                    let fut = async {
-                        let res = std_dirs::create(cloned_client_red).await.map_err(|error| {
-                            AuthError::AccountContainersCreation(error.to_string())
-                        });
-
-                        match res {
-                            Ok(_) => unwrap!(tx.send(Ok(core_tx2))),
-                            Err(error) => unwrap!(tx.send(Err((Some(core_tx2), error)))),
-                        }
-
-                        Ok(())
-                    }
-                    .boxed();
-
-                    Some(fut)
-                })));
-
-                event_loop::run(el, &client, &(), core_rx);
-            })
-            .map_err(AuthError::from)?;
-
-        let core_tx = match rx.recv()? {
-            Ok(core_tx) => core_tx,
-            Err((None, e)) => return Err(e),
-            Err((Some(core_tx), e)) => {
-                // Make sure to shut down the event loop
-                core_tx
-                    .unbounded_send(CoreMsg::build_terminator())
-                    .map_err(|error| {
-                        AuthError::from("Could not terminate event loop".to_string())
-                    })?;
-                return Err(e);
-            }
-        };
+        std_dirs::create(&client)
+            .await
+            .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))?;
 
         Ok(Self {
-            core_tx: Mutex::new(core_tx),
-            _core_joiner: joiner,
+            client,
+            network_observer,
         })
     }
 
     /// Log in to an existing account
-    pub fn login<S, N>(locator: S, password: S, disconnect_notifier: N) -> Result<Self, AuthError>
+    pub async fn login<S, N>(
+        locator: S,
+        password: S,
+        disconnect_notifier: N,
+    ) -> Result<Self, AuthError>
     where
         S: Into<String>,
         N: FnMut() + Send + 'static,
@@ -222,174 +129,105 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        Self::login_impl(
-            move |el_h, core_tx, net_tx| {
-                futures::executor::block_on(AuthClient::login(
-                    &locator, &password, el_h, core_tx, net_tx,
-                ))
+        Self::authenticator_login_impl(
+            move |net_tx| {
+                // block so as not to require future on this helper impl
+                futures::executor::block_on(AuthClient::login(&locator, &password, net_tx))
             },
             disconnect_notifier,
         )
+        .await
     }
 
     /// Log in to an existing account.
-    pub fn login_impl<F: Send + 'static, N>(
+    pub async fn authenticator_login_impl<F: Send + 'static, N>(
         create_client_fn: F,
         mut disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
-        F: FnOnce(Handle, AuthMsgTx, NetworkTx) -> Result<AuthClient, AuthError>,
+        F: FnOnce(NetworkTx) -> Result<AuthClient, AuthError>,
         N: FnMut() + Send + 'static,
     {
-        let (tx, rx) = sync_channel(0);
+        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
+        let network_observer: BoxFuture<Result<(), ()>> = Box::pin(async move {
+            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
+                disconnect_notifier();
+            };
+            Ok(())
+        });
 
-        let joiner = std::thread::Builder::new()
-            .name(String::from("Core Event Loop"))
-            .spawn(move || {
-                let mut el = try_tx!(Runtime::new(), tx);
-                let el_h = el.handle();
+        let client: AuthClient = create_client_fn(net_tx)?;
 
-                let (core_tx, core_rx) = mpsc::unbounded();
-                let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
-                let core_tx_clone = core_tx.clone();
+        if !client.std_dirs_created() {
+            let cloned_client = client.clone();
 
-                let net_obs_fut: BoxFuture<Result<(), ()>> = async {
-                    if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
-                        disconnect_notifier();
-                    };
-                    Ok(())
-                }
-                .boxed();
-
-                let _ = el.spawn(net_obs_fut);
-
-                let client: AuthClient =
-                    try_tx!(create_client_fn(*el_h, core_tx_clone, net_tx), tx);
-
-                if client.std_dirs_created() {
-                    unwrap!(tx.send(Ok(core_tx)));
-                } else {
-                    // Standard directories haven't been created during
-                    // the user account registration - retry it again.
-                    let tx2 = tx.clone();
-                    let core_tx2 = core_tx.clone();
-                    let core_tx3 = core_tx.clone();
-
-                    unwrap!(core_tx.unbounded_send(CoreMsg::new(|&C, &()| {
-                        // Box::new(
-                        let cloned_client = client.clone();
-                        Some(
-                            async {
-                                std_dirs::create(&cloned_client).await.map_err(move |e| {
-                                    unwrap!(tx2.send(Err((Some(core_tx3), e))));
-                                });
-
-                                unwrap!(tx.send(Ok(core_tx2)));
-                                Ok(())
-                            }
-                            .boxed(),
-                        )
-                    })));
-                }
-
-                event_loop::run(el, &client, &(), core_rx);
-            })
-            .map_err(AuthError::from)?;
-
-        let core_tx = match rx.recv()? {
-            Ok(core_tx) => core_tx,
-            Err((None, e)) => return Err(e),
-            Err((Some(core_tx), e)) => {
-                // Make sure to shut down the event loop
-                core_tx
-                    .unbounded_send(CoreMsg::build_terminator())
-                    .map_err(|error| {
-                        AuthError::from("Could not terminate event loop".to_string())
-                    })?;
-                return Err(e);
-            }
-        };
+            std_dirs::create(&cloned_client).await?;
+        }
 
         Ok(Self {
-            core_tx: Mutex::new(core_tx),
-            _core_joiner: joiner,
+            client,
+            network_observer,
         })
     }
-}
-
-/// Run the given closure inside the event loop of the authenticator. The closure
-/// should return a future which will then be driven to completion and its result
-/// returned.
-pub fn run<F, I, T>(authenticator: &Authenticator, f: F) -> Result<T, AuthError>
-where
-    F: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: Future<Output = Result<T, AuthError>> + Send + 'static,
-    T: Send + 'static,
-{
-    let (tx, rx) = std_mpsc::channel();
-
-    unwrap!(authenticator.send(move |client| {
-        let future = f(client)
-            .map(move |result| {
-                unwrap!(tx.send(result));
-                Ok(())
-            })
-            .boxed();
-
-        Some(future)
-    }));
-
-    unwrap!(rx.recv())
 }
 
 #[cfg(any(test, feature = "testing"))]
 impl Authenticator {
     /// Create a new account with given seed.
-    pub fn create_acc_with_seed<S, N>(seed: S, disconnect_notifier: N) -> Result<Self, AuthError>
+    pub async fn create_acc_with_seed<S, N>(
+        seed: S,
+        disconnect_notifier: N,
+    ) -> Result<Self, AuthError>
     where
         S: Into<String>,
         N: FnMut() + Send + 'static,
     {
         let seed = seed.into();
         let client_id = gen_client_id();
-        Self::login_impl(
-            move |el_h, core_tx, net_tx| {
-                futures::executor::block_on(AuthClient::registered_with_seed(
-                    &seed, client_id, el_h, core_tx, net_tx,
-                ))
+
+        Self::authenticator_login_impl(
+            move |net_tx| {
+                // Block as rng seed cannot be sent between threads
+                let client = futures::executor::block_on(AuthClient::registered_with_seed(
+                    &seed, client_id, net_tx,
+                ))?;
+
+                Ok(client)
             },
             disconnect_notifier,
         )
+        .await
     }
 
     /// Login to an existing account using the same seed that was used during account creation.
-    pub fn login_with_seed<S, N>(seed: S, disconnect_notifier: N) -> Result<Self, AuthError>
+    pub async fn login_with_seed<S, N>(seed: S, disconnect_notifier: N) -> Result<Self, AuthError>
     where
         S: Into<String>,
         N: FnMut() + Send + 'static,
     {
         let seed = seed.into();
-        Self::login_impl(
-            move |el_h, core_tx, net_tx| {
-                futures::executor::block_on(AuthClient::login_with_seed(
-                    &seed, el_h, core_tx, net_tx,
-                ))
+
+        Self::authenticator_login_impl(
+            // block on due to seed's being non x-thread
+            move |net_tx| {
+                futures::executor::block_on(AuthClient::login_with_seed(&seed.clone(), net_tx))
             },
             disconnect_notifier,
         )
+        .await
     }
 }
 
 #[cfg(feature = "mock-network")]
 impl Authenticator {
     #[allow(unused)]
-    fn create_acc_with_hook<F, S, N>(
+    async fn create_acc_with_hook<F, S, N>(
         locator: S,
         password: S,
         client_id: ClientFullId,
         disconnect_notifier: N,
         connection_manager_wrapper_fn: F,
-    ) -> Result<Self, AuthError>
+    ) -> Result<AuthClient, AuthError>
     where
         N: FnMut() + Send + 'static,
         F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
@@ -398,20 +236,33 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        Self::create_acc_impl(
-            move |el_h, core_tx_clone, net_tx| {
-                AuthClient::registered_with_hook(
-                    &locator,
-                    &password,
-                    client_id,
-                    el_h,
-                    core_tx_clone,
-                    net_tx,
-                    connection_manager_wrapper_fn,
-                )
-            },
-            disconnect_notifier,
+        let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
+
+        let network_observer: BoxFuture<Result<(), ()>> = async {
+            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
+                disconnect_notifier();
+            };
+            Ok(())
+        }
+        .boxed();
+
+        let client = AuthClient::registered_with_hook(
+            &locator,
+            &password,
+            client_id,
+            net_tx,
+            connection_manager_wrapper_fn,
         )
+        .await?;
+
+        std_dirs::create(&client)
+            .await
+            .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))?;
+
+        Ok(Self {
+            client,
+            network_observer,
+        })
     }
 
     #[allow(unused)]
@@ -429,31 +280,16 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        Self::login_impl(
-            move |el_h, core_tx, net_tx| {
+        Self::authenticator_login_impl(
+            move |net_tx| {
                 AuthClient::login_with_hook(
                     &locator,
                     &password,
-                    el_h,
-                    core_tx,
                     net_tx,
                     connection_manager_wrapper_fn,
                 )
             },
             disconnect_notifier,
         )
-    }
-}
-
-impl Drop for Authenticator {
-    fn drop(&mut self) {
-        debug!("Authenticator is now being dropped.");
-
-        let core_tx = unwrap!(self.core_tx.lock());
-        let msg = CoreMsg::build_terminator();
-
-        if let Err(e) = core_tx.unbounded_send(msg) {
-            info!("Unexpected error in drop: {:?}", e);
-        }
     }
 }

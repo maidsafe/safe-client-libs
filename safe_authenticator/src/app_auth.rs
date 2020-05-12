@@ -8,14 +8,13 @@
 
 //! App authentication routines
 
-use super::{AuthError, AuthFuture};
+use super::AuthError;
 use crate::access_container;
 use crate::access_container::update_container_perms;
 use crate::app_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, Apps};
-use futures::future::{self, Either};
-use futures::Future;
+
 use futures_util::future::FutureExt;
 use log::trace;
 use safe_core::btree_set;
@@ -277,7 +276,7 @@ async fn authenticate_new_app(
     let (mut perms, app_pk) = if permissions.is_empty() {
         (Default::default(), app_pk)
     } else {
-        let mut perms = update_container_perms(&c3, permissions, app_pk).await?;
+        let perms = update_container_perms(&c3, permissions, app_pk).await?;
         (perms, app_pk)
     };
 

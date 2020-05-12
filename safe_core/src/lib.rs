@@ -52,7 +52,6 @@ pub use self::config_handler::config_dir;
 #[cfg(not(feature = "mock-network"))]
 pub use self::connection_manager::ConnectionManager;
 pub use self::errors::{core_error_code, safe_nd_error_core, CoreError};
-pub use self::event_loop::{CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::self_encryption_storage::{
     SEStorageError as SelfEncryptionStorageError, SelfEncryptionStorage,
@@ -68,8 +67,6 @@ pub mod config_handler;
 pub mod core_structs;
 /// Cryptographic utilities.
 pub mod crypto;
-/// Event loop handling.
-pub mod event_loop;
 /// FFI.
 pub mod ffi;
 /// Utilities for handling `ImmutableData`.

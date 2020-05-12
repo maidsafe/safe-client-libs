@@ -13,10 +13,10 @@
 use crate::client::AuthClient;
 use crate::errors::AuthError;
 use crate::ipc::decode_ipc_msg;
-use crate::{access_container, app_auth, config, revocation, run, Authenticator};
+use crate::{access_container, app_auth, config, revocation, Authenticator};
 use env_logger::{fmt::Formatter, Builder as LoggerBuilder};
-use futures::{future, future::IntoFuture, Future};
-use futures_util::future::FutureExt;
+use futures::Future;
+
 use futures_util::future::TryFutureExt;
 use log::trace;
 use log::Record;
@@ -38,6 +38,7 @@ use safe_nd::{Error as SndError, Request, Response, UnseqMutableData};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Write;
+use std::pin::Pin;
 use std::str::FromStr;
 use unwrap::unwrap;
 
@@ -66,7 +67,7 @@ pub type ChannelType = Result<(IpcMsg, Option<Payload>), (i32, Option<IpcMsg>)>;
 
 /// Initialises `env_logger` with custom settings.
 pub fn init_log() {
-    let do_format = move |formatter: &mut Formatter, record: &Record<'_>| {
+    let do_format = move |formatter: &mut Formatter, record: &Record| {
         let now = formatter.timestamp();
         writeln!(
             formatter,
@@ -86,7 +87,7 @@ pub fn init_log() {
 
 /// Creates a new random account for authenticator. Returns the `Authenticator`
 /// instance and the locator and password strings.
-pub fn create_authenticator() -> (Authenticator, String, String) {
+pub async fn create_authenticator() -> (Authenticator, String, String) {
     let locator: String = unwrap!(utils::generate_readable_string(10));
     let password: String = unwrap!(utils::generate_readable_string(10));
     let client_id = gen_client_id();
@@ -96,12 +97,10 @@ pub fn create_authenticator() -> (Authenticator, String, String) {
         unwrap!(Coins::from_str("100")),
     ));
 
-    let auth = unwrap!(Authenticator::create_acc(
-        locator.clone(),
-        password.clone(),
-        client_id,
-        || (),
-    ));
+    let auth = unwrap!(
+        Authenticator::create_client_with_acc(locator.clone(), password.clone(), client_id, || (),)
+            .await
+    );
 
     (auth, locator, password)
 }
@@ -131,26 +130,27 @@ pub fn divide_seed(seed: &str) -> Result<[&[u8]; SEED_SUBPARTS], AuthError> {
 }
 
 /// Creates a random authenticator and login using the same credentials.
-pub fn create_account_and_login() -> Authenticator {
-    let (_, locator, password) = create_authenticator();
+pub async fn create_account_and_login() -> Authenticator {
+    let (_, locator, password) = create_authenticator().await;
 
     trace!("Created an account with random login and password, logging in");
-    unwrap!(Authenticator::login(locator, password, || ()))
+    unwrap!(Authenticator::login(locator, password, || ()).await)
 }
 
 /// Revokes an app, returning an error on failure.
-pub fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
+pub async fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
     let app_id = app_id.to_string();
+    let client = authenticator.client.clone();
 
-    run(authenticator, move |client| {
-        let client_clone_ref = &client.clone();
-        revocation::revoke_app(client_clone_ref, &app_id)
-    })
+    // run(authenticator, move |client| {
+    let client_clone_ref = &client.clone();
+    revocation::revoke_app(client_clone_ref, &app_id).await
+    // })
 }
 
 /// Revokes an app, panicking on failure.
-pub fn revoke(authenticator: &Authenticator, app_id: &str) {
-    match try_revoke(authenticator, app_id) {
+pub async fn revoke(authenticator: &Authenticator, app_id: &str) {
+    match try_revoke(authenticator, app_id).await {
         Ok(_) => (),
         x => panic!("Unexpected {:?}", x),
     }
@@ -173,21 +173,18 @@ where
 }
 
 /// Returns `AppInfo` iff the app is listed in the authenticator config.
-pub fn get_app_or_err(
+pub async fn get_app_or_err(
     authenticator: &Authenticator,
     app_id: &str,
 ) -> Result<config::AppInfo, AuthError> {
     let app_id = app_id.to_string();
+    let client = authenticator.client.clone();
 
-    run(authenticator, move |client| {
-        let client_clone_ref = &client.clone();
-
-        config::get_app(client_clone_ref, &app_id)
-    })
+    config::get_app(&client, &app_id).await
 }
 
 /// Registers a mock application using a given `AuthReq`.
-pub fn register_app(
+pub async fn register_app(
     authenticator: &Authenticator,
     auth_req: &AuthReq,
 ) -> Result<AuthGranted, AuthError> {
@@ -198,10 +195,9 @@ pub fn register_app(
     };
 
     // Invoke `decode_ipc_msg` and expect to get AuthReq back.
-    let ipc_req = run(authenticator, move |client| {
-        let client_clone = client.clone();
-        decode_ipc_msg(&client_clone, msg)
-    })?;
+    let client = authenticator.client.clone();
+    let client_clone = client.clone();
+    let ipc_req = decode_ipc_msg(&client_clone, msg).await?;
 
     match ipc_req {
         Ok(IpcMsg::Req {
@@ -209,19 +205,17 @@ pub fn register_app(
             ..
         }) => (),
         x => return Err(AuthError::Unexpected(format!("Unexpected {:?}", x))),
-    }
+    };
 
     let auth_req = auth_req.clone();
-    run(authenticator, move |client| {
-        trace!("Authenticating app: {:?}", auth_req);
-        let client_clone = client.clone();
-        app_auth::authenticate(&client_clone, auth_req)
-    })
+    trace!("Authenticating app: {:?}", auth_req);
+    let client_clone = client; //.clone();
+    app_auth::authenticate(&client_clone, auth_req).await
 }
 
 /// Registers a random app. Returns the ID of the app and the `AuthGranted` struct.
 #[allow(clippy::implicit_hasher)]
-pub fn register_rand_app(
+pub async fn register_rand_app(
     authenticator: &Authenticator,
     app_container: bool,
     containers_req: HashMap<String, ContainerPermissions>,
@@ -237,7 +231,7 @@ pub fn register_rand_app(
         containers: containers_req,
     };
 
-    let auth_granted = register_app(authenticator, &auth_req)?;
+    let auth_granted = register_app(authenticator, &auth_req).await?;
     let app_id = auth_req.app.id;
 
     Ok((app_id, auth_granted))
@@ -254,7 +248,7 @@ pub fn rand_app() -> AppExchangeInfo {
 }
 
 /// Creates file in the given container, with the given name and content.
-pub fn create_file<S: Into<String>>(
+pub async fn create_file<S: Into<String>>(
     authenticator: &Authenticator,
     container_info: MDataInfo,
     name: S,
@@ -262,69 +256,57 @@ pub fn create_file<S: Into<String>>(
     published: bool,
 ) -> Result<(), AuthError> {
     let name = name.into();
-    run(authenticator, move |client| {
-        let c2 = client.clone();
+    let client = authenticator.client.clone();
 
-        file_helper::write(
-            client.clone(),
-            File::new(vec![], published),
-            Mode::Overwrite,
-            container_info.enc_key().cloned(),
-        )
-        .then(move |res| {
-            let writer = unwrap!(res);
-            writer.write(&content).and_then(move |_| writer.close())
-        })
-        .then(move |file| file_helper::insert(c2, container_info, name, &unwrap!(file)))
+    let c2 = client.clone();
+
+    let writer = file_helper::write(
+        client.clone(),
+        File::new(vec![], published),
+        Mode::Overwrite,
+        container_info.enc_key().cloned(),
+    )
+    .await?;
+
+    writer.write(&content).await?;
+    let file = writer.close().await?;
+
+    file_helper::insert(c2, container_info, name, &file)
+        .await
         .map_err(From::from)
-    })
 }
 
 /// Fetches file from the given directory by given name.
-pub fn fetch_file<S: Into<String>>(
+pub async fn fetch_file<S: Into<String>>(
     authenticator: &Authenticator,
     container_info: MDataInfo,
     name: S,
 ) -> Result<File, AuthError> {
     let name = name.into();
-    let file = run(authenticator, |client| {
-        // simple test help for pseudo file system....
-        // Tests are all about permissions rather than files themselves.
-        // NFS support in core is GONE. so just putting MD.
-        // TODO update naming to be clearer about just putting MD.
-        let cloned_client = client.clone();
-        async {
-            file_helper::fetch(cloned_client, container_info, name)
-                .await
-                .map(|(_, file)| file)
-                .map_err(AuthError::from)
-        }
-    });
+    let client = authenticator.client.clone();
 
-    match file {
-        Ok(file) => Ok(file),
-        Err(error) => Err(error),
-    }
+    let cloned_client = client.clone();
+    let (_, file) = file_helper::fetch(cloned_client, container_info, name)
+        .await
+        .map_err(AuthError::from)?;
+
+    Ok(file)
 }
 
 /// Reads from the given file.
-pub fn read_file(
+pub async fn read_file(
     authenticator: &Authenticator,
     file: File,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<Vec<u8>, AuthError> {
-    run(authenticator, move |client| {
-        file_helper::read(client.clone(), &file, encryption_key)
-            .then(|res| {
-                let reader = unwrap!(res);
-                reader.read(0, reader.size())
-            })
-            .map_err(From::from)
-    })
+    let client = authenticator.client.clone();
+
+    let reader = file_helper::read(client.clone(), &file, encryption_key).await?;
+    reader.read(0, reader.size()).await.map_err(AuthError::from)
 }
 
 /// Deletes file from the given directory by given name.
-pub fn delete_file<S: Into<String>>(
+pub async fn delete_file<S: Into<String>>(
     authenticator: &Authenticator,
     container_info: MDataInfo,
     name: S,
@@ -332,41 +314,36 @@ pub fn delete_file<S: Into<String>>(
     version: u64,
 ) -> Result<u64, AuthError> {
     let name = name.into();
-
-    run(authenticator, move |client| {
-        file_helper::delete(
-            client.clone(),
-            container_info,
-            name,
-            published,
-            Version::Custom(version),
-        )
-        .map_err(From::from)
-    })
+    let client = authenticator.client.clone();
+    file_helper::delete(
+        client,
+        container_info,
+        name,
+        published,
+        Version::Custom(version),
+    )
+    .await
+    .map_err(From::from)
 }
 
 /// Writes to the given file.
-pub fn write_file(
+pub async fn write_file(
     authenticator: &Authenticator,
     file: File,
     mode: Mode,
     encryption_key: Option<shared_secretbox::Key>,
     content: Vec<u8>,
 ) -> Result<(), AuthError> {
-    run(authenticator, move |client| {
-        let cloned_client = client.clone();
-        async {
-            let res = file_helper::write(cloned_client, file, mode, encryption_key).await;
-            let writer = unwrap!(res);
-            match writer.write(&content).await {
-                Ok(_) => {
-                    writer.close().await;
-                    Ok(())
-                }
-                Err(err) => Err(AuthError::from(err)),
-            }
+    let client = authenticator.client.clone();
+
+    let writer = file_helper::write(client, file, mode, encryption_key).await?;
+    match writer.write(&content).await {
+        Ok(_) => {
+            writer.close().await;
+            Ok(())
         }
-    })
+        Err(err) => Err(AuthError::from(err)),
+    }
 }
 
 /// Fetch the access container entry for the app.
@@ -374,11 +351,13 @@ pub async fn access_container<S: Into<String>>(
     authenticator: &Authenticator,
     app_id: S,
     auth_granted: AuthGranted,
-) -> AccessContainerEntry {
-    unwrap!(
-        try_access_container(authenticator, app_id, auth_granted).await,
-        "Access container entry is empty"
-    )
+) -> Result<AccessContainerEntry, AuthError> {
+    match try_access_container(authenticator, app_id, auth_granted).await? {
+        Some(container) => Ok(container),
+        None => Err(AuthError::from(
+            "Access container entry is empty".to_string(),
+        )),
+    }
 }
 
 /// Fetch the access container entry for the app.
@@ -386,37 +365,29 @@ pub async fn try_access_container<S: Into<String>>(
     authenticator: &Authenticator,
     app_id: S,
     auth_granted: AuthGranted,
-) -> Option<AccessContainerEntry> {
+) -> Result<Option<AccessContainerEntry>, AuthError> {
     let app_keys = auth_granted.app_keys;
     let app_id = app_id.into();
-    unwrap!(run(authenticator, move |client| {
-        let client_clone = client.clone();
-        async {
-            let entry = access_container::fetch_entry(client_clone, app_id, app_keys).await;
-            entry.map(move |(_, entry)| entry)
-        }
-    }))
+    let client = authenticator.client.clone();
+
+    let (_, entry) = access_container::fetch_entry(client, app_id, app_keys).await?;
+    Ok(entry)
 }
 
 /// Get the container `MDataInfo` from the authenticator entry in the access container.
-pub fn get_container_from_authenticator_entry(
-    authenticator: &Authenticator,
+pub async fn get_container_from_authenticator_entry(
+    client: &AuthClient,
+    _authenticator: &Authenticator,
     container: String,
 ) -> Result<MDataInfo, AuthError> {
-    run(authenticator.clone(), |client| {
-        // TODO: We're gonna be removing this sort of enforced event loop and make it supplied by the lib
-        access_container::fetch_authenticator_entry(&client).then(|result| {
-            match result {
-                Ok((_, ac_entries)) => ac_entries.remove(&container.clone()).ok_or_else(|| {
-                    AuthError::from(format!("'{}' not found in the access container", container))
-                }),
-                Err(err) => Err(err), //  {
-                                      //     Ok(a) => a,
-                                      //     Err(error) => return Err(error)
-                                      // }
-            }
-        })
-    })?
+    let result = access_container::fetch_authenticator_entry(client).await;
+
+    match result {
+        Ok((_, mut ac_entries)) => ac_entries.remove(&container.clone()).ok_or_else(|| {
+            AuthError::from(format!("'{}' not found in the access container", container))
+        }),
+        Err(err) => Err(err),
+    }
 }
 
 /// Check that the given permission set is contained in the access container
@@ -427,70 +398,73 @@ pub async fn compare_access_container_entries(
     mut access_container: AccessContainerEntry,
     expected: HashMap<String, ContainerPermissions>,
 ) {
-    let results = unwrap!(run(authenticator, move |client| {
-        // have i borked this func???
-        let mut reqs = Vec::new();
-        let user = app_pk;
+    let client = &authenticator.client;
 
-        for (container, expected_perms) in expected {
-            // Check the requested permissions in the access container.
-            let expected_perm_set = container_perms_into_permission_set(&expected_perms);
-            let (md_info, perms) = unwrap!(
-                access_container.remove(&container),
-                "No '{}' in access container {:?}",
-                container,
-                access_container
-            );
-            assert_eq!(perms, expected_perms);
+    let mut reqs = Vec::new();
+    let user = app_pk;
 
-            async {
-                let perms = unwrap!(
-                    client
-                        .list_mdata_user_permissions(*md_info.address(), user)
-                        .await
-                );
+    for (container, expected_perms) in expected {
+        // Check the requested permissions in the access container.
+        let expected_perm_set = container_perms_into_permission_set(&expected_perms);
+        let (md_info, perms) = unwrap!(
+            access_container.remove(&container),
+            "No '{}' in access container {:?}",
+            container,
+            access_container
+        );
+        assert_eq!(perms, expected_perms);
 
-                reqs.push((perms, expected_perm_set));
-            };
-        }
-        async { Ok(reqs) }
-    }));
+        let perms = unwrap!(
+            client
+                .list_mdata_user_permissions(*md_info.address(), user)
+                .await
+        );
+
+        reqs.push((perms, expected_perm_set));
+    }
 
     // Check the permission on the mutable data for each of the above directories.
-    for (perms, expected) in results {
+    for (perms, expected) in reqs {
         assert_eq!(perms, expected);
     }
 }
 
 /// Create random registered client and run it inside an event loop. Use this to
 /// create an `AuthClient` automatically and randomly.
-pub fn random_client<Run, I, T, E>(r: Run) -> T
+pub fn random_client<E, C>() -> Result<
+    (
+        Pin<Box<dyn Future<Output = ()> + 'static + Send>>,
+        AuthClient,
+    ),
+    AuthError,
+>
 where
-    Run: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: Future<Output = Result<T, E>> + Send + Sync + 'static,
-    T: Send + Sync + 'static,
     E: Debug,
 {
     let n = |net_event| panic!("Unexpected NetworkEvent occurred: {:?}", net_event);
-    random_client_with_net_obs(n, r)
+    random_client_with_net_obs(n)
 }
 
 /// Create random registered client and run it inside an event loop. Use this to
 /// create an `AuthClient` automatically and randomly.
-pub fn random_client_with_net_obs<NetObs, Run, I, T, E>(n: NetObs, r: Run) -> T
-//<T as core::future::future::Future>::Output
+pub fn random_client_with_net_obs<NetObs>(
+    n: NetObs,
+) -> Result<
+    (
+        Pin<Box<dyn Future<Output = ()> + 'static + Send>>,
+        AuthClient,
+    ),
+    AuthError,
+>
 where
     NetObs: FnMut(NetworkEvent) + Send + 'static,
-    Run: FnOnce(&AuthClient) -> I + Send + 'static,
-    I: Future<Output = Result<T, E>> + Send + Sync + 'static,
-    T: Send + Sync + 'static,
-    E: Debug,
 {
-    let c = |el_h, core_tx, net_tx| -> Result<AuthClient, AuthError> {
+    let client_creator = |net_tx| -> Result<AuthClient, AuthError> {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
         let client_id = gen_client_id();
 
+        // block on for test cretion at the moment
         futures::executor::block_on(test_create_balance(
             &client_id,
             unwrap!(Coins::from_str("10")),
@@ -500,14 +474,12 @@ where
             &acc_locator,
             &acc_password,
             client_id,
-            el_h,
-            core_tx,
             net_tx,
         ))?;
         Ok(auth_result)
     };
 
-    setup_client_with_net_obs(&(), c, n, r)
+    setup_client_with_net_obs(&(), client_creator, n).map_err(AuthError::from)
 }
 
 #[cfg(feature = "mock-network")]
@@ -520,7 +492,8 @@ where
 {
     // First, log in normally to obtain the access contained info.
     let auth = unwrap!(Authenticator::login(locator, password, || ()));
-    let ac_info = unwrap!(run(&auth, |client| Ok(client.access_container())));
+    let client = auth.client;
+    let ac_info = client.access_container();
 
     // Then, log in with a request hook that makes mutation of the access container
     // fail.

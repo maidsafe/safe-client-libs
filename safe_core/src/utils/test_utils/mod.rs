@@ -14,18 +14,20 @@ pub use self::sync::Synchronizer;
 
 use crate::client::core_client::CoreClient;
 use crate::client::{Client, COST_OF_PUT};
-use crate::event_loop::{self, CoreMsg, CoreMsgTx};
+
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::{self};
+use crate::CoreError;
 
 use futures::channel::mpsc;
-use futures::Future;
+
 use log::trace;
 use rand;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
-use std::sync::mpsc as std_mpsc;
-use tokio::runtime::*;
+
+// use std::sync::mpsc::Receiver;
+
 use tokio::stream::StreamExt;
 use unwrap::unwrap;
 
@@ -54,78 +56,66 @@ pub fn finish() -> Result<(), ()> {
 
 /// Create random registered client and run it inside an event loop. Use this to
 /// create a `CoreClient` automatically and randomly.
-pub async fn random_client<Run, I, T, E>(r: Run) -> T
+pub fn random_client() -> Result<CoreClient, CoreError>
 where
-    Run: FnOnce(&CoreClient) -> I + Send + 'static,
-    I: Future<Output = Result<T, E>> + Send + 'static,
-    T: Send + 'static,
-    E: Debug,
 {
     // FIXME: in stage 1 disconnection is a natural event, so instead of panicking we
     // just print it out.
-    let n = |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
-    let c = |el_h, core_tx, net_tx| {
+    let on_network_event = |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
+    let client_creator = |net_tx| {
         let acc_locator = unwrap!(utils::generate_random_string(10));
         let acc_password = unwrap!(utils::generate_random_string(10));
-        futures::executor::block_on(CoreClient::new(
-            &acc_locator,
-            &acc_password,
-            el_h,
-            core_tx,
-            net_tx,
-        ))
+
+        // blocking on the thread here as part of tests. Core client construction is async
+        futures::executor::block_on(CoreClient::new(&acc_locator, &acc_password, net_tx))
     };
-    setup_client_with_net_obs(&(), c, n, r)
+    match setup_client_with_net_obs(&(), client_creator, on_network_event) {
+        Ok((_receiver, client)) => Ok(client),
+        Err(error) => Err(error),
+    }
 }
 
-/// Helper to create a client and run it in an event loop. Useful when we need
-/// to supply credentials explicitly or when Client is to be constructed as
+/// Helper to create a client
+/// Useful when we need  to supply credentials explicitly or when Client is to be constructed as
 /// unregistered or as a result of successful login. Use this to create Client
 /// manually.
-pub fn setup_client<Create, Run, A, C, I, T, E, F>(context: &A, c: Create, r: Run) -> T
+pub fn setup_client<Create, A, C, T, F>(context: &A, c: Create) -> Result<C, CoreError>
 where
-    Create: FnOnce(Handle, CoreMsgTx<C, A>, NetworkTx) -> Result<C, F>,
-    Run: FnOnce(&C) -> I + Send + 'static,
+    Create: FnOnce(NetworkTx) -> Result<C, F>,
     A: 'static,
     C: Client,
-    I: Future<Output = Result<T, E>> + Send + 'static,
-    T: Send + 'static,
-    E: Debug,
     F: Debug,
 {
     // FIXME: in stage 1 disconnection is a natural event, so instead of panicking we
     // just print it out.
     let n = |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
-    setup_client_with_net_obs(context, c, n, r)
+    match setup_client_with_net_obs(context, c, n) {
+        Ok((_receiver, client)) => Ok(client),
+        Err(error) => Err(error),
+    }
 }
 
-/// Helper to create a client and run it in an event loop. Useful when we need
+/// Helper to create a client and setup network event listener.
+/// Useful when we need
 /// to supply credentials explicitly or when Client is to be constructed as
 /// unregistered or as a result of successful login. Use this to create Client
 /// manually.
-pub fn setup_client_with_net_obs<Create, NetObs, Run, A, C, I, T, E, F>(
-    context: &A,
-    c: Create,
+pub fn setup_client_with_net_obs<Create, NetObs, A, C, F>(
+    _context: &A,
+    client_creator: Create,
     mut n: NetObs,
-    r: Run,
-) -> T
+    // r: Run,
+) -> Result<(futures::future::BoxFuture<()>, C), CoreError>
 where
-    Create: FnOnce(Handle, CoreMsgTx<C, A>, NetworkTx) -> Result<C, F>,
+    Create: FnOnce(NetworkTx) -> Result<C, F>,
     NetObs: FnMut(NetworkEvent) + 'static + Send,
-    Run: FnOnce(&C) -> I + Send + 'static,
     A: 'static,
     C: Client,
-    I: Future<Output = Result<T, E>> + Send + 'static,
-    T: Send + 'static,
-    E: Debug,
+
     F: Debug,
 {
-    let event_loop = unwrap!(Runtime::new());
-    let event_loop_handle = event_loop.handle();
-
-    let (core_tx, core_rx) = mpsc::unbounded();
     let (net_tx, mut net_rx) = mpsc::unbounded();
-    let client = unwrap!(c(event_loop_handle.clone(), core_tx.clone(), net_tx));
+    let client = unwrap!(client_creator(net_tx));
 
     let net_fut = async move {
         while let Some(msg) = net_rx.next().await {
@@ -133,32 +123,8 @@ where
         }
     };
 
-    let _ = event_loop.spawn(net_fut);
-
-    let core_tx_clone = core_tx.clone();
-    let (result_tx, result_rx) = std_mpsc::channel();
-    use futures_util::future::FutureExt;
-    unwrap!(
-        core_tx.unbounded_send(CoreMsg::new(move |client, _context| {
-            let client_future = r(client);
-            let fut = async move {
-                match client_future.await {
-                    Ok(value) => {
-                        unwrap!(result_tx.send(value));
-                        unwrap!(core_tx_clone.unbounded_send(CoreMsg::build_terminator()));
-                        Ok(())
-                    }
-                    Err(error) => panic!("{:?}", error),
-                }
-            }
-            .boxed();
-            Some(fut)
-        }))
-    );
-
-    event_loop::run(event_loop, &client, context, core_rx);
-
-    unwrap!(result_rx.recv())
+    // net fut returned in order to keep it alive.
+    Ok((Box::pin(net_fut), client))
 }
 
 /// Helper function to calculate the total cost of expenditure by adding number of mutations and

@@ -57,7 +57,12 @@ fn main() {
         // Account Creation
         println!("\nTrying to create an account...");
 
-        match Authenticator::create_acc(secret_0.as_str(), secret_1.as_str(), client_id, || ()) {
+        match Authenticator::create_client_with_acc(
+            secret_0.as_str(),
+            secret_1.as_str(),
+            client_id,
+            || (),
+        ) {
             Ok(_) => (),
             Err(AuthError::CoreError(CoreError::DataError(SndError::LoginPacketExists))) => {
                 println!(

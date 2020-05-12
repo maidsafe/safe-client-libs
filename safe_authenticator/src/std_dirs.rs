@@ -9,9 +9,9 @@
 use crate::access_container::{self, AUTHENTICATOR_ENTRY};
 use crate::client::AuthClient;
 use crate::config::KEY_APPS;
-use crate::{AuthError, AuthFuture};
+use crate::AuthError;
 use bincode::serialize;
-use futures::{future, Future};
+
 use futures_util::future::FutureExt;
 use safe_core::btree_map;
 use safe_core::core_structs::access_container_enc_key;
@@ -47,7 +47,7 @@ pub async fn create(client: &AuthClient) -> Result<(), AuthError> {
 
     // Try to get default dirs from the access container
     let res = access_container::fetch_authenticator_entry(&c2).await;
-    let access_cont = match res {
+    let _access_cont = match res {
         Ok((_, default_containers)) => {
             // Make sure that all default dirs have been created
             create_std_dirs(&c3, &default_containers).await
@@ -58,8 +58,8 @@ pub async fn create(client: &AuthClient) -> Result<(), AuthError> {
                 .into_iter()
                 .map(|(name, md_info)| (String::from(name), md_info))
                 .collect();
-            let std_dirs_fut = create_std_dirs(&c3, &access_cont_value).await?;
-            let access_cont_fut =
+            let _std_dirs_fut = create_std_dirs(&c3, &access_cont_value).await?;
+            let _access_cont_fut =
                 create_access_container(&c3, &access_container, &access_cont_value).await?;
             Ok(())
         }

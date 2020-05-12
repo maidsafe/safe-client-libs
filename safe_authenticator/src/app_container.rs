@@ -10,9 +10,8 @@
 
 use crate::access_container;
 use crate::client::AuthClient;
-use crate::{AuthError, AuthFuture};
-use futures::Future;
-use futures_util::future::FutureExt;
+use crate::AuthError;
+
 use safe_core::btree_map;
 use safe_core::{app_container_name, Client, MDataInfo, DIR_TAG};
 use safe_nd::{
@@ -124,7 +123,6 @@ pub async fn remove(client: AuthClient, app_id: &str) -> Result<bool, AuthError>
 }
 
 /// Create a new directory based on the provided `MDataInfo`.
-/// The Old NFS impl for vrevity
 async fn create_directory(
     client: &impl Client,
     dir: &MDataInfo,

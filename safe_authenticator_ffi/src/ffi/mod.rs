@@ -37,7 +37,7 @@ use unwrap::unwrap;
 /// operation allowed by this module. The `user_data` parameter corresponds to the
 /// first parameter of the `o_cb` and `o_disconnect_notifier_cb` callbacks.
 #[no_mangle]
-pub unsafe extern "C" fn create_acc(
+pub unsafe extern "C" fn create_client_with_acc(
     account_locator: *const c_char,
     account_password: *const c_char,
     user_data: *mut c_void,
@@ -62,10 +62,12 @@ pub unsafe extern "C" fn create_acc(
             unwrap!(Coins::from_str("10"))
         ));
 
-        let authenticator =
-            Authenticator::create_acc(acc_locator, acc_password, client_id, move || {
-                o_disconnect_notifier_cb(user_data.0)
-            })?;
+        let authenticator = Authenticator::create_client_with_acc(
+            acc_locator,
+            acc_password,
+            client_id,
+            move || o_disconnect_notifier_cb(user_data.0),
+        )?;
 
         o_cb(
             user_data.0,
@@ -201,7 +203,7 @@ mod tests {
 
         {
             let auth_h: *mut Authenticator = unsafe {
-                unwrap!(call_1(|ud, cb| create_acc(
+                unwrap!(call_1(|ud, cb| create_client_with_acc(
                     acc_locator.as_ptr(),
                     acc_password.as_ptr(),
                     ud,
@@ -258,13 +260,15 @@ mod tests {
             custom_ud.custom = ptr as *mut c_void;
 
             let auth: *mut Authenticator = unsafe {
-                unwrap!(call_1_with_custom(&mut custom_ud, |ud, cb| create_acc(
-                    acc_locator.as_ptr(),
-                    acc_password.as_ptr(),
-                    ud,
-                    disconnect_cb,
-                    cb,
-                )))
+                unwrap!(call_1_with_custom(&mut custom_ud, |ud, cb| {
+                    create_client_with_acc(
+                        acc_locator.as_ptr(),
+                        acc_password.as_ptr(),
+                        ud,
+                        disconnect_cb,
+                        cb,
+                    )
+                }))
             };
 
             unsafe {
@@ -317,7 +321,7 @@ mod tests {
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
         let auth: *mut Authenticator = unsafe {
-            unwrap!(call_1(|ud, cb| create_acc(
+            unwrap!(call_1(|ud, cb| create_client_with_acc(
                 acc_locator.as_ptr(),
                 acc_password.as_ptr(),
                 ud,

@@ -8,12 +8,11 @@
 
 //! App revocation functions
 
-use super::{AuthError, AuthFuture};
+use super::AuthError;
 use crate::access_container;
 use crate::client::AuthClient;
 use crate::config::{self, AppInfo, RevocationQueue};
-use futures::future::{self, Either};
-use futures::Future;
+
 use log::trace;
 use safe_core::recoverable_apis;
 use safe_core::{client::AuthActions, Client, CoreError, MDataInfo};
@@ -89,7 +88,7 @@ async fn flush_app_revocation_queue_impl(
                 Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
                     // The app entry can't be decrypted. No way to revoke app, so just
                     // remove it from the queue and return an error.
-                    let (version, queue) =
+                    let (_version, queue) =
                         config::remove_from_app_revocation_queue(&c3, the_queue, version, &app_id)
                             .await?;
 

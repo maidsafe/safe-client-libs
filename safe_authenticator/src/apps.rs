@@ -8,12 +8,12 @@
 
 //! App management functions
 
-use super::{config, AuthFuture};
+use super::config;
 use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::{app_container, AuthError};
 use bincode::deserialize;
-use futures::future::Future;
+
 use futures_util::future::FutureExt;
 use safe_core::client::{AuthActions, Client};
 use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppAccess};

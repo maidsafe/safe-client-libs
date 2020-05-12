@@ -17,7 +17,6 @@ use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
-use crate::event_loop::CoreMsgTx;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::NetworkTx;
 use crate::utils;
@@ -31,13 +30,13 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tiny_keccak::sha3_256;
-use tokio::runtime::*;
+
 use unwrap::unwrap;
 
 use async_trait::async_trait;
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
-    inner: Arc<Mutex<Inner<CoreClient, ()>>>,
+    inner: Arc<Mutex<Inner>>,
     keys: ClientKeys,
 }
 
@@ -46,15 +45,11 @@ impl CoreClient {
     pub async fn new(
         acc_locator: &str,
         acc_password: &str,
-        el_handle: Handle,
-        core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
     ) -> Result<Self, CoreError> {
         Self::new_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            el_handle,
-            core_tx,
             net_tx,
             |cm| cm,
         )
@@ -64,8 +59,6 @@ impl CoreClient {
     async fn new_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
-        el_handle: Handle,
-        core_tx: CoreMsgTx<Self, ()>,
         net_tx: NetworkTx,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, CoreError>
@@ -149,12 +142,10 @@ impl CoreClient {
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner {
-                el_handle,
                 connection_manager,
                 cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 timeout: Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
                 net_tx,
-                core_tx,
             })),
             keys: maid_keys,
         })
@@ -177,7 +168,7 @@ impl Client for CoreClient {
         None
     }
 
-    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>> {
+    fn inner(&self) -> Arc<Mutex<Inner>> {
         self.inner.clone()
     }
 

@@ -54,7 +54,7 @@ fn serialisation_write_data() {
     // Set up a fresh mock vault.
     let stash = setup();
 
-    let auth = unwrap!(Authenticator::create_acc(
+    let auth = unwrap!(Authenticator::create_client_with_acc(
         stash.locator.clone(),
         stash.password.clone(),
         stash.client_id.clone(),

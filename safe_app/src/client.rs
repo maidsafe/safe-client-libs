@@ -37,8 +37,6 @@ impl AppClient {
     /// unregistered random client which can do a very limited set of operations, such as a
     /// Network-Get.
     pub(crate) fn unregistered(
-        el_handle: Handle,
-        core_tx: AppMsgTx,
         net_tx: NetworkTx,
         config: Option<BootstrapConfig>,
     ) -> Result<Self, AppError> {
@@ -66,7 +64,6 @@ impl AppClient {
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 // FIXME
                 Duration::from_secs(180), // REQUEST_TIMEOUT_SECS),
-                core_tx,
                 net_tx,
             ))),
             app_inner: Arc::new(Mutex::new(AppInner::new(app_keys, pk, config))),
@@ -143,11 +140,9 @@ impl AppClient {
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
-                el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
-                core_tx,
                 net_tx,
             ))),
             app_inner: Arc::new(Mutex::new(AppInner::new(keys, owner, Some(config)))),

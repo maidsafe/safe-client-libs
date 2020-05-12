@@ -9,12 +9,10 @@
 //! Functionality relating to the Authenticator configuration, including things related to app info
 //! and the revocation queue.
 
-use super::{AuthError, AuthFuture};
+use super::AuthError;
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
-use futures::future::{self, Either};
-use futures::Future;
-use futures_util::future::FutureExt;
+
 use futures_util::future::TryFutureExt;
 use log::trace;
 use safe_core::core_structs::AppKeys;
@@ -289,7 +287,7 @@ where
     let key = key.to_vec();
     let mut new_version = new_version;
     let mut done_trying = false;
-    let mut f = f;
+    let f = f;
     let mut the_item: T = item;
 
     let mut result: Result<(), AuthError> = Ok(());
@@ -300,7 +298,7 @@ where
 
         if f(&mut the_item) {
             match update_entry(&c2, &key, &the_item, new_version).await {
-                Ok(thing) => {
+                Ok(_thing) => {
                     // go with version / item we have
                     done_trying = true;
                 }

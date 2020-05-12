@@ -217,8 +217,8 @@ impl From<String> for AppError {
     }
 }
 
-impl<T: 'static> From<SendError<T>> for AppError {
-    fn from(err: SendError<T>) -> Self {
+impl From<SendError> for AppError {
+    fn from(err: SendError) -> Self {
         Self::from(err.to_string())
     }
 }

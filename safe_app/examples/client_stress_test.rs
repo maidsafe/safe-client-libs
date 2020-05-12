@@ -148,7 +148,7 @@ fn main() {
         // FIXME - pass the secret key of the wallet as a parameter
         let client_id = ClientFullId::new_bls(&mut rng);
 
-        let auth = unwrap!(Authenticator::create_acc(
+        let auth = unwrap!(Authenticator::create_client_with_acc(
             locator.as_str(),
             password.as_str(),
             client_id,

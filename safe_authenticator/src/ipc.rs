@@ -8,14 +8,13 @@
 
 //! Inter-Process Communication utilities.
 
-use super::{AuthError, AuthFuture};
+use super::AuthError;
 use crate::app_auth::{app_state, AppState};
 use crate::client::AuthClient;
 use crate::config;
 use bincode::deserialize;
 use ffi_utils::StringError;
-use futures::future::{self, Either};
-use futures::Future;
+
 use log::trace;
 use safe_core::core_structs::{UserMetadata, METADATA_KEY};
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
