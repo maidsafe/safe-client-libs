@@ -2002,8 +2002,8 @@ checksum = "bfa8506c1de11c9c4e4c38863ccbe02a305c8188e85a05a784c9e11e1c3910c8"
 
 [[package]]
 name = "safe-nd"
-version = "0.8.0"
-source = "git+https://github.com/oetyng/safe-nd.git?rev=8366a171acde3c1266c7813a6e5819b4c96e3e43#8366a171acde3c1266c7813a6e5819b4c96e3e43"
+version = "0.9.0"
+source = "git+https://github.com/joshuef/safe-nd.git?rev=7f759334a778#7f759334a77878ec116442656ddf9d850ffc0dcb"
 dependencies = [
  "bincode",
  "ed25519-dalek",

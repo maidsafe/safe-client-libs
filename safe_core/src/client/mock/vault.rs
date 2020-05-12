@@ -15,9 +15,10 @@ use bincode::{deserialize, serialize};
 use fs2::FileExt;
 use log::{debug, trace, warn};
 use safe_nd::{
-    verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
-    ClientFullId, Data, Error as SndError, IData, IDataAddress, LoginPacket, MData, MDataAction,
-    MDataAddress, MDataKind, Message, Money, MoneyReceipt, PublicId, PublicKey, Request,
+    verify_signature, AData, ADataAction, ADataAddress, ADataIndex, ADataRequest, AppPermissions,
+    AppendOnlyData, ClientFullId, ClientRequest, Data, Error as SndError, IData, IDataAddress,
+    IDataRequest, LoginPacket, LoginPacketRequest, MData, MDataAction, MDataAddress, MDataKind,
+    MDataRequest, Message, Money, MoneyReceipt, MoneyRequest, PublicId, PublicKey, Request,
     RequestType, Response, Result as SndResult, SeqAppendOnly, UnseqAppendOnly, XorName,
 };
 
@@ -99,29 +100,31 @@ fn init_vault_store(config: &Config) -> Box<dyn Store> {
 
 fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> SndResult<()> {
     match request {
-        Request::GetAData(..)
-        | Request::GetADataShell { .. }
-        | Request::GetADataValue { .. }
-        | Request::GetADataRange { .. }
-        | Request::GetADataIndices(..)
-        | Request::GetADataLastEntry(..)
-        | Request::GetADataPermissions { .. }
-        | Request::GetPubADataUserPermissions { .. }
-        | Request::GetUnpubADataUserPermissions { .. }
-        | Request::GetADataOwners { .. } => match data {
+        Request::AData(ADataRequest::Get(..))
+        | Request::AData(ADataRequest::GetShell { .. })
+        | Request::AData(ADataRequest::GetValue { .. })
+        | Request::AData(ADataRequest::GetRange { .. })
+        | Request::AData(ADataRequest::GetIndices(..))
+        | Request::AData(ADataRequest::GetLastEntry(..))
+        | Request::AData(ADataRequest::GetPermissions { .. })
+        | Request::AData(ADataRequest::GetPubUserPermissions { .. })
+        | Request::AData(ADataRequest::GetUnpubUserPermissions { .. })
+        | Request::AData(ADataRequest::GetOwners { .. }) => match data {
             AData::PubUnseq(_) | AData::PubSeq(_) => Ok(()),
             AData::UnpubSeq(_) | AData::UnpubUnseq(_) => {
                 data.check_permission(ADataAction::Read, requester)
             }
         },
-        Request::AppendSeq { .. } | Request::AppendUnseq { .. } => {
+        Request::AData(ADataRequest::AppendSeq { .. })
+        | Request::AData(ADataRequest::AppendUnseq { .. }) => {
             data.check_permission(ADataAction::Append, requester)
         }
-        Request::AddPubADataPermissions { .. } | Request::AddUnpubADataPermissions { .. } => {
+        Request::AData(ADataRequest::AddPubPermissions { .. })
+        | Request::AData(ADataRequest::AddUnpubPermissions { .. }) => {
             data.check_permission(ADataAction::ManagePermissions, requester)
         }
-        Request::SetADataOwner { .. } => data.check_is_last_owner(requester),
-        Request::DeleteAData(_) => match data {
+        Request::AData(ADataRequest::SetOwner { .. }) => data.check_is_last_owner(requester),
+        Request::AData(ADataRequest::Delete(_)) => match data {
             AData::PubSeq(_) | AData::PubUnseq(_) => Err(SndError::InvalidOperation),
             AData::UnpubSeq(_) | AData::UnpubUnseq(_) => data.check_is_last_owner(requester),
         },
@@ -131,25 +134,26 @@ fn check_perms_adata(data: &AData, request: &Request, requester: PublicKey) -> S
 
 fn check_perms_mdata(data: &MData, request: &Request, requester: PublicKey) -> SndResult<()> {
     match request {
-        Request::GetMData { .. }
-        | Request::GetMDataShell { .. }
-        | Request::GetMDataVersion { .. }
-        | Request::ListMDataKeys { .. }
-        | Request::ListMDataEntries { .. }
-        | Request::ListMDataValues { .. }
-        | Request::GetMDataValue { .. }
-        | Request::ListMDataPermissions { .. }
-        | Request::ListMDataUserPermissions { .. } => {
+        Request::MData(MDataRequest::Get { .. })
+        | Request::MData(MDataRequest::GetShell { .. })
+        | Request::MData(MDataRequest::GetVersion { .. })
+        | Request::MData(MDataRequest::ListKeys { .. })
+        | Request::MData(MDataRequest::ListEntries { .. })
+        | Request::MData(MDataRequest::ListValues { .. })
+        | Request::MData(MDataRequest::GetValue { .. })
+        | Request::MData(MDataRequest::ListPermissions { .. })
+        | Request::MData(MDataRequest::ListUserPermissions { .. }) => {
             data.check_permissions(MDataAction::Read, requester)
         }
 
-        Request::SetMDataUserPermissions { .. } | Request::DelMDataUserPermissions { .. } => {
+        Request::MData(MDataRequest::SetUserPermissions { .. })
+        | Request::MData(MDataRequest::DelUserPermissions { .. }) => {
             data.check_permissions(MDataAction::ManagePermissions, requester)
         }
 
-        Request::MutateMDataEntries { .. } => Ok(()),
+        Request::MData(MDataRequest::MutateEntries { .. }) => Ok(()),
 
-        Request::DeleteMData { .. } => data.check_is_owner(requester),
+        Request::MData(MDataRequest::Delete { .. }) => data.check_is_owner(requester),
 
         _ => Err(SndError::InvalidOperation),
     }
@@ -467,7 +471,7 @@ impl Vault {
             //
             // Immutable Data
             //
-            Request::GetIData(address) => {
+            Request::IData(IDataRequest::Get(address)) => {
                 let result = self.get_idata(address).and_then(|idata| match idata {
                     IData::Unpub(ref data) => {
                         // Check permissions for unpub idata.
@@ -481,7 +485,7 @@ impl Vault {
                 });
                 Response::GetIData(result)
             }
-            Request::PutIData(idata) => {
+            Request::IData(IDataRequest::Put(idata)) => {
                 let mut errored = false;
                 if let IData::Unpub(data) = idata.clone() {
                     if owner_pk != *data.owner() {
@@ -500,12 +504,12 @@ impl Vault {
                 };
                 Response::Mutation(result)
             }
-            Request::DeleteUnpubIData(address) => {
+            Request::IData(IDataRequest::DeleteUnpub(address)) => {
                 let result = self.delete_idata(address, requester_pk);
                 Response::Mutation(result)
             }
             // ===== Client (Owner) to SrcElders =====
-            Request::ListAuthKeysAndVersion => {
+            Request::Client(ClientRequest::ListAuthKeysAndVersion) => {
                 let result = {
                     if owner_pk != requester_pk {
                         Err(SndError::AccessDenied)
@@ -515,11 +519,11 @@ impl Vault {
                 };
                 Response::ListAuthKeysAndVersion(result)
             }
-            Request::InsAuthKey {
+            Request::Client(ClientRequest::InsAuthKey {
                 key,
                 permissions,
                 version,
-            } => {
+            }) => {
                 let result = if owner_pk != requester_pk {
                     Err(SndError::AccessDenied)
                 } else {
@@ -527,7 +531,7 @@ impl Vault {
                 };
                 Response::Mutation(result)
             }
-            Request::DelAuthKey { key, version } => {
+            Request::Client(ClientRequest::DelAuthKey { key, version }) => {
                 let result = if owner_pk != requester_pk {
                     Err(SndError::AccessDenied)
                 } else {
@@ -537,14 +541,14 @@ impl Vault {
             }
             // ===== Money =====
             // Put money in target account. Triggered after Transfer/Create have subtracted from sender
-            Request::DepositMoney {
+            Request::Money(MoneyRequest::DepositMoney {
                 to,
                 from: _,
                 amount,
                 new_account: _,
                 transaction_id,
                 transfer_proof: _,
-            } => {
+            }) => {
                 debug!("DepositMoney request being handled.");
 
                 let source: XorName = owner_pk.into();
@@ -562,12 +566,12 @@ impl Vault {
 
                 Response::MoneyReceipt(result)
             }
-            Request::TransferMoney {
+            Request::Money(MoneyRequest::TransferMoney {
                 to,
                 from: _,
                 amount,
                 transaction_id,
-            } => {
+            }) => {
                 let source: XorName = owner_pk.into();
                 debug!("TransferMoney request being handled.");
                 let result = if amount.as_nano() == 0 {
@@ -578,14 +582,14 @@ impl Vault {
                         .and_then(|()| {
                             // Trigger deposit step
                             let serialised_proof = unwrap!(serialize(&message));
-                            let deposit_request = Request::DepositMoney {
+                            let deposit_request = Request::Money(MoneyRequest::DepositMoney {
                                 from: source,
                                 to,
                                 amount,
                                 transaction_id,
                                 new_account: false,
                                 transfer_proof: serialised_proof,
-                            };
+                            });
 
                             let signature = self
                                 .section_identity
@@ -613,12 +617,12 @@ impl Vault {
                     Err(error) => Response::MoneyReceipt(Err(error)),
                 }
             }
-            Request::CreateBalance {
+            Request::Money(MoneyRequest::CreateBalance {
                 amount,
                 to,
                 from: _,
                 transaction_id,
-            } => {
+            }) => {
                 let source = owner_pk.into();
                 let recipient = to.into();
 
@@ -658,14 +662,14 @@ impl Vault {
                         .and_then(|()| {
                             // Trigger deposit step
                             let serialised_proof = unwrap!(serialize(&message));
-                            let deposit_request = Request::DepositMoney {
+                            let deposit_request = Request::Money(MoneyRequest::DepositMoney {
                                 from: source,
                                 to: recipient,
                                 amount,
                                 transaction_id,
                                 new_account: false,
                                 transfer_proof: serialised_proof,
-                            };
+                            });
                             let signature = self
                                 .section_identity
                                 .sign(&unwrap!(serialize(&(&deposit_request, message_id))));
@@ -688,7 +692,7 @@ impl Vault {
                 };
                 Response::MoneyReceipt(result)
             }
-            Request::GetBalance(xorname) => {
+            Request::Money(MoneyRequest::GetBalance(xorname)) => {
                 let coin_balance_id = xorname;
 
                 let result = self
@@ -698,12 +702,12 @@ impl Vault {
             }
 
             // ===== Account =====
-            Request::CreateLoginPacketFor {
+            Request::LoginPacket(LoginPacketRequest::CreateFor {
                 new_owner,
                 amount,
                 transaction_id,
                 new_login_packet,
-            } => {
+            }) => {
                 let source = owner_pk.into();
                 let new_balance_dest = new_owner.into();
 
@@ -739,14 +743,14 @@ impl Vault {
                         .and_then(|()| {
                             // Trigger deposit step
                             let serialised_proof = unwrap!(serialize(&message));
-                            let deposit_request = Request::DepositMoney {
+                            let deposit_request = Request::Money(MoneyRequest::DepositMoney {
                                 from: source,
                                 to: new_balance_dest,
                                 amount,
                                 transaction_id,
                                 new_account: false,
                                 transfer_proof: serialised_proof,
-                            };
+                            });
                             let signature = self
                                 .section_identity
                                 .sign(&unwrap!(serialize(&(&deposit_request, message_id))));
@@ -783,7 +787,7 @@ impl Vault {
                 };
                 Response::MoneyReceipt(result)
             }
-            Request::CreateLoginPacket(account_data) => {
+            Request::LoginPacket(LoginPacketRequest::Create(account_data)) => {
                 let source = owner_pk.into();
 
                 if let Err(e) =
@@ -807,7 +811,7 @@ impl Vault {
                     Response::Mutation(result)
                 }
             }
-            Request::GetLoginPacket(location) => {
+            Request::LoginPacket(LoginPacketRequest::Get(location)) => {
                 let result = match self.get_login_packet(&location) {
                     None => Err(SndError::NoSuchLoginPacket),
                     Some(login_packet) => {
@@ -823,7 +827,7 @@ impl Vault {
                 };
                 Response::GetLoginPacket(result)
             }
-            Request::UpdateLoginPacket(new_packet) => {
+            Request::LoginPacket(LoginPacketRequest::Update(new_packet)) => {
                 let result = {
                     match self.get_login_packet(new_packet.destination()) {
                         Some(old_packet) => {
@@ -840,7 +844,7 @@ impl Vault {
                 Response::Mutation(result)
             }
             // ===== Mutable Data =====
-            Request::GetMData(address) => {
+            Request::MData(MDataRequest::Get(address)) => {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
@@ -852,7 +856,7 @@ impl Vault {
                     });
                 Response::GetMData(result)
             }
-            Request::PutMData(data) => {
+            Request::MData(MDataRequest::Put(data)) => {
                 let address = *data.address();
 
                 let result = if data.owner() != owner_pk {
@@ -862,7 +866,7 @@ impl Vault {
                 };
                 Response::Mutation(result)
             }
-            Request::GetMDataValue { address, ref key } => {
+            Request::MData(MDataRequest::GetValue { address, ref key }) => {
                 let data = self.get_mdata(address, requester_pk, request);
 
                 match (address.kind(), data) {
@@ -884,7 +888,7 @@ impl Vault {
                     (_, Ok(_)) => Response::GetMDataValue(Err(SndError::NoSuchData)),
                 }
             }
-            Request::GetMDataShell(address) => {
+            Request::MData(MDataRequest::GetShell(address)) => {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
@@ -896,7 +900,7 @@ impl Vault {
                     });
                 Response::GetMDataShell(result)
             }
-            Request::GetMDataVersion(address) => {
+            Request::MData(MDataRequest::GetVersion(address)) => {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
@@ -908,7 +912,7 @@ impl Vault {
                     });
                 Response::GetMDataVersion(result)
             }
-            Request::ListMDataEntries(address) => {
+            Request::MData(MDataRequest::ListEntries(address)) => {
                 let data = self.get_mdata(address, requester_pk, request);
 
                 match (address.kind(), data) {
@@ -922,7 +926,7 @@ impl Vault {
                     (_, Ok(_)) => Response::ListMDataEntries(Err(SndError::NoSuchData)),
                 }
             }
-            Request::ListMDataKeys(address) => {
+            Request::MData(MDataRequest::ListKeys(address)) => {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
@@ -934,7 +938,7 @@ impl Vault {
                     });
                 Response::ListMDataKeys(result)
             }
-            Request::ListMDataValues(address) => {
+            Request::MData(MDataRequest::ListValues(address)) => {
                 let data = self.get_mdata(address, requester_pk, request);
 
                 match (address.kind(), data) {
@@ -948,7 +952,7 @@ impl Vault {
                     (_, Ok(_)) => Response::ListMDataValues(Err(SndError::NoSuchData)),
                 }
             }
-            Request::DeleteMData(address) => {
+            Request::MData(MDataRequest::Delete(address)) => {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
@@ -969,12 +973,12 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::SetMDataUserPermissions {
+            Request::MData(MDataRequest::SetUserPermissions {
                 address,
                 ref user,
                 ref permissions,
                 version,
-            } => {
+            }) => {
                 let permissions = permissions.clone();
                 let user = *user;
 
@@ -994,11 +998,11 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::DelMDataUserPermissions {
+            Request::MData(MDataRequest::DelUserPermissions {
                 address,
                 ref user,
                 version,
-            } => {
+            }) => {
                 let user = *user;
 
                 let result = self
@@ -1017,7 +1021,7 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::ListMDataUserPermissions { address, ref user } => {
+            Request::MData(MDataRequest::ListUserPermissions { address, ref user }) => {
                 let user = *user;
 
                 let result = self
@@ -1031,7 +1035,7 @@ impl Vault {
                     });
                 Response::ListMDataUserPermissions(result)
             }
-            Request::ListMDataPermissions(address) => {
+            Request::MData(MDataRequest::ListPermissions(address)) => {
                 let result = self
                     .get_mdata(address, requester_pk, request)
                     .and_then(|data| {
@@ -1043,10 +1047,10 @@ impl Vault {
                     });
                 Response::ListMDataPermissions(result)
             }
-            Request::MutateMDataEntries {
+            Request::MData(MDataRequest::MutateEntries {
                 address,
                 ref actions,
-            } => {
+            }) => {
                 let result =
                     self.get_mdata(address, requester_pk, request)
                         .and_then(move |mut data| {
@@ -1066,7 +1070,7 @@ impl Vault {
             //
             // ===== AppendOnly Data =====
             //
-            Request::PutAData(adata) => {
+            Request::AData(ADataRequest::Put(adata)) => {
                 let owner_index = adata.owners_index();
                 let address = *adata.address();
 
@@ -1086,11 +1090,11 @@ impl Vault {
                 };
                 Response::Mutation(result)
             }
-            Request::GetAData(address) => {
+            Request::AData(ADataRequest::Get(address)) => {
                 let result = self.get_adata(address, requester_pk, request);
                 Response::GetAData(result)
             }
-            Request::DeleteAData(address) => {
+            Request::AData(ADataRequest::Delete(address)) => {
                 let id = DataId::AppendOnly(address);
                 let result = self
                     .get_adata(address, requester_pk, request)
@@ -1104,10 +1108,10 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::GetADataShell {
+            Request::AData(ADataRequest::GetShell {
                 address,
                 data_index,
-            } => {
+            }) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
@@ -1119,7 +1123,7 @@ impl Vault {
                     });
                 Response::GetADataShell(result)
             }
-            Request::GetADataRange { address, range } => {
+            Request::AData(ADataRequest::GetRange { address, range }) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
@@ -1127,28 +1131,28 @@ impl Vault {
                     });
                 Response::GetADataRange(result)
             }
-            Request::GetADataValue { address, key } => {
+            Request::AData(ADataRequest::GetValue { address, key }) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.get(&key).cloned().ok_or(SndError::NoSuchEntry));
                 Response::GetADataValue(result)
             }
-            Request::GetADataIndices(address) => {
+            Request::AData(ADataRequest::GetIndices(address)) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.indices());
                 Response::GetADataIndices(result)
             }
-            Request::GetADataLastEntry(address) => {
+            Request::AData(ADataRequest::GetLastEntry(address)) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.last_entry().cloned().ok_or(SndError::NoSuchEntry));
                 Response::GetADataLastEntry(result)
             }
-            Request::GetADataPermissions {
+            Request::AData(ADataRequest::GetPermissions {
                 address,
                 permissions_index,
-            } => {
+            }) => {
                 let data = self.get_adata(address, requester_pk, request);
 
                 match (address.kind(), data) {
@@ -1168,21 +1172,21 @@ impl Vault {
                     (_, Ok(_)) => Response::GetADataPermissions(Err(SndError::NoSuchData)),
                 }
             }
-            Request::GetPubADataUserPermissions {
+            Request::AData(ADataRequest::GetPubUserPermissions {
                 address,
                 permissions_index,
                 user,
-            } => {
+            }) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| data.pub_user_permissions(user, permissions_index));
                 Response::GetPubADataUserPermissions(result)
             }
-            Request::GetUnpubADataUserPermissions {
+            Request::AData(ADataRequest::GetUnpubUserPermissions {
                 address,
                 permissions_index,
                 public_key,
-            } => {
+            }) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
@@ -1190,7 +1194,7 @@ impl Vault {
                     });
                 Response::GetUnpubADataUserPermissions(result)
             }
-            Request::AppendSeq { append, index } => {
+            Request::AData(ADataRequest::AppendSeq { append, index }) => {
                 let id = DataId::AppendOnly(append.address);
                 let result = self
                     .get_adata(append.address, requester_pk, request)
@@ -1211,7 +1215,7 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::AppendUnseq(append) => {
+            Request::AData(ADataRequest::AppendUnseq(append)) => {
                 let id = DataId::AppendOnly(append.address);
                 let result = self
                     .get_adata(append.address, requester_pk, request)
@@ -1232,11 +1236,11 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::AddPubADataPermissions {
+            Request::AData(ADataRequest::AddPubPermissions {
                 address,
                 permissions,
                 permissions_index,
-            } => {
+            }) => {
                 let id = DataId::AppendOnly(address);
                 let result = self
                     .get_adata(address, requester_pk, request)
@@ -1263,11 +1267,11 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::AddUnpubADataPermissions {
+            Request::AData(ADataRequest::AddUnpubPermissions {
                 address,
                 permissions,
                 permissions_index,
-            } => {
+            }) => {
                 let id = DataId::AppendOnly(address);
                 let result = self
                     .get_adata(address, requester_pk, request)
@@ -1294,11 +1298,11 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::SetADataOwner {
+            Request::AData(ADataRequest::SetOwner {
                 address,
                 owner,
                 owners_index,
-            } => {
+            }) => {
                 let id = DataId::AppendOnly(address);
                 let result = self
                     .get_adata(address, requester_pk, request)
@@ -1342,10 +1346,10 @@ impl Vault {
                     });
                 Response::Mutation(result)
             }
-            Request::GetADataOwners {
+            Request::AData(ADataRequest::GetOwners {
                 address,
                 owners_index,
-            } => {
+            }) => {
                 let result = self
                     .get_adata(address, requester_pk, request)
                     .and_then(move |data| {
