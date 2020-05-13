@@ -44,6 +44,65 @@ impl ResponseManager {
         Ok(())
     }
 
+    /// default response handling. Will store responses and compare against newer responses,
+    /// returning the most common response once threshold was reached, or most popular response
+    /// if no response has reached quorum.
+    /// TODO: do we need to distinguish non-quorum'd responses?
+    fn default_quorum_response_handling( &mut self, msg_id: MessageId, response: Response, sender: Sender<Response>, mut vote_map: VoteMap, count: ResponseRequiredCount ) {
+
+        let vote_response = response.clone();
+
+        // drop the count as we have this new response.
+        let current_count = count - 1;
+
+        // get our tally for this response
+        let cast_votes = vote_map.remove(&vote_response);
+
+        // if we already have this response, lets vote for it
+        if let Some(votes) = cast_votes {
+            trace!("Increasing vote count to {:?}", votes + 1);
+            let _ = vote_map.insert(vote_response, votes + 1);
+        } else {
+            // otherwise we add this as a candidate with one vote
+            let _ = vote_map.insert(vote_response, 1);
+        }
+
+        trace!("Response vote map looks like: {:?}", &vote_map);
+
+        // if 50+% successfull responses, we roll with it.
+        if current_count <= self.response_threshold {
+            let mut vote_met_threshold = false;
+
+            for (_response_key, votes) in vote_map.iter() {
+                if votes >= &self.response_threshold {
+                    trace!("Response request, votes met the required threshold.");
+                    vote_met_threshold = true;
+                }
+            }
+
+            // we met the threshold OR it's the last response... so we work with whatever we have
+            if vote_met_threshold || current_count == 0 {
+                let mut new_voter_threshold = 0;
+                let mut our_most_popular_response = &response;
+
+                // find the most popular of our responses.
+                for (response_key, votes) in vote_map.iter() {
+                    if votes > &new_voter_threshold {
+                        // this means we'll always go with whatever we hit here in first.
+                        new_voter_threshold = *votes;
+                        our_most_popular_response = response_key;
+                    }
+                }
+
+                let _ = sender.send(our_most_popular_response.clone());
+                return;
+            }
+        }
+        let _ = self
+            .requests
+            .insert(msg_id, (sender, vote_map, current_count));
+    }
+
     /// Handle a response from one of the elders.
     pub fn handle_response(&mut self, msg_id: MessageId, response: Response) -> Result<(), String> {
         trace!(
@@ -62,58 +121,17 @@ impl ResponseManager {
                 // 1. If we have a GetTransferValidation response we store ALL responses.
                 // 2. Return when we have quorum, and return full signed repsonse to client... ??
 
-                let vote_response = response.clone();
+                if let Response::GetTransferValidation(Ok(signature_share)) = response.clone() {
+                    // do we assume here, that msg_id == the same message... 
+                    // what happens with bogus signatures? How much to _try_...
+                    println!("!!!!!!!!!!!!!!!!!!!Signature share receivedddd!! {:?}", response);
 
-                // drop the count as we have this new response.
-                let current_count = count - 1;
-
-                // get our tally for this response
-                let cast_votes = vote_map.remove(&vote_response);
-
-                // if we already have this response, lets vote for it
-                if let Some(votes) = cast_votes {
-                    trace!("Increasing vote count to {:?}", votes + 1);
-                    let _ = vote_map.insert(vote_response, votes + 1);
-                } else {
-                    // otherwise we add this as a candidate with one vote
-                    let _ = vote_map.insert(vote_response, 1);
+                    return;
                 }
 
-                trace!("Response vote map looks like: {:?}", &vote_map);
-
-                // if 50+% successfull responses, we roll with it.
-                if current_count <= self.response_threshold {
-                    let mut vote_met_threshold = false;
-
-                    for (_response_key, votes) in vote_map.iter() {
-                        if votes >= &self.response_threshold {
-                            trace!("Response request, votes met the required threshold.");
-                            vote_met_threshold = true;
-                        }
-                    }
-
-                    // we met the threshold OR it's the last response... so we work with whatever we have
-                    if vote_met_threshold || current_count == 0 {
-                        let mut new_voter_threshold = 0;
-                        let mut our_most_popular_response = &response;
-
-                        // find the most popular of our responses.
-                        for (response_key, votes) in vote_map.iter() {
-                            if votes > &new_voter_threshold {
-                                // this means we'll always go with whatever we hit here in first.
-                                new_voter_threshold = *votes;
-                                our_most_popular_response = response_key;
-                            }
-                        }
-
-                        let _ = sender.send(our_most_popular_response.clone());
-                        return;
-                    }
-                }
-                let _ = self
-                    .requests
-                    .insert(msg_id, (sender, vote_map, current_count));
-            })
+                self.default_quorum_response_handling( msg_id, response, sender, vote_map, count );
+            }
+        )
             .or_else(|| {
                 trace!("No request found for message ID {:?}", msg_id);
                 None
@@ -392,6 +410,59 @@ mod tests {
         let _ = response_future
             .map(move |i| {
                 assert_eq!(&i, &other_response);
+            })
+            .wait();
+        Ok(())
+    }
+  
+    #[test]
+    fn response_manager_return_complete_signed_transfervalidation() -> Result<(), String> {
+        let response_threshold = 4;
+
+        let mut response_manager = ResponseManager::new(response_threshold);
+
+        // set up a message
+        let message_id = safe_nd::MessageId::new();
+
+        let (sender_future, response_future) = oneshot::channel();
+
+        let expected_responses = 7;
+
+        // our sig shares
+        use threshold_crypto::{SecretKeySet};
+        let threshold = 3; // 3 + 1 needed to sign. 
+        let mut rng = rand::thread_rng();
+        let sk_set = SecretKeySet::random(threshold, &mut rng);
+
+        // this should be retrieved from Elder node
+        let sk_share = sk_set.secret_key_share(0);
+
+        let mut responses_to_handle = vec![
+            safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(0).sign([1,2,3]) )),
+        safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(1).sign([1,2,3]) )),
+         safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(2).sign([1,2,3]) )),
+         safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(3).sign([1,2,3]) )),
+         safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(4).sign([1,2,3]) )),
+         safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(6).sign([1,2,3]) )),
+         safe_nd::Response::GetTransferValidation(Ok(sk_set.secret_key_share(6).sign([1,2,3]) )),
+        ];
+
+        let mut rng = thread_rng();
+
+        // lets shuffle the array to ensure order is not important
+        responses_to_handle.shuffle(&mut rng);
+
+        response_manager.await_responses(message_id, (sender_future, expected_responses))?;
+
+        for resp in responses_to_handle {
+            response_manager.handle_response(message_id, resp)?;
+        }
+
+        let _ = response_future
+            .map(move |i| {
+
+                println!("response receivedd");
+                assert!(false);
             })
             .wait();
         Ok(())
