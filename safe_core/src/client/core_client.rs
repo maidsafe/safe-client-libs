@@ -115,7 +115,6 @@ impl CoreClient {
 
         {
             // Create the balance for the client
-
             let transfer = Transfer {
                 from,
                 to,

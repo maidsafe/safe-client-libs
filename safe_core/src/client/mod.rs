@@ -1162,24 +1162,40 @@ pub trait Client: Clone + 'static {
     #[cfg(any(test, feature = "testing"))]
     fn test_set_balance(
         &self,
-        client_id: Option<&ClientFullId>,
+        client_id: &ClientFullId,
         amount: Money,
     ) -> Box<CoreFuture<TransferRegistration>> {
         let our_id = self.public_id();
-        let to = client_id.map_or_else(
-            || our_id.public_key(),
-            |client_id| *client_id.public_id().public_key(),
-        );
+        let to = client_id.public_id().public_key();
 
         trace!("Set the coin balance of {:?} to {:?}", to, amount,);
 
-        let from = client_id.clone().map_or_else(
-            || {
+        let from = 
+        // client_id.clone().map_or_else(
+            // || {
                 //generate a random PK for use when nothign is provided (--test-coins)
                 PublicKey::from(SecretKey::random().public_key())
-            },
-            |id| *id.public_id().public_key(),
-        );
+            // },
+            // |id| *id.public_id().public_key(),
+        // )
+        ;
+
+        ////////////////////////////////////
+        ///////////// TODO: use this transfer setup for latest
+
+          // Create the balance for the client
+          let transfer = Transfer {
+            from,
+            to,
+            amount,
+            id: rand::random(),
+            restrictions: TransferRestrictions::NoRestriction,
+        };
+
+        let transfer_to_validate = ValidateTransfer {
+            transfer,
+            client_signature: full_id.sign(&unwrap!(bincode::serialize(&transfer))),
+        };
 
         send_as!(
             self,
@@ -1226,16 +1242,52 @@ pub fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<(), Co
 
         let from = PublicKey::from(SecretKey::random().public_key());
 
+        // let response = req(
+        //     &mut cm,
+        //     Request::Money(MoneyRequest::CreateBalance {
+        //         to,
+        //         from,
+        //         amount,
+        //         transaction_id: rand::random(),
+        //     }),
+        //     &full_id,
+        // )?;
+
+
+        // Create the balance for the client
+        let transfer = Transfer {
+            from,
+            to,
+            amount,
+            id: rand::random(),
+            restrictions: TransferRestrictions::NoRestriction,
+        };
+
+        let transfer_to_validate = ValidateTransfer {
+            transfer,
+            client_signature: full_id.sign(&unwrap!(bincode::serialize(&transfer))),
+        };
+
+        let proof = match req(
+            &mut cm,
+            Request::Money(MoneyRequest::ValidateTransfer {
+                payload: transfer_to_validate,
+            }),
+            &full_id,
+        )? {
+            Response::TransferProofOfAgreement(res) => res?,
+            _ => return Err(CoreError::from("Unexpected response to validate transfer")),
+        };
+
+        // TODO: Register the transaction....
         let response = req(
             &mut cm,
-            Request::Money(MoneyRequest::CreateBalance {
-                to,
-                from,
-                amount,
-                transaction_id: rand::random(),
+            Request::Money(MoneyRequest::RegisterTransfer {
+                payload: RegisterTransfer { proof },
             }),
             &full_id,
         )?;
+
 
         match response {
             Response::TransferRegistration(res) => res.map(|_| Ok(()))?,
@@ -1277,13 +1329,47 @@ pub fn wallet_create_balance(
     let from = *client_id.public_id().public_key();
 
     temp_client(client_id, move |mut cm, full_id| {
+        // let response = req(
+        //     &mut cm,
+        //     Request::Money(MoneyRequest::CreateBalance {
+        //         to,
+        //         from,
+        //         amount,
+        //         transaction_id: Some(transaction_id),
+        //     }),
+        //     &full_id,
+        // )?;
+
+         // Create the balance for the client
+         let transfer = Transfer {
+            from,
+            to,
+            amount,
+            id: transaction_id,
+            restrictions: TransferRestrictions::NoRestriction,
+        };
+
+        let transfer_to_validate = ValidateTransfer {
+            transfer,
+            client_signature: full_id.sign(&unwrap!(bincode::serialize(&transfer))),
+        };
+
+        let proof = match req(
+            &mut cm,
+            Request::Money(MoneyRequest::ValidateTransfer {
+                payload: transfer_to_validate,
+            }),
+            &full_id,
+        )? {
+            Response::TransferProofOfAgreement(res) => res?,
+            _ => return Err(CoreError::from("Unexpected response to validate transfer")),
+        };
+
+        // TODO: Register the transaction....
         let response = req(
             &mut cm,
-            Request::Money(MoneyRequest::CreateBalance {
-                to,
-                from,
-                amount,
-                transaction_id: Some(transaction_id),
+            Request::Money(MoneyRequest::RegisterTransfer {
+                payload: RegisterTransfer { proof },
             }),
             &full_id,
         )?;
@@ -1300,25 +1386,59 @@ pub fn wallet_create_balance(
 /// Transfer money
 pub fn wallet_transfer_money(
     client_id: &ClientFullId,
-    to: XorName,
+    to: PublicKey,
     amount: Money,
     transaction_id: Option<u64>,
 ) -> Result<TransferRegistration, CoreError> {
     trace!("Transfer {} money to {:?}", amount, to);
 
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
-    let from = *client_id.public_id().name();
+    let from = *client_id.public_id().public_key();
 
     temp_client(client_id, move |mut cm, full_id| {
         // TODO: here manage the flow... Validation request... Then response accumulation (happens in CM?)
         // then actual transfer and compeltion as here.
+        // let response = req(
+        //     &mut cm,
+        //     Request::Money(MoneyRequest::TransferMoney {
+        //         to,
+        //         from,
+        //         amount,
+        //         transaction_id,
+        //     }),
+        //     &full_id,
+        // )?;
+
+          // Create the balance for the client
+          let transfer = Transfer {
+            from,
+            to,
+            amount,
+            id: transaction_id,
+            restrictions: TransferRestrictions::RequireHistory,
+        };
+
+        let transfer_to_validate = ValidateTransfer {
+            transfer,
+            client_signature: full_id.sign(&unwrap!(bincode::serialize(&transfer))),
+        };
+
+        let proof = match req(
+            &mut cm,
+            Request::Money(MoneyRequest::ValidateTransfer {
+                payload: transfer_to_validate,
+            }),
+            &full_id,
+        )? {
+            Response::TransferProofOfAgreement(res) => res?,
+            _ => return Err(CoreError::from("Unexpected response to validate transfer")),
+        };
+
+        // TODO: Register the transaction....
         let response = req(
             &mut cm,
-            Request::Money(MoneyRequest::TransferMoney {
-                to,
-                from,
-                amount,
-                transaction_id,
+            Request::Money(MoneyRequest::RegisterTransfer {
+                payload: RegisterTransfer { proof },
             }),
             &full_id,
         )?;
