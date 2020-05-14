@@ -126,7 +126,7 @@ impl CoreClient {
                 &balance_client_id,
             )?;
             let _ = match response {
-                Response::MoneyReceipt(res) => res?,
+                Response::TransferReceipt(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
             };
 

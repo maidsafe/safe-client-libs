@@ -18,7 +18,7 @@ use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, ADataRequest, AppPermissions,
     AppendOnlyData, ClientFullId, ClientRequest, Data, Error as SndError, IData, IDataAddress,
     IDataRequest, LoginPacket, LoginPacketRequest, MData, MDataAction, MDataAddress, MDataKind,
-    MDataRequest, Message, Money, MoneyReceipt, MoneyRequest, PublicId, PublicKey, Request,
+    MDataRequest, Message, Money, TransferReceipt, MoneyRequest, PublicId, PublicKey, Request,
     RequestType, Response, Result as SndResult, SeqAppendOnly, UnseqAppendOnly, XorName,
 };
 
@@ -196,11 +196,15 @@ impl Vault {
 
     // Get coin balance for the client manager name.
     pub fn get_coin_balance(&self, name: &XorName) -> Option<&CoinBalance> {
+
+        // TODO: update this to at2 api
         self.cache.coin_balances.get(name)
     }
 
     // Get mutable reference to account for the client manager name.
     pub fn get_coin_balance_mut(&mut self, name: &XorName) -> Option<&mut CoinBalance> {
+        // TODO: update this to at2 api
+
         self.cache.coin_balances.get_mut(name)
     }
 
@@ -371,13 +375,13 @@ impl Vault {
         to: XorName,
         amount: Money,
         transaction_id: u64,
-    ) -> SndResult<MoneyReceipt> {
+    ) -> SndResult<TransferReceipt> {
         match self.get_coin_balance_mut(&to) {
             Some(balance) => balance.credit_balance(amount, transaction_id)?,
             None => return Err(SndError::NoSuchBalance),
         };
 
-        Ok(MoneyReceipt {
+        Ok(TransferReceipt {
             id: transaction_id,
             amount,
         })
@@ -598,7 +602,7 @@ impl Vault {
                     self.deposit_money(source, to, amount, transaction_id)
                 };
 
-                Response::MoneyReceipt(result)
+                Response::TransferReceipt(result)
             }
             Request::Money(MoneyRequest::TransferMoney {
                 to,
@@ -648,7 +652,7 @@ impl Vault {
 
                 match result {
                     Ok(response) => response,
-                    Err(error) => Response::MoneyReceipt(Err(error)),
+                    Err(error) => Response::TransferReceipt(Err(error)),
                 }
             }
             Request::Money(MoneyRequest::CreateBalance {
@@ -665,7 +669,7 @@ impl Vault {
                         transaction_id.unwrap_or_else(rand::random);
                     // creating a mock balance, source is recipient so we just use that pk?
                     self.mock_create_balance(owner_pk, amount);
-                    Ok(MoneyReceipt {
+                    Ok(TransferReceipt {
                         id: real_or_random_transaction_id,
                         amount,
                     })
@@ -717,14 +721,14 @@ impl Vault {
                                 &deposit_message,
                             )? {
                                 Message::Response { response, .. } => match response {
-                                    Response::MoneyReceipt(res) => res,
+                                    Response::TransferReceipt(res) => res,
                                     _ => panic!("Unexpected response to DepositMoney"),
                                 },
                                 _ => panic!("Unexpected response to DepositMoney"),
                             }
                         })
                 };
-                Response::MoneyReceipt(result)
+                Response::TransferReceipt(result)
             }
             Request::Money(MoneyRequest::GetBalance(xorname)) => {
                 let coin_balance_id = xorname;
@@ -813,13 +817,13 @@ impl Vault {
                         .map(|_| {
                             self.insert_login_packet(new_login_packet);
 
-                            MoneyReceipt {
+                            TransferReceipt {
                                 id: transaction_id,
                                 amount,
                             }
                         })
                 };
-                Response::MoneyReceipt(result)
+                Response::TransferReceipt(result)
             }
             Request::LoginPacket(LoginPacketRequest::Create(account_data)) => {
                 let source = owner_pk.into();

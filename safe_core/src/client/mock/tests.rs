@@ -1343,7 +1343,7 @@ fn low_balance_check() {
         );
 
         match response {
-            Response::MoneyReceipt(Ok(_)) => (),
+            Response::TransferReceipt(Ok(_)) => (),
             x => panic!("Unexpected low balance check error {:?}", x),
         }
 

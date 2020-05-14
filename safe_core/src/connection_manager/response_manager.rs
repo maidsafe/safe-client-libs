@@ -12,9 +12,15 @@ use log::trace;
 use safe_nd::{MessageId, Response};
 
 use std::collections::HashMap;
-use threshold_crypto::SignatureShare;
+use threshold_crypto::{SignatureShare, PublicKeySet};
 type ResponseRequiredCount = usize;
 type VoteCount = usize;
+
+// enum VoteMap {
+//     Response(HashMap<Response, VoteCount>),
+//     PkSet(HashMap<PublicKeySet, VoteCount>)
+// }
+
 type VoteMap = HashMap<Response, VoteCount>;
 
 pub struct ResponseManager {
@@ -51,21 +57,27 @@ impl ResponseManager {
     /// returning the most common response once threshold was reached, or most popular response
     /// if no response has reached quorum.
     /// TODO: do we need to distinguish non-quorum'd responses?
-    fn wait_for_quorum_responses( &mut self, msg_id: MessageId, response: Response, sender: Sender<Response>, mut vote_map: VoteMap, current_count: ResponseRequiredCount ) {
+    fn get_quorum_responses( &mut self, msg_id: MessageId, response: Response, sender: Sender<Response>, mut vote_map: VoteMap, current_count: ResponseRequiredCount ) -> Option<Response> {
 
-        let vote_response = response.clone();
+        // let vote_response_comparator = match response {
+        //     Response::TransferValidation(Ok(TransferValidation {
+        //         pk_set,
+        //         ..
+        //     })) => { pk_set },
+        //     _ => response
+        // };
 
 
         // get our tally for this response
-        let cast_votes = vote_map.remove(&vote_response);
+        let cast_votes = vote_map.remove(&vote_response_comparator);
 
         // if we already have this response, lets vote for it
         if let Some(votes) = cast_votes {
             trace!("Increasing vote count to {:?}", votes + 1);
-            let _ = vote_map.insert(vote_response, votes + 1);
+            let _ = vote_map.insert(vote_response_comparator, votes + 1);
         } else {
             // otherwise we add this as a candidate with one vote
-            let _ = vote_map.insert(vote_response, 1);
+            let _ = vote_map.insert(vote_response_comparator, 1);
         }
 
         trace!("Response vote map looks like: {:?}", &vote_map);
@@ -95,13 +107,15 @@ impl ResponseManager {
                     }
                 }
 
-                let _ = sender.send(our_most_popular_response.clone());
-                return;
+                // let _ = sender.send(our_most_popular_response.clone());
+                return Some(our_most_popular_response.clone());
             }
         }
         let _ = self
             .requests
             .insert(msg_id, (sender, vote_map, current_count));
+        
+        None
     }
 
     /// Handle a response from one of the elders.
@@ -112,6 +126,7 @@ impl ResponseManager {
             response
         );
 
+        // response initially added in await_responses
         let _ = self
             // first remove the response and see how we deal with it (we re-add later if needed)
             .requests
@@ -125,33 +140,41 @@ impl ResponseManager {
                 // 1. If we have a GetTransferValidation response we store ALL responses.
                 // 2. Return when we have quorum, and return full signed repsonse to client... ??
 
-                if let Response::GetTransferValidation(Ok(new_signature_share_vec)) = response.clone() {
+                if let Response::TransferValidation(Ok(TransferValidation{
+                    // pub transfer_cmd: ValidateTransfer,
+                    /// Elder signature over the transfer cmd.
+                    elder_signature,
+                    /// The PK Set of the section
+                    pk_set,
+                    ..
+                })) = response.clone() {
                     // do we assume here, that msg_id == the same message... 
                     // what happens with bogus signatures? How much to _try_...
                     println!("!!!!!!!!!!!!!!!!!!!Signature share receivedddd!! {:?}", response);
 
+                    // TODO: track the PKSets incoming. and vote for them.
 
                     // get our tally for this response
                     let current_sigs = self.pending_transfer_validation_signatures.remove(&msg_id);
 
                     // if we already have this response, lets vote for it
                     if let Some(signature_vec) = current_sigs {
-                        if signature_vec.len() != 1 
-                        {
-                            panic!("TOO MANY SIGS FROM ONE ELDER")
-                        }
-                        trace!("Adding a signature to our pending sigs");
-                        let _ = self.pending_transfer_validation_signatures.insert(signature_vec.push(new_signature_share_vec[0]));
-
+                       
+                        
                         if signature_vec.len() > 4 {
                             // TODO: attempt to aggregate the sig against a known pk_set. Where/when would we get this?
-                            sender.send(Response::GetTransferValidation(Ok(signature_vec)));
+                            // let( )
+                            
+                            // sender.send(Response::TransferValidated(Ok(signature_vec)));
                             return;
                         }
+                        signature_vec.push(elder_signature);
+                        trace!("Adding a signature to our pending sigs");
+                        let _ = self.pending_transfer_validation_signatures.insert(msg_id, signature_vec);
                        
                     } else {
-                        // otherwise we add this as a candidate with one vote
-                        let _ = self.pending_transfer_validation_signatures.insert(new_signature_share_vec);
+                        // otherwise we add this as a candidate
+                        let _ = self.pending_transfer_validation_signatures.insert(msg_id, vec![elder_signature]);
 
                     }
 
@@ -161,7 +184,23 @@ impl ResponseManager {
                     return;
                 }
 
-                self.wait_for_quorum_responses( msg_id, response, sender, vote_map, current_count );
+                match self.get_quorum_responses( msg_id, response, sender, vote_map, current_count ) {
+                    Some(response) => {
+                        let _ = sender.send(response);
+
+                    },
+                    None => {
+                        // do nothing
+                    }
+                }
+                // match self.get_quorum_responses( msg_id, response, sender, vote_map, current_count ) {
+                //     PublicKeySet(pk_set) => {
+                //         sender.send(pk_set)
+                //     },
+                //     response => { sender.send(response); }
+                // }
+
+
             }
         )
             .or_else(|| {
