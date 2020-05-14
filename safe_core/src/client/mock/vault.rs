@@ -565,7 +565,7 @@ impl Vault {
                 match bincode::serialize(&request) {
                     Ok(vec) => {
                         let signed_message = sk_share.sign(vec);
-                        Response::GetTransferValidation(Ok(signed_message))
+                        Response::GetTransferValidation(Ok(vec![signed_message]))
 
                     },
                     Err(error) => {
