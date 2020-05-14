@@ -9,7 +9,7 @@
 use futures::sync::oneshot::Sender;
 use log::trace;
 
-use safe_nd::{MessageId, Response};
+use safe_nd::{MessageId, Response, ProofOfAgreement};
 
 use std::collections::HashMap;
 use threshold_crypto::{SignatureShare, PublicKeySet};
@@ -29,7 +29,7 @@ pub struct ResponseManager {
     /// Number of responses to aggregate before returning to a client
     response_threshold: usize,
     /// Signature shared for a given message id
-    pending_transfer_validation_signatures: HashMap<MessageId, Vec<SignatureShare> >
+    pending_transfer_validations: HashMap<MessageId, Vec<(SignatureShare, PublicKeySet)>>
 }
 
 /// Manage requests and their responses
@@ -37,7 +37,7 @@ impl ResponseManager {
     pub fn new(response_threshold: ResponseRequiredCount) -> Self {
         Self {
             requests: Default::default(),
-            pending_transfer_validation_signatures: HashMap::new(),
+            pending_transfer_validations: HashMap::new(),
             response_threshold,
         }
     }
@@ -59,7 +59,8 @@ impl ResponseManager {
     /// TODO: do we need to distinguish non-quorum'd responses?
     fn get_quorum_responses( &mut self, msg_id: MessageId, response: Response, sender: Sender<Response>, mut vote_map: VoteMap, current_count: ResponseRequiredCount ) -> Option<Response> {
 
-        // let vote_response_comparator = match response {
+        let vote_response = response.clone();
+        // let vote_response = match response {
         //     Response::TransferValidation(Ok(TransferValidation {
         //         pk_set,
         //         ..
@@ -69,15 +70,15 @@ impl ResponseManager {
 
 
         // get our tally for this response
-        let cast_votes = vote_map.remove(&vote_response_comparator);
+        let cast_votes = vote_map.remove(&vote_response);
 
         // if we already have this response, lets vote for it
         if let Some(votes) = cast_votes {
             trace!("Increasing vote count to {:?}", votes + 1);
-            let _ = vote_map.insert(vote_response_comparator, votes + 1);
+            let _ = vote_map.insert(vote_response, votes + 1);
         } else {
             // otherwise we add this as a candidate with one vote
-            let _ = vote_map.insert(vote_response_comparator, 1);
+            let _ = vote_map.insert(vote_response, 1);
         }
 
         trace!("Response vote map looks like: {:?}", &vote_map);
@@ -140,14 +141,23 @@ impl ResponseManager {
                 // 1. If we have a GetTransferValidation response we store ALL responses.
                 // 2. Return when we have quorum, and return full signed repsonse to client... ??
 
-                if let Response::TransferValidation(Ok(TransferValidation{
-                    // pub transfer_cmd: ValidateTransfer,
-                    /// Elder signature over the transfer cmd.
-                    elder_signature,
-                    /// The PK Set of the section
-                    pk_set,
-                    ..
-                })) = response.clone() {
+                // TransferValidation{
+                //     // pub transfer_cmd: ValidateTransfer,
+                //     /// Elder signature over the transfer cmd.
+                //     elder_signature,
+                //     /// The PK Set of the section
+                //     pk_set,
+                    // ..
+                // }
+                if let Response::TransferValidation(Ok( TransferValidation{
+                        // the initial transfer command
+                        transfer_cmd: ValidateTransfer,
+                        /// Elder signature over the transfer cmd.
+                        elder_signature,
+                        /// The PK Set of the section
+                        pk_set,
+                        
+                    })) = response.clone() {
                     // do we assume here, that msg_id == the same message... 
                     // what happens with bogus signatures? How much to _try_...
                     println!("!!!!!!!!!!!!!!!!!!!Signature share receivedddd!! {:?}", response);
@@ -155,26 +165,57 @@ impl ResponseManager {
                     // TODO: track the PKSets incoming. and vote for them.
 
                     // get our tally for this response
-                    let current_sigs = self.pending_transfer_validation_signatures.remove(&msg_id);
+                    let current_sigs = self.pending_transfer_validations.remove(&msg_id);
 
                     // if we already have this response, lets vote for it
-                    if let Some(signature_vec) = current_sigs {
+                    if let Some(prior_validation_vec) = current_sigs {
                        
                         
-                        if signature_vec.len() > 4 {
+                        if prior_validation_vec.len() > 4 {
+                            // threshold example:
+                            // let sigs = sigs.iter().filter_map(|node_sig| {
+                            //     let node_sig_is_valid = self
+                            //         .get_node(node_sig.node_id)
+                            //         .pk_share
+                            //         .verify(&node_sig.sig, msg.as_bytes());
+            
+                            //     if node_sig_is_valid {
+                            //         Some((node_sig.node_id, &node_sig.sig))
+                            //     } else {
+                            //         None
+                            //     }
+
+
+                            // let pk_set_votes = HashMap::new();
+                            // naive check, we assume sigs are all valid for now. 
+                            // TODO: try various combos in case of maliciousness
+                            // Roght now, grab first and use to combine
+                            let (_, pk_set) = prior_validation_vec[0];
+                            let all_signatures = prior_validation_vec.iter().map( |(elder_signature, _pk_set)| elder_signature ).collect();
+                            
+                            // TODO: Properly handle this error and return an error code if No combo of sigs work...
+                            let section_sig = pk_set.combine_signatures(all_signatures)?;
+                            // let best_pk_set = prior_validation_vec.iter().map(|(sig, the_pk_set| {
+
+                            // })
                             // TODO: attempt to aggregate the sig against a known pk_set. Where/when would we get this?
                             // let( )
+
+
                             
-                            // sender.send(Response::TransferValidated(Ok(signature_vec)));
+                            sender.send(Response::TransferProofOfAgreement(Ok(ProofOfAgreement{
+                                transfer_cmd, 
+                                section_sig
+                            })));
                             return;
                         }
-                        signature_vec.push(elder_signature);
+                        prior_validation_vec.push((elder_signature, pk_set));
                         trace!("Adding a signature to our pending sigs");
-                        let _ = self.pending_transfer_validation_signatures.insert(msg_id, signature_vec);
+                        let _ = self.pending_transfer_validations.insert(msg_id, prior_validation_vec);
                        
                     } else {
                         // otherwise we add this as a candidate
-                        let _ = self.pending_transfer_validation_signatures.insert(msg_id, vec![elder_signature]);
+                        let _ = self.pending_transfer_validations.insert(msg_id, vec![(elder_signature, pk_set)]);
 
                     }
 
