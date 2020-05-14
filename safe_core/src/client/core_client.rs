@@ -26,8 +26,8 @@ use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
 use safe_nd::{
-    ClientFullId, LoginPacket, LoginPacketRequest, Money, MoneyRequest, PublicKey, Request,
-    Response,
+    ClientFullId, LoginPacket, LoginPacketRequest, Money, MoneyRequest, PublicKey,
+    RegisterTransfer, Request, Response, Transfer, TransferRestrictions, ValidateTransfer,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -115,18 +115,43 @@ impl CoreClient {
 
         {
             // Create the balance for the client
-            let response = req(
+
+            let transfer = Transfer {
+                from,
+                to,
+                amount: unwrap!(Money::from_str("10")),
+                id: rand::random(),
+                restrictions: TransferRestrictions::NoRestriction,
+            };
+
+            let transfer_to_validate = ValidateTransfer {
+                transfer,
+                client_signature: client_full_id.sign(&unwrap!(bincode::serialize(&transfer))),
+            };
+
+            let proof = match req(
                 &mut connection_manager,
-                Request::Money(MoneyRequest::CreateBalance {
-                    to,
-                    from,
-                    amount: unwrap!(Money::from_str("10")),
-                    transaction_id: rand::random(),
+                Request::Money(MoneyRequest::ValidateTransfer {
+                    payload: transfer_to_validate,
+                }),
+                &balance_client_id,
+            )? {
+                Response::TransferProofOfAgreement(res) => res?,
+                _ => return Err(CoreError::from("Unexpected response to validate transfer")),
+            };
+
+            // TODO: Register the transaction....
+            let res = req(
+                &mut connection_manager,
+                Request::Money(MoneyRequest::RegisterTransfer {
+                    payload: RegisterTransfer { proof },
                 }),
                 &balance_client_id,
             )?;
-            let _ = match response {
-                Response::TransferReceipt(res) => res?,
+
+            // response after elder sig combination
+            let _ = match res {
+                Response::TransferRegistration(res) => res?,
                 _ => return Err(CoreError::from("Unexpected response")),
             };
 

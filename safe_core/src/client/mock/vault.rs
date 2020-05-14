@@ -18,8 +18,8 @@ use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, ADataRequest, AppPermissions,
     AppendOnlyData, ClientFullId, ClientRequest, Data, Error as SndError, IData, IDataAddress,
     IDataRequest, LoginPacket, LoginPacketRequest, MData, MDataAction, MDataAddress, MDataKind,
-    MDataRequest, Message, Money, TransferReceipt, MoneyRequest, PublicId, PublicKey, Request,
-    RequestType, Response, Result as SndResult, SeqAppendOnly, UnseqAppendOnly, XorName,
+    MDataRequest, Message, Money, MoneyRequest, PublicId, PublicKey, Request, RequestType,
+    Response, Result as SndResult, SeqAppendOnly, TransferReceipt, UnseqAppendOnly, XorName,
 };
 
 use serde::{Deserialize, Serialize};
@@ -196,7 +196,6 @@ impl Vault {
 
     // Get coin balance for the client manager name.
     pub fn get_coin_balance(&self, name: &XorName) -> Option<&CoinBalance> {
-
         // TODO: update this to at2 api
         self.cache.coin_balances.get(name)
     }
@@ -550,16 +549,16 @@ impl Vault {
                 from: _,
                 amount,
                 transaction_id,
-                dependencies
+                dependencies,
             }) => {
-                // TODO: 
+                // TODO:
                 // 1. full steps of AT2 validation...
                 // 2 sign
                 // 3 return signed keyshare
 
                 // setup fake share
-                use threshold_crypto::{SecretKeySet};
-                let threshold = 1; 
+                use threshold_crypto::SecretKeySet;
+                let threshold = 1;
                 let mut rng = rand::thread_rng();
                 let sk_set = SecretKeySet::random(threshold, &mut rng);
 
@@ -570,13 +569,12 @@ impl Vault {
                     Ok(vec) => {
                         let signed_message = sk_share.sign(vec);
                         Response::GetTransferValidation(Ok(vec![signed_message]))
-
-                    },
-                    Err(error) => {
-                       request.error_response(safe_nd::Error::NetworkOther( format!("Error seriliasizing request: {:?}", error ) ) )
                     }
+                    Err(error) => request.error_response(safe_nd::Error::NetworkOther(format!(
+                        "Error seriliasizing request: {:?}",
+                        error
+                    ))),
                 }
-
             }
 
             Request::Money(MoneyRequest::DepositMoney {

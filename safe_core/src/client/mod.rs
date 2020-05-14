@@ -46,12 +46,13 @@ use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions, ADataRequest,
-    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, ValidateTransfer, Transfer,  TransferRestrictions, RegisterTransfer, 
+    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId,
     ClientRequest, IData, IDataAddress, IDataRequest, LoginPacket, LoginPacketRequest, MData,
     MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet, MDataRequest,
     MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
-    MDataValues, Message, MessageId, Money, TransferReceipt, MoneyRequest, PublicId, PublicKey,
-    Request, RequestType, Response, SeqMutableData, UnseqMutableData, XorName,
+    MDataValues, Message, MessageId, Money, MoneyRequest, PublicId, PublicKey, RegisterTransfer,
+    Request, RequestType, Response, SeqMutableData, Transfer, TransferRegistration,
+    TransferRestrictions, UnseqMutableData, ValidateTransfer, XorName,
 };
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -113,9 +114,8 @@ fn send_as_helper(
     request: Request,
     client_id: &ClientFullId,
 ) -> Box<CoreFuture<Response>> {
-
     let message = sign_request(request, client_id);
-    let identity =  SafeKey::client(client_id.clone());
+    let identity = SafeKey::client(client_id.clone());
     // let (message, identity) = match client_id {
     //     Some(id) => (
     //     ),
@@ -234,29 +234,29 @@ pub trait Client: Clone + 'static {
         to: PublicKey,
         amount: Money,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<TransferReceipt>> {
+    ) -> Box<CoreFuture<TransferRegistration>> {
         trace!("Transfer {} money to {:?}", amount, to);
 
         // Initiates a validation. Gets accumulated signature response, and then continues to push the validated tgransfer.
         let from = *client_id.clone().public_id().public_key();
 
-        let transfer = Transfer { 
+        let transfer = Transfer {
             from,
             to,
             amount,
             id: transaction_id.unwrap_or_else(rand::random),
-            restrictions: TransferRestrictions::RequireHistory
+            restrictions: TransferRestrictions::RequireHistory,
         };
         let transfer_to_validate = ValidateTransfer {
             transfer,
-            client_signature: client_id.sign(unwrap!(bincode::serialize(&transfer) ) )
+            client_signature: client_id.sign(unwrap!(bincode::serialize(&transfer))),
         };
         let signed_transfer = send_as!(
             self,
             Request::Money(MoneyRequest::ValidateTransfer {
                 payload: transfer_to_validate
             }),
-            Response::TransferRegistered,
+            Response::TransferRegistration,
             client_id
         );
 
@@ -271,36 +271,35 @@ pub trait Client: Clone + 'static {
         to: PublicKey,
         amount: Money,
         transaction_id: Option<u64>,
-    ) -> Box<CoreFuture<TransferReceipt>> {
+    ) -> Box<CoreFuture<TransferRegistration>> {
         trace!("Create a new balance for {:?} with {} money.", to, amount);
 
-         // Initiates a validation. Gets accumulated signature response, and then continues to push the validated tgransfer.
-         let from = *client_id.clone().public_id().public_key();
+        // Initiates a validation. Gets accumulated signature response, and then continues to push the validated tgransfer.
+        let from = *client_id.clone().public_id().public_key();
 
-         let transfer = Transfer { 
-             from,
-             to,
-             amount,
-             id: transaction_id.unwrap_or_else(rand::random),
-             restrictions: TransferRestrictions::NoRestriction
-         };
+        let transfer = Transfer {
+            from,
+            to,
+            amount,
+            id: transaction_id.unwrap_or_else(rand::random),
+            restrictions: TransferRestrictions::NoRestriction,
+        };
 
-         let transfer_to_validate = ValidateTransfer {
-             transfer,
-             client_signature: client_id.sign(unwrap!(bincode::serialize(&transfer) ) )
-         };
+        let transfer_to_validate = ValidateTransfer {
+            transfer,
+            client_signature: client_id.sign(unwrap!(bincode::serialize(&transfer))),
+        };
 
-         let signed_transfer = send_as!(
-             self,
-             Request::Money(MoneyRequest::ValidateTransfer {
-                 payload: transfer_to_validate
-             }),
-             Response::TransferRegistered,
-             client_id
-         );
+        let proof_of_agreement = send_as!(
+            self,
+            Request::Money(MoneyRequest::ValidateTransfer {
+                payload: transfer_to_validate
+            }),
+            Response::TransferRegistration,
+            client_id
+        );
 
-         signed_transfer
-
+        proof_of_agreement
 
         // let from = client_id.clone().map_or_else(
         //     || {
@@ -318,7 +317,7 @@ pub trait Client: Clone + 'static {
         //         amount,
         //         transaction_id: Some(transaction_id.unwrap_or_else(rand::random)),
         //     }),
-        //     Response::TransferReceipt,
+        //     Response::TransferRegistration,
         //     client_id
         // )
     }
@@ -331,7 +330,7 @@ pub trait Client: Clone + 'static {
         amount: Money,
         transfer_id: Option<u64>,
         new_login_packet: LoginPacket,
-    ) -> Box<CoreFuture<TransferRegistered>> {
+    ) -> Box<CoreFuture<TransferRegistration>> {
         trace!(
             "Insert a login packet for {:?} preloading the wallet with {} money.",
             new_owner,
@@ -351,7 +350,7 @@ pub trait Client: Clone + 'static {
             client_id
         );
 
-        // Response::TransferRegistered()
+        // Response::TransferRegistration()
     }
 
     /// Get the current coin balance.
@@ -1165,7 +1164,7 @@ pub trait Client: Clone + 'static {
         &self,
         client_id: Option<&ClientFullId>,
         amount: Money,
-    ) -> Box<CoreFuture<TransferReceipt>> {
+    ) -> Box<CoreFuture<TransferRegistration>> {
         let our_id = self.public_id();
         let to = client_id.map_or_else(
             || our_id.public_key(),
@@ -1190,7 +1189,7 @@ pub trait Client: Clone + 'static {
                 amount,
                 transaction_id: rand::random(),
             }),
-            Response::TransferReceipt,
+            Response::TransferRegistration,
             client_id
         )
     }
@@ -1239,7 +1238,7 @@ pub fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<(), Co
         )?;
 
         match response {
-            Response::TransferReceipt(res) => res.map(|_| Ok(()))?,
+            Response::TransferRegistration(res) => res.map(|_| Ok(()))?,
             _ => Err(CoreError::from("Unexpected response")),
         }
     })
@@ -1267,7 +1266,7 @@ pub fn wallet_create_balance(
     to: PublicKey,
     amount: Money,
     transaction_id: Option<u64>,
-) -> Result<TransferReceipt, CoreError> {
+) -> Result<TransferRegistration, CoreError> {
     trace!(
         "Create a new coin balance for {:?} with {} money.",
         to,
@@ -1289,7 +1288,7 @@ pub fn wallet_create_balance(
             &full_id,
         )?;
         match response {
-            Response::TransferReceipt(res) => match res {
+            Response::TransferRegistration(res) => match res {
                 Ok(response) => Ok(response),
                 Err(err) => Err(CoreError::from(err)),
             },
@@ -1304,7 +1303,7 @@ pub fn wallet_transfer_money(
     to: XorName,
     amount: Money,
     transaction_id: Option<u64>,
-) -> Result<TransferReceipt, CoreError> {
+) -> Result<TransferRegistration, CoreError> {
     trace!("Transfer {} money to {:?}", amount, to);
 
     let transaction_id = transaction_id.unwrap_or_else(rand::random);
@@ -1325,7 +1324,7 @@ pub fn wallet_transfer_money(
         )?;
 
         match response {
-            Response::TransferReceipt(res) => match res {
+            Response::TransferRegistration(res) => match res {
                 Ok(response) => Ok(response),
                 Err(err) => Err(CoreError::from(err)),
             },
