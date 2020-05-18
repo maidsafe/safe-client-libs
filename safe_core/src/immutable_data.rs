@@ -206,65 +206,70 @@ where
 mod tests {
     use super::*;
     use crate::errors::CoreError;
-    use futures::Future;
+    
     use safe_nd::Error as SndError;
     use unwrap::unwrap;
     use utils;
-    use utils::test_utils::{finish, random_client};
+    use utils::test_utils::{random_client};
 
     // Test creating and retrieving a 1kb idata.
-    #[test]
-    fn create_and_retrieve_1kb() {
-        create_and_retrieve(1024)
+    #[tokio::test]
+    async fn create_and_retrieve_1kb() -> Result<(), CoreError> {
+        create_and_retrieve(1024).await
     }
 
     // Test creating and retrieving a 1mb idata.
-    #[test]
-    fn create_and_retrieve_1mb() {
-        create_and_retrieve(1024 * 1024)
+    #[tokio::test]
+    async fn create_and_retrieve_1mb() -> Result<(), CoreError> {
+        create_and_retrieve(1024 * 1024).await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_index_based() {
-        create_and_index_based_retrieve(1024);
+    async fn create_and_retrieve_index_based() -> Result<(), CoreError> {
+        create_and_index_based_retrieve(1024).await
     }
 
     // Test creating and retrieving a 2mb idata.
     #[tokio::test]
-    async fn create_and_retrieve_2mb() {
-        create_and_retrieve(2 * 1024 * 1024)
+    async fn create_and_retrieve_2mb() -> Result<(), CoreError> {
+        create_and_retrieve(2 * 1024 * 1024).await
     }
 
     // Test creating and retrieving a 10mb idata.
     #[cfg(not(debug_assertions))]
-    #[test]
-    fn create_and_retrieve_10mb() {
-        create_and_retrieve(10 * 1024 * 1024)
+    #[tokio::test]
+    async fn create_and_retrieve_10mb() -> Result<(), CoreError> {
+        create_and_retrieve(10 * 1024 * 1024).await
     }
 
-    fn create_and_index_based_retrieve(size: usize) {
+    async fn create_and_index_based_retrieve(size: usize) -> Result<(), CoreError> {
         let value = unwrap!(utils::generate_random_vector(size));
         {
             // Read first half
-            let client = random_client();
+            let client = random_client()?;
             //move |client| {
             let client2 = client.clone();
             let client3 = client.clone();
-            create(client, &value, true, None)
-                .then(move |res| {
-                    let data = unwrap!(res);
-                    let address = *data.address();
-                    client2.put_idata(data).map(move |_| address)
-                })
-                .then(move |res| {
-                    let address = unwrap!(res);
-                    get_value(&client3, address, None, Some(size as u64 / 2), None)
-                })
-                .then(move |res| {
-                    let fetched_value = unwrap!(res);
-                    assert_eq!(fetched_value, value[0..size / 2].to_vec());
-                    finish()
-                })
+            let data = create(&client, &value, true, None).await?;
+
+            // .then(move |res| {
+            // let data = unwrap!(res);
+            let address = *data.address();
+            client2.put_idata(data).await?;
+            // .map(move |_| address)
+            // })
+            // .then(move |res| {
+            //     let address = unwrap!(res);
+            let fetched_value =
+                get_value(&client3, address, None, Some(size as u64 / 2), None).await?;
+            // })
+            // .then(move |res| {
+            //     let fetched_value = unwrap!(res);
+            assert_eq!(fetched_value, value[0..size / 2].to_vec());
+
+            // fet
+            //     finish()
+            // })
             // }
             // );
         }
@@ -272,51 +277,57 @@ mod tests {
         let value2 = unwrap!(utils::generate_random_vector(size));
         {
             // Read Second half
-            random_client(move |client| {
-                let client2 = client.clone();
-                let client3 = client.clone();
-                create(client, &value2, true, None)
-                    .then(move |res| {
-                        let data = unwrap!(res);
-                        let address = *data.address();
-                        client2.put_idata(data).map(move |_| address)
-                    })
-                    .then(move |res| {
-                        let address = unwrap!(res);
-                        get_value(
-                            &client3,
-                            address,
-                            Some(size as u64 / 2),
-                            Some(size as u64 / 2),
-                            None,
-                        )
-                    })
-                    .then(move |res| {
-                        let fetched_value = unwrap!(res);
-                        assert_eq!(fetched_value, value2[size / 2..size].to_vec());
-                        finish()
-                    })
-            })
+            let client = random_client()?;
+
+            let client2 = client.clone();
+            let client3 = client.clone();
+
+            let data = create(&client, &value2, true, None).await?;
+            // .then(move |res| {
+            //     let data = unwrap!(res);
+            let address = *data.address();
+            client2.put_idata(data).await?;
+            // .map(move |_| address)
+            // })
+            // .then(move |res| {
+            //     let address = unwrap!(res);
+            let fetched_value = get_value(
+                &client3,
+                address,
+                Some(size as u64 / 2),
+                Some(size as u64 / 2),
+                None,
+            )
+            .await?;
+            // })
+            // .then(move |res| {
+            //     let fetched_value = unwrap!(res);
+            assert_eq!(fetched_value, value2[size / 2..size].to_vec());
+            // finish()
+            // })
+            // })
         }
+
+        Ok(())
     }
 
-    fn create_and_retrieve(size: usize) {
+    async fn create_and_retrieve(size: usize) -> Result<(), CoreError> {
         // Published and unencrypted
-        gen_data_then_map_create_and_retrieve(size, true, None);
+        gen_data_then_map_create_and_retrieve(size, true, None).await?;
 
         // Unpublished and unencrypted
-        gen_data_then_map_create_and_retrieve(size, false, None);
+        gen_data_then_map_create_and_retrieve(size, false, None).await?;
 
         // Published and encrypted
         {
             let key = shared_secretbox::gen_key();
-            gen_data_then_map_create_and_retrieve(size, true, Some(key));
+            gen_data_then_map_create_and_retrieve(size, true, Some(key)).await?;
         }
 
         // Unpublished and encrypted
         {
             let key = shared_secretbox::gen_key();
-            gen_data_then_map_create_and_retrieve(size, false, Some(key));
+            gen_data_then_map_create_and_retrieve(size, false, Some(key)).await?;
         }
 
         let value = unwrap!(utils::generate_random_vector(size));
@@ -326,25 +337,26 @@ mod tests {
             let value = value.clone();
             let key = shared_secretbox::gen_key();
 
-            random_client(move |client| {
-                let client2 = client.clone();
-                let client3 = client.clone();
+            let client = random_client()?;
+            let client2 = client.clone();
+            let client3 = client.clone();
 
-                create(client, &value, true, None)
-                    .then(move |res| {
-                        let data = unwrap!(res);
-                        let address = *data.address();
-                        client2.put_idata(data).map(move |_| address)
-                    })
-                    .then(move |res| {
-                        let address = unwrap!(res);
-                        get_value(&client3, address, None, None, Some(key))
-                    })
-                    .then(|res| {
-                        assert!(res.is_err());
-                        finish()
-                    })
-            })
+            let data = create(&client, &value, true, None).await?;
+            // .then(move |res| {
+            // let data = unwrap!(res);
+            let address = *data.address();
+            client2.put_idata(data).await?;
+            // .map(move |_| address)
+            // })
+            // .then(move |res| {
+            // let address = unwrap!(res);
+            let res = get_value(&client3, address, None, None, Some(key)).await;
+            // })
+            // .then(|res| {
+            assert!(res.is_err());
+            // finish()
+            // })
+            // })
         }
 
         // Put encrypted Retrieve unencrypted - Should fail
@@ -352,141 +364,154 @@ mod tests {
             let value = value.clone();
             let key = shared_secretbox::gen_key();
 
-            random_client(move |client| {
-                let client2 = client.clone();
-                let client3 = client.clone();
+            let client = random_client()?;
+            let client2 = client.clone();
+            let client3 = client.clone();
 
-                create(client, &value, true, Some(key))
-                    .then(move |res| {
-                        let data = unwrap!(res);
-                        let address = *data.address();
-                        client2.put_idata(data).map(move |_| address)
-                    })
-                    .then(move |res| {
-                        let address = unwrap!(res);
-                        get_value(&client3, address, None, None, None)
-                    })
-                    .then(|res| {
-                        assert!(res.is_err());
-                        finish()
-                    })
-            })
+            let data = create(&client, &value, true, Some(key)).await?;
+            // .then(move |res| {
+            //     let data = unwrap!(res);
+            let address = *data.address();
+            client2.put_idata(data).await?;
+            //  .map(move |_| address)
+            // })
+            // .then(move |res| {
+            // let address = unwrap!(res);
+            let res = get_value(&client3, address, None, None, None).await;
+            // })
+            // .then(|res| {
+            assert!(res.is_err());
+            //     finish()
+            // })
+            // })
         }
 
         // Put published Retrieve unpublished - Should fail
         {
             let value = value.clone();
 
-            random_client(move |client| {
-                let client2 = client.clone();
-                let client3 = client.clone();
+            let client = random_client()?;
+            let client2 = client.clone();
+            let client3 = client.clone();
 
-                create(client, &value, true, None)
-                    .then(move |res| {
-                        let data = unwrap!(res);
-                        let data_name = *data.name();
-                        client2.put_idata(data).map(move |_| data_name)
-                    })
-                    .then(move |res| {
-                        let data_name = unwrap!(res);
-                        let address = IDataAddress::Unpub(data_name);
-                        get_value(&client3, address, None, None, None)
-                    })
-                    .then(|res| {
-                        assert!(res.is_err());
-                        finish()
-                    })
-            })
+            let data = create(&client, &value, true, None).await?;
+            // .then(move |res| {
+            // let data = unwrap!(res);
+            let data_name = *data.name();
+            client2.put_idata(data).await?;
+            // .map(move |_| data_name)
+            // })
+            // .then(move |res| {
+            // let data_name = unwrap!(res);
+            let address = IDataAddress::Unpub(data_name);
+            let res = get_value(&client3, address, None, None, None).await;
+            // })
+            // .then(|res| {
+            assert!(res.is_err());
+            //     finish()
+            // })
+            // })
         }
 
         // Put unpublished Retrieve published - Should fail
         {
-            random_client(move |client| {
-                let client2 = client.clone();
-                let client3 = client.clone();
+            let client = random_client()?;
+            let client2 = client.clone();
+            let client3 = client.clone();
 
-                create(client, &value, false, None)
-                    .then(move |res| {
-                        let data = unwrap!(res);
-                        let data_name = *data.name();
-                        client2.put_idata(data).map(move |_| data_name)
-                    })
-                    .then(move |res| {
-                        let data_name = unwrap!(res);
-                        let address = IDataAddress::Pub(data_name);
-                        get_value(&client3, address, None, None, None)
-                    })
-                    .then(|res| {
-                        assert!(res.is_err());
-                        finish()
-                    })
-            })
+            let data = create(&client, &value, false, None).await?;
+            // .then(move |res| {
+            //     let data = unwrap!(res);
+            let data_name = *data.name();
+            client2.put_idata(data).await?;
+
+            // .map(move |_| data_name)
+            // })
+            // .then(move |res| {
+            //     let data_name = unwrap!(res);
+            let address = IDataAddress::Pub(data_name);
+            let res = get_value(&client3, address, None, None, None).await;
+            // })
+            // .then(|res| {
+            assert!(res.is_err());
+            //     finish()
+            // })
+            // })
         }
+
+        Ok(())
     }
 
-    fn gen_data_then_map_create_and_retrieve(
+    async fn gen_data_then_map_create_and_retrieve(
         size: usize,
         published: bool,
         key: Option<shared_secretbox::Key>,
-    ) {
+    ) -> Result<(), CoreError> {
         let value = unwrap!(utils::generate_random_vector(size));
         let value_before = value.clone();
         let value_before2 = value.clone();
 
-        random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let key2 = key.clone();
-            let key3 = key.clone();
+        let client = random_client()?;
 
-            // gen address without putting to the network (published and unencrypted)
-            gen_data_map(client, &value.clone(), published, key2.clone())
-                .then(move |res| {
-                    let data = unwrap!(res);
-                    let address_before = *data.address();
-                    // attempt to retrieve it with generated address (it should error)
-                    get_value(&client2, address_before, None, None, key2.clone())
-                        .then(move |res| {
-                            match res {
-                                Err(err) => {
-                                    if let CoreError::DataError(SndError::NoSuchData) = err {
-                                        // let's put it to the network (published and unencrypted)
-                                        create(&client3, &value_before2.clone(), published, key3)
-                                    } else {
-                                        panic!("Unexpected error when ImmutableData retrieved using address generated by gen_data_map");
-                                    }
-                                }
-                                Ok(_) => panic!("ImmutableData unexpectedly retrieved using address generated by gen_data_map"),
-                            }
-                        })
-                        .then(move |res| {
-                            let data_map_before = unwrap!(res);
-                            let address_after = *data_map_before.address();
-                            if key2.is_none() {
-                                // the addresses generated without/with putting to the network should match
-                                assert_eq!(address_after, address_before);
-                            } else {
-                                // in this case the addresses generated without/with putting to the network
-                                // don't match since the encryption uses a random nonce
-                                // which changes the address of the chunks
-                                assert_ne!(address_after, address_before);
-                            }
-                            client4.put_idata(data_map_before).map(move |_| address_after)
-                        })
-                })
-                .then(move |res| {
-                    let address = unwrap!(res);
-                    // now that it was put to the network we should be able to retrieve it
-                    get_value(&client5, address, None, None, key)
-                })
-                .then(move |res| {
-                    let value_after = unwrap!(res);
-                    // then the content should be what we put
-                    assert_eq!(value_after, value_before);
-                    finish()
-                })
-        })
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let key2 = key.clone();
+        let key3 = key.clone();
+
+        // gen address without putting to the network (published and unencrypted)
+        let data = gen_data_map(&client, &value.clone(), published, key2.clone()).await?;
+        // .then(move |res| {
+        //     let data = unwrap!(res);
+        let address_before = *data.address();
+        // attempt to retrieve it with generated address (it should error)
+        let res = get_value(&client2, address_before, None, None, key2.clone()).await;
+        // .then(move |res| {
+        let data_map_before = match res {
+            Err(err) => {
+                if let CoreError::DataError(SndError::NoSuchData) = err {
+                    // let's put it to the network (published and unencrypted)
+                    create(&client3, &value_before2.clone(), published, key3).await?
+                } else {
+                    panic!("Unexpected error when ImmutableData retrieved using address generated by gen_data_map");
+                }
+            }
+            Ok(_) => panic!(
+                "ImmutableData unexpectedly retrieved using address generated by gen_data_map"
+            ),
+        };
+        // })
+        // .then(move |res| {
+        //     let data_map_before = unwrap!(res);
+        let address_after = *data_map_before.address();
+        if key2.is_none() {
+            // the addresses generated without/with putting to the network should match
+            assert_eq!(address_after, address_before);
+        } else {
+            // in this case the addresses generated without/with putting to the network
+            // don't match since the encryption uses a random nonce
+            // which changes the address of the chunks
+            assert_ne!(address_after, address_before);
+        }
+        client4.put_idata(data_map_before).await?;
+
+        let address = address_after;
+        // .map(move |_| address_after)
+        // })
+        // })
+        // .then(move |res| {
+        //     let address = unwrap!(res);
+        // now that it was put to the network we should be able to retrieve it
+        let value_after = get_value(&client5, address, None, None, key).await?;
+        // })
+        // .then(move |res| {
+        // let value_after = unwrap!(res);
+        // then the content should be what we put
+        assert_eq!(value_after, value_before);
+        // finish()
+        // })
+        // })
+        Ok(())
     }
 }

@@ -433,7 +433,7 @@ mod tests {
 
     // Test modifying given entry actions to fix entry errors
     #[test]
-    fn test_fix_entry_actions() {
+    fn test_fix_entry_actions() -> Result<(), CoreError> {
         let actions = MDataSeqEntryActions::new()
             .ins(vec![0], vec![0], 0)
             .ins(vec![1], vec![1], 0)
@@ -512,11 +512,13 @@ mod tests {
             *unwrap!(actions.get([7].as_ref())),
             MDataSeqEntryAction::Del(3)
         );
+
+        Ok(())
     }
 
     // Test creating a union of two permission sets
     #[test]
-    fn test_union_permission_sets() {
+    fn test_union_permission_sets() -> Result<(), CoreError> {
         let a = MDataPermissionSet::new()
             .allow(MDataAction::Insert)
             .deny(MDataAction::Update)
@@ -530,6 +532,8 @@ mod tests {
         assert_eq!(c.is_allowed(MDataAction::Update), true);
         assert_eq!(c.is_allowed(MDataAction::Delete), true);
         assert_eq!(c.is_allowed(MDataAction::ManagePermissions), false);
+
+        Ok(())
     }
 }
 
@@ -542,282 +546,241 @@ mod tests_with_mock_routing {
     use unwrap::unwrap;
 
     // Test putting mdata and recovering from errors
-    #[test]
-    fn put_mdata_with_recovery() {
-        random_client(|client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
+    #[tokio::test]
+    async fn put_mdata_with_recovery() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
 
-            let name = rand::random();
-            let tag = 10_000;
-            let owners = client.public_key();
+        let name = rand::random();
+        let tag = 10_000;
+        let owners = client.public_key();
 
-            let entries = btree_map![
-                 vec![0] => MDataSeqValue {
-                    data: vec![0, 0],
-                    version: 0,
-                },
-                 vec![1] => MDataSeqValue {
-                    data: vec![1, 0],
-                    version: 1,
-                },
-                 vec![2] => MDataSeqValue {
-                    data: vec![2, 0],
-                    version: 0,
-                }
-            ];
+        let entries = btree_map![
+             vec![0] => MDataSeqValue {
+                data: vec![0, 0],
+                version: 0,
+            },
+             vec![1] => MDataSeqValue {
+                data: vec![1, 0],
+                version: 1,
+            },
+             vec![2] => MDataSeqValue {
+                data: vec![2, 0],
+                version: 0,
+            }
+        ];
 
-            let bls_sk = threshold_crypto::SecretKey::random();
-            let user = PublicKey::from(bls_sk.public_key());
+        let bls_sk = threshold_crypto::SecretKey::random();
+        let user = PublicKey::from(bls_sk.public_key());
 
-            let permissions = btree_map![
-                user => MDataPermissionSet::new().allow(MDataAction::Insert)
-            ];
-            let data0 = SeqMutableData::new_with_data(name, tag, entries, permissions, owners);
+        let permissions = btree_map![
+            user => MDataPermissionSet::new().allow(MDataAction::Insert)
+        ];
+        let data0 = SeqMutableData::new_with_data(name, tag, entries, permissions, owners);
 
-            let entries1 = btree_map![
-                vec![0] => MDataSeqValue {
-                    data: vec![0, 1],
-                    version: 1,
-                },
-                vec![1] => MDataSeqValue {
-                    data: vec![1, 1],
-                    version: 0,
-                },
-                vec![3] => MDataSeqValue {
-                    data: vec![3, 1],
-                    version: 0,
-                }
-            ];
+        let entries1 = btree_map![
+            vec![0] => MDataSeqValue {
+                data: vec![0, 1],
+                version: 1,
+            },
+            vec![1] => MDataSeqValue {
+                data: vec![1, 1],
+                version: 0,
+            },
+            vec![3] => MDataSeqValue {
+                data: vec![3, 1],
+                version: 0,
+            }
+        ];
 
-            let bls_sk = threshold_crypto::SecretKey::random();
-            let user = PublicKey::from(bls_sk.public_key());
+        let bls_sk = threshold_crypto::SecretKey::random();
+        let user = PublicKey::from(bls_sk.public_key());
 
-            let permissions = btree_map![
-               user => MDataPermissionSet::new().allow(MDataAction::Delete)
-            ];
+        let permissions = btree_map![
+           user => MDataPermissionSet::new().allow(MDataAction::Delete)
+        ];
 
-            let data1 = SeqMutableData::new_with_data(name, tag, entries1, permissions, owners);
+        let data1 = SeqMutableData::new_with_data(name, tag, entries1, permissions, owners);
 
-            client
-                .put_seq_mutable_data(data0)
-                .then(move |res| {
-                    unwrap!(res);
-                    put_mdata(&client2, data1)
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    client3.list_seq_mdata_entries(name, tag)
-                })
-                .then(move |res| {
-                    let entries = unwrap!(res);
-                    assert_eq!(entries.len(), 4);
-                    assert_eq!(
-                        *unwrap!(entries.get([0].as_ref())),
-                        MDataSeqValue {
-                            data: vec![0, 1],
-                            version: 1,
-                        }
-                    );
-                    assert_eq!(
-                        *unwrap!(entries.get([1].as_ref())),
-                        MDataSeqValue {
-                            data: vec![1, 0],
-                            version: 1,
-                        }
-                    );
+        client.put_seq_mutable_data(data0).await?;
+        put_mdata(client2, data1).await?;
+        let entries = client3.list_seq_mdata_entries(name, tag).await?;
+        assert_eq!(entries.len(), 4);
+        assert_eq!(
+            *unwrap!(entries.get([0].as_ref())),
+            MDataSeqValue {
+                data: vec![0, 1],
+                version: 1,
+            }
+        );
+        assert_eq!(
+            *unwrap!(entries.get([1].as_ref())),
+            MDataSeqValue {
+                data: vec![1, 0],
+                version: 1,
+            }
+        );
 
-                    client4.list_mdata_permissions(MDataAddress::Seq { name, tag })
-                })
-                .then(move |res| {
-                    let permissions = unwrap!(res);
-                    assert_eq!(permissions.len(), 2);
-                    assert_eq!(
-                        *unwrap!(permissions.get(&user)),
-                        MDataPermissionSet::new().allow(MDataAction::Delete)
-                    );
+        let permissions = client4
+            .list_mdata_permissions(MDataAddress::Seq { name, tag })
+            .await?;
+        assert_eq!(permissions.len(), 2);
+        assert_eq!(
+            *unwrap!(permissions.get(&user)),
+            MDataPermissionSet::new().allow(MDataAction::Delete)
+        );
 
-                    Ok::<_, CoreError>(())
-                })
-        })
+        Ok(())
     }
 
     // Test mutating mdata entries and recovering from errors
-    #[test]
-    fn mutate_mdata_entries_with_recovery() {
-        random_client(|client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
+    #[tokio::test]
+    async fn mutate_mdata_entries_with_recovery() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
 
-            let name: XorName = rand::random();
-            let tag = 10_000;
-            let entries = btree_map![
-                vec![1] => MDataSeqValue {
-                    data: vec![1],
-                    version: 0,
-                },
-                vec![2] => MDataSeqValue {
-                    data: vec![2],
-                    version: 0,
-                },
-                vec![4] => MDataSeqValue {
-                    data: vec![4],
-                    version: 0,
-                },
-                vec![5] => MDataSeqValue {
-                    data: vec![5],
-                    version: 0,
-                },
-                vec![7] => MDataSeqValue {
-                    data: vec![7],
-                    version: 0,
-                }
-            ];
-            let owners = client.public_key();
-            let data =
-                SeqMutableData::new_with_data(name, tag, entries, Default::default(), owners);
+        let name: XorName = rand::random();
+        let tag = 10_000;
+        let entries = btree_map![
+            vec![1] => MDataSeqValue {
+                data: vec![1],
+                version: 0,
+            },
+            vec![2] => MDataSeqValue {
+                data: vec![2],
+                version: 0,
+            },
+            vec![4] => MDataSeqValue {
+                data: vec![4],
+                version: 0,
+            },
+            vec![5] => MDataSeqValue {
+                data: vec![5],
+                version: 0,
+            },
+            vec![7] => MDataSeqValue {
+                data: vec![7],
+                version: 0,
+            }
+        ];
+        let owners = client.public_key();
+        let data = SeqMutableData::new_with_data(name, tag, entries, Default::default(), owners);
 
-            client
-                .put_seq_mutable_data(data)
-                .then(move |res| {
-                    unwrap!(res);
+        client.put_seq_mutable_data(data).await?;
 
-                    let actions = MDataSeqEntryActions::new()
-                        .ins(vec![0], vec![0], 0) // normal insert
-                        .ins(vec![1], vec![1, 0], 0) // insert to existing entry
-                        .update(vec![2], vec![2, 0], 1) // normal update
-                        .update(vec![3], vec![3], 1) // update of non-existing entry
-                        .update(vec![4], vec![4, 0], 0) // update with invalid version
-                        .del(vec![5], 1) // normal delete
-                        .del(vec![6], 1) // delete of non-existing entry
-                        .del(vec![7], 0); // delete with invalid version
+        let actions = MDataSeqEntryActions::new()
+            .ins(vec![0], vec![0], 0) // normal insert
+            .ins(vec![1], vec![1, 0], 0) // insert to existing entry
+            .update(vec![2], vec![2, 0], 1) // normal update
+            .update(vec![3], vec![3], 1) // update of non-existing entry
+            .update(vec![4], vec![4, 0], 0) // update with invalid version
+            .del(vec![5], 1) // normal delete
+            .del(vec![6], 1) // delete of non-existing entry
+            .del(vec![7], 0); // delete with invalid version
 
-                    mutate_mdata_entries(&client2, MDataAddress::Seq { name, tag }, actions)
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    client3.list_seq_mdata_entries(name, tag)
-                })
-                .then(move |res| {
-                    let entries = unwrap!(res);
-                    assert_eq!(entries.len(), 5);
+        mutate_mdata_entries(client2, MDataAddress::Seq { name, tag }, actions).await?;
+        let entries = client3.list_seq_mdata_entries(name, tag).await?;
+        assert_eq!(entries.len(), 5);
 
-                    assert_eq!(
-                        *unwrap!(entries.get([0].as_ref())),
-                        MDataSeqValue {
-                            data: vec![0],
-                            version: 0,
-                        }
-                    );
-                    assert_eq!(
-                        *unwrap!(entries.get([1].as_ref())),
-                        MDataSeqValue {
-                            data: vec![1, 0],
-                            version: 1,
-                        }
-                    );
-                    assert_eq!(
-                        *unwrap!(entries.get([2].as_ref())),
-                        MDataSeqValue {
-                            data: vec![2, 0],
-                            version: 1,
-                        }
-                    );
-                    assert_eq!(
-                        *unwrap!(entries.get([3].as_ref())),
-                        MDataSeqValue {
-                            data: vec![3],
-                            version: 1,
-                        }
-                    );
-                    assert_eq!(
-                        *unwrap!(entries.get([4].as_ref())),
-                        MDataSeqValue {
-                            data: vec![4, 0],
-                            version: 1,
-                        }
-                    );
-                    assert!(entries.get([5].as_ref()).is_none());
-                    assert!(entries.get([6].as_ref()).is_none());
-                    assert!(entries.get([7].as_ref()).is_none());
+        assert_eq!(
+            *unwrap!(entries.get([0].as_ref())),
+            MDataSeqValue {
+                data: vec![0],
+                version: 0,
+            }
+        );
+        assert_eq!(
+            *unwrap!(entries.get([1].as_ref())),
+            MDataSeqValue {
+                data: vec![1, 0],
+                version: 1,
+            }
+        );
+        assert_eq!(
+            *unwrap!(entries.get([2].as_ref())),
+            MDataSeqValue {
+                data: vec![2, 0],
+                version: 1,
+            }
+        );
+        assert_eq!(
+            *unwrap!(entries.get([3].as_ref())),
+            MDataSeqValue {
+                data: vec![3],
+                version: 1,
+            }
+        );
+        assert_eq!(
+            *unwrap!(entries.get([4].as_ref())),
+            MDataSeqValue {
+                data: vec![4, 0],
+                version: 1,
+            }
+        );
+        assert!(entries.get([5].as_ref()).is_none());
+        assert!(entries.get([6].as_ref()).is_none());
+        assert!(entries.get([7].as_ref()).is_none());
 
-                    Ok::<_, CoreError>(())
-                })
-        })
+        Ok(())
     }
 
     // Test setting and deleting user permissions and recovering from errors
-    #[test]
-    fn set_and_del_mdata_user_permissions_with_recovery() {
-        random_client(|client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
+    #[tokio::test]
+    async fn set_and_del_mdata_user_permissions_with_recovery() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
 
-            let name: XorName = rand::random();
-            let tag = 10_000;
-            let owners = client.public_key();
-            let data = SeqMutableData::new_with_data(
-                name,
-                tag,
-                Default::default(),
-                Default::default(),
-                owners,
-            );
-            let address = *data.address();
-            let bls_sk1 = threshold_crypto::SecretKey::random();
-            let bls_sk2 = threshold_crypto::SecretKey::random();
+        let name: XorName = rand::random();
+        let tag = 10_000;
+        let owners = client.public_key();
+        let data = SeqMutableData::new_with_data(
+            name,
+            tag,
+            Default::default(),
+            Default::default(),
+            owners,
+        );
+        let address = *data.address();
+        let bls_sk1 = threshold_crypto::SecretKey::random();
+        let bls_sk2 = threshold_crypto::SecretKey::random();
 
-            let user0 = PublicKey::from(bls_sk1.public_key());
-            let user1 = PublicKey::from(bls_sk2.public_key());
+        let user0 = PublicKey::from(bls_sk1.public_key());
+        let user1 = PublicKey::from(bls_sk2.public_key());
 
-            client
-                .put_seq_mutable_data(data)
-                .then(move |res| {
-                    unwrap!(res);
-                    // set with invalid version
-                    set_mdata_user_permissions(
-                        &client2,
-                        address,
-                        user0,
-                        MDataPermissionSet::new().allow(MDataAction::Insert),
-                        0,
-                    )
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    client3.list_mdata_user_permissions(address, user0)
-                })
-                .then(move |res| {
-                    let retrieved_permissions = unwrap!(res);
-                    assert_eq!(
-                        retrieved_permissions,
-                        MDataPermissionSet::new().allow(MDataAction::Insert)
-                    );
+        client.put_seq_mutable_data(data).await?;
+        // set with invalid version
+        set_mdata_user_permissions(
+            client2,
+            address,
+            user0,
+            MDataPermissionSet::new().allow(MDataAction::Insert),
+            0,
+        )
+        .await?;
+        let retrieved_permissions = client3.list_mdata_user_permissions(address, user0).await?;
+        assert_eq!(
+            retrieved_permissions,
+            MDataPermissionSet::new().allow(MDataAction::Insert)
+        );
 
-                    // delete with invalid version
-                    del_mdata_user_permissions(&client4, address, user0, 0)
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    client5.list_mdata_user_permissions(address, user0)
-                })
-                .then(move |res| {
-                    match res {
-                        Err(CoreError::DataError(SndError::NoSuchKey)) => (),
-                        x => panic!("Unexpected {:?}", x),
-                    }
+        // delete with invalid version
+        del_mdata_user_permissions(client4, address, user0, 0).await?;
+        let res = client5.list_mdata_user_permissions(address, user0).await;
+        match res {
+            Err(CoreError::DataError(SndError::NoSuchKey)) => (),
+            x => panic!("Unexpected {:?}", x),
+        }
 
-                    // delete of non-existing user
-                    del_mdata_user_permissions(&client6, address, user1, 3)
-                })
-                .then(move |res| {
-                    unwrap!(res);
-                    Ok::<_, CoreError>(())
-                })
-        })
+        // delete of non-existing user
+        del_mdata_user_permissions(client6, address, user1, 3).await?;
+
+        Ok(())
     }
 }

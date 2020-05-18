@@ -33,7 +33,7 @@ use tiny_keccak::sha3_256;
 
 use unwrap::unwrap;
 
-use async_trait::async_trait;
+
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
     inner: Arc<Mutex<Inner>>,
@@ -152,7 +152,7 @@ impl CoreClient {
     }
 }
 
-#[async_trait]
+// #[async_trait]
 impl Client for CoreClient {
     type Context = ();
 
@@ -185,7 +185,7 @@ impl Client for CoreClient {
     }
 }
 
-#[async_trait]
+// #[async_trait]
 impl AuthActions for CoreClient {}
 
 impl Clone for CoreClient {

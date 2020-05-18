@@ -43,19 +43,19 @@ use unwrap::unwrap;
 macro_rules! send_req_expect_failure {
     ($cm:expr, $sender:expr, $req:expr, $err:path) => {
         let expected_response = $req.error_response($err);
-        let response = process_request($cm, $sender, $req);
+        let response = process_request($cm, $sender, $req).await;
         assert_eq!(response, expected_response);
     };
 }
 
 macro_rules! send_req_expect_ok {
     ($cm:expr, $sender:expr, $req:expr, $res:expr) => {
-        let response = process_request($cm, $sender, $req);
+        let response = process_request($cm, $sender, $req).await;
         assert_eq!($res, unwrap!(response.try_into()));
     };
 }
 
-fn process_request(
+async fn process_request(
     connection_manager: &mut ConnectionManager,
     sender: &SafeKey,
     request: Request,
@@ -76,8 +76,8 @@ fn process_request(
 }
 
 // Test the basics idata operations.
-#[test]
-fn immutable_data_basics() {
+#[tokio::test]
+async fn immutable_data_basics() {
     let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     // Construct PubImmutableData
@@ -99,7 +99,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         put_request.clone(),
-        (),
+        ()
     );
 
     // Now GetIData should pass
@@ -107,7 +107,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         get_request.clone(),
-        orig_data,
+        orig_data
     );
 
     // Initial balance is 10 coins
@@ -117,7 +117,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetBalance,
-        balance,
+        balance
     );
 
     // Subsequent PutIData for same data should succeed - De-duplication
@@ -128,7 +128,7 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         get_request,
-        orig_data,
+        orig_data
     );
 
     // The balance should be deducted twice
@@ -137,13 +137,13 @@ fn immutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetBalance,
-        balance,
+        balance
     );
 }
 
 // Test the basic mdata operations.
-#[test]
-fn mutable_data_basics() {
+#[tokio::test]
+async fn mutable_data_basics() {
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData
@@ -173,7 +173,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        (),
+        ()
     );
 
     // It should be possible to put an MData using the same name but a
@@ -186,7 +186,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data2.clone()),
-        (),
+        ()
     );
 
     // GetMDataVersion should respond with 0
@@ -194,7 +194,8 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMDataVersion(data2_address),
-    );
+    )
+    .await;
     assert_eq!(response, Response::GetMDataVersion(Ok(0)));
 
     // GetMData should return the entire MutableData object
@@ -202,7 +203,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(data2_address),
-        data2,
+        data2
     );
 
     // ListMDataEntries, ListMDataKeys and ListMDataValues should all respond
@@ -211,21 +212,21 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data2_address),
-        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new()),
+        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
     );
 
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataKeys(data2_address),
-        BTreeSet::new(),
+        BTreeSet::new()
     );
 
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataValues(data2_address),
-        MDataValues::from(Vec::<MDataSeqValue>::new()),
+        MDataValues::from(Vec::<MDataSeqValue>::new())
     );
 
     // Add couple of entries
@@ -253,14 +254,15 @@ fn mutable_data_basics() {
             address: data2_address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     let response = process_request(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data2_address),
-    );
+    )
+    .await;
     let entries: MDataEntries = unwrap!(response.try_into());
 
     match entries {
@@ -283,7 +285,7 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data1_address),
-        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new()),
+        MDataEntries::from(BTreeMap::<_, MDataSeqValue>::new())
     );
 
     // ListMDataKeys
@@ -291,7 +293,8 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataKeys(data2_address),
-    );
+    )
+    .await;
     match response {
         Response::ListMDataKeys(Ok(keys)) => {
             assert_eq!(keys.len(), 2);
@@ -307,7 +310,8 @@ fn mutable_data_basics() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataValues(data2_address),
-    );
+    )
+    .await;
     match response {
         Response::ListMDataValues(Ok(values)) => match values {
             MDataValues::Seq(seq_values) => assert_eq!(seq_values.len(), 2),
@@ -327,7 +331,7 @@ fn mutable_data_basics() {
         MDataValue::Seq(MDataSeqValue {
             data: value0_v0,
             version: 0,
-        }),
+        })
     );
 
     // GetMDataValue with non-existing key
@@ -365,14 +369,15 @@ fn mutable_data_basics() {
             address: data2_address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     let response = process_request(
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataEntries(data2_address),
-    );
+    )
+    .await;
     let entries: MDataEntries = unwrap!(response.try_into());
 
     match entries {
@@ -398,8 +403,8 @@ fn mutable_data_basics() {
 }
 
 // Test reclamation of deleted mdata.
-#[test]
-fn mutable_data_reclaim() {
+#[tokio::test]
+async fn mutable_data_reclaim() {
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData
@@ -414,7 +419,7 @@ fn mutable_data_reclaim() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        (),
+        ()
     );
 
     // Mutate the entries: insert, delete and insert again
@@ -435,7 +440,7 @@ fn mutable_data_reclaim() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     let actions: MDataSeqEntryActions = btree_map![
@@ -453,7 +458,7 @@ fn mutable_data_reclaim() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     // GetMDataVersion should respond with 0 as the mdata itself hasn't changed.
@@ -461,7 +466,8 @@ fn mutable_data_reclaim() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMDataVersion(address),
-    );
+    )
+    .await;
     assert_eq!(response, Response::GetMDataVersion(Ok(0)));
 
     // Try deleting the entry with an invalid entry_version and make sure it fails
@@ -477,7 +483,8 @@ fn mutable_data_reclaim() {
             address,
             actions: actions.into(),
         },
-    );
+    )
+    .await;
     match response {
         Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
         Response::Mutation(Ok(())) => panic!("Unexpected success"),
@@ -497,13 +504,13 @@ fn mutable_data_reclaim() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 }
 
 // Test valid and invalid mdata entry versioning.
-#[test]
-fn mutable_data_entry_versioning() {
+#[tokio::test]
+async fn mutable_data_entry_versioning() {
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData
@@ -518,7 +525,7 @@ fn mutable_data_entry_versioning() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        (),
+        ()
     );
 
     // Insert a new entry
@@ -539,7 +546,7 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     // Attempt to update it without version bump fails.
@@ -559,7 +566,8 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-    );
+    )
+    .await;
     match response {
         Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
         Response::Mutation(Ok(())) => panic!("Unexpected success"),
@@ -576,7 +584,8 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-    );
+    )
+    .await;
     match response {
         Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
         Response::Mutation(Ok(())) => panic!("Unexpected success"),
@@ -599,7 +608,7 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     // Delete without version bump fails.
@@ -615,7 +624,8 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-    );
+    )
+    .await;
     match response {
         Response::Mutation(Err(Error::InvalidEntryActions(_))) => (),
         Response::Mutation(Ok(())) => panic!("Unexpected success"),
@@ -635,13 +645,13 @@ fn mutable_data_entry_versioning() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 }
 
 // Test various operations with and without proper permissions.
-#[test]
-fn mutable_data_permissions() {
+#[tokio::test]
+async fn mutable_data_permissions() {
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     // Construct MutableData with some entries and empty permissions.
@@ -663,7 +673,7 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.into()),
-        (),
+        ()
     );
 
     // ListMDataPermissions responds with empty collection.
@@ -671,7 +681,8 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListMDataPermissions(address),
-    );
+    )
+    .await;
     let permissions: BTreeMap<PublicKey, MDataPermissionSet> = unwrap!(response.try_into());
     assert!(permissions.is_empty());
 
@@ -685,7 +696,7 @@ fn mutable_data_permissions() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     // Create app and authorise it.
@@ -697,7 +708,8 @@ fn mutable_data_permissions() {
             transfer_coins: true,
             perform_mutations: true,
         },
-    );
+    )
+    .await;
 
     // App can't mutate any entry, by default.
     let value0_v2 = unwrap!(utils::generate_random_vector(10));
@@ -744,7 +756,7 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         update_perms_req,
-        (),
+        ()
     );
 
     // The version is bumped.
@@ -752,7 +764,8 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMDataVersion(address),
-    );
+    )
+    .await;
     assert_eq!(response, Response::GetMDataVersion(Ok(1)));
 
     // App can't insert entries.
@@ -794,7 +807,7 @@ fn mutable_data_permissions() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 
     // Attempt to modify permissions without proper version bump fails
@@ -827,7 +840,7 @@ fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         valid_update_perms_req,
-        (),
+        ()
     );
 
     // App can now update entries.
@@ -835,7 +848,7 @@ fn mutable_data_permissions() {
         &mut connection_manager2,
         &app_safe_key,
         insertion_request,
-        (),
+        ()
     );
 
     // Revoke all permissions from app.
@@ -847,7 +860,7 @@ fn mutable_data_permissions() {
             user: app_safe_key.public_key(),
             version: 3,
         },
-        (),
+        ()
     );
 
     // App can no longer mutate the entries.
@@ -869,7 +882,7 @@ fn mutable_data_permissions() {
             permissions,
             version: 4,
         },
-        (),
+        ()
     );
 
     // The app still can't mutate the entries.
@@ -891,7 +904,7 @@ fn mutable_data_permissions() {
             permissions,
             version: 5,
         },
-        (),
+        ()
     );
 
     // The app can now mutate the entries.
@@ -904,13 +917,13 @@ fn mutable_data_permissions() {
             address,
             actions: actions.into(),
         },
-        (),
+        ()
     );
 }
 
 // Test mdata operations with valid and invalid owner.
-#[test]
-fn mutable_data_ownership() {
+#[tokio::test]
+async fn mutable_data_ownership() {
     // Create owner's connection manager
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
@@ -923,7 +936,8 @@ fn mutable_data_ownership() {
             transfer_coins: true,
             perform_mutations: true,
         },
-    );
+    )
+    .await;
 
     // Attempt to put MutableData using the app sign key as owner key should fail.
     let name = rand::random();
@@ -943,12 +957,12 @@ fn mutable_data_ownership() {
         &mut connection_manager,
         &app_safe_key,
         Request::PutMData(data),
-        (),
+        ()
     );
 }
 
-#[test]
-fn pub_idata_rpc() {
+#[tokio::test]
+async fn pub_idata_rpc() {
     let (mut connection_manager, _, client_safe_key, _) = setup(None);
     let (mut connection_manager2, _, client2_safe_key, _) = setup(None);
 
@@ -970,7 +984,7 @@ fn pub_idata_rpc() {
             &mut connection_manager,
             &client_safe_key,
             get_request.clone(),
-            orig_data.clone(),
+            orig_data.clone()
         );
     }
 
@@ -981,7 +995,7 @@ fn pub_idata_rpc() {
     };
 
     let (app_key, mut app_conn_manager, _) =
-        register_new_app(&mut connection_manager2, &client2_safe_key, app_perms);
+        register_new_app(&mut connection_manager2, &client2_safe_key, app_perms).await;
 
     // Get pub idata while not being an owner. Should succeed.
     {
@@ -989,8 +1003,8 @@ fn pub_idata_rpc() {
     }
 }
 
-#[test]
-fn unpub_idata_rpc() {
+#[tokio::test]
+async fn unpub_idata_rpc() {
     let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
@@ -1009,7 +1023,7 @@ fn unpub_idata_rpc() {
         &mut connection_manager,
         &client_safe_key,
         get_request.clone(),
-        data,
+        data
     );
 
     let app_perms = AppPermissions {
@@ -1020,7 +1034,7 @@ fn unpub_idata_rpc() {
 
     let (mut conn_manager2, _, client2_safe_key, _) = setup(None);
     let (app_key, mut app_conn_manager, _) =
-        register_new_app(&mut conn_manager2, &client2_safe_key, app_perms);
+        register_new_app(&mut conn_manager2, &client2_safe_key, app_perms).await;
 
     // Try to get unpub idata while not being an owner. Should fail.
     send_req_expect_failure!(
@@ -1040,8 +1054,8 @@ fn unpub_idata_rpc() {
     );
 }
 
-#[test]
-fn unpub_md() {
+#[tokio::test]
+async fn unpub_md() {
     let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     let name = XorName(rand::random());
@@ -1054,7 +1068,7 @@ fn unpub_md() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
-        (),
+        ()
     );
 
     // Get Unseq MData as owner - Should pass.
@@ -1062,13 +1076,13 @@ fn unpub_md() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(*data.address()),
-        data,
+        data
     );
 }
 
 // Test auth key operations with valid and invalid version bumps.
-#[test]
-fn auth_keys() {
+#[tokio::test]
+async fn auth_keys() {
     let (mut connection_manager, _, client_safe_key, _) = setup(None);
 
     // Initially, the list of auth keys should be empty and the version should be zero.
@@ -1076,7 +1090,8 @@ fn auth_keys() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListAuthKeysAndVersion,
-    );
+    )
+    .await;
     let (keys, version): (BTreeMap<_, _>, u64) = unwrap!(response.try_into());
     assert_eq!(keys.len(), 0);
     assert_eq!(version, 0);
@@ -1118,14 +1133,15 @@ fn auth_keys() {
         &mut connection_manager,
         &client_safe_key,
         ins_auth_key_req,
-        (),
+        ()
     );
 
     response = process_request(
         &mut connection_manager,
         &client_safe_key,
         Request::ListAuthKeysAndVersion,
-    );
+    )
+    .await;
 
     match response {
         Response::ListAuthKeysAndVersion(res) => match res {
@@ -1180,7 +1196,7 @@ fn auth_keys() {
         &mut connection_manager,
         &client_safe_key,
         del_auth_key_req,
-        (),
+        ()
     );
 
     // Retrieve the list of auth keys and version
@@ -1188,7 +1204,8 @@ fn auth_keys() {
         &mut connection_manager,
         &client_safe_key,
         Request::ListAuthKeysAndVersion,
-    );
+    )
+    .await;
 
     match response {
         Response::ListAuthKeysAndVersion(res) => match res {
@@ -1203,8 +1220,8 @@ fn auth_keys() {
 }
 
 // Ensure Get/Mutate AuthKeys Requests and DeleteMData Requests called by AppClients fails.
-#[test]
-fn auth_actions_from_app() {
+#[tokio::test]
+async fn auth_actions_from_app() {
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
 
     let app_perms = AppPermissions {
@@ -1215,7 +1232,7 @@ fn auth_actions_from_app() {
 
     // Creates an App instance
     let (app_key, mut app_conn_manager, _) =
-        register_new_app(&mut connection_manager, &client_safe_key, app_perms);
+        register_new_app(&mut connection_manager, &client_safe_key, app_perms).await;
 
     let name = XorName(rand::random());
     let tag = 15002;
@@ -1237,7 +1254,7 @@ fn auth_actions_from_app() {
         &mut connection_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
-        (),
+        ()
     );
 
     // Assert if the inserted data is correct.
@@ -1245,7 +1262,7 @@ fn auth_actions_from_app() {
         &mut connection_manager,
         &client_safe_key,
         Request::GetMData(address),
-        data,
+        data
     );
 
     // Delete MData called by apps should fail
@@ -1277,8 +1294,8 @@ fn auth_actions_from_app() {
 }
 
 // Exhaust the account balance and ensure that mutations fail.
-#[test]
-fn low_balance_check() {
+#[tokio::test]
+async fn low_balance_check() {
     for unlimited in &[true, false] {
         let (mut connection_manager, _, client_safe_key, owner_key) = setup(Some(Config {
             quic_p2p: QuicP2pConfig::with_default_cert(),
@@ -1300,7 +1317,7 @@ fn low_balance_check() {
             &mut connection_manager,
             &client_safe_key,
             Request::PutMData(data.clone()),
-            (),
+            ()
         );
 
         let vec_data = unwrap!(utils::generate_random_vector(10));
@@ -1310,7 +1327,8 @@ fn low_balance_check() {
             &mut connection_manager,
             &client_safe_key,
             Request::GetBalance,
-        );
+        )
+        .await;
         let balance: Coins = match rpc_response {
             Response::GetBalance(res) => unwrap!(res),
             _ => panic!("Unexpected response"),
@@ -1326,7 +1344,8 @@ fn low_balance_check() {
                 amount: unwrap!(balance.checked_sub(COST_OF_PUT)),
                 transaction_id: rand::random(),
             },
-        );
+        )
+        .await;
 
         match response {
             Response::Transaction(Ok(_)) => (),
@@ -1337,7 +1356,8 @@ fn low_balance_check() {
             &mut connection_manager,
             &client_safe_key,
             Request::PutIData(idata.clone()),
-        );
+        )
+        .await;
         match response {
             Response::Mutation(res) => assert_eq!(*unlimited, res.is_ok()), // Should succeed if unlimited is true
             res => panic!("Unexpected response {:?}", res),
@@ -1348,15 +1368,15 @@ fn low_balance_check() {
             &mut connection_manager,
             &client_safe_key,
             Request::GetMData(*data.address()),
-            data,
+            data
         );
     }
 }
 
 // Test that using an invalid mock-vault path does not work.
-#[test]
+#[tokio::test]
 #[should_panic]
-fn invalid_config_mock_vault_path() {
+async fn invalid_config_mock_vault_path() {
     use std;
 
     // Don't run this test when SAFE env vars are set.
@@ -1380,8 +1400,8 @@ fn invalid_config_mock_vault_path() {
 }
 
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
-#[test]
-fn config_mock_vault_path() {
+#[tokio::test]
+async fn config_mock_vault_path() {
     use std;
 
     // Don't run this test when the env var is set.
@@ -1414,7 +1434,7 @@ fn config_mock_vault_path() {
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data.clone()),
-        (),
+        ()
     );
 
     // Try getting MutableData back.
@@ -1422,15 +1442,15 @@ fn config_mock_vault_path() {
         &mut conn_manager,
         &client_safe_key,
         Request::GetMData(*data.address()),
-        data,
+        data
     );
 
     unwrap!(std::fs::remove_dir_all("./tmp"));
 }
 
 // Test routing request hooks.
-#[test]
-fn request_hooks() {
+#[tokio::test]
+async fn request_hooks() {
     let (mut conn_manager, _, client_safe_key, owner_key) = setup(None);
     let custom_error: Error = Error::NetworkOther("hello world".to_string());
     let expected_error = custom_error.clone();
@@ -1459,7 +1479,7 @@ fn request_hooks() {
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data.clone().into()),
-        (),
+        ()
     );
 
     // Check that this MData is not available
@@ -1480,7 +1500,7 @@ fn request_hooks() {
         &mut conn_manager,
         &client_safe_key,
         Request::PutMData(data2.clone().into()),
-        (),
+        ()
     );
 
     // Try adding some entries - this should fail, as the hook function
@@ -1519,7 +1539,7 @@ fn request_hooks() {
             address: *data2.address(),
             actions: actions,
         },
-        (),
+        ()
     );
 }
 
@@ -1565,7 +1585,7 @@ fn register_client(
 // Register a new app for an account with the given permissions.
 // Return the app's safe key and it's connection manager along with the reciever
 // for network events.
-fn register_new_app(
+async fn register_new_app(
     conn_manager: &mut ConnectionManager,
     client_safe_key: &SafeKey,
     permissions: AppPermissions,
@@ -1576,7 +1596,8 @@ fn register_new_app(
         conn_manager,
         client_safe_key,
         Request::ListAuthKeysAndVersion,
-    );
+    )
+    .await;
     let (_, version): (_, u64) = unwrap!(response.try_into());
 
     send_req_expect_ok!(
@@ -1587,7 +1608,7 @@ fn register_new_app(
             version: version + 1,
             permissions,
         },
-        (),
+        ()
     );
     let (conn_manager_tx, conn_manager_rx) = mpsc::unbounded();
     let connection_manager = unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx));

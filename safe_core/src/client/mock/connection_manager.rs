@@ -13,8 +13,7 @@ use crate::{
     network_event::{NetworkEvent, NetworkTx},
     CoreError,
 };
-use crate::{err, ok};
-use async_trait::async_trait;
+
 use lazy_static::lazy_static;
 use log::trace;
 use quic_p2p::{self, Config as QuicP2pConfig};
@@ -29,10 +28,10 @@ lazy_static! {
 }
 
 /// Function that is used to tap into routing requests and return preconditioned responses.
-pub type RequestHookFn = dyn FnMut(&Request) -> Option<Response> + 'static;
+pub type RequestHookFn = dyn FnMut(&Request) -> Option<Response> + Send + Sync + 'static;
 
 /// Function that is used to modify responses before they are sent.
-pub type ResponseHookFn = dyn FnMut(Response) -> Response + 'static;
+pub type ResponseHookFn = dyn FnMut(Response) -> Response + Send + Sync + 'static;
 
 /// Initialises QuicP2p instance. Establishes new connections.
 /// Contains a reference to crossbeam channel provided by quic-p2p for capturing the events.
@@ -94,7 +93,7 @@ impl ConnectionManager {
                 _ => false,
             };
             let mut vault = vault::lock(&self.vault, writing);
-            unwrap!(vault.process_request(pub_id.clone(), &msg).await)
+            unwrap!(vault.process_request(pub_id.clone(), &msg))
         };
 
         // Send response back to a client
@@ -186,7 +185,7 @@ impl ConnectionManager {
     /// Set hook function to override response before request is processed, for test purposes.
     pub fn set_request_hook<F>(&mut self, hook: F)
     where
-        F: FnMut(&Request) -> Option<Response> + 'static,
+        F: FnMut(&Request) -> Option<Response> + Send + Sync + 'static,
     {
         let hook: Arc<RequestHookFn> = Arc::new(hook);
         self.request_hook = Some(hook);
@@ -195,7 +194,7 @@ impl ConnectionManager {
     /// Set hook function to override response after request is processed, for test purposes.
     pub fn set_response_hook<F>(&mut self, hook: F)
     where
-        F: FnMut(Response) -> Response + 'static,
+        F: FnMut(Response) -> Response + 'static + Send + Sync,
     {
         let hook: Arc<ResponseHookFn> = Arc::new(hook);
         self.response_hook = Some(hook);

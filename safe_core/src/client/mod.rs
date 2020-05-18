@@ -1580,6 +1580,7 @@ mod tests {
     use crate::utils::test_utils::{
         calculate_new_balance, gen_bls_keypair, gen_client_id, random_client,
     };
+    use futures::future::TryFutureExt;
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
         ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
@@ -1589,370 +1590,278 @@ mod tests {
     use std::str::FromStr;
 
     // Test putting and getting pub idata.
-    #[test]
-    fn pub_idata_test() {
-        random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            // The `random_client()` initializes the client with 10 coins.
-            let start_bal = unwrap!(Coins::from_str("10"));
+    #[tokio::test]
+    async fn pub_idata_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        // The `random_client()` initializes the client with 10 coins.
+        let start_bal = unwrap!(Coins::from_str("10"));
 
-            let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = PubImmutableData::new(value.clone());
-            let address = *data.address();
-            let pk = gen_bls_keypair().public_key();
+        let value = unwrap!(generate_random_vector::<u8>(10));
+        let data = PubImmutableData::new(value.clone());
+        let address = *data.address();
+        let pk = gen_bls_keypair().public_key();
 
-            let test_data = UnpubImmutableData::new(value, pk);
-            client
-                // Get inexistent idata
-                .get_idata(address)
-                .then(|res| -> Result<(), CoreError> {
-                    match res {
-                        Ok(data) => panic!("Pub idata should not exist yet: {:?}", data),
-                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
-                        Err(e) => panic!("Unexpected: {:?}", e),
-                    }
-                })
-                .and_then(move |_| {
-                    // Put idata
-                    client2.put_idata(data.clone())
-                })
-                .and_then(move |_| {
-                    client3.put_idata(test_data.clone()).then(|res| match res {
-                        Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                        Err(CoreError::DataError(SndError::InvalidOwners)) => Ok(()),
-                        Err(e) => panic!("Unexpected: {:?}", e),
-                    })
-                })
-                .and_then(move |_| client4.get_balance(None))
-                .and_then(move |balance| {
-                    let expected_bal = calculate_new_balance(start_bal, Some(2), None);
-                    assert_eq!(balance, expected_bal);
-                    Ok(())
-                })
-                .and_then(move |_| {
-                    // Fetch idata
-                    client5.get_idata(address).map(move |fetched_data| {
-                        assert_eq!(*fetched_data.address(), address);
-                    })
-                })
-        })
+        let test_data = UnpubImmutableData::new(value, pk);
+        let res = client
+            // Get inexistent idata
+            .get_idata(address)
+            .await;
+        match res {
+            Ok(data) => panic!("Pub idata should not exist yet: {:?}", data),
+            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(e) => panic!("Unexpected: {:?}", e),
+        }
+        // Put idata
+        client2.put_idata(data.clone()).await?;
+        let res = client3.put_idata(test_data.clone()).await;
+        match res {
+            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+            Err(CoreError::DataError(SndError::InvalidOwners)) => (),
+            Err(e) => panic!("Unexpected: {:?}", e),
+        }
+
+        let balance = client4.get_balance(None).await?;
+        let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+        assert_eq!(balance, expected_bal);
+        // Fetch idata
+        let fetched_data = client5.get_idata(address).await?;
+        assert_eq!(*fetched_data.address(), address);
+        Ok(())
     }
 
     // Test putting, getting, and deleting unpub idata.
-    #[test]
-    fn unpub_idata_test() {
+    #[tokio::test]
+    async fn unpub_idata_test() -> Result<(), CoreError> {
         crate::utils::test_utils::init_log();
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = unwrap!(Coins::from_str("10"));
 
-        random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
-            let client7 = client.clone();
-            let client8 = client.clone();
-            let client9 = client.clone();
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
+        let client7 = client.clone();
+        let client8 = client.clone();
+        let client9 = client.clone();
 
-            let value = unwrap!(generate_random_vector::<u8>(10));
-            let data = UnpubImmutableData::new(value.clone(), client.public_key());
-            let data2 = data.clone();
-            let data3 = data.clone();
-            let address = *data.address();
-            assert_eq!(address, *data2.address());
+        let value = unwrap!(generate_random_vector::<u8>(10));
+        let data = UnpubImmutableData::new(value.clone(), client.public_key());
+        let data2 = data.clone();
+        let data3 = data.clone();
+        let address = *data.address();
+        assert_eq!(address, *data2.address());
 
-            let pub_data = PubImmutableData::new(value);
+        let pub_data = PubImmutableData::new(value);
 
-            client
-                // Get inexistent idata
-                .get_idata(address)
-                .then(|res| -> Result<(), CoreError> {
-                    match res {
-                        Ok(_) => panic!("Unpub idata should not exist yet"),
-                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
-                        Err(e) => panic!("Unexpected: {:?}", e),
-                    }
-                })
-                .and_then(move |_| {
-                    // Put idata
-                    client2.put_idata(data.clone())
-                })
-                .and_then(move |_| {
-                    // Test putting unpub idata with the same value.
-                    // Should conflict because duplication does not apply to unpublished data.
-                    client3.put_idata(data2.clone())
-                })
-                .then(|res| -> Result<(), CoreError> {
-                    match res {
-                        Err(CoreError::DataError(SndError::DataExists)) => Ok(()),
-                        res => panic!("Unexpected: {:?}", res),
-                    }
-                })
-                .and_then(move |_| client4.get_balance(None))
-                .and_then(move |balance| {
-                    let expected_bal = calculate_new_balance(start_bal, Some(2), None);
-                    assert_eq!(balance, expected_bal);
-                    Ok(())
-                })
-                .and_then(move |_| {
-                    // Test putting published idata with the same value. Should not conflict.
-                    client5.put_idata(pub_data)
-                })
-                .and_then(move |_| {
-                    // Fetch idata
-                    client6.get_idata(address).map(move |fetched_data| {
-                        assert_eq!(*fetched_data.address(), address);
-                    })
-                })
-                .and_then(move |()| {
-                    // Delete idata
-                    client7.del_unpub_idata(*address.name())
-                })
-                .and_then(move |()| {
-                    // Make sure idata was deleted
-                    client8.get_idata(address)
-                })
-                .then(|res| -> Result<(), CoreError> {
-                    match res {
-                        Ok(_) => panic!("Unpub idata still exists after deletion"),
-                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
-                        Err(e) => panic!("Unexpected: {:?}", e),
-                    }
-                })
-                .and_then(move |_| {
-                    // Test putting unpub idata with the same value again. Should not conflict.
-                    client9.put_idata(data3.clone())
-                })
-        });
+        let res = client
+            // Get inexistent idata
+            .get_idata(address)
+            .await;
+        match res {
+            Ok(_) => panic!("Unpub idata should not exist yet"),
+            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(e) => panic!("Unexpected: {:?}", e),
+        }
+        // Put idata
+        client2.put_idata(data.clone()).await?;
+        // Test putting unpub idata with the same value.
+        // Should conflict because duplication does .await?;not apply to unpublished data.
+        let res = client3.put_idata(data2.clone()).await;
+        match res {
+            Err(CoreError::DataError(SndError::DataExists)) => (),
+            res => panic!("Unexpected: {:?}", res),
+        }
+        let balance = client4.get_balance(None).await?;
+        let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+        assert_eq!(balance, expected_bal);
+        // Test putting published idata with the same value. Should not conflict.
+        client5.put_idata(pub_data).await?;
+        // Fetch idata
+        let fetched_data = client6.get_idata(address).await?;
+        assert_eq!(*fetched_data.address(), address);
+        // Delete idata
+        client7.del_unpub_idata(*address.name()).await?;
+        // Make sure idata was deleted
+        let res = client8.get_idata(address).await;
+        match res {
+            Ok(_) => panic!("Unpub idata still exists after deletion"),
+            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(e) => panic!("Unexpected: {:?}", e),
+        }
+        // Test putting unpub idata with the same value again. Should not conflict.
+        client9.put_idata(data3.clone()).await?;
+        Ok(())
     }
 
     // 1. Create unseq. mdata with some entries and perms and put it on the network
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
-    #[test]
-    pub fn unseq_mdata_test() {
-        let _ = random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
+    #[tokio::test]
+    pub async fn unseq_mdata_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
 
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
-            let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
-            let _ = permissions.insert(client.public_key(), permission_set);
-            let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-            let entries_keys = entries.keys().cloned().collect();
-            let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+        let mut permissions: BTreeMap<_, _> = Default::default();
+        let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
+        let _ = permissions.insert(client.public_key(), permission_set);
+        let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+        let entries_keys = entries.keys().cloned().collect();
+        let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
 
-            let data = UnseqMutableData::new_with_data(
-                name,
-                tag,
-                entries.clone(),
-                permissions,
-                client.public_key(),
-            );
-            client
-                .put_unseq_mutable_data(data.clone())
-                .and_then(move |_| {
-                    println!("Put unseq. MData successfully");
+        let data = UnseqMutableData::new_with_data(
+            name,
+            tag,
+            entries.clone(),
+            permissions,
+            client.public_key(),
+        );
+        client.put_unseq_mutable_data(data.clone()).await?;
+        println!("Put unseq. MData successfully");
 
-                    client3
-                        .get_mdata_version(MDataAddress::Unseq { name, tag })
-                        .map(move |version| assert_eq!(version, 0))
-                })
-                .and_then(move |_| {
-                    client4
-                        .list_unseq_mdata_entries(name, tag)
-                        .map(move |fetched_entries| {
-                            assert_eq!(fetched_entries, entries);
-                        })
-                })
-                .and_then(move |_| {
-                    client5
-                        .list_mdata_keys(MDataAddress::Unseq { name, tag })
-                        .map(move |keys| assert_eq!(keys, entries_keys))
-                })
-                .and_then(move |_| {
-                    client6
-                        .list_unseq_mdata_values(name, tag)
-                        .map(move |values| assert_eq!(values, entries_values))
-                })
-                .and_then(move |_| {
-                    client2
-                        .get_unseq_mdata(*data.name(), data.tag())
-                        .map(move |fetched_data| {
-                            assert_eq!(fetched_data.name(), data.name());
-                            assert_eq!(fetched_data.tag(), data.tag());
-                            fetched_data
-                        })
-                })
-                .then(|res| res)
-        });
+        let version = client3
+            .get_mdata_version(MDataAddress::Unseq { name, tag })
+            .await?;
+        assert_eq!(version, 0);
+        let fetched_entries = client4.list_unseq_mdata_entries(name, tag).await?;
+        assert_eq!(fetched_entries, entries);
+        let keys = client5
+            .list_mdata_keys(MDataAddress::Unseq { name, tag })
+            .await?;
+        assert_eq!(keys, entries_keys);
+        let values = client6.list_unseq_mdata_values(name, tag).await?;
+        assert_eq!(values, entries_values);
+        let fetched_data = client2.get_unseq_mdata(*data.name(), data.tag()).await?;
+        assert_eq!(fetched_data.name(), data.name());
+        assert_eq!(fetched_data.tag(), data.tag());
+        Ok(())
     }
 
     // 1. Create an put seq. mdata on the network with some entries and permissions.
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
-    #[test]
-    pub fn seq_mdata_test() {
-        let _ = random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
+    #[tokio::test]
+    pub async fn seq_mdata_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
 
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mut entries: MDataSeqEntries = Default::default();
-            let _ = entries.insert(
-                b"key".to_vec(),
-                MDataSeqValue {
-                    data: b"value".to_vec(),
-                    version: 0,
-                },
-            );
-            let entries_keys = entries.keys().cloned().collect();
-            let entries_values: Vec<MDataSeqValue> = entries.values().cloned().collect();
-            let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
-            let _ = permissions.insert(client.public_key(), permission_set);
-            let data = SeqMutableData::new_with_data(
-                name,
-                tag,
-                entries.clone(),
-                permissions,
-                client.public_key(),
-            );
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mut entries: MDataSeqEntries = Default::default();
+        let _ = entries.insert(
+            b"key".to_vec(),
+            MDataSeqValue {
+                data: b"value".to_vec(),
+                version: 0,
+            },
+        );
+        let entries_keys = entries.keys().cloned().collect();
+        let entries_values: Vec<MDataSeqValue> = entries.values().cloned().collect();
+        let mut permissions: BTreeMap<_, _> = Default::default();
+        let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
+        let _ = permissions.insert(client.public_key(), permission_set);
+        let data = SeqMutableData::new_with_data(
+            name,
+            tag,
+            entries.clone(),
+            permissions,
+            client.public_key(),
+        );
 
-            client
-                .put_seq_mutable_data(data.clone())
-                .and_then(move |_| {
-                    println!("Put seq. MData successfully");
+        client.put_seq_mutable_data(data.clone()).await?;
+        println!("Put seq. MData successfully");
 
-                    client4
-                        .list_seq_mdata_entries(name, tag)
-                        .map(move |fetched_entries| {
-                            assert_eq!(fetched_entries, entries);
-                        })
-                })
-                .and_then(move |_| {
-                    client3
-                        .get_seq_mdata_shell(name, tag)
-                        .map(move |mdata_shell| {
-                            assert_eq!(*mdata_shell.name(), name);
-                            assert_eq!(mdata_shell.tag(), tag);
-                            assert_eq!(mdata_shell.entries().len(), 0);
-                        })
-                })
-                .and_then(move |_| {
-                    client5
-                        .list_mdata_keys(MDataAddress::Seq { name, tag })
-                        .map(move |keys| assert_eq!(keys, entries_keys))
-                })
-                .and_then(move |_| {
-                    client6
-                        .list_seq_mdata_values(name, tag)
-                        .map(move |values| assert_eq!(values, entries_values))
-                })
-                .and_then(move |_| {
-                    client2.get_seq_mdata(name, tag).map(move |fetched_data| {
-                        assert_eq!(fetched_data.name(), data.name());
-                        assert_eq!(fetched_data.tag(), data.tag());
-                        assert_eq!(fetched_data.entries().len(), 1);
-                        fetched_data
-                    })
-                })
-                .then(|res| res)
-        });
+        let fetched_entries = client4.list_seq_mdata_entries(name, tag).await?;
+        assert_eq!(fetched_entries, entries);
+        let mdata_shell = client3.get_seq_mdata_shell(name, tag).await?;
+        assert_eq!(*mdata_shell.name(), name);
+        assert_eq!(mdata_shell.tag(), tag);
+        assert_eq!(mdata_shell.entries().len(), 0);
+        let keys = client5
+            .list_mdata_keys(MDataAddress::Seq { name, tag })
+            .await?;
+        assert_eq!(keys, entries_keys);
+        let values = client6.list_seq_mdata_values(name, tag).await?;
+        assert_eq!(values, entries_values);
+        let fetched_data = client2.get_seq_mdata(name, tag).await?;
+        assert_eq!(fetched_data.name(), data.name());
+        assert_eq!(fetched_data.tag(), data.tag());
+        assert_eq!(fetched_data.entries().len(), 1);
+        Ok(())
     }
 
     // 1. Put seq. mdata on the network and then delete it
     // 2. Try getting the data object. It should panic
-    #[test]
-    pub fn del_seq_mdata_test() {
-        random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mdataref = MDataAddress::Seq { name, tag };
-            let data = SeqMutableData::new_with_data(
-                name,
-                tag,
-                Default::default(),
-                Default::default(),
-                client.public_key(),
-            );
+    #[tokio::test]
+    pub async fn del_seq_mdata_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mdataref = MDataAddress::Seq { name, tag };
+        let data = SeqMutableData::new_with_data(
+            name,
+            tag,
+            Default::default(),
+            Default::default(),
+            client.public_key(),
+        );
 
-            client
-                .put_seq_mutable_data(data.clone())
-                .and_then(move |_| {
-                    client2.delete_mdata(mdataref).then(move |result| {
-                        assert!(result.is_ok());
-                        Ok(())
-                    })
-                })
-                .then(move |_| {
-                    client3
-                        .get_unseq_mdata(*data.name(), data.tag())
-                        .then(move |res| {
-                            match res {
-                                Err(CoreError::DataError(SndError::NoSuchData)) => (),
-                                _ => panic!("Unexpected success"),
-                            }
-                            Ok::<_, SndError>(())
-                        })
-                })
-        });
+        client.put_seq_mutable_data(data.clone()).await?;
+        client2.delete_mdata(mdataref).await?;
+        let res = client3.get_unseq_mdata(*data.name(), data.tag()).await;
+        match res {
+            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            _ => panic!("Unexpected success"),
+        }
+        Ok(())
     }
 
     // 1. Put unseq. mdata on the network and then delete it
     // 2. Try getting the data object. It should panic
-    #[test]
-    pub fn del_unseq_mdata_test() {
-        random_client(move |client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mdataref = MDataAddress::Unseq { name, tag };
-            let data = UnseqMutableData::new_with_data(
-                name,
-                tag,
-                Default::default(),
-                Default::default(),
-                client.public_key(),
-            );
+    #[tokio::test]
+    pub async fn del_unseq_mdata_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mdataref = MDataAddress::Unseq { name, tag };
+        let data = UnseqMutableData::new_with_data(
+            name,
+            tag,
+            Default::default(),
+            Default::default(),
+            client.public_key(),
+        );
 
-            client
-                .put_unseq_mutable_data(data.clone())
-                .and_then(move |_| {
-                    client2.delete_mdata(mdataref).then(move |result| {
-                        assert!(result.is_ok());
-                        Ok(())
-                    })
-                })
-                .then(move |_| {
-                    client3
-                        .get_unseq_mdata(*data.name(), data.tag())
-                        .then(move |res| {
-                            match res {
-                                Err(CoreError::DataError(SndError::NoSuchData)) => (),
-                                _ => panic!("Unexpected success"),
-                            }
-                            Ok::<_, SndError>(())
-                        })
-                })
-        });
+        client.put_unseq_mutable_data(data.clone()).await?;
+        client2.delete_mdata(mdataref).await?;
+
+        let res = client3.get_unseq_mdata(*data.name(), data.tag()).await;
+        match res {
+            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            _ => panic!("Unexpected success"),
+        }
+
+        Ok(())
     }
 
     // 1. Create 2 accounts and create a wallet only for account A.
@@ -1961,133 +1870,103 @@ mod tests {
     // 4. Now create a wallet for account B and transfer some coins to A. This should pass.
     // 5. Try to request transaction from wallet A using account B. This request should succeed
     // (because transactions are always open).
-    #[test]
-    fn coin_permissions() {
-        let wallet_a_addr = random_client(move |client| {
-            let wallet_a_addr: XorName = client.public_key().into();
-            client
-                .transfer_coins(None, rand::random(), unwrap!(Coins::from_str("5.0")), None)
-                .then(move |res| {
-                    match res {
-                        Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
-                        res => panic!("Unexpected result: {:?}", res),
-                    }
-                    Ok::<_, SndError>(wallet_a_addr)
-                })
-        });
+    #[tokio::test]
+    async fn coin_permissions() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let wallet_a_addr: XorName = client.public_key().into();
+        let res = client
+            .transfer_coins(None, rand::random(), unwrap!(Coins::from_str("5.0")), None)
+            .await;
+        match res {
+            Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        }
 
-        random_client(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-            let c4 = client.clone();
-            client
-                .get_balance(None)
-                .then(move |res| {
-                    // Subtract to cover the cost of inserting the login packet
-                    let expected_amt = unwrap!(Coins::from_str("10")
-                        .ok()
-                        .and_then(|x| x.checked_sub(COST_OF_PUT)));
-                    match res {
-                        Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
-                        res => panic!("Unexpected result: {:?}", res),
-                    }
-                    c2.test_set_balance(None, unwrap!(Coins::from_str("50.0")))
-                })
-                .and_then(move |_| {
-                    c3.transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
-                })
-                .then(move |res| {
-                    match res {
-                        Ok(transaction) => {
-                            assert_eq!(transaction.amount, unwrap!(Coins::from_str("10")))
-                        }
-                        res => panic!("Unexpected error: {:?}", res),
-                    }
-                    c4.get_balance(None)
-                })
-                .then(move |res| {
-                    let expected_amt = unwrap!(Coins::from_str("40"));
-                    match res {
-                        Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
-                        res => panic!("Unexpected result: {:?}", res),
-                    }
-                    Ok::<_, SndError>(())
-                })
-        });
+        let client = random_client()?;
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let res = client.get_balance(None).await;
+        // Subtract to cover the cost of inserting the login packet
+        let expected_amt = unwrap!(Coins::from_str("10")
+            .ok()
+            .and_then(|x| x.checked_sub(COST_OF_PUT)));
+        match res {
+            Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
+            res => panic!("Unexpected result: {:?}", res),
+        }
+        c2.test_set_balance(None, unwrap!(Coins::from_str("50.0")))
+            .await?;
+        let res = c3
+            .transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
+            .await;
+        match res {
+            Ok(transaction) => assert_eq!(transaction.amount, unwrap!(Coins::from_str("10"))),
+            res => panic!("Unexpected error: {:?}", res),
+        }
+        let res = c4.get_balance(None).await;
+        let expected_amt = unwrap!(Coins::from_str("40"));
+        match res {
+            Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
+            res => panic!("Unexpected result: {:?}", res),
+        }
+        Ok(())
     }
 
     // 1. Create a client with a wallet. Create an anonymous wallet preloading it from the client's wallet.
     // 2. Transfer some safecoin from the anonymous wallet to the client.
     // 3. Fetch the balances of both the wallets and verify them.
     // 5. Try to create a balance using an inexistent wallet. This should fail.
-    #[test]
-    fn anonymous_wallet() {
-        random_client(move |client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let wallet1: XorName = client.owner_key().into();
-            let init_bal = unwrap!(Coins::from_str("500.0"));
+    #[tokio::test]
+    async fn anonymous_wallet() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let wallet1: XorName = client.owner_key().into();
+        let init_bal = unwrap!(Coins::from_str("500.0"));
 
-            let client_id = gen_client_id();
-            let bls_pk = *client_id.public_id().public_key();
+        let client_id = gen_client_id();
+        let bls_pk = *client_id.public_id().public_key();
 
-            client
-                .test_set_balance(None, init_bal)
-                .and_then(move |_| {
-                    client1.create_balance(None, bls_pk, unwrap!(Coins::from_str("100.0")), None)
-                })
-                .and_then(move |transaction| {
-                    assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
-                    client2
-                        .transfer_coins(
-                            Some(&client_id.clone()),
-                            wallet1,
-                            unwrap!(Coins::from_str("5.0")),
-                            None,
-                        )
-                        .map(|transaction| (transaction, client_id))
-                })
-                .and_then(move |(transaction, client_id)| {
-                    assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
-                    client3.get_balance(Some(&client_id)).and_then(|balance| {
-                        assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
-                        Ok(())
-                    })
-                })
-                .and_then(move |_| {
-                    client4.get_balance(None).and_then(move |balance| {
-                        let expected = calculate_new_balance(
-                            init_bal,
-                            Some(1),
-                            Some(unwrap!(Coins::from_str("95"))),
-                        );
-                        assert_eq!(balance, expected);
-                        Ok(())
-                    })
-                })
-                .and_then(move |_| {
-                    let random_pk = gen_bls_keypair().public_key();
-                    let random_source = gen_client_id();
+        client.test_set_balance(None, init_bal).await?;
+        let transaction = client1
+            .create_balance(None, bls_pk, unwrap!(Coins::from_str("100.0")), None)
+            .await?;
+        assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
+        let transaction = client2
+            .transfer_coins(
+                Some(&client_id.clone()),
+                wallet1,
+                unwrap!(Coins::from_str("5.0")),
+                None,
+            )
+            .await?;
+        assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
+        let balance = client3.get_balance(Some(&client_id)).await?;
+        assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
+        let balance = client4.get_balance(None).await?;
+        let expected =
+            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Coins::from_str("95"))));
+        assert_eq!(balance, expected);
+        let random_pk = gen_bls_keypair().public_key();
+        let random_source = gen_client_id();
 
-                    client5
-                        .create_balance(
-                            Some(&random_source),
-                            random_pk,
-                            unwrap!(Coins::from_str("100.0")),
-                            None,
-                        )
-                        .then(|res| {
-                            match res {
-                                Err(CoreError::DataError(SndError::NoSuchBalance)) => {}
-                                res => panic!("Unexpected result: {:?}", res),
-                            }
-                            Ok(())
-                        })
-                })
-        });
+        let res = client5
+            .create_balance(
+                Some(&random_source),
+                random_pk,
+                unwrap!(Coins::from_str("100.0")),
+                None,
+            )
+            .await;
+        match res {
+            Err(CoreError::DataError(SndError::NoSuchBalance)) => {}
+            res => panic!("Unexpected result: {:?}", res),
+        }
+        Ok(())
     }
 
     // 1. Create a client A with a wallet and allocate some test safecoin to it.
@@ -2098,979 +1977,781 @@ mod tests {
     // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
     // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
     // 8. Set the client's balance to zero and try to put data. It should fail.
-    #[test]
-    fn coin_balance_transfer() {
-        let wallet1: XorName = random_client(move |client| {
-            let client1 = client.clone();
-            let owner_key = client.owner_key();
-            let wallet1: XorName = owner_key.into();
+    #[tokio::test]
+    async fn coin_balance_transfer() -> Result<(), CoreError> {
+        let client = random_client()?;
+        // let wallet1: XorName =
+        let client1 = client.clone();
+        let owner_key = client.owner_key();
+        let wallet1: XorName = owner_key.into();
 
-            client
-                .test_set_balance(None, unwrap!(Coins::from_str("100.0")))
-                .and_then(move |_| client1.get_balance(None))
-                .and_then(move |balance| {
-                    assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
-                    Ok(wallet1)
-                })
-        });
+        client
+            .test_set_balance(None, unwrap!(Coins::from_str("100.0")))
+            .await?;
+        let balance = client1.get_balance(None).await?;
+        assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
 
-        random_client(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-            let c4 = client.clone();
-            let c5 = client.clone();
-            let c6 = client.clone();
-            let c7 = client.clone();
-            let c8 = client.clone();
-            let init_bal = unwrap!(Coins::from_str("10"));
-            client
-                .get_balance(None)
-                .and_then(move |orig_balance| {
-                    c2.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
-                        .map(move |_| orig_balance)
-                })
-                .and_then(move |orig_balance| {
-                    c3.get_balance(None)
-                        .map(move |new_balance| (new_balance, orig_balance))
-                })
-                .and_then(move |(new_balance, orig_balance)| {
-                    assert_eq!(
-                        new_balance,
-                        unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
-                    );
-                    c4.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
-                })
-                .then(move |res| {
-                    match res {
-                        Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-                        res => panic!("Unexpected result: {:?}", res),
-                    }
-                    Ok(())
-                })
-                // Check if coins are refunded
-                .and_then(move |_| c5.get_balance(None))
-                .and_then(move |balance| {
-                    let expected = calculate_new_balance(
-                        init_bal,
-                        Some(1),
-                        Some(unwrap!(Coins::from_str("5"))),
-                    );
-                    assert_eq!(balance, expected);
-                    c6.transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
-                })
-                .then(move |res| {
-                    match res {
-                        Err(CoreError::DataError(SndError::InvalidOperation)) => (),
-                        res => panic!("Unexpected result: {:?}", res),
-                    }
-                    c7.test_set_balance(None, unwrap!(Coins::from_str("0")))
-                })
-                .and_then(move |_| {
-                    let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
-                    c8.put_idata(data)
-                })
-                .then(move |res| {
-                    match res {
-                        Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-                        res => panic!("Unexpected result: {:?}", res),
-                    }
-                    Ok::<_, SndError>(())
-                })
-        });
+        let client = random_client()?;
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
+        let c7 = client.clone();
+        let c8 = client.clone();
+        let init_bal = unwrap!(Coins::from_str("10"));
+        let orig_balance = client.get_balance(None).await?;
+        c2.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
+            .await?;
+        let new_balance = c3.get_balance(None).await?;
+        assert_eq!(
+            new_balance,
+            unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
+        );
+        let res = c4
+            .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
+            .await;
+        let _ = match res {
+            Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        };
+        // Check if coins are refunded
+        let balance = c5.get_balance(None).await?;
+        let expected =
+            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Coins::from_str("5"))));
+        assert_eq!(balance, expected);
+        let res = c6
+            .transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
+            .await;
+        match res {
+            Err(CoreError::DataError(SndError::InvalidOperation)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        }
+        c7.test_set_balance(None, unwrap!(Coins::from_str("0")))
+            .await?;
+        let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
+        let res = c8.put_idata(data).await;
+        match res {
+            Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        };
+        Ok(())
     }
 
     // 1. Create a client that PUTs some mdata on the network
     // 2. Create a different client that tries to delete the data. It should panic.
-    #[test]
-    pub fn del_unseq_mdata_permission_test() {
+    #[tokio::test]
+    pub async fn del_unseq_mdata_permission_test() -> Result<(), CoreError> {
         let name = XorName(rand::random());
         let tag = 15001;
         let mdataref = MDataAddress::Unseq { name, tag };
 
-        random_client(move |client| {
-            let data = UnseqMutableData::new_with_data(
-                name,
-                tag,
-                Default::default(),
-                Default::default(),
-                client.public_key(),
-            );
+        let client = random_client()?;
+        let data = UnseqMutableData::new_with_data(
+            name,
+            tag,
+            Default::default(),
+            Default::default(),
+            client.public_key(),
+        );
 
-            client.put_unseq_mutable_data(data).then(|res| res)
-        });
+        client.put_unseq_mutable_data(data).await?;
 
-        random_client(move |client| {
-            client.delete_mdata(mdataref).then(|res| {
-                match res {
-                    Err(CoreError::DataError(SndError::AccessDenied)) => (),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
-                Ok::<_, SndError>(())
-            })
-        });
+        let client = random_client()?;
+        let res = client.delete_mdata(mdataref).await;
+        match res {
+            Err(CoreError::DataError(SndError::AccessDenied)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        }
+
+        Ok(())
     }
 
     // 1. Create a mutable data with some permissions and store it on the network.
     // 2. Modify the permissions of a user in the permission set.
     // 3. Fetch the list of permissions and verify the edit.
     // 4. Delete a user's permissions from the permission set and verify the deletion.
-    #[test]
-    pub fn mdata_permissions_test() {
-        random_client(|client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
-            // The `random_client()` initializes the client with 10 coins.
-            let start_bal = unwrap!(Coins::from_str("10"));
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = MDataPermissionSet::new()
-                .allow(MDataAction::Read)
-                .allow(MDataAction::Insert)
-                .allow(MDataAction::ManagePermissions);
-            let user = client.public_key();
-            let user2 = user;
-            let random_user = gen_bls_keypair().public_key();
-            let random_pk = gen_bls_keypair().public_key();
+    #[tokio::test]
+    pub async fn mdata_permissions_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
+        // The `random_client()` initializes the client with 10 coins.
+        let start_bal = unwrap!(Coins::from_str("10"));
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mut permissions: BTreeMap<_, _> = Default::default();
+        let permission_set = MDataPermissionSet::new()
+            .allow(MDataAction::Read)
+            .allow(MDataAction::Insert)
+            .allow(MDataAction::ManagePermissions);
+        let user = client.public_key();
+        let user2 = user;
+        let random_user = gen_bls_keypair().public_key();
+        let random_pk = gen_bls_keypair().public_key();
 
-            let _ = permissions.insert(user, permission_set.clone());
-            let _ = permissions.insert(random_user, permission_set);
+        let _ = permissions.insert(user, permission_set.clone());
+        let _ = permissions.insert(random_user, permission_set);
 
-            let data = SeqMutableData::new_with_data(
-                name,
-                tag,
-                Default::default(),
-                permissions.clone(),
-                client.public_key(),
-            );
-            let test_data = SeqMutableData::new_with_data(
-                XorName(rand::random()),
-                15000,
-                Default::default(),
-                permissions,
-                random_pk,
-            );
+        let data = SeqMutableData::new_with_data(
+            name,
+            tag,
+            Default::default(),
+            permissions.clone(),
+            client.public_key(),
+        );
+        let test_data = SeqMutableData::new_with_data(
+            XorName(rand::random()),
+            15000,
+            Default::default(),
+            permissions,
+            random_pk,
+        );
 
-            client
-                .put_seq_mutable_data(data)
-                .then(move |res| {
-                    assert!(res.is_ok());
-                    Ok(())
-                })
-                .and_then(move |_| {
-                    client1
-                        .put_seq_mutable_data(test_data.clone())
-                        .then(|res| match res {
-                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                            Err(CoreError::DataError(SndError::InvalidOwners)) => Ok(()),
-                            Err(e) => panic!("Unexpected: {:?}", e),
-                        })
-                })
-                // Check if coins are refunded
-                .and_then(move |_| client2.get_balance(None))
-                .and_then(move |balance| {
-                    let expected_bal = calculate_new_balance(start_bal, Some(2), None);
-                    assert_eq!(balance, expected_bal);
-                    Ok(())
-                })
-                .and_then(move |_| {
-                    let new_perm_set = MDataPermissionSet::new()
-                        .allow(MDataAction::ManagePermissions)
-                        .allow(MDataAction::Read);
-                    client3
-                        .set_mdata_user_permissions(
-                            MDataAddress::Seq { name, tag },
-                            user,
-                            new_perm_set,
-                            1,
-                        )
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    println!("Modified user permissions");
+        client.put_seq_mutable_data(data).await?;
+        let res = client1.put_seq_mutable_data(test_data.clone()).await;
+        let _ = match res {
+            Err(CoreError::DataError(SndError::InvalidOwners)) => (),
+            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+            Err(e) => panic!("Unexpected: {:?}", e),
+        };
+        // Check if coins are refunded
+        let balance = client2.get_balance(None).await?;
+        let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+        assert_eq!(balance, expected_bal);
+        let new_perm_set = MDataPermissionSet::new()
+            .allow(MDataAction::ManagePermissions)
+            .allow(MDataAction::Read);
+        client3
+            .set_mdata_user_permissions(MDataAddress::Seq { name, tag }, user, new_perm_set, 1)
+            .await?;
+        println!("Modified user permissions");
 
-                    client4
-                        .list_mdata_user_permissions(MDataAddress::Seq { name, tag }, user2)
-                        .and_then(|permissions| {
-                            assert!(!permissions.is_allowed(MDataAction::Insert));
-                            assert!(permissions.is_allowed(MDataAction::Read));
-                            assert!(permissions.is_allowed(MDataAction::ManagePermissions));
-                            println!("Verified new permissions");
+        let permissions = client4
+            .list_mdata_user_permissions(MDataAddress::Seq { name, tag }, user2)
+            .await?;
+        assert!(!permissions.is_allowed(MDataAction::Insert));
+        assert!(permissions.is_allowed(MDataAction::Read));
+        assert!(permissions.is_allowed(MDataAction::ManagePermissions));
+        println!("Verified new permissions");
 
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    client5
-                        .del_mdata_user_permissions(MDataAddress::Seq { name, tag }, random_user, 2)
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    println!("Deleted permissions");
-                    client6
-                        .list_mdata_permissions(MDataAddress::Seq { name, tag })
-                        .and_then(|permissions| {
-                            assert_eq!(permissions.len(), 1);
-                            println!("Permission set verified");
-                            Ok(())
-                        })
-                })
-        })
+        client5
+            .del_mdata_user_permissions(MDataAddress::Seq { name, tag }, random_user, 2)
+            .await?;
+        println!("Deleted permissions");
+        let permissions = client6
+            .list_mdata_permissions(MDataAddress::Seq { name, tag })
+            .await?;
+        assert_eq!(permissions.len(), 1);
+        println!("Permission set verified");
+
+        Ok(())
     }
 
     // 1. Create a mutable data and store it on the network
     // 2. Create some entry actions and mutate the data on the network.
     // 3. List the entries and verify that the mutation was applied.
     // 4. Fetch a value for a particular key and verify
-    #[test]
-    pub fn mdata_mutations_test() {
-        random_client(|client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = MDataPermissionSet::new()
-                .allow(MDataAction::Read)
-                .allow(MDataAction::Insert)
-                .allow(MDataAction::Update)
-                .allow(MDataAction::Delete);
-            let user = client.public_key();
-            let _ = permissions.insert(user, permission_set);
-            let mut entries: MDataSeqEntries = Default::default();
-            let _ = entries.insert(
-                b"key1".to_vec(),
-                MDataSeqValue {
-                    data: b"value".to_vec(),
-                    version: 0,
-                },
-            );
-            let _ = entries.insert(
-                b"key2".to_vec(),
-                MDataSeqValue {
-                    data: b"value".to_vec(),
-                    version: 0,
-                },
-            );
-            let data = SeqMutableData::new_with_data(
-                name,
-                tag,
-                entries.clone(),
-                permissions,
-                client.public_key(),
-            );
-            client
-                .put_seq_mutable_data(data)
-                .and_then(move |_| {
-                    println!("Put seq. MData successfully");
+    #[tokio::test]
+    pub async fn mdata_mutations_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mut permissions: BTreeMap<_, _> = Default::default();
+        let permission_set = MDataPermissionSet::new()
+            .allow(MDataAction::Read)
+            .allow(MDataAction::Insert)
+            .allow(MDataAction::Update)
+            .allow(MDataAction::Delete);
+        let user = client.public_key();
+        let _ = permissions.insert(user, permission_set);
+        let mut entries: MDataSeqEntries = Default::default();
+        let _ = entries.insert(
+            b"key1".to_vec(),
+            MDataSeqValue {
+                data: b"value".to_vec(),
+                version: 0,
+            },
+        );
+        let _ = entries.insert(
+            b"key2".to_vec(),
+            MDataSeqValue {
+                data: b"value".to_vec(),
+                version: 0,
+            },
+        );
+        let data = SeqMutableData::new_with_data(
+            name,
+            tag,
+            entries.clone(),
+            permissions,
+            client.public_key(),
+        );
+        client.put_seq_mutable_data(data).await?;
+        println!("Put seq. MData successfully");
 
-                    client2
-                        .list_seq_mdata_entries(name, tag)
-                        .map(move |fetched_entries| {
-                            assert_eq!(fetched_entries, entries);
-                        })
-                })
-                .and_then(move |_| {
-                    let entry_actions: MDataSeqEntryActions = MDataSeqEntryActions::new()
-                        .update(b"key1".to_vec(), b"newValue".to_vec(), 1)
-                        .del(b"key2".to_vec(), 1)
-                        .ins(b"key3".to_vec(), b"value".to_vec(), 0);
+        let fetched_entries = client2.list_seq_mdata_entries(name, tag).await?;
+        assert_eq!(fetched_entries, entries);
+        let entry_actions: MDataSeqEntryActions = MDataSeqEntryActions::new()
+            .update(b"key1".to_vec(), b"newValue".to_vec(), 1)
+            .del(b"key2".to_vec(), 1)
+            .ins(b"key3".to_vec(), b"value".to_vec(), 0);
 
-                    client3
-                        .mutate_seq_mdata_entries(name, tag, entry_actions)
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    client4
-                        .list_seq_mdata_entries(name, tag)
-                        .map(move |fetched_entries| {
-                            let mut expected_entries: BTreeMap<_, _> = Default::default();
-                            let _ = expected_entries.insert(
-                                b"key1".to_vec(),
-                                MDataSeqValue {
-                                    data: b"newValue".to_vec(),
-                                    version: 1,
-                                },
-                            );
-                            let _ = expected_entries.insert(
-                                b"key3".to_vec(),
-                                MDataSeqValue {
-                                    data: b"value".to_vec(),
-                                    version: 0,
-                                },
-                            );
-                            assert_eq!(fetched_entries, expected_entries);
-                        })
-                })
-                .and_then(move |_| {
-                    client5
-                        .get_seq_mdata_value(name, tag, b"key3".to_vec())
-                        .and_then(|fetched_value| {
-                            assert_eq!(
-                                fetched_value,
-                                MDataSeqValue {
-                                    data: b"value".to_vec(),
-                                    version: 0
-                                }
-                            );
-                            Ok(())
-                        })
-                })
-                .then(move |_| {
-                    client6
-                        .get_seq_mdata_value(name, tag, b"wrongKey".to_vec())
-                        .then(|res| {
-                            match res {
-                                Ok(_) => panic!("Unexpected: Entry should not exist"),
-                                Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
-                                Err(err) => panic!("Unexpected error: {:?}", err),
-                            }
-                            Ok::<_, SndError>(())
-                        })
-                })
-        });
+        client3
+            .mutate_seq_mdata_entries(name, tag, entry_actions)
+            .await?;
+        let fetched_entries = client4.list_seq_mdata_entries(name, tag).await?;
+        let mut expected_entries: BTreeMap<_, _> = Default::default();
+        let _ = expected_entries.insert(
+            b"key1".to_vec(),
+            MDataSeqValue {
+                data: b"newValue".to_vec(),
+                version: 1,
+            },
+        );
+        let _ = expected_entries.insert(
+            b"key3".to_vec(),
+            MDataSeqValue {
+                data: b"value".to_vec(),
+                version: 0,
+            },
+        );
+        assert_eq!(fetched_entries, expected_entries);
+        let fetched_value = client5
+            .get_seq_mdata_value(name, tag, b"key3".to_vec())
+            .await?;
+        assert_eq!(
+            fetched_value,
+            MDataSeqValue {
+                data: b"value".to_vec(),
+                version: 0
+            }
+        );
+        let res = client6
+            .get_seq_mdata_value(name, tag, b"wrongKey".to_vec())
+            .await;
+        let _ = match res {
+            Ok(_) => panic!("Unexpected: Entry should not exist"),
+            Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
+            Err(err) => panic!("Unexpected error: {:?}", err),
+        };
 
-        random_client(|client| {
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
-            let name = XorName(rand::random());
-            let tag = 15001;
-            let mut permissions: BTreeMap<_, _> = Default::default();
-            let permission_set = MDataPermissionSet::new()
-                .allow(MDataAction::Read)
-                .allow(MDataAction::Insert)
-                .allow(MDataAction::Update)
-                .allow(MDataAction::Delete);
-            let user = client.public_key();
-            let _ = permissions.insert(user, permission_set);
-            let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
-            let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
-            let _ = entries.insert(b"key2".to_vec(), b"value".to_vec());
-            let data = UnseqMutableData::new_with_data(
-                name,
-                tag,
-                entries.clone(),
-                permissions,
-                client.public_key(),
-            );
-            client
-                .put_unseq_mutable_data(data)
-                .and_then(move |_| {
-                    println!("Put unseq. MData successfully");
+        let client = random_client()?;
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
+        let name = XorName(rand::random());
+        let tag = 15001;
+        let mut permissions: BTreeMap<_, _> = Default::default();
+        let permission_set = MDataPermissionSet::new()
+            .allow(MDataAction::Read)
+            .allow(MDataAction::Insert)
+            .allow(MDataAction::Update)
+            .allow(MDataAction::Delete);
+        let user = client.public_key();
+        let _ = permissions.insert(user, permission_set);
+        let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+        let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
+        let _ = entries.insert(b"key2".to_vec(), b"value".to_vec());
+        let data = UnseqMutableData::new_with_data(
+            name,
+            tag,
+            entries.clone(),
+            permissions,
+            client.public_key(),
+        );
+        client.put_unseq_mutable_data(data).await?;
+        println!("Put unseq. MData successfully");
 
-                    client2
-                        .list_unseq_mdata_entries(name, tag)
-                        .map(move |fetched_entries| {
-                            assert_eq!(fetched_entries, entries);
-                        })
-                })
-                .and_then(move |_| {
-                    let entry_actions: MDataUnseqEntryActions = MDataUnseqEntryActions::new()
-                        .update(b"key1".to_vec(), b"newValue".to_vec())
-                        .del(b"key2".to_vec())
-                        .ins(b"key3".to_vec(), b"value".to_vec());
+        let fetched_entries = client2.list_unseq_mdata_entries(name, tag).await?;
+        assert_eq!(fetched_entries, entries);
+        let entry_actions: MDataUnseqEntryActions = MDataUnseqEntryActions::new()
+            .update(b"key1".to_vec(), b"newValue".to_vec())
+            .del(b"key2".to_vec())
+            .ins(b"key3".to_vec(), b"value".to_vec());
 
-                    client3
-                        .mutate_unseq_mdata_entries(name, tag, entry_actions)
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    client4
-                        .list_unseq_mdata_entries(name, tag)
-                        .map(move |fetched_entries| {
-                            let mut expected_entries: BTreeMap<_, _> = Default::default();
-                            let _ = expected_entries.insert(b"key1".to_vec(), b"newValue".to_vec());
-                            let _ = expected_entries.insert(b"key3".to_vec(), b"value".to_vec());
-                            assert_eq!(fetched_entries, expected_entries);
-                        })
-                })
-                .and_then(move |_| {
-                    client5
-                        .get_unseq_mdata_value(name, tag, b"key1".to_vec())
-                        .and_then(|fetched_value| {
-                            assert_eq!(fetched_value, b"newValue".to_vec());
-                            Ok(())
-                        })
-                })
-                .then(move |_| {
-                    client6
-                        .get_unseq_mdata_value(name, tag, b"wrongKey".to_vec())
-                        .then(|res| {
-                            match res {
-                                Ok(_) => panic!("Unexpected: Entry should not exist"),
-                                Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
-                                Err(err) => panic!("Unexpected error: {:?}", err),
-                            }
-                            Ok::<_, SndError>(())
-                        })
-                })
-        });
+        client3
+            .mutate_unseq_mdata_entries(name, tag, entry_actions)
+            .await?;
+        let fetched_entries = client4.list_unseq_mdata_entries(name, tag).await?;
+        let mut expected_entries: BTreeMap<_, _> = Default::default();
+        let _ = expected_entries.insert(b"key1".to_vec(), b"newValue".to_vec());
+        let _ = expected_entries.insert(b"key3".to_vec(), b"value".to_vec());
+        assert_eq!(fetched_entries, expected_entries);
+        let fetched_value = client5
+            .get_unseq_mdata_value(name, tag, b"key1".to_vec())
+            .await?;
+        assert_eq!(fetched_value, b"newValue".to_vec());
+        let res = client6
+            .get_unseq_mdata_value(name, tag, b"wrongKey".to_vec())
+            .await;
+        match res {
+            Ok(_) => panic!("Unexpected: Entry should not exist"),
+            Err(CoreError::DataError(SndError::NoSuchEntry)) => Ok(()),
+            Err(err) => panic!("Unexpected error: {:?}", err),
+        }
     }
 
-    #[test]
-    pub fn adata_basics_test() {
-        random_client(move |client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
+    #[tokio::test]
+    pub async fn adata_basics_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
 
-            let name = XorName(rand::random());
-            let tag = 15000;
-            let mut data = UnpubSeqAppendOnlyData::new(name, tag);
-            let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
-            let set = ADataUnpubPermissionSet::new(true, true, true);
-            let index = ADataIndex::FromStart(0);
-            let _ = perms.insert(client.public_key(), set);
-            let address = ADataAddress::UnpubSeq { name, tag };
+        let name = XorName(rand::random());
+        let tag = 15000;
+        let mut data = UnpubSeqAppendOnlyData::new(name, tag);
+        let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
+        let set = ADataUnpubPermissionSet::new(true, true, true);
+        let index = ADataIndex::FromStart(0);
+        let _ = perms.insert(client.public_key(), set);
+        let address = ADataAddress::UnpubSeq { name, tag };
 
-            unwrap!(data.append_permissions(
-                ADataUnpubPermissions {
-                    permissions: perms,
-                    entries_index: 0,
-                    owners_index: 0,
-                },
-                0
-            ));
-
-            let owner = ADataOwner {
-                public_key: client.public_key(),
+        unwrap!(data.append_permissions(
+            ADataUnpubPermissions {
+                permissions: perms,
                 entries_index: 0,
-                permissions_index: 1,
-            };
-            unwrap!(data.append_owner(owner, 0));
+                owners_index: 0,
+            },
+            0
+        ));
 
-            client
-                .put_adata(AData::UnpubSeq(data))
-                .and_then(move |_| {
-                    client1.get_adata(address).map(move |data| match data {
-                        AData::UnpubSeq(adata) => assert_eq!(*adata.name(), name),
-                        _ => panic!("Unexpected data found"),
-                    })
-                })
-                .and_then(move |_| {
-                    client2
-                        .get_adata_shell(index, address)
-                        .map(move |data| match data {
-                            AData::UnpubSeq(adata) => {
-                                assert_eq!(*adata.name(), name);
-                                assert_eq!(adata.tag(), tag);
-                                assert_eq!(adata.permissions_index(), 1);
-                                assert_eq!(adata.owners_index(), 1);
-                            }
-                            _ => panic!("Unexpected data found"),
-                        })
-                })
-                .and_then(move |_| client3.delete_adata(address))
-                .and_then(move |_| {
-                    client4.get_adata(address).then(|res| match res {
-                        Ok(_) => panic!("AData was not deleted"),
-                        Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
-                        Err(e) => panic!("Unexpected error: {:?}", e),
-                    })
-                })
-                .then(move |res| res)
-        });
+        let owner = ADataOwner {
+            public_key: client.public_key(),
+            entries_index: 0,
+            permissions_index: 1,
+        };
+        unwrap!(data.append_owner(owner, 0));
+
+        client.put_adata(AData::UnpubSeq(data)).await?;
+        let data = client1.get_adata(address).await?;
+        match data {
+            AData::UnpubSeq(adata) => assert_eq!(*adata.name(), name),
+            _ => panic!("Unexpected data found"),
+        }
+        let data = client2.get_adata_shell(index, address).await?;
+        match data {
+            AData::UnpubSeq(adata) => {
+                assert_eq!(*adata.name(), name);
+                assert_eq!(adata.tag(), tag);
+                assert_eq!(adata.permissions_index(), 1);
+                assert_eq!(adata.owners_index(), 1);
+            }
+            _ => panic!("Unexpected data found"),
+        }
+        client3.delete_adata(address).await?;
+        let res = client4.get_adata(address).await;
+        match res {
+            Ok(_) => panic!("AData was not deleted"),
+            Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        }
     }
 
-    #[test]
-    pub fn adata_permissions_test() {
-        random_client(move |client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
-            let client3 = client.clone();
-            let client4 = client.clone();
-            let client5 = client.clone();
-            let client6 = client.clone();
-            let client7 = client.clone();
-            let client8 = client.clone();
+    #[tokio::test]
+    pub async fn adata_permissions_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
+        let client3 = client.clone();
+        let client4 = client.clone();
+        let client5 = client.clone();
+        let client6 = client.clone();
+        let client7 = client.clone();
+        let client8 = client.clone();
 
-            let name = XorName(rand::random());
-            let tag = 15000;
-            let adataref = ADataAddress::UnpubSeq { name, tag };
-            let mut data = UnpubSeqAppendOnlyData::new(name, tag);
-            let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
-            let set = ADataUnpubPermissionSet::new(true, true, true);
+        let name = XorName(rand::random());
+        let tag = 15000;
+        let adataref = ADataAddress::UnpubSeq { name, tag };
+        let mut data = UnpubSeqAppendOnlyData::new(name, tag);
+        let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
+        let set = ADataUnpubPermissionSet::new(true, true, true);
 
-            let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key(), set);
 
-            let key1 = b"KEY1".to_vec();
-            let key2 = b"KEY2".to_vec();
-            let key3 = b"KEY3".to_vec();
-            let key4 = b"KEY4".to_vec();
+        let key1 = b"KEY1".to_vec();
+        let key2 = b"KEY2".to_vec();
+        let key3 = b"KEY3".to_vec();
+        let key4 = b"KEY4".to_vec();
 
-            let val1 = b"VALUE1".to_vec();
-            let val2 = b"VALUE2".to_vec();
-            let val3 = b"VALUE3".to_vec();
-            let val4 = b"VALUE4".to_vec();
+        let val1 = b"VALUE1".to_vec();
+        let val2 = b"VALUE2".to_vec();
+        let val3 = b"VALUE3".to_vec();
+        let val4 = b"VALUE4".to_vec();
 
-            let kvdata = vec![
-                ADataEntry::new(key1, val1),
-                ADataEntry::new(key2, val2),
-                ADataEntry::new(key3, val3),
-            ];
+        let kvdata = vec![
+            ADataEntry::new(key1, val1),
+            ADataEntry::new(key2, val2),
+            ADataEntry::new(key3, val3),
+        ];
 
-            unwrap!(data.append(kvdata, 0));
-            // Test push
-            unwrap!(data.append(vec![ADataEntry::new(key4, val4)], 3));
+        unwrap!(data.append(kvdata, 0));
+        // Test push
+        unwrap!(data.append(vec![ADataEntry::new(key4, val4)], 3));
 
-            unwrap!(data.append_permissions(
-                ADataUnpubPermissions {
-                    permissions: perms,
-                    entries_index: 4,
-                    owners_index: 0,
-                },
-                0
-            ));
-
-            let index_start = ADataIndex::FromStart(0);
-            let index_end = ADataIndex::FromEnd(2);
-            let perm_index = ADataIndex::FromStart(1);
-
-            let sim_client = gen_bls_keypair().public_key();
-            let sim_client1 = sim_client;
-
-            let mut perms2 = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
-            let set2 = ADataUnpubPermissionSet::new(true, true, false);
-
-            let _ = perms2.insert(sim_client, set2);
-
-            let perm_set = ADataUnpubPermissions {
-                permissions: perms2,
+        unwrap!(data.append_permissions(
+            ADataUnpubPermissions {
+                permissions: perms,
                 entries_index: 4,
-                owners_index: 1,
-            };
+                owners_index: 0,
+            },
+            0
+        ));
 
-            let owner = ADataOwner {
-                public_key: client.public_key(),
-                entries_index: 4,
-                permissions_index: 1,
-            };
+        let index_start = ADataIndex::FromStart(0);
+        let index_end = ADataIndex::FromEnd(2);
+        let perm_index = ADataIndex::FromStart(1);
 
-            unwrap!(data.append_owner(owner, 0));
+        let sim_client = gen_bls_keypair().public_key();
+        let sim_client1 = sim_client;
 
-            let mut test_data = UnpubSeqAppendOnlyData::new(XorName(rand::random()), 15000);
-            let test_owner = ADataOwner {
-                public_key: gen_bls_keypair().public_key(),
-                entries_index: 0,
-                permissions_index: 0,
-            };
+        let mut perms2 = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
+        let set2 = ADataUnpubPermissionSet::new(true, true, false);
 
-            unwrap!(test_data.append_owner(test_owner, 0));
+        let _ = perms2.insert(sim_client, set2);
 
-            client
-                .put_adata(AData::UnpubSeq(data))
-                .then(move |res| {
-                    assert!(res.is_ok());
-                    Ok(())
-                })
-                .and_then(move |_| {
-                    client1
-                        .put_adata(AData::UnpubSeq(test_data.clone()))
-                        .then(|res| match res {
-                            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-                            Err(CoreError::DataError(SndError::InvalidOwners)) => Ok(()),
-                            Err(e) => panic!("Unexpected: {:?}", e),
-                        })
-                })
-                .and_then(move |_| {
-                    client2
-                        .get_adata_range(adataref, (index_start, index_end))
-                        .map(move |data| {
-                            assert_eq!(
-                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).key)),
-                                "KEY2"
-                            );
-                            assert_eq!(
-                                unwrap!(std::str::from_utf8(&unwrap!(data.last()).value)),
-                                "VALUE2"
-                            );
-                        })
-                })
-                .and_then(move |_| {
-                    client3.get_adata_indices(adataref).map(move |data| {
-                        assert_eq!(data.entries_index(), 4);
-                        assert_eq!(data.owners_index(), 1);
-                        assert_eq!(data.permissions_index(), 1);
-                    })
-                })
-                .and_then(move |_| {
-                    client4
-                        .get_adata_value(adataref, b"KEY1".to_vec())
-                        .map(move |data| {
-                            assert_eq!(unwrap!(std::str::from_utf8(data.as_slice())), "VALUE1");
-                        })
-                })
-                .and_then(move |_| {
-                    client5.get_adata_last_entry(adataref).map(move |data| {
-                        assert_eq!(unwrap!(std::str::from_utf8(data.key.as_slice())), "KEY4");
-                        assert_eq!(
-                            unwrap!(std::str::from_utf8(data.value.as_slice())),
-                            "VALUE4"
-                        );
-                    })
-                })
-                .and_then(move |_| {
-                    client6
-                        .add_unpub_adata_permissions(adataref, perm_set, 1)
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    client7
-                        .get_unpub_adata_permissions_at_index(adataref, perm_index)
-                        .map(move |data| {
-                            let set = unwrap!(data.permissions.get(&sim_client1));
-                            assert!(set.is_allowed(ADataAction::Append));
-                        })
-                })
-                .and_then(move |_| {
-                    client8
-                        .get_unpub_adata_user_permissions(
-                            adataref,
-                            index_start,
-                            client8.public_key(),
-                        )
-                        .map(move |set| {
-                            assert!(set.is_allowed(ADataAction::Append));
-                        })
-                })
-                .then(|res| res)
-        });
+        let perm_set = ADataUnpubPermissions {
+            permissions: perms2,
+            entries_index: 4,
+            owners_index: 1,
+        };
+
+        let owner = ADataOwner {
+            public_key: client.public_key(),
+            entries_index: 4,
+            permissions_index: 1,
+        };
+
+        unwrap!(data.append_owner(owner, 0));
+
+        let mut test_data = UnpubSeqAppendOnlyData::new(XorName(rand::random()), 15000);
+        let test_owner = ADataOwner {
+            public_key: gen_bls_keypair().public_key(),
+            entries_index: 0,
+            permissions_index: 0,
+        };
+
+        unwrap!(test_data.append_owner(test_owner, 0));
+
+        client.put_adata(AData::UnpubSeq(data)).await?;
+        let res = client1.put_adata(AData::UnpubSeq(test_data.clone())).await;
+        let _ = match res {
+            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
+            Err(CoreError::DataError(SndError::InvalidOwners)) => (),
+            Err(e) => panic!("Unexpected: {:?}", e),
+        };
+
+        let data = client2
+            .get_adata_range(adataref, (index_start, index_end))
+            .await?;
+        assert_eq!(
+            unwrap!(std::str::from_utf8(&unwrap!(data.last()).key)),
+            "KEY2"
+        );
+        assert_eq!(
+            unwrap!(std::str::from_utf8(&unwrap!(data.last()).value)),
+            "VALUE2"
+        );
+        let data = client3.get_adata_indices(adataref).await?;
+        assert_eq!(data.entries_index(), 4);
+        assert_eq!(data.owners_index(), 1);
+        assert_eq!(data.permissions_index(), 1);
+        let data = client4.get_adata_value(adataref, b"KEY1".to_vec()).await?;
+        assert_eq!(unwrap!(std::str::from_utf8(data.as_slice())), "VALUE1");
+        let data = client5.get_adata_last_entry(adataref).await?;
+        assert_eq!(unwrap!(std::str::from_utf8(data.key.as_slice())), "KEY4");
+        assert_eq!(
+            unwrap!(std::str::from_utf8(data.value.as_slice())),
+            "VALUE4"
+        );
+        client6
+            .add_unpub_adata_permissions(adataref, perm_set, 1)
+            .await?;
+        let data = client7
+            .get_unpub_adata_permissions_at_index(adataref, perm_index)
+            .await?;
+        let set = unwrap!(data.permissions.get(&sim_client1));
+        assert!(set.is_allowed(ADataAction::Append));
+        let set = client8
+            .get_unpub_adata_user_permissions(adataref, index_start, client8.public_key())
+            .await?;
+        assert!(set.is_allowed(ADataAction::Append));
+        Ok(())
     }
 
-    #[test]
-    pub fn append_seq_adata_test() {
+    #[tokio::test]
+    pub async fn append_seq_adata_test() -> Result<(), CoreError> {
         let name = XorName(rand::random());
         let tag = 10;
-        random_client(move |client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
 
-            let adataref = ADataAddress::PubSeq { name, tag };
-            let mut data = PubSeqAppendOnlyData::new(name, tag);
+        let adataref = ADataAddress::PubSeq { name, tag };
+        let mut data = PubSeqAppendOnlyData::new(name, tag);
 
-            let mut perms = BTreeMap::<ADataUser, ADataPubPermissionSet>::new();
-            let set = ADataPubPermissionSet::new(true, true);
+        let mut perms = BTreeMap::<ADataUser, ADataPubPermissionSet>::new();
+        let set = ADataPubPermissionSet::new(true, true);
 
-            let usr = ADataUser::Key(client.public_key());
-            let _ = perms.insert(usr, set);
+        let usr = ADataUser::Key(client.public_key());
+        let _ = perms.insert(usr, set);
 
-            unwrap!(data.append_permissions(
-                ADataPubPermissions {
-                    permissions: perms,
-                    entries_index: 0,
-                    owners_index: 0,
-                },
-                0
-            ));
-
-            let key1 = b"KEY1".to_vec();
-            let val1 = b"VALUE1".to_vec();
-            let key2 = b"KEY2".to_vec();
-            let val2 = b"VALUE2".to_vec();
-
-            let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
-
-            let append = ADataAppendOperation {
-                address: adataref,
-                values: tup,
-            };
-
-            let owner = ADataOwner {
-                public_key: client.public_key(),
+        unwrap!(data.append_permissions(
+            ADataPubPermissions {
+                permissions: perms,
                 entries_index: 0,
-                permissions_index: 1,
-            };
+                owners_index: 0,
+            },
+            0
+        ));
 
-            unwrap!(data.append_owner(owner, 0));
+        let key1 = b"KEY1".to_vec();
+        let val1 = b"VALUE1".to_vec();
+        let key2 = b"KEY2".to_vec();
+        let val2 = b"VALUE2".to_vec();
 
-            client
-                .put_adata(AData::PubSeq(data))
-                .and_then(move |_| {
-                    client1.append_seq_adata(append, 0).then(move |res| {
-                        assert!(res.is_ok());
-                        Ok(())
-                    })
-                })
-                .and_then(move |_| {
-                    client2.get_adata(adataref).map(move |data| match data {
-                        AData::PubSeq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
-                            "KEY2"
-                        ),
-                        _ => panic!("UNEXPECTED DATA!"),
-                    })
-                })
-                .then(|res| res)
-        });
+        let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
+
+        let append = ADataAppendOperation {
+            address: adataref,
+            values: tup,
+        };
+
+        let owner = ADataOwner {
+            public_key: client.public_key(),
+            entries_index: 0,
+            permissions_index: 1,
+        };
+
+        unwrap!(data.append_owner(owner, 0));
+
+        client.put_adata(AData::PubSeq(data)).await?;
+        client1.append_seq_adata(append, 0).await?;
+        let data = client2.get_adata(adataref).await?;
+        match data {
+            AData::PubSeq(adata) => assert_eq!(
+                unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
+                "KEY2"
+            ),
+            _ => panic!("UNEXPECTED DATA!"),
+        }
+        Ok(())
     }
 
-    #[test]
-    pub fn append_unseq_adata_test() {
+    #[tokio::test]
+    pub async fn append_unseq_adata_test() -> Result<(), CoreError> {
         let name = XorName(rand::random());
         let tag = 10;
-        random_client(move |client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
 
-            let adataref = ADataAddress::UnpubUnseq { name, tag };
-            let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
+        let adataref = ADataAddress::UnpubUnseq { name, tag };
+        let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
 
-            let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
-            let set = ADataUnpubPermissionSet::new(true, true, true);
+        let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
+        let set = ADataUnpubPermissionSet::new(true, true, true);
 
-            let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key(), set);
 
-            unwrap!(data.append_permissions(
-                ADataUnpubPermissions {
-                    permissions: perms,
-                    entries_index: 0,
-                    owners_index: 0,
-                },
-                0
-            ));
-
-            let key1 = b"KEY1".to_vec();
-            let val1 = b"VALUE1".to_vec();
-            let key2 = b"KEY2".to_vec();
-            let val2 = b"VALUE2".to_vec();
-
-            let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
-
-            let append = ADataAppendOperation {
-                address: adataref,
-                values: tup,
-            };
-
-            let owner = ADataOwner {
-                public_key: client.public_key(),
+        unwrap!(data.append_permissions(
+            ADataUnpubPermissions {
+                permissions: perms,
                 entries_index: 0,
-                permissions_index: 1,
-            };
+                owners_index: 0,
+            },
+            0
+        ));
 
-            unwrap!(data.append_owner(owner, 0));
+        let key1 = b"KEY1".to_vec();
+        let val1 = b"VALUE1".to_vec();
+        let key2 = b"KEY2".to_vec();
+        let val2 = b"VALUE2".to_vec();
 
-            client
-                .put_adata(AData::UnpubUnseq(data))
-                .and_then(move |_| {
-                    client1.append_unseq_adata(append).then(move |res| {
-                        assert!(res.is_ok());
-                        Ok(())
-                    })
-                })
-                .and_then(move |_| {
-                    client2.get_adata(adataref).map(move |data| match data {
-                        AData::UnpubUnseq(adata) => assert_eq!(
-                            unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
-                            "KEY2"
-                        ),
-                        _ => panic!("UNEXPECTED DATA!"),
-                    })
-                })
-                .then(|res| res)
-        });
+        let tup = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
+
+        let append = ADataAppendOperation {
+            address: adataref,
+            values: tup,
+        };
+
+        let owner = ADataOwner {
+            public_key: client.public_key(),
+            entries_index: 0,
+            permissions_index: 1,
+        };
+
+        unwrap!(data.append_owner(owner, 0));
+
+        client.put_adata(AData::UnpubUnseq(data)).await?;
+        client1.append_unseq_adata(append).await?;
+        let data = client2.get_adata(adataref).await?;
+        match data {
+            AData::UnpubUnseq(adata) => assert_eq!(
+                unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
+                "KEY2"
+            ),
+            _ => panic!("UNEXPECTED DATA!"),
+        }
+
+        Ok(())
     }
 
-    #[test]
-    pub fn set_and_get_owner_adata_test() {
+    #[tokio::test]
+    pub async fn set_and_get_owner_adata_test() -> Result<(), CoreError> {
         let name = XorName(rand::random());
         let tag = 10;
-        random_client(move |client| {
-            let client1 = client.clone();
-            let client2 = client.clone();
-            let client3 = client.clone();
+        let client = random_client()?;
+        let client1 = client.clone();
+        let client2 = client.clone();
+        let client3 = client.clone();
 
-            let adataref = ADataAddress::UnpubUnseq { name, tag };
-            let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
+        let adataref = ADataAddress::UnpubUnseq { name, tag };
+        let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
 
-            let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
-            let set = ADataUnpubPermissionSet::new(true, true, true);
+        let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
+        let set = ADataUnpubPermissionSet::new(true, true, true);
 
-            let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key(), set);
 
-            unwrap!(data.append_permissions(
-                ADataUnpubPermissions {
-                    permissions: perms,
-                    entries_index: 0,
-                    owners_index: 0,
-                },
-                0
-            ));
+        data.append_permissions(
+            ADataUnpubPermissions {
+                permissions: perms,
+                entries_index: 0,
+                owners_index: 0,
+            },
+            0,
+        )?;
 
-            let key1 = b"KEY1".to_vec();
-            let key2 = b"KEY2".to_vec();
+        let key1 = b"KEY1".to_vec();
+        let key2 = b"KEY2".to_vec();
 
-            let val1 = b"VALUE1".to_vec();
-            let val2 = b"VALUE2".to_vec();
+        let val1 = b"VALUE1".to_vec();
+        let val2 = b"VALUE2".to_vec();
 
-            let kvdata = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
+        let kvdata = vec![ADataEntry::new(key1, val1), ADataEntry::new(key2, val2)];
 
-            unwrap!(data.append(kvdata));
+        data.append(kvdata)?;
 
-            let owner = ADataOwner {
-                public_key: client.public_key(),
-                entries_index: 2,
-                permissions_index: 1,
-            };
+        let owner = ADataOwner {
+            public_key: client.public_key(),
+            entries_index: 2,
+            permissions_index: 1,
+        };
 
-            unwrap!(data.append_owner(owner, 0));
+        data.append_owner(owner, 0)?;
 
-            let owner2 = ADataOwner {
-                public_key: client1.public_key(),
-                entries_index: 2,
-                permissions_index: 1,
-            };
+        let owner2 = ADataOwner {
+            public_key: client1.public_key(),
+            entries_index: 2,
+            permissions_index: 1,
+        };
 
-            let owner3 = ADataOwner {
-                public_key: client2.public_key(),
-                entries_index: 2,
-                permissions_index: 1,
-            };
+        let owner3 = ADataOwner {
+            public_key: client2.public_key(),
+            entries_index: 2,
+            permissions_index: 1,
+        };
 
-            client
-                .put_adata(AData::UnpubUnseq(data))
-                .and_then(move |_| {
-                    client1
-                        .set_adata_owners(adataref, owner2, 1)
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    client2
-                        .set_adata_owners(adataref, owner3, 2)
-                        .then(move |res| {
-                            assert!(res.is_ok());
-                            Ok(())
-                        })
-                })
-                .and_then(move |_| {
-                    client3.get_adata(adataref).map(move |data| match data {
-                        AData::UnpubUnseq(adata) => assert_eq!(adata.owners_index(), 3),
-                        _ => panic!("UNEXPECTED DATA!"),
-                    })
-                })
-                .then(|res| res)
-        });
+        client.put_adata(AData::UnpubUnseq(data)).await?;
+        client1.set_adata_owners(adataref, owner2, 1).await?;
+        client2.set_adata_owners(adataref, owner3, 2).await?;
+        let data = client3.get_adata(adataref).await?;
+        match data {
+            AData::UnpubUnseq(adata) => assert_eq!(adata.owners_index(), 3),
+            _ => panic!("UNEXPECTED DATA!"),
+        }
+
+        Ok(())
     }
 
     // 1. Create a random BLS key and create a wallet for it with some test safecoin.
     // 2. Without a client object, try to get the balance, create new wallets and transfer safecoin.
-    #[test]
-    pub fn wallet_transactions_without_client() {
+    #[tokio::test]
+    pub async fn wallet_transactions_without_client() -> Result<(), CoreError> {
         let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("50"))
-        ));
+        test_create_balance(&client_id, unwrap!(Coins::from_str("50"))).await?;
 
-        let balance = unwrap!(wallet_get_balance(&client_id));
+        let balance = wallet_get_balance(&client_id).await?;
         let ten_coins = unwrap!(Coins::from_str("10"));
         assert_eq!(balance, unwrap!(Coins::from_str("50")));
 
         let new_client_id = gen_client_id();
         let new_client_pk = new_client_id.public_id().public_key();
         let new_wallet: XorName = *new_client_id.public_id().name();
-        let txn = unwrap!(wallet_create_balance(
-            &client_id,
-            *new_client_pk,
-            ten_coins,
-            None
-        ));
+        let txn = wallet_create_balance(&client_id, *new_client_pk, ten_coins, None).await?;
         assert_eq!(txn.amount, ten_coins);
-        let txn2 = unwrap!(wallet_transfer_coins(
-            &client_id, new_wallet, ten_coins, None
-        ));
+        let txn2 = wallet_transfer_coins(&client_id, new_wallet, ten_coins, None).await?;
         assert_eq!(txn2.amount, ten_coins);
 
-        let client_balance = unwrap!(wallet_get_balance(&client_id));
+        let client_balance = wallet_get_balance(&client_id).await?;
         let expected = unwrap!(Coins::from_str("30"));
         let expected = unwrap!(expected.checked_sub(COST_OF_PUT));
         assert_eq!(client_balance, expected);
 
-        let new_client_balance = unwrap!(wallet_get_balance(&new_client_id));
+        let new_client_balance = wallet_get_balance(&new_client_id).await?;
         assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
+
+        Ok(())
     }
 
     // 1. Store different variants of unpublished data on the network.
     // 2. Get the balance of the client.
     // 3. Delete data from the network.
     // 4. Verify that the balance has not changed since deletions are free.
-    #[test]
-    pub fn deletions_should_be_free() {
+    #[tokio::test]
+    pub async fn deletions_should_be_free() -> Result<(), CoreError> {
         let name = XorName(rand::random());
         let tag = 10;
-        random_client(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-            let c4 = client.clone();
-            let c5 = client.clone();
-            let c6 = client.clone();
-            let c7 = client.clone();
-            let c8 = client.clone();
+        let client = random_client()?;
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
+        let c7 = client.clone();
+        let c8 = client.clone();
 
-            let idata = UnpubImmutableData::new(
-                unwrap!(generate_random_vector::<u8>(10)),
-                client.public_key(),
-            );
-            let address = *idata.name();
-            client
-                .put_idata(idata)
-                .and_then(move |_| {
-                    let mut adata = UnpubSeqAppendOnlyData::new(name, tag);
-                    let owner = ADataOwner {
-                        public_key: c2.public_key(),
-                        entries_index: 0,
-                        permissions_index: 0,
-                    };
-                    unwrap!(adata.append_owner(owner, 0));
-                    c2.put_adata(adata.into())
-                })
-                .and_then(move |_| {
-                    let mdata = UnseqMutableData::new(name, tag, c3.public_key());
-                    c3.put_unseq_mutable_data(mdata)
-                })
-                .and_then(move |_| c4.get_balance(None))
-                .and_then(move |balance| {
-                    c5.delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
-                        .map(move |_| balance)
-                })
-                .and_then(move |balance| {
-                    c6.delete_mdata(MDataAddress::from_kind(MDataKind::Unseq, name, tag))
-                        .map(move |_| balance)
-                })
-                .and_then(move |balance| c7.del_unpub_idata(address).map(move |_| balance))
-                .and_then(move |balance| {
-                    c8.get_balance(None)
-                        .map(move |bal| assert_eq!(bal, balance))
-                })
-        });
+        let idata = UnpubImmutableData::new(
+            unwrap!(generate_random_vector::<u8>(10)),
+            client.public_key(),
+        );
+        let address = *idata.name();
+        client.put_idata(idata).await?;
+        let mut adata = UnpubSeqAppendOnlyData::new(name, tag);
+        let owner = ADataOwner {
+            public_key: c2.public_key(),
+            entries_index: 0,
+            permissions_index: 0,
+        };
+        unwrap!(adata.append_owner(owner, 0));
+        c2.put_adata(adata.into()).await?;
+        let mdata = UnseqMutableData::new(name, tag, c3.public_key());
+        c3.put_unseq_mutable_data(mdata).await?;
+
+        let balance = c4.get_balance(None).await?;
+        c5.delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
+            .await?;
+        c6.delete_mdata(MDataAddress::from_kind(MDataKind::Unseq, name, tag))
+            .await?;
+        c7.del_unpub_idata(address).await?;
+        let new_balance = c8.get_balance(None).await?;
+        assert_eq!(new_balance, balance);
+
+        Ok(())
     }
 }

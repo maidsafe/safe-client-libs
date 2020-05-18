@@ -54,7 +54,7 @@ pub fn finish() -> Result<(), ()> {
     Ok(())
 }
 
-/// Create random registered client and run it inside an event loop. Use this to
+/// Create random registered client. Use this to
 /// create a `CoreClient` automatically and randomly.
 pub fn random_client() -> Result<CoreClient, CoreError>
 where
