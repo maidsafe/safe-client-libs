@@ -21,7 +21,7 @@ This is the project workspace. Please refer to individual members for details:
 
 Crate graph ([explanation](https://github.com/maidsafe/safe_client_libs/wiki#crate-graph)):
 
-![safe_app dependencies](safe-client-libs.png)
+[[https://github.com/maidsafe/safe_client_libs/blob/png_generator/safe-client-libs.png|alt=safe_app dependencies]]
 
 ## Building from source
 
