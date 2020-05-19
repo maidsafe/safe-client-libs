@@ -8,13 +8,12 @@
 
 use crate::client::{Client, MDataInfo};
 use crate::crypto::shared_secretbox;
-use crate::errors::CoreError;
 use crate::nfs::{File, Mode, NfsError, Reader, Writer};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 
 use bincode::{deserialize, serialize};
 use log::trace;
-use safe_nd::{Error as SndError, MDataSeqEntryActions};
+use safe_nd::MDataSeqEntryActions;
 use serde::{Deserialize, Serialize};
 
 /// Enum specifying which version should be used in places where a version is required.
@@ -205,14 +204,4 @@ pub async fn write<C: Client>(
         encryption_key,
     )
     .await
-}
-
-// This is different from `impl From<CoreError> for NfsError`, because it maps
-// `NoSuchEntry` to `FileNotFound`.
-// TODO:  consider performing such conversion directly in the mentioned `impl From`.
-fn convert_error(err: CoreError) -> NfsError {
-    match err {
-        CoreError::DataError(SndError::NoSuchEntry) => NfsError::FileNotFound,
-        _ => NfsError::from(err),
-    }
 }

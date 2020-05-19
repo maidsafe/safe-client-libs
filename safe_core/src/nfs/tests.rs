@@ -13,12 +13,10 @@ use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
 use crate::nfs::file_helper::{self, Version};
 
-
 use crate::nfs::{create_directory, File, Mode, NfsError};
 use crate::utils::test_utils::random_client;
 use crate::utils::{self, generate_random_vector};
 use crate::DIR_TAG;
-
 
 use log::trace;
 use safe_nd::{Error as SndError, MDataKind};
@@ -57,7 +55,7 @@ async fn create_test_file_with_size(
     writer.write(&bytes).await?;
     let file = writer.close().await?;
 
-    file_helper::insert(c3, root2.clone(), "hello.txt", &file).await;
+    let _ = file_helper::insert(c3, root2.clone(), "hello.txt", &file).await;
 
     Ok((root2, file))
 }
@@ -169,7 +167,7 @@ async fn files_stored_in_unpublished_idata() -> Result<(), NfsError> {
 
     // Wait for the other client to finish it's attempt to read
     unwrap!(client2_rx.recv());
-    file_helper::delete(c6, dir.clone(), "", false, Version::Custom(1)).await?;
+    let _ = file_helper::delete(c6, dir.clone(), "", false, Version::Custom(1)).await?;
     let res = file_helper::fetch(c7, dir, "").await;
     match res {
         Err(NfsError::FileNotFound) => (),
@@ -372,7 +370,7 @@ async fn file_update_overwrite() -> Result<(), NfsError> {
     writer.write(&[1u8; NEW_SIZE]).await?;
 
     let file = writer.close().await?;
-    file_helper::update(c3, dir.clone(), "hello.txt", &file, Version::Custom(1)).await?;
+    let _ = file_helper::update(c3, dir.clone(), "hello.txt", &file, Version::Custom(1)).await?;
     let (_version, file) = file_helper::fetch(c4, dir.clone(), "hello.txt").await?;
     // Check file timestamps
     assert_eq!(creation_time, *file.created_time());
@@ -463,7 +461,7 @@ async fn file_delete_then_add() -> Result<(), NfsError> {
     let c6 = client.clone();
 
     let (dir, file) = create_test_file(&client, true).await?;
-    file_helper::delete(c2, dir.clone(), "hello.txt", true, Version::Custom(1)).await?;
+    let _ = file_helper::delete(c2, dir.clone(), "hello.txt", true, Version::Custom(1)).await?;
 
     let writer = file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned()).await?;
 
@@ -538,7 +536,7 @@ async fn file_open_concurrent() -> Result<(), NfsError> {
 
     // Write with the first writer.
     writer1.write(&[1u8; NEW_SIZE]).await?;
-    writer1.close().await?;
+    let _ = writer1.close().await?;
 
     // Write with the second writer.
     writer2.write(&[2u8; NEW_SIZE]).await?;
@@ -571,8 +569,7 @@ async fn file_open_concurrent() -> Result<(), NfsError> {
 // the original encryption key.
 #[tokio::test]
 async fn encryption() -> Result<(), NfsError> {
-    let client: CoreClient = random_client()?;
-    // random_client(|client| {
+    let client = random_client()?;
     let c2 = client.clone();
     let c3 = client.clone();
     let c4 = client.clone();

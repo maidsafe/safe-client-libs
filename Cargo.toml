@@ -10,4 +10,5 @@
 members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_core", "tests"]
 
 [patch.crates-io]
-self_encryption = { git = "https://github.com/joshuef/self_encryption", branch = "Arc-Mutex" }
+#self_encryption = { git = "https://github.com/joshuef/self_encryption", branch = "Arc-Mutex" }
+self_encryption = { git = "https://github.com/bochaco/self_encryption", branch = "chore-await-instead-of-block" }

@@ -18,12 +18,9 @@ use bincode::{deserialize, serialize};
 
 use log::trace;
 
-use async_recursion::async_recursion;
 use safe_nd::{IData, IDataAddress, PubImmutableData, UnpubImmutableData};
 use self_encryption::{DataMap, SelfEncryptor, Storage};
 use serde::{Deserialize, Serialize};
-
-use futures::future::FutureExt;
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
@@ -40,9 +37,8 @@ pub async fn create(
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<IData, CoreError> {
     trace!("Creating conformant ImmutableData.");
-    let client = client.clone();
     let se_storage = SelfEncryptionStorage::new(client.clone(), published);
-    write_with_self_encryptor(se_storage, &client, value, published, encryption_key).await
+    write_with_self_encryptor(se_storage, client, value, published, encryption_key).await
 }
 
 /// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
@@ -55,9 +51,8 @@ pub async fn gen_data_map(
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<IData, CoreError> {
     trace!("Creating conformant ImmutableData data map.");
-    let client = client.clone();
     let se_storage = SelfEncryptionStorageDryRun::new(client.clone(), published);
-    write_with_self_encryptor(se_storage, &client, value, published, encryption_key).await
+    write_with_self_encryptor(se_storage, client, value, published, encryption_key).await
 }
 
 /// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
@@ -70,7 +65,7 @@ pub async fn extract_value(
 ) -> Result<Vec<u8>, CoreError> {
     let published = data.is_pub();
     let se_storage = SelfEncryptionStorage::new(client.clone(), published);
-    let value = unpack(se_storage.clone(), &client.clone(), data).await?;
+    let value = unpack(se_storage.clone(), data).await?;
 
     let data_map = if let Some(key) = decryption_key {
         let plain_text = utils::symmetric_decrypt(&value, &key)?;
@@ -138,33 +133,28 @@ where
     pack(se_storage, client, value, published).await
 }
 
-// TODO: consider rewriting these two function to not use recursion.
-
-#[async_recursion]
 async fn pack<S>(
     se_storage: S,
     client: &(impl Client + Sync + Send),
-    value: Vec<u8>,
+    mut value: Vec<u8>,
     published: bool,
 ) -> Result<IData, CoreError>
 where
     S: Storage<Error = SEStorageError> + Clone + 'static + Sync + Send,
 {
-    let data: IData = if published {
-        PubImmutableData::new(value).into()
-    } else {
-        UnpubImmutableData::new(value, client.public_key()).into()
-    };
-    let serialised_data = match serialize(&data) {
-        Ok(the_data) => the_data,
-        Err(error) => {
-            return Err(CoreError::from(error));
-        }
-    };
+    loop {
+        let data: IData = if published {
+            PubImmutableData::new(value).into()
+        } else {
+            UnpubImmutableData::new(value, client.public_key()).into()
+        };
 
-    if data.validate_size() {
-        Ok(data)
-    } else {
+        let serialised_data = serialize(&data)?;
+
+        if data.validate_size() {
+            return Ok(data);
+        }
+
         let self_encryptor = SelfEncryptor::new(se_storage.clone(), DataMap::None)?;
 
         // TODO make read/write properly x-thread compatible in self_encrypt
@@ -172,32 +162,25 @@ where
 
         let (data_map, _) = self_encryptor.close().await?;
 
-        let value = serialize(&DataTypeEncoding::DataMap(data_map))?;
-
-        // this is an Arc
-        pack(se_storage, client, value, published).await
+        value = serialize(&DataTypeEncoding::DataMap(data_map))?;
     }
 }
 
-#[async_recursion]
-async fn unpack<S>(
-    se_storage: S,
-    client: &(impl Client + Sync + Send),
-    data: IData,
-) -> Result<Vec<u8>, CoreError>
+async fn unpack<S>(se_storage: S, mut data: IData) -> Result<Vec<u8>, CoreError>
 where
     S: Storage<Error = SEStorageError> + Clone + 'static + Send + Sync,
 {
-    match deserialize(data.value())? {
-        DataTypeEncoding::Serialised(value) => Ok(value),
-        DataTypeEncoding::DataMap(data_map) => {
-            let self_encryptor = SelfEncryptor::new(se_storage.clone(), data_map)?;
-            let length = self_encryptor.len();
+    loop {
+        match deserialize(data.value())? {
+            DataTypeEncoding::Serialised(value) => return Ok(value),
+            DataTypeEncoding::DataMap(data_map) => {
+                let self_encryptor = SelfEncryptor::new(se_storage.clone(), data_map)?;
+                let length = self_encryptor.len();
 
-            let serialised_data = self_encryptor.read(0, length).await?;
+                let serialised_data = self_encryptor.read(0, length).await?;
 
-            let data = deserialize(&serialised_data)?;
-            unpack(se_storage, client, data).await
+                data = deserialize(&serialised_data)?;
+            }
         }
     }
 }
@@ -206,11 +189,8 @@ where
 mod tests {
     use super::*;
     use crate::errors::CoreError;
-    
     use safe_nd::Error as SndError;
-    use unwrap::unwrap;
-    use utils;
-    use utils::test_utils::{random_client};
+    use utils::{self, test_utils::random_client};
 
     // Test creating and retrieving a 1kb idata.
     #[tokio::test]
@@ -243,38 +223,23 @@ mod tests {
     }
 
     async fn create_and_index_based_retrieve(size: usize) -> Result<(), CoreError> {
-        let value = unwrap!(utils::generate_random_vector(size));
+        let value = utils::generate_random_vector(size)?;
         {
             // Read first half
             let client = random_client()?;
-            //move |client| {
             let client2 = client.clone();
             let client3 = client.clone();
-            let data = create(&client, &value, true, None).await?;
 
-            // .then(move |res| {
-            // let data = unwrap!(res);
+            let data = create(&client, &value, true, None).await?;
             let address = *data.address();
             client2.put_idata(data).await?;
-            // .map(move |_| address)
-            // })
-            // .then(move |res| {
-            //     let address = unwrap!(res);
+
             let fetched_value =
                 get_value(&client3, address, None, Some(size as u64 / 2), None).await?;
-            // })
-            // .then(move |res| {
-            //     let fetched_value = unwrap!(res);
             assert_eq!(fetched_value, value[0..size / 2].to_vec());
-
-            // fet
-            //     finish()
-            // })
-            // }
-            // );
         }
 
-        let value2 = unwrap!(utils::generate_random_vector(size));
+        let value2 = utils::generate_random_vector(size)?;
         {
             // Read Second half
             let client = random_client()?;
@@ -283,14 +248,9 @@ mod tests {
             let client3 = client.clone();
 
             let data = create(&client, &value2, true, None).await?;
-            // .then(move |res| {
-            //     let data = unwrap!(res);
             let address = *data.address();
             client2.put_idata(data).await?;
-            // .map(move |_| address)
-            // })
-            // .then(move |res| {
-            //     let address = unwrap!(res);
+
             let fetched_value = get_value(
                 &client3,
                 address,
@@ -299,13 +259,7 @@ mod tests {
                 None,
             )
             .await?;
-            // })
-            // .then(move |res| {
-            //     let fetched_value = unwrap!(res);
             assert_eq!(fetched_value, value2[size / 2..size].to_vec());
-            // finish()
-            // })
-            // })
         }
 
         Ok(())
@@ -330,7 +284,7 @@ mod tests {
             gen_data_then_map_create_and_retrieve(size, false, Some(key)).await?;
         }
 
-        let value = unwrap!(utils::generate_random_vector(size));
+        let value = utils::generate_random_vector(size)?;
 
         // Put unencrypted Retrieve encrypted - Should fail
         {
@@ -342,21 +296,11 @@ mod tests {
             let client3 = client.clone();
 
             let data = create(&client, &value, true, None).await?;
-            // .then(move |res| {
-            // let data = unwrap!(res);
             let address = *data.address();
             client2.put_idata(data).await?;
-            // .map(move |_| address)
-            // })
-            // .then(move |res| {
-            // let address = unwrap!(res);
+
             let res = get_value(&client3, address, None, None, Some(key)).await;
-            // })
-            // .then(|res| {
             assert!(res.is_err());
-            // finish()
-            // })
-            // })
         }
 
         // Put encrypted Retrieve unencrypted - Should fail
@@ -369,21 +313,11 @@ mod tests {
             let client3 = client.clone();
 
             let data = create(&client, &value, true, Some(key)).await?;
-            // .then(move |res| {
-            //     let data = unwrap!(res);
             let address = *data.address();
             client2.put_idata(data).await?;
-            //  .map(move |_| address)
-            // })
-            // .then(move |res| {
-            // let address = unwrap!(res);
+
             let res = get_value(&client3, address, None, None, None).await;
-            // })
-            // .then(|res| {
             assert!(res.is_err());
-            //     finish()
-            // })
-            // })
         }
 
         // Put published Retrieve unpublished - Should fail
@@ -395,22 +329,12 @@ mod tests {
             let client3 = client.clone();
 
             let data = create(&client, &value, true, None).await?;
-            // .then(move |res| {
-            // let data = unwrap!(res);
             let data_name = *data.name();
             client2.put_idata(data).await?;
-            // .map(move |_| data_name)
-            // })
-            // .then(move |res| {
-            // let data_name = unwrap!(res);
+
             let address = IDataAddress::Unpub(data_name);
             let res = get_value(&client3, address, None, None, None).await;
-            // })
-            // .then(|res| {
             assert!(res.is_err());
-            //     finish()
-            // })
-            // })
         }
 
         // Put unpublished Retrieve published - Should fail
@@ -420,23 +344,12 @@ mod tests {
             let client3 = client.clone();
 
             let data = create(&client, &value, false, None).await?;
-            // .then(move |res| {
-            //     let data = unwrap!(res);
             let data_name = *data.name();
             client2.put_idata(data).await?;
 
-            // .map(move |_| data_name)
-            // })
-            // .then(move |res| {
-            //     let data_name = unwrap!(res);
             let address = IDataAddress::Pub(data_name);
             let res = get_value(&client3, address, None, None, None).await;
-            // })
-            // .then(|res| {
             assert!(res.is_err());
-            //     finish()
-            // })
-            // })
         }
 
         Ok(())
@@ -447,43 +360,38 @@ mod tests {
         published: bool,
         key: Option<shared_secretbox::Key>,
     ) -> Result<(), CoreError> {
-        let value = unwrap!(utils::generate_random_vector(size));
+        let value = utils::generate_random_vector(size)?;
         let value_before = value.clone();
         let value_before2 = value.clone();
 
         let client = random_client()?;
-
         let client2 = client.clone();
         let client3 = client.clone();
         let client4 = client.clone();
         let client5 = client.clone();
+
         let key2 = key.clone();
         let key3 = key.clone();
 
         // gen address without putting to the network (published and unencrypted)
         let data = gen_data_map(&client, &value.clone(), published, key2.clone()).await?;
-        // .then(move |res| {
-        //     let data = unwrap!(res);
         let address_before = *data.address();
+
         // attempt to retrieve it with generated address (it should error)
         let res = get_value(&client2, address_before, None, None, key2.clone()).await;
-        // .then(move |res| {
         let data_map_before = match res {
-            Err(err) => {
-                if let CoreError::DataError(SndError::NoSuchData) = err {
-                    // let's put it to the network (published and unencrypted)
-                    create(&client3, &value_before2.clone(), published, key3).await?
-                } else {
-                    panic!("Unexpected error when ImmutableData retrieved using address generated by gen_data_map");
-                }
+            Err(CoreError::DataError(SndError::NoSuchData)) => {
+                // let's put it to the network (published and unencrypted)
+                create(&client3, &value_before2.clone(), published, key3).await?
             }
+            Err(_) => panic!(
+                "Unexpected error when ImmutableData retrieved using address generated by gen_data_map"
+            ),
             Ok(_) => panic!(
                 "ImmutableData unexpectedly retrieved using address generated by gen_data_map"
             ),
         };
-        // })
-        // .then(move |res| {
-        //     let data_map_before = unwrap!(res);
+
         let address_after = *data_map_before.address();
         if key2.is_none() {
             // the addresses generated without/with putting to the network should match
@@ -497,21 +405,13 @@ mod tests {
         client4.put_idata(data_map_before).await?;
 
         let address = address_after;
-        // .map(move |_| address_after)
-        // })
-        // })
-        // .then(move |res| {
-        //     let address = unwrap!(res);
+
         // now that it was put to the network we should be able to retrieve it
         let value_after = get_value(&client5, address, None, None, key).await?;
-        // })
-        // .then(move |res| {
-        // let value_after = unwrap!(res);
+
         // then the content should be what we put
         assert_eq!(value_after, value_before);
-        // finish()
-        // })
-        // })
+
         Ok(())
     }
 }
