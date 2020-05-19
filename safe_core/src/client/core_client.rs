@@ -33,7 +33,6 @@ use tiny_keccak::sha3_256;
 
 use unwrap::unwrap;
 
-
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
     inner: Arc<Mutex<Inner>>,

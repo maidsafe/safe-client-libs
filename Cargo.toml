@@ -10,5 +10,4 @@
 members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_core", "tests"]
 
 [patch.crates-io]
-
-self_encryption = { path="../self_encryption" }
+self_encryption = { git = "https://github.com/joshuef/self_encryption", branch = "Arc-Mutex" }

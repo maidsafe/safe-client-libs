@@ -16,7 +16,6 @@ pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
 use async_trait::async_trait;
-use futures::future::FutureExt;
 mod id;
 #[cfg(feature = "mock-network")]
 mod mock;
@@ -1236,7 +1235,7 @@ pub trait Client: Clone + 'static + Send + Sync {
         &self,
         client_id: Option<&ClientFullId>,
         amount: Coins,
-    ) -> Result<Transaction, CoreError>
+    ) -> Result<(), CoreError>
     where
         Self: Sized,
     {
@@ -1261,7 +1260,7 @@ pub trait Client: Clone + 'static + Send + Sync {
         ) {
             Ok(res) => match res {
                 Response::Transaction(result) => match result {
-                    Ok(transaction) => Ok(transaction),
+                    Ok(_) => Ok(()),
                     Err(error) => Err(CoreError::from(error)),
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1580,7 +1579,6 @@ mod tests {
     use crate::utils::test_utils::{
         calculate_new_balance, gen_bls_keypair, gen_client_id, random_client,
     };
-    use futures::future::TryFutureExt;
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
         ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
@@ -2001,7 +1999,8 @@ mod tests {
         let c8 = client.clone();
         let init_bal = unwrap!(Coins::from_str("10"));
         let orig_balance = client.get_balance(None).await?;
-        c2.transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
+        let _ = c2
+            .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
             .await?;
         let new_balance = c3.get_balance(None).await?;
         assert_eq!(

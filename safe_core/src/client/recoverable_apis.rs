@@ -9,7 +9,6 @@
 use super::Client;
 use crate::client::AuthActions;
 use crate::errors::CoreError;
-use futures::future::FutureExt;
 use safe_nd::{
     AppPermissions, EntryError, Error as SndError, MDataAction, MDataAddress, MDataPermissionSet,
     MDataSeqEntries, MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, PublicKey,
@@ -48,49 +47,34 @@ pub async fn mutate_mdata_entries(
     address: MDataAddress,
     actions: MDataSeqEntryActions,
 ) -> Result<(), CoreError> {
-    let client = client.clone();
-
-    let attempts = 0;
+    let mut actions_to_try = actions;
+    let mut attempts = 0;
     let mut done_trying = false;
     let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
-    while !done_trying && attempts < MAX_ATTEMPTS {
+    while !done_trying {
         response = match client
-            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions.clone())
+            .mutate_seq_mdata_entries(*address.name(), address.tag(), actions_to_try.clone())
             .await
         {
             Ok(()) => {
                 done_trying = true;
                 Ok(())
             }
-            Err(error) => {
-                match error {
-                    CoreError::DataError(SndError::InvalidEntryActions(errors)) => {
-                        if attempts < MAX_ATTEMPTS {
-                            let _actions = fix_entry_actions(actions.clone(), &errors);
-                            attempts + 1;
-                            // okay but we'll keep trying for now
-                            Ok(())
-                        } else {
-                            done_trying = true;
-                            Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
-                        }
-                    }
-                    CoreError::RequestTimeout => {
-                        if attempts < MAX_ATTEMPTS {
-                            attempts + 1;
-                            // okay but we'll keep trying for now
-                            Ok(())
-                        } else {
-                            done_trying = true;
-                            Err(CoreError::RequestTimeout)
-                        }
-                    }
-                    error => {
-                        done_trying = true;
-                        Err(error)
-                    }
-                }
+            Err(CoreError::DataError(SndError::InvalidEntryActions(errors)))
+                if attempts < MAX_ATTEMPTS =>
+            {
+                actions_to_try = fix_entry_actions(actions_to_try.clone(), &errors).into();
+                attempts += 1;
+                Ok(())
+            }
+            Err(CoreError::RequestTimeout) if attempts < MAX_ATTEMPTS => {
+                attempts += 1;
+                Ok(())
+            }
+            other => {
+                done_trying = true;
+                other
             }
         };
     }
@@ -108,10 +92,9 @@ pub async fn set_mdata_user_permissions(
     let mut version_to_try = version;
     let mut attempts = 0;
     let mut done_trying = false;
-    let client = client.clone();
     let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
-    while !done_trying && attempts < MAX_ATTEMPTS {
+    while !done_trying {
         response = match client
             .set_mdata_user_permissions(address, user, permissions.clone(), version_to_try)
             .await
@@ -120,35 +103,21 @@ pub async fn set_mdata_user_permissions(
                 done_trying = true;
                 Ok(())
             }
-            Err(error) => {
-                match error {
-                    CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
-                        if attempts < MAX_ATTEMPTS {
-                            version_to_try = version_to_try + 1;
-                            attempts = attempts + 1;
-                            // but but we continue anyway
-                            Err(error)
-                        } else {
-                            done_trying = true;
-                            Err(error)
-                        }
-                    }
-                    CoreError::RequestTimeout => {
-                        if attempts < MAX_ATTEMPTS {
-                            version_to_try = version_to_try + 1;
-                            attempts = attempts + 1;
-                            // but we continue anyway
-                            Err(CoreError::RequestTimeout)
-                        } else {
-                            done_trying = true;
-                            Err(CoreError::RequestTimeout)
-                        }
-                    }
-                    error => {
-                        done_trying = true;
-                        Err(error)
-                    }
-                }
+            Err(CoreError::DataError(SndError::InvalidSuccessor(current_version)))
+                if attempts < MAX_ATTEMPTS =>
+            {
+                version_to_try = current_version + 1;
+                attempts += 1;
+                Ok(())
+            }
+            Err(CoreError::RequestTimeout) if attempts < MAX_ATTEMPTS => {
+                version_to_try += version;
+                attempts += 1;
+                Ok(())
+            }
+            other => {
+                done_trying = true;
+                other
             }
         }
     }
@@ -163,49 +132,36 @@ pub async fn del_mdata_user_permissions(
     user: PublicKey,
     version: u64,
 ) -> Result<(), CoreError> {
-    let mut attempts: usize = 0;
     let mut version_to_try = version;
-    let client = client.clone();
+    let mut attempts = 0;
     let mut done_trying = false;
     let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
-    while !done_trying && attempts < MAX_ATTEMPTS {
+    while !done_trying {
         response = match client
-            .del_mdata_user_permissions(address, user, version)
+            .del_mdata_user_permissions(address, user, version_to_try)
             .await
         {
-            Ok(_) => {
+            Ok(_) | Err(CoreError::DataError(SndError::NoSuchKey)) => {
                 done_trying = true;
                 Ok(())
             }
-            Err(error) => match error {
-                CoreError::DataError(SndError::NoSuchKey) => {
-                    done_trying = true;
-                    Ok(())
-                }
-
-                CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
-                    if attempts < MAX_ATTEMPTS {
-                        attempts = attempts + 1;
-                        version_to_try = version_to_try + 1;
-
-                        Err(error)
-                    } else {
-                        done_trying = true;
-                        Err(error)
-                    }
-                }
-                CoreError::RequestTimeout => {
-                    if attempts < MAX_ATTEMPTS {
-                        attempts = attempts + 1;
-                        version_to_try = version_to_try + 1;
-                        Err(CoreError::RequestTimeout)
-                    } else {
-                        Err(CoreError::RequestTimeout)
-                    }
-                }
-                error => Err(error),
-            },
+            Err(CoreError::DataError(SndError::InvalidSuccessor(current_version)))
+                if attempts < MAX_ATTEMPTS =>
+            {
+                attempts += 1;
+                version_to_try = current_version + 1;
+                Ok(())
+            }
+            Err(CoreError::RequestTimeout) if attempts < MAX_ATTEMPTS => {
+                attempts += 1;
+                version_to_try = version;
+                Ok(())
+            }
+            other => {
+                done_trying = true;
+                other
+            }
         }
     }
 
@@ -235,7 +191,7 @@ async fn update_mdata(
         data.permissions(),
         next_version,
     )
-    .await;
+    .await?;
 
     update_mdata_entries(client3, address, &entries, data.entries().clone()).await
 }
@@ -397,8 +353,8 @@ pub async fn ins_auth_key_to_client_h(
                 match error {
                     CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
                         if attempts < MAX_ATTEMPTS {
-                            attempts = attempts + 1;
-                            version_to_try = version_to_try + 1;
+                            attempts += 1;
+                            version_to_try += 1;
                             // not really, but we keep trying for now
                             Ok(())
                         } else {
@@ -408,8 +364,8 @@ pub async fn ins_auth_key_to_client_h(
                     }
                     CoreError::RequestTimeout => {
                         if attempts < MAX_ATTEMPTS {
-                            attempts = attempts + 1;
-                            version_to_try = version_to_try + 1;
+                            attempts += 1;
+                            version_to_try += 1;
                             done_trying = true;
                             Ok(())
                         } else {

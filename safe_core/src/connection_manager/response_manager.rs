@@ -120,7 +120,7 @@ impl ResponseManager {
 
 #[cfg(test)]
 mod tests {
-    use futures::{channel::oneshot};
+    use futures::channel::oneshot;
     use rand::seq::SliceRandom;
     use rand::thread_rng;
 
