@@ -22,7 +22,7 @@ use log::trace;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
 use std;
-use std::sync::mpsc;
+use tokio::{sync::mpsc, task::LocalSet};
 
 use unwrap::unwrap;
 
@@ -128,68 +128,75 @@ async fn file_fetch_public_md() -> Result<(), NfsError> {
 // Insert a file as Unpublished Immutable data and verify that it can be fetched.
 // Other clients should not be able to fetch the file.
 // After deletion the file should not be accessible anymore.
-#[allow(unsafe_code)]
 #[tokio::test]
 async fn files_stored_in_unpublished_idata() -> Result<(), NfsError> {
-    let (client1_tx, client1_rx) = mpsc::channel();
-    let (client2_tx, client2_rx) = mpsc::channel();
-    let (finish_tx, finish_rx) = mpsc::channel();
+    let (mut client1_tx, mut client1_rx) = mpsc::channel(1);
+    let (mut client2_tx, mut client2_rx) = mpsc::channel(1);
+    let (mut finish_tx, mut finish_rx) = mpsc::channel(1);
 
-    let client: CoreClient = random_client()?;
-    let c2 = client.clone();
-    let c3 = client.clone();
-    let c4 = client.clone();
-    let c5 = client.clone();
-    let c6 = client.clone();
-    let c7 = client.clone();
+    // Run the local task set (we need this to run a task with !Send data).
+    let local = LocalSet::new();
+    let _join_handle1 = local.spawn_local(async move {
+        let client: CoreClient = random_client()?;
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
+        let c5 = client.clone();
+        let c6 = client.clone();
+        let c7 = client.clone();
 
-    let root = unwrap!(MDataInfo::random_public(MDataKind::Unseq, DIR_TAG));
-    let root2 = root.clone();
+        let root = unwrap!(MDataInfo::random_public(MDataKind::Unseq, DIR_TAG));
 
-    create_directory(&client, &root, btree_map![], btree_map![]).await?;
+        create_directory(&client, &root, btree_map![], btree_map![]).await?;
 
-    let writer =
-        file_helper::write(c2, File::new(Vec::new(), false), Mode::Overwrite, None).await?;
-    writer.write(&[0u8; ORIG_SIZE]).await?;
-    let file = writer.close().await?;
+        let writer =
+            file_helper::write(c2, File::new(Vec::new(), false), Mode::Overwrite, None).await?;
+        writer.write(&[0u8; ORIG_SIZE]).await?;
+        let file = writer.close().await?;
 
-    file_helper::insert(c3, root2.clone(), "", &file).await?;
-    let dir = root2;
-    let (_version, file) = file_helper::fetch(c4, dir.clone(), "").await?;
-    let reader = file_helper::read(c5, &file, None).await?;
-    let size = reader.size();
-    trace!("reading {} bytes", size);
-    let data = reader.read(0, size).await?;
-    assert_eq!(data, vec![0u8; ORIG_SIZE]);
+        file_helper::insert(c3, root.clone(), "", &file).await?;
+        let (_version, file) = file_helper::fetch(c4, root.clone(), "").await?;
+        let reader = file_helper::read(c5, &file, None).await?;
+        let size = reader.size();
+        trace!("reading {} bytes", size);
+        let data = reader.read(0, size).await?;
+        assert_eq!(data, vec![0u8; ORIG_SIZE]);
 
-    // Send the directory name for another client
-    unwrap!(client1_tx.send(dir.clone()));
+        // Send the directory name for another client
+        unwrap!(client1_tx.send(root.clone()).await);
 
-    // Wait for the other client to finish it's attempt to read
-    unwrap!(client2_rx.recv());
-    let _ = file_helper::delete(c6, dir.clone(), "", false, Version::Custom(1)).await?;
-    let res = file_helper::fetch(c7, dir, "").await;
-    match res {
-        Err(NfsError::FileNotFound) => (),
-        Ok(_) => panic!("Unexpected success"),
-        Err(e) => panic!("Unexpected error {:?}", e),
-    }
+        // Wait for the other client to finish it's attempt to read
+        unwrap!(client2_rx.recv().await);
+        let _ = file_helper::delete(c6, root.clone(), "", false, Version::Custom(1)).await?;
+        let res = file_helper::fetch(c7, root, "").await;
+        match res {
+            Err(NfsError::FileNotFound) => (),
+            Ok(_) => panic!("Unexpected success"),
+            Err(e) => panic!("Unexpected error {:?}", e),
+        }
 
-    unwrap!(finish_tx.send(()));
+        unwrap!(finish_tx.send(()).await);
+        Ok::<_, NfsError>(())
+    });
 
-    // Get the directory name and try to fetch a file from it
-    let dir: MDataInfo = unwrap!(client1_rx.recv());
-    let client: CoreClient = random_client()?;
-    let res = file_helper::fetch(client.clone(), dir, "").await;
-    match res {
-        Ok(_) => panic!("Unexpected success"),
-        Err(NfsError::CoreError(CoreError::DataError(SndError::AccessDenied))) => (),
-        Err(err) => panic!("Unexpected error: {:?}", err),
-    }
+    let _join_handle2 = local.spawn_local(async move {
+        // Get the directory name and try to fetch a file from it
+        let dir: MDataInfo = unwrap!(client1_rx.recv().await);
+        let client: CoreClient = random_client()?;
+        let res = file_helper::fetch(client.clone(), dir, "").await;
+        match res {
+            Ok(_) => panic!("Unexpected success"),
+            Err(NfsError::CoreError(CoreError::DataError(SndError::AccessDenied))) => (),
+            Err(err) => panic!("Unexpected error: {:?}", err),
+        }
 
-    // Send a signal to the first client to continue
-    unwrap!(client2_tx.send(()));
-    unwrap!(finish_rx.recv());
+        // Send a signal to the first client to continue
+        unwrap!(client2_tx.send(()).await);
+        unwrap!(finish_rx.recv().await);
+        Ok::<_, NfsError>(())
+    });
+
+    local.await;
 
     Ok(())
 }
@@ -393,21 +400,21 @@ async fn file_update_append() -> Result<(), NfsError> {
         let c2 = client.clone();
         let c3 = client.clone();
 
-        let size = i * MIN_CHUNK_SIZE as usize;
-        trace!("Testing with size {}", size);
+        let creation_size = i * MIN_CHUNK_SIZE as usize;
+        trace!("Testing with size {}", creation_size);
 
-        let (dir, file) = create_test_file_with_size(&client, true, size).await?;
+        let (dir, file) = create_test_file_with_size(&client, true, creation_size).await?;
 
         let writer = file_helper::write(c2, file, Mode::Append, dir.enc_key().cloned()).await?;
         writer.write(&[2u8; APPEND_SIZE]).await?;
         let file = writer.close().await?;
         let reader = file_helper::read(c3, &file, dir.enc_key().cloned()).await?;
-        let size: usize = reader.size() as usize;
+        let size = reader.size() as usize;
         trace!("reading {} bytes", size);
         let data = reader.read(0, size as u64).await?;
-        assert_eq!(data.len(), size + APPEND_SIZE);
-        assert_eq!(data[0..size].to_owned(), vec![0u8; size]);
-        assert_eq!(&data[size..], [2u8; APPEND_SIZE]);
+        assert_eq!(data.len(), creation_size + APPEND_SIZE);
+        assert_eq!(data[0..creation_size].to_owned(), vec![0u8; creation_size]);
+        assert_eq!(&data[creation_size..], [2u8; APPEND_SIZE]);
     }
 
     Ok(())

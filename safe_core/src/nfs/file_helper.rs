@@ -8,12 +8,13 @@
 
 use crate::client::{Client, MDataInfo};
 use crate::crypto::shared_secretbox;
+use crate::errors::CoreError;
 use crate::nfs::{File, Mode, NfsError, Reader, Writer};
 use crate::self_encryption_storage::SelfEncryptionStorage;
 
 use bincode::{deserialize, serialize};
 use log::trace;
-use safe_nd::MDataSeqEntryActions;
+use safe_nd::{Error as SndError, MDataSeqEntryActions};
 use serde::{Deserialize, Serialize};
 
 /// Enum specifying which version should be used in places where a version is required.
@@ -66,7 +67,8 @@ where
 
     let value = client
         .get_seq_mdata_value(parent.name(), parent.type_tag(), key)
-        .await?;
+        .await
+        .map_err(convert_error)?;
 
     let plaintext = parent.decrypt(&value.data)?;
     let file = deserialize(&plaintext)?;
@@ -118,7 +120,8 @@ where
         Version::GetNext => {
             let value = client
                 .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
-                .await?;
+                .await
+                .map_err(convert_error)?;
             value.version + 1
         }
         Version::Custom(version) => version,
@@ -134,7 +137,8 @@ where
             parent.type_tag(),
             MDataSeqEntryActions::new().del(key, new_version),
         )
-        .await?;
+        .await
+        .map_err(convert_error)?;
 
     Ok(new_version)
 }
@@ -167,7 +171,8 @@ where
         Version::GetNext => {
             let value = client
                 .get_seq_mdata_value(parent.name(), parent.type_tag(), key.clone())
-                .await?;
+                .await
+                .map_err(convert_error)?;
             value.version + 1
         }
         Version::Custom(version) => version,
@@ -179,7 +184,8 @@ where
             parent.type_tag(),
             MDataSeqEntryActions::new().update(key, content, version),
         )
-        .await?;
+        .await
+        .map_err(convert_error)?;
 
     Ok(version)
 }
@@ -204,4 +210,14 @@ pub async fn write<C: Client>(
         encryption_key,
     )
     .await
+}
+
+// This is different from `impl From<CoreError> for NfsError`, because it maps
+// `NoSuchEntry` to `FileNotFound`.
+// TODO:  consider performing such conversion directly in the mentioned `impl From`.
+fn convert_error(err: CoreError) -> NfsError {
+    match err {
+        CoreError::DataError(SndError::NoSuchEntry) => NfsError::FileNotFound,
+        _ => NfsError::from(err),
+    }
 }

@@ -14,7 +14,7 @@ use crate::self_encryption_storage::SelfEncryptionStorage;
 use chrono::Utc;
 use log::trace;
 use safe_nd::Error as SndError;
-use self_encryption::{DataMap, SequentialEncryptor};
+use self_encryption::SequentialEncryptor;
 
 /// Mode of the writer.
 #[derive(Clone, Copy, Debug)]
@@ -45,35 +45,21 @@ impl<C: Sync + Client> Writer<C> {
     ) -> Result<Writer<C>, NfsError> {
         let data_map = match mode {
             Mode::Append => {
-                let data_map: Option<DataMap> = match data_map::get(
-                    client,
-                    file.data_address(),
-                    encryption_key.clone(),
-                )
-                .await
-                {
+                match data_map::get(client, file.data_address(), encryption_key.clone()).await {
                     Ok(map) => Some(map),
-                    Err(err) => {
-                        if let NfsError::CoreError(CoreError::DataError(SndError::NoSuchData)) = err
-                        {
-                            None
-                        } else {
-                            return Err(NfsError::from(err));
-                        }
-                    }
-                };
-                data_map
+                    Err(NfsError::CoreError(CoreError::DataError(SndError::NoSuchData))) => None,
+                    Err(err) => return Err(NfsError::from(err)),
+                }
             }
             Mode::Overwrite => None,
         };
-        let client = client.clone();
 
-        let self_encryptor = SequentialEncryptor::new(storage, data_map);
+        let self_encryptor = SequentialEncryptor::new(storage, data_map).await?;
 
         Ok(Self {
-            client,
+            client: client.clone(),
             file,
-            self_encryptor: self_encryptor.await?,
+            self_encryptor,
             encryption_key,
         })
     }
