@@ -52,21 +52,22 @@ pub fn gen_app_exchange_info() -> AppExchangeInfo {
 }
 
 /// Create a random app.
-pub fn create_app() -> App {
-    unwrap!(create_app_by_req(&create_random_auth_req()))
+pub async fn create_app() -> App {
+    unwrap!(create_app_by_req(&create_random_auth_req()).await)
 }
 
 /// Create a random app given an app authorisation request.
-pub fn create_app_by_req(auth_req: &NativeAuthReq) -> Result<App, AppError> {
-    let auth = authenticator::create_account_and_login();
-    let auth_granted =
-        authenticator::register_app(&auth, auth_req).map_err(|error| match error {
+pub async fn create_app_by_req(auth_req: &NativeAuthReq) -> Result<App, AppError> {
+    let auth = authenticator::create_account_and_login().await;
+    let auth_granted = authenticator::register_app(&auth, auth_req)
+        .await
+        .map_err(|error| match error {
             AuthError::NoSuchContainer(name) => AppError::NoSuchContainer(name),
             _ => AppError::Unexpected(format!("{}", error)),
         })?;
     trace!("Succesfully registered app: {:?}", auth_granted);
 
-    App::registered(auth_req.app.id.clone(), auth_granted, || ())
+    App::registered(auth_req.app.id.clone(), auth_granted, || ()).await
 }
 
 /// Create an app authorisation request with optional app id and access info.

@@ -8,7 +8,7 @@
 // Software.
 
 use crate::errors::AppError;
-use crate::{AppContext, AppMsgTx};
+use crate::AppContext;
 use async_trait::async_trait;
 use log::trace;
 use lru_cache::LruCache;
@@ -20,15 +20,14 @@ use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ConnectionManager, NetworkTx};
 use safe_nd::{ClientFullId, PublicKey};
-use std::cell::RefCell;
 use std::fmt;
-use std::rc::Rc;
+
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::runtime::*;
 
 /// Client object used by `safe_app`.
 pub struct AppClient {
-    inner: Arc<Mutex<Inner<AppClient, AppContext>>>,
+    inner: Arc<Mutex<Inner>>,
     app_inner: Arc<Mutex<AppInner>>,
 }
 
@@ -36,7 +35,7 @@ impl AppClient {
     /// This is a getter-only Gateway function to the Maidsafe network. It will create an
     /// unregistered random client which can do a very limited set of operations, such as a
     /// Network-Get.
-    pub(crate) fn unregistered(
+    pub(crate) async fn unregistered(
         net_tx: NetworkTx,
         config: Option<BootstrapConfig>,
     ) -> Result<Self, AppError> {
@@ -55,11 +54,11 @@ impl AppClient {
                 .collect();
         }
 
-        let connection_manager = attempt_bootstrap(&qp2p_config, &net_tx, app_keys.app_safe_key())?;
+        let connection_manager =
+            attempt_bootstrap(&qp2p_config, &net_tx, app_keys.app_safe_key()).await?;
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
-                el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 // FIXME
@@ -72,17 +71,13 @@ impl AppClient {
 
     /// This is a Gateway function to the Maidsafe network. This will help
     /// apps to authorise using an existing pair of keys.
-    pub(crate) fn from_keys(
+    pub(crate) async fn from_keys(
         keys: AppKeys,
         owner: PublicKey,
-        el_handle: Handle,
-        core_tx: AppMsgTx,
         net_tx: NetworkTx,
         config: BootstrapConfig,
     ) -> Result<Self, AppError> {
-        Self::from_keys_impl(keys, owner, el_handle, core_tx, net_tx, config, |routing| {
-            routing
-        })
+        Self::from_keys_impl(keys, owner, net_tx, config, |routing| routing).await
     }
 
     /// Allows customising the mock Routing client before logging in using client keys.
@@ -90,11 +85,9 @@ impl AppClient {
         all(test, feature = "mock-network"),
         all(feature = "testing", feature = "mock-network")
     ))]
-    pub(crate) fn from_keys_with_hook<F>(
+    pub(crate) async fn from_keys_with_hook<F>(
         keys: AppKeys,
         owner: PublicKey,
-        el_handle: Handle,
-        core_tx: AppMsgTx,
         net_tx: NetworkTx,
         config: BootstrapConfig,
         connection_manager_wrapper_fn: F,
@@ -102,22 +95,12 @@ impl AppClient {
     where
         F: Fn(ConnectionManager) -> ConnectionManager,
     {
-        Self::from_keys_impl(
-            keys,
-            owner,
-            el_handle,
-            core_tx,
-            net_tx,
-            config,
-            connection_manager_wrapper_fn,
-        )
+        Self::from_keys_impl(keys, owner, net_tx, config, connection_manager_wrapper_fn).await
     }
 
-    fn from_keys_impl<F>(
+    async fn from_keys_impl<F>(
         keys: AppKeys,
         owner: PublicKey,
-        el_handle: Handle,
-        core_tx: AppMsgTx,
         net_tx: NetworkTx,
         config: BootstrapConfig,
         connection_manager_wrapper_fn: F,
@@ -134,7 +117,8 @@ impl AppClient {
             .cloned()
             .collect();
 
-        let mut connection_manager = attempt_bootstrap(&qp2p_config, &net_tx, keys.app_safe_key())?;
+        let mut connection_manager =
+            attempt_bootstrap(&qp2p_config, &net_tx, keys.app_safe_key()).await?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
@@ -168,7 +152,7 @@ impl Client for AppClient {
         app_inner.config.clone()
     }
 
-    fn inner(&self) -> Arc<Mutex<Inner<Self, Self::Context>>> {
+    fn inner(&self) -> Arc<Mutex<Inner>> {
         self.inner.clone()
     }
 
