@@ -58,22 +58,19 @@ mod tests;
 
 use bincode::deserialize;
 use futures::channel::{mpsc as futures_mpsc, mpsc::UnboundedSender};
-use futures::future::{FutureExt};
+use futures::future::FutureExt;
 
-use futures::{Future};
+use futures::Future;
 
 use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
 use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::{AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{NetworkEvent};
+use safe_core::NetworkEvent;
 use std::collections::HashMap;
 
 use std::pin::Pin;
-
-
-
 
 macro_rules! try_tx {
     ($result:expr, $tx:ident) => {

@@ -19,7 +19,7 @@ pub mod ipc;
 /// Logging utilities
 pub mod logging;
 
-use crate::ffi::errors::{Error, Result};
+use crate::ffi::errors::FfiError;
 use ffi_utils::try_cb;
 use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use log::trace;
@@ -50,24 +50,26 @@ pub unsafe extern "C" fn create_client_with_acc(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
         trace!("Authenticator - create a client account.");
-
+        
         let acc_locator = String::clone_from_repr_c(account_locator)?;
         let acc_password = String::clone_from_repr_c(account_password)?;
         // FIXME: Send client id via FFI API too
         let client_id = ClientFullId::new_bls(&mut thread_rng());
-        unwrap!(test_create_balance(
+        let _ =         futures::executor::block_on(
+            test_create_balance(
             &client_id,
             unwrap!(Coins::from_str("10"))
-        ));
+        ) )?;
 
-        let authenticator = Authenticator::create_client_with_acc(
+        let authenticator =         futures::executor::block_on(
+            Authenticator::create_client_with_acc(
             acc_locator,
             acc_password,
             client_id,
             move || o_disconnect_notifier_cb(user_data.0),
-        )?;
+        ))?;
 
         o_cb(
             user_data.0,
@@ -96,15 +98,17 @@ pub unsafe extern "C" fn login(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
         trace!("Authenticator - log in a registered client.");
 
         let acc_locator = String::clone_from_repr_c(account_locator)?;
         let acc_password = String::clone_from_repr_c(account_password)?;
 
-        let authenticator = Authenticator::login(acc_locator, acc_password, move || {
+        let authenticator = 
+        futures::executor::block_on(
+        Authenticator::login(acc_locator, acc_password, move || {
             o_disconnect_notifier_cb(user_data.0)
-        })?;
+        }))?;
 
         o_cb(
             user_data.0,
@@ -123,17 +127,27 @@ pub unsafe extern "C" fn auth_reconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> AuthResult<_> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
         let user_data = OpaqueCtx(user_data);
-        (*auth).send(move |client| {
-            try_cb!(
-                client.restart_network().map_err(Error::from),
-                user_data.0,
-                o_cb
-            );
+        let client = (*auth).client;
+        // send(move |client| {
+            let res = client.restart_network().map_err(FfiError::from);
+            
+            let _ = match res {
+                Ok(value) => value,
+                e @ Err(_) => {
+                    o_cb!(user_data.0, e);
+                    // return None;
+                }
+            };
+            // let _ = try_cb!(
+            //     client.restart_network().map_err(FfiError::from),
+            //     user_data.0,
+            //     o_cb
+            // );
             o_cb(user_data.0, FFI_RESULT_OK);
-            None
-        })
+            Ok(())
+        // })
     })
 }
 
@@ -144,7 +158,7 @@ pub unsafe extern "C" fn auth_set_config_dir_path(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
         let new_path = CStr::from_ptr(new_path).to_str()?;
         config_handler::set_config_dir_path(OsStr::new(new_path));
         o_cb(user_data, FFI_RESULT_OK);

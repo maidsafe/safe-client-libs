@@ -25,20 +25,17 @@ use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 use std::sync::mpsc::RecvError;
 
-/// FFI Result type
-pub type Result<T> = std::result::Result<T, Error>;
-
 /// FFI Error type
 #[derive(Debug)]
-pub struct Error(AuthError);
+pub struct FfiError(AuthError);
 
-impl Display for Error {
+impl Display for FfiError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-impl Into<IpcError> for Error {
+impl Into<IpcError> for FfiError {
     fn into(self) -> IpcError {
         match self.0 {
             AuthError::Unexpected(desc) => IpcError::Unexpected(desc),
@@ -48,91 +45,91 @@ impl Into<IpcError> for Error {
     }
 }
 
-impl From<AuthError> for Error {
+impl From<AuthError> for FfiError {
     fn from(error: AuthError) -> Self {
         Self(error)
     }
 }
 
-impl From<StringError> for Error {
+impl From<StringError> for FfiError {
     fn from(_err: StringError) -> Self {
         Self(AuthError::EncodeDecodeError)
     }
 }
 
-impl<'a> From<&'a str> for Error {
+impl<'a> From<&'a str> for FfiError {
     fn from(s: &'a str) -> Self {
         Self(AuthError::Unexpected(s.to_string()))
     }
 }
 
-impl From<CoreError> for Error {
+impl From<CoreError> for FfiError {
     fn from(error: CoreError) -> Self {
         Self(AuthError::CoreError(error))
     }
 }
 
-impl<T: 'static> From<SendError<T>> for Error {
-    fn from(error: SendError<T>) -> Self {
+impl From<SendError> for FfiError {
+    fn from(error: SendError) -> Self {
         Self(AuthError::from(error))
     }
 }
 
-impl From<IpcError> for Error {
+impl From<IpcError> for FfiError {
     fn from(error: IpcError) -> Self {
         Self(AuthError::IpcError(error))
     }
 }
 
-impl From<RecvError> for Error {
+impl From<RecvError> for FfiError {
     fn from(error: RecvError) -> Self {
         Self(AuthError::from(error))
     }
 }
 
-impl From<NulError> for Error {
+impl From<NulError> for FfiError {
     fn from(error: NulError) -> Self {
         Self(AuthError::from(error))
     }
 }
 
-impl From<IoError> for Error {
+impl From<IoError> for FfiError {
     fn from(error: IoError) -> Self {
         Self(AuthError::IoError(error))
     }
 }
 
-impl From<SndError> for Error {
+impl From<SndError> for FfiError {
     fn from(error: SndError) -> Self {
         Self(AuthError::SndError(error))
     }
 }
 
-impl From<String> for Error {
+impl From<String> for FfiError {
     fn from(error: String) -> Self {
         Self(AuthError::Unexpected(error))
     }
 }
 
-impl From<NfsError> for Error {
+impl From<NfsError> for FfiError {
     fn from(error: NfsError) -> Self {
         Self(AuthError::NfsError(error))
     }
 }
 
-impl From<Utf8Error> for Error {
+impl From<Utf8Error> for FfiError {
     fn from(_err: Utf8Error) -> Self {
         Self(AuthError::EncodeDecodeError)
     }
 }
 
-impl From<FromUtf8Error> for Error {
+impl From<FromUtf8Error> for FfiError {
     fn from(_err: FromUtf8Error) -> Self {
         Self(AuthError::EncodeDecodeError)
     }
 }
 
-impl ErrorCode for Error {
+impl ErrorCode for FfiError {
     fn error_code(&self) -> i32 {
         match (*self).0 {
             AuthError::CoreError(ref err) => core_error_code(err),

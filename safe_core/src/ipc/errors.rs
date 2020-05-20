@@ -13,6 +13,7 @@ use futures::channel::mpsc::SendError;
 use safe_nd::XorName;
 use serde::{Deserialize, Serialize};
 use std::ffi::NulError;
+use std::fmt::{self, Display, Formatter};
 use std::str::Utf8Error;
 use threshold_crypto::error::FromBytesError;
 
@@ -43,6 +44,36 @@ pub enum IpcError {
     /// Unexpected error.
     Unexpected(String),
 }
+
+// impl Display for IpcError {
+//     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+//         match *self {
+//             Self::Unexpected(ref error) => {
+//                 write!(formatter, "Unexpected (probably a logic error): {}", error)
+//             }
+//             Self::StringError(ref error) => write!(formatter, "String error: {:?}", error),
+//             Self::InvalidOwner(ref error) => write!(formatter, "Invalid Owner: {:?}", error),
+
+//             Self::AuthDenied => write!(formatter, "Auth denied error"),
+//             Self::ContainersDenied => write!(formatter, "Containers denied error"),
+//             Self::InvalidMsg => write!(formatter, "Invalid IPC error: "),
+//             Self::EncodeDecodeError => write!(formatter, "Serialisation error"),
+//             Self::AlreadyAuthorised => write!(formatter, "Already Authorised error"),
+
+//             Self::UnknownApp=> write!(
+//                 formatter,
+//                 "Unknown app error"
+//             ),
+//             Self::ShareMDataDenied => {
+//                 write!(formatter, "Share Mdata access denied.")
+//             }
+//             Self::IncompatibleMockStatus => write!(
+//                 formatter,
+//                 "Incompatible Mock status. Attempting to communicate between mock and non-mock."
+//             ),
+//         }
+//     }
+// }
 
 impl From<SendError> for IpcError {
     fn from(error: SendError) -> Self {

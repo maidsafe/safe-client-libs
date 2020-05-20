@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::ffi::errors::{Error, Result};
+use crate::ffi::errors::FfiError;
 use ffi_utils::call_result_cb;
 use ffi_utils::{
     catch_unwind_cb, vec_from_raw_parts, vec_into_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr,
@@ -33,7 +33,7 @@ use std::os::raw::{c_char, c_void};
 impl TryFrom<NativeRegisteredApp> for RegisteredApp {
     type Error = IpcError;
 
-    fn try_from(app: NativeRegisteredApp) -> std::result::Result<Self, IpcError> {
+    fn try_from(app: NativeRegisteredApp) -> Result<Self, IpcError> {
         let NativeRegisteredApp {
             app_info,
             containers,
@@ -104,18 +104,13 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> AuthResult<_> {
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         let app_id = String::clone_from_repr_c(app_id)?;
 
-        (*auth).send(move |client| {
-            remove_revoked_app(client, app_id)
-                .then(move |res| {
-                    call_result_cb!(res.map_err(Error::from), user_data, o_cb);
-                    Ok(())
-                })
-                .into_box()
-                .into()
-        })
+        let client = (*auth).client;
+        let res: Result<(), AuthError> = futures::executor::block_on(remove_revoked_app(&client, app_id))?;
+        call_result_cb!(res.map_err(FfiError::from), user_data, o_cb);
+        Ok(())
     });
 }
 
@@ -132,28 +127,25 @@ pub unsafe extern "C" fn auth_revoked_apps(
     ),
 ) {
     let user_data = OpaqueCtx(user_data);
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
-        (*auth).send(move |client| {
-            list_revoked(client)
-                .and_then(move |apps| {
-                    let app_list: Vec<_> = apps
-                        .into_iter()
-                        .map(NativeAppExchangeInfo::into_repr_c)
-                        .collect::<std::result::Result<_, _>>()?;
-                    o_cb(
-                        user_data.0,
-                        FFI_RESULT_OK,
-                        app_list.as_safe_ptr(),
-                        app_list.len(),
-                    );
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
+        let client = (*auth).client;
+        {
+            let apps = futures::executor::block_on(list_revoked(&client).)?;
+            let app_list: Vec<_> = apps
+                .into_iter()
+                .map(NativeAppExchangeInfo::into_repr_c)
+                .collect::<Result<_, _>>()?;
+            o_cb(
+                user_data.0,
+                FFI_RESULT_OK,
+                app_list.as_safe_ptr(),
+                app_list.len(),
+            );
 
-                    Ok(())
-                })
-                .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
-                })
-                .into_box()
-                .into()
+            Ok(())
+        }
+        .map_err(move |e: AuthError| {
+            call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
         })?;
 
         Ok(())
@@ -174,23 +166,20 @@ pub unsafe extern "C" fn auth_registered_apps(
 ) {
     let user_data = OpaqueCtx(user_data);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
-        (*auth).send(move |client| {
-            list_registered(client)
-                .and_then(move |registered_apps| {
-                    let apps: Vec<_> = registered_apps
-                        .into_iter()
-                        .map(RegisteredApp::try_from)
-                        .collect::<std::result::Result<_, _>>()?;
-                    o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
+        let client = (*auth).client;
+        {
+            let registered_apps = futures::executor::block_on(list_registered(&client))?;
+            let apps: Vec<_> = registered_apps
+                .into_iter()
+                .map(RegisteredApp::try_from)
+                .collect::<Result<_, _>>()?;
+            o_cb(user_data.0, FFI_RESULT_OK, apps.as_safe_ptr(), apps.len());
 
-                    Ok(())
-                })
-                .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
-                })
-                .into_box()
-                .into()
+            Ok(())
+        }
+        .map_err(move |e: AuthError| {
+            call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
         })?;
 
         Ok(())
@@ -215,28 +204,25 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
     let user_data = OpaqueCtx(user_data);
     let name = XorName(*md_name);
 
-    catch_unwind_cb(user_data.0, o_cb, || -> Result<_> {
-        (*auth).send(move |client| {
-            apps_accessing_mutable_data(client, name, md_type_tag)
-                .and_then(move |apps_with_access| {
-                    let app_access_vec: Vec<_> = apps_with_access
-                        .into_iter()
-                        .map(NativeAppAccess::into_repr_c)
-                        .collect::<std::result::Result<_, _>>()?;
-                    o_cb(
-                        user_data.0,
-                        FFI_RESULT_OK,
-                        app_access_vec.as_safe_ptr(),
-                        app_access_vec.len(),
-                    );
+    catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
+        let client = (*auth).client;
+        {
+            let apps_with_access = futures::executor::block_on( apps_accessing_mutable_data(&client, name, md_type_tag) )?;
+            let app_access_vec: Vec<_> = apps_with_access
+                .into_iter()
+                .map(NativeAppAccess::into_repr_c)
+                .collect::<Result<_, _>>()?;
+            o_cb(
+                user_data.0,
+                FFI_RESULT_OK,
+                app_access_vec.as_safe_ptr(),
+                app_access_vec.len(),
+            );
 
-                    Ok(())
-                })
-                .map_err(move |e| {
-                    call_result_cb!(Err::<(), _>(Error::from(e)), user_data, o_cb);
-                })
-                .into_box()
-                .into()
+            Ok(())
+        }
+        .map_err(move |e: AuthError| {
+            call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
         })?;
 
         Ok(())
