@@ -6,19 +6,17 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::access_container::{self, AUTHENTICATOR_ENTRY};
-use crate::client::AuthClient;
-use crate::config::KEY_APPS;
-use crate::AuthError;
+use crate::{
+    access_container::{self, AUTHENTICATOR_ENTRY},
+    client::AuthClient,
+    config::KEY_APPS,
+    AuthError,
+};
 use bincode::serialize;
-
-use futures_util::future::FutureExt;
-use safe_core::btree_map;
-use safe_core::core_structs::access_container_enc_key;
-use safe_core::mdata_info;
-use safe_core::nfs::create_directory;
-use safe_core::utils::symmetric_encrypt;
-use safe_core::{Client, CoreError, MDataInfo, DIR_TAG};
+use safe_core::{
+    btree_map, core_structs::access_container_enc_key, mdata_info, nfs::create_directory,
+    utils::symmetric_encrypt, Client, CoreError, MDataInfo, DIR_TAG,
+};
 use safe_nd::{Error as SndError, MDataKind, MDataSeqValue};
 use std::collections::HashMap;
 
@@ -147,48 +145,38 @@ pub async fn create_std_dirs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::run;
     use crate::test_utils::create_account_and_login;
-    use futures::Future;
     use unwrap::unwrap;
 
     // Test creation of default dirs.
-    #[test]
-    fn creates_default_dirs() {
-        let auth = create_account_and_login();
+    #[tokio::test]
+    async fn creates_default_dirs() -> Result<(), AuthError> {
+        let auth = create_account_and_login().await;
+        let client = auth.client;
 
-        unwrap!(run(&auth, |client| {
-            let client = client.clone();
+        let _ = create_std_dirs(
+            &client,
+            &unwrap!(random_std_dirs())
+                .into_iter()
+                .map(|(k, v)| (k.to_owned(), v))
+                .collect(),
+        )
+        .await?;
 
-            create_std_dirs(
-                &client,
-                &unwrap!(random_std_dirs())
-                    .into_iter()
-                    .map(|(k, v)| (k.to_owned(), v))
-                    .collect(),
-            )
-            .then(move |res| {
-                assert!(res.is_ok());
+        let (_, mdata_entries) = access_container::fetch_authenticator_entry(&client).await?;
+        assert_eq!(
+            mdata_entries.len(),
+            DEFAULT_PUBLIC_DIRS.len() + DEFAULT_PRIVATE_DIRS.len()
+        );
 
-                access_container::fetch_authenticator_entry(&client)
-            })
-            .then(move |res| {
-                let (_, mdata_entries) = unwrap!(res);
-                assert_eq!(
-                    mdata_entries.len(),
-                    DEFAULT_PUBLIC_DIRS.len() + DEFAULT_PRIVATE_DIRS.len()
-                );
+        for key in DEFAULT_PUBLIC_DIRS
+            .iter()
+            .chain(DEFAULT_PRIVATE_DIRS.iter())
+        {
+            // let's check whether all our entries have been created properly
+            assert!(mdata_entries.contains_key(*key));
+        }
 
-                for key in DEFAULT_PUBLIC_DIRS
-                    .iter()
-                    .chain(DEFAULT_PRIVATE_DIRS.iter())
-                {
-                    // let's check whether all our entries have been created properly
-                    assert!(mdata_entries.contains_key(*key));
-                }
-
-                Ok(())
-            })
-        }));
+        Ok(())
     }
 }

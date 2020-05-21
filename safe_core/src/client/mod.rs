@@ -63,9 +63,6 @@ use unwrap::unwrap;
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
 
-// FIXME: move to conn manager
-// const CONNECTION_TIMEOUT_SECS: u64 = 40;
-
 /// Expected cost of mutation operations.
 pub const COST_OF_PUT: Coins = Coins::from_nano(1);
 

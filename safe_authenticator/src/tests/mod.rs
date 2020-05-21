@@ -12,14 +12,14 @@ mod revocation;
 mod serialisation;
 mod utils;
 
-use crate::access_container as access_container_tools;
-use crate::config::KEY_APPS;
-use crate::errors::AuthError;
-use crate::run;
-use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
-use crate::test_utils::{self};
-use futures::{future, Future};
-use safe_core::{mdata_info, Client};
+use crate::{
+    access_container as access_container_tools,
+    config::KEY_APPS,
+    errors::AuthError,
+    std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS},
+    test_utils::{self},
+};
+use safe_core::{client::Client, mdata_info};
 use unwrap::unwrap;
 
 #[cfg(feature = "mock-network")]
@@ -27,17 +27,13 @@ mod mock_routing {
     use super::utils;
     use crate::access_container as access_container_tools;
     use crate::errors::AuthError;
-    use crate::run;
     use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use crate::{test_utils, Authenticator};
-    use futures::Future;
     use safe_core::ipc::AuthReq;
     use safe_core::nfs::NfsError;
     use safe_core::utils::generate_random_string;
     use safe_core::utils::test_utils::gen_client_id;
-    use safe_core::{
-        app_container_name, test_create_balance, Client, ConnectionManager, CoreError,
-    };
+    use safe_core::{app_container_name, test_create_balance, ConnectionManager, CoreError};
     use safe_nd::{Coins, Error as SndError, Request, RequestType, Response};
     use std::str::FromStr;
     use unwrap::unwrap;
@@ -53,19 +49,16 @@ mod mock_routing {
     // 4. Check that after logging in the remaining default directories have been created
     //    (= operation recovery worked after log in)
     // 5. Check the access container entry in the user's config root - it must be accessible
-    #[test]
-    fn std_dirs_recovery() {
+    #[tokio::test]
+    async fn std_dirs_recovery() -> Result<(), AuthError> {
         // Add a request hook to forbid root dir modification. In this case
         // account creation operation will be failed, but login still should
         // be possible afterwards.
-        let locator = unwrap!(generate_random_string(10));
-        let password = unwrap!(generate_random_string(10));
+        let locator = generate_random_string(10)?;
+        let password = generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        test_create_balance(&client_id, Coins::from_str("10")?).await?;
 
         {
             let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
@@ -95,7 +88,8 @@ mod mock_routing {
                 client_id,
                 || (),
                 cm_hook,
-            );
+            )
+            .await;
 
             // This operation should fail
             match authenticator {
@@ -106,7 +100,8 @@ mod mock_routing {
         }
 
         // Log in using the same credentials
-        let authenticator = unwrap!(Authenticator::login(locator, password, || ()));
+        let authenticator = Authenticator::login(locator, password, || ()).await?;
+        let client = authenticator.client;
 
         // Make sure that all default directories have been created after log in.
         let std_dir_names: Vec<_> = DEFAULT_PRIVATE_DIRS
@@ -117,14 +112,15 @@ mod mock_routing {
 
         // Verify that the access container has been created and
         // fetch the entries of the root authenticator entry.
-        let (_entry_version, entries) = unwrap!(run(&authenticator, |client| {
-            access_container_tools::fetch_authenticator_entry(client).map_err(AuthError::from)
-        }));
+        let (_entry_version, entries) =
+            access_container_tools::fetch_authenticator_entry(&client).await?;
 
         // Verify that all the std dirs are there.
         for name in std_dir_names {
             assert!(entries.contains_key(name));
         }
+
+        Ok(())
     }
 
     // Ensure that users can log in with low account balance.
@@ -174,16 +170,14 @@ mod mock_routing {
     // 11. Check that the app's container has required permissions.
     // 12. Check that the app's container is listed in the access container entry for
     //     the app.
-    #[test]
-    fn app_authentication_recovery() {
-        let locator = unwrap!(generate_random_string(10));
-        let password = unwrap!(generate_random_string(10));
+    #[tokio::test]
+    async fn app_authentication_recovery() -> Result<(), AuthError> {
+        use safe_core::client::Client;
+        let locator = generate_random_string(10)?;
+        let password = generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        test_create_balance(&client_id, Coins::from_str("10")?).await?;
 
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
@@ -200,13 +194,14 @@ mod mock_routing {
             });
             cm
         };
-        let auth = unwrap!(Authenticator::create_acc_with_hook(
+        let auth = Authenticator::create_acc_with_hook(
             locator.clone(),
             password.clone(),
             client_id,
             || (),
             cm_hook,
-        ));
+        )
+        .await?;
 
         // Create a test app and try to authenticate it (with `app_container` set to true).
         let auth_req = AuthReq {
@@ -220,7 +215,7 @@ mod mock_routing {
         // App authentication request should fail and leave the app in the
         // `Revoked` state (as it is listed in the config root, but not in the access
         // container)
-        match test_utils::register_app(&auth, &auth_req) {
+        match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
@@ -247,13 +242,10 @@ mod mock_routing {
             });
             cm
         };
-        let auth = unwrap!(Authenticator::login_with_hook(
-            locator.clone(),
-            password.clone(),
-            || (),
-            cm_hook,
-        ));
-        match test_utils::register_app(&auth, &auth_req) {
+        let auth =
+            Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
+                .await?;
+        match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
@@ -274,13 +266,10 @@ mod mock_routing {
             });
             cm
         };
-        let auth = unwrap!(Authenticator::login_with_hook(
-            locator.clone(),
-            password.clone(),
-            || (),
-            cm_hook,
-        ));
-        match test_utils::register_app(&auth, &auth_req) {
+        let auth =
+            Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
+                .await?;
+        match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
                 SndError::InsufficientBalance,
             )))) => (),
@@ -302,21 +291,18 @@ mod mock_routing {
             });
             cm
         };
-        let auth = unwrap!(Authenticator::login_with_hook(
-            locator.clone(),
-            password.clone(),
-            || (),
-            cm_hook,
-        ));
-        match test_utils::register_app(&auth, &auth_req) {
+        let auth =
+            Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
+                .await?;
+        match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 
         // Now try to authenticate the app without network failure simulation -
         // it should succeed.
-        let auth = unwrap!(Authenticator::login(locator, password, || (),));
-        let auth_granted = match test_utils::register_app(&auth, &auth_req) {
+        let auth = Authenticator::login(locator, password, || ()).await?;
+        let auth_granted = match test_utils::register_app(&auth, &auth_req).await {
             Ok(auth_granted) => auth_granted,
             x => panic!("Unexpected {:?}", x),
         };
@@ -324,49 +310,40 @@ mod mock_routing {
         // Check that the app's container has been created and that the access container
         // contains info about all of the requested containers.
         let mut ac_entries =
-            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone());
+            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone()).await?;
         let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
         let (app_container, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
         let app_pk = auth_granted.app_keys.public_key();
+        let client = auth.client;
+        let version = client.get_mdata_version(*app_container.address()).await?;
+        assert_eq!(version, 0);
 
-        unwrap!(run(&auth, move |client| {
-            let c2 = client.clone();
+        // Check that the app's container has required permissions.
+        let perms = client
+            .list_mdata_permissions(*app_container.address())
+            .await?;
+        assert!(perms.contains_key(&app_pk));
+        assert_eq!(perms.len(), 1);
 
-            client
-                .get_mdata_version(*app_container.address())
-                .then(move |res| {
-                    let version = unwrap!(res);
-                    assert_eq!(version, 0);
-
-                    // Check that the app's container has required permissions.
-                    c2.list_mdata_permissions(*app_container.address())
-                })
-                .then(move |res| {
-                    let perms = unwrap!(res);
-                    assert!(perms.contains_key(&app_pk));
-                    assert_eq!(perms.len(), 1);
-
-                    Ok(())
-                })
-        }));
+        Ok(())
     }
 }
 
 // Test creation and content of std dirs after account creation.
-#[test]
-fn test_access_container() {
-    let authenticator = test_utils::create_account_and_login();
+#[tokio::test]
+async fn test_access_container() -> Result<(), AuthError> {
+    let authenticator = test_utils::create_account_and_login().await;
+    let client = authenticator.client;
+
     let std_dir_names: Vec<_> = DEFAULT_PRIVATE_DIRS
         .iter()
         .chain(DEFAULT_PUBLIC_DIRS.iter())
         .collect();
 
     // Fetch the entries of the access container.
-    let entries = unwrap!(run(&authenticator, |client| {
-        access_container_tools::fetch_authenticator_entry(client).map(|(_version, entries)| entries)
-    }));
+    let (_version, entries) = access_container_tools::fetch_authenticator_entry(&client).await?;
 
     // Verify that all the std dirs are there.
     for name in &std_dir_names {
@@ -374,45 +351,40 @@ fn test_access_container() {
     }
 
     // Fetch all the dirs under user root dir and verify they are empty.
-    let dirs = unwrap!(run(&authenticator, move |client| {
-        let fs: Vec<_> = entries
-            .into_iter()
-            .map(|(_, dir)| {
-                let f1 = client.list_seq_mdata_entries(dir.name(), dir.type_tag());
-                let f2 = client.list_mdata_permissions(*dir.address());
-
-                f1.join(f2).map_err(AuthError::from)
-            })
-            .collect();
-
-        future::join_all(fs)
-    }));
-
+    let mut dirs = vec![];
+    for (_, dir) in entries.into_iter() {
+        let entries = client
+            .list_seq_mdata_entries(dir.name(), dir.type_tag())
+            .await?;
+        let perms = client.list_mdata_permissions(*dir.address()).await?;
+        dirs.push((entries, perms));
+    }
     assert_eq!(dirs.len(), std_dir_names.len());
 
     for (entries, permissions) in dirs {
         assert!(entries.is_empty());
         assert!(permissions.is_empty());
     }
+
+    Ok(())
 }
 
 // Test creation and content of config dir after account creation.
-#[test]
-fn config_root_dir() {
-    let authenticator = test_utils::create_account_and_login();
+#[tokio::test]
+async fn config_root_dir() -> Result<(), AuthError> {
+    let authenticator = test_utils::create_account_and_login().await;
+    let client = authenticator.client;
 
     // Fetch the entries of the config root dir.
-    let (dir, entries) = unwrap!(run(&authenticator, |client| {
-        let dir = client.config_root_dir();
-        client
-            .list_seq_mdata_entries(dir.name(), dir.type_tag())
-            .map(move |entries| (dir, entries))
-            .map_err(AuthError::from)
-    }));
+    let dir = client.config_root_dir();
+    let entries = client
+        .list_seq_mdata_entries(dir.name(), dir.type_tag())
+        .await?;
 
     let entries = unwrap!(mdata_info::decrypt_entries(&dir, &entries));
 
     // Verify it contains the required entries.
     let config = unwrap!(entries.get(KEY_APPS));
     assert!(config.data.is_empty());
+    Ok(())
 }

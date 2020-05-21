@@ -8,10 +8,7 @@
 
 use futures::channel::oneshot::Sender;
 use log::trace;
-// use std::error::Error;
-
 use safe_nd::{MessageId, Response};
-
 use std::collections::HashMap;
 
 type ResponseRequiredCount = usize;

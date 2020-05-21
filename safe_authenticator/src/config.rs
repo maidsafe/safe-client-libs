@@ -12,13 +12,10 @@
 use super::AuthError;
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
-
-use futures_util::future::TryFutureExt;
 use log::trace;
-use safe_core::core_structs::AppKeys;
-use safe_core::ipc::req::AppExchangeInfo;
-use safe_core::ipc::IpcError;
-use safe_core::{Client, CoreError};
+use safe_core::{
+    core_structs::AppKeys, ipc::req::AppExchangeInfo, ipc::IpcError, Client, CoreError,
+};
 use safe_nd::{EntryError, Error as SndError, MDataSeqEntryActions};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};

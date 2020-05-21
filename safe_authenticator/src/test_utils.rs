@@ -17,7 +17,6 @@ use crate::{access_container, app_auth, config, revocation, Authenticator};
 use env_logger::{fmt::Formatter, Builder as LoggerBuilder};
 use futures::Future;
 
-use futures_util::future::TryFutureExt;
 use log::trace;
 use log::Record;
 use safe_core::client::{test_create_balance, Client};
@@ -34,15 +33,13 @@ use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
 use safe_nd::{AppPermissions, Coins, PublicKey, XorName};
 #[cfg(feature = "mock-network")]
-use safe_nd::{Error as SndError, Request, Response, UnseqMutableData};
+use safe_nd::{Error as SndError, Request, Response};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Write;
 use std::pin::Pin;
 use std::str::FromStr;
 use unwrap::unwrap;
-
-const FAKE_FILES_TAG_TYPE: u64 = 112;
 
 /// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]
@@ -92,10 +89,7 @@ pub async fn create_authenticator() -> (Authenticator, String, String) {
     let password: String = unwrap!(utils::generate_readable_string(10));
     let client_id = gen_client_id();
 
-    futures::executor::block_on(test_create_balance(
-        &client_id,
-        unwrap!(Coins::from_str("100")),
-    ));
+    let _ = test_create_balance(&client_id, unwrap!(Coins::from_str("100"))).await;
 
     let auth = unwrap!(
         Authenticator::create_client_with_acc(locator.clone(), password.clone(), client_id, || (),)
@@ -139,13 +133,7 @@ pub async fn create_account_and_login() -> Authenticator {
 
 /// Revokes an app, returning an error on failure.
 pub async fn try_revoke(authenticator: &Authenticator, app_id: &str) -> Result<(), AuthError> {
-    let app_id = app_id.to_string();
-    let client = authenticator.client.clone();
-
-    // run(authenticator, move |client| {
-    let client_clone_ref = &client.clone();
-    revocation::revoke_app(client_clone_ref, &app_id).await
-    // })
+    revocation::revoke_app(&authenticator.client, app_id).await
 }
 
 /// Revokes an app, panicking on failure.
@@ -159,17 +147,12 @@ pub async fn revoke(authenticator: &Authenticator, app_id: &str) {
 /// Creates a random authenticator and login using the same credentials.
 /// Attaches a hook to the Routing to override responses.
 #[cfg(all(any(test, feature = "testing"), feature = "mock-network"))]
-pub fn create_account_and_login_with_hook<F>(hook: F) -> Authenticator
+pub async fn create_account_and_login_with_hook<F>(hook: F) -> Authenticator
 where
     F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
 {
-    let (_, locator, password) = create_authenticator();
-    unwrap!(Authenticator::login_with_hook(
-        locator,
-        password,
-        || (),
-        hook,
-    ))
+    let (_, locator, password) = create_authenticator().await;
+    unwrap!(Authenticator::login_with_hook(locator, password, || (), hook,).await)
 }
 
 /// Returns `AppInfo` iff the app is listed in the authenticator config.
@@ -339,7 +322,7 @@ pub async fn write_file(
     let writer = file_helper::write(client, file, mode, encryption_key).await?;
     match writer.write(&content).await {
         Ok(_) => {
-            writer.close().await;
+            let _ = writer.close().await?;
             Ok(())
         }
         Err(err) => Err(AuthError::from(err)),
@@ -377,13 +360,12 @@ pub async fn try_access_container<S: Into<String>>(
 /// Get the container `MDataInfo` from the authenticator entry in the access container.
 pub async fn get_container_from_authenticator_entry(
     client: &AuthClient,
-    _authenticator: &Authenticator,
-    container: String,
+    container: &str,
 ) -> Result<MDataInfo, AuthError> {
     let result = access_container::fetch_authenticator_entry(client).await;
 
     match result {
-        Ok((_, mut ac_entries)) => ac_entries.remove(&container.clone()).ok_or_else(|| {
+        Ok((_, mut ac_entries)) => ac_entries.remove(container).ok_or_else(|| {
             AuthError::from(format!("'{}' not found in the access container", container))
         }),
         Err(err) => Err(err),
@@ -460,15 +442,13 @@ where
     NetObs: FnMut(NetworkEvent) + Send + 'static,
 {
     let client_creator = |net_tx| -> Result<AuthClient, AuthError> {
-        let acc_locator = unwrap!(utils::generate_random_string(10));
-        let acc_password = unwrap!(utils::generate_random_string(10));
+        let acc_locator = utils::generate_random_string(10)?;
+        let acc_password = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
         // block on for test cretion at the moment
-        futures::executor::block_on(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10")),
-        ));
+        let _ =
+            futures::executor::block_on(test_create_balance(&client_id, Coins::from_str("10")?));
 
         let auth_result: AuthClient = futures::executor::block_on(AuthClient::registered(
             &acc_locator,
@@ -485,42 +465,45 @@ where
 #[cfg(feature = "mock-network")]
 /// Try to revoke apps with the given ids, but simulate network failure so they
 /// would be initiated but not finished.
-pub fn simulate_revocation_failure<T, S>(locator: &str, password: &str, app_ids: T)
+pub async fn simulate_revocation_failure<T, S>(locator: &str, password: &str, app_ids: T)
 where
     T: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
     // First, log in normally to obtain the access contained info.
-    let auth = unwrap!(Authenticator::login(locator, password, || ()));
+    let auth = unwrap!(Authenticator::login(locator, password, || ()).await);
     let client = auth.client;
     let ac_info = client.access_container();
 
-    // Then, log in with a request hook that makes mutation of the access container
-    // fail.
-    let auth = unwrap!(Authenticator::login_with_hook(
-        locator,
-        password,
-        || (),
-        move |mut cm| -> ConnectionManager {
-            let ac_info = ac_info.clone();
+    // Then, log in with a request hook that makes mutation of the access container fail.
+    let auth = unwrap!(
+        Authenticator::login_with_hook(
+            locator,
+            password,
+            || (),
+            move |mut cm| -> ConnectionManager {
+                let ac_info = ac_info.clone();
 
-            cm.set_request_hook(move |request| match *request {
-                Request::DelMDataUserPermissions { address, .. } => {
-                    if *address.name() == ac_info.name() && address.tag() == ac_info.type_tag() {
-                        Some(Response::Mutation(Err(SndError::InsufficientBalance)))
-                    } else {
-                        None
+                cm.set_request_hook(move |request| match *request {
+                    Request::DelMDataUserPermissions { address, .. } => {
+                        if *address.name() == ac_info.name() && address.tag() == ac_info.type_tag()
+                        {
+                            Some(Response::Mutation(Err(SndError::InsufficientBalance)))
+                        } else {
+                            None
+                        }
                     }
-                }
-                _ => None,
-            });
-            cm
-        },
-    ));
+                    _ => None,
+                });
+                cm
+            },
+        )
+        .await
+    );
 
     // Then attempt to revoke each app from the iterator.
     for app_id in app_ids {
-        match try_revoke(&auth, app_id.as_ref()) {
+        match try_revoke(&auth, app_id.as_ref()).await {
             Err(_) => (),
             x => panic!("Unexpected {:?}", x),
         }

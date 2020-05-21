@@ -12,7 +12,6 @@ use tokio::time::timeout;
 
 use crate::{client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError};
 use connection_group::ConnectionGroup;
-use futures::future::TryFutureExt;
 use log::{error, trace};
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{Message, PublicId, Response};
@@ -96,11 +95,11 @@ impl Inner {
         let (connected_tx, connected_rx) = futures::channel::oneshot::channel();
 
         if let Entry::Vacant(value) = self.groups.entry(full_id.public_id()) {
-            let _ = value.insert(r#try!(ConnectionGroup::new(
+            let _ = value.insert(ConnectionGroup::new(
                 self.config.clone(),
                 full_id,
-                connected_tx
-            )));
+                connected_tx,
+            )?);
 
             match timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS), connected_rx).await {
                 Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err)))?,
@@ -121,11 +120,11 @@ impl Inner {
             return Err(CoreError::Unexpected("Not a Request".to_string()));
         };
 
-        let conn_group = r#try!(self.groups.get_mut(&pub_id).ok_or_else(|| {
+        let conn_group = self.groups.get_mut(&pub_id).ok_or_else(|| {
             CoreError::Unexpected(
                 "No connection group found - did you call `bootstrap`?".to_string(),
             )
-        }));
+        })?;
 
         conn_group.send(msg_id, msg).await
     }

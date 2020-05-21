@@ -17,8 +17,7 @@ use crate::app_auth::{self, AppState};
 use crate::client::AuthClient;
 use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
 use crate::{access_container, config, revocation};
-use crate::{AuthError, AuthFuture, Authenticator};
-use futures::{future, Future};
+use crate::{AuthError, Authenticator};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use safe_core::btree_set;
@@ -28,7 +27,7 @@ use safe_core::ipc::req::ContainerPermissions;
 use safe_core::ipc::{AppExchangeInfo, AuthReq, Permission};
 use safe_core::utils::test_utils::gen_client_id;
 use safe_core::{mock_vault_path, utils};
-use safe_core::{test_create_balance, Client, FutureExt, MDataInfo};
+use safe_core::{test_create_balance, Client, MDataInfo};
 use safe_nd::{ClientFullId, Coins};
 use std::collections::HashMap;
 use std::fs;
@@ -36,15 +35,15 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use unwrap::unwrap;
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn serialisation_write_data() {
+async fn serialisation_write_data() -> Result<(), AuthError> {
     let vault_path = get_vault_path();
     println!("vault_path: {:?}", vault_path);
 
     if vault_path.exists() {
         // Clear the vault store.
-        unwrap!(fs::remove_file(vault_path.clone()));
+        fs::remove_file(vault_path.clone())?;
 
         if vault_path.exists() {
             panic!("Vault file {:?} was not removed successfully!", vault_path);
@@ -52,48 +51,33 @@ fn serialisation_write_data() {
     }
 
     // Set up a fresh mock vault.
-    let stash = setup();
+    let stash = setup().await;
 
-    let auth = unwrap!(Authenticator::create_client_with_acc(
+    let auth = Authenticator::create_client_with_acc(
         stash.locator.clone(),
         stash.password.clone(),
         stash.client_id.clone(),
         || (),
-    ));
+    )
+    .await?;
 
-    unwrap!(auth.send(move |client| {
-        let client = client.clone();
+    let client = auth.client.clone();
 
-        app_auth::authenticate(&client, stash.auth_req0.clone())
-            .then(move |res| {
-                // authenticate app 0
-                let _ = unwrap!(res);
-                app_auth::authenticate(&client, stash.auth_req0.clone())
-                    .map(move |_| (client, stash))
-            })
-            .then(move |res| {
-                // authenticate app 1
-                let (client, stash) = unwrap!(res);
-                app_auth::authenticate(&client, stash.auth_req1.clone())
-                    .map(move |_| (client, stash))
-            })
-            .then(move |res| {
-                // revoke app 1
-                let (client, stash) = unwrap!(res);
-                revocation::revoke_app(&client, &stash.auth_req1.app.id)
-            })
-            .then(|res| {
-                unwrap!(res);
-                Ok(())
-            })
-            .into_box()
-            .into()
-    }));
+    let _ = app_auth::authenticate(&client, stash.auth_req0.clone()).await?;
+
+    // authenticate app 0
+    let _ = app_auth::authenticate(&client, stash.auth_req0.clone()).await?;
+    // authenticate app 1
+    let _ = app_auth::authenticate(&client, stash.auth_req1.clone()).await?;
+    // revoke app 1
+    let _ = revocation::revoke_app(&client, &stash.auth_req1.app.id).await?;
+
+    Ok(())
 }
 
-#[test]
+#[tokio::test]
 #[ignore]
-fn serialisation_read_data() {
+async fn serialisation_read_data() -> Result<(), AuthError> {
     let vault_path = get_vault_path();
     println!("vault_path: {:?}", vault_path);
 
@@ -105,80 +89,44 @@ fn serialisation_read_data() {
     }
 
     // Set up the mock vault, assuming the previous mock vault file still exists.
-    let stash = setup();
+    let stash = setup().await;
 
-    let auth = unwrap!(Authenticator::login(
-        stash.locator.clone(),
-        stash.password.clone(),
-        || (),
-    ));
+    let auth = Authenticator::login(stash.locator.clone(), stash.password.clone(), || ()).await?;
+    let client = auth.client.clone();
 
-    unwrap!(auth.send(move |client| {
-        let client = client.clone();
+    // Read access container and ensure all standard containers exists.
+    let (_, containers) = access_container::fetch_authenticator_entry(&client).await?;
+    verify_std_dirs(&client, &containers).await?;
+    let app_info = config::get_app(&client, &stash.auth_req0.app.id).await?;
+    assert_eq!(app_info.info, stash.auth_req0.app);
+    let (_, ac_entry) =
+        access_container::fetch_entry(client.clone(), app_info.info.id, app_info.keys).await?;
+    let ac_entry = unwrap!(ac_entry);
+    verify_access_container_entry(&ac_entry, &stash.auth_req0.containers);
+    let (_, apps) = config::list_apps(&client).await?;
+    let state = app_auth::app_state(&client, &apps, &stash.auth_req1.app.id).await?;
+    assert_eq!(state, AppState::Revoked);
 
-        // Read access container and ensure all standard containers exists.
-        access_container::fetch_authenticator_entry(&client)
-            .then(move |res| {
-                let (_, containers) = unwrap!(res);
-                verify_std_dirs(&client, &containers).map(move |_| client)
-            })
-            .then(move |res| {
-                let client = unwrap!(res);
-                config::get_app(&client, &stash.auth_req0.app.id)
-                    .map(move |app_info| (client, stash, app_info))
-            })
-            .then(move |res| {
-                let (client, stash, app_info) = unwrap!(res);
-                assert_eq!(app_info.info, stash.auth_req0.app);
-
-                access_container::fetch_entry(&client, &app_info.info.id, app_info.keys)
-                    .map(move |(_, ac_entry)| (client, stash, ac_entry))
-            })
-            .then(move |res| {
-                let (client, stash, ac_entry) = unwrap!(res);
-                let ac_entry = unwrap!(ac_entry);
-                verify_access_container_entry(&ac_entry, &stash.auth_req0.containers);
-
-                Ok::<_, AuthError>((client, stash))
-            })
-            .then(move |res| {
-                let (client, stash) = unwrap!(res);
-                config::list_apps(&client).map(move |(_, apps)| (client, stash, apps))
-            })
-            .then(move |res| {
-                let (client, stash, apps) = unwrap!(res);
-                app_auth::app_state(&client, &apps, &stash.auth_req1.app.id)
-            })
-            .then(move |res| {
-                let state = unwrap!(res);
-                assert_eq!(state, AppState::Revoked);
-                Ok(())
-            })
-            .into_box()
-            .into()
-    }));
+    Ok(())
 }
 
-fn verify_std_dirs(
+async fn verify_std_dirs(
     client: &AuthClient,
     actual_containers: &HashMap<String, MDataInfo>,
-) -> Box<AuthFuture<()>> {
-    let futures: Vec<_> = DEFAULT_PUBLIC_DIRS
+) -> Result<(), AuthError> {
+    let default_containers = DEFAULT_PUBLIC_DIRS
         .iter()
-        .chain(DEFAULT_PRIVATE_DIRS.iter())
-        .map(|expected_container| {
-            let mi = unwrap!(actual_containers.get(*expected_container));
-            client.get_mdata_version(*mi.address())
-        })
-        .collect();
+        .chain(DEFAULT_PRIVATE_DIRS.iter());
 
-    future::join_all(futures)
-        .map_err(AuthError::from)
-        .then(|res| {
-            let _ = unwrap!(res);
-            Ok(())
-        })
-        .into_box()
+    for expected_container in default_containers {
+        let mi = unwrap!(actual_containers.get(*expected_container));
+        let _ = client
+            .get_mdata_version(*mi.address())
+            .await
+            .map_err(AuthError::from)?;
+    }
+
+    Ok(())
 }
 
 fn verify_access_container_entry(
@@ -206,7 +154,7 @@ fn get_vault_path() -> PathBuf {
     mock_vault_path(&config)
 }
 
-fn setup() -> Stash {
+async fn setup() -> Stash {
     // IMPORTANT: Use constant seed for repeatability.
     let mut rng = StdRng::seed_from_u64(1);
 
@@ -253,10 +201,7 @@ fn setup() -> Stash {
         }
     };
     let client_id = gen_client_id();
-    unwrap!(test_create_balance(
-        &client_id,
-        unwrap!(Coins::from_str("10"))
-    ));
+    unwrap!(test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await);
 
     Stash {
         locator: utils::generate_random_string_rng(&mut rng, 16),

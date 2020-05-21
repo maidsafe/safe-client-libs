@@ -37,7 +37,6 @@ pub use self::errors::AuthError;
 pub use client::AuthClient;
 pub use errors::Result as AuthResult;
 use futures_util::future::FutureExt;
-use futures_util::future::TryFutureExt;
 pub mod access_container;
 pub mod app_auth;
 pub mod app_container;
@@ -56,10 +55,7 @@ mod client;
 #[cfg(test)]
 mod tests;
 
-use futures::channel::mpsc;
-
-use futures::{future::BoxFuture, Future};
-use futures_util::stream::StreamExt;
+use futures::{channel::mpsc, future::BoxFuture, Future};
 
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
@@ -225,9 +221,9 @@ impl Authenticator {
         locator: S,
         password: S,
         client_id: ClientFullId,
-        disconnect_notifier: N,
+        mut disconnect_notifier: N,
         connection_manager_wrapper_fn: F,
-    ) -> Result<AuthClient, AuthError>
+    ) -> Result<Self, AuthError>
     where
         N: FnMut() + Send + 'static,
         F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
@@ -236,9 +232,9 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        let (net_tx, net_rx) = mpsc::unbounded::<NetworkEvent>();
+        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-        let network_observer: BoxFuture<Result<(), ()>> = async {
+        let network_observer: BoxFuture<Result<(), ()>> = async move {
             if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
                 disconnect_notifier();
             };
@@ -266,7 +262,7 @@ impl Authenticator {
     }
 
     #[allow(unused)]
-    fn login_with_hook<F, S, N>(
+    async fn login_with_hook<F, S, N>(
         locator: S,
         password: S,
         disconnect_notifier: N,
@@ -282,14 +278,16 @@ impl Authenticator {
 
         Self::authenticator_login_impl(
             move |net_tx| {
-                AuthClient::login_with_hook(
+                let client = futures::executor::block_on(AuthClient::login_with_hook(
                     &locator,
                     &password,
                     net_tx,
                     connection_manager_wrapper_fn,
-                )
+                ))?;
+                Ok(client)
             },
             disconnect_notifier,
         )
+        .await
     }
 }

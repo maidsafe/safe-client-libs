@@ -152,7 +152,7 @@ async fn create_directory(
 // Creates a new app's dedicated container
 async fn create(client: &AuthClient, app_pk: PublicKey) -> Result<MDataInfo, AuthError> {
     let dir = MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map_err(AuthError::from)?;
-    create_directory(
+    let _ = create_directory(
         client,
         &dir,
         btree_map![],

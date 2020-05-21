@@ -9,19 +9,22 @@
 //! App management functions
 
 use super::config;
-use crate::app_auth::{app_state, AppState};
-use crate::client::AuthClient;
-use crate::{app_container, AuthError};
+use crate::{
+    app_auth::{app_state, AppState},
+    app_container,
+    client::AuthClient,
+    AuthError,
+};
 use bincode::deserialize;
-
-use futures_util::future::FutureExt;
-use safe_core::client::{AuthActions, Client};
-use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppAccess};
-use safe_core::ipc::req::ContainerPermissions;
-use safe_core::ipc::{AppExchangeInfo, IpcError};
-use safe_core::utils::symmetric_decrypt;
+use safe_core::{
+    client::{AuthActions, Client},
+    core_structs::{access_container_enc_key, AccessContainerEntry, AppAccess},
+    ipc::{req::ContainerPermissions, AppExchangeInfo, IpcError},
+    utils::symmetric_decrypt,
+};
 use safe_nd::{AppPermissions, MDataAddress, XorName};
 use std::collections::HashMap;
+
 /// Represents an application that is registered with the Authenticator.
 #[derive(Debug)]
 pub struct RegisteredApp {
@@ -51,9 +54,9 @@ pub async fn remove_revoked_app(client: &AuthClient, app_id: String) -> Result<(
         AppState::Authenticated => return Err(AuthError::from("App is not revoked")),
         AppState::NotAuthenticated => return Err(AuthError::IpcError(IpcError::UnknownApp)),
     };
-    config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2).await?;
+    let _ = config::remove_app(&c3, apps, config::next_version(apps_version), &app_id2).await?;
 
-    app_container::remove(c4, &app_id3).await?;
+    let _ = app_container::remove(c4, &app_id3).await?;
 
     Ok(())
 }

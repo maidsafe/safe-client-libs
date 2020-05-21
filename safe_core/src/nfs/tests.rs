@@ -7,17 +7,16 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::btree_map;
-use crate::client::core_client::CoreClient;
-use crate::client::MDataInfo;
+use crate::client::{core_client::CoreClient, MDataInfo};
 use crate::crypto::shared_secretbox;
 use crate::errors::CoreError;
-use crate::nfs::file_helper::{self, Version};
-
-use crate::nfs::{create_directory, File, Mode, NfsError};
-use crate::utils::test_utils::random_client;
-use crate::utils::{self, generate_random_vector};
+use crate::nfs::{
+    create_directory,
+    file_helper::{self, Version},
+    File, Mode, NfsError,
+};
+use crate::utils::{self, generate_random_vector, test_utils::random_client};
 use crate::DIR_TAG;
-
 use log::trace;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;

@@ -14,10 +14,13 @@ use super::AuthError;
 use crate::client::AuthClient;
 use bincode::{deserialize, serialize};
 use log::trace;
-use safe_core::core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys};
-use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
-use safe_core::utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey};
-use safe_core::{recoverable_apis, Client, CoreError, MDataInfo};
+use safe_core::{
+    core_structs::{access_container_enc_key, AccessContainerEntry, AppKeys},
+    ipc::req::{container_perms_into_permission_set, ContainerPermissions},
+    recoverable_apis,
+    utils::{symmetric_decrypt, symmetric_encrypt, SymEncKey},
+    Client, CoreError, MDataInfo,
+};
 use safe_nd::{
     Error as SndError, MDataAction, MDataPermissionSet, MDataSeqEntryActions, PublicKey,
 };
@@ -214,8 +217,8 @@ pub async fn put_entry(
     let client3 = client.clone();
     let access_container = client.access_container();
     let acc_cont_info = access_container.clone();
-    let key = r#try!(enc_key(&access_container, app_id, &app_keys.enc_key));
-    let ciphertext = r#try!(encode_app_entry(permissions, &app_keys.enc_key));
+    let key = enc_key(&access_container, app_id, &app_keys.enc_key)?;
+    let ciphertext = encode_app_entry(permissions, &app_keys.enc_key)?;
 
     let actions = if version == 0 {
         MDataSeqEntryActions::new().ins(key, ciphertext, 0)

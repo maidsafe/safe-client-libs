@@ -10,30 +10,27 @@ use crate::errors::AuthError;
 #[cfg(any(test, feature = "testing"))]
 use crate::test_utils::divide_seed;
 
-// use crate::AuthMsgTx;
-
 use log::trace;
 use lru_cache::LruCache;
-use rand::rngs::StdRng;
-use rand::{thread_rng, CryptoRng, Rng, SeedableRng};
-use safe_core::client::account::Account;
+use rand::{rngs::StdRng, thread_rng, CryptoRng, Rng, SeedableRng};
 use safe_core::client::{
-    attempt_bootstrap, req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
+    account::Account, attempt_bootstrap, req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
 };
-use safe_core::config_handler::Config;
-use safe_core::crypto::{shared_box, shared_secretbox};
-use safe_core::ipc::BootstrapConfig;
-use safe_core::{utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx};
+use safe_core::{
+    config_handler::Config,
+    crypto::{shared_box, shared_secretbox},
+    ipc::BootstrapConfig,
+    utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx,
+};
 use safe_nd::{
     ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
 };
-
-use std::fmt;
-
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tiny_keccak::sha3_256;
-
 use unwrap::unwrap;
 
 /// Client object used by `safe_authenticator`.
@@ -100,7 +97,7 @@ impl AuthClient {
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
     /// Allows customising the mock client before registering a new account.
-    pub fn registered_with_hook<F>(
+    pub async fn registered_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
         client_id: ClientFullId,
@@ -116,12 +113,13 @@ impl AuthClient {
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
             client_id,
-            el_handle,
-            core_tx,
+            //el_handle,
+            //core_tx,
             net_tx,
             None::<&mut StdRng>,
             connection_manager_wrapper_fn,
         )
+        .await
     }
 
     // This is a Gateway function to the Maidsafe network. This will help create a fresh acc for the
@@ -141,7 +139,7 @@ impl AuthClient {
         R: CryptoRng + SeedableRng + Rng,
         F: Fn(ConnectionManager) -> ConnectionManager,
     {
-        trace!("Creating an account.");
+        trace!("Creating an account...");
 
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
@@ -208,7 +206,7 @@ impl AuthClient {
         // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
     ) -> Result<Self, AuthError> {
-        Self::authe_client_login_impl(
+        Self::auth_client_login_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
             // el_handle,
@@ -228,7 +226,7 @@ impl AuthClient {
         net_tx: NetworkTx,
     ) -> Result<Self, AuthError> {
         let arr = divide_seed(seed)?;
-        Self::authe_client_login_impl(arr[0], arr[1], net_tx, |routing| routing).await
+        Self::auth_client_login_impl(arr[0], arr[1], net_tx, |routing| routing).await
     }
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
@@ -236,15 +234,15 @@ impl AuthClient {
     pub async fn login_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
-        el_handle: Handle,
-        core_tx: AuthMsgTx,
+        //el_handle: Handle,
+        //core_tx: AuthMsgTx,
         net_tx: NetworkTx,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
         F: Fn(ConnectionManager) -> ConnectionManager,
     {
-        Self::authe_client_login_impl(
+        Self::auth_client_login_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
             // el_handle,
@@ -255,7 +253,7 @@ impl AuthClient {
         .await
     }
 
-    async fn authe_client_login_impl<F>(
+    async fn auth_client_login_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
         // el_handle: Handle,
@@ -293,11 +291,9 @@ impl AuthClient {
             )
             .await?;
 
-            // futures::executor::block_on(
             connection_manager
                 .disconnect(&client_full_id.public_id())
                 .await?;
-            // )?;
 
             match response {
                 Response::GetLoginPacket(res) => res?,
@@ -316,9 +312,7 @@ impl AuthClient {
 
         trace!("Creating an actual client...");
 
-        // futures::executor::block_on(
         connection_manager.bootstrap(id_packet).await?;
-        // )?;
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
@@ -448,7 +442,7 @@ impl AuthClient {
             _ => return Err(AuthError::from(CoreError::from("Unexpected response"))),
         };
 
-        futures::executor::block_on(cm4.disconnect(&account_pub_id2));
+        cm4.disconnect(&account_pub_id2).await?;
 
         Ok(())
     }
@@ -553,325 +547,242 @@ impl UserCred {
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::Future;
     use safe_core::client::test_create_balance;
-    use safe_core::ok;
     use safe_core::utils::test_utils::{
-        calculate_new_balance, finish, gen_client_id, random_client, setup_client,
+        calculate_new_balance, gen_client_id, random_client, setup_client,
     };
     use safe_core::{utils, CoreError, DIR_TAG};
     use safe_nd::{Coins, Error as SndError, MDataKind};
     use std::str::FromStr;
-    use tokio::runtime::current_thread::Runtime;
-    use AuthMsgTx;
 
     // Test account creation.
     // It should succeed the first time and fail the second time with the same secrets.
-    #[test]
-    fn registered_client() {
-        let el = unwrap!(Runtime::new());
-        let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
+    #[tokio::test]
+    async fn registered_client() -> Result<(), AuthError> {
         let (net_tx, _) = mpsc::unbounded();
 
-        let sec_0 = unwrap!(utils::generate_random_string(10));
-        let sec_1 = unwrap!(utils::generate_random_string(10));
+        let sec_0 = utils::generate_random_string(10)?;
+        let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
 
         // Account creation for the 1st time - should succeed
-        let _ = unwrap!(AuthClient::registered(
-            &sec_0,
-            &sec_1,
-            client_id.clone(),
-            el.handle(),
-            core_tx.clone(),
-            net_tx.clone(),
-        ));
+        let _ = AuthClient::registered(&sec_0, &sec_1, client_id.clone(), net_tx.clone()).await?;
 
         // Account creation - same secrets - should fail
-        match AuthClient::registered(&sec_0, &sec_1, client_id, el.handle(), core_tx, net_tx) {
+        match AuthClient::registered(&sec_0, &sec_1, client_id, net_tx).await {
             Ok(_) => panic!("Account name hijacking should fail"),
             Err(AuthError::SndError(SndError::LoginPacketExists)) => (),
             Err(err) => panic!("{:?}", err),
         }
+        Ok(())
     }
 
     // Test creating and logging in to an account on the network.
-    #[test]
-    fn login() {
-        let sec_0 = unwrap!(utils::generate_random_string(10));
-        let sec_1 = unwrap!(utils::generate_random_string(10));
+    #[tokio::test]
+    async fn login() -> Result<(), AuthError> {
+        let sec_0 = utils::generate_random_string(10)?;
+        let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        test_create_balance(&client_id, Coins::from_str("10")?).await?;
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| {
-                match AuthClient::login(
-                    &sec_0,
-                    &sec_1,
-                    el_h.clone(),
-                    core_tx.clone(),
-                    net_tx.clone(),
-                ) {
-                    Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
-                    x => panic!("Unexpected Login outcome: {:?}", x),
-                }
-                AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
-            },
-            |_| finish(),
-        )
-        .await;
+        let _ = setup_client(&(), |net_tx| {
+            match futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx.clone())) {
+                Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
+                x => panic!("Unexpected Login outcome: {:?}", x),
+            }
+            futures::executor::block_on(AuthClient::registered(&sec_0, &sec_1, client_id, net_tx))
+        })?;
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
-            |_| finish(),
-        )
-        .await;
+        let _ = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx))
+        })?;
+        Ok(())
     }
 
     // Test logging in using a seeded account.
-    #[test]
-    fn seeded_login() {
+    #[tokio::test]
+    async fn seeded_login() -> Result<(), AuthError> {
         let invalid_seed = String::from("123");
         {
-            let el = unwrap!(Runtime::new());
-            let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
             let client_id = gen_client_id();
 
-            match AuthClient::registered_with_seed(
-                &invalid_seed,
-                client_id,
-                el.handle(),
-                core_tx,
-                net_tx,
-            ) {
+            match AuthClient::registered_with_seed(&invalid_seed, client_id, net_tx).await {
                 Err(AuthError::Unexpected(_)) => (),
                 _ => panic!("Expected a failure"),
             }
         }
         {
-            let el = unwrap!(Runtime::new());
-            let (core_tx, _): (AuthMsgTx, _) = mpsc::unbounded();
             let (net_tx, _) = mpsc::unbounded();
-
-            match AuthClient::login_with_seed(&invalid_seed, el.handle(), core_tx, net_tx) {
+            match AuthClient::login_with_seed(&invalid_seed, net_tx).await {
                 Err(AuthError::Unexpected(_)) => (),
                 _ => panic!("Expected a failure"),
             }
         }
 
-        let seed = unwrap!(utils::generate_random_string(30));
+        let seed = utils::generate_random_string(30)?;
         let client_id = gen_client_id();
+        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        let _ = setup_client(&(), |net_tx| {
+            match futures::executor::block_on(AuthClient::login_with_seed(&seed, net_tx.clone())) {
+                Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
+                x => panic!("Unexpected Login outcome: {:?}", x),
+            }
+            futures::executor::block_on(AuthClient::registered_with_seed(&seed, client_id, net_tx))
+        })?;
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| {
-                match AuthClient::login_with_seed(
-                    &seed,
-                    el_h.clone(),
-                    core_tx.clone(),
-                    net_tx.clone(),
-                ) {
-                    Err(AuthError::SndError(SndError::NoSuchLoginPacket)) => (),
-                    x => panic!("Unexpected Login outcome: {:?}", x),
-                }
-                AuthClient::registered_with_seed(&seed, client_id, el_h, core_tx, net_tx)
-            },
-            |_| finish(),
-        );
-
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| AuthClient::login_with_seed(&seed, el_h, core_tx, net_tx),
-            |_| finish(),
-        );
+        let _ = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::login_with_seed(&seed, net_tx))
+        })?;
+        Ok(())
     }
 
     // Test creation of an access container.
-    #[test]
-    fn access_container_creation() {
-        let sec_0 = unwrap!(utils::generate_random_string(10));
-        let sec_1 = unwrap!(utils::generate_random_string(10));
+    #[tokio::test]
+    async fn access_container_creation() -> Result<(), AuthError> {
+        let sec_0 = utils::generate_random_string(10)?;
+        let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
 
-        let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
+        let dir = MDataInfo::random_private(MDataKind::Seq, DIR_TAG)?;
         let dir_clone = dir.clone();
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| {
-                AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
-            },
-            move |client| {
-                assert!(client.set_access_container(dir));
-                client.update_account_packet()
-            },
-        );
+        let client = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::registered(&sec_0, &sec_1, client_id, net_tx))
+        })?;
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
-            move |client| {
-                let got_dir = client.access_container();
-                assert_eq!(got_dir, dir_clone);
-                finish()
-            },
-        );
+        assert!(client.set_access_container(dir));
+        client.update_account_packet().await?;
+
+        let client = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx))
+        })?;
+
+        let got_dir = client.access_container();
+        assert_eq!(got_dir, dir_clone);
+        Ok(())
     }
 
     // Test setting the configuration root directory.
-    #[test]
-    fn config_root_dir_creation() {
-        let sec_0 = unwrap!(utils::generate_random_string(10));
-        let sec_1 = unwrap!(utils::generate_random_string(10));
+    #[tokio::test]
+    async fn config_root_dir_creation() -> Result<(), AuthError> {
+        let sec_0 = utils::generate_random_string(10)?;
+        let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        unwrap!(test_create_balance(
-            &client_id,
-            unwrap!(Coins::from_str("10"))
-        ));
+        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
 
         let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
         let dir_clone = dir.clone();
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| {
-                AuthClient::registered(&sec_0, &sec_1, client_id, el_h, core_tx, net_tx)
-            },
-            move |client| {
-                assert!(client.set_config_root_dir(dir));
-                client.update_account_packet()
-            },
-        );
+        let client = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::registered(&sec_0, &sec_1, client_id, net_tx))
+        })?;
+        assert!(client.set_config_root_dir(dir));
+        client.update_account_packet().await?;
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
-            move |client| {
-                let got_dir = client.config_root_dir();
-                assert_eq!(got_dir, dir_clone);
-                finish()
-            },
-        );
+        let client = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx))
+        })?;
+        let got_dir = client.config_root_dir();
+        assert_eq!(got_dir, dir_clone);
+        Ok(())
     }
 
     // Test restarting routing after a network disconnect.
     #[cfg(feature = "mock-network")]
     #[ignore] // FIXME: ignoring this temporarily until we figure out the disconnection semantics
-    #[test]
-    fn restart_network() {
+    #[tokio::test]
+    async fn restart_network() -> Result<(), AuthError> {
         use crate::test_utils::random_client_with_net_obs;
-        use futures;
         use safe_core::NetworkEvent;
-        use std::sync::mpsc;
-        use std::thread;
+        use tokio::{
+            sync::{mpsc, oneshot},
+            task::LocalSet,
+        };
 
-        let (tx, rx) = mpsc::channel();
-        let (hook, keep_alive) = futures::oneshot();
+        let (mut tx, mut rx) = mpsc::channel(2);
+        let (hook, _keep_alive) = oneshot::channel();
+        let local = LocalSet::new();
+        let _joiner = local.spawn_local(async move {
+            // Network Observer
+            match unwrap!(rx.recv().await) {
+                NetworkEvent::Disconnected => (),
+                x => panic!("Unexpected network event: {:?}", x),
+            }
+            match unwrap!(rx.recv().await) {
+                NetworkEvent::Connected => (),
+                x => panic!("Unexpected network event: {:?}", x),
+            }
+            let _ = hook.send(());
+        });
 
-        let _joiner = unwrap!(thread::Builder::new()
-            .name(String::from("Network Observer"))
-            .spawn(move || {
-                match unwrap!(rx.recv()) {
-                    NetworkEvent::Disconnected => (),
-                    x => panic!("Unexpected network event: {:?}", x),
-                }
-                match unwrap!(rx.recv()) {
-                    NetworkEvent::Connected => (),
-                    x => panic!("Unexpected network event: {:?}", x),
-                }
-                let _ = hook.send(());
-            }));
+        let _client = random_client_with_net_obs(move |net_event| {
+            let _ = futures::executor::block_on(tx.send(net_event));
+        })?;
 
-        random_client_with_net_obs(
-            move |net_event| unwrap!(tx.send(net_event)),
-            move |client| {
-                client.simulate_network_disconnect();
-                unwrap!(client.restart_network());
-                keep_alive
-            },
-        );
+        //client.simulate_network_disconnect();
+        //client.restart_network().await;
+        //keep_alive;
+
+        Ok(())
     }
 
     // Test that a `RequestTimeout` error is returned on network timeout.
     #[cfg(feature = "mock-network")]
     #[ignore]
-    #[test]
-    fn timeout() {
-        use crate::test_utils::random_client;
+    #[tokio::test]
+    async fn timeout() -> Result<(), AuthError> {
+        use safe_core::utils::test_utils::random_client;
         use safe_nd::{IDataAddress, PubImmutableData};
         use std::time::Duration;
 
-        // Get
-        random_client(|client| {
-            let client2 = client.clone();
+        let client = random_client()?;
+        client.set_simulate_timeout(true);
+        client.set_timeout(Duration::from_millis(250));
 
-            client.set_simulate_timeout(true);
-            client.set_timeout(Duration::from_millis(250));
+        match client.get_idata(IDataAddress::Pub(rand::random())).await {
+            Ok(_) => panic!("Unexpected success"),
+            Err(CoreError::RequestTimeout) => {}
+            Err(err) => panic!("Unexpected {:?}", err),
+        }
 
-            client
-                .get_idata(IDataAddress::Pub(rand::random()))
-                .then(|result| match result {
-                    Ok(_) => panic!("Unexpected success"),
-                    Err(CoreError::RequestTimeout) => Ok::<_, CoreError>(()),
-                    Err(err) => panic!("Unexpected {:?}", err),
-                })
-                .then(move |result| {
-                    unwrap!(result);
+        let data = utils::generate_random_vector(4)?;
+        let data = PubImmutableData::new(data);
 
-                    let data = unwrap!(utils::generate_random_vector(4));
-                    let data = PubImmutableData::new(data);
+        match client.put_idata(data).await {
+            Ok(_) => panic!("Unexpected success"),
+            Err(CoreError::RequestTimeout) => {}
+            Err(err) => panic!("Unexpected {:?}", err),
+        }
 
-                    client2.put_idata(data)
-                })
-                .then(|result| match result {
-                    Ok(_) => panic!("Unexpected success"),
-                    Err(CoreError::RequestTimeout) => Ok::<_, CoreError>(()),
-                    Err(err) => panic!("Unexpected {:?}", err),
-                })
-        })
+        Ok(())
     }
 
     // Create a login packet using some credentials and pass the login packet to a client who stores
     // it on the network and creates a wallet for it. Now calling login using the same credentials
     // should succeed and we must be able to fetch the balance.
-    #[test]
-    fn create_login_packet_for() {
-        let sec_0 = unwrap!(utils::generate_random_string(10));
-        let sec_1 = unwrap!(utils::generate_random_string(10));
+    #[tokio::test]
+    async fn create_login_packet_for() -> Result<(), AuthError> {
+        let sec_0 = utils::generate_random_string(10)?;
+        let sec_1 = utils::generate_random_string(10)?;
 
         let acc_locator: &[u8] = sec_0.as_bytes();
         let acc_password: &[u8] = sec_1.as_bytes();
 
         let (password, keyword, pin) = utils::derive_secrets(acc_locator, acc_password);
 
-        let acc_loc = unwrap!(Account::generate_network_id(&keyword, &pin));
+        let acc_loc = Account::generate_network_id(&keyword, &pin)?;
 
         let maid_keys = ClientKeys::new(&mut thread_rng());
-        let acc = unwrap!(Account::new(maid_keys.clone()));
+        let acc = Account::new(maid_keys.clone())?;
 
-        let acc_ciphertext = unwrap!(acc.encrypt(&password, &pin));
+        let acc_ciphertext = acc.encrypt(&password, &pin)?;
 
         let client_full_id = create_client_id(&acc_loc.0);
 
@@ -884,84 +795,73 @@ mod tests {
         let random_pk = *client_id.public_id().public_key();
 
         // The `random_client()` initializes the client with 10 coins.
-        let start_bal = unwrap!(Coins::from_str("10"));
+        let start_bal = Coins::from_str("10")?;
         // Create a client which has a pre-loaded balance and use it to store the login packet on
         // the network.
-        random_client(move |client| {
-            let c1 = client.clone();
-            let c2 = client.clone();
-            let c3 = client.clone();
-            let c4 = client.clone();
-            client
-                .insert_login_packet_for(
-                    None,
-                    maid_keys.public_key(),
-                    five_coins,
-                    None,
-                    new_login_packet.clone(),
-                )
-                // Make sure no error occurred.
-                .then(move |result| match result {
-                    Ok(_transaction) => Ok::<_, CoreError>(()),
-                    res => panic!("Unexpected {:?}", res),
-                })
-                .and_then(move |_| {
-                    c1.insert_login_packet_for(
-                        None,
-                        maid_keys.public_key(),
-                        unwrap!(Coins::from_str("3")),
-                        None,
-                        new_login_packet,
-                    )
-                })
-                // Re-insert to check for refunds for a failed insert_login_packet_for operation
-                // The balance is created first, so `BalanceExists` is returned.
-                .then(move |result| match result {
-                    Err(CoreError::DataError(SndError::BalanceExists)) => Ok::<_, CoreError>(()),
-                    res => panic!("Unexpected {:?}", res),
-                })
-                // For a different balance and an existing login packet
-                // `LoginPacketExists` should be returned.
-                .and_then(move |_| {
-                    c3.insert_login_packet_for(
-                        None,
-                        random_pk,
-                        unwrap!(Coins::from_str("3")),
-                        None,
-                        new_login_packet2,
-                    )
-                })
-                .then(move |result| match result {
-                    Err(CoreError::DataError(SndError::LoginPacketExists)) => {
-                        c4.get_balance(Some(&client_id))
-                    }
-                    res => panic!("Unexpected {:?}", res),
-                })
-                // The new balance should exist
-                .and_then(move |balance| {
-                    assert_eq!(balance, unwrap!(Coins::from_str("3")));
-                    c2.get_balance(None)
-                })
-                .and_then(move |balance| {
-                    let expected = calculate_new_balance(
-                        start_bal,
-                        Some(3),
-                        Some(unwrap!(Coins::from_str("8"))),
-                    );
-                    assert_eq!(balance, expected);
-                    Ok(())
-                })
-        });
+        let client = random_client()?;
+        let c1 = client.clone();
+        let c2 = client.clone();
+        let c3 = client.clone();
+        let c4 = client.clone();
 
-        setup_client(
-            &(),
-            |el_h, core_tx, net_tx| AuthClient::login(&sec_0, &sec_1, el_h, core_tx, net_tx),
-            move |client| {
-                client.get_balance(None).and_then(move |balance| {
-                    assert_eq!(balance, five_coins);
-                    Ok(())
-                })
-            },
-        );
+        // Make sure no error occurred.
+        let _ = client
+            .insert_login_packet_for(
+                None,
+                maid_keys.public_key(),
+                five_coins,
+                None,
+                new_login_packet.clone(),
+            )
+            .await?;
+
+        // Re-insert to check for refunds for a failed insert_login_packet_for operation
+        // The balance is created first, so `BalanceExists` is returned.
+        match c1
+            .insert_login_packet_for(
+                None,
+                maid_keys.public_key(),
+                unwrap!(Coins::from_str("3")),
+                None,
+                new_login_packet,
+            )
+            .await
+        {
+            Err(CoreError::DataError(SndError::BalanceExists)) => {}
+            res => panic!("Unexpected {:?}", res),
+        }
+
+        // For a different balance and an existing login packet
+        // `LoginPacketExists` should be returned.
+        let balance = match c3
+            .insert_login_packet_for(
+                None,
+                random_pk,
+                unwrap!(Coins::from_str("3")),
+                None,
+                new_login_packet2,
+            )
+            .await
+        {
+            Err(CoreError::DataError(SndError::LoginPacketExists)) => {
+                c4.get_balance(Some(&client_id)).await?
+            }
+            res => panic!("Unexpected {:?}", res),
+        };
+
+        // The new balance should exist
+        assert_eq!(balance, Coins::from_str("3")?);
+
+        let balance = c2.get_balance(None).await?;
+        let expected = calculate_new_balance(start_bal, Some(3), Some(Coins::from_str("8")?));
+        assert_eq!(balance, expected);
+
+        let client = setup_client(&(), |net_tx| {
+            futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx))
+        })?;
+
+        let balance = client.get_balance(None).await?;
+        assert_eq!(balance, five_coins);
+        Ok(())
     }
 }

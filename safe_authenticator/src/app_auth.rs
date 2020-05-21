@@ -168,7 +168,8 @@ pub async fn authenticate(
                 info: auth_req.app,
                 keys,
             };
-            config::insert_app(&c3, apps, config::next_version(apps_version), app.clone()).await?;
+            let _ = config::insert_app(&c3, apps, config::next_version(apps_version), app.clone())
+                .await?;
             (app, app_state, app_id)
         }
         AppState::Authenticated | AppState::Revoked => {
@@ -222,7 +223,7 @@ async fn authenticated_app(
     if app_container && !app_container_exists(&perms, &app_id) {
         let mdata_info = app_container::fetch_or_create(&c2, &app_id, app_pk).await?;
         let perms = insert_app_container(perms.clone(), &app_id, mdata_info);
-        update_access_container(&c2, &app, perms.clone())
+        let _ = update_access_container(&c2, &app, perms.clone())
             .map(move |_| perms)
             .await;
     }

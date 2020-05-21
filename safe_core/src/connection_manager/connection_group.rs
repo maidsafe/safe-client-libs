@@ -6,15 +6,12 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
+use super::response_manager::ResponseManager;
 use crate::{client::SafeKey, utils, CoreError};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
-use futures::{
-    channel::oneshot::{self, Sender},
-    future::TryFutureExt,
-};
-
+use futures::channel::oneshot::{self, Sender};
 use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
 use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, Peer, QuicP2p, QuicP2pError, Token};
@@ -23,19 +20,19 @@ use safe_nd::{
     HandshakeRequest, HandshakeResponse, Message, MessageId, NodePublicId, PublicId, Request,
     RequestType, Response,
 };
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     collections::HashMap,
     mem,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
     thread::{self, JoinHandle},
     time::Duration,
 };
 use tokio::time::timeout;
 use unwrap::unwrap;
-
-use super::response_manager::ResponseManager;
 
 /// Request timeout in seconds.
 pub const REQUEST_TIMEOUT_SECS: u64 = 180;

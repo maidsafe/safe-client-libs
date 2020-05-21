@@ -49,11 +49,6 @@ pub fn gen_app_id(client_public_id: ClientPublicId) -> AppFullId {
     AppFullId::new_bls(&mut rng, client_public_id)
 }
 
-/// Convenience for creating a blank runner.
-pub fn finish() -> Result<(), ()> {
-    Ok(())
-}
-
 /// Create random registered client. Use this to
 /// create a `CoreClient` automatically and randomly.
 pub fn random_client() -> Result<CoreClient, CoreError>
@@ -79,7 +74,7 @@ where
 /// Useful when we need  to supply credentials explicitly or when Client is to be constructed as
 /// unregistered or as a result of successful login. Use this to create Client
 /// manually.
-pub fn setup_client<Create, A, C, T, F>(context: &A, c: Create) -> Result<C, CoreError>
+pub fn setup_client<Create, A, C, F>(context: &A, c: Create) -> Result<C, CoreError>
 where
     Create: FnOnce(NetworkTx) -> Result<C, F>,
     A: 'static,
