@@ -7,13 +7,11 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::ffi::errors::FfiError;
-use ffi_utils::{
-    async_catch_unwind_cb, catch_unwind_cb, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr,
-    FFI_RESULT_OK,
-};
 use ffi_utils::{call_result_cb, ffi_error};
-use futures::future::FutureExt;
-use futures::{stream, Future, Stream};
+use ffi_utils::{
+    catch_unwind_cb, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
+};
+
 use log::debug;
 use safe_authenticator::access_container;
 use safe_authenticator::app_auth;
@@ -33,7 +31,7 @@ use safe_core::ipc::{decode_msg, IpcError, IpcMsg};
 use safe_core::{client, CoreError};
 use safe_nd::MDataAddress;
 use std::ffi::CStr;
-use std::iter::Iterator;
+
 use std::os::raw::{c_char, c_void};
 
 /// Decodes a given encoded IPC message without requiring an authorised account.
@@ -69,7 +67,7 @@ pub unsafe extern "C" fn auth_unregistered_decode_ipc_msg(
             }
             _ => {
                 call_result_cb!(
-                    Err::<(), _>(FfiFfiError::from(CoreError::OperationForbidden)),
+                    Err::<(), _>(FfiError::from(CoreError::OperationForbidden)),
                     user_data,
                     o_err
                 );
@@ -109,10 +107,10 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
         let msg_raw = CStr::from_ptr(msg).to_str()?;
         let msg = decode_msg(msg_raw)?;
 
-        let client = (*auth).client;
+        let client = &(*auth).client;
         let c1 = client.clone();
-        let msg = futures::executor::block_on(decode_ipc_msg(&client, msg))?;
-        let res = match msg {
+        let msg = futures::executor::block_on(decode_ipc_msg(client, msg))?;
+        let _res = match msg {
             Ok(IpcMsg::Req {
                 request: IpcReq::Auth(auth_req),
                 req_id,
@@ -203,8 +201,8 @@ pub unsafe extern "C" fn auth_revoke_app(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
         let app_id = String::clone_from_repr_c(app_id)?;
 
-        let client = (*auth).client;
-        futures::executor::block_on(revoke_app(&client, &app_id)).map_err(move |e| {
+        let client = &(*auth).client;
+        futures::executor::block_on(revoke_app(client, &app_id)).map_err(move |e| {
             call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
         });
 
@@ -225,8 +223,8 @@ pub unsafe extern "C" fn auth_flush_app_revocation_queue(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
-        let client = (*auth).client;
-        let res = futures::executor::block_on(flush_app_revocation_queue(&client));
+        let client = &(*auth).client;
+        let res = futures::executor::block_on(flush_app_revocation_queue(client));
         call_result_cb!(res.map_err(FfiError::from), user_data, o_cb);
         Ok(())
     })
@@ -280,9 +278,9 @@ pub unsafe extern "C" fn encode_auth_resp(
         let auth_req = NativeAuthReq::clone_from_repr_c(req)?;
 
         if is_granted {
-            let client = (*auth).client;
+            let client = &(*auth).client;
             let auth_granted =
-                futures::executor::block_on(app_auth::authenticate(&client, auth_req))
+                futures::executor::block_on(app_auth::authenticate(client, auth_req))
                     .map_err(FfiError::from)?;
 
             let res = {
@@ -343,12 +341,12 @@ pub unsafe extern "C" fn encode_containers_resp(
             let permissions = cont_req.containers.clone();
             let app_id = cont_req.app.id;
 
-            let client = (*auth).client;
+            let client = &(*auth).client;
             let c2 = client.clone();
             let c3 = client.clone();
             let c4 = client.clone();
 
-            let app = futures::executor::block_on(config::get_app(&client, &app_id))?;
+            let app = futures::executor::block_on(config::get_app(client, &app_id))?;
             let app_pk = app.keys.public_key();
             let mut perms = futures::executor::block_on(access_container::update_container_perms(
                 &c2,
@@ -359,9 +357,10 @@ pub unsafe extern "C" fn encode_containers_resp(
 
             let res = futures::executor::block_on(access_container::fetch_entry(
                 c3,
-                app_id,
+                app_id.clone(),
                 app_keys.clone(),
             ));
+
             let version = match res {
                 // Updating an existing entry
                 Ok((version, Some(mut existing_perms))) => {
@@ -380,11 +379,12 @@ pub unsafe extern "C" fn encode_containers_resp(
                 // existing entry
                 Err(e) => return Err(FfiError::from(e)),
             };
+
             futures::executor::block_on(access_container::put_entry(
                 &c4, &app_id, &app_keys, &perms, version,
             ))?;
 
-            let res: Result<(), Error> = {
+            let res: Result<(), AuthError> = {
                 let resp = encode_response(&IpcMsg::Resp {
                     req_id,
                     response: IpcResp::Containers(Ok(())),
@@ -393,7 +393,7 @@ pub unsafe extern "C" fn encode_containers_resp(
                 o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
                 Ok(())
             }
-            .or_else(move |e| -> Result<(), FfiError> {
+            .or_else(move |e: AuthError| -> Result<(), AuthError> {
                 let (error_code, description) = ffi_error!(e);
                 let resp = encode_response(&IpcMsg::Resp {
                     req_id,
@@ -406,8 +406,17 @@ pub unsafe extern "C" fn encode_containers_resp(
                 .into_repr_c()?;
                 o_cb(user_data.0, &result, resp.as_ptr());
                 Ok(())
-            })
-            .map_err(move |e| debug!("Unexpected error: {:?}", e));
+            });
+
+            match res {
+                Ok(()) => {
+                    // do nothing
+                }
+                Err(e) => {
+                    debug!("Unexpected error: {:?}", e);
+                    return Err(FfiError::from(e));
+                }
+            }
         } else {
             let response = encode_response(&IpcMsg::Resp {
                 req_id,
@@ -437,73 +446,51 @@ pub unsafe extern "C" fn encode_share_mdata_resp(
         let share_mdata_req = NativeShareMDataReq::clone_from_repr_c(req)?;
 
         if is_granted {
-            let client = (*auth).client;
+            let client = &(*auth).client;
 
             let client_cloned0 = client.clone();
             let client_cloned1 = client.clone();
             let user_data = user_data.0;
 
             let app_info =
-                futures::executor::block_on(config::get_app(&client, &share_mdata_req.app.id))?;
+                futures::executor::block_on(config::get_app(client, &share_mdata_req.app.id))?;
             let user = app_info.keys.public_key();
-            let num_mdata = share_mdata_req.mdata.len();
+            let _num_mdata = share_mdata_req.mdata.len();
 
-            let _ = {
-                // let (version, mdata) =
-                // stream::iter(
-                // let _ =
+            let encode_result: Result<(), AuthError> = {
                 for mdata in share_mdata_req.mdata.iter() {
-                    // share_mdata_req.mdata.into_iter()
-                    // )
-                    // .map(move |mdata| {
                     let md = futures::executor::block_on(
                         client_cloned0.get_seq_mdata_shell(mdata.name, mdata.type_tag),
                     )?;
-                    // .catch_unwind()
-                    // .map(|md| (md.version(), mdata))
-                    // (md.version(), mdata)
-                    // })
-                    // .map( |res| {
-                    //     match res {
-                    //         Ok(tuple) => tuple,
-
-                    //     }
-                    // })
-                    // .buffer_unordered(num_mdata)
-
-                    // .map(move |(version, mdata)| {
+                    let version = md.version();
                     futures::executor::block_on(client_cloned1.set_mdata_user_permissions(
                         MDataAddress::Seq {
                             name: mdata.name,
                             tag: mdata.type_tag,
                         },
                         user,
-                        mdata.perms,
+                        mdata.perms.clone(),
                         version + 1,
                     ))?;
-
-                    // });
-                    // .buffer_unordered(num_mdata)
-                    // .map_err(AuthError::CoreError)
-                    // .for_each(|()| Ok(()))
-                    // .and_then(move |()| {
                     let resp = encode_response(&IpcMsg::Resp {
                         req_id,
                         response: IpcResp::ShareMData(Ok(())),
                     })
                     .map_err(AuthError::IpcError)?;
                     o_cb(user_data, FFI_RESULT_OK, resp.as_ptr());
-                    // Ok(())
                 }
 
                 Ok(())
-                // })
+            };
+
+            match encode_result {
+                Ok(()) => {
+                    // do nothing
+                }
+                Err(e) => {
+                    call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
+                }
             }
-            .map_err(move |e| {
-                call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
-                AuthError::from(e)
-            })?;
-        // .into_box()
         } else {
             let resp = encode_response(&IpcMsg::Resp {
                 req_id,

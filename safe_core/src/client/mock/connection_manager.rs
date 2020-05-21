@@ -174,7 +174,7 @@ impl ConnectionManager {
     fn intercept_request(&mut self, message: Message) -> Option<Response> {
         if let Message::Request { request, .. } = message {
             if let Some(hook) = Arc::get_mut(self.request_hook.as_mut()?) {
-                return hook(&request)
+                return hook(&request);
             }
         }
         None

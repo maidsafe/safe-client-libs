@@ -34,7 +34,7 @@ use safe_core::{
 use safe_nd::{AppPermissions, Error as SndError, MDataAddress, MDataSeqEntryActions};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
-use tokio::task::LocalSet;
+
 use unwrap::unwrap;
 
 async fn verify_app_is_revoked(

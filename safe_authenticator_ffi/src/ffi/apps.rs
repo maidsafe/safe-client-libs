@@ -12,12 +12,12 @@ use ffi_utils::{
     catch_unwind_cb, vec_from_raw_parts, vec_into_raw_parts, FfiResult, OpaqueCtx, ReprC, SafePtr,
     FFI_RESULT_OK,
 };
-use futures::Future;
+
 use safe_authenticator::apps::{
     apps_accessing_mutable_data, list_registered, list_revoked, remove_revoked_app,
     RegisteredApp as NativeRegisteredApp,
 };
-use safe_authenticator::{AuthResult, Authenticator};
+use safe_authenticator::{AuthError, Authenticator};
 use safe_core::core_structs::AppAccess as NativeAppAccess;
 use safe_core::ffi::arrays::XorNameArray;
 use safe_core::ffi::ipc::req::{AppExchangeInfo, ContainerPermissions};
@@ -25,7 +25,6 @@ use safe_core::ffi::ipc::resp::AppAccess;
 use safe_core::ipc::req::containers_into_vec;
 use safe_core::ipc::req::AppExchangeInfo as NativeAppExchangeInfo;
 use safe_core::ipc::IpcError;
-use safe_core::FutureExt;
 use safe_nd::XorName;
 use std::convert::TryFrom;
 use std::os::raw::{c_char, c_void};
@@ -107,9 +106,9 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, AuthError> {
         let app_id = String::clone_from_repr_c(app_id)?;
 
-        let client = (*auth).client;
+        let client = &(*auth).client;
         let res: Result<(), AuthError> =
-            futures::executor::block_on(remove_revoked_app(&client, app_id))?;
+            futures::executor::block_on(remove_revoked_app(client, app_id));
         call_result_cb!(res.map_err(FfiError::from), user_data, o_cb);
         Ok(())
     });
@@ -129,9 +128,9 @@ pub unsafe extern "C" fn auth_revoked_apps(
 ) {
     let user_data = OpaqueCtx(user_data);
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
-        let client = (*auth).client;
+        let client = &(*auth).client;
         {
-            let apps = futures::executor::block_on(list_revoked(&client))?;
+            let apps = futures::executor::block_on(list_revoked(client))?;
             let app_list: Vec<_> = apps
                 .into_iter()
                 .map(NativeAppExchangeInfo::into_repr_c)
@@ -147,7 +146,7 @@ pub unsafe extern "C" fn auth_revoked_apps(
         }
         .map_err(move |e: AuthError| {
             call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
-        })?;
+        });
 
         Ok(())
     });
@@ -168,9 +167,9 @@ pub unsafe extern "C" fn auth_registered_apps(
     let user_data = OpaqueCtx(user_data);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
-        let client = (*auth).client;
+        let client = &(*auth).client;
         {
-            let registered_apps = futures::executor::block_on(list_registered(&client))?;
+            let registered_apps = futures::executor::block_on(list_registered(client))?;
             let apps: Vec<_> = registered_apps
                 .into_iter()
                 .map(RegisteredApp::try_from)
@@ -181,7 +180,7 @@ pub unsafe extern "C" fn auth_registered_apps(
         }
         .map_err(move |e: AuthError| {
             call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
-        })?;
+        });
 
         Ok(())
     })
@@ -206,7 +205,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
     let name = XorName(*md_name);
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
-        let client = (*auth).client;
+        let client = &(*auth).client;
         {
             let apps_with_access = futures::executor::block_on(apps_accessing_mutable_data(
                 &client,
@@ -228,7 +227,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
         }
         .map_err(move |e: AuthError| {
             call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
-        })?;
+        });
 
         Ok(())
     })

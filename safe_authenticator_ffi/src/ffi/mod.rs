@@ -20,11 +20,11 @@ pub mod ipc;
 pub mod logging;
 
 use crate::ffi::errors::FfiError;
-use ffi_utils::try_cb;
-use ffi_utils::{catch_unwind_cb, FfiResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
+use ffi_utils::ffi_result;
+use ffi_utils::{catch_unwind_cb, FfiResult, NativeResult, OpaqueCtx, ReprC, FFI_RESULT_OK};
 use log::trace;
 use rand::thread_rng;
-use safe_authenticator::{AuthResult, Authenticator};
+use safe_authenticator::{AuthError, Authenticator};
 use safe_core::{config_handler, test_create_balance, Client};
 use safe_nd::{ClientFullId, Coins};
 use std::ffi::{CStr, OsStr};
@@ -125,27 +125,36 @@ pub unsafe extern "C" fn auth_reconnect(
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult),
 ) {
-    catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
+    catch_unwind_cb(user_data, o_cb, || -> Result<_, AuthError> {
         let user_data = OpaqueCtx(user_data);
-        let client = (*auth).client;
-        // send(move |client| {
-        let res = client.restart_network().map_err(FfiError::from);
+        let client = &(*auth).client;
 
-        let _ = match res {
+        let response = client.restart_network().map_err(|e| FfiError::from(e));
+        match response {
             Ok(value) => value,
             e @ Err(_) => {
-                o_cb!(user_data.0, e);
-                // return None;
+                let (error_code, description) = ffi_result!(e);
+                let res = NativeResult {
+                    error_code,
+                    description: Some(description),
+                }
+                .into_repr_c();
+
+                match res {
+                    Ok(res) => o_cb(user_data.into(), &res),
+                    Err(_) => {
+                        let res = FfiResult {
+                            error_code,
+                            description: b"Could not convert error description into CString\x00"
+                                as *const u8 as *const _,
+                        };
+                        o_cb(user_data.into(), &res);
+                    }
+                }
             }
-        };
-        // let _ = try_cb!(
-        //     client.restart_network().map_err(FfiError::from),
-        //     user_data.0,
-        //     o_cb
-        // );
+        }
         o_cb(user_data.0, FFI_RESULT_OK);
         Ok(())
-        // })
     })
 }
 
