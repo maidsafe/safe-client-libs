@@ -110,8 +110,6 @@ async fn update_access_container(
     app: &AppInfo,
     permissions: AccessContainerEntry,
 ) -> Result<(), AuthError> {
-    let c2 = client.clone();
-
     let app_id = app.info.id.clone();
     let app_keys = app.keys.clone();
 
@@ -127,7 +125,7 @@ async fn update_access_container(
         Err(e) => return Err(e),
     };
 
-    access_container::put_entry(&c2, &app_id, &app_keys, &permissions, version).await
+    access_container::put_entry(&client, &app_id, &app_keys, &permissions, version).await
 }
 
 /// Authenticate an app request.
@@ -147,29 +145,30 @@ pub async fn authenticate(
         ..
     } = auth_req;
 
-    let c2 = client.clone();
-    let c3 = client.clone();
-    let c4 = client.clone();
-
     let (apps_version, mut apps) = config::list_apps(client).await?;
     check_revocation(client, app_id.clone()).await?;
 
-    let app_state = app_state(&c2, &apps, &app_id).await?;
+    let app_state = app_state(&client, &apps, &app_id).await?;
 
     // Determine an app state. If it's revoked we can reuse existing
     // keys stored in the config. And if it is authorised, we just
     // return the app info from the config.
     let (app, app_state, app_id) = match app_state {
         AppState::NotAuthenticated => {
-            let public_id = c3.public_id();
+            let public_id = client.public_id();
             // Safe to unwrap as the auth client will have a client public id.
             let keys = AppKeys::new(unwrap!(public_id.client_public_id()).clone());
             let app = AppInfo {
                 info: auth_req.app,
                 keys,
             };
-            let _ = config::insert_app(&c3, apps, config::next_version(apps_version), app.clone())
-                .await?;
+            let _ = config::insert_app(
+                &client,
+                apps,
+                config::next_version(apps_version),
+                app.clone(),
+            )
+            .await?;
             (app, app_state, app_id)
         }
         AppState::Authenticated | AppState::Revoked => {
@@ -187,11 +186,11 @@ pub async fn authenticate(
     match app_state {
         AppState::Authenticated => {
             // Return info of the already registered app
-            authenticated_app(&c4, app, app_id, app_container, app_permissions).await
+            authenticated_app(&client, app, app_id, app_container, app_permissions).await
         }
         AppState::NotAuthenticated | AppState::Revoked => {
             // Register a new app or restore a previously registered app
-            authenticate_new_app(&c4, app, app_container, app_permissions, permissions).await
+            authenticate_new_app(&client, app, app_container, app_permissions, permissions).await
         }
     }
 }
@@ -205,9 +204,6 @@ async fn authenticated_app(
     app_container: bool,
     _app_permissions: AppPermissions,
 ) -> Result<AuthGranted, AuthError> {
-    let c2 = client.clone();
-    let c3 = client.clone();
-
     let app_keys = app.keys.clone();
     let app_pk = app.keys.public_key();
     let bootstrap_config = client::bootstrap_config()?;
@@ -221,14 +217,14 @@ async fn authenticated_app(
 
     // Check whether we need to create/update dedicated container
     if app_container && !app_container_exists(&perms, &app_id) {
-        let mdata_info = app_container::fetch_or_create(&c2, &app_id, app_pk).await?;
+        let mdata_info = app_container::fetch_or_create(&client, &app_id, app_pk).await?;
         let perms = insert_app_container(perms.clone(), &app_id, mdata_info);
-        let _ = update_access_container(&c2, &app, perms.clone())
+        let _ = update_access_container(&client, &app, perms.clone())
             .map(move |_| perms)
             .await;
     }
 
-    let access_container_info = c3.access_container();
+    let access_container_info = client.access_container();
     let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
     Ok(AuthGranted {
@@ -253,12 +249,6 @@ async fn authenticate_new_app(
     app_permissions: AppPermissions,
     permissions: HashMap<String, ContainerPermissions>,
 ) -> Result<AuthGranted, AuthError> {
-    let c2 = client.clone();
-    let c3 = client.clone();
-    let c4 = client.clone();
-    let c5 = client.clone();
-    let c6 = client.clone();
-
     let app_pk = app.keys.public_key();
     let app_keys = app.keys.clone();
     let app_keys_auth = app.keys.clone();
@@ -267,7 +257,7 @@ async fn authenticate_new_app(
     let (_, version) = client.list_auth_keys_and_version().await?;
 
     recoverable_apis::ins_auth_key_to_client_h(
-        &c2,
+        &client.clone(),
         app_keys.public_key(),
         app_permissions,
         version + 1,
@@ -277,21 +267,20 @@ async fn authenticate_new_app(
     let (mut perms, app_pk) = if permissions.is_empty() {
         (Default::default(), app_pk)
     } else {
-        let perms = update_container_perms(&c3, permissions, app_pk).await?;
+        let perms = update_container_perms(&client, permissions, app_pk).await?;
         (perms, app_pk)
     };
 
     if app_container {
-        let mdata_info = app_container::fetch_or_create(&c4, &app_id, app_pk).await?;
+        let mdata_info = app_container::fetch_or_create(&client, &app_id, app_pk).await?;
 
         perms = insert_app_container(perms, &app_id, mdata_info);
     }
 
-    update_access_container(&c5, &app, perms.clone()).await?;
+    update_access_container(&client, &app, perms.clone()).await?;
 
     let access_container_entry = perms;
-
-    let access_container_info = c6.access_container();
+    let access_container_info = client.access_container();
     let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
     Ok(AuthGranted {

@@ -343,37 +343,26 @@ pub async fn ins_auth_key_to_client_h(
     let mut done_trying = false;
     let mut response: Result<(), CoreError> = Err(CoreError::RequestTimeout);
 
-    while !done_trying && attempts < MAX_ATTEMPTS {
+    while !done_trying {
         response = match client.ins_auth_key(key, permissions, version_to_try).await {
             Ok(_) => {
                 done_trying = true;
                 Ok(())
             }
-            Err(error) => {
-                match error {
-                    CoreError::DataError(SndError::InvalidSuccessor(_current_version)) => {
-                        if attempts < MAX_ATTEMPTS {
-                            attempts += 1;
-                            version_to_try += 1;
-                            // not really, but we keep trying for now
-                            Ok(())
-                        } else {
-                            done_trying = true;
-                            Err(error)
-                        }
-                    }
-                    CoreError::RequestTimeout => {
-                        if attempts < MAX_ATTEMPTS {
-                            attempts += 1;
-                            version_to_try += 1;
-                            done_trying = true;
-                            Ok(())
-                        } else {
-                            Err(CoreError::RequestTimeout)
-                        }
-                    }
-                    error => Err(error),
-                }
+            Err(CoreError::DataError(SndError::InvalidSuccessor(current_version)))
+                if attempts < MAX_ATTEMPTS =>
+            {
+                attempts += 1;
+                version_to_try = current_version + 1;
+                Ok(())
+            }
+            Err(CoreError::RequestTimeout) if attempts < MAX_ATTEMPTS => {
+                attempts += 1;
+                Ok(())
+            }
+            other => {
+                done_trying = true;
+                other
             }
         }
     }

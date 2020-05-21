@@ -192,8 +192,7 @@ pub async fn register_app(
 
     let auth_req = auth_req.clone();
     trace!("Authenticating app: {:?}", auth_req);
-    let client_clone = client; //.clone();
-    app_auth::authenticate(&client_clone, auth_req).await
+    app_auth::authenticate(&client_clone.clone(), auth_req).await
 }
 
 /// Registers a random app. Returns the ID of the app and the `AuthGranted` struct.

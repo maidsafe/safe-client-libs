@@ -41,8 +41,6 @@ pub async fn fetch_or_create(
     app_id: &str,
     app_pk: PublicKey,
 ) -> Result<MDataInfo, AuthError> {
-    let c2 = client.clone();
-    let c3 = client.clone();
     let app_cont_name = app_container_name(app_id);
 
     let (ac_entry_version, mut ac_entries) =
@@ -59,20 +57,21 @@ pub async fn fetch_or_create(
                 .allow(MDataAction::Delete)
                 .allow(MDataAction::ManagePermissions);
 
-            let version = c2.get_mdata_version(*mdata_info.address()).await?;
+            let version = client.get_mdata_version(*mdata_info.address()).await?;
 
-            c2.set_mdata_user_permissions(*mdata_info.address(), app_pk, ps, version + 1)
+            client
+                .set_mdata_user_permissions(*mdata_info.address(), app_pk, ps, version + 1)
                 .await?;
 
             Ok(mdata_info)
         }
         None => {
             // If the container is not found, create it
-            let md_info = create(&c2, app_pk).await?;
+            let md_info = create(&client, app_pk).await?;
 
             let _ = ac_entries.insert(app_cont_name, md_info.clone());
 
-            access_container::put_authenticator_entry(&c3, &ac_entries, ac_entry_version + 1)
+            access_container::put_authenticator_entry(&client, &ac_entries, ac_entry_version + 1)
                 .await?;
 
             Ok(md_info)
@@ -139,7 +138,7 @@ async fn create_directory(
         .put_seq_mutable_data(dir_md)
         .await
         .or_else(move |err| {
-            trace!("Error: {:?}", err);
+            println!("====Error: {:?}", err);
             match err {
                 // This dir has been already created
                 CoreError::DataError(SndError::DataExists) => Ok(()),
@@ -152,7 +151,7 @@ async fn create_directory(
 // Creates a new app's dedicated container
 async fn create(client: &AuthClient, app_pk: PublicKey) -> Result<MDataInfo, AuthError> {
     let dir = MDataInfo::random_private(MDataKind::Seq, DIR_TAG).map_err(AuthError::from)?;
-    let _ = create_directory(
+    create_directory(
         client,
         &dir,
         btree_map![],
@@ -163,7 +162,7 @@ async fn create(client: &AuthClient, app_pk: PublicKey) -> Result<MDataInfo, Aut
                 .allow(MDataAction::Delete)
                 .allow(MDataAction::ManagePermissions)],
     )
-    .await;
+    .await?;
 
     Ok(dir)
 }

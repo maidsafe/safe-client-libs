@@ -52,19 +52,17 @@ pub unsafe extern "C" fn create_client_with_acc(
 
     catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
         trace!("Authenticator - create a client account.");
-        
+
         let acc_locator = String::clone_from_repr_c(account_locator)?;
         let acc_password = String::clone_from_repr_c(account_password)?;
         // FIXME: Send client id via FFI API too
         let client_id = ClientFullId::new_bls(&mut thread_rng());
-        let _ =         futures::executor::block_on(
-            test_create_balance(
+        let _ = futures::executor::block_on(test_create_balance(
             &client_id,
-            unwrap!(Coins::from_str("10"))
-        ) )?;
+            unwrap!(Coins::from_str("10")),
+        ))?;
 
-        let authenticator =         futures::executor::block_on(
-            Authenticator::create_client_with_acc(
+        let authenticator = futures::executor::block_on(Authenticator::create_client_with_acc(
             acc_locator,
             acc_password,
             client_id,
@@ -104,11 +102,11 @@ pub unsafe extern "C" fn login(
         let acc_locator = String::clone_from_repr_c(account_locator)?;
         let acc_password = String::clone_from_repr_c(account_password)?;
 
-        let authenticator = 
-        futures::executor::block_on(
-        Authenticator::login(acc_locator, acc_password, move || {
-            o_disconnect_notifier_cb(user_data.0)
-        }))?;
+        let authenticator = futures::executor::block_on(Authenticator::login(
+            acc_locator,
+            acc_password,
+            move || o_disconnect_notifier_cb(user_data.0),
+        ))?;
 
         o_cb(
             user_data.0,
@@ -131,22 +129,22 @@ pub unsafe extern "C" fn auth_reconnect(
         let user_data = OpaqueCtx(user_data);
         let client = (*auth).client;
         // send(move |client| {
-            let res = client.restart_network().map_err(FfiError::from);
-            
-            let _ = match res {
-                Ok(value) => value,
-                e @ Err(_) => {
-                    o_cb!(user_data.0, e);
-                    // return None;
-                }
-            };
-            // let _ = try_cb!(
-            //     client.restart_network().map_err(FfiError::from),
-            //     user_data.0,
-            //     o_cb
-            // );
-            o_cb(user_data.0, FFI_RESULT_OK);
-            Ok(())
+        let res = client.restart_network().map_err(FfiError::from);
+
+        let _ = match res {
+            Ok(value) => value,
+            e @ Err(_) => {
+                o_cb!(user_data.0, e);
+                // return None;
+            }
+        };
+        // let _ = try_cb!(
+        //     client.restart_network().map_err(FfiError::from),
+        //     user_data.0,
+        //     o_cb
+        // );
+        o_cb(user_data.0, FFI_RESULT_OK);
+        Ok(())
         // })
     })
 }

@@ -65,8 +65,7 @@ async fn flush_app_revocation_queue_impl(
 ) -> Result<(), AuthError> {
     let client = client.clone();
     let mut moved_apps = Vec::new();
-
-    let mut the_queue = queue;
+    let mut queue_to_try = queue;
     let mut version_to_try = version;
     let mut done_trying = false;
     let mut response: Result<(), AuthError> = Ok(());
@@ -75,48 +74,57 @@ async fn flush_app_revocation_queue_impl(
         let c2 = client.clone();
         let c3 = client.clone();
 
-        if let Some(app_id) = the_queue.front().cloned() {
+        let fron_of_queue = queue_to_try.front().cloned();
+        if let Some(app_id) = fron_of_queue {
             match revoke_single_app(&c2, &app_id).await {
                 Ok(_) => {
-                    let (version, queue) =
-                        config::remove_from_app_revocation_queue(&c3, the_queue, version, &app_id)
-                            .await?;
+                    let (version, queue) = config::remove_from_app_revocation_queue(
+                        &c3,
+                        queue_to_try.clone(),
+                        version_to_try,
+                        &app_id,
+                    )
+                    .await?;
 
-                    version_to_try = version;
-                    the_queue = queue;
+                    version_to_try = version + 1;
+                    queue_to_try = queue;
                 }
                 Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
                     // The app entry can't be decrypted. No way to revoke app, so just
                     // remove it from the queue and return an error.
-                    let (_version, queue) =
-                        config::remove_from_app_revocation_queue(&c3, the_queue, version, &app_id)
-                            .await?;
+                    let _ = config::remove_from_app_revocation_queue(
+                        &c3,
+                        queue_to_try.clone(),
+                        version_to_try,
+                        &app_id,
+                    )
+                    .await?;
 
-                    the_queue = queue;
-
-                    // are we?
                     done_trying = true;
-                    response = Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
+                    response = Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure));
                 }
                 Err(error) => {
                     if moved_apps.contains(&app_id) {
                         // If this app has already been moved to the back of the queue,
                         // return the error.
-                        response = Err(error)
+                        done_trying = true;
+                        response = Err(error);
                     } else {
                         // Move the app to the end of the queue.
                         moved_apps.push(app_id.clone());
                         let (version, queue) = config::repush_to_app_revocation_queue(
-                            &c3, the_queue, version, &app_id,
+                            &c3,
+                            queue_to_try,
+                            version_to_try,
+                            &app_id,
                         )
                         .await?;
-                        version_to_try = version;
-                        the_queue = queue;
+
+                        version_to_try = version + 1;
+                        queue_to_try = queue;
                     }
                 }
             }
-
-            version_to_try = version + 1;
         } else {
             done_trying = true;
             response = Ok(())

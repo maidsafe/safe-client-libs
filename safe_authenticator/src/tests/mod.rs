@@ -30,7 +30,6 @@ mod mock_routing {
     use crate::std_dirs::{DEFAULT_PRIVATE_DIRS, DEFAULT_PUBLIC_DIRS};
     use crate::{test_utils, Authenticator};
     use safe_core::ipc::AuthReq;
-    use safe_core::nfs::NfsError;
     use safe_core::utils::generate_random_string;
     use safe_core::utils::test_utils::gen_client_id;
     use safe_core::{app_container_name, test_create_balance, ConnectionManager, CoreError};
@@ -269,10 +268,9 @@ mod mock_routing {
         let auth =
             Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
                 .await?;
+
         match test_utils::register_app(&auth, &auth_req).await {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::DataError(
-                SndError::InsufficientBalance,
-            )))) => (),
+            Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 

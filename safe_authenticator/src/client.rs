@@ -46,16 +46,12 @@ impl AuthClient {
         acc_locator: &str,
         acc_password: &str,
         client_id: ClientFullId,
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
     ) -> Result<Self, AuthError> {
         Self::registered_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
             client_id,
-            // el_handle,
-            // core_tx,
             net_tx,
             None::<&mut StdRng>,
             |cm| cm,
@@ -73,8 +69,6 @@ impl AuthClient {
     pub(crate) async fn registered_with_seed(
         seed: &str,
         client_id: ClientFullId,
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
     ) -> Result<Self, AuthError> {
         let arr = divide_seed(seed)?;
@@ -82,17 +76,7 @@ impl AuthClient {
         let seed = sha3_256(seed.as_bytes());
         let mut rng = StdRng::from_seed(seed);
 
-        Self::registered_impl(
-            arr[0],
-            arr[1],
-            client_id,
-            // el_handle,
-            // core_tx,
-            net_tx,
-            Some(&mut rng),
-            |cm| cm,
-        )
-        .await
+        Self::registered_impl(arr[0], arr[1], client_id, net_tx, Some(&mut rng), |cm| cm).await
     }
 
     #[cfg(all(feature = "mock-network", any(test, feature = "testing")))]
@@ -101,8 +85,6 @@ impl AuthClient {
         acc_locator: &str,
         acc_password: &str,
         client_id: ClientFullId,
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
@@ -113,8 +95,6 @@ impl AuthClient {
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
             client_id,
-            //el_handle,
-            //core_tx,
             net_tx,
             None::<&mut StdRng>,
             connection_manager_wrapper_fn,
@@ -129,8 +109,6 @@ impl AuthClient {
         acc_locator: &[u8],
         acc_password: &[u8],
         client_id: ClientFullId,
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
         seed: Option<&mut R>,
         connection_manager_wrapper_fn: F,
@@ -182,11 +160,9 @@ impl AuthClient {
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
-                // el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 Duration::from_secs(180), // FIXME //(REQUEST_TIMEOUT_SECS),
-                // core_tx,
                 net_tx,
             ))),
             auth_inner: Arc::new(Mutex::new(AuthInner {
@@ -202,15 +178,11 @@ impl AuthClient {
     pub(crate) async fn login(
         acc_locator: &str,
         acc_password: &str,
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
     ) -> Result<Self, AuthError> {
         Self::auth_client_login_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            // el_handle,
-            // core_tx,
             net_tx,
             |routing| routing,
         )
@@ -219,12 +191,7 @@ impl AuthClient {
 
     /// Login using seeded account.
     #[cfg(any(test, feature = "testing"))]
-    pub(crate) async fn login_with_seed(
-        seed: &str,
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
-        net_tx: NetworkTx,
-    ) -> Result<Self, AuthError> {
+    pub(crate) async fn login_with_seed(seed: &str, net_tx: NetworkTx) -> Result<Self, AuthError> {
         let arr = divide_seed(seed)?;
         Self::auth_client_login_impl(arr[0], arr[1], net_tx, |routing| routing).await
     }
@@ -234,8 +201,6 @@ impl AuthClient {
     pub async fn login_with_hook<F>(
         acc_locator: &str,
         acc_password: &str,
-        //el_handle: Handle,
-        //core_tx: AuthMsgTx,
         net_tx: NetworkTx,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
@@ -245,8 +210,6 @@ impl AuthClient {
         Self::auth_client_login_impl(
             acc_locator.as_bytes(),
             acc_password.as_bytes(),
-            // el_handle,
-            // core_tx,
             net_tx,
             connection_manager_wrapper_fn,
         )
@@ -256,8 +219,6 @@ impl AuthClient {
     async fn auth_client_login_impl<F>(
         acc_locator: &[u8],
         acc_password: &[u8],
-        // el_handle: Handle,
-        // core_tx: AuthMsgTx,
         net_tx: NetworkTx,
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
@@ -316,11 +277,9 @@ impl AuthClient {
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
-                // el_handle,
                 connection_manager,
                 LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), //FIXME
-                // core_tx,
                 net_tx,
             ))),
             auth_inner: Arc::new(Mutex::new(AuthInner {

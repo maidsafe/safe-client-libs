@@ -108,7 +108,8 @@ pub unsafe extern "C" fn auth_rm_revoked_app(
         let app_id = String::clone_from_repr_c(app_id)?;
 
         let client = (*auth).client;
-        let res: Result<(), AuthError> = futures::executor::block_on(remove_revoked_app(&client, app_id))?;
+        let res: Result<(), AuthError> =
+            futures::executor::block_on(remove_revoked_app(&client, app_id))?;
         call_result_cb!(res.map_err(FfiError::from), user_data, o_cb);
         Ok(())
     });
@@ -130,7 +131,7 @@ pub unsafe extern "C" fn auth_revoked_apps(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
         let client = (*auth).client;
         {
-            let apps = futures::executor::block_on(list_revoked(&client).)?;
+            let apps = futures::executor::block_on(list_revoked(&client))?;
             let app_list: Vec<_> = apps
                 .into_iter()
                 .map(NativeAppExchangeInfo::into_repr_c)
@@ -207,7 +208,11 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
         let client = (*auth).client;
         {
-            let apps_with_access = futures::executor::block_on( apps_accessing_mutable_data(&client, name, md_type_tag) )?;
+            let apps_with_access = futures::executor::block_on(apps_accessing_mutable_data(
+                &client,
+                name,
+                md_type_tag,
+            ))?;
             let app_access_vec: Vec<_> = apps_with_access
                 .into_iter()
                 .map(NativeAppAccess::into_repr_c)
