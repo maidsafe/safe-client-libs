@@ -27,7 +27,8 @@ use safe_authenticator::{AuthError, Authenticator};
 use safe_nd::{ClientFullId, Error as SndError};
 use unwrap::unwrap;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     unwrap!(safe_core::utils::logging::init(true));
 
     let mut secret_0 = String::new();
@@ -62,7 +63,9 @@ fn main() {
             secret_1.as_str(),
             client_id,
             || (),
-        ) {
+        )
+        .await
+        {
             Ok(_) => (),
             Err(AuthError::CoreError(CoreError::DataError(SndError::LoginPacketExists))) => {
                 println!(
@@ -82,7 +85,7 @@ fn main() {
         {
             println!("\nTrying to log into the created account using supplied credentials...");
 
-            let _ = unwrap!(Authenticator::login(secret_0, secret_1, || ()));
+            let _ = unwrap!(Authenticator::login(secret_0, secret_1, || ()).await);
             println!("Account login successful!");
         }
     }
@@ -105,7 +108,7 @@ fn main() {
         // Log into the created account.
         {
             println!("\nTrying to log in...");
-            match Authenticator::login(secret_0, secret_1, || ()) {
+            match Authenticator::login(secret_0, secret_1, || ()).await {
                 Ok(_) => {
                     println!("Account login successful!");
                     break;

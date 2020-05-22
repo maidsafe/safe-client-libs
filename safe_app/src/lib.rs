@@ -57,36 +57,32 @@ pub mod errors;
 mod tests;
 
 use bincode::deserialize;
-use futures::channel::{mpsc as futures_mpsc, mpsc::UnboundedSender};
-use futures::future::FutureExt;
+use futures::{
+    channel::{mpsc as futures_mpsc, mpsc::UnboundedSender},
+    future::FutureExt,
+    Future,
+};
 
-use futures::Future;
-
-use safe_core::core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry};
-use safe_core::crypto::shared_secretbox;
-use safe_core::ipc::{AuthGranted, BootstrapConfig};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::NetworkEvent;
-use std::collections::HashMap;
+use safe_core::{
+    core_structs::{access_container_enc_key, AccessContInfo, AccessContainerEntry},
+    crypto::shared_secretbox,
+    ipc::{AuthGranted, BootstrapConfig},
+    NetworkEvent,
+};
+use std::{collections::HashMap, pin::Pin};
 
-use std::pin::Pin;
-
-macro_rules! try_tx {
-    ($result:expr, $tx:ident) => {
-        match $result {
-            Ok(res) => res,
-            Err(e) => return unwrap!($tx.send(Err(AppError::from(e)))),
-        }
-    };
-}
-
-type AppFuture<T> = dyn Future<Output = Result<T, AppError>>;
+/// Network observer for diconnection notifications
 type AppNetworkDisconnectFuture = Pin<Box<dyn Future<Output = Result<(), ()>>>>;
+
 /// Handle to an application instance.
 pub struct App {
+    /// Client to perform the operations against the network
     pub client: AppClient,
+    /// Application context, i.e. registered or unregistered app
     pub context: AppContext,
+    /// Network disconnection events observer
     pub network_observer: AppNetworkDisconnectFuture,
 }
 
@@ -181,13 +177,13 @@ impl App {
 
         let (_net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
-        let client = AppClient::from_keys_with_hook(
+        let client = futures::executor::block_on(AppClient::from_keys_with_hook(
             app_keys,
             owner_key,
             _net_tx,
             bootstrap_config,
             connection_manager_wrapper_fn,
-        )?;
+        ))?;
 
         let context = AppContext::registered(app_id, enc_key, access_container_info);
 

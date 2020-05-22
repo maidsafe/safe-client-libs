@@ -10,12 +10,10 @@
 //! Testing Safecoin operations from the apps point of view.
 
 use crate::test_utils::{create_app, create_app_by_req, create_random_auth_req};
-use crate::{run, AppError};
-use futures::Future;
+use crate::AppError;
 use safe_core::{Client, CoreError};
 use safe_nd::{AppPermissions, Coins, Error, XorName};
 use std::str::FromStr;
-use unwrap::unwrap;
 
 // Apps should not be able to request the coin balance if they don't have
 // explicit permissions.
@@ -24,8 +22,8 @@ use unwrap::unwrap;
 // 3. Try to get the coin balance from the app. This request must fail.
 // 4. Try to transfer coins from balance A to some other random coin balance B. This request must fail.
 // 5. Try to get an existing transaction from the app. This request must fail.
-#[test]
-fn coin_app_deny_permissions() {
+#[tokio::test]
+async fn coin_app_deny_permissions() -> Result<(), AppError> {
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_coins: false,
@@ -33,43 +31,34 @@ fn coin_app_deny_permissions() {
         get_balance: false,
     };
 
-    let app = unwrap!(create_app_by_req(&app_auth_req));
+    let app = create_app_by_req(&app_auth_req).await?;
 
-    unwrap!(run(&app, |client, _app_context| {
-        let c2 = client.clone();
+    let client = app.client;
 
-        client
-            .get_balance(None)
-            .then(move |res| {
-                match res {
-                    Err(CoreError::DataError(Error::AccessDenied)) => (),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
+    match client.get_balance(None).await {
+        Err(CoreError::DataError(Error::AccessDenied)) => (),
+        res => panic!("Unexpected result: {:?}", res),
+    }
 
-                c2.transfer_coins(None, rand::random(), unwrap!(Coins::from_str("1.0")), None)
-            })
-            .then(move |res| {
-                match res {
-                    Err(CoreError::DataError(Error::AccessDenied)) => (),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
-                Ok::<_, AppError>(())
-            })
-    }));
+    match client
+        .transfer_coins(None, rand::random(), Coins::from_str("1.0")?, None)
+        .await
+    {
+        Err(CoreError::DataError(Error::AccessDenied)) => (),
+        res => panic!("Unexpected result: {:?}", res),
+    }
+    Ok(())
 }
 
 // 1. Create a user account with the default coin balance.
 // 2. Create an app B and authorise it with a permission to access the coin balance.
 // 3. GetBalance, TransferBalance, and GetTransaction requests should succeed.
-#[test]
-fn coin_app_allow_permissions() {
+#[tokio::test]
+async fn coin_app_allow_permissions() -> Result<(), AppError> {
     // Create a recipient app
-    let app = create_app();
-
-    let coin_balance2 = unwrap!(run(&app, |client, _app_context| {
-        let owner_key = client.owner_key();
-        Ok(XorName::from(owner_key))
-    }));
+    let app = create_app().await;
+    let client = app.client;
+    let coin_balance = XorName::from(client.owner_key());
 
     // Create an app that can access and transfer coins from the owner's coin balance.
     let mut app_auth_req = create_random_auth_req();
@@ -79,37 +68,20 @@ fn coin_app_allow_permissions() {
         get_balance: true,
     };
 
-    let app = unwrap!(create_app_by_req(&app_auth_req));
+    let _app = create_app_by_req(&app_auth_req).await?;
 
     // Test the basic coin operations.
-    unwrap!(run(&app, move |client, _app_context| {
-        let c2 = client.clone();
+    let _ = client.get_balance(None).await?;
 
-        client
-            .get_balance(None)
-            .then(move |res| {
-                match res {
-                    Ok(balance) => println!("{:?}", balance),
-                    res => panic!("Unexpected result: {:?}", res),
-                }
-
-                c2.transfer_coins(
-                    None,
-                    coin_balance2,
-                    unwrap!(Coins::from_str("1.0")),
-                    Some(1),
-                )
-            })
-            .then(move |res| {
-                match res {
-                    Ok(transaction) => {
-                        assert_eq!(transaction.id, 1);
-                        assert_eq!(transaction.amount, unwrap!(Coins::from_str("1.0")));
-                    }
-                    res => panic!("Unexpected result: {:?}", res),
-                }
-
-                Ok::<_, AppError>(())
-            })
-    }));
+    match client
+        .transfer_coins(None, coin_balance, Coins::from_str("1.0")?, Some(1))
+        .await
+    {
+        Ok(transaction) => {
+            assert_eq!(transaction.id, 1);
+            assert_eq!(transaction.amount, Coins::from_str("1.0")?);
+        }
+        res => panic!("Unexpected result: {:?}", res),
+    }
+    Ok(())
 }

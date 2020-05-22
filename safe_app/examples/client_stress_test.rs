@@ -22,15 +22,13 @@
 )]
 
 use clap::{value_t, App, Arg};
-use futures::Future;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use safe_app::{Client, CoreError, CoreFuture, FutureExt, PubImmutableData};
+use safe_app::{AppError, Client, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
+use safe_core::btree_map;
 use safe_core::utils;
-use safe_core::{btree_map, ok};
 use safe_nd::{ClientFullId, IData, PublicKey, SeqMutableData, XorName};
-use std::sync::mpsc;
 use unwrap::unwrap;
 
 fn random_mutable_data<R: Rng>(
@@ -52,7 +50,8 @@ enum Data {
     Immutable(IData),
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     unwrap!(safe_core::utils::logging::init(true));
 
     let matches = App::new("client_stress_test")
@@ -139,7 +138,7 @@ fn main() {
         println!("\t================");
         println!("\nTrying to login to an account ...");
 
-        unwrap!(Authenticator::login(locator, password, || ()))
+        unwrap!(Authenticator::login(locator, password, || ()).await)
     } else {
         println!("\n\tAccount Creation");
         println!("\t================");
@@ -148,12 +147,15 @@ fn main() {
         // FIXME - pass the secret key of the wallet as a parameter
         let client_id = ClientFullId::new_bls(&mut rng);
 
-        let auth = unwrap!(Authenticator::create_client_with_acc(
-            locator.as_str(),
-            password.as_str(),
-            client_id,
-            || ()
-        ));
+        let auth = unwrap!(
+            Authenticator::create_client_with_acc(
+                locator.as_str(),
+                password.as_str(),
+                client_id,
+                || ()
+            )
+            .await
+        );
 
         println!("Account created!");
 
@@ -172,17 +174,7 @@ fn main() {
         stored_data.push(Data::Immutable(data.into()));
     }
 
-    let (tx, rx) = mpsc::channel();
-
-    unwrap!(auth.send(move |client| {
-        let public_key = client.public_key();
-
-        unwrap!(tx.send(public_key));
-
-        Ok(()).into()
-    }));
-
-    let public_key = unwrap!(rx.recv());
+    let public_key = auth.client.public_key();
 
     for _ in immutable_data_count..(immutable_data_count + mutable_data_count) {
         // Construct data
@@ -201,116 +193,66 @@ fn main() {
     println!("\n\t{}\n\t{}", message, underline);
 
     for (i, data) in stored_data.into_iter().enumerate() {
-        let (tx, rx) = mpsc::channel();
-
-        unwrap!(auth.send(move |client| {
-            let c2 = client.clone();
-            let c3 = client.clone();
-
-            match data {
-                Data::Immutable(data) => {
-                    let fut = if get_only {
-                        futures::finished(data).into_box()
-                    } else {
-                        // Put the data to the network.
-                        put_idata(&c2, data, i)
-                    };
-
-                    fut.and_then(move |data| {
-                        // Get all the chunks again.
-                        c3.get_idata(*data.address()).map(move |retrieved_data| {
-                            println!("Retrieved chunk #{}: {:?}", i, data.name());
-                            assert_eq!(data, retrieved_data);
-                            Ok(())
-                        })
-                    })
-                    .into_box()
-                }
-                Data::Mutable(data) => {
-                    let fut = if get_only {
-                        futures::finished(data).into_box()
-                    } else {
-                        // Put the data to the network.
-                        put_mdata(&c2, data, i)
-                    };
-
-                    // TODO(nbaksalyar): stress test mutate_mdata and get_mdata_value here
-                    fut.and_then(move |data| {
-                        // Get all the chunks again.
-                        c3.get_seq_mdata_shell(*data.name(), data.tag()).map(
-                            move |retrieved_data| {
-                                assert_eq!(data, retrieved_data);
-                                println!("Retrieved chunk #{}: {:?}", i, data.name());
-                                Ok(())
-                            },
-                        )
-                    })
-                    .into_box()
-                }
+        let client = auth.client.clone();
+        match data {
+            Data::Immutable(data) => {
+                if !get_only {
+                    // Put the data to the network.
+                    put_idata(&client, data.clone(), i).await;
+                };
+                // Get all the chunks again.
+                let retrieved_data = unwrap!(client.get_idata(*data.address()).await);
+                println!("Retrieved chunk #{}: {:?}", i, data.name());
+                assert_eq!(data, retrieved_data);
             }
-            .map(move |_: Result<(), CoreError>| unwrap!(tx.send(())))
-            .map_err(|e| println!("Error: {:?}", e))
-            .into_box()
-            .into()
-        }));
+            Data::Mutable(data) => {
+                if !get_only {
+                    // Put the data to the network.
+                    unwrap!(put_mdata(&client, data.clone(), i).await);
+                };
 
-        unwrap!(rx.recv());
+                // TODO(nbaksalyar): stress test mutate_mdata and get_mdata_value here
+                // Get all the chunks again.
+                let retrieved_data = unwrap!(
+                    client
+                        .get_seq_mdata_shell(data.name().clone(), data.tag())
+                        .await
+                );
+                assert_eq!(data, retrieved_data);
+                println!("Retrieved chunk #{}: {:?}", i, data.name());
+            }
+        }
     }
 
     println!("Done");
 }
 
-fn put_idata(client: &AuthClient, data: IData, i: usize) -> Box<CoreFuture<IData>> {
-    let c2 = client.clone();
+async fn put_idata(client: &AuthClient, data: IData, i: usize) {
+    unwrap!(client.put_idata(data.clone()).await);
+    println!("Put PubImmutableData chunk #{}: {:?}", i, data.name());
 
-    client
-        .put_idata(data.clone())
-        .and_then(move |_| {
-            println!("Put PubImmutableData chunk #{}: {:?}", i, data.name());
-
-            // Get the data
-            c2.get_idata(*data.address()).map(move |retrieved_data| {
-                assert_eq!(data, retrieved_data);
-                retrieved_data
-            })
-        })
-        .and_then(move |retrieved_data| {
-            println!(
-                "Retrieved PubImmutableData chunk #{}: {:?}",
-                i,
-                retrieved_data.name()
-            );
-            Ok(retrieved_data)
-        })
-        .into_box()
+    // Get the data
+    let retrieved_data = unwrap!(client.get_idata(*data.address()).await);
+    assert_eq!(data, retrieved_data);
+    println!(
+        "Retrieved PubImmutableData chunk #{}: {:?}",
+        i,
+        retrieved_data.name()
+    );
 }
 
-fn put_mdata(
-    client: &AuthClient,
-    data: SeqMutableData,
-    i: usize,
-) -> Box<CoreFuture<SeqMutableData>> {
-    let c2 = client.clone();
+async fn put_mdata(client: &AuthClient, data: SeqMutableData, i: usize) -> Result<(), AppError> {
+    client.put_seq_mutable_data(data.clone()).await?;
+    println!("Put MutableData chunk #{}: {:?}", i, data.name());
 
-    client
-        .put_seq_mutable_data(data.clone())
-        .and_then(move |_| {
-            println!("Put MutableData chunk #{}: {:?}", i, data.name());
+    // Get the data.
+    let retrieved_data = client.get_seq_mdata_shell(*data.name(), data.tag()).await?;
+    assert_eq!(data, retrieved_data);
+    println!(
+        "Retrieved MutableData chunk #{}: {:?}",
+        i,
+        retrieved_data.name()
+    );
 
-            // Get the data.
-            c2.get_seq_mdata_shell(*data.name(), data.tag())
-                .map(move |retrieved_data| {
-                    assert_eq!(data, retrieved_data);
-                    retrieved_data
-                })
-        })
-        .and_then(move |retrieved_data| {
-            println!(
-                "Retrieved MutableData chunk #{}: {:?}",
-                i,
-                retrieved_data.name()
-            );
-            Ok(retrieved_data)
-        })
-        .into_box()
+    Ok(())
 }

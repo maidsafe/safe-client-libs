@@ -7,9 +7,9 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::utils::{corrupt_container, create_containers_req};
-use crate::assert_match;
 use crate::{
     app_auth::{app_state, AppState},
+    assert_match,
     client::AuthClient,
     config::{self, get_app_revocation_queue, push_to_app_revocation_queue},
     errors::AuthError,
@@ -22,9 +22,8 @@ use crate::{
     {access_container, Authenticator},
 };
 use log::debug;
-use safe_core::btree_set;
 use safe_core::{
-    app_container_name,
+    app_container_name, btree_set,
     client::AuthActions,
     core_structs::AccessContainerEntry,
     ipc::req::container_perms_into_permission_set,
@@ -34,6 +33,7 @@ use safe_core::{
 use safe_nd::{AppPermissions, Error as SndError, MDataAddress, MDataSeqEntryActions};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
+use tokio::task::LocalSet;
 
 use unwrap::unwrap;
 
@@ -42,13 +42,10 @@ async fn verify_app_is_revoked(
     app_id: String,
     prev_ac_entry: AccessContainerEntry,
 ) -> Result<(), AuthError> {
-    let c0 = client.clone();
-    let c1 = client.clone();
-
     let (_, apps) = config::list_apps(client).await?;
 
-    let (auth_keys, _) = c0.list_auth_keys_and_version().await?;
-    let state = app_state(&c0, &apps, &app_id).await?;
+    let (auth_keys, _) = client.list_auth_keys_and_version().await?;
+    let state = app_state(&client, &apps, &app_id).await?;
 
     let app_hash = sha3_256(app_id.as_bytes());
     let app_key = unwrap!(apps.get(&app_hash)).keys.public_key();
@@ -63,7 +60,7 @@ async fn verify_app_is_revoked(
 
     for (_, (mdata_info, _)) in prev_ac_entry.into_iter() {
         // Verify the app has no permissions in the containers.
-        let res = c1
+        let res = client
             .list_mdata_user_permissions(*mdata_info.address(), app_key)
             .await;
         assert_match!(res, Err(CoreError::DataError(SndError::NoSuchKey)));
@@ -77,16 +74,12 @@ async fn verify_app_is_authenticated(
     app_id: String,
     expected_permissions: AppPermissions,
 ) -> Result<(), AuthError> {
-    let c0 = client.clone();
-    let c1 = client.clone();
-    let c2 = client.clone();
-
     let (_, mut apps) = config::list_apps(client).await?;
 
     let app_hash = sha3_256(app_id.as_bytes());
     let app_keys = unwrap!(apps.remove(&app_hash)).keys;
 
-    let (auth_keys, _) = c0.list_auth_keys_and_version().await?;
+    let (auth_keys, _) = client.list_auth_keys_and_version().await?;
     let app_key = app_keys.public_key();
 
     // Verify the app is authenticated with the expected permissions.
@@ -96,7 +89,7 @@ async fn verify_app_is_authenticated(
     }
 
     // Fetch the access container entry
-    let (_, entry) = access_container::fetch_entry(c1, app_id, app_keys).await?;
+    let (_, entry) = access_container::fetch_entry(client.clone(), app_id, app_keys).await?;
 
     let user = app_key;
     let ac_entry = unwrap!(entry);
@@ -104,13 +97,13 @@ async fn verify_app_is_authenticated(
     for (_, (mdata_info, permissions)) in ac_entry.into_iter() {
         // Verify the app has the permissions set according to the access container.
         let expected_perms = container_perms_into_permission_set(&permissions);
-        let perms = c2
+        let perms = client
             .list_mdata_user_permissions(*mdata_info.address(), user)
             .await?;
         assert_eq!(perms, expected_perms);
 
         // Verify the app can decrypt the content of the containers.
-        let entries = c2
+        let entries = client
             .list_seq_mdata_entries(mdata_info.name(), mdata_info.type_tag())
             .await?;
 
