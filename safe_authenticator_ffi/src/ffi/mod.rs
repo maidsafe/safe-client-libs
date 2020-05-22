@@ -203,22 +203,22 @@ mod tests {
     use Authenticator;
 
     // Test mock detection when compiled against mock-routing.
-    #[test]
+    #[tokio::test]
     #[cfg(feature = "mock-network")]
     fn test_mock_build() {
         assert_eq!(auth_is_mock(), true);
     }
 
     // Test mock detection when not compiled against mock-routing.
-    #[test]
     #[cfg(not(feature = "mock-network"))]
+    #[tokio::test]
     fn test_not_mock_build() {
         assert_eq!(auth_is_mock(), false);
     }
 
     // Test creating an account and logging in.
     #[test]
-    fn create_account_and_login() {
+    fn create_account_and_login() -> Result<(), AuthError> {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
@@ -255,13 +255,15 @@ mod tests {
             // panicking we just log them.
             trace!("Disconnect occurred")
         }
+
+        Ok(())
     }
 
     // Test disconnection and reconnection with the authenticator.
     #[cfg(all(test, feature = "mock-network"))]
     #[ignore] // FIXME: ignoring this test for now until we figure out the disconnection semantics for Phase 1
     #[test]
-    fn network_status_callback() {
+    fn network_status_callback() -> Result<(), AuthError> {
         use ffi_utils::test_utils::{
             call_0, call_1_with_custom, send_via_user_data_custom, UserData,
         };
@@ -292,12 +294,9 @@ mod tests {
                 }))
             };
 
-            unsafe {
-                unwrap!((*auth).send(move |client| {
-                    client.simulate_network_disconnect();
-                    None
-                }));
-            }
+            let client = &auth.client;
+
+            client.simulate_network_disconnect()?;
 
             // disconnect_cb should be Called.
             unwrap!(rx.recv_timeout(Duration::from_secs(15)));
@@ -336,8 +335,8 @@ mod tests {
     }
 
     // Test account usage statistics before and after a mutation.
-    #[test]
-    fn account_info() {
+    #[tokio::test]
+    async fn account_info() -> Result<(), AuthError> {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
@@ -351,24 +350,19 @@ mod tests {
             )))
         };
 
-        let orig_balance: Coins = unwrap!(run(unsafe { &*auth }, |client| {
-            client.get_balance(None).map_err(AuthError::from)
-        }));
+        let client = (*auth).client;
+        client.get_balance(None).await.map_err(AuthError::from)?;
+        client
+            .put_idata(PubImmutableData::new(vec![1, 2, 3]))
+            .await?;
 
-        unsafe {
-            unwrap!((*auth).send(move |client| client
-                .put_idata(PubImmutableData::new(vec![1, 2, 3]))
-                .map_err(move |_| ())
-                .into_box()
-                .into()));
-        }
+        let new_balance = client.get_balance(None).await.map_err(AuthError::from)?;
 
-        let new_balance: Coins = unwrap!(run(unsafe { &*auth }, |client| {
-            client.get_balance(None).map_err(AuthError::from)
-        }));
         assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
 
         unsafe { auth_free(auth) };
+
+        Ok(())
     }
 
     extern "C" fn disconnect_cb(_user_data: *mut c_void) {

@@ -26,9 +26,9 @@ use std::collections::BTreeMap;
 use unwrap::unwrap;
 
 // Test making an empty request to share mutable data.
-#[test]
-fn share_zero_mdatas() {
-    let authenticator = test_utils::create_account_and_login();
+#[tokio::test]
+async fn share_zero_mdatas() -> Result<(), AuthError> {
+    let authenticator = test_utils::create_account_and_login().await;
 
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
@@ -50,19 +50,19 @@ fn share_zero_mdatas() {
         ) => {
             assert_eq!(mdata.len(), 0);
             assert_eq!(metadatas.len(), 0);
+            Ok(())
         }
         _ => panic!("Unexpected: {:?}", decoded),
-    };
+    }
 }
 
 // Test making a request to share mutable data with barebones mdata.
-#[test]
-fn share_some_mdatas() {
-    let authenticator = test_utils::create_account_and_login();
+#[tokio::test]
+async fn share_some_mdatas() -> Result<(), AuthError> {
+    let authenticator = test_utils::create_account_and_login().await;
 
-    let user = unwrap!(run(&authenticator, move |client| {
-        Ok(client.public_key())
-    }));
+    let client = &authenticator.client;
+    let user = client.public_key();
 
     const NUM_MDATAS: usize = 3;
 
@@ -76,11 +76,10 @@ fn share_some_mdatas() {
             SeqMutableData::new_with_data(name, tag, Default::default(), Default::default(), user)
         };
 
-        unwrap!(run(&authenticator, move |client| {
-            client
-                .put_seq_mutable_data(mdata)
-                .map_err(AuthError::CoreError)
-        }));
+        client
+            .put_seq_mutable_data(mdata)
+            .await
+            .map_err(AuthError::CoreError)?;
 
         mdatas.push(ShareMData {
             type_tag: tag,
@@ -110,17 +109,18 @@ fn share_some_mdatas() {
         ) => {
             assert_eq!(mdata, mdatas);
             assert_eq!(received_metadatas, metadatas);
+            Ok(())
         }
         _ => panic!("Unexpected: {:?}", decoded),
-    };
+    }
 }
 
 // Test making a request to share invalid mutable data.
-#[test]
-fn share_invalid_mdatas() {
+#[tokio::test]
+async fn share_invalid_mdatas() -> Result<(), AuthError> {
     test_utils::init_log();
 
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = test_utils::create_account_and_login().await;
 
     const NUM_MDATAS: usize = 3;
     let mut share_mdatas = Vec::new();
@@ -146,15 +146,15 @@ fn share_invalid_mdatas() {
     let encoded_msg = unwrap!(ipc::encode_msg(&msg));
 
     match auth_decode_ipc_msg_helper(&authenticator, &encoded_msg) {
-        Err((ERR_NO_SUCH_DATA, None)) => (),
+        Err((ERR_NO_SUCH_DATA, None)) => Ok(()),
         x => panic!("Unexpected result: {:?}", x),
     }
 }
 
 // Test making a request to share mdata with valid metadata.
-#[test]
-fn share_some_mdatas_with_valid_metadata() {
-    let authenticator = test_utils::create_account_and_login();
+#[tokio::test]
+async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
+    let authenticator = test_utils::create_account_and_login().await;
 
     let app_id = test_utils::rand_app();
     let auth_req = AuthReq {
@@ -164,7 +164,7 @@ fn share_some_mdatas_with_valid_metadata() {
         containers: Default::default(),
     };
 
-    let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
+    let app_auth = test_utils::register_app(&authenticator, &auth_req).await?;
     let app_key = app_auth.app_keys.public_key();
 
     let user = unwrap!(run(&authenticator, move |client| {
@@ -257,26 +257,26 @@ fn share_some_mdatas_with_valid_metadata() {
         let permissions = unwrap!(mdata.user_permissions(app_key));
         assert_eq!(permissions, &perms);
     }
+
+    Ok(())
 }
 
 // Test making a request to share mdata with invalid owners.
 // FIXME: Fix this test when we implement multiple owners
-#[test]
-fn share_some_mdatas_with_ownership_error() {
-    let authenticator = test_utils::create_account_and_login();
+#[tokio::test]
+async fn share_some_mdatas_with_ownership_error() -> Result<(), AuthError> {
+    let authenticator = test_utils::create_account_and_login().await;
 
-    let user = unwrap!(run(&authenticator, move |client| {
-        Ok(client.public_key())
-    }));
+    let client = &authenticator.client;
+    let user = client.public_key();
 
     let name = rand::random();
     let mdata = SeqMutableData::new_with_data(name, 0, btree_map![], btree_map![], user);
 
-    unwrap!(run(&authenticator, move |client| {
-        client
-            .put_seq_mutable_data(mdata)
-            .map_err(AuthError::CoreError)
-    }));
+    client
+        .put_seq_mutable_data(mdata)
+        .await
+        .map_err(AuthError::CoreError)?;
 
     let share_md = ShareMData {
         type_tag: 0,
@@ -319,9 +319,9 @@ fn share_some_mdatas_with_ownership_error() {
         Ok(IpcMsg::Resp {
             response: IpcResp::ShareMData(Err(IpcError::ShareMDataDenied)),
             ..
-        }) => (),
+        }) => Ok(()),
         x => panic!("Unexpected {:?}", x),
-    };
+    }
 }
 
 // Test cases for:
@@ -339,14 +339,13 @@ fn share_some_mdatas_with_ownership_error() {
 // c. If an app is listed in the MD permissions list, but is not listed in the registered apps list
 // in Authenticator, then test that the `app_id` and `name` fields are null, but the public sign key
 // and the list of permissions are correct.
-#[test]
-fn auth_apps_accessing_mdatas() {
+#[tokio::test]
+async fn auth_apps_accessing_mdatas() -> Result<(), AuthError> {
     test_utils::init_log();
-    let authenticator = test_utils::create_account_and_login();
+    let authenticator = test_utils::create_account_and_login().await;
 
-    let user = unwrap!(run(&authenticator, move |client| {
-        Ok(client.public_key())
-    }));
+    let client = &authenticator.client;
+    let user = client.public_key();
 
     const NUM_MDATAS: usize = 3;
     const NUM_MDATAS_NO_META: usize = 3;
@@ -394,11 +393,10 @@ fn auth_apps_accessing_mdatas() {
             )
         };
 
-        unwrap!(run(&authenticator, move |client| {
-            client
-                .put_seq_mutable_data(mdata)
-                .map_err(AuthError::CoreError)
-        }));
+        client
+            .put_seq_mutable_data(mdata)
+            .await
+            .map_err(AuthError::CoreError)?;
 
         mdatas.push(ShareMData {
             type_tag: tag,
@@ -421,7 +419,7 @@ fn auth_apps_accessing_mdatas() {
             containers: Default::default(),
         };
 
-        let app_auth = unwrap!(test_utils::register_app(&authenticator, &auth_req));
+        let app_auth = test_utils::register_app(&authenticator, &auth_req).await?;
         let app_key = app_auth.app_keys.public_key();
 
         // Share the Mdatas with the app.
@@ -512,4 +510,6 @@ fn auth_apps_accessing_mdatas() {
         assert_eq!(access.name, None);
         assert_eq!(access.app_id, None);
     }
+
+    Ok(())
 }
