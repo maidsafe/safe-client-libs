@@ -254,8 +254,8 @@ mod tests {
     // Negative test - non-existing app:
     // 1. Try to call `auth_rm_revoked_app` with a random, non-existing app_id
     // 2. Verify that `IpcError::UnknownApp` is returned
-    #[test]
-    fn rm_revoked_nonexisting() {
+    #[tokio::test]
+    async fn rm_revoked_nonexisting() -> Result<(),AuthError> {
         let auth = create_account_and_login();
         let app_info = rand_app();
         let app_info_ffi = unwrap!(app_info.into_repr_c());
@@ -275,8 +275,8 @@ mod tests {
     // 2. Try to call `auth_rm_revoked_app` with an app id corresponding to the app A
     // 3. Verify that an error is returned (app is not revoked)
     // 4. Verify that `app_state` for the app A is still `AppState::Authenticated`
-    #[test]
-    fn rm_revoked_authorised() {
+    #[tokio::test]
+    async fn rm_revoked_authorised() -> Result<(),AuthError> {
         let auth = create_account_and_login();
         let app_info = rand_app();
         let app_id = app_info.id.clone();
@@ -330,9 +330,9 @@ mod tests {
     // 11. Verify that the app A2 keys are different from the set of the app A keys
     // (i.e. the app keys should have been regenerated rather than reused).
     // 12. Verify that the app A2 container does not contain the file created at step 2.
-    #[test]
-    fn rm_revoked_complete() {
-        let auth = create_account_and_login();
+    #[tokio::test]
+    async fn rm_revoked_complete() -> Result<(),AuthError> {
+        let auth = create_account_and_login().await;
         let app_info = rand_app();
         let app_id = app_info.id.clone();
         let app_id2 = app_id.clone();
@@ -341,7 +341,7 @@ mod tests {
         let app_id5 = app_id.clone();
 
         // Authorise app A with `app_container` set to `true`.
-        let auth_granted1 = unwrap!(register_app(
+        let auth_granted1 = register_app(
             &auth,
             &AuthReq {
                 app: app_info.clone(),
@@ -349,34 +349,33 @@ mod tests {
                 app_permissions: Default::default(),
                 containers: HashMap::new(),
             },
-        ));
+        ).await?;
 
+        let client = &auth.client;
         // Put a file with predefined content into app A's own container.
-        let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id3))) });
-        unwrap!(create_file(
+        let mdata_info = fetch(client, &app_id3).await?.unwrap();
+        create_file(
             &auth,
             mdata_info.clone(),
             "test",
             vec![1; 10],
             true
-        ));
+        ).await?;
 
         // Revoke app A
         {
-            unwrap!(run(&auth, move |client| revoke_app(client, &app_id2)))
+            revoke_app(client, &app_id2).await?;
         }
 
         // Verify that app A is still listed in the authenticator config.
-        assert!(get_app_or_err(&auth, &app_id).is_ok());
+        assert!(get_app_or_err(&auth, &app_id).await.is_ok());
 
         // Verify that the app A container is still accessible.
         {
-            unwrap!(run(&auth, move |client| {
-                fetch(client, &app_id4).and_then(move |res| match res {
-                    Some(_) => Ok(()),
+                match fetch(client, &app_id4).await?  {
+                    Some(_) => (),
                     None => panic!("App container not accessible"),
-                })
-            }))
+                }
         }
 
         // Call `auth_rm_revoked_app` with an app id corresponding to app A.
@@ -390,7 +389,7 @@ mod tests {
             ),))
         };
         // Verify that the app A is not listed anywhere in the authenticator config.
-        let res = get_app_or_err(&auth, &app_id);
+        let res = get_app_or_err(&auth, &app_id).await;
         match res {
             Err(AuthError::IpcError(IpcError::UnknownApp)) => (),
             Err(x) => panic!("Unexpected {:?}", x),
@@ -399,14 +398,14 @@ mod tests {
 
         // Verify that the app A's container entry corresponding to the file created
         // at step 2 is emptied out/removed.
-        let res = fetch_file(&auth, mdata_info, "test");
+        let res = fetch_file(&auth, mdata_info, "test").await;
         match res {
             Err(_) => (),
             Ok(_) => panic!("File not removed"),
         }
 
         // Try to authorise app A again as app A2 (app_container set to `true`)
-        let auth_granted2 = unwrap!(register_app(
+        let auth_granted2 = register_app(
             &auth,
             &AuthReq {
                 app: app_info,
@@ -414,21 +413,23 @@ mod tests {
                 app_permissions: Default::default(),
                 containers: HashMap::new(),
             },
-        ));
+        ).await?;
 
         // Verify that the app A2 is listed in the authenticator config.
-        assert!(get_app_or_err(&auth, &app_id).is_ok());
+        assert!(get_app_or_err(&auth, &app_id).await.is_ok());
 
         // Verify that the app A2 keys are different from the set of the app A keys
         // (i.e. the app keys should have been regenerated rather than reused).
         assert_ne!(auth_granted1.app_keys, auth_granted2.app_keys);
 
         // Verify that the app A2 container does not contain the file created at step 2.
-        let mdata_info = unwrap!({ unwrap!(run(&auth, move |client| fetch(client, &app_id5))) });
-        let res = fetch_file(&auth, mdata_info, "test");
+        let mdata_info = fetch(client, &app_id5).await?.unwrap();
+        let res = fetch_file(&auth, mdata_info, "test").await;
         match res {
             Err(_) => (),
             Ok(_) => panic!("File not removed"),
         }
+
+        Ok(())
     }
 }
