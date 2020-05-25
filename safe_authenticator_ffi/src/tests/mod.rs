@@ -21,13 +21,13 @@ use crate::ffi::ipc::{
 use crate::test_utils::{auth_decode_ipc_msg_helper, err_cb, unregistered_cb};
 use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{ReprC, StringError};
-use futures::Future;
+
+use safe_authenticator::app_container;
 use safe_authenticator::config;
 use safe_authenticator::errors::AuthError;
 use safe_authenticator::test_utils::{
     self, create_account_and_login, rand_app, register_app, ChannelType,
 };
-use safe_authenticator::{app_container, run};
 use safe_core::btree_set;
 use safe_core::config_handler::Config;
 use safe_core::ffi::error_codes::ERR_NO_SUCH_CONTAINER;
@@ -43,9 +43,10 @@ use tiny_keccak::sha3_256;
 use unwrap::unwrap;
 
 // Test app authentication.
-#[test]
-fn app_authentication() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn app_authentication() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
+    let client = &authenticator.client;
 
     // Try to send IpcResp::Auth - it should fail
     let msg = IpcMsg::Revoked {
@@ -134,7 +135,7 @@ fn app_authentication() {
     }
 
     let mut access_container =
-        test_utils::access_container(&authenticator, app_id.clone(), auth_granted.clone());
+        test_utils::access_container(&authenticator, app_id.clone(), auth_granted.clone()).await?;
     assert_eq!(access_container.len(), 3);
 
     let app_keys = auth_granted.app_keys;
@@ -150,9 +151,7 @@ fn app_authentication() {
     let (app_dir_info, _) = unwrap!(access_container.remove(&app_container_name(&app_id)));
 
     // Check the app info is present in the config file.
-    let apps = unwrap!(run(&authenticator, |client| {
-        config::list_apps(client).map(|(_, apps)| apps)
-    }));
+    let (_, apps) = config::list_apps(client).await?;
 
     let app_config_key = sha3_256(app_id.as_bytes());
     let app_info = unwrap!(apps.get(&app_config_key));
@@ -161,30 +160,26 @@ fn app_authentication() {
     assert_eq!(app_info.keys, app_keys);
 
     // Check the app dir is present in the access container's authenticator entry.
-    let received_app_dir_info = unwrap!(run(&authenticator, move |client| {
-        app_container::fetch(client, &app_id).and_then(move |app_dir| match app_dir {
-            Some(app_dir) => Ok(app_dir),
-            None => panic!("App directory not present"),
-        })
-    }));
+    let app_dir = app_container::fetch(client, &app_id).await?;
+    let received_app_dir_info = match app_dir {
+        Some(app_dir) => app_dir,
+        None => panic!("App directory not present"),
+    };
 
     assert_eq!(received_app_dir_info, app_dir_info);
 
     // Check the app is authorised.
-    let auth_keys = unwrap!(run(&authenticator, |client| {
-        client
-            .list_auth_keys_and_version()
-            .map(|(keys, _)| keys)
-            .map_err(AuthError::from)
-    }));
+    let (keys, _) = client.list_auth_keys_and_version().await?;
 
-    assert!(auth_keys.contains_key(&app_pk));
+    assert!(keys.contains_key(&app_pk));
+
+    Ok(())
 }
 
 // Try to authenticate with invalid container names.
-#[test]
-fn invalid_container_authentication() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn invalid_container_authentication() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
     let req_id = ipc::gen_req_id();
     let app_exchange_info = rand_app();
 
@@ -223,9 +218,9 @@ fn invalid_container_authentication() {
         })
     };
     match result {
-        Err(error) if error == ERR_NO_SUCH_CONTAINER => (),
+        Err(error) if error == ERR_NO_SUCH_CONTAINER => Ok(()),
         x => panic!("Unexpected {:?}", x),
-    };
+    }
 }
 
 // Test unregistered client authentication.
@@ -234,8 +229,8 @@ fn invalid_container_authentication() {
 // Next we invoke encode_unregistered_resp and it must return the network
 // configuration.
 // Try the same thing again when logged in - it must pass.
-#[test]
-fn unregistered_authentication() {
+#[tokio::test]
+async fn unregistered_authentication() -> Result<(), AuthError> {
     // Try to send IpcReq::Auth - it should fail
     let msg = IpcMsg::Req {
         req_id: ipc::gen_req_id(),
@@ -300,7 +295,7 @@ fn unregistered_authentication() {
     assert_eq!(bootstrap_cfg, Config::new().quic_p2p.hard_coded_contacts);
 
     // Try to send IpcReq::Unregistered to logged in authenticator
-    let authenticator = create_account_and_login();
+    let authenticator = create_account_and_login().await;
 
     let (received_req_id, received_data) =
         match unwrap!(auth_decode_ipc_msg_helper(&authenticator, &encoded_msg)) {
@@ -316,14 +311,16 @@ fn unregistered_authentication() {
 
     assert_eq!(received_req_id, req_id);
     assert_eq!(received_data, test_data);
+
+    Ok(())
 }
 
 // Authenticate an app - it must pass.
 // Authenticate the same app again - it must return the correct response
 // with the same app details.
-#[test]
-fn authenticated_app_can_be_authenticated_again() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn authenticated_app_can_be_authenticated_again() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
 
     let auth_req = AuthReq {
         app: rand_app(),
@@ -382,12 +379,14 @@ fn authenticated_app_can_be_authenticated_again() {
         ) => (),
         x => panic!("Unexpected {:?}", x),
     };
+
+    Ok(())
 }
 
 // Create and serialize a containers request for a random app, make sure we get an error.
-#[test]
-fn containers_unknown_app() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn containers_unknown_app() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
 
     // Create IpcMsg::Req { req: IpcReq::Containers } for a random App (random id, name, vendor etc)
     let req_id = ipc::gen_req_id();
@@ -416,12 +415,14 @@ fn containers_unknown_app() {
         )) if code == ERR_UNKNOWN_APP => (),
         x => panic!("Unexpected {:?}", x),
     };
+
+    Ok(())
 }
 
 // Test making a containers access request.
-#[test]
-fn containers_access_request() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn containers_access_request() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
 
     // Create IpcMsg::AuthReq for a random App (random id, name, vendor etc), ask for app_container
     // and containers "documents with permission to insert", "videos with all the permissions
@@ -434,7 +435,7 @@ fn containers_access_request() {
     };
     let app_id = auth_req.app.id.clone();
 
-    let auth_granted = unwrap!(register_app(&authenticator, &auth_req));
+    let auth_granted = register_app(&authenticator, &auth_req).await?;
 
     // Give one Containers request to authenticator for the same app asking for "downloads with
     // permission to update only"
@@ -479,13 +480,16 @@ fn containers_access_request() {
     let _ = expected.insert("_downloads".to_owned(), btree_set![Permission::Update]);
 
     let app_pk = auth_granted.app_keys.public_key();
-    let access_container = test_utils::access_container(&authenticator, app_id, auth_granted);
+    let access_container =
+        test_utils::access_container(&authenticator, app_id, auth_granted).await?;
     test_utils::compare_access_container_entries(
         &authenticator,
         app_pk,
         access_container,
         expected,
     );
+
+    Ok(())
 }
 
 struct RegisteredAppId {
@@ -520,9 +524,9 @@ impl ReprC for RevokedAppId {
 // 2. Register two apps. There should be two registered apps, but no revoked apps.
 // 3. Revoke the first app. There should be one registered and one revoked app.
 // 4. Re-register the first app. There should be two registered apps again.
-#[test]
-fn lists_of_registered_and_revoked_apps() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn lists_of_registered_and_revoked_apps() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
 
     // Initially, there are no registered or revoked apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -554,8 +558,8 @@ fn lists_of_registered_and_revoked_apps() {
         containers: Default::default(),
     };
 
-    let _ = unwrap!(register_app(&authenticator, &auth_req1));
-    let _ = unwrap!(register_app(&authenticator, &auth_req2));
+    let _ = register_app(&authenticator, &auth_req1).await?;
+    let _ = register_app(&authenticator, &auth_req2).await?;
 
     // There are now two registered apps, but no revoked apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -599,7 +603,7 @@ fn lists_of_registered_and_revoked_apps() {
     assert_eq!(revoked.len(), 1);
 
     // Re-register the first app - now there must be 2 registered apps again
-    let _ = unwrap!(register_app(&authenticator, &auth_req1));
+    let _ = register_app(&authenticator, &auth_req1).await?;
 
     let registered: Vec<RegisteredAppId> = unsafe {
         unwrap!(call_vec(|ud, cb| auth_registered_apps(
@@ -613,12 +617,14 @@ fn lists_of_registered_and_revoked_apps() {
 
     assert_eq!(registered.len(), 2);
     assert_eq!(revoked.len(), 0);
+
+    Ok(())
 }
 
 // Test fetching of authenticated and registered apps.
-#[test]
-fn test_registered_apps() {
-    let authenticator = create_account_and_login();
+#[tokio::test]
+async fn test_registered_apps() -> Result<(), AuthError> {
+    let authenticator = create_account_and_login().await;
 
     // Permissions for App1
     let app1 = rand_app();
@@ -651,8 +657,8 @@ fn test_registered_apps() {
     };
 
     // Register both the apps.
-    let _ = unwrap!(register_app(&authenticator, &auth_req1));
-    let _ = unwrap!(register_app(&authenticator, &auth_req2));
+    let _ = register_app(&authenticator, &auth_req1).await?;
+    let _ = register_app(&authenticator, &auth_req2).await?;
 
     // There are now two registered apps.
     let registered: Vec<RegisteredAppId> = unsafe {
@@ -677,6 +683,8 @@ fn test_registered_apps() {
             assert_eq!(app.perms.perform_mutations, app2_perms.perform_mutations);
         }
     }
+
+    Ok(())
 }
 
 fn unregistered_decode_ipc_msg(msg: &str) -> ChannelType {

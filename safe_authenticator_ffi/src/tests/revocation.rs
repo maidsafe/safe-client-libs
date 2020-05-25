@@ -16,7 +16,7 @@ mod mock_routing {
         app_auth::{app_state, AppState},
         config,
         test_utils::{create_authenticator, rand_app, register_app, simulate_revocation_failure},
-        {run, Authenticator},
+        AuthError, Authenticator,
     };
     use safe_core::ipc::AuthReq;
     use unwrap::unwrap;
@@ -28,10 +28,10 @@ mod mock_routing {
     //    fail.
     // 3. Log in again and flush the revocation queue with no simulated failures.
     // 4. Verify both apps are successfully revoked.
-    #[test]
-    fn flushing_app_revocation_queue() {
+    #[tokio::test]
+    async fn flushing_app_revocation_queue() -> Result<(), AuthError> {
         // Create account.
-        let (auth, locator, password) = create_authenticator();
+        let (auth, locator, password) = create_authenticator().await;
 
         // Authenticate the first app.
         let auth_req = AuthReq {
@@ -41,7 +41,7 @@ mod mock_routing {
             containers: create_containers_req(),
         };
 
-        let _ = unwrap!(register_app(&auth, &auth_req));
+        let _ = register_app(&auth, &auth_req).await?;
         let app_id_0 = auth_req.app.id;
 
         // Authenticate the second app.
@@ -52,40 +52,28 @@ mod mock_routing {
             containers: create_containers_req(),
         };
 
-        let _ = unwrap!(register_app(&auth, &auth_req));
+        let _ = register_app(&auth, &auth_req).await?;
         let app_id_1 = auth_req.app.id;
 
         // Simulate failed revocations of both apps.
-        simulate_revocation_failure(&locator, &password, &[&app_id_0, &app_id_1]);
+        simulate_revocation_failure(&locator, &password, &[&app_id_0, &app_id_1]).await;
 
+        let client = &auth.client;
         // Verify the apps are not revoked yet.
         {
             let app_id_0 = app_id_0.clone();
             let app_id_1 = app_id_1.clone();
 
-            unwrap!(run(&auth, |client| {
-                let client = client.clone();
+            let (_, apps) = config::list_apps(&client).await?;
+            let state_0 = app_state(&client, &apps, &app_id_0).await?;
+            let state_1 = app_state(&client, &apps, &app_id_1).await?;
 
-                config::list_apps(&client)
-                    .then(move |res| {
-                        let (_, apps) = unwrap!(res);
-                        let f_0 = app_state(&client, &apps, &app_id_0);
-                        let f_1 = app_state(&client, &apps, &app_id_1);
-
-                        f_0.join(f_1)
-                    })
-                    .then(|res| {
-                        let (state_0, state_1) = unwrap!(res);
-                        assert_eq!(state_0, AppState::Authenticated);
-                        assert_eq!(state_1, AppState::Authenticated);
-
-                        Ok(())
-                    })
-            }))
+            assert_eq!(state_0, AppState::Authenticated);
+            assert_eq!(state_1, AppState::Authenticated);
         }
 
         // Login again without simulated failures.
-        let auth = unwrap!(Authenticator::login(locator, password, || ()));
+        let auth = Authenticator::login(locator, password, || ()).await?;
 
         // Flush the revocation queue and verify both apps get revoked.
         unsafe {
@@ -94,24 +82,15 @@ mod mock_routing {
             ),))
         }
 
-        unwrap!(run(&auth, |client| {
-            let c2 = client.clone();
+        let c2 = client.clone();
 
-            config::list_apps(client)
-                .then(move |res| {
-                    let (_, apps) = unwrap!(res);
-                    let f_0 = app_state(&c2, &apps, &app_id_0);
-                    let f_1 = app_state(&c2, &apps, &app_id_1);
+        let (_, apps) = config::list_apps(&c2).await?;
+        let state_0 = app_state(&c2, &apps, &app_id_0).await?;
+        let state_1 = app_state(&c2, &apps, &app_id_1).await?;
 
-                    f_0.join(f_1)
-                })
-                .then(move |res| {
-                    let (state_0, state_1) = unwrap!(res);
-                    assert_eq!(state_0, AppState::Revoked);
-                    assert_eq!(state_1, AppState::Revoked);
+        assert_eq!(state_0, AppState::Revoked);
+        assert_eq!(state_1, AppState::Revoked);
 
-                    Ok(())
-                })
-        }))
+        Ok(())
     }
 }

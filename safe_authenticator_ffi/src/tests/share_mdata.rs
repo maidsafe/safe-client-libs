@@ -12,15 +12,14 @@ use crate::ffi::ipc::encode_share_mdata_resp;
 use crate::test_utils::auth_decode_ipc_msg_helper;
 use bincode::serialize;
 use ffi_utils::test_utils::{call_1, call_vec};
-use futures::Future;
+
 use safe_authenticator::errors::AuthError;
-use safe_authenticator::run;
 use safe_authenticator::test_utils::{self, Payload};
+use safe_core::btree_map;
 use safe_core::core_structs::{AppAccess, UserMetadata, METADATA_KEY};
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::{self, AuthReq, IpcError, IpcMsg, IpcReq, IpcResp, ShareMData, ShareMDataReq};
 use safe_core::Client;
-use safe_core::{btree_map, ok};
 use safe_nd::{MDataAction, MDataPermissionSet, MDataSeqValue, PublicKey, SeqMutableData};
 use std::collections::BTreeMap;
 use unwrap::unwrap;
@@ -155,7 +154,7 @@ async fn share_invalid_mdatas() -> Result<(), AuthError> {
 #[tokio::test]
 async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
     let authenticator = test_utils::create_account_and_login().await;
-
+    let client = &authenticator.client;
     let app_id = test_utils::rand_app();
     let auth_req = AuthReq {
         app: app_id.clone(),
@@ -167,9 +166,7 @@ async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
     let app_auth = test_utils::register_app(&authenticator, &auth_req).await?;
     let app_key = app_auth.app_keys.public_key();
 
-    let user = unwrap!(run(&authenticator, move |client| {
-        Ok(client.public_key())
-    }));
+    let user = client.public_key();
 
     const NUM_MDATAS: usize = 3;
 
@@ -193,11 +190,7 @@ async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
             SeqMutableData::new_with_data(name, tag, entries, BTreeMap::new(), user)
         };
 
-        unwrap!(run(&authenticator, move |client| {
-            client
-                .put_seq_mutable_data(mdata)
-                .map_err(AuthError::CoreError)
-        }));
+        let _ = client.put_seq_mutable_data(mdata).await?;
 
         mdatas.push(ShareMData {
             type_tag: tag,
@@ -249,11 +242,9 @@ async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
     for share_mdata in &mdatas {
         let name = share_mdata.name;
         let type_tag = share_mdata.type_tag;
-        let mdata = unwrap!(run(&authenticator, move |client| {
-            client
-                .get_seq_mdata(name, type_tag)
-                .map_err(AuthError::CoreError)
-        }));
+
+        let mdata = client.get_seq_mdata(name, type_tag).await?;
+
         let permissions = unwrap!(mdata.user_permissions(app_key));
         assert_eq!(permissions, &perms);
     }

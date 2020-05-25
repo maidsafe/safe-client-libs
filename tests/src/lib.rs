@@ -21,8 +21,8 @@
     unused_results
 )]
 
-use futures::future::Future;
-use safe_app::{run, App, Client, PubImmutableData};
+
+use safe_app::{App, AppError, Client, PubImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;
 use unwrap::unwrap;
@@ -30,22 +30,21 @@ use unwrap::unwrap;
 // Test unregistered clients.
 // 1. Have a registered client PUT something on the network.
 // 2. Try to read it as unregistered.
-#[test]
-fn unregistered_client() {
+#[tokio::test]
+async fn unregistered_client() -> Result<(), AppError> {
     let orig_data = PubImmutableData::new(unwrap!(utils::generate_random_vector(30)));
 
+    let client = random_client()?;
     // Registered Client PUTs something onto the network.
     {
         let orig_data = orig_data.clone();
-        random_client(|client| client.put_idata(orig_data));
+        client.put_idata(orig_data).await?;
     }
 
     // Unregistered Client should be able to retrieve the data.
-    let app = unwrap!(App::unregistered(|| (), None));
-    unwrap!(run(&app, move |client, _context| {
-        let _ = client.get_idata(*orig_data.address()).map(move |data| {
-            assert_eq!(data, orig_data.into());
-        });
-        Ok(())
-    }));
+    let _app = App::unregistered(|| (), None).await?;
+
+    let data = client.get_idata(*orig_data.address()).await?;
+    assert_eq!(data, orig_data.into());
+    Ok(())
 }

@@ -193,17 +193,16 @@ mod tests {
     use super::*;
     use crate::ffi::auth_is_mock;
     use ffi_utils::test_utils::call_1;
-    use futures::Future;
-    use safe_authenticator::run;
+
     use safe_authenticator::AuthError;
-    use safe_core::{client::COST_OF_PUT, utils, FutureExt};
+    use safe_core::{client::COST_OF_PUT, utils};
     use safe_nd::PubImmutableData;
     use std::ffi::CString;
     use std::os::raw::c_void;
     use Authenticator;
 
     // Test mock detection when compiled against mock-routing.
-    #[tokio::test]
+    #[test]
     #[cfg(feature = "mock-network")]
     fn test_mock_build() {
         assert_eq!(auth_is_mock(), true);
@@ -211,7 +210,7 @@ mod tests {
 
     // Test mock detection when not compiled against mock-routing.
     #[cfg(not(feature = "mock-network"))]
-    #[tokio::test]
+    #[test]
     fn test_not_mock_build() {
         assert_eq!(auth_is_mock(), false);
     }
@@ -294,9 +293,9 @@ mod tests {
                 }))
             };
 
-            let client = &auth.client;
+            let client = unsafe { &(*auth).client };
 
-            client.simulate_network_disconnect()?;
+            client.simulate_network_disconnect();
 
             // disconnect_cb should be Called.
             unwrap!(rx.recv_timeout(Duration::from_secs(15)));
@@ -332,6 +331,8 @@ mod tests {
                 send_via_user_data_custom(user_data, ());
             }
         }
+
+        Ok(())
     }
 
     // Test account usage statistics before and after a mutation.
@@ -350,17 +351,17 @@ mod tests {
             )))
         };
 
-        let client = (*auth).client;
-        client.get_balance(None).await.map_err(AuthError::from)?;
-        client
-            .put_idata(PubImmutableData::new(vec![1, 2, 3]))
-            .await?;
+        unsafe {
+            let client = &(*auth).client;
+            let orig_balance = client.get_balance(None).await.map_err(AuthError::from)?;
+            client
+                .put_idata(PubImmutableData::new(vec![1, 2, 3]))
+                .await?;
 
-        let new_balance = client.get_balance(None).await.map_err(AuthError::from)?;
-
-        assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
-
-        unsafe { auth_free(auth) };
+            let new_balance = client.get_balance(None).await.map_err(AuthError::from)?;
+            assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
+            auth_free(auth);
+        }
 
         Ok(())
     }
