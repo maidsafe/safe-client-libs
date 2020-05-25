@@ -1310,7 +1310,6 @@ pub trait Client: Clone + Send + Sync {
 }
 
 /// Creates a throw-away client to execute requests sequentially.
-/// This function is blocking.
 async fn temp_client<F, R>(identity: &ClientFullId, mut func: F) -> Result<R, CoreError>
 where
     F: FnMut(&mut ConnectionManager, &SafeKey) -> Result<R, CoreError>,

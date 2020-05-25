@@ -71,7 +71,7 @@ pub(super) struct ConnectionGroup {
 }
 
 impl ConnectionGroup {
-    pub fn new(
+    pub async fn new(
         config: QuicP2pConfig,
         full_id: SafeKey,
         connection_hook: Sender<Result<(), CoreError>>,
@@ -96,7 +96,7 @@ impl ConnectionGroup {
             state: State::Bootstrapping(initial_state),
         }));
 
-        let _ = setup_quic_p2p_event_loop(&inner, node_rx);
+        let _ = setup_quic_p2p_event_loop(&inner, node_rx).await;
 
         Ok(Self { inner })
     }
@@ -607,16 +607,15 @@ impl Inner {
     }
 }
 
-fn setup_quic_p2p_event_loop(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<Event>) {
+async fn setup_quic_p2p_event_loop(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<Event>) {
     let inner_weak = Arc::downgrade(inner);
-
-    let _ = tokio::spawn(async move {
+    let _ = thread::spawn(move || {
         while let Ok(event) = event_rx.recv() {
             match event {
                 Event::Finish => break, // Graceful shutdown
                 event => {
                     if let Some(inner) = inner_weak.upgrade() {
-                        let mut inner = inner.lock().await;
+                        let mut inner = futures::executor::block_on(inner.lock());
                         inner.handle_quic_p2p_event(event);
                     } else {
                         // Event loop got dropped

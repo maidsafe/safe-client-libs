@@ -94,11 +94,8 @@ impl Inner {
         let (connected_tx, connected_rx) = futures::channel::oneshot::channel();
 
         if let Entry::Vacant(value) = self.groups.entry(full_id.public_id()) {
-            let _ = value.insert(ConnectionGroup::new(
-                self.config.clone(),
-                full_id,
-                connected_tx,
-            )?);
+            let _ = value
+                .insert(ConnectionGroup::new(self.config.clone(), full_id, connected_tx).await?);
 
             match timeout(Duration::from_secs(CONNECTION_TIMEOUT_SECS), connected_rx).await {
                 Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err)))?,

@@ -30,7 +30,6 @@ maidsafe_logo.png",
 // Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Re-export functions used in FFI so that they are accessible through the Rust API.
-use std::sync::{Arc, Mutex};
 
 pub use safe_core::core_structs::AppKeys;
 pub use safe_core::{
@@ -60,8 +59,10 @@ use bincode::deserialize;
 use futures::{
     channel::{mpsc as futures_mpsc, mpsc::UnboundedSender},
     future::FutureExt,
+    lock::Mutex,
     Future,
 };
+use std::sync::Arc;
 
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
@@ -95,8 +96,8 @@ impl App {
     where
         N: FnMut() + Send + 'static,
     {
-        let (_net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
-        let client = AppClient::unregistered(_net_tx, config).await?;
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
+        let client = AppClient::unregistered(net_tx, config).await?;
         let context = AppContext::unregistered();
         Ok(Self {
             client,
@@ -253,7 +254,7 @@ impl AppContext {
         // let reg = Arc::clone(self.as_registered()?);
 
         fetch_access_info(Arc::clone(&reg), client).await?;
-        let access_info = reg.access_info.lock().unwrap();
+        let access_info = reg.access_info.lock().await;
         Ok(access_info.clone())
     }
 
@@ -283,13 +284,13 @@ async fn refresh_access_info(context: Arc<Registered>, client: &AppClient) -> Re
     let encoded = utils::symmetric_decrypt(&value.data, &context.sym_enc_key)?;
     let decoded = deserialize(&encoded)?;
 
-    *context.access_info.lock().unwrap() = decoded;
+    *context.access_info.lock().await = decoded;
 
     Ok(())
 }
 
 async fn fetch_access_info(context: Arc<Registered>, client: &AppClient) -> Result<(), AppError> {
-    if context.access_info.lock().unwrap().is_empty() {
+    if context.access_info.lock().await.is_empty() {
         refresh_access_info(context, client).await
     } else {
         Ok(())

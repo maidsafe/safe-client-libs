@@ -80,7 +80,7 @@ impl<C: Sync + Client + 'static> Writer<C> {
         trace!("Writer induced self-encryptor close.");
 
         let mut file = self.file;
-        let size = self.self_encryptor.len();
+        let size = self.self_encryptor.len().await;
         let client = self.client;
         let encryption_key = self.encryption_key;
         let published = file.published();
