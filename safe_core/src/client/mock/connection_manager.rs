@@ -14,14 +14,14 @@ use crate::{
     CoreError,
 };
 
+use futures::lock::Mutex;
 use lazy_static::lazy_static;
 use log::trace;
 use quic_p2p::{self, Config as QuicP2pConfig};
 use safe_nd::{Coins, Message, PublicId, PublicKey, Request, RequestType, Response, XorName};
 use std::collections::HashSet;
 use std::env;
-use std::sync::{Arc, Mutex};
-use unwrap::unwrap;
+use std::sync::Arc;
 
 lazy_static! {
     static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));
@@ -71,8 +71,8 @@ impl ConnectionManager {
 
     /// Returns `true` if this connection manager is already connected to a Client Handlers
     /// group serving the provided public ID.
-    pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {
-        unwrap!(self.groups.lock()).contains(&pub_id)
+    pub async fn has_connection_to(&self, pub_id: &PublicId) -> bool {
+        self.groups.lock().await.contains(&pub_id)
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
@@ -92,8 +92,8 @@ impl ConnectionManager {
                 }
                 _ => false,
             };
-            let mut vault = vault::lock(&self.vault, writing);
-            unwrap!(vault.process_request(pub_id.clone(), &msg))
+            let mut vault = vault::lock(&self.vault, writing).await;
+            vault.process_request(pub_id.clone(), &msg)?
         };
 
         // Send response back to a client
@@ -108,7 +108,7 @@ impl ConnectionManager {
 
     /// Bootstrap to any known contact.
     pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(), CoreError> {
-        let _ = unwrap!(self.groups.lock()).insert(full_id.public_id());
+        let _ = self.groups.lock().await.insert(full_id.public_id());
         Ok(())
     }
 
@@ -119,7 +119,7 @@ impl ConnectionManager {
 
     /// Disconnect from a group.
     pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(), CoreError> {
-        let mut groups = unwrap!(self.groups.lock());
+        let mut groups = self.groups.lock().await;
         let _ = groups.remove(pub_id);
         if groups.is_empty() {
             trace!("Disconnected from the network; sending the notification.");
@@ -129,24 +129,24 @@ impl ConnectionManager {
     }
 
     /// Add some coins to a wallet's PublicKey
-    pub fn allocate_test_coins(
+    pub async fn allocate_test_coins(
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
     ) -> Result<(), safe_nd::Error> {
-        let mut vault = vault::lock(&self.vault, true);
+        let mut vault = vault::lock(&self.vault, true).await;
         vault.mock_increment_balance(coin_balance_name, amount)
     }
 
     /// Create coin balance in the mock network arbitrarily.
-    pub fn create_balance(&self, owner: PublicKey, amount: Coins) {
-        let mut vault = vault::lock(&self.vault, true);
+    pub async fn create_balance(&self, owner: PublicKey, amount: Coins) {
+        let mut vault = vault::lock(&self.vault, true).await;
         vault.mock_create_balance(owner, amount);
     }
 
     /// Simulates network disconnect
-    pub fn simulate_disconnect(&self) {
-        let mut groups = unwrap!(self.groups.lock());
+    pub async fn simulate_disconnect(&self) {
+        let mut groups = self.groups.lock().await;
         trace!("Simulating disconnect. Connected groups: {:?}", groups);
 
         if !groups.is_empty() {

@@ -2127,7 +2127,7 @@ dependencies = [
 [[package]]
 name = "self_encryption"
 version = "0.16.0"
-source = "git+https://github.com/joshuef/self_encryption?branch=Arc-Mutex#78ccf803df46a4cd7ce8e187ba14b1289799c039"
+source = "git+https://github.com/joshuef/self_encryption?branch=Arc-Mutex#f4a4094fb5a1c13a07f88899d83883580a2915a4"
 dependencies = [
  "aes",
  "async-trait",

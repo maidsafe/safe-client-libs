@@ -40,7 +40,7 @@ async fn data_created_by_an_app() -> Result<(), AppError> {
         let mut valid_data = invalid_data.clone();
         let client = app.client.clone();
 
-        let app_key = client.public_key();
+        let app_key = client.public_key().await;
         invalid_data.append_owner(
             ADataOwner {
                 public_key: app_key,
@@ -51,7 +51,7 @@ async fn data_created_by_an_app() -> Result<(), AppError> {
         )?;
         valid_data.append_owner(
             ADataOwner {
-                public_key: client.owner_key(),
+                public_key: client.owner_key().await,
                 entries_index: 0,
                 permissions_index: 0,
             },
@@ -90,7 +90,7 @@ async fn managing_permissions_for_an_app() -> Result<(), AppError> {
         let (mut app_allowed_tx, mut app_allowed_rx) = mpsc::channel(1);
 
         let client = app.client.clone();
-        let app_pk = client.public_key();
+        let app_pk = client.public_key().await;
         let variant = adata.kind();
 
         let local = LocalSet::new();
@@ -269,7 +269,7 @@ async fn managing_permissions_for_an_app() -> Result<(), AppError> {
 
             adata.append_owner(
                 ADataOwner {
-                    public_key: client.owner_key(),
+                    public_key: client.owner_key().await,
                     entries_index: 0,
                     permissions_index: 1,
                 },
@@ -400,7 +400,7 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
             // and wait for the signal that the operations are complete
             trace!("Authenticating app's key");
             app_key_tx
-                .send(client.public_key())
+                .send(client.public_key().await)
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             app_authed_rx.recv().await.ok_or(CoreError::Unexpected(
@@ -462,7 +462,7 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
 
             adata.append_owner(
                 ADataOwner {
-                    public_key: client.owner_key(),
+                    public_key: client.owner_key().await,
                     entries_index: 0,
                     permissions_index: 0,
                 },
@@ -585,7 +585,7 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
         let (mut app_removed_tx, mut app_removed_rx) = mpsc::channel(1);
 
         let client = app.client.clone();
-        let app_key = client.public_key();
+        let app_key = client.public_key().await;
 
         let local = LocalSet::new();
         let _ = local.spawn_local(async move {
@@ -710,7 +710,7 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
 
             adata.append_owner(
                 ADataOwner {
-                    public_key: client.owner_key(),
+                    public_key: client.owner_key().await,
                     entries_index: 0,
                     permissions_index: 1,
                 },

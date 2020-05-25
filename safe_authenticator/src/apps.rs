@@ -63,12 +63,9 @@ pub async fn remove_revoked_app(client: &AuthClient, app_id: String) -> Result<(
 
 /// Returns a list of applications that have been revoked.
 pub async fn list_revoked(client: &AuthClient) -> Result<Vec<AppExchangeInfo>, AuthError> {
-    let c2 = client.clone();
-    let c3 = client.clone();
-
     let (_, auth_cfg) = config::list_apps(client).await?;
-    let access_container = c2.access_container();
-    let entries = c3
+    let access_container = client.access_container().await;
+    let entries = client
         .list_seq_mdata_entries(access_container.name(), access_container.type_tag())
         .await?;
     let mut apps = Vec::new();
@@ -94,16 +91,12 @@ pub async fn list_revoked(client: &AuthClient) -> Result<Vec<AppExchangeInfo>, A
 
 /// Return the list of applications that are registered with the Authenticator.
 pub async fn list_registered(client: &AuthClient) -> Result<Vec<RegisteredApp>, AuthError> {
-    let c2 = client.clone();
-    let c3 = client.clone();
-    let c4 = client.clone();
-
     let (_, auth_cfg) = config::list_apps(client).await?;
-    let access_container = c2.access_container();
-    let entries = c3
+    let access_container = client.access_container().await;
+    let entries = client
         .list_seq_mdata_entries(access_container.name(), access_container.type_tag())
         .await?;
-    let (mut authorised_keys, _version) = c4.list_auth_keys_and_version().await?;
+    let (mut authorised_keys, _version) = client.list_auth_keys_and_version().await?;
     let mut apps = Vec::new();
     let nonce = access_container
         .nonce()

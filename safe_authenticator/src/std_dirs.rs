@@ -35,20 +35,16 @@ pub static DEFAULT_PUBLIC_DIRS: [&str; 1] = ["_public"];
 
 /// Create the root directories and the standard directories for the access container.
 pub async fn create(client: &AuthClient) -> Result<(), AuthError> {
-    let c2 = client.clone();
-    let c3 = client.clone();
-    let c4 = client.clone();
-
     // Initialise standard directories
-    let access_container = client.access_container();
-    let config_dir = client.config_root_dir();
+    let access_container = client.access_container().await;
+    let config_dir = client.config_root_dir().await;
 
     // Try to get default dirs from the access container
-    let res = access_container::fetch_authenticator_entry(&c2).await;
+    let res = access_container::fetch_authenticator_entry(&client).await;
     let _access_cont = match res {
         Ok((_, default_containers)) => {
             // Make sure that all default dirs have been created
-            create_std_dirs(&c3, &default_containers).await
+            create_std_dirs(&client, &default_containers).await
         }
         Err(AuthError::CoreError(CoreError::DataError(SndError::NoSuchData))) => {
             // Access container hasn't been created yet
@@ -56,20 +52,20 @@ pub async fn create(client: &AuthClient) -> Result<(), AuthError> {
                 .into_iter()
                 .map(|(name, md_info)| (String::from(name), md_info))
                 .collect();
-            let _std_dirs_fut = create_std_dirs(&c3, &access_cont_value).await?;
+            let _std_dirs_fut = create_std_dirs(&client, &access_cont_value).await?;
             let _access_cont_fut =
-                create_access_container(&c3, &access_container, &access_cont_value).await?;
+                create_access_container(&client, &access_container, &access_cont_value).await?;
             Ok(())
         }
         Err(e) => Err(e),
     };
 
-    create_config_dir_on_network(&c2, &config_dir).await?;
+    create_config_dir_on_network(&client, &config_dir).await?;
 
     // Update account packet - root directories have been created successfully
     // (so we don't have to recover them after login).
-    c4.set_std_dirs_created(true);
-    c4.update_account_packet().await.map_err(From::from)
+    client.set_std_dirs_created(true).await;
+    client.update_account_packet().await.map_err(From::from)
 }
 
 async fn create_config_dir_on_network(
@@ -91,7 +87,7 @@ async fn create_access_container(
     access_container: &MDataInfo,
     default_entries: &HashMap<String, MDataInfo>,
 ) -> Result<(), AuthError> {
-    let enc_key = client.secret_symmetric_key();
+    let enc_key = client.secret_symmetric_key().await;
 
     let access_container_nonce = access_container
         .nonce()

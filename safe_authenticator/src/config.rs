@@ -198,7 +198,7 @@ async fn get_entry<T>(client: &AuthClient, key: &[u8]) -> Result<(Option<u64>, T
 where
     T: Default + DeserializeOwned + Serialize + 'static,
 {
-    let parent = client.config_root_dir();
+    let parent = client.config_root_dir().await;
     let key = parent.enc_entry_key(key)?;
 
     match client
@@ -231,7 +231,7 @@ async fn update_entry<T>(
 where
     T: Serialize,
 {
-    let parent = client.config_root_dir();
+    let parent = client.config_root_dir().await;
 
     let key = parent.enc_entry_key(key)?;
     let encoded = serialize(content)?;

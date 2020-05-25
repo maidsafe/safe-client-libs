@@ -174,7 +174,7 @@ async fn main() {
         stored_data.push(Data::Immutable(data.into()));
     }
 
-    let public_key = auth.client.public_key();
+    let public_key = auth.client.public_key().await;
 
     for _ in immutable_data_count..(immutable_data_count + mutable_data_count) {
         // Construct data

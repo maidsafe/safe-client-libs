@@ -10,6 +10,8 @@ use crate::errors::AuthError;
 #[cfg(any(test, feature = "testing"))]
 use crate::test_utils::divide_seed;
 
+use async_trait::async_trait;
+use futures::lock::Mutex;
 use log::trace;
 use lru_cache::LruCache;
 use rand::{rngs::StdRng, thread_rng, CryptoRng, Rng, SeedableRng};
@@ -25,11 +27,7 @@ use safe_core::{
 use safe_nd::{
     ClientFullId, LoginPacket, Message, MessageId, PublicId, PublicKey, Request, Response, XorName,
 };
-use std::{
-    fmt,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{fmt, sync::Arc, time::Duration};
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
 
@@ -292,8 +290,8 @@ impl AuthClient {
 
     /// Get Maidsafe specific configuration's Root Directory ID if available in
     /// account packet used for current login.
-    pub fn config_root_dir(&self) -> MDataInfo {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    pub async fn config_root_dir(&self) -> MDataInfo {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.config_root.clone()
     }
 
@@ -302,10 +300,10 @@ impl AuthClient {
     /// Doesn't actually modify the session packet - you should call
     /// `update_account_packet` afterwards to actually update it on the
     /// network.
-    pub fn set_config_root_dir(&self, dir: MDataInfo) -> bool {
+    pub async fn set_config_root_dir(&self, dir: MDataInfo) -> bool {
         trace!("Setting configuration root Dir ID.");
 
-        let mut auth_inner = self.auth_inner.lock().unwrap();
+        let mut auth_inner = self.auth_inner.lock().await;
         let acc = &mut auth_inner.acc;
 
         if acc.config_root == dir {
@@ -318,8 +316,8 @@ impl AuthClient {
 
     /// Get User's Access Container if available in account packet used for
     /// current login
-    pub fn access_container(&self) -> MDataInfo {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    pub async fn access_container(&self) -> MDataInfo {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.access_container.clone()
     }
 
@@ -328,10 +326,10 @@ impl AuthClient {
     /// Doesn't actually modify the session packet - you should call
     /// `update_account_packet` afterwards to actually update it on the
     /// network.
-    pub fn set_access_container(&self, dir: MDataInfo) -> bool {
+    pub async fn set_access_container(&self, dir: MDataInfo) -> bool {
         trace!("Setting user root Dir ID.");
 
-        let mut auth_inner = self.auth_inner.lock().unwrap();
+        let mut auth_inner = self.auth_inner.lock().await;
         let account = &mut auth_inner.acc;
 
         if account.access_container == dir {
@@ -363,7 +361,7 @@ impl AuthClient {
     pub async fn update_account_packet(&self) -> Result<(), AuthError> {
         trace!("Updating account packet.");
 
-        let auth_inner = self.auth_inner.lock().unwrap();
+        let auth_inner = self.auth_inner.lock().await;
         let account = &auth_inner.acc;
         let keys = &auth_inner.user_cred;
         let acc_loc = &auth_inner.acc_loc;
@@ -372,7 +370,7 @@ impl AuthClient {
         let updated_packet =
             Self::prepare_account_packet_update(*acc_loc, account, keys, &account_packet_id)?;
 
-        let mut client_inner = self.inner.lock().unwrap();
+        let mut client_inner = self.inner.lock().await;
 
         let mut cm = client_inner.cm().clone();
         let mut cm2 = cm.clone();
@@ -407,14 +405,14 @@ impl AuthClient {
     }
 
     /// Returns the current status of std/root dirs creation.
-    pub fn std_dirs_created(&self) -> bool {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    pub async fn std_dirs_created(&self) -> bool {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.root_dirs_created
     }
 
     /// Sets the current status of std/root dirs creation.
-    pub fn set_std_dirs_created(&self, val: bool) {
-        let mut auth_inner = self.auth_inner.lock().unwrap();
+    pub async fn set_std_dirs_created(&self, val: bool) {
+        let mut auth_inner = self.auth_inner.lock().await;
         let account = &mut auth_inner.acc;
         account.root_dirs_created = val;
     }
@@ -428,20 +426,20 @@ fn create_client_id(seeder: &[u8]) -> ClientFullId {
 
 impl AuthActions for AuthClient {}
 
-// #[async_trait]
+#[async_trait]
 impl Client for AuthClient {
     type Context = ();
 
-    fn full_id(&self) -> SafeKey {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    async fn full_id(&self) -> SafeKey {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.maid_keys.client_safe_key()
     }
 
-    fn owner_key(&self) -> PublicKey {
-        self.public_key()
+    async fn owner_key(&self) -> PublicKey {
+        self.public_key().await
     }
 
-    fn config(&self) -> Option<BootstrapConfig> {
+    async fn config(&self) -> Option<BootstrapConfig> {
         None
     }
 
@@ -449,18 +447,18 @@ impl Client for AuthClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    async fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.maid_keys.enc_public_key
     }
 
-    fn secret_encryption_key(&self) -> shared_box::SecretKey {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    async fn secret_encryption_key(&self) -> shared_box::SecretKey {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.maid_keys.enc_secret_key.clone()
     }
 
-    fn secret_symmetric_key(&self) -> shared_secretbox::Key {
-        let auth_inner = self.auth_inner.lock().unwrap();
+    async fn secret_symmetric_key(&self) -> shared_secretbox::Key {
+        let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.maid_keys.enc_key.clone()
     }
 }
@@ -615,14 +613,14 @@ mod tests {
             futures::executor::block_on(AuthClient::registered(&sec_0, &sec_1, client_id, net_tx))
         })?;
 
-        assert!(client.set_access_container(dir));
+        assert!(client.set_access_container(dir).await);
         client.update_account_packet().await?;
 
         let client = setup_client(&(), |net_tx| {
             futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx))
         })?;
 
-        let got_dir = client.access_container();
+        let got_dir = client.access_container().await;
         assert_eq!(got_dir, dir_clone);
         Ok(())
     }
@@ -642,13 +640,13 @@ mod tests {
         let client = setup_client(&(), |net_tx| {
             futures::executor::block_on(AuthClient::registered(&sec_0, &sec_1, client_id, net_tx))
         })?;
-        assert!(client.set_config_root_dir(dir));
+        assert!(client.set_config_root_dir(dir).await);
         client.update_account_packet().await?;
 
         let client = setup_client(&(), |net_tx| {
             futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx))
         })?;
-        let got_dir = client.config_root_dir();
+        let got_dir = client.config_root_dir().await;
         assert_eq!(got_dir, dir_clone);
         Ok(())
     }
@@ -702,8 +700,8 @@ mod tests {
         use std::time::Duration;
 
         let client = random_client()?;
-        client.set_simulate_timeout(true);
-        client.set_timeout(Duration::from_millis(250));
+        client.set_simulate_timeout(true).await;
+        client.set_timeout(Duration::from_millis(250)).await;
 
         match client.get_idata(IDataAddress::Pub(rand::random())).await {
             Ok(_) => panic!("Unexpected success"),

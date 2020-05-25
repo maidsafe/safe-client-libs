@@ -75,7 +75,7 @@ where
 }
 
 /// Return a Reader for reading the file contents.
-pub async fn read<C: Client>(
+pub async fn read<C: Client + 'static>(
     client: C,
     file: &File,
     encryption_key: Option<shared_secretbox::Key>,
@@ -193,7 +193,7 @@ where
 /// object is returned, through which the data for the file can be written to
 /// the network. The file is actually saved in the directory listing only after
 /// `writer.close()` is invoked.
-pub async fn write<C: Client>(
+pub async fn write<C: Client + 'static>(
     client: C,
     file: File,
     mode: Mode,

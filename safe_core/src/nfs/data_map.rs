@@ -19,7 +19,7 @@ use self_encryption::DataMap;
 // Get `DataMap` from the network.
 // If the `DataMap` is encrypted, an `encryption_key` must be passed in to decrypt it.
 pub async fn get(
-    client: &impl Client,
+    client: &(impl Client + 'static),
     address: IDataAddress,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Result<DataMap, NfsError> {
@@ -31,7 +31,7 @@ pub async fn get(
 // Put `DataMap` on the network.
 // If `encryption_key` is passed in, the `DataMap` will be encrypted.
 pub async fn put(
-    client: &impl Client,
+    client: &(impl Client + 'static),
     data_map: &DataMap,
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,

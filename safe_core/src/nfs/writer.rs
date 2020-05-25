@@ -27,14 +27,14 @@ pub enum Mode {
 
 /// Writer is used to write contents to a File and especially in chunks if the
 /// file happens to be too large.
-pub struct Writer<C: Client> {
+pub struct Writer<C: Client + 'static> {
     client: C,
     file: File,
     self_encryptor: SequentialEncryptor<SelfEncryptionStorage<C>>,
     encryption_key: Option<shared_secretbox::Key>,
 }
 
-impl<C: Sync + Client> Writer<C> {
+impl<C: Sync + Client + 'static> Writer<C> {
     /// Create new instance of Writer.
     pub async fn new(
         client: &C,

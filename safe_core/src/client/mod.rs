@@ -37,8 +37,8 @@ use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::{NetworkEvent, NetworkTx};
-use futures::channel::mpsc;
-use std::sync::{Arc, Mutex};
+use futures::{channel::mpsc, lock::Mutex};
+use std::sync::Arc;
 
 use log::trace;
 use lru_cache::LruCache;
@@ -71,18 +71,18 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
     Ok(Config::new().quic_p2p.hard_coded_contacts)
 }
 
-fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
+async fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
     // `sign` should be false for GETs on published data, true otherwise.
     let sign = request.get_type() != RequestType::PublicGet;
-    let request = client.compose_message(request, sign);
+    let request = client.compose_message(request, sign).await;
     let inner = client.inner();
-    let cm = &mut inner.lock().unwrap().connection_manager;
-    futures::executor::block_on(cm.send(&client.public_id(), &request))
+    let cm = &mut inner.lock().await.connection_manager;
+    cm.send(&client.public_id().await, &request).await
 }
 
 // Sends a mutation request to a new routing.
 async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreError> {
-    let response = send(client, req)?;
+    let response = send(client, req).await?;
     match response {
         Response::Mutation(result) => {
             trace!("mutation result: {:?}", result);
@@ -92,27 +92,27 @@ async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreErr
     }
 }
 
-fn send_as_helper(
+async fn send_as_helper(
     client: &impl Client,
     request: Request,
     client_id: Option<&ClientFullId>,
 ) -> Result<Response, CoreError> {
     let (message, identity) = match client_id {
         Some(id) => (sign_request(request, id), SafeKey::client(id.clone())),
-        None => (client.compose_message(request, true), client.full_id()),
+        None => (
+            client.compose_message(request, true).await,
+            client.full_id().await,
+        ),
     };
 
     let pub_id = identity.public_id();
 
     let inner = client.inner();
 
-    let cm = &mut inner.lock().unwrap().connection_manager;
-    let mut cm2 = cm.clone();
+    let cm = &mut inner.lock().await.connection_manager;
 
-    futures::executor::block_on(async {
-        let _bootstrapped = cm.bootstrap(identity).await;
-        cm2.send(&pub_id, &message).await
-    })
+    let _bootstrapped = cm.bootstrap(identity).await;
+    cm.send(&pub_id, &message).await
 }
 
 /// Trait providing an interface for self-authentication client implementations, so they can
@@ -120,28 +120,28 @@ fn send_as_helper(
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
 #[async_trait]
-pub trait Client: Clone + 'static + Send + Sync {
+pub trait Client: Clone + Send + Sync {
     /// Associated message type.
     type Context;
 
     /// Return the client's ID.
-    fn full_id(&self) -> SafeKey;
+    async fn full_id(&self) -> SafeKey;
 
     /// Return the client's public ID.
-    fn public_id(&self) -> PublicId {
-        self.full_id().public_id()
+    async fn public_id(&self) -> PublicId {
+        self.full_id().await.public_id()
     }
 
     /// Returns the client's public key.
-    fn public_key(&self) -> PublicKey {
-        self.full_id().public_key()
+    async fn public_key(&self) -> PublicKey {
+        self.full_id().await.public_key()
     }
 
     /// Returns the client's owner key.
-    fn owner_key(&self) -> PublicKey;
+    async fn owner_key(&self) -> PublicKey;
 
     /// Return a `crust::Config` if the `Client` was initialized with one.
-    fn config(&self) -> Option<BootstrapConfig>;
+    async fn config(&self) -> Option<BootstrapConfig>;
 
     /// Return an associated `ClientInner` type which is expected to contain fields associated with
     /// the implementing type.
@@ -150,27 +150,31 @@ pub trait Client: Clone + 'static + Send + Sync {
         Self: Sized;
 
     /// Return the public encryption key.
-    fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
+    async fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
 
     /// Return the secret encryption key.
-    fn secret_encryption_key(&self) -> shared_box::SecretKey;
+    async fn secret_encryption_key(&self) -> shared_box::SecretKey;
 
     /// Return the public and secret encryption keys.
-    fn encryption_keypair(&self) -> (threshold_crypto::PublicKey, shared_box::SecretKey) {
-        (self.public_encryption_key(), self.secret_encryption_key())
+    async fn encryption_keypair(&self) -> (threshold_crypto::PublicKey, shared_box::SecretKey) {
+        (
+            self.public_encryption_key().await,
+            self.secret_encryption_key().await,
+        )
     }
 
     /// Return the symmetric encryption key.
-    fn secret_symmetric_key(&self) -> shared_secretbox::Key;
+    async fn secret_symmetric_key(&self) -> shared_secretbox::Key;
 
     /// Create a `Message` from the given request.
     /// This function adds the requester signature and message ID.
-    fn compose_message(&self, request: Request, sign: bool) -> Message {
+    async fn compose_message(&self, request: Request, sign: bool) -> Message {
         let message_id = MessageId::new();
 
         let signature = if sign {
             Some(
                 self.full_id()
+                    .await
                     .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
             )
         } else {
@@ -185,17 +189,17 @@ pub trait Client: Clone + 'static + Send + Sync {
     }
 
     /// Set request timeout.
-    fn set_timeout(&self, duration: Duration) {
+    async fn set_timeout(&self, duration: Duration) {
         let inner = self.inner();
-        inner.lock().unwrap().timeout = duration;
+        inner.lock().await.timeout = duration;
     }
 
     /// Restart the client and reconnect to the network.
-    fn restart_network(&self) -> Result<(), CoreError> {
+    async fn restart_network(&self) -> Result<(), CoreError> {
         trace!("Restarting the network connection");
 
         let inner = self.inner();
-        let mut inner = inner.lock().unwrap();
+        let mut inner = inner.lock().await;
 
         inner.connection_manager.restart_network();
 
@@ -238,7 +242,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
             client_id,
-        ) {
+        )
+        .await
+        {
             Ok(res) => match res {
                 Response::Transaction(result) => match result {
                     Ok(transaction) => Ok(transaction),
@@ -275,7 +281,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
             },
             client_id,
-        ) {
+        )
+        .await
+        {
             Ok(res) => match res {
                 Response::Transaction(result) => match result {
                     Ok(transaction) => Ok(transaction),
@@ -317,7 +325,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 new_login_packet,
             },
             client_id,
-        ) {
+        )
+        .await
+        {
             Ok(res) => match res {
                 Response::Transaction(result) => match result {
                     Ok(transaction) => Ok(transaction),
@@ -337,7 +347,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("Get balance for {:?}", client_id);
 
-        match send_as_helper(self, Request::GetBalance, client_id) {
+        match send_as_helper(self, Request::GetBalance, client_id).await {
             Ok(res) => match res {
                 Response::GetBalance(result) => match result {
                     Ok(coins) => Ok(coins),
@@ -368,13 +378,13 @@ pub trait Client: Clone + 'static + Send + Sync {
         trace!("Fetch Immutable Data");
 
         let inner = self.inner();
-        if let Some(data) = inner.lock().unwrap().cache.get_mut(&address) {
+        if let Some(data) = inner.lock().await.cache.get_mut(&address) {
             trace!("ImmutableData found in cache.");
             return Ok(data.clone());
         }
 
         let inner = Arc::downgrade(&self.inner());
-        let res = send(self, Request::GetIData(address))?;
+        let res = send(self, Request::GetIData(address)).await?;
         let data = match res {
             Response::GetIData(res) => res.map_err(CoreError::from),
             _ => return Err(CoreError::ReceivedUnexpectedEvent),
@@ -384,7 +394,7 @@ pub trait Client: Clone + 'static + Send + Sync {
             // Put to cache
             let _ = inner
                 .lock()
-                .unwrap()
+                .await
                 .cache
                 .insert(*data.address(), data.clone());
         };
@@ -399,7 +409,7 @@ pub trait Client: Clone + 'static + Send + Sync {
         let inner = self.inner();
         if inner
             .lock()
-            .unwrap()
+            .await
             .cache
             .remove(&IDataAddress::Unpub(name))
             .is_some()
@@ -431,7 +441,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("Fetch Unsequenced Mutable Data");
 
-        match send(self, Request::GetMData(MDataAddress::Unseq { name, tag }))? {
+        match send(self, Request::GetMData(MDataAddress::Unseq { name, tag })).await? {
             Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
                 MData::Unseq(data) => Ok(data),
                 MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
@@ -458,7 +468,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address: MDataAddress::Seq { name, tag },
                 key,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetMDataValue(res) => {
                 res.map_err(CoreError::from).and_then(|value| match value {
                     MDataValue::Seq(val) => Ok(val),
@@ -487,7 +499,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address: MDataAddress::Unseq { name, tag },
                 key,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetMDataValue(res) => {
                 res.map_err(CoreError::from).and_then(|value| match value {
                     MDataValue::Unseq(val) => Ok(val),
@@ -505,7 +519,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("Fetch Sequenced Mutable Data");
 
-        match send(self, Request::GetMData(MDataAddress::Seq { name, tag }))? {
+        match send(self, Request::GetMData(MDataAddress::Seq { name, tag })).await? {
             Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
                 MData::Seq(data) => Ok(data),
                 MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
@@ -572,7 +586,9 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send(
             self,
             Request::GetMDataShell(MDataAddress::Seq { name, tag }),
-        )? {
+        )
+        .await?
+        {
             Response::GetMDataShell(res) => {
                 res.map_err(CoreError::from).and_then(|mdata| match mdata {
                     MData::Seq(data) => Ok(data),
@@ -597,7 +613,9 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send(
             self,
             Request::GetMDataShell(MDataAddress::Unseq { name, tag }),
-        )? {
+        )
+        .await?
+        {
             Response::GetMDataShell(res) => {
                 res.map_err(CoreError::from).and_then(|mdata| match mdata {
                     MData::Unseq(data) => Ok(data),
@@ -615,7 +633,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("GetMDataVersion for {:?}", address);
 
-        match send(self, Request::GetMDataVersion(address))? {
+        match send(self, Request::GetMDataVersion(address)).await? {
             Response::GetMDataVersion(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -635,7 +653,9 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send(
             self,
             Request::ListMDataEntries(MDataAddress::Unseq { name, tag }),
-        )? {
+        )
+        .await?
+        {
             Response::ListMDataEntries(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|entries| match entries {
@@ -661,7 +681,9 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send(
             self,
             Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
-        )? {
+        )
+        .await?
+        {
             Response::ListMDataEntries(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|entries| match entries {
@@ -680,7 +702,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("ListMDataKeys for {:?}", address);
 
-        match send(self, Request::ListMDataKeys(address))? {
+        match send(self, Request::ListMDataKeys(address)).await? {
             Response::ListMDataKeys(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -700,7 +722,9 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send(
             self,
             Request::ListMDataValues(MDataAddress::Seq { name, tag }),
-        )? {
+        )
+        .await?
+        {
             Response::ListMDataValues(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|values| match values {
@@ -723,7 +747,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("GetMDataUserPermissions for {:?}", address);
 
-        match send(self, Request::ListMDataUserPermissions { address, user })? {
+        match send(self, Request::ListMDataUserPermissions { address, user }).await? {
             Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -743,7 +767,9 @@ pub trait Client: Clone + 'static + Send + Sync {
         match send(
             self,
             Request::ListMDataValues(MDataAddress::Unseq { name, tag }),
-        )? {
+        )
+        .await?
+        {
             Response::ListMDataValues(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|values| match values {
@@ -772,7 +798,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
-        match send(self, Request::GetAData(address))? {
+        match send(self, Request::GetAData(address)).await? {
             Response::GetAData(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -795,7 +821,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address,
                 data_index,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetADataShell(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -815,7 +843,7 @@ pub trait Client: Clone + 'static + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataValue { address, key })? {
+        match send(self, Request::GetADataValue { address, key }).await? {
             Response::GetADataValue(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -835,7 +863,7 @@ pub trait Client: Clone + 'static + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataRange { address, range })? {
+        match send(self, Request::GetADataRange { address, range }).await? {
             Response::GetADataRange(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -851,7 +879,7 @@ pub trait Client: Clone + 'static + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataIndices(address))? {
+        match send(self, Request::GetADataIndices(address)).await? {
             Response::GetADataIndices(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -867,7 +895,7 @@ pub trait Client: Clone + 'static + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataLastEntry(address))? {
+        match send(self, Request::GetADataLastEntry(address)).await? {
             Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -893,7 +921,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address,
                 permissions_index,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetADataPermissions(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|permissions| match permissions {
@@ -925,7 +955,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address,
                 permissions_index,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetADataPermissions(res) => {
                 res.map_err(CoreError::from)
                     .and_then(|permissions| match permissions {
@@ -959,7 +991,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 permissions_index,
                 user,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetPubADataUserPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -987,7 +1021,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 permissions_index,
                 public_key,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetUnpubADataUserPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -1082,7 +1118,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 address,
                 owners_index,
             },
-        )? {
+        )
+        .await?
+        {
             Response::GetADataOwners(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -1118,7 +1156,7 @@ pub trait Client: Clone + 'static + Send + Sync {
     {
         trace!("List MDataPermissions for {:?}", address);
 
-        match send(self, Request::ListMDataPermissions(address))? {
+        match send(self, Request::ListMDataPermissions(address)).await? {
             Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -1189,11 +1227,11 @@ pub trait Client: Clone + 'static + Send + Sync {
         all(feature = "testing", feature = "mock-network")
     ))]
     #[doc(hidden)]
-    fn set_network_limits(&self, max_ops_count: Option<u64>) {
+    async fn set_network_limits(&self, max_ops_count: Option<u64>) {
         let inner = self.inner();
         inner
             .lock()
-            .unwrap()
+            .await
             .connection_manager
             .set_network_limits(max_ops_count);
     }
@@ -1203,13 +1241,14 @@ pub trait Client: Clone + 'static + Send + Sync {
         all(feature = "testing", feature = "mock-network")
     ))]
     #[doc(hidden)]
-    fn simulate_network_disconnect(&self) {
+    async fn simulate_network_disconnect(&self) {
         let inner = self.inner();
         inner
             .lock()
-            .unwrap()
+            .await
             .connection_manager
-            .simulate_disconnect();
+            .simulate_disconnect()
+            .await;
     }
 
     #[cfg(any(
@@ -1217,11 +1256,11 @@ pub trait Client: Clone + 'static + Send + Sync {
         all(feature = "testing", feature = "mock-network")
     ))]
     #[doc(hidden)]
-    fn set_simulate_timeout(&self, enabled: bool) {
+    async fn set_simulate_timeout(&self, enabled: bool) {
         let inner = self.inner();
         inner
             .lock()
-            .unwrap()
+            .await
             .connection_manager
             .set_simulate_timeout(enabled);
     }
@@ -1236,10 +1275,10 @@ pub trait Client: Clone + 'static + Send + Sync {
     where
         Self: Sized,
     {
-        let new_balance_owner = client_id.map_or_else(
-            || self.public_key(),
-            |client_id| *client_id.public_id().public_key(),
-        );
+        let new_balance_owner = match client_id {
+            None => self.public_key().await,
+            Some(client_id) => *client_id.public_id().public_key(),
+        };
         trace!(
             "Set the coin balance of {:?} to {:?}",
             new_balance_owner,
@@ -1254,7 +1293,9 @@ pub trait Client: Clone + 'static + Send + Sync {
                 transaction_id: rand::random(),
             },
             client_id,
-        ) {
+        )
+        .await
+        {
             Ok(res) => match res {
                 Response::Transaction(result) => match result {
                     Ok(_) => Ok(()),
@@ -1409,7 +1450,7 @@ pub trait AuthActions: Client + Clone + 'static {
     {
         trace!("ListAuthKeysAndVersion");
 
-        match send(self, Request::ListAuthKeysAndVersion)? {
+        match send(self, Request::ListAuthKeysAndVersion).await? {
             Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -1588,10 +1629,6 @@ mod tests {
     #[tokio::test]
     async fn pub_idata_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = unwrap!(Coins::from_str("10"));
 
@@ -1611,19 +1648,19 @@ mod tests {
             Err(e) => panic!("Unexpected: {:?}", e),
         }
         // Put idata
-        client2.put_idata(data.clone()).await?;
-        let res = client3.put_idata(test_data.clone()).await;
+        client.put_idata(data.clone()).await?;
+        let res = client.put_idata(test_data.clone()).await;
         match res {
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(CoreError::DataError(SndError::InvalidOwners)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),
         }
 
-        let balance = client4.get_balance(None).await?;
+        let balance = client.get_balance(None).await?;
         let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         assert_eq!(balance, expected_bal);
         // Fetch idata
-        let fetched_data = client5.get_idata(address).await?;
+        let fetched_data = client.get_idata(address).await?;
         assert_eq!(*fetched_data.address(), address);
         Ok(())
     }
@@ -1636,17 +1673,10 @@ mod tests {
         let start_bal = unwrap!(Coins::from_str("10"));
 
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
-        let client7 = client.clone();
-        let client8 = client.clone();
         let client9 = client.clone();
 
         let value = unwrap!(generate_random_vector::<u8>(10));
-        let data = UnpubImmutableData::new(value.clone(), client.public_key());
+        let data = UnpubImmutableData::new(value.clone(), client.public_key().await);
         let data2 = data.clone();
         let data3 = data.clone();
         let address = *data.address();
@@ -1664,26 +1694,26 @@ mod tests {
             Err(e) => panic!("Unexpected: {:?}", e),
         }
         // Put idata
-        client2.put_idata(data.clone()).await?;
+        client.put_idata(data.clone()).await?;
         // Test putting unpub idata with the same value.
         // Should conflict because duplication does .await?;not apply to unpublished data.
-        let res = client3.put_idata(data2.clone()).await;
+        let res = client.put_idata(data2.clone()).await;
         match res {
             Err(CoreError::DataError(SndError::DataExists)) => (),
             res => panic!("Unexpected: {:?}", res),
         }
-        let balance = client4.get_balance(None).await?;
+        let balance = client.get_balance(None).await?;
         let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         assert_eq!(balance, expected_bal);
         // Test putting published idata with the same value. Should not conflict.
-        client5.put_idata(pub_data).await?;
+        client.put_idata(pub_data).await?;
         // Fetch idata
-        let fetched_data = client6.get_idata(address).await?;
+        let fetched_data = client.get_idata(address).await?;
         assert_eq!(*fetched_data.address(), address);
         // Delete idata
-        client7.del_unpub_idata(*address.name()).await?;
+        client.del_unpub_idata(*address.name()).await?;
         // Make sure idata was deleted
-        let res = client8.get_idata(address).await;
+        let res = client.get_idata(address).await;
         match res {
             Ok(_) => panic!("Unpub idata still exists after deletion"),
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
@@ -1700,18 +1730,13 @@ mod tests {
     #[tokio::test]
     pub async fn unseq_mdata_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
 
         let name = XorName(rand::random());
         let tag = 15001;
         let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
-        let _ = permissions.insert(client.public_key(), permission_set);
+        let _ = permissions.insert(client.public_key().await, permission_set);
         let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
         let entries_keys = entries.keys().cloned().collect();
         let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
@@ -1721,24 +1746,24 @@ mod tests {
             tag,
             entries.clone(),
             permissions,
-            client.public_key(),
+            client.public_key().await,
         );
         client.put_unseq_mutable_data(data.clone()).await?;
         println!("Put unseq. MData successfully");
 
-        let version = client3
+        let version = client
             .get_mdata_version(MDataAddress::Unseq { name, tag })
             .await?;
         assert_eq!(version, 0);
-        let fetched_entries = client4.list_unseq_mdata_entries(name, tag).await?;
+        let fetched_entries = client.list_unseq_mdata_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
-        let keys = client5
+        let keys = client
             .list_mdata_keys(MDataAddress::Unseq { name, tag })
             .await?;
         assert_eq!(keys, entries_keys);
-        let values = client6.list_unseq_mdata_values(name, tag).await?;
+        let values = client.list_unseq_mdata_values(name, tag).await?;
         assert_eq!(values, entries_values);
-        let fetched_data = client2.get_unseq_mdata(*data.name(), data.tag()).await?;
+        let fetched_data = client.get_unseq_mdata(*data.name(), data.tag()).await?;
         assert_eq!(fetched_data.name(), data.name());
         assert_eq!(fetched_data.tag(), data.tag());
         Ok(())
@@ -1750,11 +1775,6 @@ mod tests {
     #[tokio::test]
     pub async fn seq_mdata_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -1770,31 +1790,31 @@ mod tests {
         let entries_values: Vec<MDataSeqValue> = entries.values().cloned().collect();
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MDataPermissionSet::new().allow(MDataAction::Read);
-        let _ = permissions.insert(client.public_key(), permission_set);
+        let _ = permissions.insert(client.public_key().await, permission_set);
         let data = SeqMutableData::new_with_data(
             name,
             tag,
             entries.clone(),
             permissions,
-            client.public_key(),
+            client.public_key().await,
         );
 
         client.put_seq_mutable_data(data.clone()).await?;
         println!("Put seq. MData successfully");
 
-        let fetched_entries = client4.list_seq_mdata_entries(name, tag).await?;
+        let fetched_entries = client.list_seq_mdata_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
-        let mdata_shell = client3.get_seq_mdata_shell(name, tag).await?;
+        let mdata_shell = client.get_seq_mdata_shell(name, tag).await?;
         assert_eq!(*mdata_shell.name(), name);
         assert_eq!(mdata_shell.tag(), tag);
         assert_eq!(mdata_shell.entries().len(), 0);
-        let keys = client5
+        let keys = client
             .list_mdata_keys(MDataAddress::Seq { name, tag })
             .await?;
         assert_eq!(keys, entries_keys);
-        let values = client6.list_seq_mdata_values(name, tag).await?;
+        let values = client.list_seq_mdata_values(name, tag).await?;
         assert_eq!(values, entries_values);
-        let fetched_data = client2.get_seq_mdata(name, tag).await?;
+        let fetched_data = client.get_seq_mdata(name, tag).await?;
         assert_eq!(fetched_data.name(), data.name());
         assert_eq!(fetched_data.tag(), data.tag());
         assert_eq!(fetched_data.entries().len(), 1);
@@ -1806,8 +1826,6 @@ mod tests {
     #[tokio::test]
     pub async fn del_seq_mdata_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
         let name = XorName(rand::random());
         let tag = 15001;
         let mdataref = MDataAddress::Seq { name, tag };
@@ -1816,12 +1834,12 @@ mod tests {
             tag,
             Default::default(),
             Default::default(),
-            client.public_key(),
+            client.public_key().await,
         );
 
         client.put_seq_mutable_data(data.clone()).await?;
-        client2.delete_mdata(mdataref).await?;
-        let res = client3.get_unseq_mdata(*data.name(), data.tag()).await;
+        client.delete_mdata(mdataref).await?;
+        let res = client.get_unseq_mdata(*data.name(), data.tag()).await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -1834,8 +1852,6 @@ mod tests {
     #[tokio::test]
     pub async fn del_unseq_mdata_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
         let name = XorName(rand::random());
         let tag = 15001;
         let mdataref = MDataAddress::Unseq { name, tag };
@@ -1844,13 +1860,13 @@ mod tests {
             tag,
             Default::default(),
             Default::default(),
-            client.public_key(),
+            client.public_key().await,
         );
 
         client.put_unseq_mutable_data(data.clone()).await?;
-        client2.delete_mdata(mdataref).await?;
+        client.delete_mdata(mdataref).await?;
 
-        let res = client3.get_unseq_mdata(*data.name(), data.tag()).await;
+        let res = client.get_unseq_mdata(*data.name(), data.tag()).await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -1868,7 +1884,7 @@ mod tests {
     #[tokio::test]
     async fn coin_permissions() -> Result<(), CoreError> {
         let client = random_client()?;
-        let wallet_a_addr: XorName = client.public_key().into();
+        let wallet_a_addr: XorName = client.public_key().await.into();
         let res = client
             .transfer_coins(None, rand::random(), unwrap!(Coins::from_str("5.0")), None)
             .await;
@@ -1878,9 +1894,6 @@ mod tests {
         }
 
         let client = random_client()?;
-        let c2 = client.clone();
-        let c3 = client.clone();
-        let c4 = client.clone();
         let res = client.get_balance(None).await;
         // Subtract to cover the cost of inserting the login packet
         let expected_amt = unwrap!(Coins::from_str("10")
@@ -1890,16 +1903,17 @@ mod tests {
             Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
             res => panic!("Unexpected result: {:?}", res),
         }
-        c2.test_set_balance(None, unwrap!(Coins::from_str("50.0")))
+        client
+            .test_set_balance(None, unwrap!(Coins::from_str("50.0")))
             .await?;
-        let res = c3
+        let res = client
             .transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
             .await;
         match res {
             Ok(transaction) => assert_eq!(transaction.amount, unwrap!(Coins::from_str("10"))),
             res => panic!("Unexpected error: {:?}", res),
         }
-        let res = c4.get_balance(None).await;
+        let res = client.get_balance(None).await;
         let expected_amt = unwrap!(Coins::from_str("40"));
         match res {
             Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
@@ -1915,23 +1929,18 @@ mod tests {
     #[tokio::test]
     async fn anonymous_wallet() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let wallet1: XorName = client.owner_key().into();
+        let wallet1: XorName = client.owner_key().await.into();
         let init_bal = unwrap!(Coins::from_str("500.0"));
 
         let client_id = gen_client_id();
         let bls_pk = *client_id.public_id().public_key();
 
         client.test_set_balance(None, init_bal).await?;
-        let transaction = client1
+        let transaction = client
             .create_balance(None, bls_pk, unwrap!(Coins::from_str("100.0")), None)
             .await?;
         assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
-        let transaction = client2
+        let transaction = client
             .transfer_coins(
                 Some(&client_id.clone()),
                 wallet1,
@@ -1940,16 +1949,16 @@ mod tests {
             )
             .await?;
         assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
-        let balance = client3.get_balance(Some(&client_id)).await?;
+        let balance = client.get_balance(Some(&client_id)).await?;
         assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
-        let balance = client4.get_balance(None).await?;
+        let balance = client.get_balance(None).await?;
         let expected =
             calculate_new_balance(init_bal, Some(1), Some(unwrap!(Coins::from_str("95"))));
         assert_eq!(balance, expected);
         let random_pk = gen_bls_keypair().public_key();
         let random_source = gen_client_id();
 
-        let res = client5
+        let res = client
             .create_balance(
                 Some(&random_source),
                 random_pk,
@@ -1976,35 +1985,27 @@ mod tests {
     async fn coin_balance_transfer() -> Result<(), CoreError> {
         let client = random_client()?;
         // let wallet1: XorName =
-        let client1 = client.clone();
-        let owner_key = client.owner_key();
+        let owner_key = client.owner_key().await;
         let wallet1: XorName = owner_key.into();
 
         client
             .test_set_balance(None, unwrap!(Coins::from_str("100.0")))
             .await?;
-        let balance = client1.get_balance(None).await?;
+        let balance = client.get_balance(None).await?;
         assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
 
         let client = random_client()?;
-        let c2 = client.clone();
-        let c3 = client.clone();
-        let c4 = client.clone();
-        let c5 = client.clone();
-        let c6 = client.clone();
-        let c7 = client.clone();
-        let c8 = client.clone();
         let init_bal = unwrap!(Coins::from_str("10"));
         let orig_balance = client.get_balance(None).await?;
-        let _ = c2
+        let _ = client
             .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
             .await?;
-        let new_balance = c3.get_balance(None).await?;
+        let new_balance = client.get_balance(None).await?;
         assert_eq!(
             new_balance,
             unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
         );
-        let res = c4
+        let res = client
             .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
             .await;
         let _ = match res {
@@ -2012,21 +2013,22 @@ mod tests {
             res => panic!("Unexpected result: {:?}", res),
         };
         // Check if coins are refunded
-        let balance = c5.get_balance(None).await?;
+        let balance = client.get_balance(None).await?;
         let expected =
             calculate_new_balance(init_bal, Some(1), Some(unwrap!(Coins::from_str("5"))));
         assert_eq!(balance, expected);
-        let res = c6
+        let res = client
             .transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InvalidOperation)) => (),
             res => panic!("Unexpected result: {:?}", res),
         }
-        c7.test_set_balance(None, unwrap!(Coins::from_str("0")))
+        client
+            .test_set_balance(None, unwrap!(Coins::from_str("0")))
             .await?;
         let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
-        let res = c8.put_idata(data).await;
+        let res = client.put_idata(data).await;
         match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!("Unexpected result: {:?}", res),
@@ -2048,7 +2050,7 @@ mod tests {
             tag,
             Default::default(),
             Default::default(),
-            client.public_key(),
+            client.public_key().await,
         );
 
         client.put_unseq_mutable_data(data).await?;
@@ -2070,12 +2072,6 @@ mod tests {
     #[tokio::test]
     pub async fn mdata_permissions_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = unwrap!(Coins::from_str("10"));
         let name = XorName(rand::random());
@@ -2085,8 +2081,7 @@ mod tests {
             .allow(MDataAction::Read)
             .allow(MDataAction::Insert)
             .allow(MDataAction::ManagePermissions);
-        let user = client.public_key();
-        let user2 = user;
+        let user = client.public_key().await;
         let random_user = gen_bls_keypair().public_key();
         let random_pk = gen_bls_keypair().public_key();
 
@@ -2098,7 +2093,7 @@ mod tests {
             tag,
             Default::default(),
             permissions.clone(),
-            client.public_key(),
+            client.public_key().await,
         );
         let test_data = SeqMutableData::new_with_data(
             XorName(rand::random()),
@@ -2109,37 +2104,37 @@ mod tests {
         );
 
         client.put_seq_mutable_data(data).await?;
-        let res = client1.put_seq_mutable_data(test_data.clone()).await;
+        let res = client.put_seq_mutable_data(test_data.clone()).await;
         let _ = match res {
             Err(CoreError::DataError(SndError::InvalidOwners)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(e) => panic!("Unexpected: {:?}", e),
         };
         // Check if coins are refunded
-        let balance = client2.get_balance(None).await?;
+        let balance = client.get_balance(None).await?;
         let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         assert_eq!(balance, expected_bal);
         let new_perm_set = MDataPermissionSet::new()
             .allow(MDataAction::ManagePermissions)
             .allow(MDataAction::Read);
-        client3
+        client
             .set_mdata_user_permissions(MDataAddress::Seq { name, tag }, user, new_perm_set, 1)
             .await?;
         println!("Modified user permissions");
 
-        let permissions = client4
-            .list_mdata_user_permissions(MDataAddress::Seq { name, tag }, user2)
+        let permissions = client
+            .list_mdata_user_permissions(MDataAddress::Seq { name, tag }, user)
             .await?;
         assert!(!permissions.is_allowed(MDataAction::Insert));
         assert!(permissions.is_allowed(MDataAction::Read));
         assert!(permissions.is_allowed(MDataAction::ManagePermissions));
         println!("Verified new permissions");
 
-        client5
+        client
             .del_mdata_user_permissions(MDataAddress::Seq { name, tag }, random_user, 2)
             .await?;
         println!("Deleted permissions");
-        let permissions = client6
+        let permissions = client
             .list_mdata_permissions(MDataAddress::Seq { name, tag })
             .await?;
         assert_eq!(permissions.len(), 1);
@@ -2155,11 +2150,6 @@ mod tests {
     #[tokio::test]
     pub async fn mdata_mutations_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2168,7 +2158,7 @@ mod tests {
             .allow(MDataAction::Insert)
             .allow(MDataAction::Update)
             .allow(MDataAction::Delete);
-        let user = client.public_key();
+        let user = client.public_key().await;
         let _ = permissions.insert(user, permission_set);
         let mut entries: MDataSeqEntries = Default::default();
         let _ = entries.insert(
@@ -2190,22 +2180,22 @@ mod tests {
             tag,
             entries.clone(),
             permissions,
-            client.public_key(),
+            client.public_key().await,
         );
         client.put_seq_mutable_data(data).await?;
         println!("Put seq. MData successfully");
 
-        let fetched_entries = client2.list_seq_mdata_entries(name, tag).await?;
+        let fetched_entries = client.list_seq_mdata_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
         let entry_actions: MDataSeqEntryActions = MDataSeqEntryActions::new()
             .update(b"key1".to_vec(), b"newValue".to_vec(), 1)
             .del(b"key2".to_vec(), 1)
             .ins(b"key3".to_vec(), b"value".to_vec(), 0);
 
-        client3
+        client
             .mutate_seq_mdata_entries(name, tag, entry_actions)
             .await?;
-        let fetched_entries = client4.list_seq_mdata_entries(name, tag).await?;
+        let fetched_entries = client.list_seq_mdata_entries(name, tag).await?;
         let mut expected_entries: BTreeMap<_, _> = Default::default();
         let _ = expected_entries.insert(
             b"key1".to_vec(),
@@ -2222,7 +2212,7 @@ mod tests {
             },
         );
         assert_eq!(fetched_entries, expected_entries);
-        let fetched_value = client5
+        let fetched_value = client
             .get_seq_mdata_value(name, tag, b"key3".to_vec())
             .await?;
         assert_eq!(
@@ -2232,7 +2222,7 @@ mod tests {
                 version: 0
             }
         );
-        let res = client6
+        let res = client
             .get_seq_mdata_value(name, tag, b"wrongKey".to_vec())
             .await;
         let _ = match res {
@@ -2242,11 +2232,6 @@ mod tests {
         };
 
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2255,7 +2240,7 @@ mod tests {
             .allow(MDataAction::Insert)
             .allow(MDataAction::Update)
             .allow(MDataAction::Delete);
-        let user = client.public_key();
+        let user = client.public_key().await;
         let _ = permissions.insert(user, permission_set);
         let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
         let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
@@ -2265,31 +2250,31 @@ mod tests {
             tag,
             entries.clone(),
             permissions,
-            client.public_key(),
+            client.public_key().await,
         );
         client.put_unseq_mutable_data(data).await?;
         println!("Put unseq. MData successfully");
 
-        let fetched_entries = client2.list_unseq_mdata_entries(name, tag).await?;
+        let fetched_entries = client.list_unseq_mdata_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
         let entry_actions: MDataUnseqEntryActions = MDataUnseqEntryActions::new()
             .update(b"key1".to_vec(), b"newValue".to_vec())
             .del(b"key2".to_vec())
             .ins(b"key3".to_vec(), b"value".to_vec());
 
-        client3
+        client
             .mutate_unseq_mdata_entries(name, tag, entry_actions)
             .await?;
-        let fetched_entries = client4.list_unseq_mdata_entries(name, tag).await?;
+        let fetched_entries = client.list_unseq_mdata_entries(name, tag).await?;
         let mut expected_entries: BTreeMap<_, _> = Default::default();
         let _ = expected_entries.insert(b"key1".to_vec(), b"newValue".to_vec());
         let _ = expected_entries.insert(b"key3".to_vec(), b"value".to_vec());
         assert_eq!(fetched_entries, expected_entries);
-        let fetched_value = client5
+        let fetched_value = client
             .get_unseq_mdata_value(name, tag, b"key1".to_vec())
             .await?;
         assert_eq!(fetched_value, b"newValue".to_vec());
-        let res = client6
+        let res = client
             .get_unseq_mdata_value(name, tag, b"wrongKey".to_vec())
             .await;
         match res {
@@ -2302,10 +2287,6 @@ mod tests {
     #[tokio::test]
     pub async fn adata_basics_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -2313,7 +2294,7 @@ mod tests {
         let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
         let set = ADataUnpubPermissionSet::new(true, true, true);
         let index = ADataIndex::FromStart(0);
-        let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key().await, set);
         let address = ADataAddress::UnpubSeq { name, tag };
 
         unwrap!(data.append_permissions(
@@ -2326,19 +2307,19 @@ mod tests {
         ));
 
         let owner = ADataOwner {
-            public_key: client.public_key(),
+            public_key: client.public_key().await,
             entries_index: 0,
             permissions_index: 1,
         };
         unwrap!(data.append_owner(owner, 0));
 
         client.put_adata(AData::UnpubSeq(data)).await?;
-        let data = client1.get_adata(address).await?;
+        let data = client.get_adata(address).await?;
         match data {
             AData::UnpubSeq(adata) => assert_eq!(*adata.name(), name),
             _ => panic!("Unexpected data found"),
         }
-        let data = client2.get_adata_shell(index, address).await?;
+        let data = client.get_adata_shell(index, address).await?;
         match data {
             AData::UnpubSeq(adata) => {
                 assert_eq!(*adata.name(), name);
@@ -2348,8 +2329,8 @@ mod tests {
             }
             _ => panic!("Unexpected data found"),
         }
-        client3.delete_adata(address).await?;
-        let res = client4.get_adata(address).await;
+        client.delete_adata(address).await?;
+        let res = client.get_adata(address).await;
         match res {
             Ok(_) => panic!("AData was not deleted"),
             Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
@@ -2360,14 +2341,6 @@ mod tests {
     #[tokio::test]
     pub async fn adata_permissions_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
-        let client7 = client.clone();
-        let client8 = client.clone();
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -2376,7 +2349,7 @@ mod tests {
         let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
         let set = ADataUnpubPermissionSet::new(true, true, true);
 
-        let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key().await, set);
 
         let key1 = b"KEY1".to_vec();
         let key2 = b"KEY2".to_vec();
@@ -2426,7 +2399,7 @@ mod tests {
         };
 
         let owner = ADataOwner {
-            public_key: client.public_key(),
+            public_key: client.public_key().await,
             entries_index: 4,
             permissions_index: 1,
         };
@@ -2443,14 +2416,14 @@ mod tests {
         unwrap!(test_data.append_owner(test_owner, 0));
 
         client.put_adata(AData::UnpubSeq(data)).await?;
-        let res = client1.put_adata(AData::UnpubSeq(test_data.clone())).await;
+        let res = client.put_adata(AData::UnpubSeq(test_data.clone())).await;
         let _ = match res {
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(CoreError::DataError(SndError::InvalidOwners)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),
         };
 
-        let data = client2
+        let data = client
             .get_adata_range(adataref, (index_start, index_end))
             .await?;
         assert_eq!(
@@ -2461,28 +2434,28 @@ mod tests {
             unwrap!(std::str::from_utf8(&unwrap!(data.last()).value)),
             "VALUE2"
         );
-        let data = client3.get_adata_indices(adataref).await?;
+        let data = client.get_adata_indices(adataref).await?;
         assert_eq!(data.entries_index(), 4);
         assert_eq!(data.owners_index(), 1);
         assert_eq!(data.permissions_index(), 1);
-        let data = client4.get_adata_value(adataref, b"KEY1".to_vec()).await?;
+        let data = client.get_adata_value(adataref, b"KEY1".to_vec()).await?;
         assert_eq!(unwrap!(std::str::from_utf8(data.as_slice())), "VALUE1");
-        let data = client5.get_adata_last_entry(adataref).await?;
+        let data = client.get_adata_last_entry(adataref).await?;
         assert_eq!(unwrap!(std::str::from_utf8(data.key.as_slice())), "KEY4");
         assert_eq!(
             unwrap!(std::str::from_utf8(data.value.as_slice())),
             "VALUE4"
         );
-        client6
+        client
             .add_unpub_adata_permissions(adataref, perm_set, 1)
             .await?;
-        let data = client7
+        let data = client
             .get_unpub_adata_permissions_at_index(adataref, perm_index)
             .await?;
         let set = unwrap!(data.permissions.get(&sim_client1));
         assert!(set.is_allowed(ADataAction::Append));
-        let set = client8
-            .get_unpub_adata_user_permissions(adataref, index_start, client8.public_key())
+        let set = client
+            .get_unpub_adata_user_permissions(adataref, index_start, client.public_key().await)
             .await?;
         assert!(set.is_allowed(ADataAction::Append));
         Ok(())
@@ -2493,8 +2466,6 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
 
         let adataref = ADataAddress::PubSeq { name, tag };
         let mut data = PubSeqAppendOnlyData::new(name, tag);
@@ -2502,7 +2473,7 @@ mod tests {
         let mut perms = BTreeMap::<ADataUser, ADataPubPermissionSet>::new();
         let set = ADataPubPermissionSet::new(true, true);
 
-        let usr = ADataUser::Key(client.public_key());
+        let usr = ADataUser::Key(client.public_key().await);
         let _ = perms.insert(usr, set);
 
         unwrap!(data.append_permissions(
@@ -2527,7 +2498,7 @@ mod tests {
         };
 
         let owner = ADataOwner {
-            public_key: client.public_key(),
+            public_key: client.public_key().await,
             entries_index: 0,
             permissions_index: 1,
         };
@@ -2535,8 +2506,8 @@ mod tests {
         unwrap!(data.append_owner(owner, 0));
 
         client.put_adata(AData::PubSeq(data)).await?;
-        client1.append_seq_adata(append, 0).await?;
-        let data = client2.get_adata(adataref).await?;
+        client.append_seq_adata(append, 0).await?;
+        let data = client.get_adata(adataref).await?;
         match data {
             AData::PubSeq(adata) => assert_eq!(
                 unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
@@ -2552,8 +2523,6 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
 
         let adataref = ADataAddress::UnpubUnseq { name, tag };
         let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
@@ -2561,7 +2530,7 @@ mod tests {
         let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
         let set = ADataUnpubPermissionSet::new(true, true, true);
 
-        let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key().await, set);
 
         unwrap!(data.append_permissions(
             ADataUnpubPermissions {
@@ -2585,7 +2554,7 @@ mod tests {
         };
 
         let owner = ADataOwner {
-            public_key: client.public_key(),
+            public_key: client.public_key().await,
             entries_index: 0,
             permissions_index: 1,
         };
@@ -2593,8 +2562,8 @@ mod tests {
         unwrap!(data.append_owner(owner, 0));
 
         client.put_adata(AData::UnpubUnseq(data)).await?;
-        client1.append_unseq_adata(append).await?;
-        let data = client2.get_adata(adataref).await?;
+        client.append_unseq_adata(append).await?;
+        let data = client.get_adata(adataref).await?;
         match data {
             AData::UnpubUnseq(adata) => assert_eq!(
                 unwrap!(std::str::from_utf8(&unwrap!(adata.last_entry()).key)),
@@ -2611,9 +2580,6 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = random_client()?;
-        let client1 = client.clone();
-        let client2 = client.clone();
-        let client3 = client.clone();
 
         let adataref = ADataAddress::UnpubUnseq { name, tag };
         let mut data = UnpubUnseqAppendOnlyData::new(name, tag);
@@ -2621,7 +2587,7 @@ mod tests {
         let mut perms = BTreeMap::<PublicKey, ADataUnpubPermissionSet>::new();
         let set = ADataUnpubPermissionSet::new(true, true, true);
 
-        let _ = perms.insert(client.public_key(), set);
+        let _ = perms.insert(client.public_key().await, set);
 
         data.append_permissions(
             ADataUnpubPermissions {
@@ -2643,7 +2609,7 @@ mod tests {
         data.append(kvdata)?;
 
         let owner = ADataOwner {
-            public_key: client.public_key(),
+            public_key: client.public_key().await,
             entries_index: 2,
             permissions_index: 1,
         };
@@ -2651,21 +2617,21 @@ mod tests {
         data.append_owner(owner, 0)?;
 
         let owner2 = ADataOwner {
-            public_key: client1.public_key(),
+            public_key: client.public_key().await,
             entries_index: 2,
             permissions_index: 1,
         };
 
         let owner3 = ADataOwner {
-            public_key: client2.public_key(),
+            public_key: client.public_key().await,
             entries_index: 2,
             permissions_index: 1,
         };
 
         client.put_adata(AData::UnpubUnseq(data)).await?;
-        client1.set_adata_owners(adataref, owner2, 1).await?;
-        client2.set_adata_owners(adataref, owner3, 2).await?;
-        let data = client3.get_adata(adataref).await?;
+        client.set_adata_owners(adataref, owner2, 1).await?;
+        client.set_adata_owners(adataref, owner3, 2).await?;
+        let data = client.get_adata(adataref).await?;
         match data {
             AData::UnpubUnseq(adata) => assert_eq!(adata.owners_index(), 3),
             _ => panic!("UNEXPECTED DATA!"),
@@ -2714,38 +2680,33 @@ mod tests {
         let name = XorName(rand::random());
         let tag = 10;
         let client = random_client()?;
-        let c2 = client.clone();
-        let c3 = client.clone();
-        let c4 = client.clone();
-        let c5 = client.clone();
-        let c6 = client.clone();
-        let c7 = client.clone();
-        let c8 = client.clone();
 
         let idata = UnpubImmutableData::new(
             unwrap!(generate_random_vector::<u8>(10)),
-            client.public_key(),
+            client.public_key().await,
         );
         let address = *idata.name();
         client.put_idata(idata).await?;
         let mut adata = UnpubSeqAppendOnlyData::new(name, tag);
         let owner = ADataOwner {
-            public_key: c2.public_key(),
+            public_key: client.public_key().await,
             entries_index: 0,
             permissions_index: 0,
         };
         unwrap!(adata.append_owner(owner, 0));
-        c2.put_adata(adata.into()).await?;
-        let mdata = UnseqMutableData::new(name, tag, c3.public_key());
-        c3.put_unseq_mutable_data(mdata).await?;
+        client.put_adata(adata.into()).await?;
+        let mdata = UnseqMutableData::new(name, tag, client.public_key().await);
+        client.put_unseq_mutable_data(mdata).await?;
 
-        let balance = c4.get_balance(None).await?;
-        c5.delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
+        let balance = client.get_balance(None).await?;
+        client
+            .delete_adata(ADataAddress::from_kind(ADataKind::UnpubSeq, name, tag))
             .await?;
-        c6.delete_mdata(MDataAddress::from_kind(MDataKind::Unseq, name, tag))
+        client
+            .delete_mdata(MDataAddress::from_kind(MDataKind::Unseq, name, tag))
             .await?;
-        c7.del_unpub_idata(address).await?;
-        let new_balance = c8.get_balance(None).await?;
+        client.del_unpub_idata(address).await?;
+        let new_balance = client.get_balance(None).await?;
         assert_eq!(new_balance, balance);
 
         Ok(())

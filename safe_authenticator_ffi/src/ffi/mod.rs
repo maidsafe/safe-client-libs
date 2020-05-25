@@ -129,7 +129,8 @@ pub unsafe extern "C" fn auth_reconnect(
         let user_data = OpaqueCtx(user_data);
         let client = &(*auth).client;
 
-        let response = client.restart_network().map_err(|e| FfiError::from(e));
+        let response =
+            futures::executor::block_on(client.restart_network()).map_err(|e| FfiError::from(e));
         match response {
             Ok(value) => value,
             e @ Err(_) => {
@@ -295,7 +296,7 @@ mod tests {
 
             let client = unsafe { &(*auth).client };
 
-            client.simulate_network_disconnect();
+            futures::executor::block_on(client.simulate_network_disconnect());
 
             // disconnect_cb should be Called.
             unwrap!(rx.recv_timeout(Duration::from_secs(15)));

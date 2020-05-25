@@ -71,10 +71,10 @@ use safe_core::{
     ipc::{AuthGranted, BootstrapConfig},
     NetworkEvent,
 };
-use std::{collections::HashMap, pin::Pin};
+use std::collections::HashMap;
 
 /// Network observer for diconnection notifications
-type AppNetworkDisconnectFuture = Pin<Box<dyn Future<Output = Result<(), ()>>>>;
+type AppNetworkDisconnectFuture = Box<dyn Future<Output = Result<(), ()>>>;
 
 /// Handle to an application instance.
 pub struct App {
@@ -151,7 +151,7 @@ impl App {
         }
         .boxed();
 
-        (net_tx, observer)
+        (net_tx, Box::new(observer))
     }
 
     /// Allows customising the mock Connection Manager before registering a new account.

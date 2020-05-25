@@ -21,7 +21,6 @@
     unused_results
 )]
 
-
 use safe_app::{App, AppError, Client, PubImmutableData};
 use safe_core::utils;
 use safe_core::utils::test_utils::random_client;

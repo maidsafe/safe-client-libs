@@ -374,7 +374,7 @@ async fn config_root_dir() -> Result<(), AuthError> {
     let client = authenticator.client;
 
     // Fetch the entries of the config root dir.
-    let dir = client.config_root_dir();
+    let dir = client.config_root_dir().await;
     let entries = client
         .list_seq_mdata_entries(dir.name(), dir.type_tag())
         .await?;

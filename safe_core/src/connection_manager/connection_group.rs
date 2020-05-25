@@ -11,7 +11,10 @@ use crate::{client::SafeKey, utils, CoreError};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
-use futures::channel::oneshot::{self, Sender};
+use futures::{
+    channel::oneshot::{self, Sender},
+    lock::Mutex,
+};
 use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
 use quic_p2p::{self, Builder, Config as QuicP2pConfig, Event, Peer, QuicP2p, QuicP2pError, Token};
@@ -26,9 +29,9 @@ use std::{
     net::SocketAddr,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc,
     },
-    thread::{self, JoinHandle},
+    thread,
     time::Duration,
 };
 use tokio::time::timeout;
@@ -99,12 +102,12 @@ impl ConnectionGroup {
     }
 
     pub async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
-        unwrap!(self.inner.lock()).send(msg_id, msg).await
+        self.inner.lock().await.send(msg_id, msg).await
     }
 
     /// Terminate the QUIC connections gracefully.
     pub async fn close(&mut self) -> Result<(), CoreError> {
-        unwrap!(self.inner.lock()).close().await
+        self.inner.lock().await.close().await
     }
 }
 
@@ -303,7 +306,7 @@ impl Connected {
         msg: &Message,
     ) -> Result<Response, CoreError> {
         trace!("Sending message {:?}", msg_id);
-        let mut rng = rand::thread_rng();
+        //let mut rng = rand::thread_rng();
 
         let (sender_future, response_future) = oneshot::channel();
         let expected_responses = if is_get_request(&msg) {
@@ -319,7 +322,7 @@ impl Connected {
         let bytes = Bytes::from(unwrap!(serialize(msg)));
         {
             for peer in self.elders.values().map(Elder::peer) {
-                let token = rng.gen();
+                let token = rand::random();
                 quic_p2p.send(peer, bytes.clone(), token);
             }
         }
@@ -604,19 +607,16 @@ impl Inner {
     }
 }
 
-fn setup_quic_p2p_event_loop(
-    inner: &Arc<Mutex<Inner>>,
-    event_rx: Receiver<Event>,
-) -> JoinHandle<()> {
+fn setup_quic_p2p_event_loop(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<Event>) {
     let inner_weak = Arc::downgrade(inner);
 
-    thread::spawn(move || {
+    let _ = tokio::spawn(async move {
         while let Ok(event) = event_rx.recv() {
             match event {
                 Event::Finish => break, // Graceful shutdown
                 event => {
                     if let Some(inner) = inner_weak.upgrade() {
-                        let mut inner = unwrap!(inner.lock());
+                        let mut inner = inner.lock().await;
                         inner.handle_quic_p2p_event(event);
                     } else {
                         // Event loop got dropped
@@ -626,5 +626,5 @@ fn setup_quic_p2p_event_loop(
                 }
             }
         }
-    })
+    });
 }

@@ -104,23 +104,20 @@ pub fn encode_authenticator_entry(
 pub async fn fetch_authenticator_entry(
     client: &AuthClient,
 ) -> Result<(u64, HashMap<String, MDataInfo>), AuthError> {
-    let c2 = client.clone();
-    let access_container = client.access_container();
+    let access_container = client.access_container().await;
 
     let key = {
-        let sk = client.secret_symmetric_key();
+        let sk = client.secret_symmetric_key().await;
         enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk)?
     };
 
-    client
+    let value = client
         .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
-        .await
-        .map_err(From::from)
-        .and_then(move |value| {
-            let enc_key = c2.secret_symmetric_key();
-            decode_authenticator_entry(&value.data, &enc_key)
-                .map(|decoded| (value.version, decoded))
-        })
+        .await?;
+    let enc_key = client.secret_symmetric_key().await;
+    let decoded = decode_authenticator_entry(&value.data, &enc_key)?;
+
+    Ok((value.version, decoded))
 }
 
 /// Updates the authenticator entry.
@@ -130,9 +127,9 @@ pub async fn put_authenticator_entry(
     new_value: &HashMap<String, MDataInfo>,
     version: u64,
 ) -> Result<(), AuthError> {
-    let access_container = client.access_container();
+    let access_container = client.access_container().await;
     let (key, ciphertext) = {
-        let sk = client.secret_symmetric_key();
+        let sk = client.secret_symmetric_key().await;
         let key = enc_key(&access_container, AUTHENTICATOR_ENTRY, &sk)?;
         let ciphertext = encode_authenticator_entry(new_value, &sk)?;
 
@@ -185,7 +182,7 @@ pub async fn fetch_entry(
         "Fetching access container entry for app with ID {}...",
         app_id
     );
-    let access_container = client.access_container();
+    let access_container = client.access_container().await;
     let key = enc_key(&access_container, &app_id, &app_keys.enc_key)?;
     trace!("Fetching entry using entry key {:?}", key);
 
@@ -213,9 +210,7 @@ pub async fn put_entry(
 ) -> Result<(), AuthError> {
     trace!("Putting access container entry for app {}...", app_id);
 
-    let client2 = client.clone();
-    let client3 = client.clone();
-    let access_container = client.access_container();
+    let access_container = client.access_container().await;
     let acc_cont_info = access_container.clone();
     let key = enc_key(&access_container, app_id, &app_keys.enc_key)?;
     let ciphertext = encode_app_entry(permissions, &app_keys.enc_key)?;
@@ -231,7 +226,7 @@ pub async fn put_entry(
     let shell_version = client
         .get_mdata_version(*access_container.address())
         .await?;
-    client2
+    client
         .set_mdata_user_permissions(
             *acc_cont_info.address(),
             app_pk,
@@ -240,7 +235,7 @@ pub async fn put_entry(
         )
         .await?;
 
-    recoverable_apis::mutate_mdata_entries(client3, *access_container.address(), actions)
+    recoverable_apis::mutate_mdata_entries(client.clone(), *access_container.address(), actions)
         .await
         .map_err(AuthError::from)
 }
@@ -254,22 +249,20 @@ pub async fn delete_entry(
 ) -> Result<(), AuthError> {
     // TODO: make sure this can't be called for authenticator Entry-0
 
-    let access_container = client.access_container();
+    let access_container = client.access_container().await;
     let acc_cont_info = access_container.clone();
     let key = enc_key(&access_container, app_id, &app_keys.enc_key)?;
-    let client2 = client.clone();
-    let client3 = client.clone();
     let actions = MDataSeqEntryActions::new().del(key, version);
     let app_pk: PublicKey = app_keys.public_key();
 
     let shell_version = client
         .get_mdata_version(*access_container.address())
         .await?;
-    client2
+    client
         .del_mdata_user_permissions(*acc_cont_info.address(), app_pk, shell_version + 1)
         .await?;
 
-    recoverable_apis::mutate_mdata_entries(client3, *access_container.address(), actions)
+    recoverable_apis::mutate_mdata_entries(client.clone(), *access_container.address(), actions)
         .await
         .map_err(AuthError::from)
 }

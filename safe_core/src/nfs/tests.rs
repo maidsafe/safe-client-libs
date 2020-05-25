@@ -105,7 +105,7 @@ async fn file_fetch_public_md() -> Result<(), NfsError> {
     let (_version, file) = file_helper::fetch(c4, dir.clone(), "").await?;
 
     let reader = file_helper::read(c5, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     trace!("reading {} bytes", size);
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![0u8; ORIG_SIZE]);
@@ -115,7 +115,7 @@ async fn file_fetch_public_md() -> Result<(), NfsError> {
     let (_version, file) = file_helper::fetch(c6, dir.clone(), "").await?;
 
     let reader = file_helper::read(c7, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     trace!("reading {} bytes", size);
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![0u8; ORIG_SIZE]);
@@ -156,7 +156,7 @@ async fn files_stored_in_unpublished_idata() -> Result<(), NfsError> {
         file_helper::insert(c3, root.clone(), "", &file).await?;
         let (_version, file) = file_helper::fetch(c4, root.clone(), "").await?;
         let reader = file_helper::read(c5, &file, None).await?;
-        let size = reader.size();
+        let size = reader.size().await;
         trace!("reading {} bytes", size);
         let data = reader.read(0, size).await?;
         assert_eq!(data, vec![0u8; ORIG_SIZE]);
@@ -211,7 +211,7 @@ async fn file_read() -> Result<(), NfsError> {
     let creation_time = *file.created_time();
 
     let reader = file_helper::read(c2, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     trace!("reading {} bytes", size);
     let data = reader.read(0, size).await?;
 
@@ -233,7 +233,7 @@ async fn file_read_chunks() -> Result<(), NfsError> {
     let (dir, file) = create_test_file(&client, true).await?;
 
     let reader = file_helper::read(c2, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     assert_eq!(size, ORIG_SIZE as u64);
 
     let mut size_read = 0;
@@ -350,7 +350,7 @@ async fn file_write_chunks() -> Result<(), NfsError> {
     let file = writer.close().await?;
 
     let reader = file_helper::read(c4, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
 
     assert_eq!(size, 2 * GOAL_SIZE as u64);
     let data = reader.read(0, size).await?;
@@ -383,7 +383,7 @@ async fn file_update_overwrite() -> Result<(), NfsError> {
     assert!(creation_time <= *file.modified_time());
 
     let reader = file_helper::read(c5, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     trace!("reading {} bytes", size);
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![1u8; NEW_SIZE]);
@@ -408,9 +408,9 @@ async fn file_update_append() -> Result<(), NfsError> {
         writer.write(&[2u8; APPEND_SIZE]).await?;
         let file = writer.close().await?;
         let reader = file_helper::read(c3, &file, dir.enc_key().cloned()).await?;
-        let size = reader.size() as usize;
+        let size = reader.size().await;
         trace!("reading {} bytes", size);
-        let data = reader.read(0, size as u64).await?;
+        let data = reader.read(0, size).await?;
         assert_eq!(data.len(), creation_size + APPEND_SIZE);
         assert_eq!(data[0..creation_size].to_owned(), vec![0u8; creation_size]);
         assert_eq!(&data[creation_size..], [2u8; APPEND_SIZE]);
@@ -477,7 +477,7 @@ async fn file_delete_then_add() -> Result<(), NfsError> {
     let (version, file) = file_helper::fetch(c5, dir.clone(), "hello.txt").await?;
     assert_eq!(version, 0);
     let reader = file_helper::read(c6, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     trace!("reading {} bytes", size);
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![1u8; NEW_SIZE]);
@@ -510,7 +510,7 @@ async fn file_open_close() -> Result<(), NfsError> {
     let _ = writer.close();
     // Open the file for reading, ensure it has original contents
     let reader = file_helper::read(c5, &file, dir.enc_key().cloned()).await?;
-    let size = reader.size();
+    let size = reader.size().await;
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![0u8; ORIG_SIZE]);
 
@@ -549,21 +549,21 @@ async fn file_open_concurrent() -> Result<(), NfsError> {
     let file2 = writer2.close().await?;
 
     // Read with the reader, it should have neither of the written changes.
-    let size = reader.size();
+    let size = reader.size().await;
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![0u8; ORIG_SIZE]);
 
     // Open the original file for reading again, it should be unchanged.
     let reader = file_helper::read(c5, &file, dir.enc_key().cloned()).await?;
 
-    let size = reader.size();
+    let size = reader.size().await;
     let data = reader.read(0, size).await?;
     assert_eq!(data, vec![0u8; ORIG_SIZE]);
 
     // Open the file written by writer2.
     let reader = file_helper::read(c6, &file2, dir.enc_key().cloned()).await?;
 
-    let size = reader.size();
+    let size = reader.size().await;
     let data = reader.read(0, size).await?;
 
     assert_eq!(data, vec![2u8; NEW_SIZE]);
@@ -619,7 +619,7 @@ async fn encryption() -> Result<(), NfsError> {
     // should work this time.
     let reader = file_helper::read(c4, &file, Some(key)).await?;
 
-    let size = reader.size();
+    let size = reader.size().await;
     let retrieved_content = reader.read(0, size).await?;
 
     assert_eq!(retrieved_content, content2);

@@ -78,7 +78,7 @@ async fn process_request(
 // Test the basics idata operations.
 #[tokio::test]
 async fn immutable_data_basics() {
-    let (mut connection_manager, _, client_safe_key, _) = setup(None);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None).await;
 
     // Construct PubImmutableData
     let orig_data: IData =
@@ -144,7 +144,7 @@ async fn immutable_data_basics() {
 // Test the basic mdata operations.
 #[tokio::test]
 async fn mutable_data_basics() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     // Construct MutableData
     let name = rand::random();
@@ -405,7 +405,7 @@ async fn mutable_data_basics() {
 // Test reclamation of deleted mdata.
 #[tokio::test]
 async fn mutable_data_reclaim() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     // Construct MutableData
     let name = rand::random();
@@ -511,7 +511,7 @@ async fn mutable_data_reclaim() {
 // Test valid and invalid mdata entry versioning.
 #[tokio::test]
 async fn mutable_data_entry_versioning() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     // Construct MutableData
     let name = rand::random();
@@ -652,7 +652,7 @@ async fn mutable_data_entry_versioning() {
 // Test various operations with and without proper permissions.
 #[tokio::test]
 async fn mutable_data_permissions() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     // Construct MutableData with some entries and empty permissions.
     let name = rand::random();
@@ -925,7 +925,7 @@ async fn mutable_data_permissions() {
 #[tokio::test]
 async fn mutable_data_ownership() {
     // Create owner's connection manager
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     // Create app's connection_manager
     let (app_safe_key, mut connection_manager2, _) = register_new_app(
@@ -963,8 +963,8 @@ async fn mutable_data_ownership() {
 
 #[tokio::test]
 async fn pub_idata_rpc() {
-    let (mut connection_manager, _, client_safe_key, _) = setup(None);
-    let (mut connection_manager2, _, client2_safe_key, _) = setup(None);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None).await;
+    let (mut connection_manager2, _, client2_safe_key, _) = setup(None).await;
 
     // Construct PubImmutableData
     let orig_data: IData =
@@ -1005,7 +1005,7 @@ async fn pub_idata_rpc() {
 
 #[tokio::test]
 async fn unpub_idata_rpc() {
-    let (mut connection_manager, _, client_safe_key, _) = setup(None);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None).await;
 
     let value = unwrap!(utils::generate_random_vector::<u8>(10));
     let data: IData = UnpubImmutableData::new(value, client_safe_key.public_key()).into();
@@ -1032,7 +1032,7 @@ async fn unpub_idata_rpc() {
         perform_mutations: true,
     };
 
-    let (mut conn_manager2, _, client2_safe_key, _) = setup(None);
+    let (mut conn_manager2, _, client2_safe_key, _) = setup(None).await;
     let (app_key, mut app_conn_manager, _) =
         register_new_app(&mut conn_manager2, &client2_safe_key, app_perms).await;
 
@@ -1056,7 +1056,7 @@ async fn unpub_idata_rpc() {
 
 #[tokio::test]
 async fn unpub_md() {
-    let (mut connection_manager, _, client_safe_key, _) = setup(None);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None).await;
 
     let name = XorName(rand::random());
     let tag = 15001;
@@ -1083,7 +1083,7 @@ async fn unpub_md() {
 // Test auth key operations with valid and invalid version bumps.
 #[tokio::test]
 async fn auth_keys() {
-    let (mut connection_manager, _, client_safe_key, _) = setup(None);
+    let (mut connection_manager, _, client_safe_key, _) = setup(None).await;
 
     // Initially, the list of auth keys should be empty and the version should be zero.
     let mut response = process_request(
@@ -1222,7 +1222,7 @@ async fn auth_keys() {
 // Ensure Get/Mutate AuthKeys Requests and DeleteMData Requests called by AppClients fails.
 #[tokio::test]
 async fn auth_actions_from_app() {
-    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     let app_perms = AppPermissions {
         transfer_coins: true,
@@ -1304,7 +1304,8 @@ async fn low_balance_check() {
                 mock_in_memory_storage: false,
                 mock_vault_path: None,
             }),
-        }));
+        }))
+        .await;
 
         let name: XorName = rand::random();
         let tag = 1000u64;
@@ -1396,7 +1397,8 @@ async fn invalid_config_mock_vault_path() {
             mock_in_memory_storage: false,
             mock_vault_path: Some(String::from("./this_path_should_not_exist")),
         }),
-    }));
+    }))
+    .await;
 }
 
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
@@ -1423,7 +1425,8 @@ async fn config_mock_vault_path() {
             mock_in_memory_storage: false,
             mock_vault_path: Some(String::from("./tmp")),
         }),
-    }));
+    }))
+    .await;
     // Put MutableData. Should succeed.
     let name = rand::random();
     let tag = 1000u64;
@@ -1451,7 +1454,7 @@ async fn config_mock_vault_path() {
 // Test routing request hooks.
 #[tokio::test]
 async fn request_hooks() {
-    let (mut conn_manager, _, client_safe_key, owner_key) = setup(None);
+    let (mut conn_manager, _, client_safe_key, owner_key) = setup(None).await;
     let custom_error: Error = Error::NetworkOther("hello world".to_string());
     let expected_error = custom_error.clone();
     conn_manager.set_request_hook(move |req| {
@@ -1545,7 +1548,7 @@ async fn request_hooks() {
 
 // Setup a connection manager for a new account with a shared, global vault or with a
 // new, non-shared vault by providing a config.
-fn setup(
+async fn setup(
     vault_config: Option<Config>,
 ) -> (
     ConnectionManager,
@@ -1564,20 +1567,20 @@ fn setup(
         unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx))
     };
     let coins = unwrap!(Coins::from_str("10"));
-    let client_safe_key = register_client(&mut conn_manager, coins, client_id);
+    let client_safe_key = register_client(&mut conn_manager, coins, client_id).await;
     let owner_key = client_safe_key.public_key();
     (conn_manager, conn_manager_rx, client_safe_key, owner_key)
 }
 
 // Create a balance for an account.
 // Return the safe key which will be used to sign the requests that follow.
-fn register_client(
+async fn register_client(
     conn_manager: &mut ConnectionManager,
     coins: Coins,
     client_id: ClientFullId,
 ) -> SafeKey {
     let client_public_key = client_id.public_id().public_key();
-    conn_manager.create_balance(*client_public_key, coins);
+    conn_manager.create_balance(*client_public_key, coins).await;
 
     SafeKey::client(client_id)
 }

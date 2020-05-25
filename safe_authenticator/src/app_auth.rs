@@ -155,7 +155,7 @@ pub async fn authenticate(
     // return the app info from the config.
     let (app, app_state, app_id) = match app_state {
         AppState::NotAuthenticated => {
-            let public_id = client.public_id();
+            let public_id = client.public_id().await;
             // Safe to unwrap as the auth client will have a client public id.
             let keys = AppKeys::new(unwrap!(public_id.client_public_id()).clone());
             let app = AppInfo {
@@ -224,7 +224,7 @@ async fn authenticated_app(
             .await;
     }
 
-    let access_container_info = client.access_container();
+    let access_container_info = client.access_container().await;
     let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
     Ok(AuthGranted {
@@ -280,7 +280,7 @@ async fn authenticate_new_app(
     update_access_container(&client, &app, perms.clone()).await?;
 
     let access_container_entry = perms;
-    let access_container_info = client.access_container();
+    let access_container_info = client.access_container().await;
     let access_container_info = AccessContInfo::from_mdata_info(&access_container_info)?;
 
     Ok(AuthGranted {

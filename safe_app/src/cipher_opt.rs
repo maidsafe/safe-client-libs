@@ -68,7 +68,7 @@ impl CipherOpt {
     }
 
     /// Decrypt something encrypted by CipherOpt::encrypt()
-    pub fn decrypt(
+    pub async fn decrypt(
         cipher_text: &[u8],
         app_ctx: &AppContext,
         client: &AppClient,
@@ -87,7 +87,7 @@ impl CipherOpt {
                     .map_err(|_| CoreError::SymmetricDecipherFailure)?)
             }
             WireFormat::Asymmetric(cipher_text) => {
-                let asym_sk = client.secret_encryption_key();
+                let asym_sk = client.secret_encryption_key().await;
                 asym_sk
                     .decrypt(&cipher_text)
                     .ok_or_else(|| AppError::from(CoreError::AsymmetricDecipherFailure))

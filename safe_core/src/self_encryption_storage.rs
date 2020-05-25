@@ -16,14 +16,13 @@ use std::fmt::{self, Display, Formatter};
 
 /// Network storage is the concrete type which self-encryption crate will use
 /// to put or get data from the network.
-// #[async_trait]
 #[derive(Clone)]
-pub struct SelfEncryptionStorage<C: Client + Send + Sync> {
+pub struct SelfEncryptionStorage<C: Client + Send + Sync + 'static> {
     client: C,
     published: bool,
 }
 
-impl<C: Client + Send + Sync> SelfEncryptionStorage<C> {
+impl<C: Client + Send + Sync + 'static> SelfEncryptionStorage<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {
         Self { client, published }
@@ -31,7 +30,7 @@ impl<C: Client + Send + Sync> SelfEncryptionStorage<C> {
 }
 
 #[async_trait]
-impl<C: Send + Sync + Client> Storage for SelfEncryptionStorage<C> {
+impl<C: Send + Sync + Client + 'static> Storage for SelfEncryptionStorage<C> {
     type Error = SEStorageError;
 
     async fn get(&self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -66,7 +65,7 @@ impl<C: Send + Sync + Client> Storage for SelfEncryptionStorage<C> {
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data).into()
         } else {
-            UnpubImmutableData::new(data, self.client.public_key()).into()
+            UnpubImmutableData::new(data, self.client.public_key().await).into()
         };
         match self.client.put_idata(immutable_data).await {
             Ok(r) => Ok(r),
@@ -74,11 +73,11 @@ impl<C: Send + Sync + Client> Storage for SelfEncryptionStorage<C> {
         }
     }
 
-    fn generate_address(&self, data: &[u8]) -> Vec<u8> {
+    async fn generate_address(&self, data: &[u8]) -> Vec<u8> {
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data.to_vec()).into()
         } else {
-            UnpubImmutableData::new(data.to_vec(), self.client.public_key()).into()
+            UnpubImmutableData::new(data.to_vec(), self.client.public_key().await).into()
         };
         immutable_data.name().0.to_vec()
     }
@@ -111,12 +110,12 @@ impl StorageError for SEStorageError {}
 /// Network storage is the concrete type which self-encryption crate will use
 /// to put or get data from the network.
 #[derive(Clone)]
-pub struct SelfEncryptionStorageDryRun<C: Client> {
+pub struct SelfEncryptionStorageDryRun<C: Client + 'static> {
     client: C,
     published: bool,
 }
 
-impl<C: Client> SelfEncryptionStorageDryRun<C> {
+impl<C: Client + 'static> SelfEncryptionStorageDryRun<C> {
     /// Create a new SelfEncryptionStorage instance.
     pub fn new(client: C, published: bool) -> Self {
         Self { client, published }
@@ -124,7 +123,7 @@ impl<C: Client> SelfEncryptionStorageDryRun<C> {
 }
 
 #[async_trait]
-impl<C: Send + Sync + Client> Storage for SelfEncryptionStorageDryRun<C> {
+impl<C: Send + Sync + Client + 'static> Storage for SelfEncryptionStorageDryRun<C> {
     type Error = SEStorageError;
 
     async fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
@@ -141,11 +140,11 @@ impl<C: Send + Sync + Client> Storage for SelfEncryptionStorageDryRun<C> {
         Ok(())
     }
 
-    fn generate_address(&self, data: &[u8]) -> Vec<u8> {
+    async fn generate_address(&self, data: &[u8]) -> Vec<u8> {
         let immutable_data: IData = if self.published {
             PubImmutableData::new(data.to_vec()).into()
         } else {
-            UnpubImmutableData::new(data.to_vec(), self.client.public_key()).into()
+            UnpubImmutableData::new(data.to_vec(), self.client.public_key().await).into()
         };
         immutable_data.name().0.to_vec()
     }

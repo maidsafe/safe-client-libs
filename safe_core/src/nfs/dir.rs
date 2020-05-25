@@ -20,7 +20,7 @@ pub async fn create_directory(
     contents: MDataSeqEntries,
     perms: BTreeMap<PublicKey, MDataPermissionSet>,
 ) -> Result<(), NfsError> {
-    let pub_key = client.owner_key();
+    let pub_key = client.owner_key().await;
 
     let dir_md =
         SeqMutableData::new_with_data(dir.name(), dir.type_tag(), contents, perms, pub_key);

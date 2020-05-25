@@ -31,7 +31,7 @@ enum DataTypeEncoding {
 /// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
 /// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 pub async fn create(
-    client: &(impl Client + Sync + Send),
+    client: &(impl Client + Sync + Send + 'static),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -45,7 +45,7 @@ pub async fn create(
 /// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 /// The DataMap is generated but the chunks are not uploaded to the network.
 pub async fn gen_data_map(
-    client: &(impl Client + Sync + Send),
+    client: &(impl Client + Sync + Send + 'static),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -57,7 +57,7 @@ pub async fn gen_data_map(
 
 /// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
 pub async fn extract_value(
-    client: &(impl Client + Sync + Send),
+    client: &(impl Client + Sync + Send + 'static),
     data: IData,
     position: Option<u64>,
     len: Option<u64>,
@@ -77,7 +77,7 @@ pub async fn extract_value(
     let self_encryptor = SelfEncryptor::new(se_storage, data_map)?;
 
     let length = match len {
-        None => self_encryptor.len(),
+        None => self_encryptor.len().await,
         Some(request_length) => request_length,
     };
 
@@ -85,6 +85,7 @@ pub async fn extract_value(
         None => 0,
         Some(pos) => pos,
     };
+
     match self_encryptor.read(read_position, length).await {
         Ok(data) => Ok(data),
         Err(error) => Err(CoreError::from(error)),
@@ -95,7 +96,7 @@ pub async fn extract_value(
 /// provided). This combines `get_idata` in `Client` and `extract_value` in this module into one
 /// function.
 pub async fn get_value(
-    client: &(impl Client + Sync + Send),
+    client: &(impl Client + Sync + Send + 'static),
     address: IDataAddress,
     position: Option<u64>,
     len: Option<u64>,
@@ -108,7 +109,7 @@ pub async fn get_value(
 
 async fn write_with_self_encryptor<S>(
     se_storage: S,
-    client: &(impl Client + Sync + Send),
+    client: &(impl Client + Sync + Send + 'static),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -135,7 +136,7 @@ where
 
 async fn pack<S>(
     se_storage: S,
-    client: &(impl Client + Sync + Send),
+    client: &(impl Client + Sync + Send + 'static),
     mut value: Vec<u8>,
     published: bool,
 ) -> Result<IData, CoreError>
@@ -146,7 +147,7 @@ where
         let data: IData = if published {
             PubImmutableData::new(value).into()
         } else {
-            UnpubImmutableData::new(value, client.public_key()).into()
+            UnpubImmutableData::new(value, client.public_key().await).into()
         };
 
         let serialised_data = serialize(&data)?;
@@ -175,7 +176,7 @@ where
             DataTypeEncoding::Serialised(value) => return Ok(value),
             DataTypeEncoding::DataMap(data_map) => {
                 let self_encryptor = SelfEncryptor::new(se_storage.clone(), data_map)?;
-                let length = self_encryptor.len();
+                let length = self_encryptor.len().await;
 
                 let serialised_data = self_encryptor.read(0, length).await?;
 

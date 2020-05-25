@@ -58,7 +58,7 @@ async fn coin_app_allow_permissions() -> Result<(), AppError> {
     // Create a recipient app
     let app = create_app().await;
     let client = app.client;
-    let coin_balance = XorName::from(client.owner_key());
+    let coin_balance = XorName::from(client.owner_key().await);
 
     // Create an app that can access and transfer coins from the owner's coin balance.
     let mut app_auth_req = create_random_auth_req();

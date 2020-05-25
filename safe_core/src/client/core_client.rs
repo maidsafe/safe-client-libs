@@ -20,17 +20,17 @@ use crate::errors::CoreError;
 use crate::ipc::BootstrapConfig;
 use crate::network_event::NetworkTx;
 use crate::utils;
+use async_trait::async_trait;
+use futures::lock::Mutex;
 use log::trace;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
 use safe_nd::{ClientFullId, Coins, LoginPacket, PublicKey, Request, Response};
-
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
-
 use unwrap::unwrap;
 
 /// Barebones Client object used for testing purposes.
@@ -151,19 +151,19 @@ impl CoreClient {
     }
 }
 
-// #[async_trait]
+#[async_trait]
 impl Client for CoreClient {
     type Context = ();
 
-    fn full_id(&self) -> SafeKey {
+    async fn full_id(&self) -> SafeKey {
         self.keys.client_safe_key()
     }
 
-    fn owner_key(&self) -> PublicKey {
-        self.public_key()
+    async fn owner_key(&self) -> PublicKey {
+        self.public_key().await
     }
 
-    fn config(&self) -> Option<BootstrapConfig> {
+    async fn config(&self) -> Option<BootstrapConfig> {
         None
     }
 
@@ -171,15 +171,15 @@ impl Client for CoreClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
+    async fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
         self.keys.enc_public_key
     }
 
-    fn secret_encryption_key(&self) -> shared_box::SecretKey {
+    async fn secret_encryption_key(&self) -> shared_box::SecretKey {
         self.keys.enc_secret_key.clone()
     }
 
-    fn secret_symmetric_key(&self) -> shared_secretbox::Key {
+    async fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         self.keys.enc_key.clone()
     }
 }

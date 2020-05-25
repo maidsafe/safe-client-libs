@@ -12,12 +12,13 @@ use tokio::time::timeout;
 
 use crate::{client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError};
 use connection_group::ConnectionGroup;
+use futures::lock::Mutex;
 use log::{error, trace};
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{Message, PublicId, Response};
 use std::{
     collections::{hash_map::Entry, HashMap},
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
@@ -46,21 +47,19 @@ impl ConnectionManager {
 
     /// Returns `true` if this connection manager is already connected to a Client Handlers
     /// group serving the provided public ID.
-    pub fn has_connection_to(&self, pub_id: &PublicId) -> bool {
-        match self.inner.lock() {
-            Ok(inner) => inner.groups.contains_key(&pub_id),
-            Err(_error) => false,
-        }
+    pub async fn has_connection_to(&self, pub_id: &PublicId) -> bool {
+        let inner = self.inner.lock().await;
+        inner.groups.contains_key(&pub_id)
     }
 
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
     pub async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
-        self.inner.lock().unwrap().send(pub_id, msg).await
+        self.inner.lock().await.send(pub_id, msg).await
     }
 
     /// Connect to Client Handlers that manage the provided ID.
     pub async fn bootstrap(&mut self, full_id: SafeKey) -> Result<(), CoreError> {
-        self.inner.lock().unwrap().bootstrap(full_id).await
+        self.inner.lock().await.bootstrap(full_id).await
     }
 
     /// Reconnect to the network.
@@ -70,7 +69,7 @@ impl ConnectionManager {
 
     /// Disconnect from a group.
     pub async fn disconnect(&mut self, pub_id: &PublicId) -> Result<(), CoreError> {
-        self.inner.lock().unwrap().disconnect(pub_id).await
+        self.inner.lock().await.disconnect(pub_id).await
     }
 }
 

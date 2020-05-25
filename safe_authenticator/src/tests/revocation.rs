@@ -14,7 +14,6 @@ use crate::{
     config::{self, get_app_revocation_queue, push_to_app_revocation_queue},
     errors::AuthError,
     revocation,
-    
     test_utils::{
         access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
         get_container_from_authenticator_entry, rand_app, register_app, register_rand_app, revoke,

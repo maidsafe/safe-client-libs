@@ -112,7 +112,7 @@ pub async fn decode_share_mdata_req(
     client: &AuthClient,
     req: &ShareMDataReq,
 ) -> Result<Vec<Option<FfiUserMetadata>>, AuthError> {
-    let user = client.public_key();
+    let user = client.public_key().await;
     let num_mdata = req.mdata.len();
     let mut results = Vec::with_capacity(num_mdata);
 

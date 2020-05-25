@@ -34,13 +34,13 @@ async fn md_created_by_app_1() -> Result<(), CoreError> {
 
     let local = LocalSet::new();
     let _ = local.spawn_local(async move {
-        let app_pk = client.public_key();
+        let app_pk = client.public_key().await;
         app_keys_tx
             .send(app_pk)
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
-        let bls_pk = client.owner_key();
+        let bls_pk = client.owner_key().await;
         let name: XorName = name_rx.recv().await.ok_or(CoreError::Unexpected(
             "failed to receive from channel".to_string(),
         ))?;
@@ -102,7 +102,7 @@ async fn md_created_by_app_1() -> Result<(), CoreError> {
             DIR_TAG,
             BTreeMap::new(),
             permissions,
-            client.owner_key(),
+            client.owner_key().await,
         );
 
         let (_, version) = client.list_auth_keys_and_version().await?;
@@ -136,7 +136,7 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
 
     let local = LocalSet::new();
     let _ = local.spawn_local(async move {
-        let app_pk = client.public_key();
+        let app_pk = client.public_key().await;
         app_keys_tx
             .send(app_pk)
             .await
@@ -222,8 +222,13 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
 
         let name: XorName = XorName(rng.gen());
 
-        let mdata =
-            UnseqMutableData::new_with_data(name, DIR_TAG, data, permissions, client.owner_key());
+        let mdata = UnseqMutableData::new_with_data(
+            name,
+            DIR_TAG,
+            data,
+            permissions,
+            client.owner_key().await,
+        );
 
         let (_, version) = client.list_auth_keys_and_version().await?;
         let _ = client
@@ -249,7 +254,7 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
 async fn md_created_by_app_3() -> Result<(), CoreError> {
     let app = create_app().await;
     let client = app.client;
-    let owners = client.public_key();
+    let owners = client.public_key().await;
     let name: XorName = rand::random();
     let mdata =
         SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), BTreeMap::new(), owners);
@@ -260,7 +265,7 @@ async fn md_created_by_app_3() -> Result<(), CoreError> {
         Err(x) => panic!("Expected ClientError::InvalidOwners. Got {:?}", x),
     }
 
-    let owners = client.owner_key();
+    let owners = client.owner_key().await;
     let mdata =
         SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), BTreeMap::new(), owners);
     client.put_seq_mutable_data(mdata).await?;
@@ -283,12 +288,12 @@ async fn multiple_apps() -> Result<(), CoreError> {
     let (mut entry_tx, mut entry_rx) = mpsc::channel(1);
     let (mut mutate_again_tx, mut mutate_again_rx) = mpsc::channel(1);
 
-    let client1 = app1.client;
+    let client = app1.client;
     let local = LocalSet::new();
     let _ = local.spawn_local(async move {
         let mut rng = StdRng::from_entropy();
-        let bls_pk = client1.owner_key();
-        let app_bls_key = client1.public_key();
+        let bls_pk = client.owner_key().await;
+        let app_bls_key = client.public_key().await;
         let mut permissions = BTreeMap::new();
         let app2_bls_pk = app2_key_rx.recv().await.ok_or(CoreError::Unexpected(
             "failed to receive from channel".to_string(),
@@ -307,7 +312,7 @@ async fn multiple_apps() -> Result<(), CoreError> {
         let name: XorName = XorName(rng.gen());
         let mdata =
             SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
-        let _ = client1.put_seq_mutable_data(mdata).await?;
+        let _ = client.put_seq_mutable_data(mdata).await?;
         name_tx
             .send(name)
             .await
@@ -317,7 +322,7 @@ async fn multiple_apps() -> Result<(), CoreError> {
             "failed to receive from channel".to_string(),
         ))?;
 
-        let value = client1
+        let value = client
             .get_seq_mdata_value(name, DIR_TAG, entry_key.clone())
             .await?;
         assert_eq!(
@@ -327,7 +332,7 @@ async fn multiple_apps() -> Result<(), CoreError> {
                 version: 0
             }
         );
-        let _ = client1
+        let _ = client
             .del_mdata_user_permissions(
                 MDataAddress::Seq {
                     name: name,
@@ -343,7 +348,7 @@ async fn multiple_apps() -> Result<(), CoreError> {
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
-        let keys = client1
+        let keys = client
             .list_mdata_keys(MDataAddress::Seq {
                 name: name,
                 tag: DIR_TAG,
@@ -357,7 +362,7 @@ async fn multiple_apps() -> Result<(), CoreError> {
     let _ = local.spawn_local(async move {
         let client2 = app2.client;
         app2_key_tx
-            .send(client2.public_key())
+            .send(client2.public_key().await)
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
@@ -409,8 +414,8 @@ async fn permissions_and_version() -> Result<(), CoreError> {
     let app = create_app().await;
     let client = app.client;
     let mut rng = StdRng::from_entropy();
-    let bls_pk = client.owner_key();
-    let app_bls_key = client.public_key();
+    let bls_pk = client.owner_key().await;
+    let app_bls_key = client.public_key().await;
     let random_key = SecretKey::random().public_key();
 
     let mut permissions = BTreeMap::new();
@@ -499,8 +504,8 @@ async fn permissions_crud() -> Result<(), CoreError> {
     let client = app.client;
 
     let mut rng = StdRng::from_entropy();
-    let bls_pk = client.owner_key();
-    let app_bls_key = client.public_key();
+    let bls_pk = client.owner_key().await;
+    let app_bls_key = client.public_key().await;
     let random_key_a = SecretKey::random().public_key();
     let random_key_b = SecretKey::random().public_key();
 
@@ -672,8 +677,8 @@ async fn sequenced_entries_crud() -> Result<(), CoreError> {
     let client = app.client;
 
     let mut rng = StdRng::from_entropy();
-    let bls_pk = client.owner_key();
-    let app_bls_key = client.public_key();
+    let bls_pk = client.owner_key().await;
+    let app_bls_key = client.public_key().await;
     let mut permissions = BTreeMap::new();
     let _ = permissions.insert(
         app_bls_key,
@@ -762,8 +767,8 @@ async fn unsequenced_entries_crud() -> Result<(), CoreError> {
     let client = app.client;
 
     let mut rng = StdRng::from_entropy();
-    let bls_pk = client.owner_key();
-    let app_bls_key = client.public_key();
+    let bls_pk = client.owner_key().await;
+    let app_bls_key = client.public_key().await;
     let mut permissions = BTreeMap::new();
     let _ = permissions.insert(
         app_bls_key,

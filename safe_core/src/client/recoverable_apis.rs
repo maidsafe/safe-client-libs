@@ -30,12 +30,12 @@ pub async fn put_mdata(
     client: (impl Client + Sync + Send),
     data: SeqMutableData,
 ) -> Result<(), CoreError> {
-    let client2 = client.clone();
+    let client = client.clone();
 
     match client.put_seq_mutable_data(data.clone()).await {
         Ok(response) => Ok(response),
         Err(e) => match e {
-            CoreError::DataError(SndError::DataExists) => update_mdata(client2, data).await,
+            CoreError::DataError(SndError::DataExists) => update_mdata(client, data).await,
             error => Err(error),
         },
     }
@@ -172,8 +172,7 @@ async fn update_mdata(
     client: (impl Client + Sync + Send),
     data: SeqMutableData,
 ) -> Result<(), CoreError> {
-    let client2 = client.clone();
-    let client3 = client.clone();
+    let client = client.clone();
 
     let address = *data.address();
     let entries = client
@@ -185,7 +184,7 @@ async fn update_mdata(
     let next_version = version + 1;
 
     update_mdata_permissions(
-        client2,
+        client.clone(),
         address,
         &permissions,
         data.permissions(),
@@ -193,7 +192,7 @@ async fn update_mdata(
     )
     .await?;
 
-    update_mdata_entries(client3, address, &entries, data.entries().clone()).await
+    update_mdata_entries(client, address, &entries, data.entries().clone()).await
 }
 
 // Update the mutable data on the network so it has all the `desired_entries`.
@@ -494,13 +493,10 @@ mod tests_with_mock_routing {
     #[tokio::test]
     async fn put_mdata_with_recovery() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
 
         let name = rand::random();
         let tag = 10_000;
-        let owners = client.public_key();
+        let owners = client.public_key().await;
 
         let entries = btree_map![
              vec![0] => MDataSeqValue {
@@ -550,8 +546,8 @@ mod tests_with_mock_routing {
         let data1 = SeqMutableData::new_with_data(name, tag, entries1, permissions, owners);
 
         client.put_seq_mutable_data(data0).await?;
-        put_mdata(client2, data1).await?;
-        let entries = client3.list_seq_mdata_entries(name, tag).await?;
+        put_mdata(client.clone(), data1).await?;
+        let entries = client.list_seq_mdata_entries(name, tag).await?;
         assert_eq!(entries.len(), 4);
         assert_eq!(
             *unwrap!(entries.get([0].as_ref())),
@@ -568,7 +564,7 @@ mod tests_with_mock_routing {
             }
         );
 
-        let permissions = client4
+        let permissions = client
             .list_mdata_permissions(MDataAddress::Seq { name, tag })
             .await?;
         assert_eq!(permissions.len(), 2);
@@ -584,8 +580,6 @@ mod tests_with_mock_routing {
     #[tokio::test]
     async fn mutate_mdata_entries_with_recovery() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
 
         let name: XorName = rand::random();
         let tag = 10_000;
@@ -611,7 +605,7 @@ mod tests_with_mock_routing {
                 version: 0,
             }
         ];
-        let owners = client.public_key();
+        let owners = client.public_key().await;
         let data = SeqMutableData::new_with_data(name, tag, entries, Default::default(), owners);
 
         client.put_seq_mutable_data(data).await?;
@@ -626,8 +620,8 @@ mod tests_with_mock_routing {
             .del(vec![6], 1) // delete of non-existing entry
             .del(vec![7], 0); // delete with invalid version
 
-        mutate_mdata_entries(client2, MDataAddress::Seq { name, tag }, actions).await?;
-        let entries = client3.list_seq_mdata_entries(name, tag).await?;
+        mutate_mdata_entries(client.clone(), MDataAddress::Seq { name, tag }, actions).await?;
+        let entries = client.list_seq_mdata_entries(name, tag).await?;
         assert_eq!(entries.len(), 5);
 
         assert_eq!(
@@ -676,15 +670,10 @@ mod tests_with_mock_routing {
     #[tokio::test]
     async fn set_and_del_mdata_user_permissions_with_recovery() -> Result<(), CoreError> {
         let client = random_client()?;
-        let client2 = client.clone();
-        let client3 = client.clone();
-        let client4 = client.clone();
-        let client5 = client.clone();
-        let client6 = client.clone();
 
         let name: XorName = rand::random();
         let tag = 10_000;
-        let owners = client.public_key();
+        let owners = client.public_key().await;
         let data = SeqMutableData::new_with_data(
             name,
             tag,
@@ -702,29 +691,29 @@ mod tests_with_mock_routing {
         client.put_seq_mutable_data(data).await?;
         // set with invalid version
         set_mdata_user_permissions(
-            client2,
+            client.clone(),
             address,
             user0,
             MDataPermissionSet::new().allow(MDataAction::Insert),
             0,
         )
         .await?;
-        let retrieved_permissions = client3.list_mdata_user_permissions(address, user0).await?;
+        let retrieved_permissions = client.list_mdata_user_permissions(address, user0).await?;
         assert_eq!(
             retrieved_permissions,
             MDataPermissionSet::new().allow(MDataAction::Insert)
         );
 
         // delete with invalid version
-        del_mdata_user_permissions(client4, address, user0, 0).await?;
-        let res = client5.list_mdata_user_permissions(address, user0).await;
+        del_mdata_user_permissions(client.clone(), address, user0, 0).await?;
+        let res = client.list_mdata_user_permissions(address, user0).await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchKey)) => (),
             x => panic!("Unexpected {:?}", x),
         }
 
         // delete of non-existing user
-        del_mdata_user_permissions(client6, address, user1, 3).await?;
+        del_mdata_user_permissions(client, address, user1, 3).await?;
 
         Ok(())
     }

@@ -16,12 +16,12 @@ use self_encryption::SelfEncryptor;
 /// `Reader` is used to read contents of a `File`. It can read in chunks if the `File` happens to be
 /// very large.
 #[allow(dead_code)]
-pub struct Reader<C: Client> {
+pub struct Reader<C: Client + 'static> {
     client: C,
     self_encryptor: SelfEncryptor<SelfEncryptionStorage<C>>,
 }
 
-impl<C: Client> Reader<C> {
+impl<C: Client + 'static> Reader<C> {
     /// Create a new instance of `Reader`.
     pub async fn new(
         client: C,
@@ -40,8 +40,8 @@ impl<C: Client> Reader<C> {
     }
 
     /// Returns the total size of the file/blob.
-    pub fn size(&self) -> u64 {
-        self.self_encryptor.len()
+    pub async fn size(&self) -> u64 {
+        self.self_encryptor.len().await
     }
 
     /// Read data from file/blob.
@@ -52,7 +52,7 @@ impl<C: Client> Reader<C> {
             length
         );
 
-        if (position + length) > self.size() {
+        if (position + length) > self.size().await {
             Err(NfsError::InvalidRange)
         } else {
             debug!(

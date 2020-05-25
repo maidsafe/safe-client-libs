@@ -270,7 +270,7 @@ async fn unregistered_client() -> Result<(), AppError> {
 
         let client = random_client()?;
         let owner = ADataOwner {
-            public_key: client.owner_key(),
+            public_key: client.owner_key().await,
             entries_index: 0,
             permissions_index: 0,
         };
@@ -336,7 +336,7 @@ async fn published_data_access() -> Result<(), AppError> {
         let client = random_client()?;
 
         let owner = ADataOwner {
-            public_key: client.owner_key(),
+            public_key: client.owner_key().await,
             entries_index: 0,
             permissions_index: 0,
         };

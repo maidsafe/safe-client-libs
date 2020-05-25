@@ -22,7 +22,8 @@ use safe_core::{Client, ConnectionManager, NetworkTx};
 use safe_nd::{ClientFullId, PublicKey};
 use std::fmt;
 
-use std::sync::{Arc, Mutex};
+use futures::lock::Mutex;
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Client object used by `safe_app`.
@@ -138,17 +139,17 @@ impl AppClient {
 impl Client for AppClient {
     type Context = AppContext;
 
-    fn full_id(&self) -> SafeKey {
-        let app_inner = self.app_inner.lock().unwrap();
+    async fn full_id(&self) -> SafeKey {
+        let app_inner = self.app_inner.lock().await;
         app_inner.keys.app_safe_key()
     }
 
-    fn owner_key(&self) -> PublicKey {
-        self.app_inner.lock().unwrap().owner_key
+    async fn owner_key(&self) -> PublicKey {
+        self.app_inner.lock().await.owner_key
     }
 
-    fn config(&self) -> Option<BootstrapConfig> {
-        let app_inner = self.app_inner.lock().unwrap();
+    async fn config(&self) -> Option<BootstrapConfig> {
+        let app_inner = self.app_inner.lock().await;
         app_inner.config.clone()
     }
 
@@ -156,18 +157,18 @@ impl Client for AppClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
-        let app_inner = self.app_inner.lock().unwrap();
+    async fn public_encryption_key(&self) -> threshold_crypto::PublicKey {
+        let app_inner = self.app_inner.lock().await;
         app_inner.keys.clone().enc_public_key
     }
 
-    fn secret_encryption_key(&self) -> shared_box::SecretKey {
-        let app_inner = self.app_inner.lock().unwrap();
+    async fn secret_encryption_key(&self) -> shared_box::SecretKey {
+        let app_inner = self.app_inner.lock().await;
         app_inner.keys.clone().enc_secret_key
     }
 
-    fn secret_symmetric_key(&self) -> shared_secretbox::Key {
-        let app_inner = self.app_inner.lock().unwrap();
+    async fn secret_symmetric_key(&self) -> shared_secretbox::Key {
+        let app_inner = self.app_inner.lock().await;
         app_inner.keys.clone().enc_key
     }
 }

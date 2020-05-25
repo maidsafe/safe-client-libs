@@ -37,7 +37,6 @@ use safe_nd::{Error as SndError, Request, Response};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::Write;
-use std::pin::Pin;
 use std::str::FromStr;
 use unwrap::unwrap;
 
@@ -284,7 +283,10 @@ pub async fn read_file(
     let client = authenticator.client.clone();
 
     let reader = file_helper::read(client.clone(), &file, encryption_key).await?;
-    reader.read(0, reader.size()).await.map_err(AuthError::from)
+    reader
+        .read(0, reader.size().await)
+        .await
+        .map_err(AuthError::from)
 }
 
 /// Deletes file from the given directory by given name.
@@ -412,13 +414,8 @@ pub async fn compare_access_container_entries(
 
 /// Create random registered client and run it inside an event loop. Use this to
 /// create an `AuthClient` automatically and randomly.
-pub fn random_client<E, C>() -> Result<
-    (
-        Pin<Box<dyn Future<Output = ()> + 'static + Send>>,
-        AuthClient,
-    ),
-    AuthError,
->
+pub fn random_client<E, C>(
+) -> Result<(Box<dyn Future<Output = ()> + 'static + Send>, AuthClient), AuthError>
 where
     E: Debug,
 {
@@ -430,13 +427,7 @@ where
 /// create an `AuthClient` automatically and randomly.
 pub fn random_client_with_net_obs<NetObs>(
     n: NetObs,
-) -> Result<
-    (
-        Pin<Box<dyn Future<Output = ()> + 'static + Send>>,
-        AuthClient,
-    ),
-    AuthError,
->
+) -> Result<(Box<dyn Future<Output = ()> + 'static + Send>, AuthClient), AuthError>
 where
     NetObs: FnMut(NetworkEvent) + Send + 'static,
 {
@@ -472,7 +463,7 @@ where
     // First, log in normally to obtain the access contained info.
     let auth = unwrap!(Authenticator::login(locator, password, || ()).await);
     let client = auth.client;
-    let ac_info = client.access_container();
+    let ac_info = client.access_container().await;
 
     // Then, log in with a request hook that makes mutation of the access container fail.
     let auth = unwrap!(

@@ -13,4 +13,3 @@ members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_cor
 self_encryption = { git = "https://github.com/joshuef/self_encryption", branch = "Arc-Mutex" }
 # ffi_utils = { path = "../ffi_utils" }
 # ffi_utils = { git = "https://github.com/joshuef/ffi_utils", branch = "Async-Ability" }
-# self_encryption = { git = "https://github.com/bochaco/self_encryption", branch = "chore-await-instead-of-block" }

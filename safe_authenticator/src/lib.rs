@@ -45,7 +45,6 @@ pub mod config;
 pub mod errors;
 pub mod ipc;
 pub mod revocation;
-use core::pin::Pin;
 /// default dir
 pub mod std_dirs;
 #[cfg(any(test, feature = "testing"))]
@@ -64,15 +63,15 @@ use safe_core::ConnectionManager;
 use safe_core::{NetworkEvent, NetworkTx};
 use safe_nd::ClientFullId;
 
-/// Future type specialised with `AuthError` as an error type.
-pub type AuthFuture<T> = dyn Future<Output = Result<T, AuthError>>;
+/// Network observer for diconnection notifications
+type AppNetworkDisconnectFuture = Box<dyn Future<Output = Result<(), ()>>>;
 
 /// Authenticator instance which manages client and disconnect notifier.
 pub struct Authenticator {
     /// AuthClient instance
     pub client: AuthClient,
     /// Network connection notifier
-    pub network_observer: Pin<Box<dyn Future<Output = Result<(), ()>>>>,
+    pub network_observer: AppNetworkDisconnectFuture,
 }
 
 impl Authenticator {
@@ -108,7 +107,7 @@ impl Authenticator {
 
         Ok(Self {
             client,
-            network_observer,
+            network_observer: Box::new(network_observer),
         })
     }
 
@@ -145,16 +144,17 @@ impl Authenticator {
         N: FnMut() + Send + 'static,
     {
         let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
-        let network_observer: BoxFuture<Result<(), ()>> = Box::pin(async move {
+        let network_observer: BoxFuture<Result<(), ()>> = async move {
             if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
                 disconnect_notifier();
             };
             Ok(())
-        });
+        }
+        .boxed();
 
         let client: AuthClient = create_client_fn(net_tx)?;
 
-        if !client.std_dirs_created() {
+        if !client.std_dirs_created().await {
             let cloned_client = client.clone();
 
             std_dirs::create(&cloned_client).await?;
@@ -162,7 +162,7 @@ impl Authenticator {
 
         Ok(Self {
             client,
-            network_observer,
+            network_observer: Box::new(network_observer),
         })
     }
 }
@@ -257,7 +257,7 @@ impl Authenticator {
 
         Ok(Self {
             client,
-            network_observer,
+            network_observer: Box::new(network_observer),
         })
     }
 

@@ -14,20 +14,14 @@ pub use self::sync::Synchronizer;
 
 use crate::client::core_client::CoreClient;
 use crate::client::{Client, COST_OF_PUT};
-
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::{self};
 use crate::CoreError;
-
-use futures::channel::mpsc;
-
+use futures::{channel::mpsc, future::Future};
 use log::trace;
 use rand;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
-
-// use std::sync::mpsc::Receiver;
-
 use tokio::stream::StreamExt;
 use unwrap::unwrap;
 
@@ -99,8 +93,7 @@ pub fn setup_client_with_net_obs<Create, NetObs, A, C, F>(
     _context: &A,
     client_creator: Create,
     mut n: NetObs,
-    // r: Run,
-) -> Result<(futures::future::BoxFuture<()>, C), CoreError>
+) -> Result<(Box<dyn Future<Output = ()> + 'static + Send>, C), CoreError>
 where
     Create: FnOnce(NetworkTx) -> Result<C, F>,
     NetObs: FnMut(NetworkEvent) + 'static + Send,
@@ -119,7 +112,7 @@ where
     };
 
     // net fut returned in order to keep it alive.
-    Ok((Box::pin(net_fut), client))
+    Ok((Box::new(net_fut), client))
 }
 
 /// Helper function to calculate the total cost of expenditure by adding number of mutations and

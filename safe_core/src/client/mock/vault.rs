@@ -13,6 +13,7 @@ use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
 use bincode::{deserialize, serialize};
 use fs2::FileExt;
+use futures::lock::{Mutex, MutexGuard};
 use log::{debug, trace, warn};
 use safe_nd::{
     verify_signature, AData, ADataAction, ADataAddress, ADataIndex, AppPermissions, AppendOnlyData,
@@ -30,7 +31,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
 #[cfg(test)]
@@ -1388,8 +1389,8 @@ impl<'a> Drop for VaultGuard<'a> {
     }
 }
 
-pub fn lock(vault: &Mutex<Vault>, writing: bool) -> VaultGuard {
-    let mut inner = unwrap!(vault.lock());
+pub async fn lock<'a>(vault: &'a Arc<Mutex<Vault>>, writing: bool) -> VaultGuard<'a> {
+    let mut inner = vault.lock().await;
 
     if let Some(cache) = inner.store.load(writing) {
         inner.cache = cache;

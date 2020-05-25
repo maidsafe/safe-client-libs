@@ -61,7 +61,7 @@ async fn share_some_mdatas() -> Result<(), AuthError> {
     let authenticator = test_utils::create_account_and_login().await;
 
     let client = &authenticator.client;
-    let user = client.public_key();
+    let user = client.public_key().await;
 
     const NUM_MDATAS: usize = 3;
 
@@ -166,7 +166,7 @@ async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
     let app_auth = test_utils::register_app(&authenticator, &auth_req).await?;
     let app_key = app_auth.app_keys.public_key();
 
-    let user = client.public_key();
+    let user = client.public_key().await;
 
     const NUM_MDATAS: usize = 3;
 
@@ -259,7 +259,7 @@ async fn share_some_mdatas_with_ownership_error() -> Result<(), AuthError> {
     let authenticator = test_utils::create_account_and_login().await;
 
     let client = &authenticator.client;
-    let user = client.public_key();
+    let user = client.public_key().await;
 
     let name = rand::random();
     let mdata = SeqMutableData::new_with_data(name, 0, btree_map![], btree_map![], user);
@@ -336,7 +336,7 @@ async fn auth_apps_accessing_mdatas() -> Result<(), AuthError> {
     let authenticator = test_utils::create_account_and_login().await;
 
     let client = &authenticator.client;
-    let user = client.public_key();
+    let user = client.public_key().await;
 
     const NUM_MDATAS: usize = 3;
     const NUM_MDATAS_NO_META: usize = 3;
