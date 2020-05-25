@@ -14,7 +14,7 @@ version = "0.15.0"
 async-trait = "~0.1.30"
 bincode = "~1.1.4"
 ffi_utils = "~0.16.0"
-futures = "~0.3.4"
+futures = "~0.3.5"
 futures-util = "~0.3.4"
 jni = { version = "~0.12.0", optional = true }
 log = "~0.4.1"
@@ -25,7 +25,7 @@ safe-nd = "~0.8.0"
 serde = { version = "~1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
 tiny-keccak = "~1.5.0"
-tokio = { version="~0.2.18", features=["full"] }
+tokio = { version="~0.2.21", features=["full"] }
 unwrap = "~1.2.0"
 env_logger = { version = "~0.6.2", optional = true }
 

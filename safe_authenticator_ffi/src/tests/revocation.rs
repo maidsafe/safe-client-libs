@@ -11,7 +11,6 @@ mod mock_routing {
     use crate::auth_flush_app_revocation_queue;
     use crate::tests::utils::create_containers_req;
     use ffi_utils::test_utils::call_0;
-    use futures::Future;
     use safe_authenticator::{
         app_auth::{app_state, AppState},
         config,

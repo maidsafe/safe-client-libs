@@ -328,7 +328,7 @@ where
             };
         } else {
             done_trying = true;
-            new_version = new_version - 1;
+            new_version -= 1;
             result = Ok(());
         }
     }

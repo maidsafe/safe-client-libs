@@ -146,7 +146,8 @@ async fn app_authentication() -> Result<(), AuthError> {
         app_pk,
         access_container.clone(),
         expected,
-    );
+    )
+    .await;
 
     let (app_dir_info, _) = unwrap!(access_container.remove(&app_container_name(&app_id)));
 
@@ -487,7 +488,8 @@ async fn containers_access_request() -> Result<(), AuthError> {
         app_pk,
         access_container,
         expected,
-    );
+    )
+    .await;
 
     Ok(())
 }

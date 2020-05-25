@@ -91,7 +91,7 @@ pub async fn decode_ipc_msg(
             }
         }
         IpcMsg::Resp { .. } | IpcMsg::Revoked { .. } | IpcMsg::Err(..) => {
-            return Err(AuthError::IpcError(IpcError::InvalidMsg));
+            Err(AuthError::IpcError(IpcError::InvalidMsg))
         }
     }
 }

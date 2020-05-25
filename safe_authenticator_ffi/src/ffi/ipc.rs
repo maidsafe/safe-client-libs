@@ -115,7 +115,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                 request: IpcReq::Auth(auth_req),
                 req_id,
             }) => {
-                let repr_c = r#try!(auth_req.into_repr_c().map_err(AuthError::IpcError));
+                let repr_c = auth_req.into_repr_c().map_err(AuthError::IpcError)?;
                 o_auth(user_data.0, req_id, &repr_c);
                 Ok(())
             }
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn auth_decode_ipc_msg(
                 request: IpcReq::Containers(cont_req),
                 req_id,
             }) => {
-                let repr_c = r#try!(cont_req.into_repr_c().map_err(AuthError::IpcError));
+                let repr_c = cont_req.into_repr_c().map_err(AuthError::IpcError)?;
                 o_containers(user_data.0, req_id, &repr_c);
                 Ok(())
             }
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn auth_revoke_app(
         let app_id = String::clone_from_repr_c(app_id)?;
 
         let client = &(*auth).client;
-        futures::executor::block_on(revoke_app(client, &app_id)).map_err(move |e| {
+        let _ = futures::executor::block_on(revoke_app(client, &app_id)).map_err(move |e| {
             call_result_cb!(Err::<(), _>(FfiError::from(e)), user_data, o_cb);
         });
 
@@ -292,23 +292,24 @@ pub unsafe extern "C" fn encode_auth_resp(
                 o_cb(user_data.0, FFI_RESULT_OK, resp.as_ptr());
                 Ok(())
             };
-            res.or_else(move |e: FfiError| -> Result<(), FfiError> {
-                let (error_code, description) = ffi_error!(e);
-                let resp = encode_response(&IpcMsg::Resp {
-                    req_id,
-                    response: IpcResp::Auth(Err(e.into())),
-                })?;
-                let result = NativeResult {
-                    error_code,
-                    description: Some(description),
-                }
-                .into_repr_c()?;
-                o_cb(user_data.0, &result, resp.as_ptr());
-                Ok(())
-            })
-            .map_err(move |e| {
-                call_result_cb!(Err::<(), _>(e), user_data, o_cb);
-            });
+            let _ = res
+                .or_else(move |e: FfiError| -> Result<(), FfiError> {
+                    let (error_code, description) = ffi_error!(e);
+                    let resp = encode_response(&IpcMsg::Resp {
+                        req_id,
+                        response: IpcResp::Auth(Err(e.into())),
+                    })?;
+                    let result = NativeResult {
+                        error_code,
+                        description: Some(description),
+                    }
+                    .into_repr_c()?;
+                    o_cb(user_data.0, &result, resp.as_ptr());
+                    Ok(())
+                })
+                .map_err(move |e| {
+                    call_result_cb!(Err::<(), _>(e), user_data, o_cb);
+                });
         } else {
             let response = encode_response(&IpcMsg::Resp {
                 req_id,

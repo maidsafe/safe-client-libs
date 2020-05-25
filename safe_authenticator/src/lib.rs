@@ -205,9 +205,7 @@ impl Authenticator {
 
         Self::authenticator_login_impl(
             // block on due to seed's being non x-thread
-            move |net_tx| {
-                futures::executor::block_on(AuthClient::login_with_seed(&seed.clone(), net_tx))
-            },
+            move |net_tx| futures::executor::block_on(AuthClient::login_with_seed(&seed, net_tx)),
             disconnect_notifier,
         )
         .await

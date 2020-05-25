@@ -129,7 +129,7 @@ pub unsafe extern "C" fn auth_revoked_apps(
     let user_data = OpaqueCtx(user_data);
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
         let client = &(*auth).client;
-        {
+        let _ = {
             let apps = futures::executor::block_on(list_revoked(client))?;
             let app_list: Vec<_> = apps
                 .into_iter()
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn auth_registered_apps(
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
         let client = &(*auth).client;
-        {
+        let _ = {
             let registered_apps = futures::executor::block_on(list_registered(client))?;
             let apps: Vec<_> = registered_apps
                 .into_iter()
@@ -206,7 +206,7 @@ pub unsafe extern "C" fn auth_apps_accessing_mutable_data(
 
     catch_unwind_cb(user_data.0, o_cb, || -> Result<_, FfiError> {
         let client = &(*auth).client;
-        {
+        let _ = {
             let apps_with_access = futures::executor::block_on(apps_accessing_mutable_data(
                 &client,
                 name,

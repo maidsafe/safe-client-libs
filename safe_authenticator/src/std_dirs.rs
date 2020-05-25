@@ -52,9 +52,9 @@ pub async fn create(client: &AuthClient) -> Result<(), AuthError> {
                 .into_iter()
                 .map(|(name, md_info)| (String::from(name), md_info))
                 .collect();
-            let _std_dirs_fut = create_std_dirs(&client, &access_cont_value).await?;
-            let _access_cont_fut =
-                create_access_container(&client, &access_container, &access_cont_value).await?;
+            create_std_dirs(&client, &access_cont_value).await?;
+            create_access_container(&client, &access_container, &access_cont_value).await?;
+
             Ok(())
         }
         Err(e) => Err(e),
@@ -131,7 +131,7 @@ pub async fn create_std_dirs(
 ) -> Result<(), AuthError> {
     let client = client.clone();
 
-    for (_, md_info) in md_infos {
+    for md_info in md_infos.values() {
         create_directory(&client, md_info, btree_map![], btree_map![]).await?;
     }
 

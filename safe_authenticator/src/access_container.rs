@@ -51,7 +51,7 @@ pub async fn update_container_perms(
 
         let version = client.get_mdata_version(*mdata_info.address()).await?;
 
-        let _req = recoverable_apis::set_mdata_user_permissions(
+        recoverable_apis::set_mdata_user_permissions(
             c2,
             *mdata_info.address(),
             app_pk,
@@ -149,7 +149,7 @@ pub async fn put_authenticator_entry(
     )
     .await
     {
-        Ok(result) => Ok(result),
+        Ok(_result) => Ok(()),
         Err(err) => Err(AuthError::from(err)),
     }
 }

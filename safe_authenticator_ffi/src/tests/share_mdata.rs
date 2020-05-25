@@ -190,7 +190,7 @@ async fn share_some_mdatas_with_valid_metadata() -> Result<(), AuthError> {
             SeqMutableData::new_with_data(name, tag, entries, BTreeMap::new(), user)
         };
 
-        let _ = client.put_seq_mutable_data(mdata).await?;
+        client.put_seq_mutable_data(mdata).await?;
 
         mdatas.push(ShareMData {
             type_tag: tag,
