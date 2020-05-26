@@ -73,9 +73,9 @@ use safe_core::{
     NetworkEvent,
 };
 use std::collections::HashMap;
-
+use std::pin::Pin;
 /// Network observer for diconnection notifications
-type AppNetworkDisconnectFuture = Box<dyn Future<Output = Result<(), ()>>>;
+type AppNetworkDisconnectFuture = Pin<Box<dyn Future<Output = Result<(), ()>> + Sync + Send>>;
 
 /// Handle to an application instance.
 pub struct App {
@@ -94,7 +94,7 @@ impl App {
         config: Option<BootstrapConfig>,
     ) -> Result<Self, AppError>
     where
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
         let client = AppClient::unregistered(net_tx, config).await?;
@@ -113,7 +113,7 @@ impl App {
         disconnect_notifier: N,
     ) -> Result<Self, AppError>
     where
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
@@ -140,19 +140,18 @@ impl App {
         mut disconnect_notifier: N,
     ) -> (UnboundedSender<NetworkEvent>, AppNetworkDisconnectFuture)
     where
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let (net_tx, mut net_rx) = futures_mpsc::unbounded();
 
-        let observer = async move {
+        let observer = Box::pin(async move {
             if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
                 disconnect_notifier();
             };
             Ok(())
-        }
-        .boxed();
+        });
 
-        (net_tx, Box::new(observer))
+        (net_tx, observer)
     }
 
     /// Allows customising the mock Connection Manager before registering a new account.
@@ -164,8 +163,8 @@ impl App {
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AppError>
     where
-        N: FnMut() + Send + 'static,
-        F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
+        N: FnMut() + 'static,
+        F: Fn(ConnectionManager) -> ConnectionManager + 'static,
     {
         let AuthGranted {
             app_keys,

@@ -31,7 +31,7 @@ enum DataTypeEncoding {
 /// Create and obtain immutable data out of the given raw bytes. This will encrypt the right content
 /// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 pub async fn create(
-    client: &(impl Client + Sync + Send + 'static),
+    client: &(impl Client + 'static),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -45,7 +45,7 @@ pub async fn create(
 /// if the keys are provided and will ensure the maximum immutable data chunk size is respected.
 /// The DataMap is generated but the chunks are not uploaded to the network.
 pub async fn gen_data_map(
-    client: &(impl Client + Sync + Send + 'static),
+    client: &(impl Client + 'static),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -57,7 +57,7 @@ pub async fn gen_data_map(
 
 /// Get the raw bytes from `ImmutableData` created via the `create` function in this module.
 pub async fn extract_value(
-    client: &(impl Client + Sync + Send + 'static),
+    client: &(impl Client + 'static),
     data: IData,
     position: Option<u64>,
     len: Option<u64>,
@@ -96,7 +96,7 @@ pub async fn extract_value(
 /// provided). This combines `get_idata` in `Client` and `extract_value` in this module into one
 /// function.
 pub async fn get_value(
-    client: &(impl Client + Sync + Send + 'static),
+    client: &(impl Client + 'static),
     address: IDataAddress,
     position: Option<u64>,
     len: Option<u64>,
@@ -109,7 +109,7 @@ pub async fn get_value(
 
 async fn write_with_self_encryptor<S>(
     se_storage: S,
-    client: &(impl Client + Sync + Send + 'static),
+    client: &(impl Client + 'static),
     value: &[u8],
     published: bool,
     encryption_key: Option<shared_secretbox::Key>,
@@ -136,7 +136,7 @@ where
 
 async fn pack<S>(
     se_storage: S,
-    client: &(impl Client + Sync + Send + 'static),
+    client: &(impl Client + 'static),
     mut value: Vec<u8>,
     published: bool,
 ) -> Result<IData, CoreError>

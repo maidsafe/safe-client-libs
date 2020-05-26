@@ -62,9 +62,10 @@ use safe_core::utils::test_utils::gen_client_id;
 use safe_core::ConnectionManager;
 use safe_core::{NetworkEvent, NetworkTx};
 use safe_nd::ClientFullId;
+use std::pin::Pin;
 
 /// Network observer for diconnection notifications
-type AppNetworkDisconnectFuture = Box<dyn Future<Output = Result<(), ()>>>;
+type AppNetworkDisconnectFuture = Pin<Box<dyn Future<Output = Result<(), ()>> + Send>>;
 
 /// Authenticator instance which manages client and disconnect notifier.
 pub struct Authenticator {
@@ -107,7 +108,7 @@ impl Authenticator {
 
         Ok(Self {
             client,
-            network_observer: Box::new(network_observer),
+            network_observer,
         })
     }
 
@@ -135,7 +136,7 @@ impl Authenticator {
     }
 
     /// Log in to an existing account.
-    pub async fn authenticator_login_impl<F: Send + 'static, N>(
+    pub async fn authenticator_login_impl<F: 'static, N>(
         create_client_fn: F,
         mut disconnect_notifier: N,
     ) -> Result<Self, AuthError>
@@ -162,7 +163,7 @@ impl Authenticator {
 
         Ok(Self {
             client,
-            network_observer: Box::new(network_observer),
+            network_observer,
         })
     }
 }
@@ -255,7 +256,7 @@ impl Authenticator {
 
         Ok(Self {
             client,
-            network_observer: Box::new(network_observer),
+            network_observer,
         })
     }
 
