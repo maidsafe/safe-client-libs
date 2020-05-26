@@ -58,7 +58,6 @@ mod tests;
 use bincode::deserialize;
 use futures::{
     channel::{mpsc as futures_mpsc, mpsc::UnboundedSender},
-    future::FutureExt,
     lock::Mutex,
     Future,
 };
@@ -163,7 +162,7 @@ impl App {
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AppError>
     where
-        N: FnMut() + 'static,
+        N: FnMut() + Send + Sync + 'static,
         F: Fn(ConnectionManager) -> ConnectionManager + 'static,
     {
         let AuthGranted {
