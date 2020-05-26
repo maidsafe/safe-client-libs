@@ -36,7 +36,6 @@
 pub use self::errors::AuthError;
 pub use client::AuthClient;
 pub use errors::Result as AuthResult;
-use futures_util::future::FutureExt;
 pub mod access_container;
 pub mod app_auth;
 pub mod app_container;
@@ -54,7 +53,7 @@ mod client;
 #[cfg(test)]
 mod tests;
 
-use futures::{channel::mpsc, future::BoxFuture, Future};
+use futures::{channel::mpsc, Future};
 
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
@@ -65,7 +64,7 @@ use safe_nd::ClientFullId;
 use std::pin::Pin;
 
 /// Network observer for diconnection notifications
-type AppNetworkDisconnectFuture = Pin<Box<dyn Future<Output = Result<(), ()>> + Send>>;
+type AppNetworkDisconnectFuture = Pin<Box<dyn Future<Output = Result<(), ()>> + Sync + Send>>;
 
 /// Authenticator instance which manages client and disconnect notifier.
 pub struct Authenticator {
@@ -84,7 +83,7 @@ impl Authenticator {
         mut disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
         S: Into<String>,
     {
         let locator = locator.into();
@@ -92,13 +91,12 @@ impl Authenticator {
 
         let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-        let network_observer: BoxFuture<Result<(), ()>> = async move {
+        let network_observer = Box::pin(async move {
             if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
                 disconnect_notifier();
             };
             Ok(())
-        }
-        .boxed();
+        });
 
         let client = AuthClient::registered(&locator, &password, client_id, net_tx).await?;
 
@@ -120,7 +118,7 @@ impl Authenticator {
     ) -> Result<Self, AuthError>
     where
         S: Into<String>,
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let locator = locator.into();
         let password = password.into();
@@ -142,16 +140,15 @@ impl Authenticator {
     ) -> Result<Self, AuthError>
     where
         F: FnOnce(NetworkTx) -> Result<AuthClient, AuthError>,
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
-        let network_observer: BoxFuture<Result<(), ()>> = async move {
+        let network_observer = Box::pin(async move {
             if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
                 disconnect_notifier();
             };
             Ok(())
-        }
-        .boxed();
+        });
 
         let client: AuthClient = create_client_fn(net_tx)?;
 
@@ -177,7 +174,7 @@ impl Authenticator {
     ) -> Result<Self, AuthError>
     where
         S: Into<String>,
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let seed = seed.into();
         let client_id = gen_client_id();
@@ -200,7 +197,7 @@ impl Authenticator {
     pub async fn login_with_seed<S, N>(seed: S, disconnect_notifier: N) -> Result<Self, AuthError>
     where
         S: Into<String>,
-        N: FnMut() + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let seed = seed.into();
 
@@ -224,8 +221,8 @@ impl Authenticator {
         connection_manager_wrapper_fn: F,
     ) -> Result<Self, AuthError>
     where
-        N: FnMut() + Send + 'static,
-        F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
+        N: FnMut() + Send + Sync + 'static,
+        F: Fn(ConnectionManager) -> ConnectionManager + Send + Sync + 'static,
         S: Into<String>,
     {
         let locator = locator.into();
@@ -233,13 +230,12 @@ impl Authenticator {
 
         let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
 
-        let network_observer: BoxFuture<Result<(), ()>> = async move {
+        let network_observer = Box::pin(async move {
             if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
                 disconnect_notifier();
             };
             Ok(())
-        }
-        .boxed();
+        });
 
         let client = AuthClient::registered_with_hook(
             &locator,
@@ -269,8 +265,8 @@ impl Authenticator {
     ) -> Result<Self, AuthError>
     where
         S: Into<String>,
-        F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
-        N: FnMut() + Send + 'static,
+        F: Fn(ConnectionManager) -> ConnectionManager + Send + Sync + 'static,
+        N: FnMut() + Send + Sync + 'static,
     {
         let locator = locator.into();
         let password = password.into();

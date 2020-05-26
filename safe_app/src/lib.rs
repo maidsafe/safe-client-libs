@@ -174,12 +174,12 @@ impl App {
         let enc_key = app_keys.enc_key.clone();
         let owner_key = *app_keys.app_full_id.public_id().owner().public_key();
 
-        let (_net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
         let client = futures::executor::block_on(AppClient::from_keys_with_hook(
             app_keys,
             owner_key,
-            _net_tx,
+            net_tx,
             bootstrap_config,
             connection_manager_wrapper_fn,
         ))?;
