@@ -46,11 +46,9 @@ pub async fn corrupt_container(client: &AuthClient, container_id: &str) -> Resul
     let container_id = container_id.to_owned();
 
     let (version, mut ac_entry) = fetch_authenticator_entry(client).await?;
-    let entry = ac_entry
-        .get_mut(&container_id)
-        .ok_or(AuthError::Unexpected(
-            "Failed to obtained mutable entry from account container".to_string(),
-        ))?;
+    let entry = ac_entry.get_mut(&container_id).ok_or_else(|| {
+        AuthError::Unexpected("Failed to obtained mutable entry from account container".to_string())
+    })?;
     entry.enc_info = Some((shared_secretbox::gen_key(), utils::generate_nonce()));
 
     // Update the old entry.

@@ -52,12 +52,8 @@ use safe_nd::{
     MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
     Request, RequestType, Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
 };
-
 use std::collections::{BTreeMap, BTreeSet};
-
 use std::time::Duration;
-use threshold_crypto;
-
 use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
@@ -292,7 +288,7 @@ pub trait Client: Clone + Send + Sync {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
-            Err(error) => Err(CoreError::from(error)),
+            Err(error) => Err(error),
         }
     }
 
@@ -336,7 +332,7 @@ pub trait Client: Clone + Send + Sync {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
-            Err(error) => Err(CoreError::from(error)),
+            Err(error) => Err(error),
         }
     }
 
@@ -355,7 +351,7 @@ pub trait Client: Clone + Send + Sync {
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
-            Err(error) => Err(CoreError::from(error)),
+            Err(error) => Err(error),
         }
     }
 
@@ -1304,7 +1300,7 @@ pub trait Client: Clone + Send + Sync {
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
             },
 
-            Err(error) => Err(CoreError::from(error)),
+            Err(error) => Err(error),
         }
     }
 }
@@ -2007,7 +2003,7 @@ mod tests {
         let res = client
             .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
             .await;
-        let _ = match res {
+        match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!("Unexpected result: {:?}", res),
         };
@@ -2104,7 +2100,7 @@ mod tests {
 
         client.put_seq_mutable_data(data).await?;
         let res = client.put_seq_mutable_data(test_data.clone()).await;
-        let _ = match res {
+        match res {
             Err(CoreError::DataError(SndError::InvalidOwners)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(e) => panic!("Unexpected: {:?}", e),
@@ -2224,7 +2220,7 @@ mod tests {
         let res = client
             .get_seq_mdata_value(name, tag, b"wrongKey".to_vec())
             .await;
-        let _ = match res {
+        match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
             Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
             Err(err) => panic!("Unexpected error: {:?}", err),
@@ -2416,7 +2412,7 @@ mod tests {
 
         client.put_adata(AData::UnpubSeq(data)).await?;
         let res = client.put_adata(AData::UnpubSeq(test_data.clone())).await;
-        let _ = match res {
+        match res {
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(CoreError::DataError(SndError::InvalidOwners)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),

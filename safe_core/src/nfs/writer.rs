@@ -48,7 +48,7 @@ impl<C: Sync + Client + 'static> Writer<C> {
                 match data_map::get(client, file.data_address(), encryption_key.clone()).await {
                     Ok(map) => Some(map),
                     Err(NfsError::CoreError(CoreError::DataError(SndError::NoSuchData))) => None,
-                    Err(err) => return Err(NfsError::from(err)),
+                    Err(err) => return Err(err),
                 }
             }
             Mode::Overwrite => None,

@@ -70,7 +70,7 @@ async fn serialisation_write_data() -> Result<(), AuthError> {
     // authenticate app 1
     let _ = app_auth::authenticate(&client, stash.auth_req1.clone()).await?;
     // revoke app 1
-    let _ = revocation::revoke_app(&client, &stash.auth_req1.app.id).await?;
+    revocation::revoke_app(&client, &stash.auth_req1.app.id).await?;
 
     Ok(())
 }

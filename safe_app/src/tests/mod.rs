@@ -49,10 +49,10 @@ async fn refresh_access_info() -> Result<(), AppError> {
         create_app_by_req(&create_auth_req_with_access(container_permissions.clone())).await?;
     let client = app.client;
     let reg = app.context.as_registered()?;
-    assert!(reg.access_info.lock().unwrap().is_empty());
+    assert!(reg.access_info.lock().await.is_empty());
 
-    let _ = app.context.refresh_access_info(&client).await?;
-    let access_info = reg.access_info.lock().unwrap();
+    app.context.refresh_access_info(&client).await?;
+    let access_info = reg.access_info.lock().await;
     assert_eq!(
         unwrap!(access_info.get("_videos")).1,
         *unwrap!(container_permissions.get("_videos"))
@@ -402,9 +402,7 @@ async fn account_info() -> Result<(), AppError> {
         new_balance,
         orig_balance
             .checked_sub(COST_OF_PUT)
-            .ok_or(AppError::Unexpected(
-                "failed to substract cost of put".to_string()
-            ))?
+            .ok_or_else(|| AppError::Unexpected("failed to substract cost of put".to_string()))?
     );
     Ok(())
 }

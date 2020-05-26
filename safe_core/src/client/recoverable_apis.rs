@@ -33,7 +33,7 @@ pub async fn put_mdata(
     let client = client.clone();
 
     match client.put_seq_mutable_data(data.clone()).await {
-        Ok(response) => Ok(response),
+        Ok(_response) => Ok(()),
         Err(e) => match e {
             CoreError::DataError(SndError::DataExists) => update_mdata(client, data).await,
             error => Err(error),

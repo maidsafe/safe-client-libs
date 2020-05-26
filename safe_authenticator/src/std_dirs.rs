@@ -150,7 +150,7 @@ mod tests {
         let auth = create_account_and_login().await;
         let client = auth.client;
 
-        let _ = create_std_dirs(
+        create_std_dirs(
             &client,
             &unwrap!(random_std_dirs())
                 .into_iter()

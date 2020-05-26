@@ -41,11 +41,12 @@ async fn md_created_by_app_1() -> Result<(), CoreError> {
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
         let bls_pk = client.owner_key().await;
-        let name: XorName = name_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        let name: XorName = name_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
         let entry_actions = MDataSeqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5], 0);
-        let _ = client
+        client
             .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .await?;
         let entry_actions = MDataSeqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5], 1);
@@ -61,10 +62,7 @@ async fn md_created_by_app_1() -> Result<(), CoreError> {
         let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
         match client
             .set_mdata_user_permissions(
-                MDataAddress::Seq {
-                    name: name,
-                    tag: DIR_TAG,
-                },
+                MDataAddress::Seq { name, tag: DIR_TAG },
                 user,
                 permissions,
                 2,
@@ -82,9 +80,10 @@ async fn md_created_by_app_1() -> Result<(), CoreError> {
     let _ = local.spawn_local(async move {
         // Alt client
         let client = random_client()?;
-        let app_pk = app_keys_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        let app_pk = app_keys_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
         let mut rng = StdRng::from_entropy();
 
         let mut permissions = BTreeMap::new();
@@ -106,11 +105,11 @@ async fn md_created_by_app_1() -> Result<(), CoreError> {
         );
 
         let (_, version) = client.list_auth_keys_and_version().await?;
-        let _ = client
+        client
             .ins_auth_key(app_pk, Default::default(), version + 1)
             .await?;
-        let _ = client.put_seq_mutable_data(mdata).await?;
-        let _ = name_tx
+        client.put_seq_mutable_data(mdata).await?;
+        name_tx
             .send(name)
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
@@ -142,9 +141,10 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
-        let name: XorName = name_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        let name: XorName = name_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
         let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
 
         match client
@@ -171,19 +171,16 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
         let permissions = MDataPermissionSet::new()
             .allow(MDataAction::Insert)
             .allow(MDataAction::Delete);
-        let _ = client
+        client
             .set_mdata_user_permissions(
-                MDataAddress::Unseq {
-                    name: name,
-                    tag: DIR_TAG,
-                },
+                MDataAddress::Unseq { name, tag: DIR_TAG },
                 user,
                 permissions,
                 1,
             )
             .await?;
         let entry_actions = MDataUnseqEntryActions::new().ins(vec![1, 2, 3, 4], vec![2, 3, 5]);
-        let _ = client
+        client
             .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             .await?;
         let entry_actions = MDataUnseqEntryActions::new().update(vec![1, 2, 3, 4], vec![2, 8, 5]);
@@ -196,7 +193,7 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
             Err(x) => panic!("Expected Error::AccessDenied. Got {:?}", x),
         }
         let entry_actions = MDataUnseqEntryActions::new().del(vec![1, 2, 3, 4]);
-        let _ = client
+        client
             .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
             .await?;
 
@@ -206,9 +203,10 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
     let _ = local.spawn_local(async move {
         // Alt client
         let client = random_client()?;
-        let app_pk = app_keys_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        let app_pk = app_keys_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
         let mut rng = StdRng::from_entropy();
 
         let mut permissions = BTreeMap::new();
@@ -231,11 +229,11 @@ async fn md_created_by_app_2() -> Result<(), CoreError> {
         );
 
         let (_, version) = client.list_auth_keys_and_version().await?;
-        let _ = client
+        client
             .ins_auth_key(app_pk, Default::default(), version + 1)
             .await?;
-        let _ = client.put_unseq_mutable_data(mdata).await?;
-        let _ = name_tx
+        client.put_unseq_mutable_data(mdata).await?;
+        name_tx
             .send(name)
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
@@ -295,9 +293,10 @@ async fn multiple_apps() -> Result<(), CoreError> {
         let bls_pk = client.owner_key().await;
         let app_bls_key = client.public_key().await;
         let mut permissions = BTreeMap::new();
-        let app2_bls_pk = app2_key_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        let app2_bls_pk = app2_key_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
         let _ = permissions.insert(
             app2_bls_pk,
             MDataPermissionSet::new().allow(MDataAction::Insert),
@@ -312,15 +311,16 @@ async fn multiple_apps() -> Result<(), CoreError> {
         let name: XorName = XorName(rng.gen());
         let mdata =
             SeqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
-        let _ = client.put_seq_mutable_data(mdata).await?;
+        client.put_seq_mutable_data(mdata).await?;
         name_tx
             .send(name)
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
-        let entry_key: Vec<u8> = entry_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        let entry_key: Vec<u8> = entry_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
 
         let value = client
             .get_seq_mdata_value(name, DIR_TAG, entry_key.clone())
@@ -332,15 +332,8 @@ async fn multiple_apps() -> Result<(), CoreError> {
                 version: 0
             }
         );
-        let _ = client
-            .del_mdata_user_permissions(
-                MDataAddress::Seq {
-                    name: name,
-                    tag: DIR_TAG,
-                },
-                app2_bls_pk,
-                1,
-            )
+        client
+            .del_mdata_user_permissions(MDataAddress::Seq { name, tag: DIR_TAG }, app2_bls_pk, 1)
             .await?;
 
         mutate_again_tx
@@ -349,10 +342,7 @@ async fn multiple_apps() -> Result<(), CoreError> {
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
         let keys = client
-            .list_mdata_keys(MDataAddress::Seq {
-                name: name,
-                tag: DIR_TAG,
-            })
+            .list_mdata_keys(MDataAddress::Seq { name, tag: DIR_TAG })
             .await?;
         assert_eq!(keys.len(), 1);
         assert!(keys.contains(&entry_key));
@@ -366,13 +356,14 @@ async fn multiple_apps() -> Result<(), CoreError> {
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
-        let name = name_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive form channel".to_string(),
-        ))?;
+        let name = name_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive form channel".to_string()))?;
         let entry_key = vec![1, 2, 3];
         let entry_actions = MDataSeqEntryActions::new().ins(entry_key.clone(), vec![8, 9, 9], 0);
 
-        let _ = client2
+        client2
             .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
             .await?;
         entry_tx
@@ -380,9 +371,10 @@ async fn multiple_apps() -> Result<(), CoreError> {
             .await
             .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
 
-        mutate_again_rx.recv().await.ok_or(CoreError::Unexpected(
-            "failed to receive from channel".to_string(),
-        ))?;
+        mutate_again_rx
+            .recv()
+            .await
+            .ok_or_else(|| CoreError::Unexpected("failed to receive from channel".to_string()))?;
 
         let entry_actions = MDataSeqEntryActions::new().ins(vec![2, 2, 2], vec![21], 0);
         match client2
@@ -430,10 +422,10 @@ async fn permissions_and_version() -> Result<(), CoreError> {
     let mdata =
         UnseqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
 
-    let _ = client.put_unseq_mutable_data(mdata).await?;
+    client.put_unseq_mutable_data(mdata).await?;
 
     let permissions = MDataPermissionSet::new().allow(MDataAction::Update);
-    let _ = client
+    client
         .set_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key),
@@ -474,7 +466,7 @@ async fn permissions_and_version() -> Result<(), CoreError> {
         .get_mdata_version(MDataAddress::Unseq { name, tag: DIR_TAG })
         .await?;
     assert_eq!(v, 1);
-    let _ = client
+    client
         .del_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key),
@@ -521,11 +513,11 @@ async fn permissions_crud() -> Result<(), CoreError> {
     let mdata =
         UnseqMutableData::new_with_data(name, DIR_TAG, BTreeMap::new(), permissions, bls_pk);
 
-    let _ = client.put_unseq_mutable_data(mdata).await?;
+    client.put_unseq_mutable_data(mdata).await?;
     let permissions = MDataPermissionSet::new()
         .allow(MDataAction::Insert)
         .allow(MDataAction::Delete);
-    let _ = client
+    client
         .set_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key_a),
@@ -556,7 +548,7 @@ async fn permissions_crud() -> Result<(), CoreError> {
         .is_allowed(MDataAction::ManagePermissions));
 
     let permissions = MDataPermissionSet::new().allow(MDataAction::Delete);
-    let _ = client
+    client
         .set_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key_b),
@@ -597,7 +589,7 @@ async fn permissions_crud() -> Result<(), CoreError> {
         .is_allowed(MDataAction::ManagePermissions));
 
     let permissions = MDataPermissionSet::new().allow(MDataAction::Insert);
-    let _ = client
+    client
         .set_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key_b),
@@ -605,7 +597,7 @@ async fn permissions_crud() -> Result<(), CoreError> {
             3,
         )
         .await?;
-    let _ = client
+    client
         .del_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key_a),
@@ -636,7 +628,7 @@ async fn permissions_crud() -> Result<(), CoreError> {
     let permissions = MDataPermissionSet::new()
         .allow(MDataAction::Insert)
         .allow(MDataAction::Delete);
-    let _ = client
+    client
         .set_mdata_user_permissions(
             MDataAddress::Unseq { name, tag: DIR_TAG },
             PublicKey::from(random_key_b),
@@ -708,12 +700,12 @@ async fn sequenced_entries_crud() -> Result<(), CoreError> {
     let name: XorName = XorName(rng.gen());
     let mdata = SeqMutableData::new_with_data(name, DIR_TAG, data, permissions, bls_pk);
 
-    let _ = client.put_seq_mutable_data(mdata).await?;
+    client.put_seq_mutable_data(mdata).await?;
     let entry_actions = MDataSeqEntryActions::new()
         .ins(vec![0, 1, 1], vec![2, 3, 17], 0)
         .update(vec![0, 1, 0], vec![2, 8, 64], 1)
         .del(vec![0, 0, 1], 1);
-    let _ = client
+    client
         .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
         .await?;
     let entries = client.list_seq_mdata_entries(name, DIR_TAG).await?;
@@ -737,7 +729,7 @@ async fn sequenced_entries_crud() -> Result<(), CoreError> {
         .ins(vec![1, 0, 0], vec![4, 4, 4, 4], 0)
         .update(vec![0, 1, 0], vec![64, 8, 1], 2)
         .del(vec![0, 1, 1], 1);
-    let _ = client
+    client
         .mutate_seq_mdata_entries(name, DIR_TAG, entry_actions)
         .await?;
     let entries = client.list_seq_mdata_entries(name, DIR_TAG).await?;
@@ -786,14 +778,14 @@ async fn unsequenced_entries_crud() -> Result<(), CoreError> {
     let name: XorName = XorName(rng.gen());
     let mdata = UnseqMutableData::new_with_data(name, DIR_TAG, data, permissions, bls_pk);
 
-    let _ = client.put_unseq_mutable_data(mdata).await?;
+    client.put_unseq_mutable_data(mdata).await?;
 
     let entry_actions = MDataUnseqEntryActions::new()
         .ins(vec![0, 1, 1], vec![2, 3, 17])
         .update(vec![0, 1, 0], vec![2, 8, 64])
         .del(vec![0, 0, 1]);
 
-    let _ = client
+    client
         .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
         .await?;
     let entries = client.list_unseq_mdata_entries(name, DIR_TAG).await?;
@@ -805,7 +797,7 @@ async fn unsequenced_entries_crud() -> Result<(), CoreError> {
         .ins(vec![1, 0, 0], vec![4, 4, 4, 4])
         .update(vec![0, 1, 0], vec![64, 8, 1])
         .del(vec![0, 1, 1]);
-    let _ = client
+    client
         .mutate_unseq_mdata_entries(name, DIR_TAG, entry_actions)
         .await?;
 

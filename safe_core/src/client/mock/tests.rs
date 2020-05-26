@@ -1378,8 +1378,6 @@ async fn low_balance_check() {
 #[tokio::test]
 #[should_panic]
 async fn invalid_config_mock_vault_path() {
-    use std;
-
     // Don't run this test when SAFE env vars are set.
     if std::env::var("SAFE_MOCK_IN_MEMORY_STORAGE").is_ok()
         || std::env::var("SAFE_MOCK_VAULT_PATH").is_ok()
@@ -1404,8 +1402,6 @@ async fn invalid_config_mock_vault_path() {
 // Test setting a custom mock-vault path. Make sure basic operations work as expected.
 #[tokio::test]
 async fn config_mock_vault_path() {
-    use std;
-
     // Don't run this test when the env var is set.
     if std::env::var("SAFE_MOCK_IN_MEMORY_STORAGE").is_ok() {
         return;

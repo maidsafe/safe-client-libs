@@ -68,7 +68,7 @@ impl<C: Send + Sync + Client + 'static> Storage for SelfEncryptionStorage<C> {
             UnpubImmutableData::new(data, self.client.public_key().await).into()
         };
         match self.client.put_idata(immutable_data).await {
-            Ok(r) => Ok(r),
+            Ok(_r) => Ok(()),
             Err(error) => Err(SEStorageError::from(error)),
         }
     }

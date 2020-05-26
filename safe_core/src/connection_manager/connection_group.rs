@@ -96,7 +96,7 @@ impl ConnectionGroup {
             state: State::Bootstrapping(initial_state),
         }));
 
-        let _ = setup_quic_p2p_event_loop(&inner, node_rx).await;
+        setup_quic_p2p_event_loop(&inner, node_rx).await;
 
         Ok(Self { inner })
     }

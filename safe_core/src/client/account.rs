@@ -16,13 +16,11 @@ use bincode::{deserialize, serialize};
 use hmac::Hmac;
 use miscreant::aead::Aead;
 use miscreant::aead::Aes128SivAead;
-use pbkdf2;
 use rand::{thread_rng, CryptoRng, Rng};
 use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::convert::TryInto;
-use threshold_crypto;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
 

@@ -19,7 +19,6 @@ use crate::utils::{self};
 use crate::CoreError;
 use futures::{channel::mpsc, future::Future};
 use log::trace;
-use rand;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
 use std::fmt::Debug;
 use tokio::stream::StreamExt;

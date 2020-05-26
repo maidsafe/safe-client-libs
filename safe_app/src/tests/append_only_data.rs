@@ -101,9 +101,9 @@ async fn managing_permissions_for_an_app() -> Result<(), AppError> {
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             // Wait for the address of the data on the network
-            let address: ADataAddress = address_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            let address: ADataAddress = address_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let entries = client
                 .get_adata_range(address, (ADataIndex::FromStart(0), ADataIndex::FromEnd(0)))
                 .await?;
@@ -171,9 +171,9 @@ async fn managing_permissions_for_an_app() -> Result<(), AppError> {
                 .send(())
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
-            app_allowed_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            app_allowed_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let random_app = PublicKey::from(threshold_crypto::SecretKey::random().public_key());
             if address.is_pub() {
                 let mut permissions = BTreeMap::new();
@@ -235,9 +235,9 @@ async fn managing_permissions_for_an_app() -> Result<(), AppError> {
             let client = random_client()?;
 
             // Wait for the app's key and add it to the data's permissions list
-            let app_pk: PublicKey = app_key_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            let app_pk: PublicKey = app_key_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
 
             let address = *adata.address();
             if address.is_pub() {
@@ -298,9 +298,9 @@ async fn managing_permissions_for_an_app() -> Result<(), AppError> {
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             // Wait for the app's signal to give it data access
-            allow_app_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            allow_app_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             if address.is_pub() {
                 let mut permissions = BTreeMap::new();
                 let _ = permissions.insert(
@@ -383,9 +383,9 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
         let local = LocalSet::new();
         let _ = local.spawn_local(async move {
             // Wait for the address of the data on the network
-            let address: ADataAddress = address_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            let address: ADataAddress = address_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let res = client.get_adata(address).await;
             trace!("Got AData: {:?}", res);
             match (res, address.is_pub()) {
@@ -403,9 +403,9 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
                 .send(client.public_key().await)
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
-            app_authed_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            app_authed_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             trace!("App authenticated");
 
             let data = client.get_adata(address).await?;
@@ -430,9 +430,9 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
                 .send(())
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
-            app_revoked_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            app_revoked_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let values = vec![ADataEntry::new(vec![3], vec![1, 2, 3])];
             let res = if address.is_seq() {
                 client
@@ -486,9 +486,9 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             let (_, mut version) = client.list_auth_keys_and_version().await?;
-            let app_key: PublicKey = app_key_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            let app_key: PublicKey = app_key_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             client
                 .ins_auth_key(
                     app_key,
@@ -540,9 +540,9 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             // Wait for the signal to revoke the app
-            revoke_app_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            revoke_app_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             client.del_auth_key(app_key, version + 1).await?;
             // Signal that the app is revoked
             app_revoked_tx
@@ -595,9 +595,9 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             // Wait for the address of the data on the network
-            let address: ADataAddress = address_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            let address: ADataAddress = address_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let data = client.get_adata(address).await?;
             assert_eq!(*data.address(), address);
             let values = vec![ADataEntry::new(vec![3], vec![1, 2, 3])];
@@ -643,9 +643,9 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
                 .send(())
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
-            app_removed_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            app_removed_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let values = vec![ADataEntry::new(vec![6], vec![1, 2, 3])];
             let res = if address.is_seq() {
                 client
@@ -688,9 +688,9 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
             let client = random_client()?;
 
             // Wait for the app's key and add it to the data's permission list
-            let app_pk: PublicKey = app_key_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            let app_pk: PublicKey = app_key_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
 
             let mut permissions = BTreeMap::new();
             let _ = permissions.insert(
@@ -728,23 +728,23 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
             } else {
                 adata.append_unseq(entries)?;
             }
-            let _ = client.put_adata(adata).await?;
+            client.put_adata(adata).await?;
             // Send the address of the data on the network
             address_tx
                 .send(address)
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;
             // Wait for the signal to remove the app from the permissions list
-            remove_app_rx.recv().await.ok_or(CoreError::Unexpected(
-                "failed to receive from channel".to_string(),
-            ))?;
+            remove_app_rx.recv().await.ok_or_else(|| {
+                CoreError::Unexpected("failed to receive from channel".to_string())
+            })?;
             let mut permissions = BTreeMap::new();
             let _ = permissions.insert(
                 ADataUser::Key(app_pk),
                 ADataPubPermissionSet::new(false, false),
             );
             let _ = permissions.insert(ADataUser::Anyone, ADataPubPermissionSet::new(true, false));
-            let _ = client
+            client
                 .add_pub_adata_permissions(
                     address,
                     ADataPubPermissions {
@@ -756,7 +756,7 @@ async fn public_permissions_with_app_restrictions() -> Result<(), AppError> {
                 )
                 .await?;
             // Signal that the app is removed from the permissions list
-            let _ = app_removed_tx
+            app_removed_tx
                 .send(())
                 .await
                 .map_err(|_| CoreError::Unexpected("failed to send on channel".to_string()))?;

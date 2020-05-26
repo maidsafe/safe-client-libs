@@ -84,7 +84,6 @@ use self::async_log::{
 use crate::config_dir;
 use log::trace;
 use log::LevelFilter;
-use log4rs;
 use log4rs::config::{Appender, Config, Logger, Root};
 use log4rs::encode::json::JsonEncoder;
 use log4rs::encode::pattern::PatternEncoder;

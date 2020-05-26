@@ -33,7 +33,6 @@ use safe_core::{
 use safe_nd::{AppPermissions, Error as SndError, MDataAddress, MDataSeqEntryActions};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
-use tokio::task::LocalSet;
 
 use unwrap::unwrap;
 
@@ -137,6 +136,7 @@ mod mock_routing {
         iter,
         sync::{Arc, Barrier},
     };
+    use tokio::task::LocalSet;
 
     // Test operation recovery for app revocation
     //
@@ -335,13 +335,13 @@ mod mock_routing {
         }
 
         // Check that the first app is now revoked, but the second app is not.
-        let _ = verify_app_is_revoked(&client, app_id_0, ac_entries_0).await?;
+        verify_app_is_revoked(&client, app_id_0, ac_entries_0).await?;
         let expected_permissions = AppPermissions {
             get_balance: true,
             transfer_coins: true,
             perform_mutations: true,
         };
-        let _ = verify_app_is_authenticated(&client, app_id_1, expected_permissions).await?;
+        verify_app_is_authenticated(&client, app_id_1, expected_permissions).await?;
 
         Ok(())
     }
@@ -771,10 +771,10 @@ async fn revocation_with_unencrypted_container_entries() -> Result<(), AuthError
         MDataSeqEntryActions::new().ins(dedicated_key.clone(), dedicated_content.clone(), 0);
 
     // Insert unencrypted stuff into the shared container and the dedicated container.
-    let _ = client
+    client
         .mutate_seq_mdata_entries(shared_info.name(), shared_info.type_tag(), shared_actions)
         .await?;
-    let _ = client
+    client
         .mutate_seq_mdata_entries(
             dedicated_info.name(),
             dedicated_info.type_tag(),

@@ -41,7 +41,7 @@ hmac = "0.7.1"
 sha3 = "0.8.2"
 tiny-keccak = "~1.5.0"
 threshold_crypto = "~0.3.2"
-tokio = { version="~0.2.21", features=["rt-core", "stream"] }
+tokio = { version="~0.2.21", features=["rt-core", "stream", "rt-util"] }
 unwrap = "~1.2.0"
 url = "~2.1.0"
 ws = "~0.9.1"

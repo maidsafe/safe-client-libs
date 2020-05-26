@@ -20,7 +20,6 @@ use crate::DIR_TAG;
 use log::trace;
 use safe_nd::{Error as SndError, MDataKind};
 use self_encryption::MIN_CHUNK_SIZE;
-use std;
 use tokio::{sync::mpsc, task::LocalSet};
 
 use unwrap::unwrap;
@@ -606,7 +605,7 @@ async fn encryption() -> Result<(), NfsError> {
     };
     // Attempt to read using incorrect encryption key fails.
     // let file = unwrap!(res);
-    let _ = match file_helper::read(c3, &file, Some(wrong_key)).await {
+    match file_helper::read(c3, &file, Some(wrong_key)).await {
         Ok(_) => return Err(NfsError::from("Unexpected success")),
         Err(error) => match error {
             NfsError::CoreError(CoreError::SymmetricDecipherFailure) => Ok(()),
