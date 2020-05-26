@@ -96,7 +96,7 @@ impl ConnectionGroup {
             state: State::Bootstrapping(initial_state),
         }));
 
-        setup_quic_p2p_event_loop(&inner, node_rx).await;
+        setup_quic_p2p_events_receiver(&inner, node_rx).await;
 
         Ok(Self { inner })
     }
@@ -607,15 +607,19 @@ impl Inner {
     }
 }
 
-async fn setup_quic_p2p_event_loop(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<Event>) {
+async fn setup_quic_p2p_events_receiver(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<Event>) {
     let inner_weak = Arc::downgrade(inner);
-    let _ = thread::spawn(move || {
+    let _ = tokio::spawn(async move {
         while let Ok(event) = event_rx.recv() {
             match event {
-                Event::Finish => break, // Graceful shutdown
+                Event::Finish => {
+                    // Graceful shutdown
+                    trace!("Gracefully terminated quic-p2p event loop by remote peer");
+                    break;
+                }
                 event => {
                     if let Some(inner) = inner_weak.upgrade() {
-                        let mut inner = futures::executor::block_on(inner.lock());
+                        let mut inner = inner.lock().await;
                         inner.handle_quic_p2p_event(event);
                     } else {
                         // Event loop got dropped
