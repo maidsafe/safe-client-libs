@@ -148,7 +148,7 @@ pub async fn revoke(authenticator: &Authenticator, app_id: &str) {
 #[cfg(all(any(test, feature = "testing"), feature = "mock-network"))]
 pub async fn create_account_and_login_with_hook<F>(hook: F) -> Authenticator
 where
-    F: Fn(ConnectionManager) -> ConnectionManager + Send + 'static,
+    F: Fn(ConnectionManager) -> ConnectionManager + Send + Sync + 'static,
 {
     let (_, locator, password) = create_authenticator().await;
     unwrap!(Authenticator::login_with_hook(locator, password, || (), hook,).await)
