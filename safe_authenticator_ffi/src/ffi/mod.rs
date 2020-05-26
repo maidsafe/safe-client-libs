@@ -148,19 +148,8 @@ pub unsafe extern "C" fn auth_reconnect(
                     error_code,
                     description: Some(description),
                 }
-                .into_repr_c();
-
-                match res {
-                    Ok(res) => o_cb(user_data.into(), &res),
-                    Err(_) => {
-                        let res = FfiResult {
-                            error_code,
-                            description: b"Could not convert error description into CString\x00"
-                                as *const u8 as *const _,
-                        };
-                        o_cb(user_data.into(), &res);
-                    }
-                }
+                .into_repr_c()?;
+                o_cb(user_data.0, &res);
             }
         }
         o_cb(user_data.0, FFI_RESULT_OK);
