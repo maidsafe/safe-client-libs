@@ -42,7 +42,7 @@ pub unsafe extern "C" fn create_client_with_acc(
     account_locator: *const c_char,
     account_password: *const c_char,
     user_data: *mut c_void,
-    o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
+    _o_disconnect_notifier_cb: extern "C" fn(user_data: *mut c_void),
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
@@ -73,7 +73,7 @@ pub unsafe extern "C" fn create_client_with_acc(
             acc_locator,
             acc_password,
             client_id,
-            move || o_disconnect_notifier_cb(user_data.0),
+            move || trace!("disconnected"),
         ))?;
 
         o_cb(
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn login(
     account_locator: *const c_char,
     account_password: *const c_char,
     user_data: *mut c_void,
-    o_disconnect_notifier_cb: unsafe extern "C" fn(user_data: *mut c_void),
+    _o_disconnect_notifier_cb: unsafe extern "C" fn(user_data: *mut c_void),
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn login(
 
         let authenticator =
             handle.block_on(Authenticator::login(acc_locator, acc_password, move || {
-                o_disconnect_notifier_cb(user_data.0)
+                trace!("disconnected")
             }))?;
 
         o_cb(
