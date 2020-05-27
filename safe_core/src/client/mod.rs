@@ -45,12 +45,13 @@ use lru_cache::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
-    ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions,
-    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId, Coins,
-    IData, IDataAddress, LoginPacket, MData, MDataAddress, MDataEntries, MDataEntryActions,
-    MDataPermissionSet, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue,
-    MDataUnseqEntryActions, MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey,
-    Request, RequestType, Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
+    ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions, ADataRequest,
+    ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId,
+    ClientRequest, Coins, CoinsRequest, IData, IDataAddress, IDataRequest, LoginPacket,
+    LoginPacketRequest, MData, MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet,
+    MDataRequest, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions,
+    MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey, Request, RequestType,
+    Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -213,8 +214,7 @@ pub trait Client: Clone + Send + Sync {
         Self: Sized,
     {
         trace!("Put Unsequenced MData at {:?}", data.name());
-        send_mutation(self, Request::PutMData(MData::Unseq(data))).await?;
-        Ok(())
+        send_mutation(self, Request::MData(MDataRequest::Put(MData::Unseq(data)))).await
     }
 
     /// Transfer coin balance
@@ -232,11 +232,11 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::TransferCoins {
+            Request::Coins(CoinsRequest::Transfer {
                 destination,
                 amount,
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
-            },
+            }),
             client_id,
         )
         .await
@@ -271,11 +271,11 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::CreateBalance {
+            Request::Coins(CoinsRequest::CreateBalance {
                 new_balance_owner,
                 amount,
                 transaction_id: transaction_id.unwrap_or_else(rand::random),
-            },
+            }),
             client_id,
         )
         .await
@@ -314,12 +314,12 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::CreateLoginPacketFor {
+            Request::LoginPacket(LoginPacketRequest::CreateFor {
                 new_owner,
                 amount,
                 transaction_id,
                 new_login_packet,
-            },
+            }),
             client_id,
         )
         .await
@@ -343,7 +343,7 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("Get balance for {:?}", client_id);
 
-        match send_as_helper(self, Request::GetBalance, client_id).await {
+        match send_as_helper(self, Request::Coins(CoinsRequest::GetBalance), client_id).await {
             Ok(res) => match res {
                 Response::GetBalance(result) => match result {
                     Ok(coins) => Ok(coins),
@@ -362,7 +362,7 @@ pub trait Client: Clone + Send + Sync {
     {
         let idata: IData = data.into();
         trace!("Put IData at {:?}", idata.name());
-        send_mutation(self, Request::PutIData(idata)).await
+        send_mutation(self, Request::IData(IDataRequest::Put(idata))).await
     }
 
     /// Get immutable data from the network. If the data exists locally in the cache then it will be
@@ -380,7 +380,7 @@ pub trait Client: Clone + Send + Sync {
         }
 
         let inner = Arc::downgrade(&self.inner());
-        let res = send(self, Request::GetIData(address)).await?;
+        let res = send(self, Request::IData(IDataRequest::Get(address))).await?;
         let data = match res {
             Response::GetIData(res) => res.map_err(CoreError::from),
             _ => return Err(CoreError::ReceivedUnexpectedEvent),
@@ -418,7 +418,11 @@ pub trait Client: Clone + Send + Sync {
 
         let _ = Arc::downgrade(&inner);
         trace!("Delete Unpublished IData at {:?}", name);
-        send_mutation(self, Request::DeleteUnpubIData(IDataAddress::Unpub(name))).await
+        send_mutation(
+            self,
+            Request::IData(IDataRequest::DeleteUnpub(IDataAddress::Unpub(name))),
+        )
+        .await
     }
 
     /// Put sequenced mutable data to the network
@@ -427,7 +431,7 @@ pub trait Client: Clone + Send + Sync {
         Self: Sized,
     {
         trace!("Put Sequenced MData at {:?}", data.name());
-        send_mutation(self, Request::PutMData(MData::Seq(data))).await
+        send_mutation(self, Request::MData(MDataRequest::Put(MData::Seq(data)))).await
     }
 
     /// Fetch unpublished mutable data from the network
@@ -437,7 +441,12 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("Fetch Unsequenced Mutable Data");
 
-        match send(self, Request::GetMData(MDataAddress::Unseq { name, tag })).await? {
+        match send(
+            self,
+            Request::MData(MDataRequest::Get(MDataAddress::Unseq { name, tag })),
+        )
+        .await?
+        {
             Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
                 MData::Unseq(data) => Ok(data),
                 MData::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
@@ -460,10 +469,10 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetMDataValue {
+            Request::MData(MDataRequest::GetValue {
                 address: MDataAddress::Seq { name, tag },
                 key,
-            },
+            }),
         )
         .await?
         {
@@ -491,10 +500,10 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetMDataValue {
+            Request::MData(MDataRequest::GetValue {
                 address: MDataAddress::Unseq { name, tag },
                 key,
-            },
+            }),
         )
         .await?
         {
@@ -515,7 +524,12 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("Fetch Sequenced Mutable Data");
 
-        match send(self, Request::GetMData(MDataAddress::Seq { name, tag })).await? {
+        match send(
+            self,
+            Request::MData(MDataRequest::Get(MDataAddress::Seq { name, tag })),
+        )
+        .await?
+        {
             Response::GetMData(res) => res.map_err(CoreError::from).and_then(|mdata| match mdata {
                 MData::Seq(data) => Ok(data),
                 MData::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
@@ -538,10 +552,10 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::MutateMDataEntries {
+            Request::MData(MDataRequest::MutateEntries {
                 address: MDataAddress::Seq { name, tag },
                 actions: MDataEntryActions::Seq(actions),
-            },
+            }),
         )
         .await
     }
@@ -560,10 +574,10 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::MutateMDataEntries {
+            Request::MData(MDataRequest::MutateEntries {
                 address: MDataAddress::Unseq { name, tag },
                 actions: MDataEntryActions::Unseq(actions),
-            },
+            }),
         )
         .await
     }
@@ -581,7 +595,7 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetMDataShell(MDataAddress::Seq { name, tag }),
+            Request::MData(MDataRequest::GetShell(MDataAddress::Seq { name, tag })),
         )
         .await?
         {
@@ -608,7 +622,7 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetMDataShell(MDataAddress::Unseq { name, tag }),
+            Request::MData(MDataRequest::GetShell(MDataAddress::Unseq { name, tag })),
         )
         .await?
         {
@@ -629,7 +643,7 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("GetMDataVersion for {:?}", address);
 
-        match send(self, Request::GetMDataVersion(address)).await? {
+        match send(self, Request::MData(MDataRequest::GetVersion(address))).await? {
             Response::GetMDataVersion(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -648,7 +662,7 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::ListMDataEntries(MDataAddress::Unseq { name, tag }),
+            Request::MData(MDataRequest::ListEntries(MDataAddress::Unseq { name, tag })),
         )
         .await?
         {
@@ -676,7 +690,7 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::ListMDataEntries(MDataAddress::Seq { name, tag }),
+            Request::MData(MDataRequest::ListEntries(MDataAddress::Seq { name, tag })),
         )
         .await?
         {
@@ -698,7 +712,7 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("ListMDataKeys for {:?}", address);
 
-        match send(self, Request::ListMDataKeys(address)).await? {
+        match send(self, Request::MData(MDataRequest::ListKeys(address))).await? {
             Response::ListMDataKeys(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -717,7 +731,7 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::ListMDataValues(MDataAddress::Seq { name, tag }),
+            Request::MData(MDataRequest::ListValues(MDataAddress::Seq { name, tag })),
         )
         .await?
         {
@@ -743,7 +757,12 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("GetMDataUserPermissions for {:?}", address);
 
-        match send(self, Request::ListMDataUserPermissions { address, user }).await? {
+        match send(
+            self,
+            Request::MData(MDataRequest::ListUserPermissions { address, user }),
+        )
+        .await?
+        {
             Response::ListMDataUserPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -762,7 +781,7 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::ListMDataValues(MDataAddress::Unseq { name, tag }),
+            Request::MData(MDataRequest::ListValues(MDataAddress::Unseq { name, tag })),
         )
         .await?
         {
@@ -784,7 +803,7 @@ pub trait Client: Clone + Send + Sync {
         Self: Sized,
     {
         trace!("Put AppendOnly Data {:?}", data.name());
-        send_mutation(self, Request::PutAData(data)).await
+        send_mutation(self, Request::AData(ADataRequest::Put(data))).await
     }
 
     /// Get AppendOnly Data from the Network
@@ -794,7 +813,7 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("Get AppendOnly Data at {:?}", address.name());
 
-        match send(self, Request::GetAData(address)).await? {
+        match send(self, Request::AData(ADataRequest::Get(address))).await? {
             Response::GetAData(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -813,10 +832,10 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetADataShell {
+            Request::AData(ADataRequest::GetShell {
                 address,
                 data_index,
-            },
+            }),
         )
         .await?
         {
@@ -839,7 +858,12 @@ pub trait Client: Clone + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataValue { address, key }).await? {
+        match send(
+            self,
+            Request::AData(ADataRequest::GetValue { address, key }),
+        )
+        .await?
+        {
             Response::GetADataValue(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -859,7 +883,12 @@ pub trait Client: Clone + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataRange { address, range }).await? {
+        match send(
+            self,
+            Request::AData(ADataRequest::GetRange { address, range }),
+        )
+        .await?
+        {
             Response::GetADataRange(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -875,7 +904,7 @@ pub trait Client: Clone + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataIndices(address)).await? {
+        match send(self, Request::AData(ADataRequest::GetIndices(address))).await? {
             Response::GetADataIndices(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -891,7 +920,7 @@ pub trait Client: Clone + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::GetADataLastEntry(address)).await? {
+        match send(self, Request::AData(ADataRequest::GetLastEntry(address))).await? {
             Response::GetADataLastEntry(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -913,10 +942,10 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetADataPermissions {
+            Request::AData(ADataRequest::GetPermissions {
                 address,
                 permissions_index,
-            },
+            }),
         )
         .await?
         {
@@ -947,10 +976,10 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetADataPermissions {
+            Request::AData(ADataRequest::GetPermissions {
                 address,
                 permissions_index,
-            },
+            }),
         )
         .await?
         {
@@ -982,11 +1011,11 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetPubADataUserPermissions {
+            Request::AData(ADataRequest::GetPubUserPermissions {
                 address,
                 permissions_index,
                 user,
-            },
+            }),
         )
         .await?
         {
@@ -1012,11 +1041,11 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetUnpubADataUserPermissions {
+            Request::AData(ADataRequest::GetUnpubUserPermissions {
                 address,
                 permissions_index,
                 public_key,
-            },
+            }),
         )
         .await?
         {
@@ -1042,11 +1071,11 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::AddUnpubADataPermissions {
+            Request::AData(ADataRequest::AddUnpubPermissions {
                 address,
                 permissions,
                 permissions_index,
-            },
+            }),
         )
         .await
     }
@@ -1065,11 +1094,11 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::AddPubADataPermissions {
+            Request::AData(ADataRequest::AddPubPermissions {
                 address,
                 permissions,
                 permissions_index,
-            },
+            }),
         )
         .await
     }
@@ -1088,11 +1117,11 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::SetADataOwner {
+            Request::AData(ADataRequest::SetOwner {
                 address,
                 owner,
                 owners_index,
-            },
+            }),
         )
         .await
     }
@@ -1110,10 +1139,10 @@ pub trait Client: Clone + Send + Sync {
 
         match send(
             self,
-            Request::GetADataOwners {
+            Request::AData(ADataRequest::GetOwners {
                 address,
                 owners_index,
-            },
+            }),
         )
         .await?
         {
@@ -1131,7 +1160,11 @@ pub trait Client: Clone + Send + Sync {
     where
         Self: Sized,
     {
-        send_mutation(self, Request::AppendSeq { append, index }).await
+        send_mutation(
+            self,
+            Request::AData(ADataRequest::AppendSeq { append, index }),
+        )
+        .await
     }
 
     /// Append to Unpublished Unseq AppendOnly Data
@@ -1139,7 +1172,7 @@ pub trait Client: Clone + Send + Sync {
     where
         Self: Sized,
     {
-        send_mutation(self, Request::AppendUnseq(append)).await
+        send_mutation(self, Request::AData(ADataRequest::AppendUnseq(append))).await
     }
 
     /// Return a list of permissions in `MutableData` stored on the network.
@@ -1152,7 +1185,7 @@ pub trait Client: Clone + Send + Sync {
     {
         trace!("List MDataPermissions for {:?}", address);
 
-        match send(self, Request::ListMDataPermissions(address)).await? {
+        match send(self, Request::MData(MDataRequest::ListPermissions(address))).await? {
             Response::ListMDataPermissions(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -1173,12 +1206,12 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::SetMDataUserPermissions {
+            Request::MData(MDataRequest::SetUserPermissions {
                 address,
                 user,
                 permissions,
                 version,
-            },
+            }),
         )
         .await
     }
@@ -1197,11 +1230,11 @@ pub trait Client: Clone + Send + Sync {
 
         send_mutation(
             self,
-            Request::DelMDataUserPermissions {
+            Request::MData(MDataRequest::DelUserPermissions {
                 address,
                 user,
                 version,
-            },
+            }),
         )
         .await
     }
@@ -1283,11 +1316,11 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::CreateBalance {
+            Request::Coins(CoinsRequest::CreateBalance {
                 new_balance_owner,
                 amount,
                 transaction_id: rand::random(),
-            },
+            }),
             client_id,
         )
         .await
@@ -1335,11 +1368,11 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<
 
         let response = futures::executor::block_on(req(
             &mut cm,
-            Request::CreateBalance {
+            Request::Coins(CoinsRequest::CreateBalance {
                 new_balance_owner,
                 amount,
                 transaction_id: rand::random(),
-            },
+            }),
             &full_id,
         ))?;
 
@@ -1359,7 +1392,7 @@ pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreE
         wallet_sk,
         move |mut cm, full_id| match futures::executor::block_on(req(
             &mut cm,
-            Request::GetBalance,
+            Request::Coins(CoinsRequest::GetBalance),
             &full_id,
         ))? {
             Response::GetBalance(res) => res.map_err(CoreError::from),
@@ -1387,11 +1420,11 @@ pub async fn wallet_create_balance(
     temp_client(client_id, move |mut cm, full_id| {
         let response = futures::executor::block_on(req(
             &mut cm,
-            Request::CreateBalance {
+            Request::Coins(CoinsRequest::CreateBalance {
                 new_balance_owner,
                 amount,
                 transaction_id,
-            },
+            }),
             &full_id,
         ))?;
         match response {
@@ -1416,11 +1449,11 @@ pub async fn wallet_transfer_coins(
     temp_client(client_id, move |mut cm, full_id| {
         let response = futures::executor::block_on(req(
             &mut cm,
-            Request::TransferCoins {
+            Request::Coins(CoinsRequest::Transfer {
                 destination,
                 amount,
                 transaction_id,
-            },
+            }),
             &full_id,
         ))?;
         match response {
@@ -1445,7 +1478,7 @@ pub trait AuthActions: Client + Clone + 'static {
     {
         trace!("ListAuthKeysAndVersion");
 
-        match send(self, Request::ListAuthKeysAndVersion).await? {
+        match send(self, Request::Client(ClientRequest::ListAuthKeysAndVersion)).await? {
             Response::ListAuthKeysAndVersion(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -1465,11 +1498,11 @@ pub trait AuthActions: Client + Clone + 'static {
 
         send_mutation(
             self,
-            Request::InsAuthKey {
+            Request::Client(ClientRequest::InsAuthKey {
                 key,
                 permissions,
                 version,
-            },
+            }),
         )
         .await
     }
@@ -1481,7 +1514,11 @@ pub trait AuthActions: Client + Clone + 'static {
     {
         trace!("DelAuthKey ({:?})", key);
 
-        send_mutation(self, Request::DelAuthKey { key, version }).await
+        send_mutation(
+            self,
+            Request::Client(ClientRequest::DelAuthKey { key, version }),
+        )
+        .await
     }
 
     /// Delete MData from network
@@ -1491,7 +1528,7 @@ pub trait AuthActions: Client + Clone + 'static {
     {
         trace!("Delete entire Mutable Data at {:?}", address);
 
-        send_mutation(self, Request::DeleteMData(address)).await
+        send_mutation(self, Request::MData(MDataRequest::Delete(address))).await
     }
 
     /// Delete AData from network.
@@ -1501,7 +1538,7 @@ pub trait AuthActions: Client + Clone + 'static {
     {
         trace!("Delete entire Unpublished AppendOnly Data at {:?}", address);
 
-        send_mutation(self, Request::DeleteAData(address)).await
+        send_mutation(self, Request::AData(ADataRequest::Delete(address))).await
     }
 }
 
