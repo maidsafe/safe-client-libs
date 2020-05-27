@@ -88,7 +88,8 @@ pub async fn create_authenticator() -> (Authenticator, String, String) {
     let password: String = unwrap!(utils::generate_readable_string(10));
     let client_id = gen_client_id();
 
-    let _ = test_create_balance(&client_id, unwrap!(Coins::from_str("100"))).await;
+    let coins = unwrap!(Coins::from_str("100"));
+    let _ = test_create_balance(&client_id, coins).await;
 
     let auth = unwrap!(
         Authenticator::create_client_with_acc(locator.clone(), password.clone(), client_id, || (),)
