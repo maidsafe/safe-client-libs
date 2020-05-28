@@ -114,7 +114,7 @@ impl Authenticator {
     pub async fn login<S, N>(
         locator: S,
         password: S,
-        disconnect_notifier: N,
+        mut disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
         S: Into<String>,
@@ -123,14 +123,25 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        Self::authenticator_login_impl(
-            move |net_tx| {
-                // block so as not to require future on this helper impl
-                futures::executor::block_on(AuthClient::login(&locator, &password, net_tx))
-            },
-            disconnect_notifier,
-        )
-        .await
+        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
+        let network_observer = Box::pin(async move {
+            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
+                disconnect_notifier();
+            };
+            Ok(())
+        });
+
+        let client: AuthClient = AuthClient::login(&locator, &password, net_tx).await?;
+        if !client.std_dirs_created().await {
+            let cloned_client = client.clone();
+
+            std_dirs::create(&cloned_client).await?;
+        }
+
+        Ok(Self {
+            client,
+            network_observer,
+        })
     }
 
     /// Log in to an existing account.
