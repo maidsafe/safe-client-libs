@@ -102,12 +102,23 @@ impl ConnectionGroup {
     }
 
     pub async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
-        self.inner.lock().await.send(msg_id, msg).await
+        // user block here to drop lock asap
+        let receiver_future = { self.inner.lock().await.send(msg_id, msg).await? };
+
+        match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), receiver_future).await {
+            Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
+            Err(_) => Err(CoreError::RequestTimeout),
+        }
     }
 
     /// Terminate the QUIC connections gracefully.
     pub async fn close(&mut self) -> Result<(), CoreError> {
-        self.inner.lock().await.close().await
+        // user block here to drop lock asap
+        let disconnect_receiver_future = { self.inner.lock().await.close().await? };
+
+        disconnect_receiver_future
+            .await
+            .map_err(|e| CoreError::Unexpected(format!("{}", e)))
     }
 }
 
@@ -304,7 +315,7 @@ impl Connected {
         quic_p2p: &mut QuicP2p,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Result<Response, CoreError> {
+    ) -> Result<oneshot::Receiver<Response>, CoreError> {
         trace!("Sending message {:?}", msg_id);
         //let mut rng = rand::thread_rng();
 
@@ -327,10 +338,7 @@ impl Connected {
             }
         }
 
-        match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), response_future).await {
-            Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
-            Err(_) => Err(CoreError::RequestTimeout),
-        }
+        Ok(response_future)
     }
 
     fn handle_new_message(
@@ -432,7 +440,7 @@ impl State {
         quic_p2p: &mut QuicP2p,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Result<Response, CoreError> {
+    ) -> Result<oneshot::Receiver<Response>, CoreError> {
         match self {
             State::Connected(state) => state.send(quic_p2p, msg_id, msg).await,
             // This message is not expected for the rest of states
@@ -496,21 +504,22 @@ impl Inner {
         let _ = old_state.apply_transition(&mut self.quic_p2p, Transition::Terminate);
     }
 
-    async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
+    async fn send(
+        &mut self,
+        msg_id: MessageId,
+        msg: &Message,
+    ) -> Result<oneshot::Receiver<Response>, CoreError> {
         self.state.send(&mut self.quic_p2p, msg_id, msg).await
     }
 
     /// Terminate the QUIC connections gracefully.
-    async fn close(&mut self) -> Result<(), CoreError> {
+    async fn close(&mut self) -> Result<oneshot::Receiver<()>, CoreError> {
         trace!("{}: Terminating connection", self.id);
 
         let (disconnect_tx, disconnect_rx) = oneshot::channel();
         self.terminate();
         self.disconnect_tx = Some(disconnect_tx);
-
-        disconnect_rx
-            .await
-            .map_err(|e| CoreError::Unexpected(format!("{}", e)))
+        Ok(disconnect_rx)
     }
 
     fn handle_quic_p2p_event(&mut self, event: Event) {
