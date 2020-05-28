@@ -2107,8 +2107,9 @@ dependencies = [
 
 [[package]]
 name = "self_encryption"
-version = "0.16.0"
-source = "git+https://github.com/bochaco/self_encryption?branch=refactor-seq-encryption#e893a5dc2740cc8554736f929b8c010edcb386ce"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16c07d372e528948d2d24d31999f8f839be8a828175b2c53478b0117af4ae5cb"
 dependencies = [
  "aes",
  "async-trait",

@@ -8,8 +8,3 @@
 
 [workspace]
 members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_core", "tests"]
-
-[patch.crates-io]
-self_encryption = { git = "https://github.com/bochaco/self_encryption", branch = "refactor-seq-encryption" }
-# ffi_utils = { path = "../ffi_utils" }
-# ffi_utils = { git = "https://github.com/joshuef/ffi_utils", branch = "Async-Ability" }
