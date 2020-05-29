@@ -53,13 +53,13 @@ mod client;
 #[cfg(test)]
 mod tests;
 
-use futures::{channel::mpsc, Future};
+use futures::{channel::mpsc, channel::mpsc::UnboundedSender, Future};
 
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::test_utils::gen_client_id;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
-use safe_core::{NetworkEvent, NetworkTx};
+use safe_core::NetworkEvent;
 use safe_nd::ClientFullId;
 use std::pin::Pin;
 
@@ -80,7 +80,7 @@ impl Authenticator {
         locator: S,
         password: S,
         client_id: ClientFullId,
-        mut disconnect_notifier: N,
+        disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
         N: FnMut() + Send + Sync + 'static,
@@ -89,14 +89,7 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
-
-        let network_observer = Box::pin(async move {
-            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
-                disconnect_notifier();
-            };
-            Ok(())
-        });
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
         let client = AuthClient::registered(&locator, &password, client_id, net_tx).await?;
 
@@ -110,11 +103,29 @@ impl Authenticator {
         })
     }
 
+    fn setup_network_observer<N>(
+        mut disconnect_notifier: N,
+    ) -> (UnboundedSender<NetworkEvent>, AppNetworkDisconnectFuture)
+    where
+        N: FnMut() + Send + Sync + 'static,
+    {
+        let (net_tx, mut net_rx) = mpsc::unbounded();
+
+        let observer = Box::pin(async move {
+            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
+                disconnect_notifier();
+            };
+            Ok(())
+        });
+
+        (net_tx, observer)
+    }
+
     /// Log in to an existing account
     pub async fn login<S, N>(
         locator: S,
         password: S,
-        mut disconnect_notifier: N,
+        disconnect_notifier: N,
     ) -> Result<Self, AuthError>
     where
         S: Into<String>,
@@ -123,46 +134,9 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
-        let network_observer = Box::pin(async move {
-            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
-                disconnect_notifier();
-            };
-            Ok(())
-        });
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
         let client: AuthClient = AuthClient::login(&locator, &password, net_tx).await?;
-        if !client.std_dirs_created().await {
-            let cloned_client = client.clone();
-
-            std_dirs::create(&cloned_client).await?;
-        }
-
-        Ok(Self {
-            client,
-            network_observer,
-        })
-    }
-
-    /// Log in to an existing account.
-    pub async fn authenticator_login_impl<F: 'static, N>(
-        create_client_fn: F,
-        mut disconnect_notifier: N,
-    ) -> Result<Self, AuthError>
-    where
-        F: FnOnce(NetworkTx) -> Result<AuthClient, AuthError>,
-        N: FnMut() + Send + Sync + 'static,
-    {
-        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
-        let network_observer = Box::pin(async move {
-            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
-                disconnect_notifier();
-            };
-            Ok(())
-        });
-
-        let client: AuthClient = create_client_fn(net_tx)?;
-
         if !client.std_dirs_created().await {
             let cloned_client = client.clone();
 
@@ -190,18 +164,20 @@ impl Authenticator {
         let seed = seed.into();
         let client_id = gen_client_id();
 
-        Self::authenticator_login_impl(
-            move |net_tx| {
-                // Block as rng seed cannot be sent between threads
-                let client = futures::executor::block_on(AuthClient::registered_with_seed(
-                    &seed, client_id, net_tx,
-                ))?;
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
-                Ok(client)
-            },
-            disconnect_notifier,
-        )
-        .await
+        let client = AuthClient::registered_with_seed(&seed, client_id, net_tx).await?;
+
+        if !client.std_dirs_created().await {
+            let cloned_client = client.clone();
+
+            std_dirs::create(&cloned_client).await?;
+        }
+
+        Ok(Self {
+            client,
+            network_observer,
+        })
     }
 
     /// Login to an existing account using the same seed that was used during account creation.
@@ -212,12 +188,20 @@ impl Authenticator {
     {
         let seed = seed.into();
 
-        Self::authenticator_login_impl(
-            // block on due to seed's being non x-thread
-            move |net_tx| futures::executor::block_on(AuthClient::login_with_seed(&seed, net_tx)),
-            disconnect_notifier,
-        )
-        .await
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
+
+        let client = AuthClient::login_with_seed(&seed, net_tx).await?;
+
+        if !client.std_dirs_created().await {
+            let cloned_client = client.clone();
+
+            std_dirs::create(&cloned_client).await?;
+        }
+
+        Ok(Self {
+            client,
+            network_observer,
+        })
     }
 }
 
@@ -239,14 +223,7 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        let (net_tx, mut net_rx) = mpsc::unbounded::<NetworkEvent>();
-
-        let network_observer = Box::pin(async move {
-            if let Ok(Some(NetworkEvent::Disconnected)) = net_rx.try_next() {
-                disconnect_notifier();
-            };
-            Ok(())
-        });
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
 
         let client = AuthClient::registered_with_hook(
             &locator,
@@ -282,18 +259,19 @@ impl Authenticator {
         let locator = locator.into();
         let password = password.into();
 
-        Self::authenticator_login_impl(
-            move |net_tx| {
-                let client = futures::executor::block_on(AuthClient::login_with_hook(
-                    &locator,
-                    &password,
-                    net_tx,
-                    connection_manager_wrapper_fn,
-                ))?;
-                Ok(client)
-            },
-            disconnect_notifier,
-        )
-        .await
+        let (net_tx, network_observer) = Self::setup_network_observer(disconnect_notifier);
+
+        let client =
+            AuthClient::login_with_hook(&locator, &password, net_tx, connection_manager_wrapper_fn)
+                .await?;
+
+        std_dirs::create(&client)
+            .await
+            .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))?;
+
+        Ok(Self {
+            client,
+            network_observer,
+        })
     }
 }

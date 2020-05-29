@@ -59,19 +59,27 @@ async fn serialisation_write_data() {
         stash.client_id.clone(),
         || (),
     )
-    .await.unwrap();
+    .await
+    .unwrap();
 
     let client = auth.client.clone();
 
-    let _ = app_auth::authenticate(&client, stash.auth_req0.clone()).await.unwrap();
+    let _ = app_auth::authenticate(&client, stash.auth_req0.clone())
+        .await
+        .unwrap();
 
     // authenticate app 0
-    let _ = app_auth::authenticate(&client, stash.auth_req0.clone()).await.unwrap();
+    let _ = app_auth::authenticate(&client, stash.auth_req0.clone())
+        .await
+        .unwrap();
     // authenticate app 1
-    let _ = app_auth::authenticate(&client, stash.auth_req1.clone()).await.unwrap();
+    let _ = app_auth::authenticate(&client, stash.auth_req1.clone())
+        .await
+        .unwrap();
     // revoke app 1
-    revocation::revoke_app(&client, &stash.auth_req1.app.id).await.unwrap();
-
+    revocation::revoke_app(&client, &stash.auth_req1.app.id)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -90,22 +98,31 @@ async fn serialisation_read_data() {
     // Set up the mock vault, assuming the previous mock vault file still exists.
     let stash = setup().await;
 
-    let auth = Authenticator::login(stash.locator.clone(), stash.password.clone(), || ()).await.unwrap();
+    let auth = Authenticator::login(stash.locator.clone(), stash.password.clone(), || ())
+        .await
+        .unwrap();
     let client = auth.client.clone();
 
     // Read access container and ensure all standard containers exists.
-    let (_, containers) = access_container::fetch_authenticator_entry(&client).await.unwrap();
+    let (_, containers) = access_container::fetch_authenticator_entry(&client)
+        .await
+        .unwrap();
     verify_std_dirs(&client, &containers).await.unwrap();
-    let app_info = config::get_app(&client, &stash.auth_req0.app.id).await.unwrap();
+    let app_info = config::get_app(&client, &stash.auth_req0.app.id)
+        .await
+        .unwrap();
     assert_eq!(app_info.info, stash.auth_req0.app);
     let (_, ac_entry) =
-        access_container::fetch_entry(client.clone(), app_info.info.id, app_info.keys).await.unwrap();
+        access_container::fetch_entry(client.clone(), app_info.info.id, app_info.keys)
+            .await
+            .unwrap();
     let ac_entry = unwrap!(ac_entry);
     verify_access_container_entry(&ac_entry, &stash.auth_req0.containers);
     let (_, apps) = config::list_apps(&client).await.unwrap();
-    let state = app_auth::app_state(&client, &apps, &stash.auth_req1.app.id).await.unwrap();
+    let state = app_auth::app_state(&client, &apps, &stash.auth_req1.app.id)
+        .await
+        .unwrap();
     assert_eq!(state, AppState::Revoked);
-
 }
 
 async fn verify_std_dirs(
