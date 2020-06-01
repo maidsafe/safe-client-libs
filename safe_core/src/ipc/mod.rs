@@ -24,9 +24,7 @@ use data_encoding::BASE32_NOPAD;
 #[cfg(any(test, feature = "testing"))]
 use rand::{self};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::net::SocketAddr;
-use std::u32;
+use std::{collections::HashSet, net::SocketAddr, u32};
 
 /// `QuicP2P` bootstrap info, shared from Authenticator to apps.
 pub type BootstrapConfig = HashSet<SocketAddr>;

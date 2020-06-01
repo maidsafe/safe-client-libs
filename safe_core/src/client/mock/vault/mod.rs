@@ -12,6 +12,7 @@ mod coins;
 mod idata;
 mod login_packet;
 mod mdata;
+mod sdata;
 
 use super::DataId;
 use super::{Account, CoinBalance};
@@ -347,7 +348,7 @@ impl Vault {
         };
 
         // Get the requester's public key.
-        let result = match requester.clone() {
+        let result = match &requester {
             PublicId::App(pk) => Ok((true, *pk.public_key(), *pk.owner().public_key())),
             PublicId::Client(pk) => Ok((false, *pk.public_key(), *pk.public_key())),
             PublicId::Node(_) => Err(SndError::AccessDenied),
@@ -397,6 +398,7 @@ impl Vault {
             Request::IData(req) => self.process_idata_req(req, requester, requester_pk, owner_pk),
             Request::MData(req) => self.process_mdata_req(req, requester, requester_pk, owner_pk),
             Request::AData(req) => self.process_adata_req(req, requester, requester_pk, owner_pk),
+            Request::SData(req) => self.process_sdata_req(req, requester, requester_pk, owner_pk),
             Request::Client(req) => self.process_client_req(req, requester, requester_pk, owner_pk),
             Request::Coins(req) => self.process_coins_req(req, requester_pk, owner_pk),
             Request::LoginPacket(req) => self.process_login_packet_req(req, requester_pk, owner_pk),

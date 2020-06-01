@@ -15,16 +15,18 @@ mod tests;
 
 pub use self::account::{Account, CoinBalance};
 pub use self::connection_manager::{ConnectionManager, RequestHookFn};
-use safe_nd::{ADataAddress, IDataAddress, MDataAddress};
+use safe_nd::{ADataAddress, IDataAddress, MDataAddress, SDataAddress};
 use serde::{Deserialize, Serialize};
 
 /// Identifier for a data.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub enum DataId {
-    /// Identifier of immutable data.
+    /// Identifier of Immutable data.
     Immutable(IDataAddress),
-    /// Identifier of mutable data.
+    /// Identifier of Mutable data.
     Mutable(MDataAddress),
-    /// Identifier of appendonly data.
+    /// Identifier of AppendOnly data.
     AppendOnly(ADataAddress),
+    /// Identifier of Sequence data.
+    Sequence(SDataAddress),
 }

@@ -259,13 +259,10 @@ impl Vault {
         request: &MDataRequest,
     ) -> SndResult<MData> {
         match self.get_data(&DataId::Mutable(address)) {
-            Some(data_type) => match data_type {
-                Data::Mutable(data) => {
-                    check_perms_mdata(&data, request, requester_pk).map(move |_| data)
-                }
-                _ => Err(SndError::NoSuchData),
-            },
-            None => Err(SndError::NoSuchData),
+            Some(Data::Mutable(data)) => {
+                check_perms_mdata(&data, request, requester_pk).map(move |_| data)
+            }
+            Some(_) | None => Err(SndError::NoSuchData),
         }
     }
 }

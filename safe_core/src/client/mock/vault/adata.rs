@@ -339,13 +339,10 @@ impl Vault {
     ) -> SndResult<AData> {
         let data_id = DataId::AppendOnly(address);
         match self.get_data(&data_id) {
-            Some(data_type) => match data_type {
-                Data::AppendOnly(data) => {
-                    check_perms_adata(&data, request, requester_pk).map(move |_| data)
-                }
-                _ => Err(SndError::NoSuchData),
-            },
-            None => Err(SndError::NoSuchData),
+            Some(Data::AppendOnly(data)) => {
+                check_perms_adata(&data, request, requester_pk).map(move |_| data)
+            }
+            Some(_) | None => Err(SndError::NoSuchData),
         }
     }
 }
