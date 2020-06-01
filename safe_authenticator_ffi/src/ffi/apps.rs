@@ -44,7 +44,7 @@ impl TryFrom<NativeRegisteredApp> for RegisteredApp {
         let (containers_ptr, containers_len) = vec_into_raw_parts(container_permissions_vec);
 
         let ffi_app_perms = AppPermissions {
-            transfer_coins: app_perms.transfer_coins,
+            transfer_money: app_perms.transfer_money,
             get_balance: app_perms.get_balance,
             perform_mutations: app_perms.perform_mutations,
         };
@@ -86,7 +86,7 @@ impl Drop for RegisteredApp {
 #[derive(Clone, Copy)]
 pub struct AppPermissions {
     /// Whether this app has permissions to transfer coins.
-    pub transfer_coins: bool,
+    pub transfer_money: bool,
     /// Whether this app has permissions to perform mutations.
     pub perform_mutations: bool,
     /// Whether this app has permissions to read the coin balance.

@@ -632,7 +632,7 @@ async fn test_registered_apps() -> Result<(), AuthError> {
     let app1 = rand_app();
     let app1_id = app1.clone().id;
     let app1_perms = AppPermissions {
-        transfer_coins: true,
+        transfer_money: true,
         perform_mutations: false,
         get_balance: true,
     };
@@ -646,7 +646,7 @@ async fn test_registered_apps() -> Result<(), AuthError> {
 
     // Permissions for App2
     let app2_perms = AppPermissions {
-        transfer_coins: false,
+        transfer_money: false,
         perform_mutations: true,
         get_balance: false,
     };
@@ -675,12 +675,12 @@ async fn test_registered_apps() -> Result<(), AuthError> {
     for app in registered {
         if app1_id == app.id {
             // Assert App1's Permissions
-            assert_eq!(app.perms.transfer_coins, app1_perms.transfer_coins);
+            assert_eq!(app.perms.transfer_money, app1_perms.transfer_money);
             assert_eq!(app.perms.get_balance, app1_perms.get_balance);
             assert_eq!(app.perms.perform_mutations, app1_perms.perform_mutations);
         } else {
             // Assert App2's Permissions
-            assert_eq!(app.perms.transfer_coins, app2_perms.transfer_coins);
+            assert_eq!(app.perms.transfer_money, app2_perms.transfer_money);
             assert_eq!(app.perms.get_balance, app2_perms.get_balance);
             assert_eq!(app.perms.perform_mutations, app2_perms.perform_mutations);
         }

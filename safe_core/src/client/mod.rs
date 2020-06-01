@@ -47,11 +47,12 @@ use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions, ADataRequest,
     ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId,
-    ClientRequest, Coins, CoinsRequest, IData, IDataAddress, IDataRequest, LoginPacket,
-    LoginPacketRequest, MData, MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet,
-    MDataRequest, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions,
-    MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey, Request, RequestType,
-    Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
+    ClientRequest, IData, IDataAddress, IDataRequest, LoginPacket, LoginPacketRequest, MData,
+    MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet, MDataRequest,
+    MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
+    MDataValues, Message, MessageId, Money, MoneyRequest, PublicId, PublicKey, RegisterTransfer,
+    Request, RequestType, Response, SeqMutableData, Transfer, TransferRegistered, UnseqMutableData,
+    ValidateTransfer, XorName,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -61,7 +62,7 @@ use unwrap::unwrap;
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
 
 /// Expected cost of mutation operations.
-pub const COST_OF_PUT: Coins = Coins::from_nano(1);
+pub const COST_OF_PUT: Money = Money::from_nano(1);
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
@@ -218,13 +219,13 @@ pub trait Client: Clone + Send + Sync {
     }
 
     /// Transfer coin balance
-    async fn transfer_coins(
+    async fn transfer_money(
         &self,
         client_id: Option<&ClientFullId>,
         destination: XorName,
-        amount: Coins,
-        transaction_id: Option<u64>,
-    ) -> Result<Transaction, CoreError>
+        amount: Money,
+        transfer_id: Option<u64>,
+    ) -> Result<Transfer, CoreError>
     where
         Self: Sized,
     {
@@ -232,18 +233,18 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::Coins(CoinsRequest::Transfer {
+            Request::Money(MoneyRequest::Transfer {
                 destination,
                 amount,
-                transaction_id: transaction_id.unwrap_or_else(rand::random),
+                transfer_id: transfer_id.unwrap_or_else(rand::random),
             }),
             client_id,
         )
         .await
         {
             Ok(res) => match res {
-                Response::Transaction(result) => match result {
-                    Ok(transaction) => Ok(transaction),
+                Response::TransferRegistration(result) => match result {
+                    Ok(transfer) => Ok(transfer),
                     Err(error) => Err(CoreError::from(error)),
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -257,9 +258,9 @@ pub trait Client: Clone + Send + Sync {
         &self,
         client_id: Option<&ClientFullId>,
         new_balance_owner: PublicKey,
-        amount: Coins,
-        transaction_id: Option<u64>,
-    ) -> Result<Transaction, CoreError>
+        amount: Money,
+        transfer_id: Option<u64>,
+    ) -> Result<Transfer, CoreError>
     where
         Self: Sized,
     {
@@ -271,18 +272,18 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::Coins(CoinsRequest::CreateBalance {
+            Request::Money(MoneyRequest::CreateBalance {
                 new_balance_owner,
                 amount,
-                transaction_id: transaction_id.unwrap_or_else(rand::random),
+                transfer_id: transfer_id.unwrap_or_else(rand::random),
             }),
             client_id,
         )
         .await
         {
             Ok(res) => match res {
-                Response::Transaction(result) => match result {
-                    Ok(transaction) => Ok(transaction),
+                Response::TransferRegistration(result) => match result {
+                    Ok(transfer) => Ok(transfer),
                     Err(error) => Err(CoreError::from(error)),
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -297,10 +298,10 @@ pub trait Client: Clone + Send + Sync {
         &self,
         client_id: Option<&ClientFullId>,
         new_owner: PublicKey,
-        amount: Coins,
-        transaction_id: Option<u64>,
+        amount: Money,
+        transfer_id: Option<u64>,
         new_login_packet: LoginPacket,
-    ) -> Result<Transaction, CoreError>
+    ) -> Result<Transfer, CoreError>
     where
         Self: Sized,
     {
@@ -310,14 +311,14 @@ pub trait Client: Clone + Send + Sync {
             amount
         );
 
-        let transaction_id = transaction_id.unwrap_or_else(rand::random);
+        let transfer_id = transfer_id.unwrap_or_else(rand::random);
 
         match send_as_helper(
             self,
             Request::LoginPacket(LoginPacketRequest::CreateFor {
                 new_owner,
                 amount,
-                transaction_id,
+                transfer_id,
                 new_login_packet,
             }),
             client_id,
@@ -325,8 +326,8 @@ pub trait Client: Clone + Send + Sync {
         .await
         {
             Ok(res) => match res {
-                Response::Transaction(result) => match result {
-                    Ok(transaction) => Ok(transaction),
+                Response::TransferRegistration(result) => match result {
+                    Ok(transfer) => Ok(transfer),
                     Err(error) => Err(CoreError::from(error)),
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -337,13 +338,13 @@ pub trait Client: Clone + Send + Sync {
     }
 
     /// Get the current coin balance.
-    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Coins, CoreError>
+    async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Money, CoreError>
     where
         Self: Sized,
     {
         trace!("Get balance for {:?}", client_id);
 
-        match send_as_helper(self, Request::Coins(CoinsRequest::GetBalance), client_id).await {
+        match send_as_helper(self, Request::Money(MoneyRequest::GetBalance), client_id).await {
             Ok(res) => match res {
                 Response::GetBalance(result) => match result {
                     Ok(coins) => Ok(coins),
@@ -1299,7 +1300,7 @@ pub trait Client: Clone + Send + Sync {
     async fn test_set_balance(
         &self,
         client_id: Option<&ClientFullId>,
-        amount: Coins,
+        amount: Money,
     ) -> Result<(), CoreError>
     where
         Self: Sized,
@@ -1316,17 +1317,17 @@ pub trait Client: Clone + Send + Sync {
 
         match send_as_helper(
             self,
-            Request::Coins(CoinsRequest::CreateBalance {
+            Request::Money(MoneyRequest::CreateBalance {
                 new_balance_owner,
                 amount,
-                transaction_id: rand::random(),
+                transfer_id: rand::random(),
             }),
             client_id,
         )
         .await
         {
             Ok(res) => match res {
-                Response::Transaction(result) => match result {
+                Response::TransferRegistration(result) => match result {
                     Ok(_) => Ok(()),
                     Err(error) => Err(CoreError::from(error)),
                 },
@@ -1356,7 +1357,7 @@ where
 }
 
 /// Create a new mock balance at an arbitrary address.
-pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<(), CoreError> {
+pub async fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<(), CoreError> {
     trace!("Create test balance of {} for {:?}", amount, owner);
 
     temp_client(owner, move |mut cm, full_id| {
@@ -1368,16 +1369,16 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<
 
         let response = futures::executor::block_on(req(
             &mut cm,
-            Request::Coins(CoinsRequest::CreateBalance {
+            Request::Money(MoneyRequest::CreateBalance {
                 new_balance_owner,
                 amount,
-                transaction_id: rand::random(),
+                transfer_id: rand::random(),
             }),
             &full_id,
         ))?;
 
         match response {
-            Response::Transaction(res) => res.map(|_| Ok(()))?,
+            Response::TransferRegistration(res) => res.map(|_| Ok(()))?,
             _ => Err(CoreError::from("Unexpected response")),
         }
     })
@@ -1385,14 +1386,14 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Coins) -> Result<
 }
 
 /// Get the balance at the given key's location
-pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreError> {
+pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Money, CoreError> {
     trace!("Get balance for {:?}", wallet_sk);
 
     temp_client(
         wallet_sk,
         move |mut cm, full_id| match futures::executor::block_on(req(
             &mut cm,
-            Request::Coins(CoinsRequest::GetBalance),
+            Request::Money(MoneyRequest::GetBalance),
             &full_id,
         ))? {
             Response::GetBalance(res) => res.map_err(CoreError::from),
@@ -1402,33 +1403,93 @@ pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Coins, CoreE
     .await
 }
 
+/// Transfer money
+pub fn await_transfer_registration_for_client(
+    client_id: &ClientFullId,
+    to: PublicKey,
+    amount: Money,
+    transfer_id: Option<u64>,
+) -> Result<TransferRegistered, CoreError> {
+    trace!("Transfer {} money to {:?}", amount, to);
+
+    let transfer_id = transfer_id.unwrap_or_else(rand::random);
+    let from = *client_id.public_id().public_key();
+
+    temp_client(client_id, move |mut cm, full_id| {
+        // TODO: here manage the flow... Validation request... Then response accumulation (happens in CM?)
+        // then actual transfer and compeltion as here.
+
+        // Create the balance for the client
+        let transfer = Transfer {
+            // from,
+            to,
+            amount,
+            id: transfer_id,
+            // restrictions: TransferRestrictions::RequireHistory,
+        };
+
+        let transfer_to_validate = ValidateTransfer {
+            transfer,
+            client_signature: full_id.sign(&unwrap!(bincode::serialize(&transfer))),
+        };
+
+        let proof = match req(
+            &mut cm,
+            Request::Money(MoneyRequest::ValidateTransfer {
+                payload: transfer_to_validate,
+            }),
+            &full_id,
+        )? {
+            Response::TransferProofOfAgreement(res) => res?,
+            _ => return Err(CoreError::from("Unexpected response to validate transfer")),
+        };
+
+        // TODO: Register the transfer....
+        let response = req(
+            &mut cm,
+            Request::Money(MoneyRequest::RegisterTransfer {
+                payload: RegisterTransfer { proof },
+            }),
+            &full_id,
+        )?;
+
+        match response {
+            Response::TransferRegistration(res) => match res {
+                Ok(response) => Ok(response),
+                Err(err) => Err(CoreError::from(err)),
+            },
+            _ => Err(CoreError::from("Unexpected response")),
+        }
+    })
+}
+
 /// Creates a new coin balance on the network.
 pub async fn wallet_create_balance(
     client_id: &ClientFullId,
     new_balance_owner: PublicKey,
-    amount: Coins,
-    transaction_id: Option<u64>,
-) -> Result<Transaction, CoreError> {
+    amount: Money,
+    transfer_id: Option<u64>,
+) -> Result<Transfer, CoreError> {
     trace!(
         "Create a new coin balance for {:?} with {} coins.",
         new_balance_owner,
         amount
     );
 
-    let transaction_id = transaction_id.unwrap_or_else(rand::random);
+    let transfer_id = transfer_id.unwrap_or_else(rand::random);
 
     temp_client(client_id, move |mut cm, full_id| {
         let response = futures::executor::block_on(req(
             &mut cm,
-            Request::Coins(CoinsRequest::CreateBalance {
+            Request::Money(MoneyRequest::CreateBalance {
                 new_balance_owner,
                 amount,
-                transaction_id,
+                transfer_id,
             }),
             &full_id,
         ))?;
         match response {
-            Response::Transaction(res) => res.map_err(CoreError::from),
+            Response::TransferRegistration(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
     })
@@ -1436,28 +1497,28 @@ pub async fn wallet_create_balance(
 }
 
 /// Transfer coins
-pub async fn wallet_transfer_coins(
+pub async fn wallet_transfer_money(
     client_id: &ClientFullId,
     destination: XorName,
-    amount: Coins,
-    transaction_id: Option<u64>,
-) -> Result<Transaction, CoreError> {
+    amount: Money,
+    transfer_id: Option<u64>,
+) -> Result<Transfer, CoreError> {
     trace!("Transfer {} coins to {:?}", amount, destination);
 
-    let transaction_id = transaction_id.unwrap_or_else(rand::random);
+    let transfer_id = transfer_id.unwrap_or_else(rand::random);
 
     temp_client(client_id, move |mut cm, full_id| {
         let response = futures::executor::block_on(req(
             &mut cm,
-            Request::Coins(CoinsRequest::Transfer {
+            Request::Money(MoneyRequest::Transfer {
                 destination,
                 amount,
-                transaction_id,
+                transfer_id,
             }),
             &full_id,
         ))?;
         match response {
-            Response::Transaction(res) => res.map_err(CoreError::from),
+            Response::TransferRegistration(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response")),
         }
     })
@@ -1651,7 +1712,7 @@ mod tests {
     };
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
-        ADataUnpubPermissions, AppendOnlyData, Coins, Error as SndError, MDataAction, MDataKind,
+        ADataUnpubPermissions, AppendOnlyData, Error as SndError, MDataAction, MDataKind, Money,
         PubImmutableData, PubSeqAppendOnlyData, SeqAppendOnly, UnpubImmutableData,
         UnpubSeqAppendOnlyData, UnpubUnseqAppendOnlyData, UnseqAppendOnly, XorName,
     };
@@ -1662,7 +1723,7 @@ mod tests {
     async fn pub_idata_test() -> Result<(), CoreError> {
         let client = random_client()?;
         // The `random_client()` initializes the client with 10 coins.
-        let start_bal = unwrap!(Coins::from_str("10"));
+        let start_bal = unwrap!(Money::from_str("10"));
 
         let value = unwrap!(generate_random_vector::<u8>(10));
         let data = PubImmutableData::new(value.clone());
@@ -1702,7 +1763,7 @@ mod tests {
     async fn unpub_idata_test() -> Result<(), CoreError> {
         crate::utils::test_utils::init_log();
         // The `random_client()` initializes the client with 10 coins.
-        let start_bal = unwrap!(Coins::from_str("10"));
+        let start_bal = unwrap!(Money::from_str("10"));
 
         let client = random_client()?;
         let client9 = client.clone();
@@ -1911,14 +1972,14 @@ mod tests {
     // 2. Try to transfer coins from A to inexistent wallet. This request should fail.
     // 3. Try to request balance of wallet B. This request should fail.
     // 4. Now create a wallet for account B and transfer some coins to A. This should pass.
-    // 5. Try to request transaction from wallet A using account B. This request should succeed
-    // (because transactions are always open).
+    // 5. Try to request transfer from wallet A using account B. This request should succeed
+    // (because transfers are always open).
     #[tokio::test]
     async fn coin_permissions() -> Result<(), CoreError> {
         let client = random_client()?;
         let wallet_a_addr: XorName = client.public_key().await.into();
         let res = client
-            .transfer_coins(None, rand::random(), unwrap!(Coins::from_str("5.0")), None)
+            .transfer_money(None, rand::random(), unwrap!(Money::from_str("5.0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
@@ -1928,7 +1989,7 @@ mod tests {
         let client = random_client()?;
         let res = client.get_balance(None).await;
         // Subtract to cover the cost of inserting the login packet
-        let expected_amt = unwrap!(Coins::from_str("10")
+        let expected_amt = unwrap!(Money::from_str("10")
             .ok()
             .and_then(|x| x.checked_sub(COST_OF_PUT)));
         match res {
@@ -1936,17 +1997,17 @@ mod tests {
             res => panic!("Unexpected result: {:?}", res),
         }
         client
-            .test_set_balance(None, unwrap!(Coins::from_str("50.0")))
+            .test_set_balance(None, unwrap!(Money::from_str("50.0")))
             .await?;
         let res = client
-            .transfer_coins(None, wallet_a_addr, unwrap!(Coins::from_str("10")), None)
+            .transfer_money(None, wallet_a_addr, unwrap!(Money::from_str("10")), None)
             .await;
         match res {
-            Ok(transaction) => assert_eq!(transaction.amount, unwrap!(Coins::from_str("10"))),
+            Ok(transfer) => assert_eq!(transfer.amount, unwrap!(Money::from_str("10"))),
             res => panic!("Unexpected error: {:?}", res),
         }
         let res = client.get_balance(None).await;
-        let expected_amt = unwrap!(Coins::from_str("40"));
+        let expected_amt = unwrap!(Money::from_str("40"));
         match res {
             Ok(fetched_amt) => assert_eq!(expected_amt, fetched_amt),
             res => panic!("Unexpected result: {:?}", res),
@@ -1962,30 +2023,30 @@ mod tests {
     async fn anonymous_wallet() -> Result<(), CoreError> {
         let client = random_client()?;
         let wallet1: XorName = client.owner_key().await.into();
-        let init_bal = unwrap!(Coins::from_str("500.0"));
+        let init_bal = unwrap!(Money::from_str("500.0"));
 
         let client_id = gen_client_id();
         let bls_pk = *client_id.public_id().public_key();
 
         client.test_set_balance(None, init_bal).await?;
-        let transaction = client
-            .create_balance(None, bls_pk, unwrap!(Coins::from_str("100.0")), None)
+        let transfer = client
+            .create_balance(None, bls_pk, unwrap!(Money::from_str("100.0")), None)
             .await?;
-        assert_eq!(transaction.amount, unwrap!(Coins::from_str("100")));
-        let transaction = client
-            .transfer_coins(
+        assert_eq!(transfer.amount, unwrap!(Money::from_str("100")));
+        let transfer = client
+            .transfer_money(
                 Some(&client_id.clone()),
                 wallet1,
-                unwrap!(Coins::from_str("5.0")),
+                unwrap!(Money::from_str("5.0")),
                 None,
             )
             .await?;
-        assert_eq!(transaction.amount, unwrap!(Coins::from_str("5.0")));
+        assert_eq!(transfer.amount, unwrap!(Money::from_str("5.0")));
         let balance = client.get_balance(Some(&client_id)).await?;
-        assert_eq!(balance, unwrap!(Coins::from_str("95.0")));
+        assert_eq!(balance, unwrap!(Money::from_str("95.0")));
         let balance = client.get_balance(None).await?;
         let expected =
-            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Coins::from_str("95"))));
+            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("95"))));
         assert_eq!(balance, expected);
         let random_pk = gen_bls_keypair().public_key();
         let random_source = gen_client_id();
@@ -1994,7 +2055,7 @@ mod tests {
             .create_balance(
                 Some(&random_source),
                 random_pk,
-                unwrap!(Coins::from_str("100.0")),
+                unwrap!(Money::from_str("100.0")),
                 None,
             )
             .await;
@@ -2009,7 +2070,7 @@ mod tests {
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding some safecoin.
     // 4. Transfer some coins from client B to client A and verify the new balance.
-    // 5. Fetch the transaction using the transaction ID and verify the amount.
+    // 5. Fetch the transfer using the transfer ID and verify the amount.
     // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
     // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
     // 8. Set the client's balance to zero and try to put data. It should fail.
@@ -2021,24 +2082,24 @@ mod tests {
         let wallet1: XorName = owner_key.into();
 
         client
-            .test_set_balance(None, unwrap!(Coins::from_str("100.0")))
+            .test_set_balance(None, unwrap!(Money::from_str("100.0")))
             .await?;
         let balance = client.get_balance(None).await?;
-        assert_eq!(balance, unwrap!(Coins::from_str("100.0")));
+        assert_eq!(balance, unwrap!(Money::from_str("100.0")));
 
         let client = random_client()?;
-        let init_bal = unwrap!(Coins::from_str("10"));
+        let init_bal = unwrap!(Money::from_str("10"));
         let orig_balance = client.get_balance(None).await?;
         let _ = client
-            .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5.0")), None)
+            .transfer_money(None, wallet1, unwrap!(Money::from_str("5.0")), None)
             .await?;
         let new_balance = client.get_balance(None).await?;
         assert_eq!(
             new_balance,
-            unwrap!(orig_balance.checked_sub(unwrap!(Coins::from_str("5.0")))),
+            unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
         );
         let res = client
-            .transfer_coins(None, wallet1, unwrap!(Coins::from_str("5000")), None)
+            .transfer_money(None, wallet1, unwrap!(Money::from_str("5000")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
@@ -2047,17 +2108,17 @@ mod tests {
         // Check if coins are refunded
         let balance = client.get_balance(None).await?;
         let expected =
-            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Coins::from_str("5"))));
+            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
         assert_eq!(balance, expected);
         let res = client
-            .transfer_coins(None, wallet1, unwrap!(Coins::from_str("0")), None)
+            .transfer_money(None, wallet1, unwrap!(Money::from_str("0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InvalidOperation)) => (),
             res => panic!("Unexpected result: {:?}", res),
         }
         client
-            .test_set_balance(None, unwrap!(Coins::from_str("0")))
+            .test_set_balance(None, unwrap!(Money::from_str("0")))
             .await?;
         let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
         let res = client.put_idata(data).await;
@@ -2105,7 +2166,7 @@ mod tests {
     pub async fn mdata_permissions_test() -> Result<(), CoreError> {
         let client = random_client()?;
         // The `random_client()` initializes the client with 10 coins.
-        let start_bal = unwrap!(Coins::from_str("10"));
+        let start_bal = unwrap!(Money::from_str("10"));
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2675,30 +2736,30 @@ mod tests {
     // 1. Create a random BLS key and create a wallet for it with some test safecoin.
     // 2. Without a client object, try to get the balance, create new wallets and transfer safecoin.
     #[tokio::test]
-    pub async fn wallet_transactions_without_client() -> Result<(), CoreError> {
+    pub async fn wallet_transfers_without_client() -> Result<(), CoreError> {
         let client_id = gen_client_id();
 
-        test_create_balance(&client_id, unwrap!(Coins::from_str("50"))).await?;
+        test_create_balance(&client_id, unwrap!(Money::from_str("50"))).await?;
 
         let balance = wallet_get_balance(&client_id).await?;
-        let ten_coins = unwrap!(Coins::from_str("10"));
-        assert_eq!(balance, unwrap!(Coins::from_str("50")));
+        let ten_coins = unwrap!(Money::from_str("10"));
+        assert_eq!(balance, unwrap!(Money::from_str("50")));
 
         let new_client_id = gen_client_id();
         let new_client_pk = new_client_id.public_id().public_key();
         let new_wallet: XorName = *new_client_id.public_id().name();
         let txn = wallet_create_balance(&client_id, *new_client_pk, ten_coins, None).await?;
         assert_eq!(txn.amount, ten_coins);
-        let txn2 = wallet_transfer_coins(&client_id, new_wallet, ten_coins, None).await?;
+        let txn2 = wallet_transfer_money(&client_id, new_wallet, ten_coins, None).await?;
         assert_eq!(txn2.amount, ten_coins);
 
         let client_balance = wallet_get_balance(&client_id).await?;
-        let expected = unwrap!(Coins::from_str("30"));
+        let expected = unwrap!(Money::from_str("30"));
         let expected = unwrap!(expected.checked_sub(COST_OF_PUT));
         assert_eq!(client_balance, expected);
 
         let new_client_balance = wallet_get_balance(&new_client_id).await?;
-        assert_eq!(new_client_balance, unwrap!(Coins::from_str("20")));
+        assert_eq!(new_client_balance, unwrap!(Money::from_str("20")));
 
         Ok(())
     }

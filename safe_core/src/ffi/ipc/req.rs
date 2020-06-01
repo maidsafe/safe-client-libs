@@ -106,7 +106,7 @@ pub struct AuthReq {
     pub app_container: bool,
 
     /// App has permission to transfer coins on behalf of the user.
-    pub app_permission_transfer_coins: bool,
+    pub app_permission_transfer_money: bool,
 
     /// App has permission to perform mutations on behalf of the user.
     pub app_permission_perform_mutations: bool,

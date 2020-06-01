@@ -31,7 +31,7 @@ use safe_core::utils::test_utils::{gen_client_id, setup_client_with_net_obs};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{AppPermissions, Coins, PublicKey, XorName};
+use safe_nd::{AppPermissions, Money, PublicKey, XorName};
 #[cfg(feature = "mock-network")]
 use safe_nd::{Error as SndError, MDataRequest, Request, Response};
 use std::collections::HashMap;
@@ -88,7 +88,7 @@ pub async fn create_authenticator() -> (Authenticator, String, String) {
     let password: String = unwrap!(utils::generate_readable_string(10));
     let client_id = gen_client_id();
 
-    let coins = unwrap!(Coins::from_str("100"));
+    let coins = unwrap!(Money::from_str("100"));
     let _ = test_create_balance(&client_id, coins).await;
 
     let auth = unwrap!(
@@ -206,7 +206,7 @@ pub async fn register_rand_app(
         app: rand_app(),
         app_container,
         app_permissions: AppPermissions {
-            transfer_coins: true,
+            transfer_money: true,
             perform_mutations: true,
             get_balance: true,
         },
@@ -439,7 +439,7 @@ where
 
         // block on for test cretion at the moment
         let _ =
-            futures::executor::block_on(test_create_balance(&client_id, Coins::from_str("10")?));
+            futures::executor::block_on(test_create_balance(&client_id, Money::from_str("10")?));
 
         let auth_result: AuthClient = futures::executor::block_on(AuthClient::registered(
             &acc_locator,

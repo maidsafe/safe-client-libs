@@ -43,7 +43,7 @@ impl AuthReq {
         Ok(ffi::AuthReq {
             app: app.into_repr_c()?,
             app_container,
-            app_permission_transfer_coins: app_permissions.transfer_coins,
+            app_permission_transfer_money: app_permissions.transfer_money,
             app_permission_perform_mutations: app_permissions.perform_mutations,
             app_permission_get_balance: app_permissions.get_balance,
             containers: containers_ptr,
@@ -64,7 +64,7 @@ impl ReprC for AuthReq {
             app: AppExchangeInfo::clone_from_repr_c(&(*repr_c).app)?,
             app_container: (*repr_c).app_container,
             app_permissions: AppPermissions {
-                transfer_coins: (*repr_c).app_permission_transfer_coins,
+                transfer_money: (*repr_c).app_permission_transfer_money,
                 perform_mutations: (*repr_c).app_permission_perform_mutations,
                 get_balance: (*repr_c).app_permission_get_balance,
             },

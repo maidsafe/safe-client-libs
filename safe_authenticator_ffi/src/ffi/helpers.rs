@@ -23,7 +23,7 @@ pub unsafe fn registered_app_into_repr_c(
     let container_permissions_vec = containers_into_vec(app.containers.clone().into_iter())?;
     let (containers_ptr, containers_len) = vec_into_raw_parts(container_permissions_vec);
     let ffi_app_perms = AppPermissions {
-        transfer_coins: app.app_perms.transfer_coins,
+        transfer_money: app.app_perms.transfer_money,
         get_balance: app.app_perms.get_balance,
         perform_mutations: app.app_perms.perform_mutations,
     };
@@ -41,7 +41,7 @@ pub unsafe fn native_registered_app_into_native(
     app: &RegisteredApp,
 ) -> Result<NativeRegisteredApp, IpcError> {
     let native_app_perms = NativeAppPermissions {
-        transfer_coins: app.app_permissions.transfer_coins,
+        transfer_money: app.app_permissions.transfer_money,
         get_balance: app.app_permissions.get_balance,
         perform_mutations: app.app_permissions.perform_mutations,
     };

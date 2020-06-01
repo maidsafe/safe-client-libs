@@ -23,8 +23,8 @@ use fs2::FileExt;
 use futures::lock::{Mutex, MutexGuard};
 use log::{debug, trace, warn};
 use safe_nd::{
-    verify_signature, Coins, Data, Error as SndError, LoginPacket, Message, PublicId, PublicKey,
-    Request, RequestType, Result as SndResult, Transaction, XorName,
+    verify_signature, Data, Error as SndError, LoginPacket, Message, Money, PublicId, PublicKey,
+    Request, RequestType, Result as SndResult, Transfer, XorName,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -100,7 +100,7 @@ fn init_vault_store(config: &Config) -> Box<dyn Store> {
 }
 
 pub(crate) enum Operation {
-    TransferCoins,
+    TransferMoney,
     Mutation,
     GetBalance,
 }
@@ -161,7 +161,7 @@ impl Vault {
     }
 
     /// Instantly creates new balance.
-    pub fn mock_create_balance(&mut self, owner: PublicKey, amount: Coins) {
+    pub fn mock_create_balance(&mut self, owner: PublicKey, amount: Money) {
         let _ = self
             .cache
             .coin_balances
@@ -172,7 +172,7 @@ impl Vault {
     pub fn mock_increment_balance(
         &mut self,
         coin_balance_name: &XorName,
-        amount: Coins,
+        amount: Money,
     ) -> SndResult<()> {
         let balance = match self.get_coin_balance_mut(coin_balance_name) {
             Some(balance) => balance,
@@ -184,7 +184,7 @@ impl Vault {
         balance.credit_balance(amount, rand::random())
     }
 
-    pub(crate) fn get_balance(&self, coins_balance_id: &XorName) -> SndResult<Coins> {
+    pub(crate) fn get_balance(&self, coins_balance_id: &XorName) -> SndResult<Money> {
         self.get_coin_balance(&coins_balance_id).map_or_else(
             || {
                 debug!("Coin balance {:?} not found", coins_balance_id);
@@ -195,7 +195,7 @@ impl Vault {
     }
 
     // Checks if the given balance has sufficient coins for the given `amount` of Operation.
-    pub(crate) fn has_sufficient_balance(&self, balance: Coins, amount: Coins) -> bool {
+    pub(crate) fn has_sufficient_balance(&self, balance: Money, amount: Money) -> bool {
         unlimited_coins(&self.config) || balance.checked_sub(amount).is_some()
     }
 
@@ -234,8 +234,8 @@ impl Vault {
         // Will fail to authorise any even if one of the requested operations had been denied.
         for operation in operations {
             match operation {
-                Operation::TransferCoins => {
-                    if !perms.transfer_coins {
+                Operation::TransferMoney => {
+                    if !perms.transfer_money {
                         debug!("Transfer coins not authorised");
                         return Err(SndError::AccessDenied);
                     }
@@ -300,17 +300,17 @@ impl Vault {
         let _ = self
             .cache
             .coin_balances
-            .insert(destination, CoinBalance::new(Coins::from_nano(0), owner));
+            .insert(destination, CoinBalance::new(Money::from_nano(0), owner));
         Ok(())
     }
 
-    pub(crate) fn transfer_coins(
+    pub(crate) fn transfer_money(
         &mut self,
         source: XorName,
         destination: XorName,
-        amount: Coins,
-        transaction_id: u64,
-    ) -> SndResult<Transaction> {
+        amount: Money,
+        transfer_id: u64,
+    ) -> SndResult<Transfer> {
         let unlimited = unlimited_coins(&self.config);
         match self.get_coin_balance_mut(&source) {
             Some(balance) => {
@@ -321,11 +321,11 @@ impl Vault {
             None => return Err(SndError::NoSuchBalance),
         };
         match self.get_coin_balance_mut(&destination) {
-            Some(balance) => balance.credit_balance(amount, transaction_id)?,
+            Some(balance) => balance.credit_balance(amount, transfer_id)?,
             None => return Err(SndError::NoSuchBalance),
         };
-        Ok(Transaction {
-            id: transaction_id,
+        Ok(Transfer {
+            id: transfer_id,
             amount,
         })
     }
@@ -356,7 +356,7 @@ impl Vault {
             let request_type = request.get_type();
 
             match request_type {
-                RequestType::PrivateGet | RequestType::Mutation | RequestType::Transaction => {
+                RequestType::PrivateGet | RequestType::Mutation | RequestType::Transfer => {
                     // For apps, check if its public key is listed as an auth key.
                     if is_app {
                         let auth_keys = self
@@ -398,7 +398,7 @@ impl Vault {
             Request::MData(req) => self.process_mdata_req(req, requester, requester_pk, owner_pk),
             Request::AData(req) => self.process_adata_req(req, requester, requester_pk, owner_pk),
             Request::Client(req) => self.process_client_req(req, requester, requester_pk, owner_pk),
-            Request::Coins(req) => self.process_coins_req(req, requester_pk, owner_pk),
+            Request::Money(req) => self.process_coins_req(req, requester_pk, owner_pk),
             Request::LoginPacket(req) => self.process_login_packet_req(req, requester_pk, owner_pk),
         };
 

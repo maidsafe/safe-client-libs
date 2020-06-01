@@ -626,7 +626,7 @@ fn ffi_authorise_app(auth_h: *mut Authenticator, app_info: &AppExchangeInfo) -> 
         app: app_info.clone(),
         app_container: false,
         app_permissions: AppPermissions {
-            transfer_coins: true,
+            transfer_money: true,
             perform_mutations: true,
             get_balance: true,
         },

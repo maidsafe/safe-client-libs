@@ -90,7 +90,7 @@ pub fn create_auth_req(
         app: app_info,
         app_container,
         app_permissions: AppPermissions {
-            transfer_coins: true,
+            transfer_money: true,
             perform_mutations: true,
             get_balance: true,
         },

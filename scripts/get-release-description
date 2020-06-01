@@ -11,7 +11,7 @@ read -r -d '' release_description << 'EOF'
 SAFE Network client side Rust module(s)
 
 ### SAFE Authenticator FFI
-FFI is used to generate the native libraries which can be used by other high level languages to consume the Rust API. The development version uses a mocked SAFE network, which allows you to work against a file that mimics the network, where SafeCoins are created for local use.
+FFI is used to generate the native libraries which can be used by other high level languages to consume the Rust API. The development version uses a mocked SAFE network, which allows you to work against a file that mimics the network, where SafeMoney are created for local use.
 
 | OS | Download link | SHA-256 checksum |
 | --- | --- | --- |

@@ -26,7 +26,7 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::ConnectionManager;
 use safe_core::{client::COST_OF_PUT, Client, CoreError};
 use safe_nd::{
-    ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
+    ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Error as SndError, Money,
     PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
     XorName,
 };
@@ -81,7 +81,7 @@ async fn get_access_info() -> Result<(), AppError> {
             app: app_info,
             app_container: true,
             app_permissions: AppPermissions {
-                transfer_coins: true,
+                transfer_money: true,
                 perform_mutations: true,
                 get_balance: true,
             },
@@ -160,7 +160,7 @@ async fn authorise_app(
             app: app_info.clone(),
             app_container,
             app_permissions: AppPermissions {
-                transfer_coins: true,
+                transfer_money: true,
                 perform_mutations: true,
                 get_balance: true,
             },
@@ -221,11 +221,11 @@ async fn app_container_creation() -> Result<(), AppError> {
     }
 
     trace!("Making sure no mutations are done when re-authorising the app now.");
-    let orig_balance: Coins = auth.client.get_balance(None).await?;
+    let orig_balance: Money = auth.client.get_balance(None).await?;
 
     let _ = authorise_app(&auth, &app_info, &app_id, true);
 
-    let new_balance: Coins = auth.client.get_balance(None).await?;
+    let new_balance: Money = auth.client.get_balance(None).await?;
 
     assert_eq!(orig_balance, new_balance);
 
@@ -383,20 +383,20 @@ async fn account_info() -> Result<(), AppError> {
     // Create an app that can access the owner's coin balance and mutate data on behalf of user.
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
-        transfer_coins: false,
+        transfer_money: false,
         perform_mutations: true,
         get_balance: true,
     };
 
     let app = create_app_by_req(&app_auth_req).await?;
     let client = app.client;
-    let orig_balance: Coins = client.get_balance(None).await?;
+    let orig_balance: Money = client.get_balance(None).await?;
 
     client
         .put_idata(PubImmutableData::new(vec![1, 2, 3]))
         .await?;
 
-    let new_balance: Coins = client.get_balance(None).await?;
+    let new_balance: Money = client.get_balance(None).await?;
 
     assert_eq!(
         new_balance,

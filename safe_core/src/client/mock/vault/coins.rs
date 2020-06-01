@@ -8,54 +8,54 @@
 
 use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
-use safe_nd::{Coins, CoinsRequest, Error as SndError, PublicKey, Response, Transaction, XorName};
+use safe_nd::{Error as SndError, Money, MoneyRequest, PublicKey, Response, Transfer, XorName};
 use std::str::FromStr;
 use unwrap::unwrap;
 
 impl Vault {
-    /// Process Coins request
+    /// Process Money request
     pub(crate) fn process_coins_req(
         &mut self,
-        request: &CoinsRequest,
+        request: &MoneyRequest,
         requester_pk: PublicKey,
         owner_pk: PublicKey,
     ) -> Response {
         match request {
-            CoinsRequest::Transfer {
+            MoneyRequest::Transfer {
                 destination,
                 amount,
-                transaction_id,
+                transfer_id,
             } => {
                 let source: XorName = owner_pk.into();
 
                 let result = if amount.as_nano() == 0 {
                     Err(SndError::InvalidOperation)
                 } else {
-                    self.authorise_operations(&[Operation::TransferCoins], source, requester_pk)
+                    self.authorise_operations(&[Operation::TransferMoney], source, requester_pk)
                         .and_then(|()| {
-                            self.transfer_coins(source, *destination, *amount, *transaction_id)
+                            self.transfer_money(source, *destination, *amount, *transfer_id)
                         })
                 };
-                Response::Transaction(result)
+                Response::TransferRegistration(result)
             }
-            CoinsRequest::CreateBalance {
+            MoneyRequest::CreateBalance {
                 amount,
                 new_balance_owner,
-                transaction_id,
+                transfer_id,
             } => {
                 let source = owner_pk.into();
                 let destination = (*new_balance_owner).into();
 
                 let result = if source == destination {
                     self.mock_create_balance(*new_balance_owner, *amount);
-                    Ok(Transaction {
-                        id: *transaction_id,
+                    Ok(Transfer {
+                        id: *transfer_id,
                         amount: *amount,
                     })
                 } else {
                     let mut req_perms = vec![Operation::Mutation];
-                    if *amount == unwrap!(Coins::from_str("0")) {
-                        req_perms.push(Operation::TransferCoins);
+                    if *amount == unwrap!(Money::from_str("0")) {
+                        req_perms.push(Operation::TransferMoney);
                     }
                     self.authorise_operations(req_perms.as_slice(), source, requester_pk)
                         .and_then(|_| self.get_balance(&source))
@@ -70,12 +70,12 @@ impl Vault {
                         })
                         .and_then(|()| {
                             self.commit_mutation(&source);
-                            self.transfer_coins(source, destination, *amount, *transaction_id)
+                            self.transfer_money(source, destination, *amount, *transfer_id)
                         })
                 };
-                Response::Transaction(result)
+                Response::TransferRegistration(result)
             }
-            CoinsRequest::GetBalance => {
+            MoneyRequest::GetBalance => {
                 let coin_balance_id = owner_pk.into();
 
                 let result = self

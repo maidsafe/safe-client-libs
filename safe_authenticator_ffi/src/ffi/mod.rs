@@ -26,7 +26,7 @@ use log::trace;
 use rand::thread_rng;
 use safe_authenticator::{AuthError, Authenticator};
 use safe_core::{config_handler, test_create_balance, Client};
-use safe_nd::{ClientFullId, Coins};
+use safe_nd::{ClientFullId, Money};
 use std::ffi::{CStr, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::str::FromStr;
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn create_client_with_acc(
         // Execute the future, blocking the current thread until completion
         let _ = handle.block_on(test_create_balance(
             &client_id,
-            unwrap!(Coins::from_str("10")),
+            unwrap!(Money::from_str("10")),
         ));
 
         let authenticator = handle.block_on(Authenticator::create_client_with_acc(

@@ -19,7 +19,7 @@ use crate::utils::{self};
 use crate::CoreError;
 use futures::{channel::mpsc, future::Future};
 use log::trace;
-use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Coins, Keypair};
+use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Keypair, Money};
 use std::fmt::Debug;
 use tokio::stream::StreamExt;
 use unwrap::unwrap;
@@ -117,12 +117,12 @@ where
 /// Helper function to calculate the total cost of expenditure by adding number of mutations and
 /// amount of transferred coins if any.
 pub fn calculate_new_balance(
-    mut balance: Coins,
+    mut balance: Money,
     mutation_count: Option<u64>,
-    transferred_coins: Option<Coins>,
-) -> Coins {
+    transferred_coins: Option<Money>,
+) -> Money {
     if let Some(x) = mutation_count {
-        balance = unwrap!(balance.checked_sub(Coins::from_nano(x * COST_OF_PUT.as_nano())));
+        balance = unwrap!(balance.checked_sub(Money::from_nano(x * COST_OF_PUT.as_nano())));
     }
     if let Some(coins) = transferred_coins {
         balance = unwrap!(balance.checked_sub(coins));

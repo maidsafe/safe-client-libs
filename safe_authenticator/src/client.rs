@@ -510,7 +510,7 @@ mod tests {
         calculate_new_balance, gen_client_id, random_client, setup_client,
     };
     use safe_core::{utils, CoreError, DIR_TAG};
-    use safe_nd::{Coins, Error as SndError, MDataKind};
+    use safe_nd::{Error as SndError, MDataKind, Money};
     use std::str::FromStr;
 
     // Test account creation.
@@ -522,7 +522,7 @@ mod tests {
         let sec_0 = utils::generate_random_string(10)?;
         let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
-        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
+        test_create_balance(&client_id, unwrap!(Money::from_str("10"))).await?;
 
         // Account creation for the 1st time - should succeed
         let _ = AuthClient::registered(&sec_0, &sec_1, client_id.clone(), net_tx.clone()).await?;
@@ -543,7 +543,7 @@ mod tests {
         let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        test_create_balance(&client_id, Coins::from_str("10")?).await?;
+        test_create_balance(&client_id, Money::from_str("10")?).await?;
 
         let _ = setup_client(&(), |net_tx| {
             match futures::executor::block_on(AuthClient::login(&sec_0, &sec_1, net_tx.clone())) {
@@ -582,7 +582,7 @@ mod tests {
 
         let seed = utils::generate_random_string(30)?;
         let client_id = gen_client_id();
-        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
+        test_create_balance(&client_id, unwrap!(Money::from_str("10"))).await?;
 
         let _ = setup_client(&(), |net_tx| {
             match futures::executor::block_on(AuthClient::login_with_seed(&seed, net_tx.clone())) {
@@ -605,7 +605,7 @@ mod tests {
         let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
+        test_create_balance(&client_id, unwrap!(Money::from_str("10"))).await?;
 
         let dir = MDataInfo::random_private(MDataKind::Seq, DIR_TAG)?;
         let dir_clone = dir.clone();
@@ -633,7 +633,7 @@ mod tests {
         let sec_1 = utils::generate_random_string(10)?;
         let client_id = gen_client_id();
 
-        test_create_balance(&client_id, unwrap!(Coins::from_str("10"))).await?;
+        test_create_balance(&client_id, unwrap!(Money::from_str("10"))).await?;
 
         let dir = unwrap!(MDataInfo::random_private(MDataKind::Seq, DIR_TAG));
         let dir_clone = dir.clone();
@@ -748,12 +748,12 @@ mod tests {
         let client_pk = *client_full_id.public_id().public_key();
         let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
         let new_login_packet2 = new_login_packet.clone();
-        let five_coins = unwrap!(Coins::from_str("5"));
+        let five_coins = unwrap!(Money::from_str("5"));
         let client_id = gen_client_id();
         let random_pk = *client_id.public_id().public_key();
 
         // The `random_client()` initializes the client with 10 coins.
-        let start_bal = Coins::from_str("10")?;
+        let start_bal = Money::from_str("10")?;
         // Create a client which has a pre-loaded balance and use it to store the login packet on
         // the network.
         let client = random_client()?;
@@ -779,7 +779,7 @@ mod tests {
             .insert_login_packet_for(
                 None,
                 maid_keys.public_key(),
-                unwrap!(Coins::from_str("3")),
+                unwrap!(Money::from_str("3")),
                 None,
                 new_login_packet,
             )
@@ -795,7 +795,7 @@ mod tests {
             .insert_login_packet_for(
                 None,
                 random_pk,
-                unwrap!(Coins::from_str("3")),
+                unwrap!(Money::from_str("3")),
                 None,
                 new_login_packet2,
             )
@@ -808,10 +808,10 @@ mod tests {
         };
 
         // The new balance should exist
-        assert_eq!(balance, Coins::from_str("3")?);
+        assert_eq!(balance, Money::from_str("3")?);
 
         let balance = c2.get_balance(None).await?;
-        let expected = calculate_new_balance(start_bal, Some(3), Some(Coins::from_str("8")?));
+        let expected = calculate_new_balance(start_bal, Some(3), Some(Money::from_str("8")?));
         assert_eq!(balance, expected);
 
         let client = setup_client(&(), |net_tx| {

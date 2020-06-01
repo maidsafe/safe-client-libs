@@ -24,11 +24,11 @@ use futures::Future;
 use rand::thread_rng;
 use safe_nd::{
     ADataPubPermissionSet, ADataRequest, AppFullId, AppPermissions, ClientFullId, ClientRequest,
-    Coins, CoinsRequest, Error, IData, IDataRequest, LoginPacketRequest, MData, MDataAction,
-    MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet, MDataRequest,
-    MDataSeqEntryAction, MDataSeqEntryActions, MDataSeqValue, MDataValue, MDataValues, Message,
-    MessageId, PubImmutableData, PublicId, PublicKey, Request, RequestType, Response,
-    SeqMutableData, UnpubImmutableData, UnseqMutableData, XorName,
+    Error, IData, IDataRequest, LoginPacketRequest, MData, MDataAction, MDataAddress, MDataEntries,
+    MDataEntryActions, MDataPermissionSet, MDataRequest, MDataSeqEntryAction, MDataSeqEntryActions,
+    MDataSeqValue, MDataValue, MDataValues, Message, MessageId, Money, MoneyRequest,
+    PubImmutableData, PublicId, PublicKey, Request, RequestType, Response, SeqMutableData,
+    UnpubImmutableData, UnseqMutableData, XorName,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -112,12 +112,12 @@ async fn immutable_data_basics() {
     );
 
     // Initial balance is 10 coins
-    let balance = unwrap!(Coins::from_str("10"));
+    let balance = unwrap!(Money::from_str("10"));
     let balance = unwrap!(balance.checked_sub(COST_OF_PUT));
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
-        Request::Coins(CoinsRequest::GetBalance),
+        Request::Money(MoneyRequest::GetBalance),
         balance
     );
 
@@ -137,7 +137,7 @@ async fn immutable_data_basics() {
     send_req_expect_ok!(
         &mut connection_manager,
         &client_safe_key,
-        Request::Coins(CoinsRequest::GetBalance),
+        Request::Money(MoneyRequest::GetBalance),
         balance
     );
 }
@@ -706,7 +706,7 @@ async fn mutable_data_permissions() {
         &client_safe_key,
         AppPermissions {
             get_balance: true,
-            transfer_coins: true,
+            transfer_money: true,
             perform_mutations: true,
         },
     )
@@ -934,7 +934,7 @@ async fn mutable_data_ownership() {
         &client_safe_key,
         AppPermissions {
             get_balance: true,
-            transfer_coins: true,
+            transfer_money: true,
             perform_mutations: true,
         },
     )
@@ -992,7 +992,7 @@ async fn pub_idata_rpc() {
     }
 
     let app_perms = AppPermissions {
-        transfer_coins: true,
+        transfer_money: true,
         get_balance: true,
         perform_mutations: true,
     };
@@ -1030,7 +1030,7 @@ async fn unpub_idata_rpc() {
     );
 
     let app_perms = AppPermissions {
-        transfer_coins: true,
+        transfer_money: true,
         get_balance: true,
         perform_mutations: true,
     };
@@ -1106,7 +1106,7 @@ async fn auth_keys() {
         key: app_key,
         version: 0,
         permissions: AppPermissions {
-            transfer_coins: true,
+            transfer_money: true,
             get_balance: true,
             perform_mutations: true,
         },
@@ -1126,7 +1126,7 @@ async fn auth_keys() {
         key: app_key,
         version: 1,
         permissions: AppPermissions {
-            transfer_coins: true,
+            transfer_money: true,
             get_balance: true,
             perform_mutations: true,
         },
@@ -1149,7 +1149,7 @@ async fn auth_keys() {
     match response {
         Response::ListAuthKeysAndVersion(res) => match res {
             Ok(keys) => {
-                assert_eq!(unwrap!(keys.0.get(&app_key)).transfer_coins, true);
+                assert_eq!(unwrap!(keys.0.get(&app_key)).transfer_money, true);
                 assert_eq!(unwrap!(keys.0.get(&app_key)).get_balance, true);
                 assert_eq!(unwrap!(keys.0.get(&app_key)).perform_mutations, true);
                 assert_eq!(keys.1, 1);
@@ -1228,7 +1228,7 @@ async fn auth_actions_from_app() {
     let (mut connection_manager, _, client_safe_key, owner_key) = setup(None).await;
 
     let app_perms = AppPermissions {
-        transfer_coins: true,
+        transfer_money: true,
         get_balance: true,
         perform_mutations: true,
     };
@@ -1330,10 +1330,10 @@ async fn low_balance_check() {
         let rpc_response = process_request(
             &mut connection_manager,
             &client_safe_key,
-            Request::Coins(CoinsRequest::GetBalance),
+            Request::Money(MoneyRequest::GetBalance),
         )
         .await;
-        let balance: Coins = match rpc_response {
+        let balance: Money = match rpc_response {
             Response::GetBalance(res) => unwrap!(res),
             _ => panic!("Unexpected response"),
         };
@@ -1343,16 +1343,16 @@ async fn low_balance_check() {
         let response = process_request(
             &mut connection_manager,
             &client_safe_key,
-            Request::Coins(CoinsRequest::CreateBalance {
+            Request::Money(MoneyRequest::CreateBalance {
                 new_balance_owner,
                 amount: unwrap!(balance.checked_sub(COST_OF_PUT)),
-                transaction_id: rand::random(),
+                transfer_id: rand::random(),
             }),
         )
         .await;
 
         match response {
-            Response::Transaction(Ok(_)) => (),
+            Response::TransferRegistration(Ok(_)) => (),
             x => panic!("Unexpected Error {:?}", x),
         }
 
@@ -1567,7 +1567,7 @@ async fn setup(
     } else {
         unwrap!(ConnectionManager::new(Default::default(), &conn_manager_tx))
     };
-    let coins = unwrap!(Coins::from_str("10"));
+    let coins = unwrap!(Money::from_str("10"));
     let client_safe_key = register_client(&mut conn_manager, coins, client_id).await;
     let owner_key = client_safe_key.public_key();
     (conn_manager, conn_manager_rx, client_safe_key, owner_key)
@@ -1577,7 +1577,7 @@ async fn setup(
 // Return the safe key which will be used to sign the requests that follow.
 async fn register_client(
     conn_manager: &mut ConnectionManager,
-    coins: Coins,
+    coins: Money,
     client_id: ClientFullId,
 ) -> SafeKey {
     let client_public_key = client_id.public_id().public_key();

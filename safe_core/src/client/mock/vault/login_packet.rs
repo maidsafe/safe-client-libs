@@ -8,7 +8,7 @@
 
 use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
-use safe_nd::{Coins, Error as SndError, LoginPacketRequest, PublicKey, Response, Transaction};
+use safe_nd::{Error as SndError, LoginPacketRequest, Money, PublicKey, Response, Transfer};
 use std::str::FromStr;
 use unwrap::unwrap;
 
@@ -24,7 +24,7 @@ impl Vault {
             LoginPacketRequest::CreateFor {
                 new_owner,
                 amount,
-                transaction_id,
+                transfer_id,
                 new_login_packet,
             } => {
                 let source = owner_pk.into();
@@ -32,10 +32,10 @@ impl Vault {
 
                 // If a login packet at the given destination exists return an error.
                 let result = if let Err(e) = {
-                    // Check if the requester is authorized to perform coin transactions, mutate, and read balance.
+                    // Check if the requester is authorized to perform coin transfer_ids, mutate, and read balance.
                     let mut req_perms = vec![Operation::Mutation];
-                    if *amount == unwrap!(Coins::from_str("0")) {
-                        req_perms.push(Operation::TransferCoins);
+                    if *amount == unwrap!(Money::from_str("0")) {
+                        req_perms.push(Operation::TransferMoney);
                     }
                     self.authorise_operations(req_perms.as_slice(), source, requester_pk)
                 } {
@@ -56,7 +56,7 @@ impl Vault {
                         .and_then(|_| {
                             // Debit the requester's wallet the cost of `CreateLoginPacketFor`
                             self.commit_mutation(&source);
-                            self.transfer_coins(source, new_balance_dest, *amount, *transaction_id)
+                            self.transfer_money(source, new_balance_dest, *amount, *transfer_id)
                         })
                         .and_then(|_| {
                             if self
@@ -72,13 +72,13 @@ impl Vault {
                         .map(|_| {
                             self.insert_login_packet(new_login_packet.clone());
 
-                            Transaction {
-                                id: *transaction_id,
+                            Transfer {
+                                id: *transfer_id,
                                 amount: *amount,
                             }
                         })
                 };
-                Response::Transaction(result)
+                Response::TransferRegistration(result)
             }
             LoginPacketRequest::Create(account_data) => {
                 let source = owner_pk.into();
