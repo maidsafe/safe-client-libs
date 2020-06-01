@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.16.0]
+- Use Async/await rust.
+
 ## [0.15.0]
 - Update quic-p2p to 0.5.0
 - Move the FFI module into a separate crate

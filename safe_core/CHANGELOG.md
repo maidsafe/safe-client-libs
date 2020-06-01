@@ -1,5 +1,9 @@
 # Safe Core - Change Log
 
+
+## [0.41.0]
+- Use Async/await rust.
+
 ## [0.40.0]
 - Update quic-p2p to 0.5.0
 - Attempt to bootstrap multiple times before returning an error

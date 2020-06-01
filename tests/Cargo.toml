@@ -12,9 +12,9 @@ version = "0.2.0"
 async-trait = "~0.1.30"
 ffi_utils = "~0.16.0"
 futures = "~0.3.5"
-safe_app = { path = "../safe_app", version = "~0.15.1", features = ["testing"] }
-safe_authenticator = { path = "../safe_authenticator", version = "~0.15.0", features = ["testing"] }
-safe_core = { path = "../safe_core", version = "~0.40.0", features = ["testing"] }
+safe_app = { path = "../safe_app", version = "~0.16.0", features = ["testing"] }
+safe_authenticator = { path = "../safe_authenticator", version = "~0.16.0", features = ["testing"] }
+safe_core = { path = "../safe_core", version = "~0.41.0", features = ["testing"] }
 safe-nd = "~0.8.0"
 serde = "~1.0.24"
 serde_derive = "~1.0.24"

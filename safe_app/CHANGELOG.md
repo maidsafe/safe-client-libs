@@ -1,5 +1,8 @@
 # SAFE App
 
+## [0.16.0]
+- Use Async/await.
+
 ## [0.15.0]
 - Update quic-p2p to 0.5.0
 - Remove the FFI module
