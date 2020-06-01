@@ -170,13 +170,15 @@ mod mock_routing {
     // 12. Check that the app's container is listed in the access container entry for
     //     the app.
     #[tokio::test]
-    async fn app_authentication_recovery() -> Result<(), AuthError> {
+    async fn app_authentication_recovery() {
         use safe_core::client::Client;
-        let locator = generate_random_string(10)?;
-        let password = generate_random_string(10)?;
+        let locator = generate_random_string(10).unwrap();
+        let password = generate_random_string(10).unwrap();
         let client_id = gen_client_id();
 
-        test_create_balance(&client_id, Coins::from_str("10")?).await?;
+        test_create_balance(&client_id, Coins::from_str("10").unwrap())
+            .await
+            .unwrap();
 
         let cm_hook = move |mut cm: ConnectionManager| -> ConnectionManager {
             cm.set_request_hook(move |req| {
@@ -200,7 +202,8 @@ mod mock_routing {
             || (),
             cm_hook,
         )
-        .await?;
+        .await
+        .unwrap();
 
         // Create a test app and try to authenticate it (with `app_container` set to true).
         let auth_req = AuthReq {
@@ -243,7 +246,8 @@ mod mock_routing {
         };
         let auth =
             Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
-                .await?;
+                .await
+                .unwrap();
         match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
@@ -267,7 +271,8 @@ mod mock_routing {
         };
         let auth =
             Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
-                .await?;
+                .await
+                .unwrap();
 
         match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
@@ -291,7 +296,8 @@ mod mock_routing {
         };
         let auth =
             Authenticator::login_with_hook(locator.clone(), password.clone(), || (), cm_hook)
-                .await?;
+                .await
+                .unwrap();
         match test_utils::register_app(&auth, &auth_req).await {
             Err(AuthError::CoreError(CoreError::DataError(SndError::InsufficientBalance))) => (),
             x => panic!("Unexpected {:?}", x),
@@ -299,7 +305,9 @@ mod mock_routing {
 
         // Now try to authenticate the app without network failure simulation -
         // it should succeed.
-        let auth = Authenticator::login(locator, password, || ()).await?;
+        let auth = Authenticator::login(locator, password, || ())
+            .await
+            .unwrap();
         let auth_granted = match test_utils::register_app(&auth, &auth_req).await {
             Ok(auth_granted) => auth_granted,
             x => panic!("Unexpected {:?}", x),
@@ -308,24 +316,28 @@ mod mock_routing {
         // Check that the app's container has been created and that the access container
         // contains info about all of the requested containers.
         let mut ac_entries =
-            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone()).await?;
+            test_utils::access_container(&auth, app_id.clone(), auth_granted.clone())
+                .await
+                .unwrap();
         let (_videos_md, _) = unwrap!(ac_entries.remove("_videos"));
         let (_documents_md, _) = unwrap!(ac_entries.remove("_documents"));
         let (app_container, _) = unwrap!(ac_entries.remove(&app_container_name(&app_id)));
 
         let app_pk = auth_granted.app_keys.public_key();
         let client = auth.client;
-        let version = client.get_mdata_version(*app_container.address()).await?;
+        let version = client
+            .get_mdata_version(*app_container.address())
+            .await
+            .unwrap();
         assert_eq!(version, 0);
 
         // Check that the app's container has required permissions.
         let perms = client
             .list_mdata_permissions(*app_container.address())
-            .await?;
+            .await
+            .unwrap();
         assert!(perms.contains_key(&app_pk));
         assert_eq!(perms.len(), 1);
-
-        Ok(())
     }
 }
 

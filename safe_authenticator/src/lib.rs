@@ -265,9 +265,11 @@ impl Authenticator {
             AuthClient::login_with_hook(&locator, &password, net_tx, connection_manager_wrapper_fn)
                 .await?;
 
-        std_dirs::create(&client)
-            .await
-            .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))?;
+        if !client.std_dirs_created().await {
+            std_dirs::create(&client)
+                .await
+                .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))?;
+        }
 
         Ok(Self {
             client,
