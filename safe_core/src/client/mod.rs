@@ -51,10 +51,13 @@ use safe_nd::{
     LoginPacketRequest, MData, MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet,
     MDataRequest, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions,
     MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey, Request, RequestType,
-    Response, SeqMutableData, Transaction, UnseqMutableData, XorName,
+    Response, SData, SDataAddress, SDataAppendOperation, SDataEntries, SDataEntry, SDataIndex,
+    SDataRequest, SeqMutableData, Transaction, UnseqMutableData, XorName,
 };
-use std::collections::{BTreeMap, BTreeSet};
-use std::time::Duration;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Duration,
+};
 use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
@@ -1174,6 +1177,68 @@ pub trait Client: Clone + Send + Sync {
     {
         send_mutation(self, Request::AData(ADataRequest::AppendUnseq(append))).await
     }
+
+    // ======= Sequence Data =======
+    //
+    /// Store Sequence Data into the Network
+    async fn store_sdata(&self, data: SData) -> Result<(), CoreError> {
+        trace!("Store Sequence Data {:?}", data.name());
+        send_mutation(self, Request::SData(SDataRequest::Store(data))).await
+    }
+
+    /// Get Sequence Data from the Network
+    async fn get_sdata(&self, address: SDataAddress) -> Result<SData, CoreError> {
+        trace!("Get Sequence Data at {:?}", address.name());
+
+        match send(self, Request::SData(SDataRequest::Get(address))).await? {
+            Response::GetSData(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+    }
+
+    /// Get the last data entry from a Sequence Data.
+    async fn get_sdata_last_entry(
+        &self,
+        address: SDataAddress,
+    ) -> Result<(u64, SDataEntry), CoreError> {
+        trace!(
+            "Get latest entry from Sequence Data at {:?}",
+            address.name()
+        );
+
+        match send(self, Request::SData(SDataRequest::GetLastEntry(address))).await? {
+            Response::GetSDataLastEntry(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+    }
+
+    /// Get a set of Entries for the requested range from a Sequence.
+    async fn get_sdata_range(
+        &self,
+        address: SDataAddress,
+        range: (SDataIndex, SDataIndex),
+    ) -> Result<SDataEntries, CoreError> {
+        trace!(
+            "Get range of entries from Sequence Data at {:?}",
+            address.name()
+        );
+
+        match send(
+            self,
+            Request::SData(SDataRequest::GetRange { address, range }),
+        )
+        .await?
+        {
+            Response::GetSDataRange(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+    }
+
+    /// Append to Sequence Data
+    async fn sdata_append(&self, append: SDataAppendOperation) -> Result<(), CoreError> {
+        send_mutation(self, Request::SData(SDataRequest::Append(append))).await
+    }
+    // ========== END of Sequence Data functions =========
 
     /// Return a list of permissions in `MutableData` stored on the network.
     async fn list_mdata_permissions(

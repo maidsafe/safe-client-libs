@@ -66,11 +66,8 @@ impl Vault {
         let data_name = DataId::Immutable(address);
 
         match self.get_data(&data_name) {
-            Some(data_type) => match data_type {
-                Data::Immutable(data) => Ok(data),
-                _ => Err(SndError::NoSuchData),
-            },
-            None => Err(SndError::NoSuchData),
+            Some(Data::Immutable(data)) => Ok(data),
+            Some(_) | None => Err(SndError::NoSuchData),
         }
     }
 
@@ -82,23 +79,16 @@ impl Vault {
         let data_id = DataId::Immutable(address);
 
         match self.get_data(&data_id) {
-            Some(idata) => {
-                if let Data::Immutable(data) = idata {
-                    if let IData::Unpub(unpub_idata) = data {
-                        if *unpub_idata.owner() == requester_pk {
-                            self.delete_data(data_id);
-                            Ok(())
-                        } else {
-                            Err(SndError::AccessDenied)
-                        }
-                    } else {
-                        Err(SndError::InvalidOperation)
-                    }
+            Some(Data::Immutable(IData::Unpub(unpub_idata))) => {
+                if *unpub_idata.owner() == requester_pk {
+                    self.delete_data(data_id);
+                    Ok(())
                 } else {
-                    Err(SndError::NoSuchData)
+                    Err(SndError::AccessDenied)
                 }
             }
-            None => Err(SndError::NoSuchData),
+            Some(Data::Immutable(_)) => Err(SndError::InvalidOperation),
+            Some(_) | None => Err(SndError::NoSuchData),
         }
     }
 }
