@@ -15,18 +15,24 @@ pub mod core_client;
 pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
 pub mod recoverable_apis;
+/// Safe Transfers wrapper, with Money APIs
+pub mod transfer_actor;
+
 use async_trait::async_trait;
-mod id;
+
 #[cfg(feature = "mock-network")]
 mod mock;
 
+// safe-transfers wrapper
+pub use self::transfer_actor::{ClientTransferValidator, TransferActor};
+
 pub use self::account::ClientKeys;
-pub use self::id::SafeKey;
 pub use self::mdata_info::MDataInfo;
 #[cfg(feature = "mock-network")]
 pub use self::mock::vault::mock_vault_path;
 #[cfg(feature = "mock-network")]
 pub use self::mock::ConnectionManager as MockConnectionManager;
+pub use safe_nd::SafeKey;
 
 #[cfg(feature = "mock-network")]
 use self::mock::ConnectionManager;
@@ -50,9 +56,8 @@ use safe_nd::{
     ClientRequest, IData, IDataAddress, IDataRequest, LoginPacket, LoginPacketRequest, MData,
     MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet, MDataRequest,
     MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
-    MDataValues, Message, MessageId, Money, MoneyRequest, PublicId, PublicKey, RegisterTransfer,
-    Request, RequestType, Response, SeqMutableData, Transfer, TransferRegistered, UnseqMutableData,
-    ValidateTransfer, XorName,
+    MDataValues, Message, MessageId, Money, MoneyRequest, PublicId, PublicKey, Request,
+    RequestType, Response, SeqMutableData, Transfer, TransferRegistered, UnseqMutableData, XorName,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -89,6 +94,7 @@ async fn send_mutation(client: &impl Client, req: Request) -> Result<(), CoreErr
         _ => Err(CoreError::ReceivedUnexpectedEvent),
     }
 }
+// TODO: retrieve our actor for this clientID....
 
 async fn send_as_helper(
     client: &impl Client,
@@ -147,6 +153,9 @@ pub trait Client: Clone + Send + Sync {
     fn inner(&self) -> Arc<Mutex<Inner>>
     where
         Self: Sized;
+
+    /// Return the TransferActor for this client
+    async fn transfer_actor(&self) -> TransferActor;
 
     /// Return the public encryption key.
     async fn public_encryption_key(&self) -> threshold_crypto::PublicKey;
@@ -221,27 +230,28 @@ pub trait Client: Clone + Send + Sync {
     /// Transfer coin balance
     async fn transfer_money(
         &self,
-        client_id: Option<&ClientFullId>,
-        destination: XorName,
+        // client_id: Option<&ClientFullId>,
+        destination: PublicKey,
         amount: Money,
-        transfer_id: Option<u64>,
-    ) -> Result<Transfer, CoreError>
+        _transfer_id: Option<u64>,
+    ) -> Result<TransferRegistered, CoreError>
     where
         Self: Sized,
     {
         trace!("Transfer {} coins to {:?}", amount, destination);
+        // TODO: retrieve our actor for this clientID....
+        // NOte: this currently has clintId as an option.. . but it's _mostly_ ignored...
+        // we can remove that and set up an API for transfer_as if needs be...
 
-        match send_as_helper(
-            self,
-            Request::Money(MoneyRequest::Transfer {
-                destination,
-                amount,
-                transfer_id: transfer_id.unwrap_or_else(rand::random),
-            }),
-            client_id,
-        )
-        .await
-        {
+        let cm = self.inner().lock().await.connection_manager.clone();
+
+        let mut actor = self.transfer_actor().await;
+
+        let transfer_result = actor
+            .send_money_as(self.full_id().await, cm, destination, amount)
+            .await;
+
+        match transfer_result {
             Ok(res) => match res {
                 Response::TransferRegistration(result) => match result {
                     Ok(transfer) => Ok(transfer),
@@ -253,14 +263,15 @@ pub trait Client: Clone + Send + Sync {
         }
     }
 
+    // TODO: is this API needed at all? Why not just transfer?
     /// Creates a new balance on the network.
     async fn create_balance(
         &self,
-        client_id: Option<&ClientFullId>,
+        _client_id: Option<&ClientFullId>,
         new_balance_owner: PublicKey,
         amount: Money,
-        transfer_id: Option<u64>,
-    ) -> Result<Transfer, CoreError>
+        _transfer_id: Option<u64>,
+    ) -> Result<TransferRegistered, CoreError>
     where
         Self: Sized,
     {
@@ -269,18 +280,28 @@ pub trait Client: Clone + Send + Sync {
             new_balance_owner,
             amount
         );
+        // TODO: retrieve our actor for this clientID....
+        let cm = self.inner().lock().await.connection_manager.clone();
 
-        match send_as_helper(
-            self,
-            Request::Money(MoneyRequest::CreateBalance {
-                new_balance_owner,
-                amount,
-                transfer_id: transfer_id.unwrap_or_else(rand::random),
-            }),
-            client_id,
-        )
-        .await
-        {
+        let mut actor = self.transfer_actor().await;
+
+        // TODO: is this send_money_as or what shoudl this API be?
+        let transfer_result = actor
+            .send_money_as(self.full_id().await, cm, new_balance_owner, amount)
+            .await;
+
+        // match send_as_helper(
+        //     self,
+        //     Request::Money(MoneyRequest::CreateBalance {
+        //         new_balance_owner,
+        //         amount,
+        //         transfer_id: transfer_id.unwrap_or_else(rand::random),
+        //     }),
+        //     client_id,
+        // )
+        // .await
+
+        match transfer_result {
             Ok(res) => match res {
                 Response::TransferRegistration(result) => match result {
                     Ok(transfer) => Ok(transfer),
@@ -293,67 +314,65 @@ pub trait Client: Clone + Send + Sync {
         }
     }
 
-    /// Insert a given login packet at the specified destination
-    async fn insert_login_packet_for(
-        &self,
-        client_id: Option<&ClientFullId>,
-        new_owner: PublicKey,
-        amount: Money,
-        transfer_id: Option<u64>,
-        new_login_packet: LoginPacket,
-    ) -> Result<Transfer, CoreError>
-    where
-        Self: Sized,
-    {
-        trace!(
-            "Insert a login packet for {:?} preloading the wallet with {} coins.",
-            new_owner,
-            amount
-        );
+    // /// Insert a given login packet at the specified destination
+    // async fn insert_login_packet_for(
+    //     &self,
+    //     client_id: Option<&ClientFullId>,
+    //     new_owner: PublicKey,
+    //     amount: Money,
+    //     transfer_id: Option<u64>,
+    //     new_login_packet: LoginPacket,
+    // ) -> Result<TransferRegistered, CoreError>
+    // where
+    //     Self: Sized,
+    // {
+    //     trace!(
+    //         "Insert a login packet for {:?} preloading the wallet with {} coins.",
+    //         new_owner,
+    //         amount
+    //     );
 
-        let transfer_id = transfer_id.unwrap_or_else(rand::random);
+    //     let transfer_id = transfer_id.unwrap_or_else(rand::random);
 
-        match send_as_helper(
-            self,
-            Request::LoginPacket(LoginPacketRequest::CreateFor {
-                new_owner,
-                amount,
-                transfer_id,
-                new_login_packet,
-            }),
-            client_id,
-        )
-        .await
-        {
-            Ok(res) => match res {
-                Response::TransferRegistration(result) => match result {
-                    Ok(transfer) => Ok(transfer),
-                    Err(error) => Err(CoreError::from(error)),
-                },
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            },
+    //     // TOD   // TODO: retrieve our actor for this clientID....
 
-            Err(error) => Err(error),
-        }
-    }
+    // O: update login packet flow
+    //     match send_as_helper(
+    //         self,
+    //         Request::LoginPacket(LoginPacketRequest::CreateFor {
+    //             new_owner,
+    //             amount,
+    //             transfer_id,
+    //             new_login_packet,
+    //         }),
+    //         client_id,
+    //     )
+    //     .await
+    //     {
+    //         Ok(res) => match res {
+    //             Response::TransferRegistration(result) => match result {
+    //                 Ok(transfer) => Ok(transfer),
+    //                 Err(error) => Err(CoreError::from(error)),
+    //             },
+    //             _ => Err(CoreError::ReceivedUnexpectedEvent),
+    //         },
 
-    /// Get the current coin balance.
+    //         Err(error) => Err(error),
+    //     }
+    // }
+
+    /// Get the current coin balance via TransferActor for this client.
     async fn get_balance(&self, client_id: Option<&ClientFullId>) -> Result<Money, CoreError>
     where
         Self: Sized,
     {
         trace!("Get balance for {:?}", client_id);
 
-        match send_as_helper(self, Request::Money(MoneyRequest::GetBalance), client_id).await {
-            Ok(res) => match res {
-                Response::GetBalance(result) => match result {
-                    Ok(coins) => Ok(coins),
-                    Err(error) => Err(CoreError::from(error)),
-                },
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            },
-            Err(error) => Err(error),
-        }
+        // TODO: another api for getting from network
+        // TODO: handle client_id passed in
+        self.transfer_actor()
+            .await
+            .get_local_balance(self.full_id().await)
     }
 
     /// Put immutable data to the network.
@@ -1315,17 +1334,15 @@ pub trait Client: Clone + Send + Sync {
             amount,
         );
 
-        match send_as_helper(
-            self,
-            Request::Money(MoneyRequest::CreateBalance {
-                new_balance_owner,
-                amount,
-                transfer_id: rand::random(),
-            }),
-            client_id,
-        )
-        .await
-        {
+        let cm = self.inner().lock().await.connection_manager.clone();
+
+        let mut actor = self.transfer_actor().await;
+
+        let transfer_result = actor
+            .send_money_as(self.full_id().await, cm, new_balance_owner, amount)
+            .await;
+
+        match transfer_result {
             Ok(res) => match res {
                 Response::TransferRegistration(result) => match result {
                     Ok(_) => Ok(()),
@@ -1345,9 +1362,13 @@ where
     F: FnMut(&mut ConnectionManager, &SafeKey) -> Result<R, CoreError>,
 {
     let full_id = SafeKey::client(identity.clone());
+
+    let validator = ClientTransferValidator {};
+
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone()).await?;
+    let _actor = TransferActor::new(validator, full_id.clone(), cm.clone());
 
     let res = func(&mut cm, &full_id);
 
@@ -1360,169 +1381,56 @@ where
 pub async fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<(), CoreError> {
     trace!("Create test balance of {} for {:?}", amount, owner);
 
-    temp_client(owner, move |mut cm, full_id| {
-        // Create the balance for the client
-        let new_balance_owner = match full_id.public_id() {
-            PublicId::Client(id) => *id.public_key(),
-            x => return Err(CoreError::from(format!("Unexpected ID type {:?}", x))),
-        };
+    let full_id = SafeKey::client(owner.clone());
 
-        let response = futures::executor::block_on(req(
-            &mut cm,
-            Request::Money(MoneyRequest::CreateBalance {
-                new_balance_owner,
-                amount,
-                transfer_id: rand::random(),
-            }),
-            &full_id,
-        ))?;
+    let validator = ClientTransferValidator {};
 
-        match response {
-            Response::TransferRegistration(res) => res.map(|_| Ok(()))?,
-            _ => Err(CoreError::from("Unexpected response")),
-        }
-    })
-    .await
-}
+    let (net_tx, _net_rx) = mpsc::unbounded();
 
-/// Get the balance at the given key's location
-pub async fn wallet_get_balance(wallet_sk: &ClientFullId) -> Result<Money, CoreError> {
-    trace!("Get balance for {:?}", wallet_sk);
+    let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone()).await?;
+    let mut actor = TransferActor::new(validator, full_id.clone(), cm.clone()).await?;
 
-    temp_client(
-        wallet_sk,
-        move |mut cm, full_id| match futures::executor::block_on(req(
-            &mut cm,
-            Request::Money(MoneyRequest::GetBalance),
-            &full_id,
-        ))? {
-            Response::GetBalance(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::from("Unexpected response")),
-        },
-    )
-    .await
-}
+    // let res = func(&mut cm, &full_id);
+    let public_id = full_id.public_id();
 
-/// Transfer money
-pub fn await_transfer_registration_for_client(
-    client_id: &ClientFullId,
-    to: PublicKey,
-    amount: Money,
-    transfer_id: Option<u64>,
-) -> Result<TransferRegistered, CoreError> {
-    trace!("Transfer {} money to {:?}", amount, to);
+    // Create the balance for the client
+    let _new_balance_owner = match public_id.clone() {
+        PublicId::Client(id) => *id.public_key(),
+        x => return Err(CoreError::from(format!("Unexpected ID type {:?}", x))),
+    };
 
-    let transfer_id = transfer_id.unwrap_or_else(rand::random);
-    let from = *client_id.public_id().public_key();
+    let public_key = full_id.public_key();
 
-    temp_client(client_id, move |mut cm, full_id| {
-        // TODO: here manage the flow... Validation request... Then response accumulation (happens in CM?)
-        // then actual transfer and compeltion as here.
+    // let response = futures::executor::block_on(req(
+    //     &mut cm,
+    //     Request::Money(MoneyRequest::CreateBalance {
+    //         new_balance_owner,
+    //         amount,
+    //         transfer_id: rand::random(),
+    //     }),
+    //     &full_id,
+    // ))?;
 
-        // Create the balance for the client
-        let transfer = Transfer {
-            // from,
-            to,
-            amount,
-            id: transfer_id,
-            // restrictions: TransferRestrictions::RequireHistory,
-        };
+    // let mut cm = self.inner().lock().await.connection_manager.clone();
 
-        let transfer_to_validate = ValidateTransfer {
-            transfer,
-            client_signature: full_id.sign(&unwrap!(bincode::serialize(&transfer))),
-        };
+    // let mut actor = self.transfer_actor().await;
 
-        let proof = match req(
-            &mut cm,
-            Request::Money(MoneyRequest::ValidateTransfer {
-                payload: transfer_to_validate,
-            }),
-            &full_id,
-        )? {
-            Response::TransferProofOfAgreement(res) => res?,
-            _ => return Err(CoreError::from("Unexpected response to validate transfer")),
-        };
+    let response = actor
+        .send_money_as(full_id.clone(), cm.clone(), public_key, amount)
+        .await?;
 
-        // TODO: Register the transfer....
-        let response = req(
-            &mut cm,
-            Request::Money(MoneyRequest::RegisterTransfer {
-                payload: RegisterTransfer { proof },
-            }),
-            &full_id,
-        )?;
+    let _result = match response {
+        Response::TransferRegistration(res) => res.map(|_| Ok(()))?,
+        _ => Err(CoreError::from("Unexpected response")),
+    };
 
-        match response {
-            Response::TransferRegistration(res) => match res {
-                Ok(response) => Ok(response),
-                Err(err) => Err(CoreError::from(err)),
-            },
-            _ => Err(CoreError::from("Unexpected response")),
-        }
-    })
-}
+    cm.disconnect(&full_id.public_id()).await?;
 
-/// Creates a new coin balance on the network.
-pub async fn wallet_create_balance(
-    client_id: &ClientFullId,
-    new_balance_owner: PublicKey,
-    amount: Money,
-    transfer_id: Option<u64>,
-) -> Result<Transfer, CoreError> {
-    trace!(
-        "Create a new coin balance for {:?} with {} coins.",
-        new_balance_owner,
-        amount
-    );
+    Ok(())
 
-    let transfer_id = transfer_id.unwrap_or_else(rand::random);
-
-    temp_client(client_id, move |mut cm, full_id| {
-        let response = futures::executor::block_on(req(
-            &mut cm,
-            Request::Money(MoneyRequest::CreateBalance {
-                new_balance_owner,
-                amount,
-                transfer_id,
-            }),
-            &full_id,
-        ))?;
-        match response {
-            Response::TransferRegistration(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::from("Unexpected response")),
-        }
-    })
-    .await
-}
-
-/// Transfer coins
-pub async fn wallet_transfer_money(
-    client_id: &ClientFullId,
-    destination: XorName,
-    amount: Money,
-    transfer_id: Option<u64>,
-) -> Result<Transfer, CoreError> {
-    trace!("Transfer {} coins to {:?}", amount, destination);
-
-    let transfer_id = transfer_id.unwrap_or_else(rand::random);
-
-    temp_client(client_id, move |mut cm, full_id| {
-        let response = futures::executor::block_on(req(
-            &mut cm,
-            Request::Money(MoneyRequest::Transfer {
-                destination,
-                amount,
-                transfer_id,
-            }),
-            &full_id,
-        ))?;
-        match response {
-            Response::TransferRegistration(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::from("Unexpected response")),
-        }
-    })
-    .await
+    // temp_client(owner, move |mut cm, full_id| {
+    // })
+    // .await
 }
 
 /// This trait implements functions that are supposed to be called only by `CoreClient` and `AuthClient`.
@@ -2729,37 +2637,6 @@ mod tests {
             AData::UnpubUnseq(adata) => assert_eq!(adata.owners_index(), 3),
             _ => panic!("UNEXPECTED DATA!"),
         }
-
-        Ok(())
-    }
-
-    // 1. Create a random BLS key and create a wallet for it with some test safecoin.
-    // 2. Without a client object, try to get the balance, create new wallets and transfer safecoin.
-    #[tokio::test]
-    pub async fn wallet_transfers_without_client() -> Result<(), CoreError> {
-        let client_id = gen_client_id();
-
-        test_create_balance(&client_id, unwrap!(Money::from_str("50"))).await?;
-
-        let balance = wallet_get_balance(&client_id).await?;
-        let ten_coins = unwrap!(Money::from_str("10"));
-        assert_eq!(balance, unwrap!(Money::from_str("50")));
-
-        let new_client_id = gen_client_id();
-        let new_client_pk = new_client_id.public_id().public_key();
-        let new_wallet: XorName = *new_client_id.public_id().name();
-        let txn = wallet_create_balance(&client_id, *new_client_pk, ten_coins, None).await?;
-        assert_eq!(txn.amount, ten_coins);
-        let txn2 = wallet_transfer_money(&client_id, new_wallet, ten_coins, None).await?;
-        assert_eq!(txn2.amount, ten_coins);
-
-        let client_balance = wallet_get_balance(&client_id).await?;
-        let expected = unwrap!(Money::from_str("30"));
-        let expected = unwrap!(expected.checked_sub(COST_OF_PUT));
-        assert_eq!(client_balance, expected);
-
-        let new_client_balance = wallet_get_balance(&new_client_id).await?;
-        assert_eq!(new_client_balance, unwrap!(Money::from_str("20")));
 
         Ok(())
     }

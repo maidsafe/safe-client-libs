@@ -82,6 +82,8 @@ pub const ERR_TRANSACTION_ID_EXISTS: i32 = -4003;
 pub const ERR_INSUFFICIENT_BALANCE: i32 = -4004;
 pub const ERR_BALANCE_EXISTS: i32 = -4005;
 pub const ERR_NO_SUCH_BALANCE: i32 = -4006;
+pub const ERR_NO_SUCH_SENDER: i32 = -4007;
+pub const ERR_NO_SUCH_RECIPIENT: i32 = -4008;
 
 // Login packet errors.
 pub const ERR_EXCEEDED_SIZE: i32 = -5001;

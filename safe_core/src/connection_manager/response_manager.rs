@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use futures::channel::oneshot::Sender;
+use futures::channel::mpsc;
 use log::trace;
 use safe_nd::{MessageId, Response};
 use std::collections::HashMap;
@@ -14,10 +14,39 @@ use std::collections::HashMap;
 type ResponseRequiredCount = usize;
 type VoteCount = usize;
 type VoteMap = HashMap<Response, VoteCount>;
+type IsValidationRequest = bool;
+
+// pub enum ResponseSender {
+//     Oneshot(channel::oneshot::Sender<Response>),
+//     Unbounded(channel::mpsc::UnboundedSender<(Response, MessageId)>)
+// }
+
+// impl ResponseSender {
+
+//     /// Signs a given message using the App / Client full id as required.
+//     pub fn send(&self, response: Response, message_id: Option<MessageId>) -> Result<(), String> {
+//         match &self {
+//             Self::Oneshot(sender) => sender.unbounded_send(response).map_err(|_e| "Error sending  response".to_string()),
+//             Self::Unbounded(unbounded_sender) => {
+//                 let message_id = message_id.ok_or("No MessageId provided for validation response".to_string())?;
+//                 unbounded_sender.unbounded_send((response, message_id))
+//                 .map_err(|_e| "Error sending validation response".to_string())
+//             }
+//         }
+//     }
+// }
 
 pub struct ResponseManager {
     /// MessageId to send_future channel map
-    requests: HashMap<MessageId, (Sender<Response>, VoteMap, ResponseRequiredCount)>,
+    requests: HashMap<
+        MessageId,
+        (
+            mpsc::UnboundedSender<(Response, MessageId)>,
+            VoteMap,
+            ResponseRequiredCount,
+            IsValidationRequest,
+        ),
+    >,
     /// Number of responses to aggregate before returning to a client
     response_threshold: usize,
 }
@@ -34,10 +63,14 @@ impl ResponseManager {
     pub fn await_responses(
         &mut self,
         msg_id: MessageId,
-        value: (Sender<Response>, ResponseRequiredCount),
+        value: (
+            mpsc::UnboundedSender<(Response, MessageId)>,
+            ResponseRequiredCount,
+            bool,
+        ),
     ) -> Result<(), String> {
-        let (sender, count) = value;
-        let the_request = (sender, VoteMap::default(), count);
+        let (sender, count, is_validation_request) = value;
+        let the_request = (sender, VoteMap::default(), count, is_validation_request);
         let _ = self.requests.insert(msg_id, the_request);
         Ok(())
     }
@@ -54,8 +87,15 @@ impl ResponseManager {
             // first remove the response and see how we deal with it (we re-add later if needed)
             .requests
             .remove(&msg_id)
-            .map(|(sender, mut vote_map, count)| {
+            .map(|(sender, mut vote_map, count, is_validation_request)| {
                 let vote_response = response.clone();
+
+                // Handle validation requests separately...
+                if is_validation_request {
+                    sender.unbounded_send((response.clone(), msg_id));
+
+                    // do we need to negate the below?
+                }
 
                 // drop the count as we have this new response.
                 let current_count = count - 1;
@@ -99,13 +139,14 @@ impl ResponseManager {
                             }
                         }
 
-                        let _ = sender.send(our_most_popular_response.clone());
+                        let _ = sender.unbounded_send((our_most_popular_response.clone(), msg_id));
                         return;
                     }
                 }
-                let _ = self
-                    .requests
-                    .insert(msg_id, (sender, vote_map, current_count));
+                let _ = self.requests.insert(
+                    msg_id,
+                    (sender, vote_map, current_count, is_validation_request),
+                );
             })
             .or_else(|| {
                 trace!("No request found for message ID {:?}", msg_id);
@@ -117,7 +158,8 @@ impl ResponseManager {
 
 #[cfg(test)]
 mod tests {
-    use futures::channel::oneshot;
+    // use futures::channel::oneshot;
+    use futures::channel::mpsc;
     use rand::seq::SliceRandom;
     use rand::thread_rng;
 
@@ -132,7 +174,7 @@ mod tests {
         // set up a message
         let message_id = safe_nd::MessageId::new();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mpsc::channel();
         let expected_responses = 1; // for IData
 
         // our pseudo data
@@ -161,7 +203,7 @@ mod tests {
         // set up a message
         let message_id = safe_nd::MessageId::new();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mspc::channel();
         let expected_responses = 1; // for IData
 
         // our expected data
@@ -194,7 +236,7 @@ mod tests {
         // set up a message
         let message_id = safe_nd::MessageId::new();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mspc::channel();
 
         // TODO: can we drop expected responses now...?
         let expected_responses = 7;
@@ -245,7 +287,7 @@ mod tests {
         // set up a message
         let message_id = safe_nd::MessageId::new();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mspc::channel();
 
         let expected_responses = 7;
 
@@ -299,7 +341,7 @@ mod tests {
         // set up a message
         let message_id = safe_nd::MessageId::new();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mspc::channel();
 
         let expected_responses = 7;
 
@@ -351,7 +393,7 @@ mod tests {
         // set up a message
         let message_id = safe_nd::MessageId::new();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mspc::channel();
 
         let expected_responses = 7;
 

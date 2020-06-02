@@ -9,7 +9,9 @@
 use super::vault::{self, Vault};
 use crate::config_handler::{get_config, Config};
 use crate::{
+    client::ClientTransferValidator,
     client::SafeKey,
+    client::TransferActor,
     network_event::{NetworkEvent, NetworkTx},
     CoreError,
 };
@@ -84,6 +86,44 @@ impl ConnectionManager {
             }
         }
 
+        let msg: Message = {
+            let writing = match msg {
+                Message::Request { request, .. } => {
+                    let req_type = request.get_type();
+                    req_type == RequestType::Mutation || req_type == RequestType::Transfer
+                }
+                _ => false,
+            };
+            let mut vault = vault::lock(&self.vault, writing).await;
+            vault.process_request(pub_id.clone(), &msg)?
+        };
+
+        // Send response back to a client
+        if let Message::Response { response, .. } = msg {
+            Ok(response)
+        } else {
+            Err(CoreError::Unexpected(
+                "Logic error: Vault error returned invalid response".to_string(),
+            ))
+        }
+    }
+
+    /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
+    pub async fn send_for_validation(
+        &mut self,
+        pub_id: &PublicId,
+        msg: &Message,
+        transfer_actor: &TransferActor<ClientTransferValidator>,
+    ) -> Result<Response, CoreError> {
+        #[cfg(any(feature = "testing", test))]
+        {
+            if let Some(resp) = self.intercept_request(msg.clone()) {
+                return Ok(resp);
+            }
+        }
+
+        // self.inner.lock().await.send(pub_id, msg).await
+        // TODO: tweak this?
         let msg: Message = {
             let writing = match msg {
                 Message::Request { request, .. } => {

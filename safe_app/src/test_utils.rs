@@ -93,7 +93,7 @@ pub fn create_auth_req(
             transfer_money: true,
             data_mutations: true,
             read_balance: true,
-            read_transfer_history: true
+            read_transfer_history: true,
         },
         containers,
     }

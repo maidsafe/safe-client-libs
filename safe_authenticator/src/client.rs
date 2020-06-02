@@ -22,7 +22,8 @@ use safe_core::{
     config_handler::Config,
     crypto::{shared_box, shared_secretbox},
     ipc::BootstrapConfig,
-    utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo, NetworkTx,
+    utils, Client, ClientKeys, ClientTransferValidator, ConnectionManager, CoreError, MDataInfo,
+    NetworkTx, TransferActor,
 };
 use safe_nd::{
     ClientFullId, LoginPacket, LoginPacketRequest, Message, MessageId, PublicId, PublicKey,
@@ -36,6 +37,7 @@ use unwrap::unwrap;
 pub struct AuthClient {
     inner: Arc<Mutex<Inner>>,
     auth_inner: Arc<Mutex<AuthInner>>,
+    transfer_actor: TransferActor,
 }
 
 impl AuthClient {
@@ -145,6 +147,19 @@ impl AuthClient {
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
+        // setup client transfer actor
+
+        let validator = ClientTransferValidator {};
+        // Here for now, Actor with 10 setup, as before
+        // transfer actor handles all our responses and proof aggregation
+        let transfer_actor = TransferActor::new(
+            validator,
+            client_safe_key.clone(),
+            connection_manager.clone(),
+        )
+        .await?;
+
+        // create login packet
         let response = req(
             &mut connection_manager,
             Request::LoginPacket(LoginPacketRequest::Create(new_login_packet)),
@@ -169,6 +184,7 @@ impl AuthClient {
                 acc_loc: acc_locator,
                 user_cred,
             })),
+            transfer_actor,
         })
     }
 
@@ -241,6 +257,14 @@ impl AuthClient {
             attempt_bootstrap(&Config::new().quic_p2p, &net_tx, client_full_id.clone()).await?;
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
+        let validator = ClientTransferValidator {};
+        let transfer_actor = TransferActor::new(
+            validator,
+            client_full_id.clone(),
+            connection_manager.clone(),
+        )
+        .await?;
+
         let (account_buffer, signature) = {
             trace!("Using throw-away connection group to get a login packet.");
 
@@ -286,6 +310,7 @@ impl AuthClient {
                 acc_loc: acc_locator,
                 user_cred,
             })),
+            transfer_actor,
         })
     }
 
@@ -462,6 +487,11 @@ impl Client for AuthClient {
         let auth_inner = self.auth_inner.lock().await;
         auth_inner.acc.maid_keys.enc_key.clone()
     }
+
+    /// Return the TransferActor for this client
+    async fn transfer_actor(&self) -> TransferActor {
+        self.transfer_actor.clone()
+    }
 }
 
 impl fmt::Debug for AuthClient {
@@ -475,6 +505,7 @@ impl Clone for AuthClient {
         Self {
             inner: Arc::clone(&self.inner),
             auth_inner: Arc::clone(&self.auth_inner),
+            transfer_actor: self.transfer_actor.clone(),
         }
     }
 }

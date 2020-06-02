@@ -44,7 +44,8 @@ pub use ffi::*;
 // Export public core interface.
 
 pub use self::client::{
-    mdata_info, recoverable_apis, test_create_balance, AuthActions, Client, ClientKeys, MDataInfo,
+    mdata_info, recoverable_apis, test_create_balance, AuthActions, Client, ClientKeys,
+    ClientTransferValidator, MDataInfo, TransferActor,
 };
 #[cfg(feature = "mock-network")]
 pub use self::client::{mock_vault_path, MockConnectionManager as ConnectionManager};

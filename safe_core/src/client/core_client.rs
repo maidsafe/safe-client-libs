@@ -10,7 +10,8 @@ use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::ConnectionManager;
 use crate::client::{
-    attempt_bootstrap, req, AuthActions, Client, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
+    attempt_bootstrap, req, AuthActions, Client, Inner, SafeKey, TransferActor,
+    IMMUT_DATA_CACHE_SIZE,
 };
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
@@ -26,20 +27,18 @@ use log::trace;
 use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
-use safe_nd::{
-    ClientFullId, LoginPacket, LoginPacketRequest, Money, MoneyRequest, PublicKey, Request,
-    Response,
-};
-use std::str::FromStr;
+use safe_nd::{ClientFullId, LoginPacket, LoginPacketRequest, PublicKey, Request, Response};
+
 use std::sync::Arc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
-use unwrap::unwrap;
 
+use crate::client::ClientTransferValidator;
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
     inner: Arc<Mutex<Inner>>,
     keys: ClientKeys,
+    transfer_actor: TransferActor,
 }
 
 impl CoreClient {
@@ -87,6 +86,7 @@ impl CoreClient {
             let client_full_id = ClientFullId::new_bls(&mut rng);
             (
                 *client_full_id.public_id().public_key(),
+                // client_full_id
                 SafeKey::client(client_full_id),
             )
         };
@@ -95,7 +95,7 @@ impl CoreClient {
         let new_login_packet = LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig)?;
 
         let balance_client_id = maid_keys.client_id.clone();
-        let new_balance_owner = *balance_client_id.public_id().public_key();
+        let _new_balance_owner = *balance_client_id.public_id().public_key();
 
         let balance_client_id = SafeKey::client(balance_client_id);
         let balance_pub_id = balance_client_id.public_id();
@@ -106,37 +106,46 @@ impl CoreClient {
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
-        {
-            // Create the balance for the client
-            let response = req(
-                &mut connection_manager,
-                Request::Money(MoneyRequest::CreateBalance {
-                    new_balance_owner,
-                    amount: unwrap!(Money::from_str("10")),
-                    transfer_id: rand::random(),
-                }),
-                &balance_client_id,
-            )
-            .await?;
-            let _ = match response {
-                Response::TransferRegistration(res) => res?,
-                _ => return Err(CoreError::from("Unexpected response")),
-            };
 
-            let response = req(
-                &mut connection_manager,
-                Request::LoginPacket(LoginPacketRequest::Create(new_login_packet)),
-                &balance_client_id,
-            )
-            .await?;
+        let validator = ClientTransferValidator {};
+        // Here for now, Actor with 10 setup, as before
+        // transfer actor handles all our responses and proof aggregation
+        let transfer_actor =
+            TransferActor::new(validator, client_full_id, connection_manager.clone()).await?;
 
-            match response {
-                Response::Mutation(res) => res?,
-                _ => return Err(CoreError::from("Unexpected response")),
-            };
+        // TODO: Create the balance for the client
 
-            connection_manager.disconnect(&balance_pub_id).await?;
-        }
+
+        // let response = req(
+        //     &mut connection_manager,
+        //     Request::Money(MoneyRequest::CreateBalance {
+        //         new_balance_owner,
+        //         amount: unwrap!(Money::from_str("10")),
+        //         transfer_id: rand::random(),
+        //     }),
+        //     &balance_client_id,
+        // )
+        // .await?;
+
+        // let _ = match response {
+        //     Response::TransferRegistration(res) => res?,
+        //     _ => return Err(CoreError::from("Unexpected response")),
+        // };
+
+        let response = req(
+            &mut connection_manager,
+            Request::LoginPacket(LoginPacketRequest::Create(new_login_packet)),
+            &balance_client_id,
+        )
+        .await?;
+
+        match response {
+            Response::Mutation(res) => res?,
+            _ => return Err(CoreError::from("Unexpected response")),
+        };
+
+        connection_manager.disconnect(&balance_pub_id).await?;
+        // }
 
         connection_manager
             .bootstrap(maid_keys.client_safe_key())
@@ -150,6 +159,7 @@ impl CoreClient {
                 net_tx,
             })),
             keys: maid_keys,
+            transfer_actor,
         })
     }
 }
@@ -185,6 +195,11 @@ impl Client for CoreClient {
     async fn secret_symmetric_key(&self) -> shared_secretbox::Key {
         self.keys.enc_key.clone()
     }
+
+    /// Return the TransferActor for this client
+    async fn transfer_actor(&self) -> TransferActor {
+        self.transfer_actor.clone()
+    }
 }
 
 // #[async_trait]
@@ -198,6 +213,7 @@ impl Clone for CoreClient {
         CoreClient {
             inner: Arc::clone(&self.inner),
             keys: self.keys.clone(),
+            transfer_actor: self.transfer_actor.clone(),
         }
     }
 }

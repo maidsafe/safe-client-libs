@@ -18,7 +18,7 @@ use safe_core::config_handler::Config;
 use safe_core::core_structs::AppKeys;
 use safe_core::crypto::{shared_box, shared_secretbox};
 use safe_core::ipc::BootstrapConfig;
-use safe_core::{Client, ConnectionManager, NetworkTx};
+use safe_core::{Client, ClientTransferValidator, ConnectionManager, NetworkTx, TransferActor};
 use safe_nd::{ClientFullId, PublicKey};
 use std::fmt;
 
@@ -30,6 +30,7 @@ use std::time::Duration;
 pub struct AppClient {
     inner: Arc<Mutex<Inner>>,
     app_inner: Arc<Mutex<AppInner>>,
+    transfer_actor: TransferActor,
 }
 
 impl AppClient {
@@ -58,6 +59,16 @@ impl AppClient {
         let connection_manager =
             attempt_bootstrap(&qp2p_config, &net_tx, app_keys.app_safe_key()).await?;
 
+        let validator = ClientTransferValidator {};
+        // Here for now, Actor with 10 setup, as before
+        // transfer actor handles all our responses and proof aggregation
+        let transfer_actor = TransferActor::new(
+            validator,
+            SafeKey::app(app_keys.clone().app_full_id),
+            connection_manager.clone(),
+        )
+        .await?;
+
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
                 connection_manager,
@@ -67,6 +78,7 @@ impl AppClient {
                 net_tx,
             ))),
             app_inner: Arc::new(Mutex::new(AppInner::new(app_keys, pk, config))),
+            transfer_actor,
         })
     }
 
@@ -122,6 +134,15 @@ impl AppClient {
             attempt_bootstrap(&qp2p_config, &net_tx, keys.app_safe_key()).await?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
+        let validator = ClientTransferValidator {};
+        // Here for now, Actor with 10 setup, as before
+        // transfer actor handles all our responses and proof aggregation
+        let transfer_actor = TransferActor::new(
+            validator,
+            SafeKey::app(keys.clone().app_full_id),
+            connection_manager.clone(),
+        )
+        .await?;
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
@@ -131,6 +152,7 @@ impl AppClient {
                 net_tx,
             ))),
             app_inner: Arc::new(Mutex::new(AppInner::new(keys, owner, Some(config)))),
+            transfer_actor,
         })
     }
 }
@@ -171,6 +193,11 @@ impl Client for AppClient {
         let app_inner = self.app_inner.lock().await;
         app_inner.keys.clone().enc_key
     }
+
+    /// Return the TransferActor for this client
+    async fn transfer_actor(&self) -> TransferActor {
+        self.transfer_actor.clone()
+    }
 }
 
 impl Clone for AppClient {
@@ -178,6 +205,7 @@ impl Clone for AppClient {
         Self {
             inner: Arc::clone(&self.inner),
             app_inner: Arc::clone(&self.app_inner),
+            transfer_actor: self.transfer_actor.clone(),
         }
     }
 }

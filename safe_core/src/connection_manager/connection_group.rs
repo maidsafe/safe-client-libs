@@ -7,11 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use super::response_manager::ResponseManager;
-use crate::{client::SafeKey, utils, CoreError};
+use crate::{client::SafeKey, client::TransferActor, utils, CoreError};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use crossbeam_channel::{self, Receiver};
 use futures::{
+    channel,
+    channel::mpsc::{self},
     channel::oneshot::{self, Sender},
     lock::Mutex,
 };
@@ -25,6 +27,9 @@ use safe_nd::{
     HandshakeRequest, HandshakeResponse, Message, MessageId, NodePublicId, PublicId, Request,
     RequestType, Response,
 };
+
+// use std::iter::Iterator;
+use futures_util::stream::StreamExt;
 use std::{
     collections::HashMap,
     mem,
@@ -36,8 +41,10 @@ use std::{
     thread,
     time::Duration,
 };
-use tokio::time::timeout;
+
 use unwrap::unwrap;
+
+// use safe_transfers::();
 
 /// Request timeout in seconds.
 pub const REQUEST_TIMEOUT_SECS: u64 = 180;
@@ -104,12 +111,109 @@ impl ConnectionGroup {
 
     pub async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
         // user block here to drop lock asap
-        let receiver_future = { self.inner.lock().await.send(msg_id, msg).await? };
+        let mut receiver_future = { self.inner.lock().await.send(msg_id, msg).await? };
 
-        match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), receiver_future).await {
-            Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
-            Err(_) => Err(CoreError::RequestTimeout),
+        let response_received = false;
+
+        let mut response = Err(CoreError::RequestTimeout);
+        // TODO reimpl timeout here
+        while !response_received {
+            if let Some((res, _message_id)) = receiver_future.next().await {
+                let _response_received = true;
+                response = Ok(res);
+                receiver_future.close();
+            } else {
+                // do nothing...
+            }
+
+            // return Ok(res);
+            // {
+
+            // return on first response here.
+            // };
+            // Let the actor handle receipt of each response from elders
+            // transfer_actor.receive(res, &message_id);
         }
+
+        response
+
+        // match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), receiver_future).await {
+        //     Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
+        //     Err(_) => Err(CoreError::RequestTimeout),
+        // }
+    }
+
+    /// Send transfer validation, which requires all responses to be handled for signature reconstruction.
+    pub async fn send_for_validation(
+        &mut self,
+        msg_id: &MessageId,
+        msg: &Message,
+        transfer_actor: &mut TransferActor,
+    ) -> Result<(), CoreError> {
+        // setup a channel.
+        // send message, and pass sender.
+
+        // user block here to drop lock asap
+        let mut response_future = {
+            self.inner
+                .lock()
+                .await
+                .send_for_validation(*msg_id, msg)
+                .await?
+        };
+
+        // let proof = None;
+        // response manager sends on _each_ response.
+        // TODO: update response manager to handle this
+
+        //   let proof_future = async move {
+
+        while let Some((res, message_id)) = response_future.next().await {
+            // Let the actor handle receipt of each response from elders
+            transfer_actor.receive(res, &message_id);
+            // n(msg);
+            // let result = match transfer_actor.receive(res) {
+            //     Ok(response ) => response,
+            //     // will this be too brittle? One error doesn't need to fail everything...
+            //     Err(error) => return Err(CoreError::from(format!("Error while receiving validation proofs: {:?}", error)))
+            // };
+
+            // if let Some(proof) = result.proof {
+            //     warn!("WE HAVE PROOF");
+            //       proof = result.proof;
+            //     break;
+            // };
+            // warn!("no proof yet")
+        }
+
+        // Ok(())
+        // };
+
+        //   response_future.for_each( |res| {
+        //       // keep passing in receive into TransferActor until "proof" pops out.
+        //       let result = match transfer_actor.receive(res) {
+        //           Ok(response ) => response,
+        //           // will this be too brittle? One error doesn't need to fail everything...
+        //           Err(error) => return Err(CoreError::from(format!("Error while receiving validation proofs: {:?}", error)))
+        //       };
+
+        //       if let Some(proof) = result.proof {
+        //           warn!("WE HAVE PROOF");
+        //             proof = result.proof;
+        //         //   break;
+        //       };
+
+        //       Ok(())
+        //   }).await;
+
+        Ok(())
+        // TODO: time out here...
+        // return this proof.
+
+        //   match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), receiver_future).await {
+        //       Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
+        //       Err(_) => Err(CoreError::RequestTimeout),
+        //   }
     }
 
     /// Terminate the QUIC connections gracefully.
@@ -316,21 +420,65 @@ impl Connected {
         quic_p2p: &mut QuicP2p,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Result<oneshot::Receiver<Response>, CoreError> {
+    ) -> Result<mpsc::UnboundedReceiver<(Response, MessageId)>, CoreError> {
         trace!("Sending message {:?}", msg_id);
         //let mut rng = rand::thread_rng();
 
-        let (sender_future, response_future) = oneshot::channel();
+        let (sender_future, response_future) = mpsc::unbounded();
         let expected_responses = if is_get_request(&msg) {
             self.elders.len()
         } else {
             self.elders.len() / 2 + 1
         };
 
-        let _ = self
-            .response_manager
-            .await_responses(msg_id, (sender_future, expected_responses));
+        let is_this_validation_request = false;
 
+        let _ = self.response_manager.await_responses(
+            msg_id,
+            (
+                sender_future,
+                expected_responses,
+                is_this_validation_request,
+            ),
+        );
+
+        let bytes = Bytes::from(unwrap!(serialize(msg)));
+        {
+            for peer in self.elders.values().map(Elder::peer) {
+                let token = rand::random();
+                quic_p2p.send(peer, bytes.clone(), token);
+            }
+        }
+
+        Ok(response_future)
+    }
+
+    async fn send_for_validation(
+        &mut self,
+        quic_p2p: &mut QuicP2p,
+        msg_id: MessageId,
+        msg: &Message,
+    ) -> Result<mpsc::UnboundedReceiver<(Response, MessageId)>, CoreError> {
+        trace!("Sending message {:?}", msg_id);
+        //let mut rng = rand::thread_rng();
+
+        let (sender_future, response_future) = mpsc::unbounded();
+
+        let expected_responses = 1; //not important
+
+        let is_this_validation_request = true;
+
+        // is validator to be added to response manager
+        let _ = self.response_manager.await_responses(
+            msg_id,
+            (
+                sender_future,
+                expected_responses,
+                is_this_validation_request,
+            ),
+        );
+
+        // send the message to our elders list
         let bytes = Bytes::from(unwrap!(serialize(msg)));
         {
             for peer in self.elders.values().map(Elder::peer) {
@@ -441,9 +589,22 @@ impl State {
         quic_p2p: &mut QuicP2p,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Result<oneshot::Receiver<Response>, CoreError> {
+    ) -> Result<channel::mpsc::UnboundedReceiver<(Response, MessageId)>, CoreError> {
         match self {
             State::Connected(state) => state.send(quic_p2p, msg_id, msg).await,
+            // This message is not expected for the rest of states
+            _state => Err(CoreError::OperationForbidden),
+        }
+    }
+
+    async fn send_for_validation(
+        &mut self,
+        quic_p2p: &mut QuicP2p,
+        msg_id: MessageId,
+        msg: &Message,
+    ) -> Result<channel::mpsc::UnboundedReceiver<(Response, MessageId)>, CoreError> {
+        match self {
+            State::Connected(state) => state.send_for_validation(quic_p2p, msg_id, msg).await,
             // This message is not expected for the rest of states
             _state => Err(CoreError::OperationForbidden),
         }
@@ -509,8 +670,18 @@ impl Inner {
         &mut self,
         msg_id: MessageId,
         msg: &Message,
-    ) -> Result<oneshot::Receiver<Response>, CoreError> {
+    ) -> Result<channel::mpsc::UnboundedReceiver<(Response, MessageId)>, CoreError> {
         self.state.send(&mut self.quic_p2p, msg_id, msg).await
+    }
+
+    async fn send_for_validation(
+        &mut self,
+        msg_id: MessageId,
+        msg: &Message,
+    ) -> Result<channel::mpsc::UnboundedReceiver<(Response, MessageId)>, CoreError> {
+        self.state
+            .send_for_validation(&mut self.quic_p2p, msg_id, msg)
+            .await
     }
 
     /// Terminate the QUIC connections gracefully.

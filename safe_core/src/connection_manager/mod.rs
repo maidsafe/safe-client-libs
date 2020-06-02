@@ -10,7 +10,10 @@ mod connection_group;
 mod response_manager;
 use tokio::time::timeout;
 
-use crate::{client::SafeKey, network_event::NetworkEvent, network_event::NetworkTx, CoreError};
+use crate::{
+    client::SafeKey, client::TransferActor, network_event::NetworkEvent, network_event::NetworkTx,
+    CoreError,
+};
 use connection_group::ConnectionGroup;
 use futures::lock::Mutex;
 use log::{error, trace};
@@ -55,6 +58,20 @@ impl ConnectionManager {
     /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
     pub async fn send(&mut self, pub_id: &PublicId, msg: &Message) -> Result<Response, CoreError> {
         self.inner.lock().await.send(pub_id, msg).await
+    }
+
+    /// Send `message` via the `ConnectionGroup` specified by our given `pub_id`.
+    pub async fn send_for_validation(
+        &mut self,
+        pub_id: &PublicId,
+        msg: &Message,
+        transfer_actor: &mut TransferActor,
+    ) -> Result<(), CoreError> {
+        self.inner
+            .lock()
+            .await
+            .send_for_validation(pub_id, msg, transfer_actor)
+            .await
     }
 
     /// Connect to Client Handlers that manage the provided ID.
@@ -123,6 +140,31 @@ impl Inner {
         })?;
 
         conn_group.send(msg_id, msg).await
+    }
+
+    async fn send_for_validation(
+        &mut self,
+        pub_id: &PublicId,
+        msg: &Message,
+        transfer_actor: &mut TransferActor,
+    ) -> Result<(), CoreError> {
+        let msg_id = if let Message::Request { message_id, .. } = msg {
+            *message_id
+        } else {
+            return Err(CoreError::Unexpected("Not a Request".to_string()));
+        };
+
+        let conn_group = self.groups.get_mut(&pub_id).ok_or_else(|| {
+            CoreError::Unexpected(
+                "No connection group found - did you call `bootstrap`?".to_string(),
+            )
+        })?;
+
+        conn_group
+            .send_for_validation(&msg_id, msg, transfer_actor)
+            .await;
+
+        Ok(())
     }
 
     /// Disconnect from a group.

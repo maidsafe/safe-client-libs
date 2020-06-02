@@ -93,7 +93,7 @@ pub struct AppPermissions {
     /// Whether this app has permissions to read the coin balance.
     pub read_balance: bool,
     /// whether tha pp can read the transfer history for the money account.
-    pub read_transfer_history: bool
+    pub read_transfer_history: bool,
 }
 
 /// Remove a revoked app from the authenticator config.
