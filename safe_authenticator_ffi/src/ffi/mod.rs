@@ -67,14 +67,14 @@ pub unsafe extern "C" fn create_client_with_acc(
         let _ = handle.block_on(test_create_balance(
             &client_id,
             unwrap!(Coins::from_str("10")),
-        ));
+        )).map_err(FfiError::from)?;
 
         let authenticator = handle.block_on(Authenticator::create_client_with_acc(
             acc_locator,
             acc_password,
             client_id,
             move || trace!("disconnected"),
-        ))?;
+        )).map_err(FfiError::from)?;
 
         o_cb(
             user_data.0,
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn login(
         let authenticator =
             handle.block_on(Authenticator::login(acc_locator, acc_password, move || {
                 trace!("disconnected")
-            }))?;
+            })).map_err(FfiError::from)?;
 
         o_cb(
             user_data.0,
