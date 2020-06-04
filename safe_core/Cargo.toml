@@ -26,7 +26,7 @@ env_logger = "~0.6.2"
 lazy_static = "1.4.0"
 log = "~0.4.8"
 log4rs = { version = "~0.8.3", features = ["toml_format"] }
-lru-cache = "~0.1.1"
+lru = "~0.5.1"
 miscreant = { version = "~0.4.2", features = ["soft-aes"] }
 pbkdf2 = { version = "~0.3.0", default-features = false }
 quic-p2p = "~0.6.2"

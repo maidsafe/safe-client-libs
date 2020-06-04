@@ -13,11 +13,8 @@ use crate::test_utils::divide_seed;
 use async_trait::async_trait;
 use futures::lock::Mutex;
 use log::trace;
-use lru_cache::LruCache;
 use rand::{rngs::StdRng, thread_rng, CryptoRng, Rng, SeedableRng};
-use safe_core::client::{
-    account::Account, attempt_bootstrap, req, AuthActions, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
-};
+use safe_core::client::{account::Account, attempt_bootstrap, req, AuthActions, Inner, SafeKey};
 use safe_core::{
     config_handler::Config,
     crypto::{shared_box, shared_secretbox},
@@ -160,7 +157,6 @@ impl AuthClient {
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
                 connection_manager,
-                LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 Duration::from_secs(180), // FIXME //(REQUEST_TIMEOUT_SECS),
                 net_tx,
             ))),
@@ -277,7 +273,6 @@ impl AuthClient {
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
                 connection_manager,
-                LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), //FIXME
                 net_tx,
             ))),

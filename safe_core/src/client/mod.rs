@@ -41,7 +41,7 @@ use futures::{channel::mpsc, lock::Mutex};
 use std::sync::Arc;
 
 use log::trace;
-use lru_cache::LruCache;
+use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
@@ -51,8 +51,8 @@ use safe_nd::{
     LoginPacketRequest, MData, MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet,
     MDataRequest, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions,
     MDataValue, MDataValues, Message, MessageId, PublicId, PublicKey, Request, RequestType,
-    Response, SData, SDataAddress, SDataAppendOperation, SDataEntries, SDataEntry, SDataIndex,
-    SDataRequest, SeqMutableData, Transaction, UnseqMutableData, XorName,
+    Response, SData, SDataAddress, SDataEntries, SDataEntry, SDataIndex, SDataRequest,
+    SeqMutableData, Transaction, UnseqMutableData, XorName,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -62,6 +62,9 @@ use unwrap::unwrap;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
+
+/// Capacity of the Sequence CRDT local replica size.
+pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 
 /// Expected cost of mutation operations.
 pub const COST_OF_PUT: Coins = Coins::from_nano(1);
@@ -74,7 +77,7 @@ pub fn bootstrap_config() -> Result<BootstrapConfig, CoreError> {
 async fn send(client: &impl Client, request: Request) -> Result<Response, CoreError> {
     // `sign` should be false for GETs on published data, true otherwise.
     let sign = request.get_type() != RequestType::PublicGet;
-    let request = client.compose_message(request, sign).await;
+    let request = client.compose_message(request, sign).await?;
     let inner = client.inner();
     let cm = &mut inner.lock().await.connection_manager;
     cm.send(&client.public_id().await, &request).await
@@ -100,7 +103,7 @@ async fn send_as_helper(
     let (message, identity) = match client_id {
         Some(id) => (sign_request(request, id), SafeKey::client(id.clone())),
         None => {
-            let msg = client.compose_message(request, true).await;
+            let msg = client.compose_message(request, true).await?;
             let client_id = client.full_id().await;
             (msg, client_id)
         }
@@ -168,24 +171,21 @@ pub trait Client: Clone + Send + Sync {
 
     /// Create a `Message` from the given request.
     /// This function adds the requester signature and message ID.
-    async fn compose_message(&self, request: Request, sign: bool) -> Message {
+    async fn compose_message(&self, request: Request, sign: bool) -> Result<Message, CoreError> {
         let message_id = MessageId::new();
-
         let signature = if sign {
-            Some(
-                self.full_id()
-                    .await
-                    .sign(&unwrap!(bincode::serialize(&(&request, message_id)))),
-            )
+            let serialised_req =
+                bincode::serialize(&(&request, message_id)).map_err(CoreError::from)?;
+            Some(self.full_id().await.sign(&serialised_req))
         } else {
             None
         };
 
-        Message::Request {
+        Ok(Message::Request {
             request,
             message_id,
             signature,
-        }
+        })
     }
 
     /// Set request timeout.
@@ -377,7 +377,7 @@ pub trait Client: Clone + Send + Sync {
         trace!("Fetch Immutable Data");
 
         let inner = self.inner();
-        if let Some(data) = inner.lock().await.cache.get_mut(&address) {
+        if let Some(data) = inner.lock().await.idata_cache.get_mut(&address) {
             trace!("ImmutableData found in cache.");
             return Ok(data.clone());
         }
@@ -394,8 +394,8 @@ pub trait Client: Clone + Send + Sync {
             let _ = inner
                 .lock()
                 .await
-                .cache
-                .insert(*data.address(), data.clone());
+                .idata_cache
+                .put(*data.address(), data.clone());
         };
         Ok(data)
     }
@@ -409,8 +409,8 @@ pub trait Client: Clone + Send + Sync {
         if inner
             .lock()
             .await
-            .cache
-            .remove(&IDataAddress::Unpub(name))
+            .idata_cache
+            .pop(&IDataAddress::Unpub(name))
             .is_some()
         {
             trace!("Deleted UnpubImmutableData from cache.");
@@ -1183,17 +1183,37 @@ pub trait Client: Clone + Send + Sync {
     /// Store Sequence Data into the Network
     async fn store_sdata(&self, data: SData) -> Result<(), CoreError> {
         trace!("Store Sequence Data {:?}", data.name());
-        send_mutation(self, Request::SData(SDataRequest::Store(data))).await
+        send_mutation(self, Request::SData(SDataRequest::Store(data.clone()))).await?;
+
+        // Store in local Sequence CRDT replica
+        let _ = self
+            .inner()
+            .lock()
+            .await
+            .sdata_cache
+            .put(*data.address(), data);
+
+        Ok(())
     }
 
     /// Get Sequence Data from the Network
     async fn get_sdata(&self, address: SDataAddress) -> Result<SData, CoreError> {
         trace!("Get Sequence Data at {:?}", address.name());
-
-        match send(self, Request::SData(SDataRequest::Get(address))).await? {
+        let sdata = match send(self, Request::SData(SDataRequest::Get(address))).await? {
             Response::GetSData(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
+        }?;
+
+        trace!("Store Sequence in local CRDT replica");
+        // Store in local Sequence CRDT replica
+        let _ = self
+            .inner()
+            .lock()
+            .await
+            .sdata_cache
+            .put(*sdata.address(), sdata.clone());
+
+        Ok(sdata)
     }
 
     /// Get the last data entry from a Sequence Data.
@@ -1235,8 +1255,29 @@ pub trait Client: Clone + Send + Sync {
     }
 
     /// Append to Sequence Data
-    async fn sdata_append(&self, append: SDataAppendOperation) -> Result<(), CoreError> {
-        send_mutation(self, Request::SData(SDataRequest::Append(append))).await
+    async fn sdata_append(
+        &self,
+        address: SDataAddress,
+        entry: SDataEntry,
+    ) -> Result<(), CoreError> {
+        // First we fetch it so we can get the causality info,
+        // either from local CRDT replica or from the network if not found
+        let mut sdata = self.get_sdata(address).await?;
+
+        // We can now increment the Dots, apply it to the local replica
+        log::info!("APPENDING TO SEQUENCE!");
+        let append_op = sdata.append(entry);
+
+        // Update in local Sequence CRDT replica
+        let _ = self
+            .inner()
+            .lock()
+            .await
+            .sdata_cache
+            .put(*sdata.address(), sdata.clone());
+
+        // finally we can send the mutation to the network replicas
+        send_mutation(self, Request::SData(SDataRequest::Append(append_op))).await
     }
     // ========== END of Sequence Data functions =========
 
@@ -1626,7 +1667,9 @@ fn sign_request(request: Request, client_id: &ClientFullId) -> Message {
 #[allow(unused)] // FIXME
 pub struct Inner {
     connection_manager: ConnectionManager,
-    cache: LruCache<IDataAddress, IData>,
+    idata_cache: LruCache<IDataAddress, IData>,
+    /// Sequence CRDT replica
+    sdata_cache: LruCache<SDataAddress, SData>,
     timeout: Duration,
     net_tx: NetworkTx,
 }
@@ -1634,18 +1677,14 @@ pub struct Inner {
 impl Inner {
     /// Create a new `ClientInner` object.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        connection_manager: ConnectionManager,
-        cache: LruCache<IDataAddress, IData>,
-        timeout: Duration,
-        net_tx: NetworkTx,
-    ) -> Inner
+    pub fn new(connection_manager: ConnectionManager, timeout: Duration, net_tx: NetworkTx) -> Inner
     where
         Self: Sized,
     {
         Self {
             connection_manager,
-            cache,
+            idata_cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
+            sdata_cache: LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE),
             timeout,
             net_tx,
         }

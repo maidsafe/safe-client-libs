@@ -58,6 +58,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ahash"
+version = "0.2.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f33b5018f120946c1dcf279194f238a9f146725593ead1c08fa47ff22b0b5d3"
+dependencies = [
+ "const-random",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.6.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -131,9 +140,9 @@ checksum = "eab1c04a571841102f5345a8fc0f6bb3d31c315dec879b5c6e42e40ce7ffa34e"
 
 [[package]]
 name = "async-trait"
-version = "0.1.31"
+version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26c4f3195085c36ea8d24d32b2f828d23296a9370a28aa39d111f6f16bef9f3b"
+checksum = "0eb7f9ad01405feb3c1dac82463038945cf88eea4569acaf3ad662233496dd96"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.6",
@@ -437,6 +446,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-random"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f1af9ac737b2dd2d577701e59fd09ba34822f6f2ebdb30a7647405d9e55e16a"
+dependencies = [
+ "const-random-macro",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "const-random-macro"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25e4c606eb459dd29f7c57b2e0879f2b6f14ee130918c2b78ccb58a9624e6c7a"
+dependencies = [
+ "getrandom",
+ "proc-macro-hack",
+]
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -453,8 +482,7 @@ dependencies = [
 
 [[package]]
 name = "crdts"
-version = "3.0.0"
-source = "git+https://github.com/bochaco/rust-crdt.git?branch=lseq-improvements#e31675b321e3e2bb514c1ce62f437d6e1470e1f2"
+version = "4.0.0"
 dependencies = [
  "bitvec",
  "num-bigint",
@@ -948,6 +976,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bcc8e0c9bce37868955864dbecd2b1ab2bdf967e6f28066d65aaac620444b65c"
 
 [[package]]
+name = "hashbrown"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e6073d0ca812575946eb5f35ff68dbe519907b25c42530389ff946dc84c6ead"
+dependencies = [
+ "ahash",
+ "autocfg 0.1.7",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1143,12 +1181,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "lru-cache"
-version = "0.1.2"
+name = "lru"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31e24f1ad8321ca0e8a1e0ac13f23cb668e6f5466c2c57319f6a5cf1cc8e3b1c"
+checksum = "28e0c685219cd60e49a2796bba7e4fe6523e10daca4fd721e84e7f905093d60c"
 dependencies = [
- "linked-hash-map",
+ "hashbrown",
 ]
 
 [[package]]
@@ -1973,7 +2011,6 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 [[package]]
 name = "safe-nd"
 version = "0.9.0"
-source = "git+https://github.com/bochaco/safe-nd.git?branch=sequence-on-lseq-crdt#0be9129e0e0edebbec6c0b12a6871675fb64587c"
 dependencies = [
  "bincode",
  "crdts",
@@ -2000,7 +2037,6 @@ dependencies = [
  "futures",
  "jni",
  "log 0.4.8",
- "lru-cache",
  "miscreant",
  "rand 0.6.5",
  "safe-nd",
@@ -2028,7 +2064,6 @@ dependencies = [
  "futures-util",
  "jni",
  "log 0.4.8",
- "lru-cache",
  "rand 0.6.5",
  "safe-nd",
  "safe_core",
@@ -2050,7 +2085,6 @@ dependencies = [
  "futures",
  "jni",
  "log 0.4.8",
- "lru-cache",
  "rand 0.6.5",
  "safe-nd",
  "safe_authenticator",
@@ -2101,7 +2135,7 @@ dependencies = [
  "lazy_static",
  "log 0.4.8",
  "log4rs",
- "lru-cache",
+ "lru",
  "miscreant",
  "pbkdf2",
  "quic-p2p",
@@ -2598,9 +2632,9 @@ dependencies = [
 
 [[package]]
 name = "tracing"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7c6b59d116d218cb2d990eb06b77b64043e0268ef7323aae63d8b30ae462923"
+checksum = "a41f40ed0e162c911ac6fcb53ecdc8134c46905fdbbae8c50add462a538b495f"
 dependencies = [
  "cfg-if",
  "tracing-attributes",

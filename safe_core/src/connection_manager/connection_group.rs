@@ -318,7 +318,6 @@ impl Connected {
         msg: &Message,
     ) -> Result<oneshot::Receiver<Response>, CoreError> {
         trace!("Sending message {:?}", msg_id);
-        //let mut rng = rand::thread_rng();
 
         let (sender_future, response_future) = oneshot::channel();
         let expected_responses = if is_get_request(&msg) {
