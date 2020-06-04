@@ -11,9 +11,8 @@ use crate::errors::AppError;
 use crate::AppContext;
 use async_trait::async_trait;
 use log::trace;
-use lru_cache::LruCache;
 use rand::thread_rng;
-use safe_core::client::{attempt_bootstrap, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE};
+use safe_core::client::{attempt_bootstrap, Inner, SafeKey};
 use safe_core::config_handler::Config;
 use safe_core::core_structs::AppKeys;
 use safe_core::crypto::{shared_box, shared_secretbox};
@@ -61,7 +60,6 @@ impl AppClient {
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
                 connection_manager,
-                LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 // FIXME
                 Duration::from_secs(180), // REQUEST_TIMEOUT_SECS),
                 net_tx,
@@ -126,7 +124,6 @@ impl AppClient {
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(
                 connection_manager,
-                LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
                 net_tx,
             ))),

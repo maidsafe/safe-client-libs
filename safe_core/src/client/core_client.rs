@@ -9,9 +9,7 @@
 use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::ConnectionManager;
-use crate::client::{
-    attempt_bootstrap, req, AuthActions, Client, Inner, SafeKey, IMMUT_DATA_CACHE_SIZE,
-};
+use crate::client::{attempt_bootstrap, req, AuthActions, Client, Inner, SafeKey};
 use crate::config_handler::Config;
 #[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
@@ -23,7 +21,6 @@ use crate::utils;
 use async_trait::async_trait;
 use futures::lock::Mutex;
 use log::trace;
-use lru_cache::LruCache;
 use rand::rngs::StdRng;
 use rand::{thread_rng, SeedableRng};
 use safe_nd::{
@@ -143,12 +140,11 @@ impl CoreClient {
             .await?;
 
         Ok(Self {
-            inner: Arc::new(Mutex::new(Inner {
+            inner: Arc::new(Mutex::new(Inner::new(
                 connection_manager,
-                cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
-                timeout: Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
+                Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
                 net_tx,
-            })),
+            ))),
             keys: maid_keys,
         })
     }
