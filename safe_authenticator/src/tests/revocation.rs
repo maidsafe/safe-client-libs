@@ -337,9 +337,9 @@ mod mock_routing {
         // Check that the first app is now revoked, but the second app is not.
         verify_app_is_revoked(&client, app_id_0, ac_entries_0).await?;
         let expected_permissions = AppPermissions {
-            get_balance: true,
+            read_balance: true,
             transfer_money: true,
-            perform_mutations: true,
+            data_mutations: true,
         };
         verify_app_is_authenticated(&client, app_id_1, expected_permissions).await?;
 
@@ -429,9 +429,9 @@ mod mock_routing {
         verify_app_is_revoked(&client, app_id_0, ac_entries_0).await?;
         verify_app_is_revoked(&client, app_id_1, ac_entries_1).await?;
         let expected_permissions = AppPermissions {
-            get_balance: true,
+            read_balance: true,
             transfer_money: true,
-            perform_mutations: true,
+            data_mutations: true,
         };
         verify_app_is_authenticated(&client, app_id_2, expected_permissions).await?;
 
@@ -578,8 +578,8 @@ async fn app_revocation_and_reauth() -> Result<(), AuthError> {
     // app container, the subsequent reauthorisation + revocation should work correctly too.
     // Update the `AppPermissions` this time to allow it to read the user's balance.
     let new_app_permissions = AppPermissions {
-        get_balance: true,
-        perform_mutations: false,
+        read_balance: true,
+        data_mutations: false,
         transfer_money: false,
     };
     auth_req2.app_permissions = new_app_permissions;

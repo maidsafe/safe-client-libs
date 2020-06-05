@@ -45,8 +45,9 @@ impl TryFrom<NativeRegisteredApp> for RegisteredApp {
 
         let ffi_app_perms = AppPermissions {
             transfer_money: app_perms.transfer_money,
-            get_balance: app_perms.get_balance,
-            perform_mutations: app_perms.perform_mutations,
+            read_balance: app_perms.read_balance,
+            read_transfer_history: app_perms.read_transfer_history,
+            data_mutations: app_perms.data_mutations,
         };
 
         Ok(Self {
@@ -88,9 +89,11 @@ pub struct AppPermissions {
     /// Whether this app has permissions to transfer coins.
     pub transfer_money: bool,
     /// Whether this app has permissions to perform mutations.
-    pub perform_mutations: bool,
+    pub data_mutations: bool,
     /// Whether this app has permissions to read the coin balance.
-    pub get_balance: bool,
+    pub read_balance: bool,
+    /// whether tha pp can read the transfer history for the money account.
+    pub read_transfer_history: bool
 }
 
 /// Remove a revoked app from the authenticator config.

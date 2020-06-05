@@ -705,9 +705,9 @@ async fn mutable_data_permissions() {
         &mut connection_manager,
         &client_safe_key,
         AppPermissions {
-            get_balance: true,
+            read_balance: true,
             transfer_money: true,
-            perform_mutations: true,
+            data_mutations: true,
         },
     )
     .await;
@@ -933,9 +933,9 @@ async fn mutable_data_ownership() {
         &mut connection_manager,
         &client_safe_key,
         AppPermissions {
-            get_balance: true,
+            read_balance: true,
             transfer_money: true,
-            perform_mutations: true,
+            data_mutations: true,
         },
     )
     .await;
@@ -993,8 +993,8 @@ async fn pub_idata_rpc() {
 
     let app_perms = AppPermissions {
         transfer_money: true,
-        get_balance: true,
-        perform_mutations: true,
+        read_balance: true,
+        data_mutations: true,
     };
 
     let (app_key, mut app_conn_manager, _) =
@@ -1031,8 +1031,8 @@ async fn unpub_idata_rpc() {
 
     let app_perms = AppPermissions {
         transfer_money: true,
-        get_balance: true,
-        perform_mutations: true,
+        read_balance: true,
+        data_mutations: true,
     };
 
     let (mut conn_manager2, _, client2_safe_key, _) = setup(None).await;
@@ -1107,8 +1107,8 @@ async fn auth_keys() {
         version: 0,
         permissions: AppPermissions {
             transfer_money: true,
-            get_balance: true,
-            perform_mutations: true,
+            read_balance: true,
+            data_mutations: true,
         },
     });
 
@@ -1127,8 +1127,8 @@ async fn auth_keys() {
         version: 1,
         permissions: AppPermissions {
             transfer_money: true,
-            get_balance: true,
-            perform_mutations: true,
+            read_balance: true,
+            data_mutations: true,
         },
     });
 
@@ -1151,7 +1151,7 @@ async fn auth_keys() {
             Ok(keys) => {
                 assert_eq!(unwrap!(keys.0.get(&app_key)).transfer_money, true);
                 assert_eq!(unwrap!(keys.0.get(&app_key)).get_balance, true);
-                assert_eq!(unwrap!(keys.0.get(&app_key)).perform_mutations, true);
+                assert_eq!(unwrap!(keys.0.get(&app_key)).data_mutations, true);
                 assert_eq!(keys.1, 1);
             }
             Err(e) => panic!("Unexpected error: {:?}", e),
@@ -1229,8 +1229,8 @@ async fn auth_actions_from_app() {
 
     let app_perms = AppPermissions {
         transfer_money: true,
-        get_balance: true,
-        perform_mutations: true,
+        read_balance: true,
+        data_mutations: true,
     };
 
     // Creates an App instance

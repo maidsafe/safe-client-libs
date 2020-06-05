@@ -207,8 +207,8 @@ pub async fn register_rand_app(
         app_container,
         app_permissions: AppPermissions {
             transfer_money: true,
-            perform_mutations: true,
-            get_balance: true,
+            data_mutations: true,
+            read_balance: true,
         },
         containers: containers_req,
     };

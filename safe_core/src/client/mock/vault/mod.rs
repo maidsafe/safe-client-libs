@@ -247,7 +247,7 @@ impl Vault {
                     }
                 }
                 Operation::Mutation => {
-                    if !perms.perform_mutations {
+                    if !perms.data_mutations {
                         debug!("Performing mutations not authorised");
                         return Err(SndError::AccessDenied);
                     }

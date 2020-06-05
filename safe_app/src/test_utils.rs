@@ -91,8 +91,9 @@ pub fn create_auth_req(
         app_container,
         app_permissions: AppPermissions {
             transfer_money: true,
-            perform_mutations: true,
-            get_balance: true,
+            data_mutations: true,
+            read_balance: true,
+            read_transfer_history: true
         },
         containers,
     }

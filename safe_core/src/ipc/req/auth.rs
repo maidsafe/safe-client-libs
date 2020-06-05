@@ -44,8 +44,9 @@ impl AuthReq {
             app: app.into_repr_c()?,
             app_container,
             app_permission_transfer_money: app_permissions.transfer_money,
-            app_permission_perform_mutations: app_permissions.perform_mutations,
-            app_permission_get_balance: app_permissions.get_balance,
+            app_permission_data_mutations: app_permissions.data_mutations,
+            app_permission_read_balance: app_permissions.read_balance,
+            app_permission_read_transfer_history: app_permissions.read_transfer_history,
             containers: containers_ptr,
             containers_len,
         })
@@ -65,8 +66,9 @@ impl ReprC for AuthReq {
             app_container: (*repr_c).app_container,
             app_permissions: AppPermissions {
                 transfer_money: (*repr_c).app_permission_transfer_money,
-                perform_mutations: (*repr_c).app_permission_perform_mutations,
-                get_balance: (*repr_c).app_permission_get_balance,
+                data_mutations: (*repr_c).app_permission_data_mutations,
+                read_balance: (*repr_c).app_permission_read_balance,
+                read_transfer_history: (*repr_c).app_permission_read_transfer_history,
             },
             containers: containers_from_repr_c((*repr_c).containers, (*repr_c).containers_len)?,
         })

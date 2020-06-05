@@ -24,8 +24,9 @@ pub unsafe fn registered_app_into_repr_c(
     let (containers_ptr, containers_len) = vec_into_raw_parts(container_permissions_vec);
     let ffi_app_perms = AppPermissions {
         transfer_money: app.app_perms.transfer_money,
-        get_balance: app.app_perms.get_balance,
-        perform_mutations: app.app_perms.perform_mutations,
+        read_balance: app.app_perms.read_balance,
+        read_transfer_history: app.app_perms.read_transfer_history,
+        data_mutations: app.app_perms.data_mutations,
     };
 
     Ok(RegisteredApp {
@@ -42,8 +43,9 @@ pub unsafe fn native_registered_app_into_native(
 ) -> Result<NativeRegisteredApp, IpcError> {
     let native_app_perms = NativeAppPermissions {
         transfer_money: app.app_permissions.transfer_money,
-        get_balance: app.app_permissions.get_balance,
-        perform_mutations: app.app_permissions.perform_mutations,
+        read_balance: app.app_permissions.read_balance,
+        read_transfer_history: app.app_permissions.read_transfer_history,
+        data_mutations: app.app_permissions.data_mutations,
     };
 
     Ok(NativeRegisteredApp {

@@ -197,6 +197,8 @@ fn safe_nd_error_core(err: &SndError) -> i32 {
         SndError::TransferIdExists => ERR_TRANSACTION_ID_EXISTS,
         SndError::InsufficientBalance => ERR_INSUFFICIENT_BALANCE,
         SndError::ExceededSize => ERR_EXCEEDED_SIZE,
+        SndError::NoSuchSender => ERR_NO_SUCH_SENDER,
+        SndError::NoSuchRecipient => ERR_NO_SUCH_RECIPIENT,
     }
 }
 

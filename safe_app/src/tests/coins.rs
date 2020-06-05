@@ -27,8 +27,8 @@ async fn coin_app_deny_permissions() -> Result<(), AppError> {
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_money: false,
-        perform_mutations: false,
-        get_balance: false,
+        data_mutations: false,
+        read_balance: false,
     };
 
     let app = create_app_by_req(&app_auth_req).await?;
@@ -64,8 +64,8 @@ async fn coin_app_allow_permissions() -> Result<(), AppError> {
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_money: true,
-        perform_mutations: false,
-        get_balance: true,
+        data_mutations: false,
+        read_balance: true,
     };
 
     let _app = create_app_by_req(&app_auth_req).await?;

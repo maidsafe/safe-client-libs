@@ -363,8 +363,8 @@ impl Connected {
                 );
                 let _ = self.response_manager.handle_response(message_id, response);
             }
-            Ok(Message::Notification { notification }) => {
-                trace!("Got transfer_id notification: {:?}", notification);
+            Ok(Message::TransferNotification { payload }) => {
+                trace!("Got transfer_id notification: {:?}", payload);
             }
             Ok(_msg) => error!("Unexpected message type, expected response."),
             Err(e) => {
