@@ -1,0 +1,112 @@
+# Start a baby fleming section with a vault built from the
+# latest safe-vault master branch and run the SCL tests
+# (cargo test --release) on it.
+
+name: Master Vault Branch Network Tests
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+
+env:
+  # Run all cargo commands with --verbose.
+  CARGO_TERM_VERBOSE: true
+  RUST_BACKTRACE: 1
+  # Deny all compiler warnings.
+  RUSTFLAGS: "-D warnings"
+  # set the vault, cli and authd version to be downloaded and used
+  SAFE_VAULT_BRANCH: "master"
+  SAFE_CLI_VERSION: "latest"
+  SAFE_AUTH_VERSION: "latest"
+
+jobs:
+  network-test:
+    name: E2E against real network
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Clone safe-vault
+        run: git clone --single-branch --branch ${{env.SAFE_VAULT_BRANCH}} https://github.com/maidsafe/safe-vault.git $HOME/.safe/vault
+      
+      - name: Build safe-vault
+        run: cargo build --release --manifest-path=$HOME/.safe/vault/Cargo.toml
+      
+      - name: Copy vault artifact to ~/.safe/vault/
+        run: cp $HOME/.safe/vault/target/release/safe_vault $HOME/.safe/vault/
+
+      - name: Download and setup specified CLI version
+        run: |
+          wget "https://safe-api.s3.eu-west-2.amazonaws.com/safe-cli-${{env.SAFE_CLI_VERSION}}-x86_64-unknown-linux-gnu.tar.gz" -O ./safe.tar.gz;
+          ls .
+          mkdir -p $HOME/.safe/cli
+          tar -xvzf ./safe.tar.gz -C $HOME/.safe/cli/
+          echo ""
+          echo "List contents of $HOME/.safe/cli/ :"
+          ls $HOME/.safe/cli/
+          echo "::add-path::$HOME/.safe/cli"
+          chmod +x $HOME/.safe/cli/safe
+          echo ""
+          echo "PATH:"
+          echo $PATH
+
+      - name: Download and setup specified authd version
+        run: |
+          wget "https://safe-api.s3.eu-west-2.amazonaws.com/safe-authd-${{env.SAFE_AUTH_VERSION}}-x86_64-unknown-linux-gnu.tar.gz" -O ./safe-authd.tar.gz; 
+          ls .
+          mkdir -p $HOME/.safe/authd
+          tar -xvzf ./safe-authd.tar.gz -C $HOME/.safe/authd/
+          echo ""
+          echo "List contents of $HOME/.safe/authd/ :"
+          ls $HOME/.safe/authd/
+          echo "::add-path::$HOME/.safe/authd"
+          chmod +x $HOME/.safe/authd/safe-authd
+          echo ""
+          echo "PATH:"
+          echo $PATH
+
+      - name: Version check
+        run: |
+          $HOME/.safe/authd/safe-authd -V
+          safe --version
+          $HOME/.safe/vault/safe_vault -V
+
+      - name: Start baby fleming section
+        run: safe vault run-baby-fleming
+  
+      # Confirm vaults are running on this VM
+      - name: Check if vaults are running
+        run: pgrep -a safe_vault
+              
+      # Print connection info
+      - name: Print connection info
+        run: cat ~/.config/safe_vault/vault_connection_info.config
+        
+      # Cache.
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+  
+      # Run tests.
+      - name: Run the tests
+        run: cargo test --release
+  
+      - name: Stop the network.
+        if: failure()
+        run: safe vault killall || true && safe auth stop || true
+  
+      - name: Failure logs.
+        if: failure()
+        run: cat ~/.safe/vault/baby-fleming-vaults/*/*.log

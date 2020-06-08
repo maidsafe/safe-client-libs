@@ -1,0 +1,73 @@
+# Start a baby fleming section with the latest released vault,
+# downloaded from S3, and run the SCL tests (cargo test --release) on it.
+
+name: Latest Released Vault Network Tests
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+
+env:
+  # Run all cargo commands with --verbose.
+  CARGO_TERM_VERBOSE: true
+  RUST_BACKTRACE: 1
+  # Deny all compiler warnings.
+  RUSTFLAGS: "-D warnings"
+  # set the vault, cli and authd version to be downloaded and used
+  SAFE_VAULT_VERSION: "latest"
+  SAFE_CLI_VERSION: "latest"
+  SAFE_AUTH_VERSION: "latest"
+
+jobs:
+  network-test:
+    name: E2E against real network
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      # Download shared script for starting a baby fleming section and make it executable
+      - name: Download start-local-section.sh
+        run: |
+          wget "https://raw.githubusercontent.com/maidsafe/QA/master/misc-scripts/start-local-section.sh"
+          chmod +x start-local-section.sh
+            
+      # Run start-local-section.sh script to start a local section
+      - name: Run start-local-section.sh
+        run: ./start-local-section.sh ${{env.SAFE_VAULT_VERSION}} ${{env.SAFE_CLI_VERSION}} ${{env.SAFE_AUTH_VERSION}}
+
+      # Confirm vaults are running on this VM
+      - name: Check if vaults are running
+        run: pgrep -a safe_vault
+            
+      # Print connection info
+      - name: Print connection info
+        run: cat ~/.config/safe_vault/vault_connection_info.config
+      
+      # Cache.
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+
+      # Run tests.
+      - name: Run the tests
+        run: cargo test --release
+
+      - name: Stop the network.
+        if: failure()
+        run: safe vault killall || true && safe auth stop || true
+
+      - name: Failure logs.
+        if: failure()
+        run: cat ~/.safe/vault/baby-fleming-vaults/*/*.log
