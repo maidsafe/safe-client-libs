@@ -438,10 +438,9 @@ where
         let client_id = gen_client_id();
 
         // block on for test cretion at the moment
-        let _ =
-            futures::executor::block_on(test_create_balance(&client_id, Coins::from_str("10")?));
+        let _ = async_std::task::block_on(test_create_balance(&client_id, Coins::from_str("10")?));
 
-        let auth_result: AuthClient = futures::executor::block_on(AuthClient::registered(
+        let auth_result: AuthClient = async_std::task::block_on(AuthClient::registered(
             &acc_locator,
             &acc_password,
             client_id,

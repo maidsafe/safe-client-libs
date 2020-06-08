@@ -30,7 +30,6 @@ use safe_nd::{ClientFullId, Coins};
 use std::ffi::{CStr, OsStr};
 use std::os::raw::{c_char, c_void};
 use std::str::FromStr;
-use tokio::runtime::Runtime;
 use unwrap::unwrap;
 
 /// Create a registered client. This or any one of the other companion
@@ -59,17 +58,13 @@ pub unsafe extern "C" fn create_client_with_acc(
         // FIXME: Send client id via FFI API too
         let client_id = ClientFullId::new_bls(&mut thread_rng());
 
-        // Create the runtime
-        let rt = Runtime::new().unwrap();
-        let handle = rt.handle();
-
         // Execute the future, blocking the current thread until completion
-        let _ = handle.block_on(test_create_balance(
+        let _ = async_std::task::block_on(test_create_balance(
             &client_id,
             unwrap!(Coins::from_str("10")),
         ));
 
-        let authenticator = handle.block_on(Authenticator::create_client_with_acc(
+        let authenticator = async_std::task::block_on(Authenticator::create_client_with_acc(
             acc_locator,
             acc_password,
             client_id,
@@ -81,6 +76,7 @@ pub unsafe extern "C" fn create_client_with_acc(
             FFI_RESULT_OK,
             Box::into_raw(Box::new(authenticator)),
         );
+        println!("CALLBACK CALLED");
         Ok(())
     })
 }
@@ -105,17 +101,15 @@ pub unsafe extern "C" fn login(
 
     catch_unwind_cb(user_data, o_cb, || -> Result<_, FfiError> {
         trace!("Authenticator - log in a registered client.");
-        // Create the runtime
-        let rt = Runtime::new().unwrap();
-        let handle = rt.handle();
 
         let acc_locator = String::clone_from_repr_c(account_locator)?;
         let acc_password = String::clone_from_repr_c(account_password)?;
 
-        let authenticator =
-            handle.block_on(Authenticator::login(acc_locator, acc_password, move || {
-                trace!("disconnected")
-            }))?;
+        let authenticator = async_std::task::block_on(Authenticator::login(
+            acc_locator,
+            acc_password,
+            move || trace!("disconnected"),
+        ))?;
 
         o_cb(
             user_data.0,
@@ -138,8 +132,7 @@ pub unsafe extern "C" fn auth_reconnect(
         let user_data = OpaqueCtx(user_data);
         let client = &(*auth).client;
 
-        let response =
-            futures::executor::block_on(client.restart_network()).map_err(FfiError::from);
+        let response = async_std::task::block_on(client.restart_network()).map_err(FfiError::from);
         match response {
             Ok(value) => value,
             e @ Err(_) => {
@@ -214,8 +207,8 @@ mod tests {
     }
 
     // Test creating an account and logging in.
-    #[test]
-    fn create_account_and_login() -> Result<(), AuthError> {
+    #[tokio::test]
+    async fn create_account_and_login() -> Result<(), AuthError> {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
@@ -259,8 +252,8 @@ mod tests {
     // Test disconnection and reconnection with the authenticator.
     #[cfg(all(test, feature = "mock-network"))]
     #[ignore] // FIXME: ignoring this test for now until we figure out the disconnection semantics for Phase 1
-    #[test]
-    fn network_status_callback() -> Result<(), AuthError> {
+    #[tokio::test]
+    async fn network_status_callback() -> Result<(), AuthError> {
         use ffi_utils::test_utils::{
             call_0, call_1_with_custom, send_via_user_data_custom, UserData,
         };
@@ -293,7 +286,7 @@ mod tests {
 
             let client = unsafe { &(*auth).client };
 
-            futures::executor::block_on(client.simulate_network_disconnect());
+            client.simulate_network_disconnect().await;
 
             // disconnect_cb should be Called.
             unwrap!(rx.recv_timeout(Duration::from_secs(15)));
@@ -334,8 +327,8 @@ mod tests {
     }
 
     // Test account usage statistics before and after a mutation.
-    #[test]
-    fn account_info() -> Result<(), AuthError> {
+    #[tokio::test]
+    async fn account_info() -> Result<(), AuthError> {
         let acc_locator = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
         let acc_password = unwrap!(CString::new(unwrap!(utils::generate_random_string(10))));
 
@@ -351,12 +344,12 @@ mod tests {
 
         unsafe {
             let client = &(*auth).client;
-            let orig_balance =
-                futures::executor::block_on(client.get_balance(None)).map_err(AuthError::from)?;
-            futures::executor::block_on(client.put_idata(PubImmutableData::new(vec![1, 2, 3])))?;
+            let orig_balance = client.get_balance(None).await.map_err(AuthError::from)?;
+            client
+                .put_idata(PubImmutableData::new(vec![1, 2, 3]))
+                .await?;
 
-            let new_balance =
-                futures::executor::block_on(client.get_balance(None)).map_err(AuthError::from)?;
+            let new_balance = client.get_balance(None).await.map_err(AuthError::from)?;
             assert_eq!(new_balance, unwrap!(orig_balance.checked_sub(COST_OF_PUT)));
             auth_free(auth);
         }
