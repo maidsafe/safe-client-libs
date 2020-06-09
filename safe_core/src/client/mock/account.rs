@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::config_handler::Config;
-use safe_nd::{AppPermissions, Error, Money, PublicKey};
+use safe_nd::{AppPermissions, Error, Money, PublicKey, TransferId};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
@@ -15,13 +15,13 @@ pub const DEFAULT_MAX_CREDITS: usize = 100;
 // pub const DEFAULT_COINS: &str = "100";
 
 #[derive(Deserialize, Serialize)]
-pub struct CoinBalance {
+pub struct AccountBalance {
     owner: PublicKey,
     value: Money,
     credits: VecDeque<Credit>,
 }
 
-impl CoinBalance {
+impl AccountBalance {
     pub fn new(value: Money, owner: PublicKey) -> Self {
         Self {
             owner,
@@ -30,7 +30,7 @@ impl CoinBalance {
         }
     }
 
-    pub fn credit_balance(&mut self, amount: Money, transfer_id: u64) -> Result<(), Error> {
+    pub fn credit_balance(&mut self, amount: Money, transfer_id: TransferId) -> Result<(), Error> {
         if let Some(new_balance) = self.value.checked_add(amount) {
             self.value = new_balance;
             self.add_transfer_id(amount, transfer_id);
@@ -53,7 +53,7 @@ impl CoinBalance {
         self.value
     }
 
-    fn add_transfer_id(&mut self, amount: Money, transfer_id: u64) {
+    fn add_transfer_id(&mut self, amount: Money, transfer_id: TransferId) {
         if self.credits.len() == DEFAULT_MAX_CREDITS {
             let _ = self.credits.pop_back();
         }
@@ -68,7 +68,7 @@ impl CoinBalance {
 #[derive(Deserialize, Serialize)]
 pub struct Credit {
     amount: Money,
-    transfer_id: u64, // TODO: use Uuid
+    transfer_id: TransferId, // TODO: use Uuid
 }
 
 #[derive(Deserialize, Serialize)]

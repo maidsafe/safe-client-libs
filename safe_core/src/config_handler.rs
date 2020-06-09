@@ -126,7 +126,7 @@ impl Config {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct DevConfig {
     /// Switch off mutations limit in mock-vault.
-    pub mock_unlimited_coins: bool,
+    pub mock_unlimited_money: bool,
     /// Use memory store instead of file store in mock-vault.
     pub mock_in_memory_storage: bool,
     /// Set the mock-vault path if using file store (`mock_in_memory_storage` is `false`).

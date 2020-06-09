@@ -154,13 +154,13 @@ impl Vault {
                     .and_then(move |data| match data {
                         AData::PubSeq(mut adata) => {
                             adata.append(append.values.clone(), *index)?;
-                            self.commit_mutation(requester.name());
+                            self.commit_mutation(&requester.public_key());
                             self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                             Ok(())
                         }
                         AData::UnpubSeq(mut adata) => {
                             adata.append(append.values.clone(), *index)?;
-                            self.commit_mutation(requester.name());
+                            self.commit_mutation(&requester.public_key());
                             self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                             Ok(())
                         }
@@ -175,13 +175,13 @@ impl Vault {
                     .and_then(move |data| match data {
                         AData::PubUnseq(mut adata) => {
                             adata.append(append.values.clone())?;
-                            self.commit_mutation(requester.name());
+                            self.commit_mutation(&requester.public_key());
                             self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                             Ok(())
                         }
                         AData::UnpubUnseq(mut adata) => {
                             adata.append(append.values.clone())?;
-                            self.commit_mutation(requester.name());
+                            self.commit_mutation(&requester.public_key());
                             self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                             Ok(())
                         }
@@ -204,7 +204,7 @@ impl Vault {
                                         permissions.clone(),
                                         *permissions_index,
                                     )?;
-                                    self.commit_mutation(requester.name());
+                                    self.commit_mutation(&requester.public_key());
                                     self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                     Ok(())
                                 }
@@ -216,7 +216,7 @@ impl Vault {
                                         permissions.clone(),
                                         *permissions_index,
                                     )?;
-                                    self.commit_mutation(requester.name());
+                                    self.commit_mutation(&requester.public_key());
                                     self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                     Ok(())
                                 }
@@ -239,7 +239,7 @@ impl Vault {
                             AData::UnpubSeq(mut adata) => {
                                 adata
                                     .append_permissions(permissions.clone(), *permissions_index)?;
-                                self.commit_mutation(requester.name());
+                                self.commit_mutation(&requester.public_key());
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                 Ok(())
                             }
@@ -249,7 +249,7 @@ impl Vault {
                             AData::UnpubUnseq(mut adata) => {
                                 adata
                                     .append_permissions(permissions.clone(), *permissions_index)?;
-                                self.commit_mutation(requester.name());
+                                self.commit_mutation(&requester.public_key());
                                 self.insert_data(id, Data::AppendOnly(AData::UnpubUnseq(adata)));
                                 Ok(())
                             }
@@ -271,7 +271,7 @@ impl Vault {
                             ADataAddress::PubSeq { .. } => match data {
                                 AData::PubSeq(mut adata) => {
                                     adata.append_owner(*owner, *owners_index)?;
-                                    self.commit_mutation(requester.name());
+                                    self.commit_mutation(&requester.public_key());
                                     self.insert_data(id, Data::AppendOnly(AData::PubSeq(adata)));
                                     Ok(())
                                 }
@@ -280,7 +280,7 @@ impl Vault {
                             ADataAddress::PubUnseq { .. } => match data {
                                 AData::PubUnseq(mut adata) => {
                                     adata.append_owner(*owner, *owners_index)?;
-                                    self.commit_mutation(requester.name());
+                                    self.commit_mutation(&requester.public_key());
                                     self.insert_data(id, Data::AppendOnly(AData::PubUnseq(adata)));
                                     Ok(())
                                 }
@@ -289,7 +289,7 @@ impl Vault {
                             ADataAddress::UnpubSeq { .. } => match data.clone() {
                                 AData::UnpubSeq(mut adata) => {
                                     adata.append_owner(*owner, *owners_index)?;
-                                    self.commit_mutation(requester.name());
+                                    self.commit_mutation(&requester.public_key());
                                     self.insert_data(id, Data::AppendOnly(AData::UnpubSeq(adata)));
                                     Ok(())
                                 }
@@ -298,7 +298,7 @@ impl Vault {
                             ADataAddress::UnpubUnseq { .. } => match data {
                                 AData::UnpubUnseq(mut adata) => {
                                     adata.append_owner(*owner, *owners_index)?;
-                                    self.commit_mutation(requester.name());
+                                    self.commit_mutation(&requester.public_key());
                                     self.insert_data(
                                         id,
                                         Data::AppendOnly(AData::UnpubUnseq(adata)),

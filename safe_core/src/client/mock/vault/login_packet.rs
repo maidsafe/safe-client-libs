@@ -8,7 +8,7 @@
 
 use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
-use safe_nd::{Error as SndError, LoginPacketRequest, Money, PublicKey, Response, Transfer};
+use safe_nd::{Error as SndError, LoginPacketRequest,SafeKey, ClientFullId, SignedTransfer, TransferRegistered, DebitAgreementProof, Money, PublicKey, Response, Transfer};
 use std::str::FromStr;
 use unwrap::unwrap;
 
@@ -20,6 +20,10 @@ impl Vault {
         requester_pk: PublicKey,
         owner_pk: PublicKey,
     ) -> Response {
+        let mut rng = rand::thread_rng();
+        let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
+        let FAKE_SIGNATURE = client_safe_key.sign(b"mock-key");
+        
         match request {
             LoginPacketRequest::CreateFor {
                 new_owner,
@@ -27,8 +31,8 @@ impl Vault {
                 transfer_id,
                 new_login_packet,
             } => {
-                let source = owner_pk.into();
-                let new_balance_dest = (*new_owner).into();
+                let source = owner_pk;
+                let new_balance_dest = *new_owner;
 
                 // If a login packet at the given destination exists return an error.
                 let result = if let Err(e) = {
@@ -56,7 +60,7 @@ impl Vault {
                         .and_then(|_| {
                             // Debit the requester's wallet the cost of `CreateLoginPacketFor`
                             self.commit_mutation(&source);
-                            self.transfer_money(source, new_balance_dest, *amount, *transfer_id)
+                            self.transfer_money(source,  *amount, new_balance_dest, *transfer_id)
                         })
                         .and_then(|_| {
                             if self
@@ -72,9 +76,19 @@ impl Vault {
                         .map(|_| {
                             self.insert_login_packet(new_login_packet.clone());
 
-                            Transfer {
-                                id: *transfer_id,
-                                amount: *amount,
+                            TransferRegistered {
+                                debit_proof: DebitAgreementProof {
+                                    signed_transfer: SignedTransfer {
+                                        transfer : Transfer {
+                                            to: new_balance_dest,
+                                            id: *transfer_id,
+                                            amount: *amount,
+
+                                        },
+                                        actor_signature: FAKE_SIGNATURE.clone()
+                                    },
+                                    debiting_replicas_sig: FAKE_SIGNATURE
+                                }
                             }
                         })
                 };

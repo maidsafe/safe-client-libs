@@ -238,7 +238,7 @@ pub trait Client: Clone + Send + Sync {
     where
         Self: Sized,
     {
-        trace!("Transfer {} coins to {:?}", amount, destination);
+        trace!("Transfer {} money to {:?}", amount, destination);
         // TODO: retrieve our actor for this clientID....
         // NOte: this currently has clintId as an option.. . but it's _mostly_ ignored...
         // we can remove that and set up an API for transfer_as if needs be...
@@ -276,7 +276,7 @@ pub trait Client: Clone + Send + Sync {
         Self: Sized,
     {
         trace!(
-            "Create a new balance for {:?} with {} coins.",
+            "Create a new balance for {:?} with {} money.",
             new_balance_owner,
             amount
         );
@@ -327,7 +327,7 @@ pub trait Client: Clone + Send + Sync {
     //     Self: Sized,
     // {
     //     trace!(
-    //         "Insert a login packet for {:?} preloading the wallet with {} coins.",
+    //         "Insert a login packet for {:?} preloading the wallet with {} money.",
     //         new_owner,
     //         amount
     //     );
@@ -1630,7 +1630,7 @@ mod tests {
     #[tokio::test]
     async fn pub_idata_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        // The `random_client()` initializes the client with 10 coins.
+        // The `random_client()` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
 
         let value = unwrap!(generate_random_vector::<u8>(10));
@@ -1670,7 +1670,7 @@ mod tests {
     #[tokio::test]
     async fn unpub_idata_test() -> Result<(), CoreError> {
         crate::utils::test_utils::init_log();
-        // The `random_client()` initializes the client with 10 coins.
+        // The `random_client()` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
 
         let client = random_client()?;
@@ -1877,17 +1877,18 @@ mod tests {
     }
 
     // 1. Create 2 accounts and create a wallet only for account A.
-    // 2. Try to transfer coins from A to inexistent wallet. This request should fail.
+    // 2. Try to transfer money from A to inexistent wallet. This request should fail.
     // 3. Try to request balance of wallet B. This request should fail.
-    // 4. Now create a wallet for account B and transfer some coins to A. This should pass.
+    // 4. Now create a wallet for account B and transfer some money to A. This should pass.
     // 5. Try to request transfer from wallet A using account B. This request should succeed
     // (because transfers are always open).
     #[tokio::test]
-    async fn coin_permissions() -> Result<(), CoreError> {
+    async fn money_permissions() -> Result<(), CoreError> {
         let client = random_client()?;
-        let wallet_a_addr: XorName = client.public_key().await.into();
+        let wallet_a_addr = client.public_key().await;
+        let random_client_key = *ClientFullId::new_bls(&mut rand::thread_rng() ).public_id().public_key() ;
         let res = client
-            .transfer_money(None, rand::random(), unwrap!(Money::from_str("5.0")), None)
+            .transfer_money( random_client_key, unwrap!(Money::from_str("5.0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
@@ -1908,10 +1909,10 @@ mod tests {
             .test_set_balance(None, unwrap!(Money::from_str("50.0")))
             .await?;
         let res = client
-            .transfer_money(None, wallet_a_addr, unwrap!(Money::from_str("10")), None)
+            .transfer_money( wallet_a_addr, unwrap!(Money::from_str("10")), None)
             .await;
         match res {
-            Ok(transfer) => assert_eq!(transfer.amount, unwrap!(Money::from_str("10"))),
+            Ok(transfer) => assert_eq!(transfer.amount(), unwrap!(Money::from_str("10"))),
             res => panic!("Unexpected error: {:?}", res),
         }
         let res = client.get_balance(None).await;
@@ -1930,7 +1931,7 @@ mod tests {
     #[tokio::test]
     async fn anonymous_wallet() -> Result<(), CoreError> {
         let client = random_client()?;
-        let wallet1: XorName = client.owner_key().await.into();
+        let wallet1 = client.public_key().await;
         let init_bal = unwrap!(Money::from_str("500.0"));
 
         let client_id = gen_client_id();
@@ -1940,16 +1941,15 @@ mod tests {
         let transfer = client
             .create_balance(None, bls_pk, unwrap!(Money::from_str("100.0")), None)
             .await?;
-        assert_eq!(transfer.amount, unwrap!(Money::from_str("100")));
+        assert_eq!(transfer.amount(), unwrap!(Money::from_str("100")));
         let transfer = client
             .transfer_money(
-                Some(&client_id.clone()),
                 wallet1,
                 unwrap!(Money::from_str("5.0")),
                 None,
             )
             .await?;
-        assert_eq!(transfer.amount, unwrap!(Money::from_str("5.0")));
+        assert_eq!(transfer.amount(), unwrap!(Money::from_str("5.0")));
         let balance = client.get_balance(Some(&client_id)).await?;
         assert_eq!(balance, unwrap!(Money::from_str("95.0")));
         let balance = client.get_balance(None).await?;
@@ -1977,17 +1977,17 @@ mod tests {
     // 1. Create a client A with a wallet and allocate some test safecoin to it.
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding some safecoin.
-    // 4. Transfer some coins from client B to client A and verify the new balance.
+    // 4. Transfer some money from client B to client A and verify the new balance.
     // 5. Fetch the transfer using the transfer ID and verify the amount.
     // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
     // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
     // 8. Set the client's balance to zero and try to put data. It should fail.
     #[tokio::test]
-    async fn coin_balance_transfer() -> Result<(), CoreError> {
+    async fn money_balance_transfer() -> Result<(), CoreError> {
         let client = random_client()?;
         // let wallet1: XorName =
         let owner_key = client.owner_key().await;
-        let wallet1: XorName = owner_key.into();
+        let wallet1 = client.public_key().await;
 
         client
             .test_set_balance(None, unwrap!(Money::from_str("100.0")))
@@ -1999,7 +1999,7 @@ mod tests {
         let init_bal = unwrap!(Money::from_str("10"));
         let orig_balance = client.get_balance(None).await?;
         let _ = client
-            .transfer_money(None, wallet1, unwrap!(Money::from_str("5.0")), None)
+            .transfer_money( wallet1, unwrap!(Money::from_str("5.0")), None)
             .await?;
         let new_balance = client.get_balance(None).await?;
         assert_eq!(
@@ -2007,19 +2007,19 @@ mod tests {
             unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
         );
         let res = client
-            .transfer_money(None, wallet1, unwrap!(Money::from_str("5000")), None)
+            .transfer_money( wallet1, unwrap!(Money::from_str("5000")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!("Unexpected result: {:?}", res),
         };
-        // Check if coins are refunded
+        // Check if money are refunded
         let balance = client.get_balance(None).await?;
         let expected =
             calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
         assert_eq!(balance, expected);
         let res = client
-            .transfer_money(None, wallet1, unwrap!(Money::from_str("0")), None)
+            .transfer_money( wallet1, unwrap!(Money::from_str("0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InvalidOperation)) => (),
@@ -2073,7 +2073,7 @@ mod tests {
     #[tokio::test]
     pub async fn mdata_permissions_test() -> Result<(), CoreError> {
         let client = random_client()?;
-        // The `random_client()` initializes the client with 10 coins.
+        // The `random_client()` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
         let name = XorName(rand::random());
         let tag = 15001;
@@ -2111,7 +2111,7 @@ mod tests {
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(e) => panic!("Unexpected: {:?}", e),
         };
-        // Check if coins are refunded
+        // Check if money are refunded
         let balance = client.get_balance(None).await?;
         let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         assert_eq!(balance, expected_bal);

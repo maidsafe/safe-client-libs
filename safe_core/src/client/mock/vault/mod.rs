@@ -8,14 +8,14 @@
 
 mod adata;
 mod client;
-mod coins;
+mod money;
 mod idata;
 mod login_packet;
 mod mdata;
 
 use super::DataId;
-use super::{Account, CoinBalance};
-use crate::client::mock::connection_manager::unlimited_coins;
+use super::{Account, AccountBalance};
+use crate::client::mock::connection_manager::unlimited_money;
 use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
 use bincode::{deserialize, serialize};
@@ -24,8 +24,9 @@ use futures::lock::{Mutex, MutexGuard};
 use log::{debug, trace, warn};
 use safe_nd::{
     verify_signature, Data, Error as SndError, LoginPacket, Message, Money, PublicId, PublicKey,
-    Request, RequestType, Result as SndResult, Transfer, XorName,
+    Request, RequestType, Result as SndResult, Transfer, XorName, TransferId, SafeKey, ClientFullId
 };
+use crdts::Dot;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -41,7 +42,7 @@ use std::time::SystemTime;
 #[cfg(test)]
 use tempfile::tempfile;
 use unwrap::unwrap;
-
+// use std::convert::From;
 const FILE_NAME: &str = "SCL-Mock";
 
 pub struct Vault {
@@ -103,6 +104,7 @@ pub(crate) enum Operation {
     TransferMoney,
     Mutation,
     GetBalance,
+    GetHistory
 }
 
 impl Vault {
@@ -111,7 +113,7 @@ impl Vault {
 
         Vault {
             cache: Cache {
-                coin_balances: HashMap::new(),
+                account_balances: HashMap::new(),
                 client_manager: HashMap::new(),
                 login_packets: HashMap::new(),
                 nae_manager: HashMap::new(),
@@ -122,23 +124,23 @@ impl Vault {
     }
 
     // Get account for the client manager name.
-    pub fn get_account(&self, name: &XorName) -> Option<&Account> {
+    pub fn get_client_manager_account(&self, name: &XorName) -> Option<&Account> {
         self.cache.client_manager.get(name)
     }
 
     // Get mutable reference to account for the client manager name.
-    pub fn get_account_mut(&mut self, name: &XorName) -> Option<&mut Account> {
+    pub fn get_client_manager_account_mut(&mut self, name: &XorName) -> Option<&mut Account> {
         self.cache.client_manager.get_mut(name)
     }
 
-    // Get coin balance for the client manager name.
-    pub fn get_coin_balance(&self, name: &XorName) -> Option<&CoinBalance> {
-        self.cache.coin_balances.get(name)
+    // Get money balance for the client manager name.
+    pub fn read_account_balance(&self, name: &PublicKey) -> Option<&AccountBalance> {
+        self.cache.account_balances.get(name)
     }
 
     // Get mutable reference to account for the client manager name.
-    pub fn get_coin_balance_mut(&mut self, name: &XorName) -> Option<&mut CoinBalance> {
-        self.cache.coin_balances.get_mut(name)
+    pub fn read_account_balance_mut(&mut self, name: &PublicKey) -> Option<&mut AccountBalance> {
+        self.cache.account_balances.get_mut(name)
     }
 
     // Create account for the given client manager name.
@@ -164,52 +166,55 @@ impl Vault {
     pub fn mock_create_balance(&mut self, owner: PublicKey, amount: Money) {
         let _ = self
             .cache
-            .coin_balances
-            .insert(owner.into(), CoinBalance::new(amount, owner));
+            .account_balances
+            .insert(owner, AccountBalance::new(amount, owner));
     }
 
-    /// Increment coin balance for testing
+    /// Increment money balance for testing
     pub fn mock_increment_balance(
         &mut self,
-        coin_balance_name: &XorName,
+        account_balance_name: &PublicKey,
         amount: Money,
     ) -> SndResult<()> {
-        let balance = match self.get_coin_balance_mut(coin_balance_name) {
+        let balance = match self.read_account_balance_mut(account_balance_name) {
             Some(balance) => balance,
             None => {
-                debug!("Balance not found for {:?}", coin_balance_name);
+                debug!("Balance not found for {:?}", account_balance_name);
                 return Err(SndError::NoSuchBalance);
             }
         };
-        balance.credit_balance(amount, rand::random())
+        let mut rng = rand::thread_rng();
+        let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
+        let random_transfer_id = Dot::new(client_safe_key.public_key(), 0 );
+        balance.credit_balance(amount, random_transfer_id)
     }
 
-    pub(crate) fn get_balance(&self, coins_balance_id: &XorName) -> SndResult<Money> {
-        self.get_coin_balance(&coins_balance_id).map_or_else(
+    pub(crate) fn get_balance(&self, account_balance_id: &PublicKey) -> SndResult<Money> {
+        self.read_account_balance(&account_balance_id).map_or_else(
             || {
-                debug!("Coin balance {:?} not found", coins_balance_id);
+                debug!("Coin balance {:?} not found", account_balance_id);
                 Err(SndError::NoSuchBalance)
             },
             |bal| Ok(bal.balance()),
         )
     }
 
-    // Checks if the given balance has sufficient coins for the given `amount` of Operation.
+    // Checks if the given balance has sufficient money for the given `amount` of Operation.
     pub(crate) fn has_sufficient_balance(&self, balance: Money, amount: Money) -> bool {
-        unlimited_coins(&self.config) || balance.checked_sub(amount).is_some()
+        unlimited_money(&self.config) || balance.checked_sub(amount).is_some()
     }
 
-    // Authorises coin transfers, mutations and get balance operations.
+    // Authorises money transfers, mutations and get balance operations.
     pub(crate) fn authorise_operations(
         &self,
         operations: &[Operation],
-        owner: XorName,
+        owner: PublicKey,
         requester_pk: PublicKey,
     ) -> Result<(), SndError> {
         let requester = XorName::from(requester_pk);
         let balance = self.get_balance(&owner)?;
         // Checks if the requester is the owner
-        if owner == requester {
+        if owner == requester_pk {
             for operation in operations {
                 // Mutation operations must be checked for min COST_OF_PUT balance
                 if let Operation::Mutation = operation {
@@ -221,7 +226,7 @@ impl Vault {
             return Ok(());
         }
         // Fetches the account of the owner
-        let account = self.get_account(&owner).ok_or_else(|| {
+        let account = self.get_client_manager_account(&XorName::from(owner)).ok_or_else(|| {
             debug!("Account not found for {:?}", owner);
             SndError::AccessDenied
         })?;
@@ -236,13 +241,19 @@ impl Vault {
             match operation {
                 Operation::TransferMoney => {
                     if !perms.transfer_money {
-                        debug!("Transfer coins not authorised");
+                        debug!("Transfer money not authorised");
                         return Err(SndError::AccessDenied);
                     }
                 }
                 Operation::GetBalance => {
-                    if !perms.get_balance {
+                    if !perms.read_balance {
                         debug!("Reading balance not authorised");
+                        return Err(SndError::AccessDenied);
+                    }
+                }
+                Operation::GetHistory => {
+                    if !perms.read_transfer_history {
+                        debug!("Reading history not authorised");
                         return Err(SndError::AccessDenied);
                     }
                 }
@@ -261,9 +272,9 @@ impl Vault {
     }
 
     // Commit a mutation.
-    pub fn commit_mutation(&mut self, account: &XorName) {
-        if !unlimited_coins(&self.config) {
-            let balance = unwrap!(self.get_coin_balance_mut(account));
+    pub fn commit_mutation(&mut self, account: &PublicKey) {
+        if !unlimited_money(&self.config) {
+            let balance = unwrap!(self.read_account_balance_mut(account));
             // Cannot fail - Balance is checked before
             unwrap!(balance.debit_balance(COST_OF_PUT));
         }
@@ -291,28 +302,28 @@ impl Vault {
 
     pub(crate) fn create_balance(
         &mut self,
-        destination: XorName,
+        destination: PublicKey,
         owner: PublicKey,
     ) -> SndResult<()> {
-        if self.get_coin_balance(&destination).is_some() {
+        if self.read_account_balance(&destination).is_some() {
             return Err(SndError::BalanceExists);
         }
         let _ = self
             .cache
-            .coin_balances
-            .insert(destination, CoinBalance::new(Money::from_nano(0), owner));
+            .account_balances
+            .insert(destination, AccountBalance::new(Money::from_nano(0), owner));
         Ok(())
     }
 
     pub(crate) fn transfer_money(
         &mut self,
-        source: XorName,
-        destination: XorName,
+        source: PublicKey,
         amount: Money,
-        transfer_id: u64,
+        destination: PublicKey,
+        transfer_id: TransferId,
     ) -> SndResult<Transfer> {
-        let unlimited = unlimited_coins(&self.config);
-        match self.get_coin_balance_mut(&source) {
+        let unlimited = unlimited_money(&self.config);
+        match self.read_account_balance_mut(&source) {
             Some(balance) => {
                 if !unlimited {
                     balance.debit_balance(amount)?
@@ -320,11 +331,12 @@ impl Vault {
             }
             None => return Err(SndError::NoSuchBalance),
         };
-        match self.get_coin_balance_mut(&destination) {
+        match self.read_account_balance_mut(&destination) {
             Some(balance) => balance.credit_balance(amount, transfer_id)?,
             None => return Err(SndError::NoSuchBalance),
         };
         Ok(Transfer {
+            to: destination,
             id: transfer_id,
             amount,
         })
@@ -360,7 +372,7 @@ impl Vault {
                     // For apps, check if its public key is listed as an auth key.
                     if is_app {
                         let auth_keys = self
-                            .get_account(&requester.name())
+                            .get_client_manager_account(&requester.name())
                             .map(|account| (account.auth_keys().clone()))
                             .unwrap_or_else(Default::default);
 
@@ -398,7 +410,7 @@ impl Vault {
             Request::MData(req) => self.process_mdata_req(req, requester, requester_pk, owner_pk),
             Request::AData(req) => self.process_adata_req(req, requester, requester_pk, owner_pk),
             Request::Client(req) => self.process_client_req(req, requester, requester_pk, owner_pk),
-            Request::Money(req) => self.process_coins_req(req, requester_pk, owner_pk),
+            Request::Money(req) => self.process_money_req(req, requester_pk, owner_pk),
             Request::LoginPacket(req) => self.process_login_packet_req(req, requester_pk, owner_pk),
         };
 
@@ -414,28 +426,28 @@ impl Vault {
         data: Data,
         requester: PublicId,
     ) -> SndResult<()> {
-        let (name, key) = match requester.clone() {
+        let (requester_key, key) = match requester.clone() {
             PublicId::Client(client_public_id) => {
-                (*client_public_id.name(), *client_public_id.public_key())
+                (*client_public_id.public_key(), *client_public_id.public_key())
             }
             PublicId::App(app_public_id) => {
-                (*app_public_id.owner_name(), *app_public_id.public_key())
+                (*app_public_id.public_key(), *app_public_id.public_key())
             }
             _ => return Err(SndError::AccessDenied),
         };
-        self.authorise_operations(&[Operation::Mutation], name, key)?;
+        self.authorise_operations(&[Operation::Mutation], requester_key, key)?;
         if self.contains_data(&data_name) {
             // Published Immutable Data is de-duplicated
             if let DataId::Immutable(addr) = data_name {
                 if addr.is_pub() {
-                    self.commit_mutation(&requester.name());
+                    self.commit_mutation(&requester.public_key());
                     return Ok(());
                 }
             }
             Err(SndError::DataExists)
         } else {
             self.insert_data(data_name, data);
-            self.commit_mutation(&requester.name());
+            self.commit_mutation(&requester.public_key());
             Ok(())
         }
     }
@@ -475,7 +487,7 @@ pub async fn lock<'a>(vault: &'a Arc<Mutex<Vault>>, writing: bool) -> VaultGuard
 
 #[derive(Deserialize, Serialize)]
 struct Cache {
-    coin_balances: HashMap<XorName, CoinBalance>,
+    account_balances: HashMap<PublicKey, AccountBalance>,
     client_manager: HashMap<XorName, Account>,
     login_packets: HashMap<XorName, LoginPacket>,
     nae_manager: HashMap<DataId, Data>,

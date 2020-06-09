@@ -145,9 +145,9 @@ impl TransferActor {
         let identity = SafeKey::client(client_id.clone());
         let pub_id = identity.public_id();
 
-        let xorname = *pub_id.name();
+        // let xorname = *pub_id.name();
         let message = sign_request(
-            Request::Money(MoneyRequest::GetBalance(xorname)),
+            Request::Money(MoneyRequest::GetBalance(pub_id.public_key())),
             &client_id.clone(),
         );
 
@@ -161,6 +161,7 @@ impl TransferActor {
     }
 
     // TODO: remove need for passing cm
+    /// Send money as....
     pub async fn send_money_as(
         &mut self,
         safe_key: SafeKey,

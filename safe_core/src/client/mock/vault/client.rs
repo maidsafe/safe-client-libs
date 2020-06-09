@@ -61,10 +61,10 @@ impl Vault {
         &mut self,
         name: &XorName,
     ) -> (BTreeMap<PublicKey, AppPermissions>, u64) {
-        if self.get_account(&name).is_none() {
+        if self.get_client_manager_account(&name).is_none() {
             self.insert_account(*name);
         }
-        let account = unwrap!(self.get_account(&name));
+        let account = unwrap!(self.get_client_manager_account(&name));
 
         (account.auth_keys().clone(), account.version())
     }
@@ -76,19 +76,19 @@ impl Vault {
         permissions: AppPermissions,
         version: u64,
     ) -> SndResult<()> {
-        if self.get_account(&name).is_none() {
+        if self.get_client_manager_account(&name).is_none() {
             self.insert_account(*name);
         }
-        let account = unwrap!(self.get_account_mut(&name));
+        let account = unwrap!(self.get_client_manager_account_mut(&name));
 
         account.ins_auth_key(key, permissions, version)
     }
 
     fn del_auth_key(&mut self, name: &XorName, key: PublicKey, version: u64) -> SndResult<()> {
-        if self.get_account(&name).is_none() {
+        if self.get_client_manager_account(&name).is_none() {
             self.insert_account(*name);
         }
-        let account = unwrap!(self.get_account_mut(&name));
+        let account = unwrap!(self.get_client_manager_account_mut(&name));
 
         account.del_auth_key(&key, version)
     }

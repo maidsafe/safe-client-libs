@@ -113,7 +113,7 @@ impl ConnectionManager {
         &mut self,
         pub_id: &PublicId,
         msg: &Message,
-        transfer_actor: &TransferActor<ClientTransferValidator>,
+        transfer_actor: &TransferActor,
     ) -> Result<Response, CoreError> {
         #[cfg(any(feature = "testing", test))]
         {
@@ -168,15 +168,15 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Add some coins to a wallet's PublicKey
-    pub async fn allocate_test_coins(
-        &self,
-        coin_balance_name: &XorName,
-        amount: Money,
-    ) -> Result<(), safe_nd::Error> {
-        let mut vault = vault::lock(&self.vault, true).await;
-        vault.mock_increment_balance(coin_balance_name, amount)
-    }
+    // /// Add some coins to a wallet's PublicKey
+    // pub async fn allocate_test_money(
+    //     &self,
+    //     account_balance: &PublicKey,
+    //     amount: Money,
+    // ) -> Result<(), safe_nd::Error> {
+    //     let mut vault = vault::lock(&self.vault, true).await;
+    //     vault.mock_increment_balance(account_balance, amount)
+    // }
 
     /// Create coin balance in the mock network arbitrarily.
     pub async fn create_balance(&self, owner: PublicKey, amount: Money) {
@@ -249,11 +249,11 @@ pub fn clone_vault() -> Arc<Mutex<Vault>> {
     VAULT.clone()
 }
 
-pub fn unlimited_coins(config: &Config) -> bool {
-    match env::var("SAFE_MOCK_UNLIMITED_COINS") {
+pub fn unlimited_money(config: &Config) -> bool {
+    match env::var("SAFE_mock_unlimited_money") {
         Ok(_) => true,
         Err(_) => match config.dev {
-            Some(ref dev) => dev.mock_unlimited_coins,
+            Some(ref dev) => dev.mock_unlimited_money,
             None => false,
         },
     }
