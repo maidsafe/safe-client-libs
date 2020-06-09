@@ -10,8 +10,6 @@ pub mod vault;
 
 mod account;
 mod connection_manager;
-#[cfg(test)]
-mod tests;
 
 pub use self::account::{Account, AccountBalance};
 pub use self::connection_manager::{ConnectionManager, RequestHookFn};
