@@ -110,16 +110,16 @@ impl Vault {
                     .and_then(move |data| data.user_permissions(*user, *permissions_index));
                 Response::GetSDataUserPermissions(result)
             }
-            SDataRequest::Append(append) => {
-                let id = DataId::Sequence(append.address);
-                let result = self
-                    .get_sdata(append.address, requester_pk, &request)
-                    .and_then(move |mut sdata| {
-                        sdata.append(append.values.clone())?;
+            SDataRequest::Mutate(op) => {
+                let id = DataId::Sequence(op.address);
+                let result = self.get_sdata(op.address, requester_pk, &request).and_then(
+                    move |mut sdata| {
+                        sdata.apply_crdt_op(op.crdt_op.clone());
                         self.commit_mutation(requester.name());
                         self.insert_data(id, Data::Sequence(sdata));
                         Ok(())
-                    });
+                    },
+                );
                 Response::Mutation(result)
             }
             SDataRequest::SetPermissions {
@@ -197,7 +197,7 @@ fn check_perms_sdata(sdata: &SData, request: &SDataRequest, requester: PublicKey
             SData::Public(_) => Ok(()),
             SData::Private(_) => sdata.check_permission(SDataAction::Read, requester),
         },
-        SDataRequest::Append { .. } => sdata.check_permission(SDataAction::Append, requester),
+        SDataRequest::Mutate { .. } => sdata.check_permission(SDataAction::Append, requester),
         SDataRequest::SetPermissions { .. } => {
             sdata.check_permission(SDataAction::ManagePermissions, requester)
         }
