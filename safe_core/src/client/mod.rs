@@ -1184,7 +1184,6 @@ pub trait Client: Clone + Send + Sync {
     async fn store_sdata(&self, data: SData) -> Result<(), CoreError> {
         trace!("Store Sequence Data {:?}", data.name());
         send_mutation(self, Request::SData(SDataRequest::Store(data.clone()))).await?;
-
         // Store in local Sequence CRDT replica
         let _ = self
             .inner()
@@ -1199,6 +1198,14 @@ pub trait Client: Clone + Send + Sync {
     /// Get Sequence Data from the Network
     async fn get_sdata(&self, address: SDataAddress) -> Result<SData, CoreError> {
         trace!("Get Sequence Data at {:?}", address.name());
+        // First try to fetch it from local CRDT replica
+        if let Some(sdata) = self.inner().lock().await.sdata_cache.get(&address) {
+            trace!("Sequence found in local CRDT replica");
+            return Ok(sdata.clone());
+        }
+
+        trace!("Sequence not found in local CRDT replica");
+        // Let's fetch it fromthe network then
         let sdata = match send(self, Request::SData(SDataRequest::Get(address))).await? {
             Response::GetSData(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1226,9 +1233,10 @@ pub trait Client: Clone + Send + Sync {
             address.name()
         );
 
-        match send(self, Request::SData(SDataRequest::GetLastEntry(address))).await? {
-            Response::GetSDataLastEntry(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        let sdata = self.get_sdata(address).await?;
+        match sdata.last_entry() {
+            Some(entry) => Ok((sdata.entries_index() - 1, entry.to_vec())),
+            None => Err(CoreError::from(safe_nd::Error::NoSuchEntry)),
         }
     }
 
@@ -1243,15 +1251,10 @@ pub trait Client: Clone + Send + Sync {
             address.name()
         );
 
-        match send(
-            self,
-            Request::SData(SDataRequest::GetRange { address, range }),
-        )
-        .await?
-        {
-            Response::GetSDataRange(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
+        let sdata = self.get_sdata(address).await?;
+        sdata
+            .in_range(range.0, range.1)
+            .ok_or(CoreError::from(safe_nd::Error::NoSuchEntry))
     }
 
     /// Append to Sequence Data
@@ -1265,7 +1268,6 @@ pub trait Client: Clone + Send + Sync {
         let mut sdata = self.get_sdata(address).await?;
 
         // We can now increment the Dots, apply it to the local replica
-        log::info!("APPENDING TO SEQUENCE!");
         let append_op = sdata.append(entry);
 
         // Update in local Sequence CRDT replica
@@ -1276,8 +1278,8 @@ pub trait Client: Clone + Send + Sync {
             .sdata_cache
             .put(*sdata.address(), sdata.clone());
 
-        // finally we can send the mutation to the network replicas
-        send_mutation(self, Request::SData(SDataRequest::Append(append_op))).await
+        // Finally we can send the mutation to the network's replicas
+        send_mutation(self, Request::SData(SDataRequest::Mutate(append_op))).await
     }
     // ========== END of Sequence Data functions =========
 
