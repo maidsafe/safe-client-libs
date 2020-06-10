@@ -8,10 +8,10 @@
 
 mod adata;
 mod client;
-mod money;
 mod idata;
 mod login_packet;
 mod mdata;
+mod money;
 
 use super::DataId;
 use super::{Account, AccountBalance};
@@ -19,14 +19,14 @@ use crate::client::mock::connection_manager::unlimited_money;
 use crate::client::COST_OF_PUT;
 use crate::config_handler::{Config, DevConfig};
 use bincode::{deserialize, serialize};
+use crdts::Dot;
 use fs2::FileExt;
 use futures::lock::{Mutex, MutexGuard};
 use log::{debug, trace, warn};
 use safe_nd::{
-    verify_signature, Data, Error as SndError, LoginPacket, Message, Money, PublicId, PublicKey,
-    Request, RequestType, Result as SndResult, Transfer, XorName, TransferId, SafeKey, ClientFullId
+    verify_signature, ClientFullId, Data, Error as SndError, LoginPacket, Message, Money, PublicId,
+    PublicKey, Request, RequestType, Result as SndResult, SafeKey, Transfer, TransferId, XorName,
 };
-use crdts::Dot;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
@@ -104,7 +104,7 @@ pub(crate) enum Operation {
     TransferMoney,
     Mutation,
     GetBalance,
-    GetHistory
+    GetHistory,
 }
 
 impl Vault {
@@ -185,7 +185,7 @@ impl Vault {
         };
         let mut rng = rand::thread_rng();
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
-        let random_transfer_id = Dot::new(client_safe_key.public_key(), 0 );
+        let random_transfer_id = Dot::new(client_safe_key.public_key(), 0);
         balance.credit_balance(amount, random_transfer_id)
     }
 
@@ -226,10 +226,12 @@ impl Vault {
             return Ok(());
         }
         // Fetches the account of the owner
-        let account = self.get_client_manager_account(&XorName::from(owner)).ok_or_else(|| {
-            debug!("Account not found for {:?}", owner);
-            SndError::AccessDenied
-        })?;
+        let account = self
+            .get_client_manager_account(&XorName::from(owner))
+            .ok_or_else(|| {
+                debug!("Account not found for {:?}", owner);
+                SndError::AccessDenied
+            })?;
         // Fetches permissions granted to the application
         let perms = account.auth_keys().get(&requester_pk).ok_or_else(|| {
             debug!("App not authorised");
@@ -427,9 +429,10 @@ impl Vault {
         requester: PublicId,
     ) -> SndResult<()> {
         let (requester_key, key) = match requester.clone() {
-            PublicId::Client(client_public_id) => {
-                (*client_public_id.public_key(), *client_public_id.public_key())
-            }
+            PublicId::Client(client_public_id) => (
+                *client_public_id.public_key(),
+                *client_public_id.public_key(),
+            ),
             PublicId::App(app_public_id) => {
                 (*app_public_id.public_key(), *app_public_id.public_key())
             }

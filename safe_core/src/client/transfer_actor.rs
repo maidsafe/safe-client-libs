@@ -255,23 +255,26 @@ mod tests {
         let mut rng = rand::thread_rng();
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
 
-        let (net_sender, _net_receiver ) = mpsc::unbounded();
+        let (net_sender, _net_receiver) = mpsc::unbounded();
         //net_tx ?
         // let on_network_event =
         //     |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
 
         // Create the connection manager
-        let mut connection_manager = attempt_bootstrap(
+        let connection_manager = attempt_bootstrap(
             &Config::new().quic_p2p,
             &net_sender,
             client_safe_key.clone(),
         )
-        .await.unwrap();
+        .await
+        .unwrap();
 
         let validator = ClientTransferValidator {};
         // Here for now, Actor with 10 setup, as before
         // transfer actor handles all our responses and proof aggregation
-        let transfer_actor =
-            TransferActor::new(validator, client_safe_key, connection_manager.clone()).await.unwrap();
+        let _transfer_actor =
+            TransferActor::new(validator, client_safe_key, connection_manager.clone())
+                .await
+                .unwrap();
     }
 }

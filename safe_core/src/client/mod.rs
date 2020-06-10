@@ -1886,9 +1886,11 @@ mod tests {
     async fn money_permissions() -> Result<(), CoreError> {
         let client = random_client()?;
         let wallet_a_addr = client.public_key().await;
-        let random_client_key = *ClientFullId::new_bls(&mut rand::thread_rng() ).public_id().public_key() ;
+        let random_client_key = *ClientFullId::new_bls(&mut rand::thread_rng())
+            .public_id()
+            .public_key();
         let res = client
-            .transfer_money( random_client_key, unwrap!(Money::from_str("5.0")), None)
+            .transfer_money(random_client_key, unwrap!(Money::from_str("5.0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchBalance)) => (),
@@ -1909,7 +1911,7 @@ mod tests {
             .test_set_balance(None, unwrap!(Money::from_str("50.0")))
             .await?;
         let res = client
-            .transfer_money( wallet_a_addr, unwrap!(Money::from_str("10")), None)
+            .transfer_money(wallet_a_addr, unwrap!(Money::from_str("10")), None)
             .await;
         match res {
             Ok(transfer) => assert_eq!(transfer.amount(), unwrap!(Money::from_str("10"))),
@@ -1943,11 +1945,7 @@ mod tests {
             .await?;
         assert_eq!(transfer.amount(), unwrap!(Money::from_str("100")));
         let transfer = client
-            .transfer_money(
-                wallet1,
-                unwrap!(Money::from_str("5.0")),
-                None,
-            )
+            .transfer_money(wallet1, unwrap!(Money::from_str("5.0")), None)
             .await?;
         assert_eq!(transfer.amount(), unwrap!(Money::from_str("5.0")));
         let balance = client.get_balance(Some(&client_id)).await?;
@@ -1986,7 +1984,7 @@ mod tests {
     async fn money_balance_transfer() -> Result<(), CoreError> {
         let client = random_client()?;
         // let wallet1: XorName =
-        let owner_key = client.owner_key().await;
+        let _owner_key = client.owner_key().await;
         let wallet1 = client.public_key().await;
 
         client
@@ -1999,7 +1997,7 @@ mod tests {
         let init_bal = unwrap!(Money::from_str("10"));
         let orig_balance = client.get_balance(None).await?;
         let _ = client
-            .transfer_money( wallet1, unwrap!(Money::from_str("5.0")), None)
+            .transfer_money(wallet1, unwrap!(Money::from_str("5.0")), None)
             .await?;
         let new_balance = client.get_balance(None).await?;
         assert_eq!(
@@ -2007,7 +2005,7 @@ mod tests {
             unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
         );
         let res = client
-            .transfer_money( wallet1, unwrap!(Money::from_str("5000")), None)
+            .transfer_money(wallet1, unwrap!(Money::from_str("5000")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
@@ -2019,7 +2017,7 @@ mod tests {
             calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
         assert_eq!(balance, expected);
         let res = client
-            .transfer_money( wallet1, unwrap!(Money::from_str("0")), None)
+            .transfer_money(wallet1, unwrap!(Money::from_str("0")), None)
             .await;
         match res {
             Err(CoreError::DataError(SndError::InvalidOperation)) => (),

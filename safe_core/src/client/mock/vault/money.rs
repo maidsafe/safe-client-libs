@@ -8,11 +8,14 @@
 
 use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
-use safe_nd::{Error as SndError, Money, MoneyRequest, PublicKey, Response, Transfer, XorName, DebitAgreementProof, TransferRegistered, ClientFullId, SafeKey};
-use std::str::FromStr;
-use unwrap::unwrap;
-use threshold_crypto::SecretKeySet;
 use rand::Rng;
+use safe_nd::{
+    ClientFullId, DebitAgreementProof, Error as SndError, Money, MoneyRequest, PublicKey, Response,
+    SafeKey, Transfer, TransferRegistered, XorName,
+};
+use std::str::FromStr;
+use threshold_crypto::SecretKeySet;
+use unwrap::unwrap;
 
 impl Vault {
     /// Process Money request
@@ -27,11 +30,8 @@ impl Vault {
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
         let FAKE_SIGNATURE = client_safe_key.sign(b"mock-key");
 
-
         match request {
-            MoneyRequest::ValidateTransfer {
-                signed_transfer
-            } => {
+            MoneyRequest::ValidateTransfer { signed_transfer } => {
                 let source = owner_pk.into();
                 let destination = signed_transfer.to();
                 let amount = signed_transfer.amount();
@@ -51,37 +51,28 @@ impl Vault {
                         })
                 };
 
-                let registered_transfer = 
-                TransferRegistered {
+                let registered_transfer = TransferRegistered {
                     debit_proof: DebitAgreementProof {
                         signed_transfer: signed_transfer.clone(),
-                        debiting_replicas_sig: FAKE_SIGNATURE
-                    }
+                        debiting_replicas_sig: FAKE_SIGNATURE,
+                    },
                 };
                 Response::TransferRegistration(Ok(registered_transfer))
             }
-            MoneyRequest::RegisterTransfer {
-                ..
-            } => {
+            MoneyRequest::RegisterTransfer { .. } => {
                 Response::TransferRegistration(Err(SndError::from("Unimplemented")))
 
                 // TODO
-            },
-            MoneyRequest::PropagateTransfer {
-                ..
-            } => {
+            }
+            MoneyRequest::PropagateTransfer { .. } => {
                 panic!("SCL Mock vault should not receive this request.");
                 Response::TransferRegistration(Err(SndError::from("Unimplemented")))
-
-
-            },
-            MoneyRequest::GetHistory {
-                ..
-            } => {
+            }
+            MoneyRequest::GetHistory { .. } => {
                 Response::TransferRegistration(Err(SndError::from("Unimplemented")))
-                
+
                 // do this
-            },
+            }
             // MoneyRequest::CreateBalance {
             //     amount,
             //     new_balance_owner,

@@ -8,7 +8,10 @@
 
 use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
-use safe_nd::{Error as SndError, LoginPacketRequest,SafeKey, ClientFullId, SignedTransfer, TransferRegistered, DebitAgreementProof, Money, PublicKey, Response, Transfer};
+use safe_nd::{
+    ClientFullId, DebitAgreementProof, Error as SndError, LoginPacketRequest, Money, PublicKey,
+    Response, SafeKey, SignedTransfer, Transfer, TransferRegistered,
+};
 use std::str::FromStr;
 use unwrap::unwrap;
 
@@ -23,7 +26,7 @@ impl Vault {
         let mut rng = rand::thread_rng();
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
         let FAKE_SIGNATURE = client_safe_key.sign(b"mock-key");
-        
+
         match request {
             LoginPacketRequest::CreateFor {
                 new_owner,
@@ -60,7 +63,7 @@ impl Vault {
                         .and_then(|_| {
                             // Debit the requester's wallet the cost of `CreateLoginPacketFor`
                             self.commit_mutation(&source);
-                            self.transfer_money(source,  *amount, new_balance_dest, *transfer_id)
+                            self.transfer_money(source, *amount, new_balance_dest, *transfer_id)
                         })
                         .and_then(|_| {
                             if self
@@ -79,16 +82,15 @@ impl Vault {
                             TransferRegistered {
                                 debit_proof: DebitAgreementProof {
                                     signed_transfer: SignedTransfer {
-                                        transfer : Transfer {
+                                        transfer: Transfer {
                                             to: new_balance_dest,
                                             id: *transfer_id,
                                             amount: *amount,
-
                                         },
-                                        actor_signature: FAKE_SIGNATURE.clone()
+                                        actor_signature: FAKE_SIGNATURE.clone(),
                                     },
-                                    debiting_replicas_sig: FAKE_SIGNATURE
-                                }
+                                    debiting_replicas_sig: FAKE_SIGNATURE,
+                                },
                             }
                         })
                 };

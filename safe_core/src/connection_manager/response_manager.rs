@@ -16,7 +16,6 @@ type VoteCount = usize;
 type VoteMap = HashMap<Response, VoteCount>;
 type IsValidationRequest = bool;
 
-
 pub struct ResponseManager {
     /// MessageId to send_future channel map
     requests: HashMap<
@@ -163,20 +162,25 @@ mod tests {
 
         let response = safe_nd::Response::GetIData(Ok(safe_nd::IData::from(immutable_data)));
 
-        response_manager.await_responses(message_id, (sender_future, expected_responses, false)).unwrap();
-        response_manager.handle_response(message_id, response.clone()).unwrap();
+        response_manager
+            .await_responses(message_id, (sender_future, expected_responses, false))
+            .unwrap();
+        response_manager
+            .handle_response(message_id, response.clone())
+            .unwrap();
 
-        let ( returned_response, _msg_id ) = match response_future.next().await {
+        let (returned_response, _msg_id) = match response_future.next().await {
             Some(res) => Ok(res),
             None => Err("Unexpected error in response handling."),
-        }.unwrap();
+        }
+        .unwrap();
 
         assert_eq!(&returned_response, &response);
     }
 
     // basic test to ensure future response is being properly evaluated and our test fails for bad responses
     #[tokio::test]
-    async fn response_manager_get_response_fail_with_bad_data()  {
+    async fn response_manager_get_response_fail_with_bad_data() {
         let response_threshold = 1;
 
         let mut response_manager = ResponseManager::new(response_threshold);
@@ -197,19 +201,24 @@ mod tests {
         let bad_response =
             safe_nd::Response::GetIData(Ok(safe_nd::IData::from(immutable_data_bad)));
 
-        response_manager.await_responses(message_id, (sender_future, expected_responses, false)).unwrap();
-        response_manager.handle_response(message_id, bad_response).unwrap();
+        response_manager
+            .await_responses(message_id, (sender_future, expected_responses, false))
+            .unwrap();
+        response_manager
+            .handle_response(message_id, bad_response)
+            .unwrap();
 
-        let ( returned_response, _msg_id ) = match response_future.next().await {
+        let (returned_response, _msg_id) = match response_future.next().await {
             Some(res) => Ok(res),
             None => Err("Unexpected error in response handling."),
-        }.unwrap();
+        }
+        .unwrap();
 
         assert_ne!(&returned_response, &response);
     }
 
     #[tokio::test]
-    async fn response_manager_get_success_even_with_some_failed_responses()  {
+    async fn response_manager_get_success_even_with_some_failed_responses() {
         let response_threshold = 4;
 
         let mut response_manager = ResponseManager::new(response_threshold);
@@ -245,16 +254,19 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        response_manager.await_responses(message_id, (sender_future, expected_responses, false)).unwrap();
+        response_manager
+            .await_responses(message_id, (sender_future, expected_responses, false))
+            .unwrap();
 
         for resp in responses_to_handle {
             response_manager.handle_response(message_id, resp).unwrap();
         }
 
-        let ( returned_response, _msg_id ) = match response_future.next().await {
+        let (returned_response, _msg_id) = match response_future.next().await {
             Some(res) => Ok(res),
             None => Err("Unexpected error in response handling."),
-        }.unwrap();
+        }
+        .unwrap();
 
         assert_eq!(&returned_response, &response);
     }
@@ -295,26 +307,30 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        response_manager.await_responses(message_id, (sender_future, expected_responses, false)).unwrap();
+        response_manager
+            .await_responses(message_id, (sender_future, expected_responses, false))
+            .unwrap();
 
         for resp in responses_to_handle {
             response_manager.handle_response(message_id, resp).unwrap();
         }
 
         // last response should be bad to ensure we dont just default to it
-        response_manager.handle_response(message_id, bad_response.clone()).unwrap();
+        response_manager
+            .handle_response(message_id, bad_response.clone())
+            .unwrap();
 
-        let ( returned_response, _msg_id ) = match response_future.next().await {
+        let (returned_response, _msg_id) = match response_future.next().await {
             Some(res) => Ok(res),
             None => Err("Unexpected error in response handling."),
-        }.unwrap();
+        }
+        .unwrap();
 
         assert_eq!(&returned_response, &bad_response);
     }
 
     #[tokio::test]
-    async fn response_manager_get_with_most_responses_when_nothing_meets_threshold(
-    ) {
+    async fn response_manager_get_with_most_responses_when_nothing_meets_threshold() {
         let response_threshold = 4;
 
         let mut response_manager = ResponseManager::new(response_threshold);
@@ -350,23 +366,25 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        response_manager.await_responses(message_id, (sender_future, expected_responses, false)).unwrap();
+        response_manager
+            .await_responses(message_id, (sender_future, expected_responses, false))
+            .unwrap();
 
         for resp in responses_to_handle {
             response_manager.handle_response(message_id, resp).unwrap();
         }
 
-        let ( returned_response, _msg_id ) = match response_future.next().await {
+        let (returned_response, _msg_id) = match response_future.next().await {
             Some(res) => Ok(res),
             None => Err("Unexpected error in response handling."),
-        }.unwrap();
+        }
+        .unwrap();
 
         assert_eq!(&returned_response, &response);
     }
 
     #[tokio::test]
-    async fn response_manager_get_with_most_responses_when_divergent_success()
-    {
+    async fn response_manager_get_with_most_responses_when_divergent_success() {
         let response_threshold = 4;
 
         let mut response_manager = ResponseManager::new(response_threshold);
@@ -400,16 +418,19 @@ mod tests {
         // lets shuffle the array to ensure order is not important
         responses_to_handle.shuffle(&mut rng);
 
-        response_manager.await_responses(message_id, (sender_future, expected_responses, false)).unwrap();
+        response_manager
+            .await_responses(message_id, (sender_future, expected_responses, false))
+            .unwrap();
 
         for resp in responses_to_handle {
             response_manager.handle_response(message_id, resp).unwrap();
         }
 
-        let ( returned_response, _msg_id ) = match response_future.next().await {
+        let (returned_response, _msg_id) = match response_future.next().await {
             Some(res) => Ok(res),
             None => Err("Unexpected error in response handling."),
-        }.unwrap();
+        }
+        .unwrap();
 
         assert_eq!(&returned_response, &other_response);
     }
