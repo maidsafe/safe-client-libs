@@ -132,7 +132,7 @@ impl ConnectionGroup {
             // return on first response here.
             // };
             // Let the actor handle receipt of each response from elders
-            // transfer_actor.receive(res, &message_id);
+            // transfer_actor.handle_validation_response(res, &message_id);
         }
 
         response
@@ -170,9 +170,9 @@ impl ConnectionGroup {
 
         while let Some((res, message_id)) = response_future.next().await {
             // Let the actor handle receipt of each response from elders
-            transfer_actor.receive(res, &message_id);
+            transfer_actor.handle_validation_response(res, &message_id);
             // n(msg);
-            // let result = match transfer_actor.receive(res) {
+            // let result = match transfer_actor.handle_validation_response(res) {
             //     Ok(response ) => response,
             //     // will this be too brittle? One error doesn't need to fail everything...
             //     Err(error) => return Err(CoreError::from(format!("Error while receiving validation proofs: {:?}", error)))
@@ -191,7 +191,7 @@ impl ConnectionGroup {
 
         //   response_future.for_each( |res| {
         //       // keep passing in receive into TransferActor until "proof" pops out.
-        //       let result = match transfer_actor.receive(res) {
+        //       let result = match transfer_actor.handle_validation_response(res) {
         //           Ok(response ) => response,
         //           // will this be too brittle? One error doesn't need to fail everything...
         //           Err(error) => return Err(CoreError::from(format!("Error while receiving validation proofs: {:?}", error)))

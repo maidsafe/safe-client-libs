@@ -231,14 +231,14 @@ pub trait Client: Clone + Send + Sync {
     async fn transfer_money(
         &self,
         // client_id: Option<&ClientFullId>,
-        destination: PublicKey,
+        to: PublicKey,
         amount: Money,
         _transfer_id: Option<u64>,
     ) -> Result<TransferRegistered, CoreError>
     where
         Self: Sized,
     {
-        trace!("Transfer {} money to {:?}", amount, destination);
+        trace!("Transfer {} money to {:?}", amount, to);
         // TODO: retrieve our actor for this clientID....
         // NOte: this currently has clintId as an option.. . but it's _mostly_ ignored...
         // we can remove that and set up an API for transfer_as if needs be...
@@ -248,8 +248,10 @@ pub trait Client: Clone + Send + Sync {
         let mut actor = self.transfer_actor().await;
 
         let transfer_result = actor
-            .send_money_as(self.full_id().await, cm, destination, amount)
+            .send_money( cm, to, amount)
             .await;
+
+        println!("SEND MONEY returns {:?}", transfer_result);
 
         match transfer_result {
             Ok(res) => match res {
@@ -285,10 +287,19 @@ pub trait Client: Clone + Send + Sync {
 
         let mut actor = self.transfer_actor().await;
 
-        // TODO: is this send_money_as or what shoudl this API be?
+        // TODO: is this send_money or what shoudl this API be?
+        // let transfer_result = actor
+        //     .send_money( cm, new_balance_owner, amount)
+        //     .await;
+
+        println!("^&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&7");
+        println!("^&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&7");
+        println!("^&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&7 calling create balance");
         let transfer_result = actor
-            .send_money_as(self.full_id().await, cm, new_balance_owner, amount)
-            .await;
+            .send_money( cm, new_balance_owner, amount)
+            .await?;
+
+        
 
         // match send_as_helper(
         //     self,
@@ -300,17 +311,20 @@ pub trait Client: Clone + Send + Sync {
         //     client_id,
         // )
         // .await
-
+        println!("RESSSSSSSSSSSSSSULT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% {:?}", &transfer_result);
         match transfer_result {
-            Ok(res) => match res {
-                Response::TransferRegistration(result) => match result {
-                    Ok(transfer) => Ok(transfer),
-                    Err(error) => Err(CoreError::from(error)),
-                },
+            // Ok(res) => match res {
+                Response::TransferRegistration(result) => {
+                    println!("HERE NO WHY???????????????????????? {:?}", result);
+                    match result {
+                        Ok(transfer) => Ok(transfer),
+                        Err(error) => Err(CoreError::from(error)),
+                    }
+                }, 
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
-            },
+            // },
 
-            Err(error) => Err(error),
+            // Err(error) => Err(error),
         }
     }
 
@@ -367,12 +381,13 @@ pub trait Client: Clone + Send + Sync {
         Self: Sized,
     {
         trace!("Get balance for {:?}", client_id);
+        let mut cm = self.inner().lock().await.connection_manager.clone();
 
         // TODO: another api for getting from network
         // TODO: handle client_id passed in
         self.transfer_actor()
             .await
-            .get_local_balance(self.full_id().await)
+            .get_balance_from_network( &mut cm ).await 
     }
 
     /// Put immutable data to the network.
@@ -1316,21 +1331,20 @@ pub trait Client: Clone + Send + Sync {
 
     /// Set the coin balance to a specific value for testing
     #[cfg(any(test, feature = "testing"))]
-    async fn test_set_balance(
+    async fn test_simulate_farming_payout_client(
         &self,
-        client_id: Option<&ClientFullId>,
         amount: Money,
     ) -> Result<(), CoreError>
     where
         Self: Sized,
     {
-        let new_balance_owner = match client_id {
-            None => self.public_key().await,
-            Some(client_id) => *client_id.public_id().public_key(),
-        };
-        trace!(
+        // let self.public_key().await = match client_id {
+        //     None => self.public_key().await,
+        //     Some(client_id) => *client_id.public_id().public_key(),
+        // };
+        println!(
             "Set the coin balance of {:?} to {:?}",
-            new_balance_owner,
+            self.public_key().await,
             amount,
         );
 
@@ -1339,13 +1353,22 @@ pub trait Client: Clone + Send + Sync {
         let mut actor = self.transfer_actor().await;
 
         let transfer_result = actor
-            .send_money_as(self.full_id().await, cm, new_balance_owner, amount)
+            .trigger_simulated_farming_payout( cm, self.public_key().await, amount)
             .await;
-
+        println!("............................................................................................................................PAYED OUT TRANSFERSSSSSSSSSSS");
+        println!("............................................................................................................................PAYED OUT TRANSFERSSSSSSSSSSS");
+        println!("............................................................................................................................PAYED OUT TRANSFERSSSSSSSSSSS");
+        println!("............................................................................................................................PAYED OUT TRANSFERSSSSSSSSSSS");
+        // self.transfer_actor = actor;
+        println!("balance now: {:?} {:?}", actor.get_local_balance().await, self.transfer_actor().await.get_local_balance().await );
+        
         match transfer_result {
             Ok(res) => match res {
                 Response::TransferRegistration(result) => match result {
-                    Ok(_) => Ok(()),
+                    Ok(_) => {
+                        // println!("okkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+                        Ok(())
+                    },
                     Err(error) => Err(CoreError::from(error)),
                 },
                 _ => Err(CoreError::ReceivedUnexpectedEvent),
@@ -1412,7 +1435,7 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<
     // let mut actor = self.transfer_actor().await;
 
     let response = actor
-        .send_money_as(full_id.clone(), cm.clone(), public_key, amount)
+        .send_money(cm.clone(), public_key, amount)
         .await?;
 
     let _result = match response {
@@ -1904,7 +1927,7 @@ mod tests {
             res => panic!("Unexpected result: {:?}", res),
         }
         client
-            .test_set_balance(None, unwrap!(Money::from_str("50.0")))
+            .test_simulate_farming_payout_client( unwrap!(Money::from_str("50.0")))
             .await?;
         let res = client
             .transfer_money(wallet_a_addr, unwrap!(Money::from_str("10")), None)
@@ -1922,50 +1945,69 @@ mod tests {
         Ok(())
     }
 
+
+    // TODO: Update when login packet is decided to sort out "anonymous" wallets (and eg key clients)
     // 1. Create a client with a wallet. Create an anonymous wallet preloading it from the client's wallet.
     // 2. Transfer some safecoin from the anonymous wallet to the client.
     // 3. Fetch the balances of both the wallets and verify them.
     // 5. Try to create a balance using an inexistent wallet. This should fail.
     #[tokio::test]
-    async fn anonymous_wallet() -> Result<(), CoreError> {
-        let client = random_client()?;
+    async fn random_clients() {
+        let client = random_client().unwrap();
+        // starter amount after creating login packet
+
         let wallet1 = client.public_key().await;
-        let init_bal = unwrap!(Money::from_str("500.0"));
+        let init_bal = unwrap!(Money::from_str("490.0")); // 500 in total
+        
+        // let client_id = gen_client_id();
 
-        let client_id = gen_client_id();
-        let bls_pk = *client_id.public_id().public_key();
+        let client2 = random_client().unwrap();
 
-        client.test_set_balance(None, init_bal).await?;
+        let bls_pk = client2.public_id().await.public_key();
+        
+        client.test_simulate_farming_payout_client( init_bal).await.unwrap();
+        // assert_eq!(client.get_balance(None).await.unwrap(), unwrap!(Money::from_str("500")));
+
+        // Lets create our other account here....
+        // TODO this is actually already made when we do random client
         let transfer = client
             .create_balance(None, bls_pk, unwrap!(Money::from_str("100.0")), None)
-            .await?;
+            .await.unwrap();
         assert_eq!(transfer.amount(), unwrap!(Money::from_str("100")));
-        let transfer = client
+        assert_eq!(client.get_balance(None).await.unwrap(), unwrap!(Money::from_str("399.999999999")));
+        assert_eq!(client2.get_balance(None).await.unwrap(), unwrap!(Money::from_str("109.999999999")));
+        let transfer = client2
             .transfer_money(wallet1, unwrap!(Money::from_str("5.0")), None)
-            .await?;
+            // .transfer_money_from_client_id(cliend_id.clone(),wallet1, unwrap!(Money::from_str("5.0")), None)
+            .await.unwrap();
+        
+        println!("2222");
         assert_eq!(transfer.amount(), unwrap!(Money::from_str("5.0")));
-        let balance = client.get_balance(Some(&client_id)).await?;
-        assert_eq!(balance, unwrap!(Money::from_str("95.0")));
-        let balance = client.get_balance(None).await?;
+        let balance = client2.get_balance(None).await.unwrap();
+        assert_eq!(balance, unwrap!(Money::from_str("104.999999999")));
+        let balance = client.get_balance(None).await.unwrap();
         let expected =
-            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("95"))));
+        calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("95"))));
         assert_eq!(balance, expected);
         let random_pk = gen_bls_keypair().public_key();
-        let random_source = gen_client_id();
+        // let random_source = gen_client_id();
 
-        let res = client
+        let nonexistent_client = random_client().unwrap();
+
+        let res = nonexistent_client
             .create_balance(
-                Some(&random_source),
+                None,
                 random_pk,
                 unwrap!(Money::from_str("100.0")),
                 None,
             )
             .await;
         match res {
-            Err(CoreError::DataError(SndError::NoSuchBalance)) => {}
+            Err(CoreError::DataError(e)) => {
+                assert_eq!(e.to_string(), "Not enough money to complete this operation");
+            }
             res => panic!("Unexpected result: {:?}", res),
         }
-        Ok(())
     }
 
     // 1. Create a client A with a wallet and allocate some test safecoin to it.
@@ -1984,7 +2026,7 @@ mod tests {
         let wallet1 = client.public_key().await;
 
         client
-            .test_set_balance(None, unwrap!(Money::from_str("100.0")))
+            .test_simulate_farming_payout_client( unwrap!(Money::from_str("100.0")))
             .await?;
         let balance = client.get_balance(None).await?;
         assert_eq!(balance, unwrap!(Money::from_str("100.0")));
@@ -2020,7 +2062,7 @@ mod tests {
             res => panic!("Unexpected result: {:?}", res),
         }
         client
-            .test_set_balance(None, unwrap!(Money::from_str("0")))
+            .test_simulate_farming_payout_client( unwrap!(Money::from_str("0")))
             .await?;
         let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
         let res = client.put_idata(data).await;

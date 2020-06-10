@@ -213,6 +213,8 @@ impl Vault {
     ) -> Result<(), SndError> {
         let requester = XorName::from(requester_pk);
         let balance = self.get_balance(&owner)?;
+
+        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>OWNWER {:?}, requestet: {:?}", owner, requester_pk );
         // Checks if the requester is the owner
         if owner == requester_pk {
             for operation in operations {
@@ -302,20 +304,42 @@ impl Vault {
         let _ = self.cache.nae_manager.remove(&name);
     }
 
+    /// test func for creating balance via simulated farming payout
     pub(crate) fn create_balance(
         &mut self,
-        destination: PublicKey,
         owner: PublicKey,
+        amount: Money
     ) -> SndResult<()> {
-        if self.read_account_balance(&destination).is_some() {
+        if self.read_account_balance(&owner).is_some() {
             return Err(SndError::BalanceExists);
         }
         let _ = self
             .cache
             .account_balances
-            .insert(destination, AccountBalance::new(Money::from_nano(0), owner));
+            .insert(owner, AccountBalance::new( amount, owner));
         Ok(())
     }
+
+    /// make a simulated farming payout to an existing address
+    pub(crate) fn farming_payout(
+        &mut self,
+        destination: PublicKey,
+        amount: Money,
+        transfer_id: TransferId
+    ) -> SndResult<Transfer> {
+
+        let _ = match self.read_account_balance_mut(&destination) {
+            Some(balance) => balance.credit_balance(amount, transfer_id)?,
+            None => self.create_balance(destination, amount)?
+        };
+        Ok(Transfer {
+            to: destination,
+            id: transfer_id,
+            amount,
+        })
+    }
+
+
 
     pub(crate) fn transfer_money(
         &mut self,
@@ -325,18 +349,30 @@ impl Vault {
         transfer_id: TransferId,
     ) -> SndResult<Transfer> {
         let unlimited = unlimited_money(&self.config);
-        match self.read_account_balance_mut(&source) {
+        println!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxfer {:?} from, {:?}", amount, source);
+
+        
+        let _ = match self.read_account_balance_mut(&source) {
             Some(balance) => {
                 if !unlimited {
                     balance.debit_balance(amount)?
                 }
             }
-            None => return Err(SndError::NoSuchBalance),
+            // None => (),
+            None => {
+                println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!THIS ODESNNNNNT EXIST");
+                return Err(SndError::NoSuchBalance)
+            },
         };
-        match self.read_account_balance_mut(&destination) {
+
+        // Nonexistant target doesn't matter as this is how we create target accounts.
+        let _ = match self.read_account_balance_mut(&destination) {
             Some(balance) => balance.credit_balance(amount, transfer_id)?,
-            None => return Err(SndError::NoSuchBalance),
+            None => self.create_balance(destination, amount)?
+            // None => return Err(SndError::NoSuchBalance),
         };
+
+        println!("***************************************");
         Ok(Transfer {
             to: destination,
             id: transfer_id,

@@ -25,7 +25,7 @@ impl Vault {
     ) -> Response {
         let mut rng = rand::thread_rng();
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
-        let FAKE_SIGNATURE = client_safe_key.sign(b"mock-key");
+        let fake_signature = client_safe_key.sign(b"mock-key");
 
         match request {
             LoginPacketRequest::CreateFor {
@@ -58,7 +58,7 @@ impl Vault {
                             }
 
                             // Create the balance and transfer the mentioned amount of coins
-                            self.create_balance(new_balance_dest, *new_owner)
+                            self.create_balance(*new_owner, Money::from_str("0").unwrap())
                         })
                         .and_then(|_| {
                             // Debit the requester's wallet the cost of `CreateLoginPacketFor`
@@ -87,9 +87,9 @@ impl Vault {
                                             id: *transfer_id,
                                             amount: *amount,
                                         },
-                                        actor_signature: FAKE_SIGNATURE.clone(),
+                                        actor_signature: fake_signature.clone(),
                                     },
-                                    debiting_replicas_sig: FAKE_SIGNATURE,
+                                    debiting_replicas_sig: fake_signature,
                                 },
                             }
                         })

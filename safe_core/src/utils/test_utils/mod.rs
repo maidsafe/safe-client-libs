@@ -11,7 +11,7 @@ mod sync;
 
 #[cfg(feature = "mock-network")]
 pub use self::sync::Synchronizer;
-
+use std::str::FromStr;
 use crate::client::core_client::CoreClient;
 use crate::client::{Client, COST_OF_PUT};
 use crate::network_event::{NetworkEvent, NetworkTx};
@@ -126,6 +126,12 @@ pub fn calculate_new_balance(
     }
     if let Some(coins) = transferred_coins {
         balance = unwrap!(balance.checked_sub(coins));
+    }
+
+    #[cfg(feature="testing")]
+    {
+        // add on our 10 coin starter balance in testing
+        balance = unwrap!(balance.checked_add(Money::from_str("10").unwrap()))
     }
     balance
 }

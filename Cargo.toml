@@ -10,5 +10,5 @@
 members = ["safe_app", "safe_authenticator", "safe_authenticator_ffi", "safe_core", "tests"]
 
 [patch.crates-io]
-safe-nd = { path = "../safe-nd" }
+safe-nd = { path = "../safe-nd", features=["testing"] }
 # safe-nd = { git = "https://github.com/oetyng/safe-nd.git", branch = "at2-network-payments" }

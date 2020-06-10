@@ -280,17 +280,21 @@ async fn file_read_chunks() -> Result<(), NfsError> {
 // Test writing to files in chunks.
 #[tokio::test]
 async fn file_write_chunks() -> Result<(), NfsError> {
+    
     const CHUNK_SIZE: usize = 1000;
     const GOAL_SIZE: usize = 5555;
     let content = [0u8; GOAL_SIZE];
-
+    
+    println!("............................................");
     let client: CoreClient = random_client()?;
+    println!("22222...................................");
     let c2 = client.clone();
     let c3 = client.clone();
     let c4 = client.clone();
 
     let (dir, file) = create_test_file(&client, true).await?;
 
+        println!("............................................");
     let writer = file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned()).await?;
 
     let mut size_written = 0;
@@ -314,6 +318,7 @@ async fn file_write_chunks() -> Result<(), NfsError> {
             done_looping = true
         }
     }
+    println!("............................................");
 
     // Write 0 bytes, should succeed
     writer.write(&content[GOAL_SIZE..GOAL_SIZE]).await?;
@@ -344,6 +349,9 @@ async fn file_write_chunks() -> Result<(), NfsError> {
             done_looping_again = true;
         }
     }
+
+    println!("............................................");
+
     // Write 0 bytes, should succeed
     writer.write(&content[GOAL_SIZE..GOAL_SIZE]).await?;
     let file = writer.close().await?;

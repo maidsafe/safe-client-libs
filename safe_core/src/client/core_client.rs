@@ -86,7 +86,6 @@ impl CoreClient {
             let client_full_id = ClientFullId::new_bls(&mut rng);
             (
                 *client_full_id.public_id().public_key(),
-                // client_full_id
                 SafeKey::client(client_full_id),
             )
         };
@@ -106,28 +105,8 @@ impl CoreClient {
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
-        // Here for now, Actor with 10 setup, as before
-        // transfer actor handles all our responses and proof aggregation
         let transfer_actor =
-            TransferActor::new(client_full_id, connection_manager.clone()).await?;
-
-        // TODO: Create the balance for the client
-
-        // let response = req(
-        //     &mut connection_manager,
-        //     Request::Money(MoneyRequest::CreateBalance {
-        //         new_balance_owner,
-        //         amount: unwrap!(Money::from_str("10")),
-        //         transfer_id: rand::random(),
-        //     }),
-        //     &balance_client_id,
-        // )
-        // .await?;
-
-        // let _ = match response {
-        //     Response::TransferRegistration(res) => res?,
-        //     _ => return Err(CoreError::from("Unexpected response")),
-        // };
+            TransferActor::new(balance_client_id.clone(), connection_manager.clone()).await?;
 
         let response = req(
             &mut connection_manager,
@@ -136,13 +115,13 @@ impl CoreClient {
         )
         .await?;
 
+
         match response {
             Response::Mutation(res) => res?,
             _ => return Err(CoreError::from("Unexpected response")),
         };
 
         connection_manager.disconnect(&balance_pub_id).await?;
-        // }
 
         connection_manager
             .bootstrap(maid_keys.client_safe_key())

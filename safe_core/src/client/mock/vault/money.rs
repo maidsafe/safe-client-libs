@@ -10,7 +10,7 @@ use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
 use rand::Rng;
 use safe_nd::{
-    ClientFullId, DebitAgreementProof, Error as SndError, Money, MoneyRequest, PublicKey, Response,
+    ClientFullId, DebitAgreementProof, Error as SndError, Money, SignedTransfer, MoneyRequest, PublicKey, Response,
     SafeKey, Transfer, TransferRegistered, XorName,
 };
 use std::str::FromStr;
@@ -28,9 +28,47 @@ impl Vault {
         // let mut rng = rand::Rng::thread_rng();
         let mut rng = rand::thread_rng();
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
-        let FAKE_SIGNATURE = client_safe_key.sign(b"mock-key");
+        let fake_signature = client_safe_key.sign(b"mock-key");
 
         match request {
+            #[cfg(feature="testing")]
+            MoneyRequest::SimulatePayout { transfer } => {
+                // let source = owner_pk;
+                let destination = transfer.to();
+                let amount = transfer.amount();
+                let transfer_id = transfer.id();
+                // let bls_secret_key_set = SecretKeySet::random(1, &mut rng);
+                // let elder_pk_set = bls_secret_key_set.public_keys();
+
+                let result = if transfer.amount().as_nano() == 0 {
+                    // TODO do we have other invalid states in SafeTransfer
+                    Err(SndError::InvalidOperation)
+                } else {
+                    // self.authorise_operations(&[Operation::TransferMoney], source, requester_pk)
+                    //     .and_then(|()| {
+                    self.farming_payout( destination, amount, transfer_id )
+                        // })
+                };
+
+                // as we're mock, we'll just reply with a registered Transfer and negate the validation steps
+                let final_result = match result {
+                    Ok(_) => {
+                        Ok(TransferRegistered {
+                            debit_proof: DebitAgreementProof {
+                                signed_transfer: SignedTransfer {
+                                    transfer:transfer.clone(), 
+                                    actor_signature: fake_signature.clone()
+                                },
+                                debiting_replicas_sig: fake_signature,
+                            },
+                        })
+
+                    },
+                    Err(e) => Err(e)
+                };
+
+                Response::TransferRegistration(final_result)
+            }
             MoneyRequest::ValidateTransfer { signed_transfer } => {
                 let source = owner_pk.into();
                 let destination = signed_transfer.to();
@@ -39,8 +77,7 @@ impl Vault {
                 let bls_secret_key_set = SecretKeySet::random(1, &mut rng);
                 let elder_pk_set = bls_secret_key_set.public_keys();
 
-                // This mock vault negates the response manager. So do we leave our TransferActor hanigng?
-                // Do we care?
+
                 let result = if signed_transfer.amount().as_nano() == 0 {
                     // TODO do we have other invalid states in SafeTransfer
                     Err(SndError::InvalidOperation)
@@ -51,26 +88,43 @@ impl Vault {
                         })
                 };
 
-                let registered_transfer = TransferRegistered {
-                    debit_proof: DebitAgreementProof {
-                        signed_transfer: signed_transfer.clone(),
-                        debiting_replicas_sig: FAKE_SIGNATURE,
+                // as we're mock, we'll just reply with a registered Transfer and negate the validation steps
+                let final_result = match result {
+                    Ok(_) => {
+                        Ok(TransferRegistered {
+                            debit_proof: DebitAgreementProof {
+                                signed_transfer: signed_transfer.clone(),
+                                debiting_replicas_sig: fake_signature,
+                            },
+                        })
+
                     },
+                    Err(e) => Err(e)
                 };
-                Response::TransferRegistration(Ok(registered_transfer))
+
+                Response::TransferRegistration(final_result)
             }
             MoneyRequest::RegisterTransfer { .. } => {
-                Response::TransferRegistration(Err(SndError::from("Unimplemented")))
+                Response::TransferRegistration(Err(SndError::from("Register Transfer Unimplemented for mock")))
 
                 // TODO
             }
             MoneyRequest::PropagateTransfer { .. } => {
                 panic!("SCL Mock vault should not receive this request.");
-                Response::TransferRegistration(Err(SndError::from("Unimplemented")))
+                Response::TransferRegistration(Err(SndError::from("PropagateTransfer Unimplemented for mock")))
             }
             MoneyRequest::GetHistory { .. } => {
-                Response::TransferRegistration(Err(SndError::from("Unimplemented")))
+                let source = owner_pk.into();
 
+                let result = self.authorise_operations(&[Operation::GetHistory], source, requester_pk)
+                .and_then(|()| {
+                    // self.get_history(source, amount, destination, transfer_id)
+                    
+                    // Return generic history for now...
+                    Ok(vec![])
+                });
+                
+                Response::GetHistory(result)
                 // do this
             }
             // MoneyRequest::CreateBalance {
@@ -111,8 +165,6 @@ impl Vault {
             //     Response::TransferRegistration(result)
             // }
             MoneyRequest::GetBalance(public_key) => {
-                // let coin_balance_id = xorname;
-
                 let result = self
                     .authorise_operations(&[Operation::GetBalance], *public_key, requester_pk)
                     .and_then(move |_| self.get_balance(&public_key));
