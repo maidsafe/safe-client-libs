@@ -322,9 +322,9 @@ impl Connected {
 
         let (sender_future, response_future) = oneshot::channel();
         let expected_responses = if is_get_request(&msg) {
-            1
-        } else {
             self.elders.len()
+        } else {
+            self.elders.len() / 2 + 1
         };
 
         let _ = self
