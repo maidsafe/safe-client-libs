@@ -1363,12 +1363,10 @@ where
 {
     let full_id = SafeKey::client(identity.clone());
 
-    let validator = ClientTransferValidator {};
-
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone()).await?;
-    let _actor = TransferActor::new(validator, full_id.clone(), cm.clone());
+    let _actor = TransferActor::new( full_id.clone(), cm.clone());
 
     let res = func(&mut cm, &full_id);
 
@@ -1383,12 +1381,10 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<
 
     let full_id = SafeKey::client(owner.clone());
 
-    let validator = ClientTransferValidator {};
-
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone()).await?;
-    let mut actor = TransferActor::new(validator, full_id.clone(), cm.clone()).await?;
+    let mut actor = TransferActor::new(full_id.clone(), cm.clone()).await?;
 
     // let res = func(&mut cm, &full_id);
     let public_id = full_id.public_id();

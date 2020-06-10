@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::iter::Iterator;
 use std::str::FromStr;
 
-use threshold_crypto::{SecretKey, SecretKeySet};
+use threshold_crypto::{SecretKey, SecretKeySet, PublicKeySet};
 
 fn get_history() {
     // DO THINGS
@@ -36,6 +36,7 @@ fn build_transfer(from: Dot<PublicKey>, to: PublicKey, amount: Money) -> Transfe
     }
 }
 
+/// Handle Money Transfers, requests and locally stores a balance
 #[derive(Clone, Debug)]
 pub struct TransferActor {
     transfer_actor: SafeTransferActor<ClientTransferValidator>,
@@ -44,6 +45,7 @@ pub struct TransferActor {
     pending_validations: HashMap<MessageId, mpsc::UnboundedSender<DebitAgreementProof>>,
 }
 
+/// Simple client side validations
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClientTransferValidator {}
 
@@ -53,10 +55,19 @@ impl ReplicaValidator for ClientTransferValidator {
     }
 }
 
+
+fn get_random_pk_set() -> PublicKeySet {
+    // fake bls keyset for our "replica", which currently doesn't exist locally or do anything if it did.
+    let bls_secret_key = SecretKeySet::random(1, &mut thread_rng());
+    bls_secret_key.public_keys()
+
+}
+
 /// Handle all transfers and messaging around transfers for a given client.
 impl TransferActor {
+
+    /// Create a new Transfer Actor
     pub async fn new(
-        validator: ClientTransferValidator,
         safe_key: SafeKey,
         _cm: ConnectionManager,
     ) -> Result<Self, CoreError> {
@@ -64,12 +75,6 @@ impl TransferActor {
 
         // TODO: Better handling of client...
         let _balance = get_history();
-
-        // fake bls keyset for our "replica", which currently doesn't exist locally or do anything if it did.
-        let bls_secret_key = SecretKeySet::random(1, &mut thread_rng());
-        let replicas_id = bls_secret_key.public_keys();
-
-        // let new_balance = Money::from_nano(10 );
 
         let _sender = Dot::new(PublicKey::from(SecretKey::random().public_key()), 0);
 
@@ -83,8 +88,30 @@ impl TransferActor {
         // replica validator on client is more os less bunk (for now). Everything is validated at the section. Here
         // we _could_ do basic balance check validations for example...
 
+        let validator = ClientTransferValidator {};
         // TODO: Handle this error when None... would this ever be None?
-        let transfer_actor = SafeTransferActor::new(safe_key, replicas_id, validator);
+        let transfer_actor = SafeTransferActor::new(safe_key, get_random_pk_set(), validator);
+
+        let pending_validations: HashMap<MessageId, mpsc::UnboundedSender<DebitAgreementProof>> =
+            HashMap::new();
+        Ok(Self {
+            transfer_actor,
+            pending_validations,
+        })
+    }
+      /// Create a Transfer Actor from an existing account history
+      pub async fn from_account_history(
+        validator: ClientTransferValidator,
+        safe_key: SafeKey,
+        _cm: ConnectionManager,
+    ) -> Result<Self, CoreError> {
+        // we need transfer history and to pass this into account.
+
+
+        let _sender = Dot::new(PublicKey::from(SecretKey::random().public_key()), 0);
+
+        // TODO: Handle this error when None... would this ever be None?
+        let transfer_actor = SafeTransferActor::new(safe_key, get_random_pk_set(), validator);
         // .ok_or(CoreError::from("Safe Transfers Actor could not be instantiated".to_string()))?;
         let pending_validations: HashMap<MessageId, mpsc::UnboundedSender<DebitAgreementProof>> =
             HashMap::new();
@@ -97,10 +124,12 @@ impl TransferActor {
     // TODO get_local_balance
     // is SafeKey needed here for an actor?
     // Send as vs use this need to be sorted ooooot
+    /// Get the account balance without querying the network
     pub fn get_local_balance(&self, _safe_key: SafeKey) -> Result<Money, CoreError> {
         Ok(self.transfer_actor.balance())
     }
 
+    /// Handle a validation request response.
     pub fn receive(&mut self, response: Response, message_id: &MessageId) -> Result<(), CoreError> {
         let validation = match response {
             Response::TransferValidation(res) => res?,
@@ -240,25 +269,22 @@ impl TransferActor {
 // THEN: Try out an integration test w/ core
 // ensure actor is created there.
 
+
+
+// TODO: Do we need "new" to actually instantiate with a transfer?...
 #[cfg(test)]
 mod tests {
 
-    // use rand::seq::SliceRandom;
-    // use rand::thread_rng;
     use crate::client::attempt_bootstrap;
     use crate::config_handler::Config;
 
     use super::*;
 
-    #[tokio::test]
-    async fn transfer_actor_creation() {
-        let mut rng = rand::thread_rng();
+    async fn get_keys_and_connection_manager() -> (SafeKey, ConnectionManager) {
+        let mut rng = thread_rng();
         let client_safe_key = SafeKey::client(ClientFullId::new_ed25519(&mut rng));
 
         let (net_sender, _net_receiver) = mpsc::unbounded();
-        //net_tx ?
-        // let on_network_event =
-        //     |net_event| trace!("Unexpected NetworkEvent occurred: {:?}", net_event);
 
         // Create the connection manager
         let connection_manager = attempt_bootstrap(
@@ -269,11 +295,28 @@ mod tests {
         .await
         .unwrap();
 
-        let validator = ClientTransferValidator {};
+        (client_safe_key, connection_manager)
+    }
+    #[tokio::test]
+    async fn transfer_actor_creation() {
+        let ( safe_key, cm) = get_keys_and_connection_manager().await;
         // Here for now, Actor with 10 setup, as before
         // transfer actor handles all our responses and proof aggregation
         let _transfer_actor =
-            TransferActor::new(validator, client_safe_key, connection_manager.clone())
+            TransferActor::new(safe_key, cm.clone())
+                .await
+                .unwrap();
+    }
+
+    #[tokio::test]
+    async fn transfer_actor_creation_hydration() {
+        let ( safe_key, cm) = get_keys_and_connection_manager().await;
+
+
+        // Here for now, Actor with 10 setup, as before
+        // transfer actor handles all our responses and proof aggregation
+        let _transfer_actor =
+            TransferActor::new(safe_key, cm.clone())
                 .await
                 .unwrap();
     }
