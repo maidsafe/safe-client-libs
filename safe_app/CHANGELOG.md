@@ -1,5 +1,8 @@
 # SAFE App
 
+## [0.16.3]
+- Fix CI deploy
+
 ## [0.16.2]
 - Update to latest version of `safe_core` and `safe_authenticator`.
 

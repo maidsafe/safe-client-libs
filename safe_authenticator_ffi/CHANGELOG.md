@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.16.3]
+- Fix CI deploy
+
 ## [0.16.2]
 - Update to latest versions of safe_core and safe_authenticator.
 

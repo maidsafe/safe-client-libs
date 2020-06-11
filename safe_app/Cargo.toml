@@ -8,7 +8,7 @@ license = "MIT OR BSD-3-Clause"
 name = "safe_app"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.16.2"
+version = "0.16.3"
 
 [dependencies]
 async-trait = "~0.1.30"
@@ -21,8 +21,8 @@ log = "~0.4.1"
 lru-cache = "~0.1.1"
 miscreant = { version = "0.4.2", features = ["soft-aes"] }
 rand = "0.6"
-safe_authenticator = { path = "../safe_authenticator", version = "~0.16.2", optional = true }
-safe_core = { path = "../safe_core", version = "~0.41.2" }
+safe_authenticator = { path = "../safe_authenticator", version = "~0.16.3", optional = true }
+safe_core = { path = "../safe_core", version = "~0.41.3" }
 safe-nd = "~0.9.0"
 self_encryption = "~0.17.0"
 serde = "~1.0.27"
@@ -35,8 +35,8 @@ unwrap = "~1.2.0"
 [dev-dependencies]
 clap = "~2.33.0"
 env_logger = "~0.6.2"
-safe_authenticator = { path = "../safe_authenticator", version = "~0.16.1", features = ["testing"] }
-safe_core = { path = "../safe_core", version = "~0.41.1", features = ["testing"] }
+safe_authenticator = { path = "../safe_authenticator", version = "~0.16.3", features = ["testing"] }
+safe_core = { path = "../safe_core", version = "~0.41.3", features = ["testing"] }
 
 [build-dependencies]
 ffi_utils = "~0.16.0"

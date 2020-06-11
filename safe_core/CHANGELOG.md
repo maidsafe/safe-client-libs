@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.41.3]
+- Fix CI deploy
+
 ## [0.41.2]
 - Update the number of responses required to process a request.
 
