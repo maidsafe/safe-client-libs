@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.16.2]
+- Update to latest versions of safe_core and safe_authenticator.
+
 ## [0.16.1]
 - Update safe-nd to 0.9.0
 - Refactor to use updated request/response types

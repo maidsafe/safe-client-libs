@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.41.2]
+- Update the number of responses required to process a request.
+
 ## [0.41.1]
 - Update quic-p2p to 0.6.2
 - Update safe-nd to 0.9.0
