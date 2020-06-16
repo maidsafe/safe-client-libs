@@ -30,5 +30,6 @@ unwrap = "~1.2.0"
 env_logger = { version = "~0.6.2", optional = true }
 
 [features]
-mock-network = ["testing", "safe_core/mock-network"]
-testing = ["safe_core/testing", "env_logger"]
+mock-network = ["testing", "safe_core/mock-network", "simulated-payouts"]
+simulated-payouts = ["safe-nd/simulated-payouts"]
+testing = ["safe_core/testing", "env_logger", "simulated-payouts"]

@@ -27,4 +27,5 @@ mock-network = [
     "safe_core/mock-network",
     "safe_authenticator/mock-network",
     "safe_app/mock-network",
+    "safe-nd/simulated-payouts"
 ]

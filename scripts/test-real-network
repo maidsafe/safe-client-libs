@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e -x
+
+cargo test --release --manifest-path=safe_core/Cargo.toml
+cargo test --release --manifest-path=safe_authenticator/Cargo.toml
+cargo test --release --manifest-path=safe_authenticator_ffi/Cargo.toml
+cargo test --release --manifest-path=safe_app/Cargo.toml

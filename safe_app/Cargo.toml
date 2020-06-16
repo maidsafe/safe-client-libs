@@ -47,9 +47,10 @@ threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
 [features]
-mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network"]
+mock-network = ["testing", "safe_core/mock-network", "safe_authenticator/mock-network", "simulated-payouts"]
 testing = ["safe_core/testing", "safe_authenticator/testing", "env_logger"]
 bindings = ["safe_bindgen"]
+simulated-payouts = ["safe-nd/simulated-payouts"]
 
 [[example]]
 bench = false

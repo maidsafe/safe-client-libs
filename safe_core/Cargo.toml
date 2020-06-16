@@ -53,5 +53,6 @@ serde_json = "~1.0.9"
 tempfile = "3.1.0"
 
 [features]
-mock-network = []
-testing = ["safe-nd/testing"]
+mock-network = ["simulated-payouts"]
+simulated-payouts = ["safe-nd/simulated-payouts"]
+testing = ["simulated-payouts"]

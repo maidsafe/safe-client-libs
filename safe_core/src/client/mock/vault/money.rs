@@ -31,7 +31,7 @@ impl Vault {
         let fake_signature = client_safe_key.sign(b"mock-key");
 
         match request {
-            #[cfg(feature="testing")]
+            #[cfg(feature="simulated-payouts")]
             MoneyRequest::SimulatePayout { transfer } => {
                 // let source = owner_pk;
                 let destination = transfer.to();
