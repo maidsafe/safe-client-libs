@@ -174,7 +174,7 @@ impl Vault {
                             let data_name = DataId::Mutable(*address);
                             data.set_user_permissions(user, permissions, *version)?;
                             self.insert_data(data_name, Data::Mutable(data));
-                            self.commit_mutation(&requester_pk);
+                            self.debit_cost_of_mutation(&requester_pk);
 
                             Ok(())
                         });
@@ -197,7 +197,7 @@ impl Vault {
                             let data_name = DataId::Mutable(*address);
                             data.del_user_permissions(user, *version)?;
                             self.insert_data(data_name, Data::Mutable(data));
-                            self.commit_mutation(&requester_pk);
+                            self.debit_cost_of_mutation(&requester_pk);
 
                             Ok(())
                         });
@@ -243,7 +243,7 @@ impl Vault {
                             let data_name = DataId::Mutable(*address);
                             data.mutate_entries(actions.clone(), requester_pk)?;
                             self.insert_data(data_name, Data::Mutable(data));
-                            self.commit_mutation(&requester_pk);
+                            self.debit_cost_of_mutation(&requester_pk);
 
                             Ok(())
                         });

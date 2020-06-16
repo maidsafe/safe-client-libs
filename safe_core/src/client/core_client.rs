@@ -33,12 +33,11 @@ use std::sync::Arc;
 use std::time::Duration;
 use tiny_keccak::sha3_256;
 
-use crate::client::ClientTransferValidator;
 /// Barebones Client object used for testing purposes.
 pub struct CoreClient {
     inner: Arc<Mutex<Inner>>,
     keys: ClientKeys,
-    transfer_actor: TransferActor,
+    transfer_actor: Option<TransferActor>,
 }
 
 impl CoreClient {
@@ -106,7 +105,7 @@ impl CoreClient {
         connection_manager = connection_manager_wrapper_fn(connection_manager);
 
         let transfer_actor =
-            TransferActor::new(balance_client_id.clone(), connection_manager.clone()).await?;
+            Some(TransferActor::new(balance_client_id.clone(), connection_manager.clone()).await?);
 
         let response = req(
             &mut connection_manager,
@@ -114,7 +113,6 @@ impl CoreClient {
             &balance_client_id,
         )
         .await?;
-
 
         match response {
             Response::Mutation(res) => res?,
@@ -173,7 +171,7 @@ impl Client for CoreClient {
     }
 
     /// Return the TransferActor for this client
-    async fn transfer_actor(&self) -> TransferActor {
+    async fn transfer_actor(&self) -> Option<TransferActor> {
         self.transfer_actor.clone()
     }
 }

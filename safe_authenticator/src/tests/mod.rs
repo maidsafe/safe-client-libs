@@ -180,7 +180,7 @@ mod mock_routing {
         let password = generate_random_string(10).unwrap();
         let client_id = gen_client_id();
 
-        test_create_balance(&client_id, Coins::from_str("10").unwrap())
+        test_create_balance(&client_id, Money::from_str("10").unwrap())
             .await
             .unwrap();
 

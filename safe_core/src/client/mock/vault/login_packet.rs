@@ -62,7 +62,7 @@ impl Vault {
                         })
                         .and_then(|_| {
                             // Debit the requester's wallet the cost of `CreateLoginPacketFor`
-                            self.commit_mutation(&source);
+                            self.debit_cost_of_mutation(&source);
                             self.transfer_money(source, *amount, new_balance_dest, *transfer_id)
                         })
                         .and_then(|_| {
@@ -112,7 +112,7 @@ impl Vault {
                             if !self.has_sufficient_balance(source_balance, COST_OF_PUT) {
                                 return Err(SndError::InsufficientBalance);
                             }
-                            self.commit_mutation(&source);
+                            self.debit_cost_of_mutation(&source);
                             Ok(())
                         })
                         .map(|_| self.insert_login_packet(account_data.clone()));

@@ -635,6 +635,7 @@ async fn test_registered_apps() -> Result<(), AuthError> {
         transfer_money: true,
         data_mutations: false,
         read_balance: true,
+        read_transfer_history: true,
     };
 
     let auth_req1 = AuthReq {
@@ -649,6 +650,8 @@ async fn test_registered_apps() -> Result<(), AuthError> {
         transfer_money: false,
         data_mutations: true,
         read_balance: false,
+        read_transfer_history: true,
+
     };
 
     let auth_req2 = AuthReq {
@@ -676,12 +679,12 @@ async fn test_registered_apps() -> Result<(), AuthError> {
         if app1_id == app.id {
             // Assert App1's Permissions
             assert_eq!(app.perms.transfer_money, app1_perms.transfer_money);
-            assert_eq!(app.perms.get_balance, app1_perms.get_balance);
+            assert_eq!(app.perms.read_balance, app1_perms.read_balance);
             assert_eq!(app.perms.data_mutations, app1_perms.data_mutations);
         } else {
             // Assert App2's Permissions
             assert_eq!(app.perms.transfer_money, app2_perms.transfer_money);
-            assert_eq!(app.perms.get_balance, app2_perms.get_balance);
+            assert_eq!(app.perms.read_balance, app2_perms.read_balance);
             assert_eq!(app.perms.data_mutations, app2_perms.data_mutations);
         }
     }

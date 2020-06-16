@@ -33,7 +33,7 @@ quic-p2p = "~0.6.2"
 rand = "0.6"
 regex = "~1.3.1"
 safe-nd = "~0.9.0"
-safe-transfers = { path = "../../safe-transfers" }
+safe-transfers = "~0.1.0"
 self_encryption = "~0.17.0"
 serde = { version = "~1.0.97", features = ["derive", "rc"] }
 serde_json = "~1.0.40"

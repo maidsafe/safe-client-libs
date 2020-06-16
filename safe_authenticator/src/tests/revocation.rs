@@ -338,6 +338,7 @@ mod mock_routing {
         verify_app_is_revoked(&client, app_id_0, ac_entries_0).await?;
         let expected_permissions = AppPermissions {
             read_balance: true,
+            read_transfer_history: true,
             transfer_money: true,
             data_mutations: true,
         };
@@ -430,6 +431,7 @@ mod mock_routing {
         verify_app_is_revoked(&client, app_id_1, ac_entries_1).await?;
         let expected_permissions = AppPermissions {
             read_balance: true,
+            read_transfer_history: true,
             transfer_money: true,
             data_mutations: true,
         };
@@ -581,6 +583,7 @@ async fn app_revocation_and_reauth() -> Result<(), AuthError> {
         read_balance: true,
         data_mutations: false,
         transfer_money: false,
+        read_transfer_history: true,
     };
     auth_req2.app_permissions = new_app_permissions;
     let auth_granted2 = register_app(&authenticator, &auth_req2).await?;

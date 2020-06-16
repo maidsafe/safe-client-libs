@@ -8,7 +8,7 @@
 // Software.
 
 mod append_only_data;
-mod coins;
+mod money;
 mod unpublished_mutable_data;
 
 use crate::test_utils::{create_app, create_random_auth_req, gen_app_exchange_info};
@@ -84,6 +84,8 @@ async fn get_access_info() -> Result<(), AppError> {
                 transfer_money: true,
                 data_mutations: true,
                 read_balance: true,
+                read_transfer_history: true,
+
             },
             containers: container_permissions,
         },
@@ -163,6 +165,8 @@ async fn authorise_app(
                 transfer_money: true,
                 data_mutations: true,
                 read_balance: true,
+                read_transfer_history: true,
+
             },
             containers: HashMap::new(),
         },
@@ -256,10 +260,10 @@ async fn app_container_creation() -> Result<(), AppError> {
 // 1. Have a registered clients put published immutable and published append-only data on the network.
 // 2. Try to read them as unregistered.
 #[tokio::test]
-async fn unregistered_client() -> Result<(), AppError> {
+async fn unregistered_client() {
     let addr: XorName = rand::random();
     let tag = 15002;
-    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30)?);
+    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30).unwrap());
     let pub_adata = PubUnseqAppendOnlyData::new(addr, tag);
     let mut unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
 
@@ -268,27 +272,27 @@ async fn unregistered_client() -> Result<(), AppError> {
         let pub_idata = pub_idata.clone();
         let mut pub_adata = pub_adata.clone();
 
-        let client = random_client()?;
+        let client = random_client().unwrap();
         let owner = ADataOwner {
             public_key: client.owner_key().await,
             entries_index: 0,
             permissions_index: 0,
         };
-        pub_adata.append_owner(owner, 0)?;
-        unpub_adata.append_owner(owner, 0)?;
-        client.put_idata(pub_idata).await?;
-        client.put_adata(pub_adata.into()).await?;
-        client.put_adata(unpub_adata.into()).await?;
+        pub_adata.append_owner(owner, 0).unwrap();
+        unpub_adata.append_owner(owner, 0).unwrap();
+        client.put_idata(pub_idata).await.unwrap();
+        client.put_adata(pub_adata.into()).await.unwrap();
+        client.put_adata(unpub_adata.into()).await.unwrap();
     }
 
     // Unregistered Client should be able to retrieve the data.
-    let app = App::unregistered(|| (), None).await?;
+    let app = App::unregistered(|| (), None).await.unwrap();
     let client = app.client;
-    let data = client.get_idata(*pub_idata.address()).await?;
+    let data = client.get_idata(*pub_idata.address()).await.unwrap();
     assert_eq!(data, pub_idata.into());
     let data = client
         .get_adata(ADataAddress::PubUnseq { name: addr, tag })
-        .await?;
+        .await.unwrap();
     assert_eq!(data.address(), pub_adata.address());
     assert_eq!(data.tag(), pub_adata.tag());
     match client
@@ -298,17 +302,16 @@ async fn unregistered_client() -> Result<(), AppError> {
         Err(CoreError::DataError(SndError::AccessDenied)) => (),
         res => panic!("Unexpected result {:?}", res),
     }
-    Ok(())
 }
 
 // Test PUTs by unregistered clients.
 // 1. Have a unregistered client put published immutable. This should fail by returning Error
 // as they are not allowed to PUT data into the network.
 #[tokio::test]
-async fn unregistered_client_put() -> Result<(), AppError> {
-    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30)?);
+async fn unregistered_client_put() {
+    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30).unwrap());
 
-    let app = App::unregistered(|| (), None).await?;
+    let app = App::unregistered(|| (), None).await.unwrap();
     // Unregistered Client should not be able to PUT data.
     let client = app.client;
     match client.put_idata(pub_idata).await {
@@ -316,16 +319,15 @@ async fn unregistered_client_put() -> Result<(), AppError> {
         Ok(()) => panic!("Unexpected Success"),
         Err(e) => panic!("Unexpected Error: {}", e),
     }
-    Ok(())
 }
 
 // Verify that published data can be accessed by both unregistered clients and clients that are not
 // in the permission set.
 #[tokio::test]
-async fn published_data_access() -> Result<(), AppError> {
+async fn published_data_access() {
     let name: XorName = rand::random();
     let tag = 15002;
-    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30)?);
+    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30).unwrap());
     let mut pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
     let mut pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
 
@@ -333,19 +335,19 @@ async fn published_data_access() -> Result<(), AppError> {
     {
         let pub_idata = pub_idata.clone();
 
-        let client = random_client()?;
+        let client = random_client().unwrap();
 
         let owner = ADataOwner {
             public_key: client.owner_key().await,
             entries_index: 0,
             permissions_index: 0,
         };
-        pub_seq_adata.append_owner(owner, 0)?;
-        pub_unseq_adata.append_owner(owner, 0)?;
+        pub_seq_adata.append_owner(owner, 0).unwrap();
+        pub_unseq_adata.append_owner(owner, 0).unwrap();
 
-        client.put_idata(pub_idata).await?;
-        client.put_adata(pub_seq_adata.into()).await?;
-        client.put_adata(pub_unseq_adata.into()).await?;
+        client.put_idata(pub_idata).await.unwrap();
+        client.put_adata(pub_seq_adata.into()).await.unwrap();
+        client.put_adata(pub_unseq_adata.into()).await.unwrap();
     }
 
     let pub_seq_adata_addr = ADataAddress::PubSeq { name, tag };
@@ -354,55 +356,61 @@ async fn published_data_access() -> Result<(), AppError> {
     // Unregistered apps should be able to read the data
     {
         let pub_idata = pub_idata.clone();
-        let app = App::unregistered(|| (), None).await?;
+        let app = App::unregistered(|| (), None).await.unwrap();
         let client = app.client;
 
-        let data = client.get_idata(*pub_idata.address()).await?;
+        let data = client.get_idata(*pub_idata.address()).await.unwrap();
         assert_eq!(data, pub_idata.into());
-        let data = client.get_adata(pub_unseq_adata_addr).await?;
+        let data = client.get_adata(pub_unseq_adata_addr).await.unwrap();
         assert_eq!(*data.address(), pub_unseq_adata_addr);
-        let data = client.get_adata(pub_seq_adata_addr).await?;
+        let data = client.get_adata(pub_seq_adata_addr).await.unwrap();
         assert_eq!(*data.address(), pub_seq_adata_addr);
     }
 
     // Apps authorised by a different client be able to read the data too
     let app = create_app().await;
     let client = app.client;
-    let data = client.get_idata(*pub_idata.address()).await?;
+    let data = client.get_idata(*pub_idata.address()).await.unwrap();
     assert_eq!(data, pub_idata.into());
-    let data = client.get_adata(pub_unseq_adata_addr).await?;
+    let data = client.get_adata(pub_unseq_adata_addr).await.unwrap();
     assert_eq!(*data.address(), pub_unseq_adata_addr);
-    let data = client.get_adata(pub_seq_adata_addr).await?;
+    let data = client.get_adata(pub_seq_adata_addr).await.unwrap();
     assert_eq!(*data.address(), pub_seq_adata_addr);
-    Ok(())
 }
 
 // Test account usage statistics before and after a mutation.
 #[tokio::test]
-async fn account_info() -> Result<(), AppError> {
+async fn account_info() {
     // Create an app that can access the owner's coin balance and mutate data on behalf of user.
+    
+    // is this creating transfer actor???
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_money: false,
         data_mutations: true,
         read_balance: true,
+        read_transfer_history: true,
+
     };
 
-    let app = create_app_by_req(&app_auth_req).await?;
+    println!("111111111111111111111111111111111111111111111111111111111");
+    let app = create_app_by_req(&app_auth_req).await.unwrap();
     let client = app.client;
-    let orig_balance: Money = client.get_balance(None).await?;
+
+    println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let orig_balance: Money = client.get_balance(None).await.unwrap();
+    println!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 
     client
         .put_idata(PubImmutableData::new(vec![1, 2, 3]))
-        .await?;
+        .await.unwrap();
 
-    let new_balance: Money = client.get_balance(None).await?;
+    let new_balance: Money = client.get_balance(None).await.unwrap();
 
     assert_eq!(
         new_balance,
         orig_balance
             .checked_sub(COST_OF_PUT)
-            .ok_or_else(|| AppError::Unexpected("failed to substract cost of put".to_string()))?
+            .ok_or_else(|| AppError::Unexpected("failed to substract cost of put".to_string())).unwrap()
     );
-    Ok(())
 }

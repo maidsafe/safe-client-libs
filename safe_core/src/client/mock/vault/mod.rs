@@ -214,8 +214,12 @@ impl Vault {
         let requester = XorName::from(requester_pk);
         let balance = self.get_balance(&owner)?;
 
-        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>OWNWER {:?}, requestet: {:?}", owner, requester_pk );
-        // Checks if the requester is the owner
+        println!(
+            ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>OWNWER {:?}, requestet: {:?}",
+            owner, requester_pk
+        );
+        // Prior this was a xorname vs pk check... which wouldn't happen?
+        // // Checks if the requester is the owner
         if owner == requester_pk {
             for operation in operations {
                 // Mutation operations must be checked for min COST_OF_PUT balance
@@ -239,6 +243,8 @@ impl Vault {
             debug!("App not authorised");
             SndError::AccessDenied
         })?;
+
+        println!("////////////////////////////////////////////////////////////");
         // Iterates over the list of operations requested to authorise.
         // Will fail to authorise any even if one of the requested operations had been denied.
         for operation in operations {
@@ -250,6 +256,7 @@ impl Vault {
                     }
                 }
                 Operation::GetBalance => {
+                   
                     if !perms.read_balance {
                         debug!("Reading balance not authorised");
                         return Err(SndError::AccessDenied);
@@ -276,7 +283,7 @@ impl Vault {
     }
 
     // Commit a mutation.
-    pub fn commit_mutation(&mut self, account: &PublicKey) {
+    pub fn debit_cost_of_mutation(&mut self, account: &PublicKey) {
         if !unlimited_money(&self.config) {
             let balance = unwrap!(self.read_account_balance_mut(account));
             // Cannot fail - Balance is checked before
@@ -305,18 +312,14 @@ impl Vault {
     }
 
     /// test func for creating balance via simulated farming payout
-    pub(crate) fn create_balance(
-        &mut self,
-        owner: PublicKey,
-        amount: Money
-    ) -> SndResult<()> {
+    pub(crate) fn create_balance(&mut self, owner: PublicKey, amount: Money) -> SndResult<()> {
         if self.read_account_balance(&owner).is_some() {
             return Err(SndError::BalanceExists);
         }
         let _ = self
             .cache
             .account_balances
-            .insert(owner, AccountBalance::new( amount, owner));
+            .insert(owner, AccountBalance::new(amount, owner));
         Ok(())
     }
 
@@ -325,12 +328,11 @@ impl Vault {
         &mut self,
         destination: PublicKey,
         amount: Money,
-        transfer_id: TransferId
+        transfer_id: TransferId,
     ) -> SndResult<Transfer> {
-
         let _ = match self.read_account_balance_mut(&destination) {
             Some(balance) => balance.credit_balance(amount, transfer_id)?,
-            None => self.create_balance(destination, amount)?
+            None => self.create_balance(destination, amount)?,
         };
         Ok(Transfer {
             to: destination,
@@ -338,8 +340,6 @@ impl Vault {
             amount,
         })
     }
-
-
 
     pub(crate) fn transfer_money(
         &mut self,
@@ -349,9 +349,11 @@ impl Vault {
         transfer_id: TransferId,
     ) -> SndResult<Transfer> {
         let unlimited = unlimited_money(&self.config);
-        println!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxfer {:?} from, {:?}", amount, source);
+        println!(
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxfer {:?} from, {:?}",
+            amount, source
+        );
 
-        
         let _ = match self.read_account_balance_mut(&source) {
             Some(balance) => {
                 if !unlimited {
@@ -361,15 +363,14 @@ impl Vault {
             // None => (),
             None => {
                 println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!THIS ODESNNNNNT EXIST");
-                return Err(SndError::NoSuchBalance)
-            },
+                return Err(SndError::NoSuchBalance);
+            }
         };
 
         // Nonexistant target doesn't matter as this is how we create target accounts.
         let _ = match self.read_account_balance_mut(&destination) {
             Some(balance) => balance.credit_balance(amount, transfer_id)?,
-            None => self.create_balance(destination, amount)?
-            // None => return Err(SndError::NoSuchBalance),
+            None => self.create_balance(destination, amount)?, // None => return Err(SndError::NoSuchBalance),
         };
 
         println!("***************************************");
@@ -464,29 +465,32 @@ impl Vault {
         data: Data,
         requester: PublicId,
     ) -> SndResult<()> {
-        let (requester_key, key) = match requester.clone() {
+        let (requester_key, owner_key) = match requester.clone() {
             PublicId::Client(client_public_id) => (
                 *client_public_id.public_key(),
                 *client_public_id.public_key(),
             ),
             PublicId::App(app_public_id) => {
-                (*app_public_id.public_key(), *app_public_id.public_key())
+                println!("Wee see iots an appp okay.............");
+                (*app_public_id.public_key(), *app_public_id.owner().public_key())
             }
             _ => return Err(SndError::AccessDenied),
         };
-        self.authorise_operations(&[Operation::Mutation], requester_key, key)?;
+
+        println!("and then auth.... w. req key: {:?}, key: {:?}", requester_key, owner_key);
+        self.authorise_operations(&[Operation::Mutation],  owner_key, requester_key,)?;
         if self.contains_data(&data_name) {
             // Published Immutable Data is de-duplicated
             if let DataId::Immutable(addr) = data_name {
                 if addr.is_pub() {
-                    self.commit_mutation(&requester.public_key());
+                    self.debit_cost_of_mutation(&owner_key);
                     return Ok(());
                 }
             }
             Err(SndError::DataExists)
         } else {
             self.insert_data(data_name, data);
-            self.commit_mutation(&requester.public_key());
+            self.debit_cost_of_mutation(&owner_key);
             Ok(())
         }
     }
