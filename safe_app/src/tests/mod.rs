@@ -85,7 +85,6 @@ async fn get_access_info() -> Result<(), AppError> {
                 data_mutations: true,
                 read_balance: true,
                 read_transfer_history: true,
-
             },
             containers: container_permissions,
         },
@@ -166,7 +165,6 @@ async fn authorise_app(
                 data_mutations: true,
                 read_balance: true,
                 read_transfer_history: true,
-
             },
             containers: HashMap::new(),
         },
@@ -292,7 +290,8 @@ async fn unregistered_client() {
     assert_eq!(data, pub_idata.into());
     let data = client
         .get_adata(ADataAddress::PubUnseq { name: addr, tag })
-        .await.unwrap();
+        .await
+        .unwrap();
     assert_eq!(data.address(), pub_adata.address());
     assert_eq!(data.tag(), pub_adata.tag());
     match client
@@ -382,7 +381,7 @@ async fn published_data_access() {
 #[tokio::test]
 async fn account_info() {
     // Create an app that can access the owner's coin balance and mutate data on behalf of user.
-    
+
     // is this creating transfer actor???
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
@@ -390,7 +389,6 @@ async fn account_info() {
         data_mutations: true,
         read_balance: true,
         read_transfer_history: true,
-
     };
 
     println!("111111111111111111111111111111111111111111111111111111111");
@@ -403,7 +401,8 @@ async fn account_info() {
 
     client
         .put_idata(PubImmutableData::new(vec![1, 2, 3]))
-        .await.unwrap();
+        .await
+        .unwrap();
 
     let new_balance: Money = client.get_balance(None).await.unwrap();
 
@@ -411,6 +410,7 @@ async fn account_info() {
         new_balance,
         orig_balance
             .checked_sub(COST_OF_PUT)
-            .ok_or_else(|| AppError::Unexpected("failed to substract cost of put".to_string())).unwrap()
+            .ok_or_else(|| AppError::Unexpected("failed to substract cost of put".to_string()))
+            .unwrap()
     );
 }

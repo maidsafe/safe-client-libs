@@ -22,7 +22,7 @@ use safe_core::{
     config_handler::Config,
     crypto::{shared_box, shared_secretbox},
     ipc::BootstrapConfig,
-    utils, Client, ClientKeys, ClientTransferValidator, ConnectionManager, CoreError, MDataInfo,
+    utils, Client, ClientKeys, ConnectionManager, CoreError, MDataInfo,
     NetworkTx, TransferActor,
 };
 use safe_nd::{
@@ -244,7 +244,10 @@ impl AuthClient {
         let client_full_id = create_client_id(&acc_locator.0);
         let client_pk = *client_full_id.public_id().public_key();
 
-        println!("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ actual owner pk: {:?}", client_pk);
+        println!(
+            "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ actual owner pk: {:?}",
+            client_pk
+        );
         let client_full_id = SafeKey::client(client_full_id);
 
         let user_cred = UserCred::new(password, pin);
@@ -777,7 +780,7 @@ mod tests {
         let new_login_packet = unwrap!(LoginPacket::new(acc_loc, client_pk, acc_ciphertext, sig));
         let new_login_packet2 = new_login_packet.clone();
         let five_coins = unwrap!(Money::from_str("5"));
-        let client_id = gen_client_id();
+        let _client_id = gen_client_id();
 
         // The `random_client()` initializes the client with 10 coins.
         let start_bal = Money::from_str("10").unwrap();
@@ -787,7 +790,7 @@ mod tests {
         let c1 = client.clone();
         let c2 = client.clone();
         let c3 = client.clone();
-        let c4 = client.clone();
+        let _c4 = client.clone();
 
         // Make sure no error occurred.
         let _ = client
@@ -831,7 +834,7 @@ mod tests {
             Err(CoreError::DataError(SndError::LoginPacketExists)) => {
                 // setup oneshot client actor for send/receive via keys
                 let (random_sender, _random_receiver) = mpsc::unbounded();
-                let mut connection_manager = attempt_bootstrap(
+                let connection_manager = attempt_bootstrap(
                     &Config::new().quic_p2p,
                     &random_sender,
                     random_target_id.clone(),

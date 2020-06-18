@@ -497,7 +497,6 @@ async fn restricted_access_and_deletion() -> Result<(), AppError> {
                         data_mutations: true,
                         read_balance: true,
                         read_transfer_history: true,
-
                     },
                     version + 1,
                 )

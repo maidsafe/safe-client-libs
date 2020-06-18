@@ -103,7 +103,6 @@ fn get_random_sk_set() -> SecretKeySet {
 impl TransferActor {
     /// Create a new Transfer Actor for a previously unused public key
     pub async fn new(safe_key: SafeKey, cm: ConnectionManager) -> Result<Self, CoreError> {
-
         println!("Initiating transfer actor????????????????????????????????????????????????????????????????????????????????????????????????????? {:?}", safe_key.public_key());
         let simulated_farming_payout_dot =
             Dot::new(PublicKey::from(SecretKey::random().public_key()), 0);
@@ -136,14 +135,21 @@ impl TransferActor {
                 SafeKey::Client(_) => {
                     // we're testing, and currently a lot of tests expect 10 money to start
                     let _ = actor
-                        .trigger_simulated_farming_payout(cm, safe_key.public_key(), Money::from_str("10")?)
+                        .trigger_simulated_farming_payout(
+                            cm,
+                            safe_key.public_key(),
+                            Money::from_str("10")?,
+                        )
                         .await?;
-
-                },
+                }
                 SafeKey::App(_) => {
                     let _ = actor
-                    .trigger_simulated_farming_payout(cm, safe_key.public_key(), Money::from_str("1.7")?)
-                    .await?;
+                        .trigger_simulated_farming_payout(
+                            cm,
+                            safe_key.public_key(),
+                            Money::from_str("1.7")?,
+                        )
+                        .await?;
                 }
             }
         }
@@ -241,7 +247,7 @@ impl TransferActor {
         pk: Option<PublicKey>,
         // client_id: &ClientFullId,
     ) -> Result<Money, CoreError>
-    // where
+// where
     //     Self: Sized,
     {
         // first get history and rehydrate
@@ -250,7 +256,7 @@ impl TransferActor {
         let identity = self.safe_key.clone();
         let pub_id = identity.public_id();
 
-        let public_key = pk.unwrap_or(identity.public_key() );
+        let public_key = pk.unwrap_or(identity.public_key());
 
         let message_id = MessageId::new();
 
@@ -279,7 +285,7 @@ impl TransferActor {
     /// Send money
     pub async fn send_money(
         &mut self,
-        mut cm: ConnectionManager,
+        cm: ConnectionManager,
         to: PublicKey,
         amount: Money,
     ) -> Result<Response, CoreError> {
@@ -321,7 +327,7 @@ impl TransferActor {
     /// Creates passed login packet for a new account
     pub async fn create_login_for(
         &mut self,
-        mut cm: ConnectionManager,
+        cm: ConnectionManager,
         new_owner: PublicKey,
         amount: Money,
         login_packet: LoginPacket,
@@ -464,7 +470,7 @@ impl TransferActor {
             // update our actor with this new info
             let event = match res.clone() {
                 Response::TransferRegistration(res) => {
-                    let transfer_registered = res?;
+                    let _transfer_registered = res?;
 
                     // we need our fake transfer to be signed by debiting replicas sig.
                     let fake_signed_transfer = SignedTransfer {
@@ -488,7 +494,12 @@ impl TransferActor {
 
                     ReplicaEvent::TransferPropagated(propogated)
                 }
-                _ => return Err(CoreError::from(format!("Error registering simulated farming event {:?}", res))),
+                _ => {
+                    return Err(CoreError::from(format!(
+                        "Error registering simulated farming event {:?}",
+                        res
+                    )))
+                }
             };
 
             // Create transfers synced to apply to our actor
@@ -577,7 +588,7 @@ mod tests {
     #[tokio::test]
     #[cfg(not(feature = "mock-network"))]
     async fn transfer_actor_creation_hydration_for_existing_balance() {
-        let (safe_key, cm) = get_keys_and_connection_manager().await;
+        let (safe_key, _cm) = get_keys_and_connection_manager().await;
         let (safe_key_two, cm) = get_keys_and_connection_manager().await;
 
         let mut initial_actor = TransferActor::new(safe_key.clone(), cm.clone())

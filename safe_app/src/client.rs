@@ -76,7 +76,7 @@ impl AppClient {
                 net_tx,
             ))),
             app_inner: Arc::new(Mutex::new(AppInner::new(app_keys, pk, config))),
-            transfer_actor: None
+            transfer_actor: None,
         })
     }
 
@@ -132,14 +132,16 @@ impl AppClient {
             attempt_bootstrap(&qp2p_config, &net_tx, keys.app_safe_key()).await?;
 
         connection_manager = connection_manager_wrapper_fn(connection_manager);
-        let validator = ClientTransferValidator {};
+        let _validator = ClientTransferValidator {};
         // Here for now, Actor with 10 setup, as before
         // transfer actor handles all our responses and proof aggregation
-        let transfer_actor = Some( TransferActor::new(
-            SafeKey::app(keys.clone().app_full_id),
-            connection_manager.clone(),
-        )
-        .await?);
+        let transfer_actor = Some(
+            TransferActor::new(
+                SafeKey::app(keys.clone().app_full_id),
+                connection_manager.clone(),
+            )
+            .await?,
+        );
 
         Ok(Self {
             inner: Arc::new(Mutex::new(Inner::new(

@@ -53,11 +53,11 @@ use safe_nd::{
     AData, ADataAddress, ADataAppendOperation, ADataEntries, ADataEntry, ADataIndex, ADataIndices,
     ADataOwner, ADataPermissions, ADataPubPermissionSet, ADataPubPermissions, ADataRequest,
     ADataUnpubPermissionSet, ADataUnpubPermissions, ADataUser, AppPermissions, ClientFullId,
-    ClientRequest, IData, IDataAddress, IDataRequest, LoginPacket, LoginPacketRequest, MData,
-    MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet, MDataRequest,
-    MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions, MDataValue,
-    MDataValues, Message, MessageId, Money, MoneyRequest, PublicId, PublicKey, Request,
-    RequestType, Response, SeqMutableData, Transfer, TransferRegistered, UnseqMutableData, XorName, Error as SndError
+    ClientRequest, Error as SndError, IData, IDataAddress, IDataRequest, LoginPacket,
+    LoginPacketRequest, MData, MDataAddress, MDataEntries, MDataEntryActions, MDataPermissionSet,
+    MDataRequest, MDataSeqEntries, MDataSeqEntryActions, MDataSeqValue, MDataUnseqEntryActions,
+    MDataValue, MDataValues, Message, MessageId, Money, MoneyRequest, PublicId, PublicKey, Request,
+    RequestType, Response, SeqMutableData, Transfer, TransferRegistered, UnseqMutableData, XorName,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
@@ -243,7 +243,10 @@ pub trait Client: Clone + Send + Sync {
 
         let cm = self.inner().lock().await.connection_manager.clone();
 
-        let mut actor = self.transfer_actor().await.ok_or(CoreError::from("No TransferActor found for client."))?;
+        let mut actor = self
+            .transfer_actor()
+            .await
+            .ok_or(CoreError::from("No TransferActor found for client."))?;
 
         let transfer_result = actor.send_money(cm, to, amount).await?;
 
@@ -251,61 +254,63 @@ pub trait Client: Clone + Send + Sync {
 
         match transfer_result {
             // Ok(res) => match res {
-                Response::TransferRegistration(result) => match result {
-                    Ok(transfer) => Ok(transfer),
-                    Err(error) => Err(CoreError::from(error)),
-                    // Err(error) => Err(CoreError::from(error)),
-                },
-                _ => Err(CoreError::ReceivedUnexpectedEvent),
-            }
-            // },
-            // This error comes direct from the actor, disctinct form network insufficent balance... 
-            // TODO: do we need to distinguish?
-            // Err(CoreError::DataError(SndError::InsufficientBalance)) => Err(CoreError::DataError(SndError::InsufficientBalance)),
-            // Err(_error) => Err(CoreError::ReceivedUnexpectedEvent),
+            Response::TransferRegistration(result) => match result {
+                Ok(transfer) => Ok(transfer),
+                Err(error) => Err(CoreError::from(error)),
+                // Err(error) => Err(CoreError::from(error)),
+            },
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+        // },
+        // This error comes direct from the actor, disctinct form network insufficent balance...
+        // TODO: do we need to distinguish?
+        // Err(CoreError::DataError(SndError::InsufficientBalance)) => Err(CoreError::DataError(SndError::InsufficientBalance)),
+        // Err(_error) => Err(CoreError::ReceivedUnexpectedEvent),
         // }
     }
 
-        /// Transfer coin balance
-        async fn transfer_money_as(
-            &self,
-            from: Option<PublicKey>,
-            to: PublicKey,
-            amount: Money,
-        ) -> Result<TransferRegistered, CoreError>
-        where
-            Self: Sized,
-        {
-            trace!("Transfer {} money to {:?}", amount, to);
-            // TODO: retrieve our actor for this clientID....
-            // we can remove that and set up an API for transfer_as if needs be...
-    
-            let cm = self.inner().lock().await.connection_manager.clone();
-    
-            let mut actor = self.transfer_actor().await.ok_or(CoreError::from("No TransferActor found for client."))?;
-    
-            let transfer_result = actor.send_money(cm, to, amount).await?;
-    
-            println!("SEND MONEY returns {:?}", transfer_result);
-    
-            match transfer_result {
-                // Ok(res) => match res {
-                    Response::TransferRegistration(result) => match result {
-                        Ok(transfer) => Ok(transfer),
-                        Err(error) => Err(CoreError::from(error)),
-                        // Err(error) => Err(CoreError::from(error)),
-                    },
-                    _ => Err(CoreError::ReceivedUnexpectedEvent),
-                }
-                // },
-                // This error comes direct from the actor, disctinct form network insufficent balance... 
-                // TODO: do we need to distinguish?
-                // Err(CoreError::DataError(SndError::InsufficientBalance)) => Err(CoreError::DataError(SndError::InsufficientBalance)),
-                // Err(_error) => Err(CoreError::ReceivedUnexpectedEvent),
-            // }
-        }
+    /// Transfer coin balance
+    async fn transfer_money_as(
+        &self,
+        _from: Option<PublicKey>,
+        to: PublicKey,
+        amount: Money,
+    ) -> Result<TransferRegistered, CoreError>
+    where
+        Self: Sized,
+    {
+        trace!("Transfer {} money to {:?}", amount, to);
+        // TODO: retrieve our actor for this clientID....
+        // we can remove that and set up an API for transfer_as if needs be...
 
-        
+        let cm = self.inner().lock().await.connection_manager.clone();
+
+        let mut actor = self
+            .transfer_actor()
+            .await
+            .ok_or(CoreError::from("No TransferActor found for client."))?;
+
+        let transfer_result = actor.send_money(cm, to, amount).await?;
+
+        println!("SEND MONEY returns {:?}", transfer_result);
+
+        match transfer_result {
+            // Ok(res) => match res {
+            Response::TransferRegistration(result) => match result {
+                Ok(transfer) => Ok(transfer),
+                Err(error) => Err(CoreError::from(error)),
+                // Err(error) => Err(CoreError::from(error)),
+            },
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+        // },
+        // This error comes direct from the actor, disctinct form network insufficent balance...
+        // TODO: do we need to distinguish?
+        // Err(CoreError::DataError(SndError::InsufficientBalance)) => Err(CoreError::DataError(SndError::InsufficientBalance)),
+        // Err(_error) => Err(CoreError::ReceivedUnexpectedEvent),
+        // }
+    }
+
     // TODO: is this API needed at all? Why not just transfer?
     /// Creates a new balance on the network.
     async fn create_balance(
@@ -325,7 +330,10 @@ pub trait Client: Clone + Send + Sync {
         // TODO: retrieve our actor for this clientID....
         let cm = self.inner().lock().await.connection_manager.clone();
 
-        let mut actor = self.transfer_actor().await.ok_or(CoreError::from("No TransferActor found for client."))?;
+        let mut actor = self
+            .transfer_actor()
+            .await
+            .ok_or(CoreError::from("No TransferActor found for client."))?;
 
         // TODO: is this send_money or what shoudl this API be?
         // let transfer_result = actor
@@ -384,9 +392,12 @@ pub trait Client: Clone + Send + Sync {
             amount
         );
 
-        let mut cm = self.inner().lock().await.connection_manager.clone();
+        let cm = self.inner().lock().await.connection_manager.clone();
 
-        let mut actor = self.transfer_actor().await.ok_or(CoreError::from("No TransferActor found for client."))?;
+        let mut actor = self
+            .transfer_actor()
+            .await
+            .ok_or(CoreError::from("No TransferActor found for client."))?;
 
         let response = actor
             .create_login_for(cm, new_owner, amount, new_login_packet)
@@ -438,25 +449,24 @@ pub trait Client: Clone + Send + Sync {
 
                 // we're a standard client grabbing our own key's balance
                 self.transfer_actor()
-                    .await.ok_or(CoreError::from("No TransferActor found for client."))?
+                    .await
+                    .ok_or(CoreError::from("No TransferActor found for client."))?
                     .get_balance_from_network(&mut cm, None)
                     .await
-
-            },
+            }
             SafeKey::App(_) => {
-
                 println!("We're an app so getting owner balance.....");
                 // we're an app. We have no balance made at this key (yet in general)
                 // so we want to check our owner's balance.
-                // TODO: Apps should have their own keys w/ loaded amounts. 
+                // TODO: Apps should have their own keys w/ loaded amounts.
                 // ownership / perms should come down to keys on a wallet... (how would this look vault side?)
                 self.transfer_actor()
-                .await.ok_or(CoreError::from("No TransferActor found for client."))?
-                .get_balance_from_network(&mut cm, Some(self.owner_key().await))
-                .await
+                    .await
+                    .ok_or(CoreError::from("No TransferActor found for client."))?
+                    .get_balance_from_network(&mut cm, Some(self.owner_key().await))
+                    .await
             }
         }
-
     }
 
     /// Put immutable data to the network.
@@ -1416,7 +1426,10 @@ pub trait Client: Clone + Send + Sync {
 
         let cm = self.inner().lock().await.connection_manager.clone();
 
-        let mut actor = self.transfer_actor().await.ok_or(CoreError::from("No TransferActor found for client."))?;
+        let mut actor = self
+            .transfer_actor()
+            .await
+            .ok_or(CoreError::from("No TransferActor found for client."))?;
 
         let transfer_result = actor
             .trigger_simulated_farming_payout(cm, self.public_key().await, amount)
@@ -1429,7 +1442,11 @@ pub trait Client: Clone + Send + Sync {
         println!(
             "balance now: {:?} {:?}",
             actor.get_local_balance().await,
-            self.transfer_actor().await.ok_or(CoreError::from("No TransferActor found for client."))?.get_local_balance().await
+            self.transfer_actor()
+                .await
+                .ok_or(CoreError::from("No TransferActor found for client."))?
+                .get_local_balance()
+                .await
         );
 
         match transfer_result {
@@ -1477,9 +1494,9 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<
     let (net_tx, _net_rx) = mpsc::unbounded();
 
     let mut cm = attempt_bootstrap(&Config::new().quic_p2p, &net_tx, full_id.clone()).await?;
-    
+
     // actor starts with 10....
-    let mut actor = TransferActor::new(full_id.clone(), cm.clone()).await?; 
+    let mut actor = TransferActor::new(full_id.clone(), cm.clone()).await?;
 
     let public_id = full_id.public_id();
 
@@ -1491,8 +1508,9 @@ pub async fn test_create_balance(owner: &ClientFullId, amount: Money) -> Result<
 
     let public_key = full_id.public_key();
 
-
-    let response = actor.trigger_simulated_farming_payout(cm.clone(), public_key, amount).await?;
+    let response = actor
+        .trigger_simulated_farming_payout(cm.clone(), public_key, amount)
+        .await?;
 
     let _result = match response {
         Response::TransferRegistration(res) => res.map(|_| Ok(()))?,
@@ -1687,7 +1705,7 @@ mod tests {
     use super::*;
     use crate::utils::generate_random_vector;
     use crate::utils::test_utils::{
-        calculate_new_balance, gen_bls_keypair, gen_client_id, random_client,
+        calculate_new_balance, gen_bls_keypair, random_client,
     };
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
@@ -1947,7 +1965,6 @@ mod tests {
         Ok(())
     }
 
-
     // TODO: Wallet only client doesn't currently exist.
     // 1. Create 2 accounts and create a wallet only for account A.
     // 2. Try to transfer money from A to inexistent wallet. This request should fail.
@@ -1983,7 +2000,8 @@ mod tests {
         }
         client
             .test_simulate_farming_payout_client(unwrap!(Money::from_str("50.0")))
-            .await.unwrap();
+            .await
+            .unwrap();
         let res = client
             .transfer_money(wallet_a_addr, unwrap!(Money::from_str("10")))
             .await;
@@ -2019,7 +2037,10 @@ mod tests {
             .test_simulate_farming_payout_client(init_bal)
             .await
             .unwrap();
-        assert_eq!(client.get_balance(None).await.unwrap(), unwrap!(Money::from_str("499.999999999"))); // 500 - 1nano for encrypted-account-data
+        assert_eq!(
+            client.get_balance(None).await.unwrap(),
+            unwrap!(Money::from_str("499.999999999"))
+        ); // 500 - 1nano for encrypted-account-data
 
         // Lets create our other account here....
         // TODO: Setup actualy keys-only clients
@@ -2048,8 +2069,11 @@ mod tests {
 
         // we add ten when testing to created clients
         let initial_bal_with_default_ten = Money::from_str("500").unwrap();
-        let expected =
-            calculate_new_balance(initial_bal_with_default_ten, Some(1), Some(unwrap!(Money::from_str("95")))); 
+        let expected = calculate_new_balance(
+            initial_bal_with_default_ten,
+            Some(1),
+            Some(unwrap!(Money::from_str("95"))),
+        );
         assert_eq!(balance, expected);
         let random_pk = gen_bls_keypair().public_key();
 
@@ -2083,7 +2107,8 @@ mod tests {
 
         client
             .test_simulate_farming_payout_client(unwrap!(Money::from_str("100.0")))
-            .await.unwrap();
+            .await
+            .unwrap();
         let balance = client.get_balance(None).await.unwrap();
         assert_eq!(balance, unwrap!(Money::from_str("109.999999999"))); // 10 coins added automatically w/ farming sim on account creation. 1 nano paid.
 
@@ -2092,7 +2117,8 @@ mod tests {
         let orig_balance = client.get_balance(None).await.unwrap();
         let _ = client
             .transfer_money(wallet1, unwrap!(Money::from_str("5.0")))
-            .await.unwrap();
+            .await
+            .unwrap();
         let new_balance = client.get_balance(None).await.unwrap();
         assert_eq!(
             new_balance,
@@ -2122,8 +2148,12 @@ mod tests {
 
         // send all our money elsewhere to make sure we fail the next put
         let _ = client
-            .transfer_money(client_to_get_all_money.public_key().await, unwrap!(Money::from_str("4.999999999")))
-            .await.unwrap();
+            .transfer_money(
+                client_to_get_all_money.public_key().await,
+                unwrap!(Money::from_str("4.999999999")),
+            )
+            .await
+            .unwrap();
         let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
         let res = client.put_idata(data).await;
         match res {

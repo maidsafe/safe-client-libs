@@ -47,8 +47,10 @@ impl Vault {
                 let result = if errored {
                     Err(SndError::InvalidOwners)
                 } else {
-
-                    println!("HEre in putting idata.... we try as requester...., {:?}", requester);
+                    println!(
+                        "HEre in putting idata.... we try as requester...., {:?}",
+                        requester
+                    );
                     self.put_data(
                         DataId::Immutable(*idata.address()),
                         Data::Immutable(idata.clone()),

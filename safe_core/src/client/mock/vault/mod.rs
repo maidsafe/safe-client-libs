@@ -256,7 +256,6 @@ impl Vault {
                     }
                 }
                 Operation::GetBalance => {
-                   
                     if !perms.read_balance {
                         debug!("Reading balance not authorised");
                         return Err(SndError::AccessDenied);
@@ -472,13 +471,19 @@ impl Vault {
             ),
             PublicId::App(app_public_id) => {
                 println!("Wee see iots an appp okay.............");
-                (*app_public_id.public_key(), *app_public_id.owner().public_key())
+                (
+                    *app_public_id.public_key(),
+                    *app_public_id.owner().public_key(),
+                )
             }
             _ => return Err(SndError::AccessDenied),
         };
 
-        println!("and then auth.... w. req key: {:?}, key: {:?}", requester_key, owner_key);
-        self.authorise_operations(&[Operation::Mutation],  owner_key, requester_key,)?;
+        println!(
+            "and then auth.... w. req key: {:?}, key: {:?}",
+            requester_key, owner_key
+        );
+        self.authorise_operations(&[Operation::Mutation], owner_key, requester_key)?;
         if self.contains_data(&data_name) {
             // Published Immutable Data is de-duplicated
             if let DataId::Immutable(addr) = data_name {

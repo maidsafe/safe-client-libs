@@ -651,7 +651,6 @@ async fn test_registered_apps() -> Result<(), AuthError> {
         data_mutations: true,
         read_balance: false,
         read_transfer_history: true,
-
     };
 
     let auth_req2 = AuthReq {

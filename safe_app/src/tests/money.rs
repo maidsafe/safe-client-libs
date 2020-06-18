@@ -10,11 +10,11 @@
 //! Testing Safemoney operations from the apps point of view.
 
 use crate::test_utils::{create_app, create_app_by_req, create_random_auth_req};
-use crate::AppError;
-use safe_core::{Client, CoreError};
-use safe_nd::{AppPermissions, Error, Money, ClientFullId};
-use std::str::FromStr;
+
 use rand::thread_rng;
+use safe_core::{Client, CoreError};
+use safe_nd::{AppPermissions, ClientFullId, Error, Money};
+use std::str::FromStr;
 
 // Apps should not be able to request the money balance if they don't have
 // explicit permissions.
@@ -24,18 +24,16 @@ use rand::thread_rng;
 // 4. Try to transfer money from balance A to some other random money balance B. This request must fail.
 // 5. Try to get an existing transfer_id from the app. This request must fail.
 #[tokio::test]
-async fn money_app_deny_permissions()  {
+async fn money_app_deny_permissions() {
     let mut app_auth_req = create_random_auth_req();
     app_auth_req.app_permissions = AppPermissions {
         transfer_money: false,
         data_mutations: false,
         read_balance: false,
         read_transfer_history: false,
-
     };
 
-
-    // need to know how this creates its client. 
+    // need to know how this creates its client.
     let app = create_app_by_req(&app_auth_req).await.unwrap();
 
     let client = app.client;
@@ -62,7 +60,7 @@ async fn money_app_deny_permissions()  {
     println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..");
     println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>..");
     match client
-        .transfer_money( random_target_pk, Money::from_str("1.0").unwrap())
+        .transfer_money(random_target_pk, Money::from_str("1.0").unwrap())
         .await
     {
         Err(CoreError::DataError(Error::AccessDenied)) => (),
@@ -87,7 +85,6 @@ async fn money_app_allow_permissions() {
         data_mutations: false,
         read_balance: true,
         read_transfer_history: true,
-
     };
 
     let _app = create_app_by_req(&app_auth_req).await.unwrap();
@@ -96,7 +93,7 @@ async fn money_app_allow_permissions() {
     let _ = client.get_balance(None).await.unwrap();
 
     match client
-        .transfer_money( money_balance, Money::from_str("1.1").unwrap())
+        .transfer_money(money_balance, Money::from_str("1.1").unwrap())
         .await
     {
         Ok(transfer) => {

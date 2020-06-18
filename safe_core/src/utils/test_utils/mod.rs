@@ -20,7 +20,7 @@ use futures::{channel::mpsc, future::Future};
 use log::trace;
 use safe_nd::{AppFullId, ClientFullId, ClientPublicId, Keypair, Money};
 use std::fmt::Debug;
-use std::str::FromStr;
+
 use tokio::stream::StreamExt;
 use unwrap::unwrap;
 

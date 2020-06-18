@@ -41,7 +41,10 @@ impl AccountBalance {
     }
 
     pub fn debit_balance(&mut self, amount: Money) -> Result<(), Error> {
-        println!("DEBITTTTTTTTTTTTTTTTTTTTTTT of, {:?} from {:?}", amount, self.value);
+        println!(
+            "DEBITTTTTTTTTTTTTTTTTTTTTTT of, {:?} from {:?}",
+            amount, self.value
+        );
         if let Some(new_balance) = self.value.checked_sub(amount) {
             self.value = new_balance;
             Ok(())
