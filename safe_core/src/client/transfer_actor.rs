@@ -130,7 +130,7 @@ impl TransferActor {
             simulated_farming_payout_dot, // replicas_sk_set
         };
 
-        #[cfg(feature = "testing")]
+        #[cfg(feature = "simulated-payouts")]
         {
             match safe_key {
                 SafeKey::Client(_) => {
@@ -416,7 +416,7 @@ impl TransferActor {
         cm.send(&pub_id, &message).await
     }
 
-    #[cfg(feature = "testing")]
+    #[cfg(feature = "simulated-payouts")]
     /// Simulate a farming payout
     pub async fn trigger_simulated_farming_payout(
         &mut self,
@@ -527,7 +527,7 @@ impl TransferActor {
 }
 
 // TODO: Do we need "new" to actually instantiate with a transfer?...
-#[cfg(all(test, feature = "testing"))]
+#[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
 
     use crate::client::attempt_bootstrap;
