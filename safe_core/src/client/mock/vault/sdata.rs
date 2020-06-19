@@ -9,7 +9,7 @@
 use super::{DataId, Vault};
 use safe_nd::{
     Data, Error as SndError, PublicId, PublicKey, Response, Result as SndResult, SData,
-    SDataAction, SDataAddress, SDataIndex, SDataRequest,
+    SDataAction, SDataAddress, SDataRequest,
 };
 
 impl Vault {
@@ -77,22 +77,19 @@ impl Vault {
                         });
                 Response::GetSDataLastEntry(result)
             }
-            SDataRequest::GetPermissions {
-                address,
-                permissions_index,
-            } => {
+            SDataRequest::GetPermissions(address) => {
                 let data = self.get_sdata(*address, requester_pk, &request);
 
                 match (address.kind(), data) {
                     (kind, Ok(ref data)) if kind.is_pub() && data.is_pub() => {
                         Response::GetSDataPermissions(
-                            data.pub_permissions(*permissions_index)
+                            data.pub_permissions(data.permissions_index())
                                 .map(|perm| perm.clone().into()),
                         )
                     }
                     (kind, Ok(ref data)) if kind.is_priv() && data.is_priv() => {
                         Response::GetSDataPermissions(
-                            data.priv_permissions(*permissions_index)
+                            data.priv_permissions(data.permissions_index())
                                 .map(|perm| perm.clone().into()),
                         )
                     }
@@ -100,14 +97,10 @@ impl Vault {
                     (_, Ok(_)) => Response::GetSDataPermissions(Err(SndError::NoSuchData)),
                 }
             }
-            SDataRequest::GetUserPermissions {
-                address,
-                permissions_index,
-                user,
-            } => {
+            SDataRequest::GetUserPermissions { address, user } => {
                 let result = self
                     .get_sdata(*address, requester_pk, &request)
-                    .and_then(move |data| data.user_permissions(*user, *permissions_index));
+                    .and_then(move |data| data.user_permissions(*user, data.permissions_index()));
                 Response::GetSDataUserPermissions(result)
             }
             SDataRequest::Mutate(op) => {
@@ -122,48 +115,48 @@ impl Vault {
                 );
                 Response::Mutation(result)
             }
-            SDataRequest::SetPermissions {
-                address,
-                permissions,
-            } => {
-                let id = DataId::Sequence(*address);
-                let result =
-                    self.get_sdata(*address, requester_pk, &request)
-                        .and_then(move |mut sdata| {
-                            sdata.set_permissions(&permissions)?;
-                            self.commit_mutation(requester.name());
-                            self.insert_data(id, Data::Sequence(sdata));
-                            Ok(())
-                        });
+            SDataRequest::MutatePubPermissions(op) => {
+                let id = DataId::Sequence(op.address);
+                let result = self.get_sdata(op.address, requester_pk, &request).and_then(
+                    move |mut sdata| {
+                        sdata.apply_crdt_pub_perms_op(op.crdt_op.clone())?;
+                        self.commit_mutation(requester.name());
+                        self.insert_data(id, Data::Sequence(sdata));
+                        Ok(())
+                    },
+                );
                 Response::Mutation(result)
             }
-            SDataRequest::SetOwner { address, owner } => {
-                let id = DataId::Sequence(*address);
-                let result =
-                    self.get_sdata(*address, requester_pk, &request)
-                        .and_then(move |mut sdata| {
-                            sdata.set_owner(*owner);
-                            self.commit_mutation(requester.name());
-                            self.insert_data(id, Data::Sequence(sdata));
-                            Ok(())
-                        });
+            SDataRequest::MutatePrivPermissions(op) => {
+                let id = DataId::Sequence(op.address);
+                let result = self.get_sdata(op.address, requester_pk, &request).and_then(
+                    move |mut sdata| {
+                        sdata.apply_crdt_priv_perms_op(op.crdt_op.clone())?;
+                        self.commit_mutation(requester.name());
+                        self.insert_data(id, Data::Sequence(sdata));
+                        Ok(())
+                    },
+                );
                 Response::Mutation(result)
             }
-            SDataRequest::GetOwner {
-                address,
-                owners_index,
-            } => {
+            SDataRequest::MutateOwner(op) => {
+                let id = DataId::Sequence(op.address);
+                let result = self.get_sdata(op.address, requester_pk, &request).and_then(
+                    move |mut sdata| {
+                        sdata.apply_crdt_owner_op(op.crdt_op.clone());
+                        self.commit_mutation(requester.name());
+                        self.insert_data(id, Data::Sequence(sdata));
+                        Ok(())
+                    },
+                );
+                Response::Mutation(result)
+            }
+            SDataRequest::GetOwner(address) => {
                 let result =
                     self.get_sdata(*address, requester_pk, &request)
-                        .and_then(move |sdata| {
-                            let index = match owners_index {
-                                SDataIndex::FromStart(index) => *index,
-                                SDataIndex::FromEnd(index) => (sdata.owners_index() - index),
-                            };
-                            match sdata.owner(index) {
-                                Some(owner) => Ok(*owner),
-                                None => Err(SndError::NoSuchEntry),
-                            }
+                        .and_then(move |sdata| match sdata.owner(sdata.owners_index()) {
+                            Some(owner) => Ok(*owner),
+                            None => Err(SndError::NoSuchEntry),
                         });
                 Response::GetSDataOwner(result)
             }
@@ -198,10 +191,10 @@ fn check_perms_sdata(sdata: &SData, request: &SDataRequest, requester: PublicKey
             SData::Private(_) => sdata.check_permission(SDataAction::Read, requester),
         },
         SDataRequest::Mutate { .. } => sdata.check_permission(SDataAction::Append, requester),
-        SDataRequest::SetPermissions { .. } => {
+        SDataRequest::MutatePubPermissions(_) | SDataRequest::MutatePrivPermissions(_) => {
             sdata.check_permission(SDataAction::ManagePermissions, requester)
         }
-        SDataRequest::SetOwner { .. } => sdata.check_is_last_owner(requester),
+        SDataRequest::MutateOwner(_) => sdata.check_is_last_owner(requester),
         SDataRequest::Delete(_) => match sdata {
             SData::Public(_) => Err(SndError::InvalidOperation),
             SData::Private(_) => sdata.check_is_last_owner(requester),
