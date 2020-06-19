@@ -482,8 +482,9 @@ dependencies = [
 
 [[package]]
 name = "crdts"
-version = "4.0.0"
-source = "git+https://github.com/bochaco/rust-crdt.git?branch=lseq-improvements#8ceba42525ba3278d0ff6b7d91662aa967ab9853"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbe3a81de7c6d486b5087559d310092b053e7e9fddefe5257b745a233b2a66a7"
 dependencies = [
  "bitvec",
  "num-bigint",
@@ -2011,7 +2012,7 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 [[package]]
 name = "safe-nd"
 version = "0.9.0"
-source = "git+https://github.com/bochaco/safe-nd.git?branch=sequence-on-lseq-crdt#9559c14110642d6134ffafb08c42aea49da879c7"
+source = "git+https://github.com/maidsafe/safe-nd.git#d36e54dd72c1e6a89970508beee390ecca13a818"
 dependencies = [
  "bincode",
  "crdts",
@@ -2028,7 +2029,7 @@ dependencies = [
 
 [[package]]
 name = "safe_app"
-version = "0.16.1"
+version = "0.16.3"
 dependencies = [
  "async-trait",
  "bincode",
@@ -2055,7 +2056,7 @@ dependencies = [
 
 [[package]]
 name = "safe_authenticator"
-version = "0.16.1"
+version = "0.16.3"
 dependencies = [
  "async-trait",
  "bincode",
@@ -2077,7 +2078,7 @@ dependencies = [
 
 [[package]]
 name = "safe_authenticator_ffi"
-version = "0.16.1"
+version = "0.16.3"
 dependencies = [
  "async-trait",
  "bincode",
@@ -2118,7 +2119,7 @@ dependencies = [
 
 [[package]]
 name = "safe_core"
-version = "0.41.1"
+version = "0.41.3"
 dependencies = [
  "async-trait",
  "bincode",

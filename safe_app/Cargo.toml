@@ -12,7 +12,7 @@ version = "0.16.3"
 
 [dependencies]
 async-trait = "~0.1.30"
-bincode = "=1.1.4"
+bincode = "~1.1.4"
 env_logger = { version = "~0.6.2", optional = true }
 ffi_utils = "0.16.0"
 futures = "~0.3.5"
@@ -41,8 +41,7 @@ safe_core = { path = "../safe_core", version = "~0.41.3", features = ["testing"]
 ffi_utils = "~0.16.0"
 jni = "~0.12.0"
 safe_bindgen = { version = "~0.13.2", optional = true }
-#safe-nd = "~0.9.0"
-safe-nd = { git = "https://github.com/bochaco/safe-nd.git", branch = "sequence-on-lseq-crdt" }
+safe-nd = { git = "https://github.com/maidsafe/safe-nd.git", branch = "master" }
 threshold_crypto = "~0.3.2"
 unwrap = "~1.2.0"
 
