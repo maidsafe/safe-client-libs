@@ -1502,6 +1502,19 @@ pub trait Client: Clone + Send + Sync {
         // Finally we can send the mutation to the network's replicas
         send_mutation(self, Request::SData(SDataRequest::MutateOwner(owner_op))).await
     }
+
+    /// Delete Private Sequence Data from the Network
+    async fn delete_sdata(&self, address: SDataAddress) -> Result<(), CoreError> {
+        trace!("Delete Private Sequence Data {:?}", address.name());
+
+        send_mutation(self, Request::SData(SDataRequest::Delete(address))).await?;
+
+        // Delete it from local Sequence CRDT replica
+        let _ = self.inner().lock().await.sdata_cache.pop(&address);
+
+        Ok(())
+    }
+
     // ========== END of Sequence Data functions =========
 
     /// Return a list of permissions in `MutableData` stored on the network.
@@ -1972,9 +1985,9 @@ pub async fn attempt_bootstrap(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::generate_random_vector;
-    use crate::utils::test_utils::{
-        calculate_new_balance, gen_bls_keypair, gen_client_id, random_client,
+    use crate::utils::{
+        generate_random_vector,
+        test_utils::{calculate_new_balance, gen_bls_keypair, gen_client_id, random_client},
     };
     use safe_nd::{
         ADataAction, ADataEntry, ADataKind, ADataOwner, ADataUnpubPermissionSet,
@@ -3082,7 +3095,7 @@ mod tests {
         let tag = 15000;
         let owner = client.public_key().await;
 
-        // store a public Sequence
+        // store a Private Sequence
         let mut perms = BTreeMap::<PublicKey, SDataPrivUserPermissions>::new();
         let _ = perms.insert(owner, SDataPrivUserPermissions::new(true, true, true));
         let address = client.store_priv_sdata(name, tag, owner, perms).await?;
@@ -3094,7 +3107,7 @@ mod tests {
         assert_eq!(sdata.owners_index(), 1);
         assert_eq!(sdata.entries_index(), 0);
 
-        // store a private Sequence
+        // store a Public Sequence
         let mut perms = BTreeMap::<SDataUser, SDataPubUserPermissions>::new();
         let _ = perms.insert(SDataUser::Anyone, SDataPubUserPermissions::new(true, true));
         let address = client.store_pub_sdata(name, tag, owner, perms).await?;
@@ -3336,5 +3349,56 @@ mod tests {
         assert_eq!(sim_client, current_owner.public_key);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn sdata_delete_test() -> Result<(), CoreError> {
+        let client = random_client()?;
+
+        let name = XorName(rand::random());
+        let tag = 15000;
+        let owner = client.public_key().await;
+
+        // store a Private Sequence
+        let mut perms = BTreeMap::<PublicKey, SDataPrivUserPermissions>::new();
+        let _ = perms.insert(owner, SDataPrivUserPermissions::new(true, true, true));
+        let address = client.store_priv_sdata(name, tag, owner, perms).await?;
+        let sdata = client.get_sdata(address).await?;
+        assert!(sdata.is_priv());
+
+        client.delete_sdata(address).await?;
+
+        match client.get_sdata(address).await {
+            Err(CoreError::DataError(SndError::NoSuchData)) => {}
+            Err(err) => {
+                return Err(CoreError::from(format!(
+                    "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
+                    err
+                )))
+            }
+            Ok(_) => {
+                return Err(CoreError::from(
+                    "Unexpectedly retrieved a deleted Private Sequence!",
+                ))
+            }
+        }
+
+        // store a Public Sequence
+        let mut perms = BTreeMap::<SDataUser, SDataPubUserPermissions>::new();
+        let _ = perms.insert(SDataUser::Anyone, SDataPubUserPermissions::new(true, true));
+        let address = client.store_pub_sdata(name, tag, owner, perms).await?;
+        let sdata = client.get_sdata(address).await?;
+        assert!(sdata.is_pub());
+
+        match client.delete_sdata(address).await {
+            Err(CoreError::DataError(SndError::InvalidOperation)) => Ok(()),
+            Err(err) => {
+                return Err(CoreError::from(format!(
+                    "Unexpected error returned when attempting to delete a Public Sequence: {}",
+                    err
+                )))
+            }
+            Ok(()) => Err(CoreError::from("Unexpectedly deleted a Public Sequence!")),
+        }
     }
 }

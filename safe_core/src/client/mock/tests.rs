@@ -1541,7 +1541,7 @@ async fn request_hooks() {
         &client_safe_key,
         Request::MData(MDataRequest::MutateEntries {
             address: *data2.address(),
-            actions: actions,
+            actions,
         }),
         ()
     );
