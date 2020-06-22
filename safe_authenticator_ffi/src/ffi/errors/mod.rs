@@ -178,7 +178,6 @@ fn safe_nd_error_core(err: &SndError) -> i32 {
         SndError::TooManyEntries => ERR_TOO_MANY_ENTRIES,
         SndError::InvalidEntryActions(_) => ERR_INVALID_ENTRY_ACTIONS,
         SndError::NoSuchKey => ERR_NO_SUCH_KEY,
-        SndError::KeysExist(_) => ERR_KEYS_EXIST,
         SndError::DuplicateEntryKeys => ERR_DUPLICATE_ENTRY_KEYS,
         SndError::DuplicateMessageId => ERR_DUPLICATE_MSG_ID,
         SndError::InvalidOwners => ERR_INVALID_OWNERS,

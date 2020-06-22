@@ -6,7 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-mod adata;
 mod client;
 mod coins;
 mod idata;
@@ -397,7 +396,6 @@ impl Vault {
         let response = match request {
             Request::IData(req) => self.process_idata_req(req, requester, requester_pk, owner_pk),
             Request::MData(req) => self.process_mdata_req(req, requester, requester_pk, owner_pk),
-            Request::AData(req) => self.process_adata_req(req, requester, requester_pk, owner_pk),
             Request::SData(req) => self.process_sdata_req(req, requester, requester_pk, owner_pk),
             Request::Client(req) => self.process_client_req(req, requester, requester_pk, owner_pk),
             Request::Coins(req) => self.process_coins_req(req, requester_pk, owner_pk),

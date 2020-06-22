@@ -7,8 +7,8 @@
 // specific language governing permissions and limitations relating to use of the SAFE Network
 // Software.
 
-mod append_only_data;
 mod coins;
+mod sequence;
 mod unpublished_mutable_data;
 
 use crate::test_utils::{create_app, create_random_auth_req, gen_app_exchange_info};
@@ -25,14 +25,10 @@ use safe_core::utils::test_utils::random_client;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{client::COST_OF_PUT, Client, CoreError};
-use safe_nd::{
-    ADataAddress, ADataOwner, AppPermissions, AppendOnlyData, Coins, Error as SndError,
-    PubImmutableData, PubSeqAppendOnlyData, PubUnseqAppendOnlyData, UnpubUnseqAppendOnlyData,
-    XorName,
-};
+use safe_nd::{AppPermissions, Coins, Error as SndError, IData, PubImmutableData, XorName};
 #[cfg(feature = "mock-network")]
 use safe_nd::{RequestType, Response};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use unwrap::unwrap;
 
 // Test refreshing access info by fetching it from the network.
@@ -253,48 +249,39 @@ async fn app_container_creation() -> Result<(), AppError> {
 }
 
 // Test unregistered clients.
-// 1. Have a registered clients put published immutable and published append-only data on the network.
+// 1. Have a registered clients put public immutable and public append-only data on the network.
 // 2. Try to read them as unregistered.
 #[tokio::test]
 async fn unregistered_client() -> Result<(), AppError> {
-    let addr: XorName = rand::random();
-    let tag = 15002;
-    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30)?);
-    let pub_adata = PubUnseqAppendOnlyData::new(addr, tag);
-    let mut unpub_adata = UnpubUnseqAppendOnlyData::new(addr, tag);
+    let pub_idata_content = utils::generate_random_vector(30)?;
 
     // Registered Client PUTs something onto the network.
-    {
-        let pub_idata = pub_idata.clone();
-        let mut pub_adata = pub_adata.clone();
-
+    let (pub_idata_addr, pub_sdata_addr, priv_sdata_addr) = {
         let client = random_client()?;
-        let owner = ADataOwner {
-            public_key: client.owner_key().await,
-            entries_index: 0,
-            permissions_index: 0,
-        };
-        pub_adata.append_owner(owner, 0)?;
-        unpub_adata.append_owner(owner, 0)?;
+        let pub_idata = PubImmutableData::new(pub_idata_content.clone());
+        let pub_idata_addr = *pub_idata.address();
         client.put_idata(pub_idata).await?;
-        client.put_adata(pub_adata.into()).await?;
-        client.put_adata(unpub_adata.into()).await?;
-    }
+
+        let name: XorName = rand::random();
+        let tag = 15002;
+        let owner = client.owner_key().await;
+        let pub_sdata_addr = client
+            .store_pub_sdata(name, tag, owner, BTreeMap::default())
+            .await?;
+        let priv_sdata_addr = client
+            .store_priv_sdata(name, tag, owner, BTreeMap::default())
+            .await?;
+
+        (pub_idata_addr, pub_sdata_addr, priv_sdata_addr)
+    };
 
     // Unregistered Client should be able to retrieve the data.
     let app = App::unregistered(|| (), None).await?;
-    let client = app.client;
-    let data = client.get_idata(*pub_idata.address()).await?;
-    assert_eq!(data, pub_idata.into());
-    let data = client
-        .get_adata(ADataAddress::PubUnseq { name: addr, tag })
-        .await?;
-    assert_eq!(data.address(), pub_adata.address());
-    assert_eq!(data.tag(), pub_adata.tag());
-    match client
-        .get_adata(ADataAddress::UnpubUnseq { name: addr, tag })
-        .await
-    {
+    let data = app.client.get_idata(pub_idata_addr).await?;
+    assert_eq!(data, IData::Pub(PubImmutableData::new(pub_idata_content)));
+    let data = app.client.get_sdata(pub_sdata_addr).await?;
+    assert_eq!(*data.address(), pub_sdata_addr);
+    match app.client.get_sdata(priv_sdata_addr).await {
         Err(CoreError::DataError(SndError::AccessDenied)) => (),
         res => panic!("Unexpected result {:?}", res),
     }
@@ -302,7 +289,7 @@ async fn unregistered_client() -> Result<(), AppError> {
 }
 
 // Test PUTs by unregistered clients.
-// 1. Have a unregistered client put published immutable. This should fail by returning Error
+// 1. Have a unregistered client put public immutable. This should fail by returning Error
 // as they are not allowed to PUT data into the network.
 #[tokio::test]
 async fn unregistered_client_put() -> Result<(), AppError> {
@@ -319,61 +306,49 @@ async fn unregistered_client_put() -> Result<(), AppError> {
     Ok(())
 }
 
-// Verify that published data can be accessed by both unregistered clients and clients that are not
+// Verify that public data can be accessed by both unregistered clients and clients that are not
 // in the permission set.
 #[tokio::test]
-async fn published_data_access() -> Result<(), AppError> {
-    let name: XorName = rand::random();
-    let tag = 15002;
-    let pub_idata = PubImmutableData::new(utils::generate_random_vector(30)?);
-    let mut pub_unseq_adata = PubUnseqAppendOnlyData::new(name, tag);
-    let mut pub_seq_adata = PubSeqAppendOnlyData::new(name, tag);
+async fn public_data_access() -> Result<(), AppError> {
+    let pub_idata_content = utils::generate_random_vector(30)?;
 
     // Create a random client and store some data
-    {
-        let pub_idata = pub_idata.clone();
-
+    let (pub_idata_addr, pub_sdata_addr) = {
         let client = random_client()?;
 
-        let owner = ADataOwner {
-            public_key: client.owner_key().await,
-            entries_index: 0,
-            permissions_index: 0,
-        };
-        pub_seq_adata.append_owner(owner, 0)?;
-        pub_unseq_adata.append_owner(owner, 0)?;
-
+        let pub_idata = PubImmutableData::new(pub_idata_content.clone());
+        let pub_idata_addr = *pub_idata.address();
         client.put_idata(pub_idata).await?;
-        client.put_adata(pub_seq_adata.into()).await?;
-        client.put_adata(pub_unseq_adata.into()).await?;
-    }
 
-    let pub_seq_adata_addr = ADataAddress::PubSeq { name, tag };
-    let pub_unseq_adata_addr = ADataAddress::PubUnseq { name, tag };
+        let name: XorName = rand::random();
+        let tag = 15002;
+        let owner = client.owner_key().await;
+        let perms = BTreeMap::default();
+        let pub_sdata_addr = client.store_pub_sdata(name, tag, owner, perms).await?;
+
+        (pub_idata_addr, pub_sdata_addr)
+    };
 
     // Unregistered apps should be able to read the data
     {
-        let pub_idata = pub_idata.clone();
         let app = App::unregistered(|| (), None).await?;
         let client = app.client;
 
-        let data = client.get_idata(*pub_idata.address()).await?;
-        assert_eq!(data, pub_idata.into());
-        let data = client.get_adata(pub_unseq_adata_addr).await?;
-        assert_eq!(*data.address(), pub_unseq_adata_addr);
-        let data = client.get_adata(pub_seq_adata_addr).await?;
-        assert_eq!(*data.address(), pub_seq_adata_addr);
+        let data = client.get_idata(pub_idata_addr).await?;
+        assert_eq!(
+            data,
+            IData::Pub(PubImmutableData::new(pub_idata_content.clone()))
+        );
+        let data = client.get_sdata(pub_sdata_addr).await?;
+        assert_eq!(*data.address(), pub_sdata_addr);
     }
 
     // Apps authorised by a different client be able to read the data too
     let app = create_app().await;
-    let client = app.client;
-    let data = client.get_idata(*pub_idata.address()).await?;
-    assert_eq!(data, pub_idata.into());
-    let data = client.get_adata(pub_unseq_adata_addr).await?;
-    assert_eq!(*data.address(), pub_unseq_adata_addr);
-    let data = client.get_adata(pub_seq_adata_addr).await?;
-    assert_eq!(*data.address(), pub_seq_adata_addr);
+    let data = app.client.get_idata(pub_idata_addr).await?;
+    assert_eq!(data, IData::Pub(PubImmutableData::new(pub_idata_content)));
+    let data = app.client.get_sdata(pub_sdata_addr).await?;
+    assert_eq!(*data.address(), pub_sdata_addr);
     Ok(())
 }
 
