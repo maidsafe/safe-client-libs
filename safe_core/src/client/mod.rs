@@ -389,8 +389,6 @@ pub trait Client: Clone + Send + Sync {
 
         match self.full_id().await {
             SafeKey::Client(_) => {
-                println!("We're a client so getting our own balance.....");
-
                 // we're a standard client grabbing our own key's balance
                 self.transfer_actor()
                     .await
@@ -399,7 +397,6 @@ pub trait Client: Clone + Send + Sync {
                     .await
             }
             SafeKey::App(_) => {
-                println!("We're an app so getting owner balance.....");
                 // we're an app. We have no balance made at this key (yet in general)
                 // so we want to check our owner's balance.
                 // TODO: Apps should have their own keys w/ loaded amounts.
@@ -2038,7 +2035,7 @@ mod tests {
             res => panic!("Unexpected result: {:?}", res),
         }
     }
-
+    
     // 1. Create a client A with a wallet and allocate some test safecoin to it.
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding some safecoin.
@@ -2097,7 +2094,7 @@ mod tests {
         }
 
         let client_to_get_all_money = random_client().unwrap();
-
+        println!("11111111");
         // send all our money elsewhere to make sure we fail the next put
         let _ = client
             .transfer_money(
