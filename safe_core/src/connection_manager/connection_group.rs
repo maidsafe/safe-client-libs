@@ -126,11 +126,8 @@ impl ConnectionGroup {
             response
         };
 
-
         match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), response_future).await {
-            Ok(response) => {
-                response.map_err(|err| CoreError::from(format!("{}", err)))
-            }
+            Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
             Err(_) => Err(CoreError::RequestTimeout),
         }
     }
@@ -165,7 +162,6 @@ impl ConnectionGroup {
                 {
                     Ok(proof) => {
                         if let Some(debit_agreement_proof) = proof {
-        
                             receiver_future.close();
                             response = Ok(debit_agreement_proof)
                         };
@@ -177,12 +173,8 @@ impl ConnectionGroup {
             response
         };
 
-
         match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), response_future).await {
-            Ok(response) => {
-
-                response.map_err(|err| CoreError::from(format!("{}", err)))
-            }
+            Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
             Err(_) => Err(CoreError::RequestTimeout),
         }
     }

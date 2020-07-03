@@ -1725,6 +1725,7 @@ mod tests {
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),
         }
+
         // Put idata
         client.put_idata(data.clone()).await?;
         // Test putting unpub idata with the same value.
@@ -1735,22 +1736,26 @@ mod tests {
             res => panic!("Unexpected: {:?}", res),
         }
         let balance = client.get_balance(None).await?;
-        let expected_bal = calculate_new_balance(start_bal, Some(2), None);
+        // mutation_count of 3 as even our failed op counts as a mutation
+        let expected_bal = calculate_new_balance(start_bal, Some(3), None);
         assert_eq!(balance, expected_bal);
+
         // Test putting published idata with the same value. Should not conflict.
         client.put_idata(pub_data).await?;
         // Fetch idata
         let fetched_data = client.get_idata(address).await?;
+
         assert_eq!(*fetched_data.address(), address);
+
         // Delete idata
         client.del_unpub_idata(*address.name()).await?;
         // Make sure idata was deleted
         let res = client.get_idata(address).await;
         match res {
             Ok(_) => panic!("Unpub idata still exists after deletion"),
-            Err(CoreError::DataError(SndError::NoSuchData)) => (),
-            Err(e) => panic!("Unexpected: {:?}", e),
+            Err(error) => assert!(error.to_string().contains("Chunk not found")),
         }
+
         // Test putting unpub idata with the same value again. Should not conflict.
         client9.put_idata(data3.clone()).await?;
         Ok(())
@@ -2034,7 +2039,6 @@ mod tests {
         }
     }
 
-    // TODO: re-enable variation when refunds go
     // 1. Create a client A with a wallet and allocate some test safecoin to it.
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding some safecoin.
@@ -2043,73 +2047,72 @@ mod tests {
     // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
     // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
     // 8. Set the client's balance to zero and try to put data. It should fail.
-    // #[tokio::test]
-    // async fn money_balance_transfer() {
+    #[tokio::test]
+    async fn money_balance_transfer() {
+        let client = random_client().unwrap();
 
-    //     let client = random_client().unwrap();
+        // let wallet1: XorName =
+        let _owner_key = client.owner_key().await;
+        let wallet1 = client.public_key().await;
 
-    //     // let wallet1: XorName =
-    //     let _owner_key = client.owner_key().await;
-    //     let wallet1 = client.public_key().await;
+        client
+            .test_simulate_farming_payout_client(unwrap!(Money::from_str("100.0")))
+            .await
+            .unwrap();
+        let balance = client.get_balance(None).await.unwrap();
+        assert_eq!(balance, unwrap!(Money::from_str("109.999999999"))); // 10 coins added automatically w/ farming sim on account creation. 1 nano paid.
 
-    //     client
-    //         .test_simulate_farming_payout_client(unwrap!(Money::from_str("100.0")))
-    //         .await
-    //         .unwrap();
-    //     let balance = client.get_balance(None).await.unwrap();
-    //     assert_eq!(balance, unwrap!(Money::from_str("109.999999999"))); // 10 coins added automatically w/ farming sim on account creation. 1 nano paid.
+        let client = random_client().unwrap();
+        let init_bal = unwrap!(Money::from_str("10"));
+        let orig_balance = client.get_balance(None).await.unwrap();
+        let _ = client
+            .transfer_money(wallet1, unwrap!(Money::from_str("5.0")))
+            .await
+            .unwrap();
+        let new_balance = client.get_balance(None).await.unwrap();
+        assert_eq!(
+            new_balance,
+            unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
+        );
 
-    //     let client = random_client().unwrap();
-    //     let init_bal = unwrap!(Money::from_str("10"));
-    //     let orig_balance = client.get_balance(None).await.unwrap();
-    //     let _ = client
-    //         .transfer_money(wallet1, unwrap!(Money::from_str("5.0")))
-    //         .await
-    //         .unwrap();
-    //     let new_balance = client.get_balance(None).await.unwrap();
-    //     assert_eq!(
-    //         new_balance,
-    //         unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
-    //     );
+        let res = client
+            .transfer_money(wallet1, unwrap!(Money::from_str("5000")))
+            .await;
+        match res {
+            Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        };
+        // Check if money is refunded
+        let balance = client.get_balance(None).await.unwrap();
+        let expected =
+            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
+        assert_eq!(balance, expected);
+        let res = client
+            .transfer_money(wallet1, unwrap!(Money::from_str("0")))
+            .await;
 
-    //     let res = client
-    //         .transfer_money(wallet1, unwrap!(Money::from_str("5000")))
-    //         .await;
-    //     match res {
-    //         Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-    //         res => panic!("Unexpected result: {:?}", res),
-    //     };
-    //     // Check if money is refunded
-    //     let balance = client.get_balance(None).await.unwrap();
-    //     let expected =
-    //         calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
-    //     assert_eq!(balance, expected);
-    //     let res = client
-    //         .transfer_money(wallet1, unwrap!(Money::from_str("0")))
-    //         .await;
+        match res {
+            Err(CoreError::DataError(SndError::InvalidOperation)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        }
 
-    //     match res {
-    //         Err(CoreError::DataError(SndError::InvalidOperation)) => (),
-    //         res => panic!("Unexpected result: {:?}", res),
-    //     }
+        let client_to_get_all_money = random_client().unwrap();
 
-    //     let client_to_get_all_money = random_client().unwrap();
-
-    //     // send all our money elsewhere to make sure we fail the next put
-    //     let _ = client
-    //         .transfer_money(
-    //             client_to_get_all_money.public_key().await,
-    //             unwrap!(Money::from_str("4.999999999")),
-    //         )
-    //         .await
-    //         .unwrap();
-    //     let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
-    //     let res = client.put_idata(data).await;
-    //     match res {
-    //         Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-    //         res => panic!("Unexpected result: {:?}", res),
-    //     };
-    // }
+        // send all our money elsewhere to make sure we fail the next put
+        let _ = client
+            .transfer_money(
+                client_to_get_all_money.public_key().await,
+                unwrap!(Money::from_str("4.999999999")),
+            )
+            .await
+            .unwrap();
+        let data = PubImmutableData::new(unwrap!(generate_random_vector::<u8>(10)));
+        let res = client.put_idata(data).await;
+        match res {
+            Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
+            res => panic!("Unexpected result: {:?}", res),
+        };
+    }
 
     // 1. Create a client that PUTs some mdata on the network
     // 2. Create a different client that tries to delete the data. It should panic.
@@ -2179,16 +2182,19 @@ mod tests {
         );
 
         client.put_seq_mutable_data(data).await?;
+
         let res = client.put_seq_mutable_data(test_data.clone()).await;
         match res {
             Err(CoreError::DataError(SndError::InvalidOwners)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(e) => panic!("Unexpected: {:?}", e),
         };
+
         // Check if money are refunded
         let balance = client.get_balance(None).await?;
         let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         assert_eq!(balance, expected_bal);
+
         let new_perm_set = MDataPermissionSet::new()
             .allow(MDataAction::ManagePermissions)
             .allow(MDataAction::Read);
@@ -2225,6 +2231,7 @@ mod tests {
     #[tokio::test]
     pub async fn mdata_mutations_test() -> Result<(), CoreError> {
         let client = random_client()?;
+
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -2258,7 +2265,6 @@ mod tests {
             client.public_key().await,
         );
         client.put_seq_mutable_data(data).await?;
-        println!("Put seq. MData successfully");
 
         let fetched_entries = client.list_seq_mdata_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
@@ -2270,6 +2276,7 @@ mod tests {
         client
             .mutate_seq_mdata_entries(name, tag, entry_actions)
             .await?;
+
         let fetched_entries = client.list_seq_mdata_entries(name, tag).await?;
         let mut expected_entries: BTreeMap<_, _> = Default::default();
         let _ = expected_entries.insert(
@@ -2286,10 +2293,13 @@ mod tests {
                 version: 0,
             },
         );
+
         assert_eq!(fetched_entries, expected_entries);
+
         let fetched_value = client
             .get_seq_mdata_value(name, tag, b"key3".to_vec())
             .await?;
+
         assert_eq!(
             fetched_value,
             MDataSeqValue {
@@ -2297,6 +2307,7 @@ mod tests {
                 version: 0
             }
         );
+
         let res = client
             .get_seq_mdata_value(name, tag, b"wrongKey".to_vec())
             .await;

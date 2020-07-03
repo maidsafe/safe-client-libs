@@ -34,7 +34,11 @@ impl TransferActor {
         // -------------------------------------------
         //  Setup our transfer _to_ the new account.
         // -------------------------------------------
-        self.get_history().await?;
+
+        // --------------------------
+        // Payment for PUT
+        // --------------------------
+        let payment_proof = self.create_put_payment_proof().await?;
 
         // First: Lets make a req for the amount we want to transfer (almost certainly more than PUT cost)
         let signed_transfer = self
@@ -61,11 +65,6 @@ impl TransferActor {
             .await_validation(message_id, &safe_key.public_id(), &transfer_message)
             .await?;
 
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        let payment_proof = self.create_put_payment_proof().await?;
-
         //---------------------------------
         // Finally do the _actual_ request
         //---------------------------------
@@ -75,13 +74,15 @@ impl TransferActor {
             // TODO: this is a temp clone here to get reqs going. This needs to be two different debits
             optional_debit_proof: Some(transfer_to_account_debit_proof.clone()),
             new_login_packet: login_packet,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(login_packet_for_req)?;
 
-        // TODO what will be the correct reponse here?... We have it validated, so registered?
-        cm.send(&safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Delete mutable data user permission
@@ -106,13 +107,15 @@ impl TransferActor {
             address,
             user,
             version,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
 
-        // TODO what will be the correct reponse here?... We have it validated, so registered?
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Set mutable data user permissions
@@ -139,13 +142,16 @@ impl TransferActor {
             user,
             permissions,
             version,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
 
         // TODO what will be the correct reponse here?... We have it validated, so registered?
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Mutate mutable data user entries
@@ -168,12 +174,15 @@ impl TransferActor {
         let req = Request::MData(MDataRequest::MutateEntries {
             address,
             actions,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
 
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Mutate sequence data owners
@@ -194,12 +203,15 @@ impl TransferActor {
 
         let req = Request::SData(SDataRequest::MutateOwner {
             op,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
 
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Mutate sequenced data private permissions
@@ -221,12 +233,15 @@ impl TransferActor {
 
         let req = Request::SData(SDataRequest::MutatePrivPermissions {
             op,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
 
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Mutate sequenced data public permissions
@@ -248,12 +263,15 @@ impl TransferActor {
 
         let req = Request::SData(SDataRequest::MutatePubPermissions {
             op,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
 
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Append data to a sequenced data object
@@ -274,10 +292,13 @@ impl TransferActor {
         //---------------------------------
         let req = Request::SData(SDataRequest::Mutate {
             op,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
         let (message, _msg_id) = self.create_network_message(req)?;
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Store a new public sequenced data object
@@ -295,10 +316,13 @@ impl TransferActor {
         //---------------------------------
         let req = Request::SData(SDataRequest::Store {
             data,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
         let (message, _msg_id) = self.create_network_message(req)?;
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Store a new public mutable data object
@@ -316,10 +340,13 @@ impl TransferActor {
         //---------------------------------
         let req = Request::MData(MDataRequest::Put {
             data,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
         let (message, _msg_id) = self.create_network_message(req)?;
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+        println!("STORE MD COME IN..... response: {:?}", response);
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Store a new immutabledata object
@@ -337,10 +364,13 @@ impl TransferActor {
         //---------------------------------
         let req = Request::IData(IDataRequest::Put {
             data,
-            debit_proof: payment_proof,
+            debit_proof: payment_proof.clone(),
         });
         let (message, _msg_id) = self.create_network_message(req)?;
-        cm.send(&self.safe_key.public_id(), &message).await
+        let response = cm.send(&self.safe_key.public_id(), &message).await?;
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
     }
 
     /// Store a new login packet
@@ -349,6 +379,7 @@ impl TransferActor {
         &mut self,
         login_packet: LoginPacket,
     ) -> Result<Response, CoreError> {
+        info!("Store login packet");
         let mut cm = self.connection_manager();
 
         // --------------------------
@@ -356,7 +387,6 @@ impl TransferActor {
         // --------------------------
         let payment_proof = self.create_put_payment_proof().await?;
 
-        println!("ATTEMPT TO STORE LOGIN");
         //---------------------------------
         // The _actual_ request
         //---------------------------------
@@ -366,28 +396,32 @@ impl TransferActor {
         });
 
         let (message, _msg_id) = self.create_network_message(req)?;
-        // cm.send(&self.safe_key.public_id(), &message).await
 
         let response = cm.send(&self.safe_key.public_id(), &message).await?;
-        // self.register_transfer_locally_on_ok(response, debit_proof).await
+
+        self.apply_success_write_locally(response, payment_proof)
+            .await
+    }
+
+    async fn apply_success_write_locally(
+        &mut self,
+        response: Response,
+        debit_proof: DebitAgreementProof,
+    ) -> Result<Response, CoreError> {
         match response.clone() {
             Response::Mutation(result) => {
-                match result {
+                let mut actor = self.transfer_actor.lock().await;
+                // First register with local actor, then reply.
+                let register_event = actor.register(debit_proof.clone())?;
 
-                    Ok(_transfer_response) => {
-                        let mut actor = self
-                        .transfer_actor
-                        .lock()
-                        .await;
-                        // First register with local actor, then reply.
-                        let register_event = actor.register(payment_proof)?;
-                        actor.apply( ActorEvent::TransferRegistrationSent(register_event));
-                        Ok(response)
-                    },
-                    Err( error) => Err( CoreError::from(error) )
-                }
-            },
-            _ => Err(CoreError::from("Unexpected Reponse received to 'Store Login Packet' request in ClientTransferActor"))
+                actor.apply(ActorEvent::TransferRegistrationSent(register_event));
+
+                Ok(response)
+            }
+            _ => Err(CoreError::from(format!(
+                "Unexpected response received for write request: {:?}",
+                response
+            ))),
         }
     }
 }
@@ -399,8 +433,6 @@ mod tests {
     use super::*;
     use crate::client::transfer_actor::test_utils::get_keys_and_connection_manager;
     use safe_nd::{Error as SndError, XorName};
-
-    // use crate::client::transfer_actor::test_utils::get_keys_and_connection_manager;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
