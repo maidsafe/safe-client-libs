@@ -223,6 +223,7 @@ mod tests {
         Ok(())
     }
 
+
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_send_several_transfers_and_thats_reflected_locally(
@@ -257,4 +258,33 @@ mod tests {
             Money::from_str("7")?
         ))
     }
+
+    // TODO: do we want to be able to send 0 transfer reqs? This should probably be an actor side check if not
+    // #[tokio::test]
+    // #[cfg(feature = "simulated-payouts")]
+    // async fn transfer_actor_cannot_send_0_money_req() -> Result<(), CoreError> {
+    //     let (safe_key, cm) = get_keys_and_connection_manager().await;
+    //     let (safe_key2, _cm) = get_keys_and_connection_manager().await;
+
+    //     let mut initial_actor = TransferActor::new(safe_key.clone(), cm.clone()).await?;
+
+    //     let res = initial_actor
+    //         .send_money(safe_key2.public_key(), Money::from_str("0")?)
+    //         .await?;
+
+    //     println!("res to send 0: {:?}", res);
+
+    //     // initial 10 on creation from farming simulation minus 1
+    //     assert_eq!(
+    //         initial_actor.get_local_balance().await,
+    //         Money::from_str("10")?
+    //     );
+
+    //     assert_eq!(
+    //         initial_actor.get_balance_from_network(None).await?,
+    //         Money::from_str("10")?
+    //     );
+
+    //     Ok(())
+    // }
 }

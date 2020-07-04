@@ -2084,17 +2084,9 @@ mod tests {
         let expected =
             calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
         assert_eq!(balance, expected);
-        let res = client
-            .transfer_money(wallet1, unwrap!(Money::from_str("0")))
-            .await;
 
-        match res {
-            Err(CoreError::DataError(SndError::InvalidOperation)) => (),
-            res => panic!("Unexpected result: {:?}", res),
-        }
 
         let client_to_get_all_money = random_client().unwrap();
-        println!("11111111");
         // send all our money elsewhere to make sure we fail the next put
         let _ = client
             .transfer_money(
@@ -2107,7 +2099,7 @@ mod tests {
         let res = client.put_idata(data).await;
         match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-            res => panic!("Unexpected result: {:?}", res),
+            res => panic!("Unexpected result in money transfer test, putting without balance: {:?}", res),
         };
     }
 
