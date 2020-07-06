@@ -10,9 +10,10 @@ use super::{permission_set_clone_from_repr_c, permission_set_into_repr_c, AppExc
 use crate::ffi::ipc::req as ffi;
 use crate::ipc::errors::IpcError;
 use ffi_utils::{vec_into_raw_parts, ReprC};
-use safe_nd::{MDataPermissionSet, XorName};
+use safe_nd::MDataPermissionSet;
 use serde::{Deserialize, Serialize};
 use std::slice;
+use xor_name::XorName;
 
 /// Represents a request to share mutable data.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

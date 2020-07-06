@@ -9,10 +9,10 @@
 
 use crate::test_utils::create_app;
 use rand::rngs::StdRng;
-use rand::{FromEntropy, Rng};
+use rand::{Rng, SeedableRng};
 use safe_core::utils::test_utils::random_client;
 use safe_core::{client::AuthActions, Client, CoreError, DIR_TAG};
-use safe_nd::{Error, PublicKey, XorName};
+use safe_nd::{Error, PublicKey};
 use safe_nd::{
     MDataAction, MDataAddress, MDataPermissionSet, MDataSeqEntryActions, MDataSeqValue,
     MDataUnseqEntryActions, SeqMutableData, UnseqMutableData,
@@ -21,6 +21,7 @@ use std::collections::BTreeMap;
 use threshold_crypto::SecretKey;
 use tokio::{sync::mpsc, task::LocalSet};
 use unwrap::unwrap;
+use xor_name::XorName;
 
 // MD created by owner and given to a permitted App. Owner has listed that app is allowed to insert
 // only. App tries to insert - should pass. App tries to update - should fail. App tries to change

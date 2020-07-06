@@ -14,9 +14,10 @@ use safe_core::utils::test_utils::random_client;
 use safe_core::{Client, CoreError};
 use safe_nd::{
     Error as SndError, PublicKey, SDataAddress, SDataIndex, SDataPrivUserPermissions,
-    SDataPubUserPermissions, SDataUser, XorName,
+    SDataPubUserPermissions, SDataUser,
 };
 use std::collections::BTreeMap;
+use xor_name::XorName;
 
 // Sequence created by app. App lists its own public key in owners field. Put should fail - Rejected at
 // the client handlers. Should pass when it lists the owner's public key instead.

@@ -10,9 +10,9 @@ use bincode::Error as SerialisationError;
 use data_encoding::DecodeError;
 use ffi_utils::StringError;
 use futures::channel::mpsc::SendError;
-use safe_nd::XorName;
 use serde::{Deserialize, Serialize};
 use std::ffi::NulError;
+use xor_name::XorName;
 
 use std::str::Utf8Error;
 use threshold_crypto::error::FromBytesError;

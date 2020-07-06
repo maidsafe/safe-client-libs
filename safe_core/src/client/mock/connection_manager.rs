@@ -18,10 +18,11 @@ use futures::lock::Mutex;
 use lazy_static::lazy_static;
 use log::trace;
 use quic_p2p::{self, Config as QuicP2pConfig};
-use safe_nd::{Coins, Message, PublicId, PublicKey, Request, RequestType, Response, XorName};
+use safe_nd::{Coins, Message, PublicId, PublicKey, Request, RequestType, Response};
 use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
+use xor_name::XorName;
 
 lazy_static! {
     static ref VAULT: Arc<Mutex<Vault>> = Arc::new(Mutex::new(Vault::new(get_config())));

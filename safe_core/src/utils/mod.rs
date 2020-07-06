@@ -14,7 +14,6 @@ pub mod test_utils;
 
 use crate::errors::CoreError;
 use bincode::{deserialize, serialize};
-use log::error;
 use miscreant::aead::Aead;
 use miscreant::Aes128SivAead;
 use rand::distributions::{Alphanumeric, Distribution, Standard};
@@ -121,11 +120,7 @@ pub fn symmetric_decrypt(cipher_text: &[u8], secret_key: &SymEncKey) -> Result<V
 /// returned `String` will likely be around `4 * length` as most of the randomly-generated `char`s
 /// will consume 4 elements of the `String`.
 pub fn generate_random_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = OsRng::new().map_err(|error| {
-        error!("{:?}", error);
-        CoreError::RandomDataGenerationFailure
-    })?;
-
+    let mut os_rng = OsRng;
     Ok(generate_random_string_rng(&mut os_rng, length))
 }
 
@@ -140,11 +135,7 @@ pub fn generate_random_string_rng<T: Rng>(rng: &mut T, length: usize) -> String 
 
 /// Generates a readable `String` using only ASCII characters.
 pub fn generate_readable_string(length: usize) -> Result<String, CoreError> {
-    let mut os_rng = OsRng::new().map_err(|error| {
-        error!("{:?}", error);
-        CoreError::RandomDataGenerationFailure
-    })?;
-
+    let mut os_rng = OsRng;
     Ok(generate_readable_string_rng(&mut os_rng, length))
 }
 
@@ -161,11 +152,7 @@ pub fn generate_random_vector<T>(length: usize) -> Result<Vec<T>, CoreError>
 where
     Standard: Distribution<T>,
 {
-    let mut os_rng = OsRng::new().map_err(|error| {
-        error!("{:?}", error);
-        CoreError::RandomDataGenerationFailure
-    })?;
-
+    let mut os_rng = OsRng;
     Ok(generate_random_vector_rng(&mut os_rng, length))
 }
 

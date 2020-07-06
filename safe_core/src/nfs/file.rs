@@ -10,8 +10,9 @@ use crate::ffi::nfs::File as FfiFile;
 use crate::nfs::errors::NfsError;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC};
-use safe_nd::{IDataAddress, IDataKind, XorName};
+use safe_nd::{IDataAddress, IDataKind};
 use serde::{Deserialize, Serialize};
+use xor_name::XorName;
 
 /// Representation of a File to be put into the network. Could be any kind of
 /// file: text, music, video, etc.

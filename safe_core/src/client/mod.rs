@@ -51,13 +51,14 @@ use safe_nd::{
     PublicKey, Request, RequestType, Response, SData, SDataAction, SDataAddress, SDataEntries,
     SDataEntry, SDataIndex, SDataOwner, SDataPrivPermissions, SDataPrivUserPermissions,
     SDataPubPermissions, SDataPubUserPermissions, SDataRequest, SDataUser, SDataUserPermissions,
-    SeqMutableData, Transaction, UnseqMutableData, XorName,
+    SeqMutableData, Transaction, UnseqMutableData,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
     time::Duration,
 };
 use unwrap::unwrap;
+use xor_name::XorName;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
@@ -1600,9 +1601,10 @@ mod tests {
     };
     use safe_nd::{
         Coins, Error as SndError, MDataAction, MDataKind, PubImmutableData,
-        SDataPrivUserPermissions, UnpubImmutableData, XorName,
+        SDataPrivUserPermissions, UnpubImmutableData,
     };
     use std::str::FromStr;
+    use xor_name::XorName;
 
     // Test putting and getting pub idata.
     #[tokio::test]

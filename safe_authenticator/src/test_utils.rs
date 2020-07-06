@@ -31,7 +31,7 @@ use safe_core::utils::test_utils::{gen_client_id, setup_client_with_net_obs};
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{AppPermissions, Coins, PublicKey, XorName};
+use safe_nd::{AppPermissions, Coins, PublicKey};
 #[cfg(feature = "mock-network")]
 use safe_nd::{Error as SndError, MDataRequest, Request, Response};
 use std::collections::HashMap;
@@ -39,6 +39,7 @@ use std::fmt::Debug;
 use std::io::Write;
 use std::str::FromStr;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 /// Assert that expression `$e` matches the pattern `$p`.
 #[macro_export]

@@ -28,7 +28,7 @@ use safe_nd::{
     MDataEntryActions, MDataPermissionSet, MDataRequest, MDataSeqEntryAction, MDataSeqEntryActions,
     MDataSeqValue, MDataValue, MDataValues, Message, MessageId, PubImmutableData, PublicId,
     PublicKey, Request, RequestType, Response, SeqMutableData, UnpubImmutableData,
-    UnseqMutableData, XorName,
+    UnseqMutableData,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
@@ -38,6 +38,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use threshold_crypto::SecretKey;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 // Helper macro to fetch the response for a request and
 // assert that the expected error is returned.

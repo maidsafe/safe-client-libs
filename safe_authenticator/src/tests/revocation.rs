@@ -127,7 +127,7 @@ mod mock_routing {
         try_revoke,
     };
     use rand::rngs::StdRng;
-    use rand::FromEntropy;
+    use rand::SeedableRng;
     use safe_core::client::AuthActions;
     use safe_core::ipc::{IpcError, Permission};
     use safe_core::utils::test_utils::Synchronizer;

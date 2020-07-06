@@ -22,8 +22,9 @@ use safe_core::{
     ipc::{req::ContainerPermissions, AppExchangeInfo, IpcError},
     utils::symmetric_decrypt,
 };
-use safe_nd::{AppPermissions, MDataAddress, XorName};
+use safe_nd::{AppPermissions, MDataAddress};
 use std::collections::HashMap;
+use xor_name::XorName;
 
 /// Represents an application that is registered with the Authenticator.
 #[derive(Debug)]

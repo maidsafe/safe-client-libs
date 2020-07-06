@@ -15,14 +15,15 @@ use crate::utils::{
     self, symmetric_decrypt, symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN,
 };
 use ffi_utils::ReprC;
-use safe_nd::{
-    MDataAddress, MDataKind, MDataSeqEntries, MDataSeqEntryAction, MDataSeqValue, XorName,
-};
+use rand::thread_rng;
+use rand::Rng;
+use safe_nd::{MDataAddress, MDataKind, MDataSeqEntries, MDataSeqEntryAction, MDataSeqValue};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 /// Information allowing to locate and access mutable data on the network.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -60,7 +61,9 @@ impl MDataInfo {
 
     /// Generate random `MDataInfo` for private (encrypted) mutable data.
     pub fn random_private(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
-        let address = MDataAddress::from_kind(kind, rand::random(), type_tag);
+        let mut rng = thread_rng();
+        let random_xorname: XorName = rng.gen();
+        let address = MDataAddress::from_kind(kind, random_xorname, type_tag);
         let enc_info = (shared_secretbox::gen_key(), utils::generate_nonce());
 
         Ok(Self::new_private(address, enc_info))
@@ -68,7 +71,9 @@ impl MDataInfo {
 
     /// Generate random `MDataInfo` for public mutable data.
     pub fn random_public(kind: MDataKind, type_tag: u64) -> Result<Self, CoreError> {
-        let address = MDataAddress::from_kind(kind, rand::random(), type_tag);
+        let mut rng = thread_rng();
+        let random_xorname: XorName = rng.gen();
+        let address = MDataAddress::from_kind(kind, random_xorname, type_tag);
 
         Ok(Self::new_public(address))
     }

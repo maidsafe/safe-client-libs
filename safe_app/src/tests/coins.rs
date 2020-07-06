@@ -12,8 +12,9 @@
 use crate::test_utils::{create_app, create_app_by_req, create_random_auth_req};
 use crate::AppError;
 use safe_core::{Client, CoreError};
-use safe_nd::{AppPermissions, Coins, Error, XorName};
+use safe_nd::{AppPermissions, Coins, Error};
 use std::str::FromStr;
+use xor_name::XorName;
 
 // Apps should not be able to request the coin balance if they don't have
 // explicit permissions.

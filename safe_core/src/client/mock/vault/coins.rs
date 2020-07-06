@@ -8,9 +8,10 @@
 
 use super::{Operation, Vault};
 use crate::client::COST_OF_PUT;
-use safe_nd::{Coins, CoinsRequest, Error as SndError, PublicKey, Response, Transaction, XorName};
+use safe_nd::{Coins, CoinsRequest, Error as SndError, PublicKey, Response, Transaction};
 use std::str::FromStr;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 impl Vault {
     /// Process Coins request

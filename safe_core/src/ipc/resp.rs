@@ -106,8 +106,8 @@ mod tests {
     use super::*;
     use crate::utils;
     use crate::utils::test_utils::gen_client_id;
-    use safe_nd::{XorName, XOR_NAME_LEN};
     use unwrap::unwrap;
+    use xor_name::{XorName, XOR_NAME_LEN};
 
     // Test converting an `AuthGranted` object to its FFI representation and then back again.
     #[test]

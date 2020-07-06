@@ -25,11 +25,12 @@ use safe_core::utils::test_utils::random_client;
 #[cfg(feature = "mock-network")]
 use safe_core::ConnectionManager;
 use safe_core::{client::COST_OF_PUT, Client, CoreError};
-use safe_nd::{AppPermissions, Coins, Error as SndError, IData, PubImmutableData, XorName};
+use safe_nd::{AppPermissions, Coins, Error as SndError, IData, PubImmutableData};
 #[cfg(feature = "mock-network")]
 use safe_nd::{RequestType, Response};
 use std::collections::{BTreeMap, HashMap};
 use unwrap::unwrap;
+use xor_name::XorName;
 
 // Test refreshing access info by fetching it from the network.
 #[tokio::test]

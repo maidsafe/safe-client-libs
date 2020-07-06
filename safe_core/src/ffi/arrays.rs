@@ -7,8 +7,8 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::utils::{SYM_ENC_KEY_LEN, SYM_ENC_NONCE_LEN};
-use safe_nd::XOR_NAME_LEN;
 use threshold_crypto::{PK_SIZE as BLS_PUBLIC_KEY_LEN, SIG_SIZE};
+use xor_name::XOR_NAME_LEN;
 
 /// Array containing public key bytes.
 pub type AsymPublicKey = [u8; BLS_PUBLIC_KEY_LEN];

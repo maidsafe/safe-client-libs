@@ -28,8 +28,9 @@ use safe_app::{AppError, Client, PubImmutableData};
 use safe_authenticator::{AuthClient, Authenticator};
 use safe_core::btree_map;
 use safe_core::utils;
-use safe_nd::{ClientFullId, IData, PublicKey, SeqMutableData, XorName};
+use safe_nd::{ClientFullId, IData, PublicKey, SeqMutableData};
 use unwrap::unwrap;
+use xor_name::XorName;
 
 fn random_mutable_data<R: Rng>(
     type_tag: u64,

@@ -486,8 +486,9 @@ mod tests_with_mock_routing {
     use super::*;
     use crate::btree_map;
     use crate::utils::test_utils::random_client;
-    use safe_nd::{MDataSeqValue, XorName};
+    use safe_nd::MDataSeqValue;
     use unwrap::unwrap;
+    use xor_name::XorName;
 
     // Test putting mdata and recovering from errors
     #[tokio::test]

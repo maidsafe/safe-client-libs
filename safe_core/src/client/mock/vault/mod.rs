@@ -24,7 +24,7 @@ use futures::lock::{Mutex, MutexGuard};
 use log::{debug, trace, warn};
 use safe_nd::{
     verify_signature, Coins, Data, Error as SndError, LoginPacket, Message, PublicId, PublicKey,
-    Request, RequestType, Result as SndResult, Transaction, XorName,
+    Request, RequestType, Result as SndResult, Transaction,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -41,6 +41,7 @@ use std::time::SystemTime;
 #[cfg(test)]
 use tempfile::tempfile;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 const FILE_NAME: &str = "SCL-Mock";
 

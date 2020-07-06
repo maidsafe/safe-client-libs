@@ -9,10 +9,11 @@
 use super::Vault;
 use safe_nd::{
     AppPermissions, ClientRequest, Error as SndError, PublicId, PublicKey, Response,
-    Result as SndResult, XorName,
+    Result as SndResult,
 };
 use std::collections::BTreeMap;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 impl Vault {
     /// Process Client (Owner) request

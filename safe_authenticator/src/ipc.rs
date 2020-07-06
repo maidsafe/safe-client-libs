@@ -23,8 +23,9 @@ use safe_core::ipc::resp::IpcResp;
 use safe_core::ipc::{self, IpcError, IpcMsg};
 // use safe_core::{err, ok};
 use safe_core::{Client, CoreError};
-use safe_nd::{Error as SndError, XorName};
+use safe_nd::Error as SndError;
 use std::ffi::CString;
+use xor_name::XorName;
 
 /// Decodes a given encoded IPC message and returns either an `IpcMsg` struct or
 /// an error code + description & an encoded `IpcMsg::Resp` in case of an error

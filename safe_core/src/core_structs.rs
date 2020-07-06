@@ -24,7 +24,7 @@ use bincode::{deserialize, serialize};
 use ffi_utils::{vec_clone_from_raw_parts, vec_into_raw_parts, ReprC, StringError};
 use rand::thread_rng;
 use safe_nd::{
-    AppFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey, XorName,
+    AppFullId, ClientPublicId, MDataAddress, MDataPermissionSet, MDataSeqValue, PublicKey,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -34,6 +34,8 @@ use std::ptr;
 use std::slice;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
+use xor_name::XorName;
+
 /// Entry key under which the metadata are stored.
 #[no_mangle]
 pub static METADATA_KEY: &[u8] = b"_metadata";
@@ -512,8 +514,8 @@ mod tests {
     use super::*;
     use crate::utils;
     use crate::utils::test_utils::gen_client_id;
-    use safe_nd::{XorName, XOR_NAME_LEN};
     use unwrap::unwrap;
+    use xor_name::{XorName, XOR_NAME_LEN};
 
     // Testing converting an `AppKeys` object to its FFI representation and back again.
     #[test]

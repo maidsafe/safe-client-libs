@@ -17,12 +17,13 @@ use hmac::Hmac;
 use miscreant::aead::Aead;
 use miscreant::aead::Aes128SivAead;
 use rand::{thread_rng, CryptoRng, Rng};
-use safe_nd::{ClientFullId, MDataKind, PublicKey, XorName, XOR_NAME_LEN};
+use safe_nd::{ClientFullId, MDataKind, PublicKey};
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::convert::TryInto;
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
+use xor_name::{XorName, XOR_NAME_LEN};
 
 const ITERATIONS: usize = 10000;
 

@@ -23,11 +23,12 @@ use safe_core::{
 };
 use safe_nd::{
     ClientFullId, LoginPacket, LoginPacketRequest, Message, MessageId, PublicId, PublicKey,
-    Request, Response, XorName,
+    Request, Response,
 };
 use std::{fmt, sync::Arc, time::Duration};
 use tiny_keccak::sha3_256;
 use unwrap::unwrap;
+use xor_name::XorName;
 
 /// Client object used by `safe_authenticator`.
 pub struct AuthClient {
