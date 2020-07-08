@@ -66,7 +66,6 @@ impl TransferActor {
         let replicas_pk_set =
             TransferActor::get_replica_keys(safe_key.clone(), connection_manager.clone()).await?;
 
-
         let validator = ClientTransferValidator {};
 
         let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(

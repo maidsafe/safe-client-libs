@@ -20,9 +20,6 @@ pub mod transfer_actor;
 
 use async_trait::async_trait;
 
-#[cfg(feature = "mock-network")]
-mod mock;
-
 // safe-transfers wrapper
 pub use self::transfer_actor::{ClientTransferValidator, TransferActor};
 
