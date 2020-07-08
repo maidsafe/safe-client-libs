@@ -8,6 +8,10 @@ env:
   RUST_BACKTRACE: 1
   # Deny all compiler warnings.
   RUSTFLAGS: "-D warnings"
+  # set the vault, cli and authd version to be downloaded and used in the E2E against real network job
+  SAFE_VAULT_VERSION: "latest"
+  SAFE_CLI_VERSION: "latest"
+  SAFE_AUTH_VERSION: "latest"
 
 jobs:
   clippy:
@@ -42,6 +46,67 @@ jobs:
       - shell: bash
         run: ./scripts/clippy-all
 
+  coverage:
+    name: Code coverage check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      # Install Rust and required components
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      
+      # Download shared script for starting a baby fleming section and make it executable
+      - name: Download start-local-section.sh
+        run: |
+          wget "https://raw.githubusercontent.com/maidsafe/QA/master/misc-scripts/start-local-section.sh"
+          chmod +x start-local-section.sh
+            
+      # Run start-local-section.sh script to start a local section
+      - name: Run start-local-section.sh
+        run: ./start-local-section.sh ${{env.SAFE_VAULT_VERSION}} ${{env.SAFE_CLI_VERSION}} ${{env.SAFE_AUTH_VERSION}}
+      
+      # Confirm vaults are running on this VM
+      - name: Check if vaults are running
+        run: pgrep -a safe_vault
+            
+      # Print connection info
+      - name: Print connection info
+        run: cat ~/.config/safe_vault/vault_connection_info.config
+      
+      # Generate Cargo.lock, needed for the cache.
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+      
+      # Cache.
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+      
+      # Run cargo tarpaulin & push result to coveralls.io
+      - name: rust-tarpaulin code coverage check
+        uses: actions-rs/tarpaulin@master
+        with:
+          args: '-v -t 10000 --release --out Lcov'
+      - name: Push code coverage results to coveralls.io
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel: true
+          path-to-lcov: ./lcov.info
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          parallel-finished: true
+  
   # Run `cargo build` in the root directory to test all build scripts.
   build-script:
     name: Build Scripts
