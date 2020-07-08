@@ -9,6 +9,7 @@
 
 //! SAFE App.
 
+
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/
 maidsafe_logo.png",

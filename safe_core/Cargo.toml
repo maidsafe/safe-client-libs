@@ -12,7 +12,7 @@ version = "0.41.3"
 
 [dependencies]
 async-trait = "~0.1.30"
-bincode = "1.2.1"
+bincode = "1.1.4"
 bytes = { version = "~0.5.4", features = ["serde"] }
 chrono = { version = "~0.4.0", features = ["serde"] }
 crossbeam-channel = "~0.4.2"

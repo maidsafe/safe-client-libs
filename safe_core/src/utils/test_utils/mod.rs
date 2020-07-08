@@ -11,7 +11,7 @@ mod sync;
 
 #[cfg(feature = "mock-network")]
 pub use self::sync::Synchronizer;
-use crate::client::core_client::CoreClient;
+//use crate::client::core_client::CoreClient;
 use crate::client::{Client, COST_OF_PUT};
 use crate::network_event::{NetworkEvent, NetworkTx};
 use crate::utils::{self};
@@ -44,7 +44,7 @@ pub fn gen_app_id(client_public_id: ClientPublicId) -> AppFullId {
 
 /// Create random registered client. Use this to
 /// create a `CoreClient` automatically and randomly.
-pub fn random_client() -> Result<CoreClient, CoreError>
+/*pub fn random_client() -> Result<CoreClient, CoreError>
 where
 {
     // FIXME: in stage 1 disconnection is a natural event, so instead of panicking we
@@ -62,6 +62,7 @@ where
         Err(error) => Err(error),
     }
 }
+*/
 
 /// Helper to create a client
 /// Useful when we need  to supply credentials explicitly or when Client is to be constructed as

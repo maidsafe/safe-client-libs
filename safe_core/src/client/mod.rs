@@ -8,9 +8,6 @@
 
 /// User Account information.
 pub mod account;
-/// Core client used for testing purposes.
-#[cfg(any(test, feature = "testing"))]
-pub mod core_client;
 /// `MDataInfo` utilities.
 pub mod mdata_info;
 /// Various APIs wrapped to provide resiliance for common network operations.
@@ -25,16 +22,9 @@ pub use self::transfer_actor::{ClientTransferValidator, TransferActor};
 
 pub use self::account::ClientKeys;
 pub use self::mdata_info::MDataInfo;
-#[cfg(feature = "mock-network")]
-pub use self::mock::vault::mock_vault_path;
-#[cfg(feature = "mock-network")]
-pub use self::mock::ConnectionManager as MockConnectionManager;
 pub use safe_nd::SafeKey;
 
-#[cfg(feature = "mock-network")]
-use self::mock::ConnectionManager;
 use crate::config_handler::Config;
-#[cfg(not(feature = "mock-network"))]
 use crate::connection_manager::ConnectionManager;
 use crate::crypto::{shared_box, shared_secretbox};
 use crate::errors::CoreError;
@@ -133,14 +123,58 @@ async fn send_as_helper(
     cm.send(&pub_id, &message).await
 }
 
+/// Client object used by `safe_app`.
+pub struct Client {
+    inner: Arc<Mutex<Inner>>,
+    app_inner: Arc<Mutex<AppInner>>,
+    transfer_actor: Option<TransferActor>,
+}
+
 /// Trait providing an interface for self-authentication client implementations, so they can
 /// interface all requests from high-level APIs to the actual routing layer and manage all
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
-#[async_trait]
-pub trait Client: Clone + Send + Sync {
-    /// Associated message type.
-    type Context;
+impl Client {
+    async fn from_keys(
+        keys: AppKeys,
+        owner: PublicKey,
+        net_tx: NetworkTx,
+        config: BootstrapConfig,
+    ) -> Result<Self, CoreError>
+    {
+        let mut qp2p_config = Config::new().quic_p2p;
+        qp2p_config.hard_coded_contacts = qp2p_config
+            .hard_coded_contacts
+            .union(&config)
+            .cloned()
+            .collect();
+
+        let (net_tx, _net_rx) = futures_mpsc::unbounded();
+        let mut connection_manager =
+            attempt_bootstrap(&qp2p_config, &net_tx, keys.app_safe_key()).await?;
+
+        connection_manager = connection_manager_wrapper_fn(connection_manager);
+        let _validator = ClientTransferValidator {};
+        // Here for now, Actor with 10 setup, as before
+        // transfer actor handles all our responses and proof aggregation
+        let transfer_actor = Some(
+            TransferActor::new(
+                SafeKey::app(keys.clone().app_full_id),
+                connection_manager.clone(),
+            )
+            .await?,
+        );
+
+        Ok(Self {
+            inner: Arc::new(Mutex::new(Inner::new(
+                connection_manager,
+                Duration::from_secs(180), // REQUEST_TIMEOUT_SECS), // FIXME
+                net_tx,
+            ))),
+            app_inner: Arc::new(Mutex::new(AppInner::new(keys, owner, Some(config)))),
+            transfer_actor,
+        })
+    }
 
     /// Return the client's ID.
     async fn full_id(&self) -> SafeKey;

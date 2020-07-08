@@ -23,9 +23,4 @@ unwrap = "1.2.0"
 tokio = { version="~0.2.21", features=["rt-core"] }
 
 [features]
-mock-network = [
-    "safe_core/mock-network",
-    "safe_authenticator/mock-network",
-    "safe_app/mock-network",
-    "safe-nd/simulated-payouts"
-]
+simulated-payouts = ["safe-nd/simulated-payouts"]
