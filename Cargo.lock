@@ -219,11 +219,10 @@ checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
 
 [[package]]
 name = "bincode"
-version = "1.1.4"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f04a5e50dc80b3d5d35320889053637d15011aed5e66b66b37ae798c65da6f7"
+checksum = "f30d3a39baa26f9651f17b375061f3233dde33424a8b72b0dbe93a68a0bc896d"
 dependencies = [
- "autocfg 0.1.7",
  "byteorder",
  "serde",
 ]
@@ -1581,9 +1580,9 @@ dependencies = [
 
 [[package]]
 name = "quic-p2p"
-version = "0.6.2"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9a3d2dc326b4094f599118fdaa8565bd14204b685b91301c47db74c4a41ee7"
+checksum = "ea016023972754185c58c0ce82b51866fc665aac3fa827c0df2477e6845698fc"
 dependencies = [
  "base64 0.10.1",
  "bincode",
@@ -2047,8 +2046,7 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 [[package]]
 name = "safe-nd"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7b9ca69f41d96da8c972538673f07d104691cced39af4d3eab91c1333cb3513"
+source = "git+https://github.com/maidsafe/safe-nd.git#c7a5a3e60c6a1a0f31a57f953dd8fd4709c87d24"
 dependencies = [
  "bincode",
  "crdts",
@@ -2229,9 +2227,9 @@ dependencies = [
 
 [[package]]
 name = "self_encryption"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16c07d372e528948d2d24d31999f8f839be8a828175b2c53478b0117af4ae5cb"
+checksum = "ccbad0610b64c80e4a7f698eade1fcda8e37ebc459766e5e77c69d94fe20e387"
 dependencies = [
  "aes",
  "async-trait",

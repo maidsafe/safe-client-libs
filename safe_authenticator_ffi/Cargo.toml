@@ -13,7 +13,7 @@ version = "0.16.3"
 
 [dependencies]
 async-trait = "~0.1.30"
-bincode = "1.1.4"
+bincode = "1.2.1"
 ffi_utils = "~0.16.0"
 futures = "~0.3.5"
 jni = { version = "~0.12.0", optional = true }
@@ -21,7 +21,7 @@ log = "~0.4.1"
 rand = "~0.6"
 safe_core = { path = "../safe_core", version = "~0.41.3" }
 safe_authenticator = { path = "../safe_authenticator", version = "~0.16.3" }
-safe-nd = "~0.10.0"
+safe-nd = { git = "https://github.com/maidsafe/safe-nd.git", branch = "master" }
 serde = { version = "1.0.97", features = ["derive"] }
 threshold_crypto = "~0.3.2"
 tiny-keccak = "1.5.0"
@@ -38,7 +38,7 @@ safe_authenticator = { path = "../safe_authenticator", version = "~0.16.3",  fea
 ffi_utils = "~0.16.0"
 jni = "~0.12.0"
 safe_bindgen = { version = "~0.13.2", optional = true }
-safe-nd = "~0.10.0"
+safe-nd = { git = "https://github.com/maidsafe/safe-nd.git", branch = "master" }
 threshold_crypto = "~0.3.2"
 unwrap = "1.2.0"
 
