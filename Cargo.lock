@@ -2017,8 +2017,9 @@ checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
 name = "safe-nd"
-version = "0.10.4"
-source = "git+https://github.com/ravinderjangra/safe-nd.git?branch=remove-xorname#8f9e5d318ef2dc46288fe2f6f43d0a0d15756f0f"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82c58381b3e5dfd672dd9e159d117551699b7a2e4ad49df6c20f78539a99fc57"
 dependencies = [
  "bincode",
  "crdts",
