@@ -1,5 +1,8 @@
 # Safe Core - Change Log
 
+## [0.43.0]
+- Update safe-nd, rand, and threshold_crypto
+
 ## [0.42.1]
 - Update ffi-utils to 0.17.0
 

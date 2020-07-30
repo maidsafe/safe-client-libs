@@ -8,7 +8,7 @@ license = "GPL-3.0"
 name = "safe_core"
 readme = "README.md"
 repository = "https://github.com/maidsafe/safe_client_libs"
-version = "0.42.1"
+version = "0.43.0"
 
 [dependencies]
 async-trait = "~0.1.30"

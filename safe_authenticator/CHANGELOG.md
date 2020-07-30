@@ -1,5 +1,8 @@
 # SAFE Authenticator - Change Log
 
+## [0.18.0]
+- Update safe-nd, rand, and threshold_crypto
+
 ## [0.17.1]
 - Update ffi-utils to 0.17.0
 

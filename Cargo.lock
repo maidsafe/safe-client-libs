@@ -2039,7 +2039,7 @@ dependencies = [
 
 [[package]]
 name = "safe_app"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "async-trait",
  "bincode",
@@ -2068,7 +2068,7 @@ dependencies = [
 
 [[package]]
 name = "safe_authenticator"
-version = "0.17.1"
+version = "0.18.0"
 dependencies = [
  "async-trait",
  "bincode",
@@ -2110,7 +2110,7 @@ dependencies = [
 
 [[package]]
 name = "safe_core"
-version = "0.42.1"
+version = "0.43.0"
 dependencies = [
  "async-trait",
  "bincode",
