@@ -24,7 +24,7 @@ rand = "~0.7.3"
 safe_authenticator = { path = "../safe_authenticator", version = "~0.17.1", optional = true }
 safe_core = { path = "../safe_core", version = "~0.42.1" }
 safe-nd = "~0.11.0"
-self_encryption = "~0.18.0"
+self_encryption = "0.19.0"
 serde = "1.0.27"
 serde_derive = "1.0.27"
 threshold_crypto = "~0.4.0"
