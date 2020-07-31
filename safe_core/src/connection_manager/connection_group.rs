@@ -10,7 +10,6 @@ use super::response_manager::ResponseManager;
 use crate::{client::SafeKey, utils, CoreError};
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use crossbeam_channel::{self, Receiver};
 use futures::{
     channel::oneshot::{self, Sender},
     lock::Mutex,
@@ -18,7 +17,7 @@ use futures::{
 use lazy_static::lazy_static;
 use log::{error, info, trace, warn};
 use quic_p2p::{
-    self, Config as QuicP2pConfig, Event, EventSenders, Peer, QuicP2p, QuicP2pError, Token,
+    self, Config as QuicP2pConfig, Event, Peer, QuicP2pAsync, QuicP2pError, Token,
 };
 use rand::Rng;
 use safe_nd::{
@@ -69,26 +68,33 @@ impl Elder {
 
 /// Encapsulates multiple QUIC connections with a group of Client Handlers. Accumulates responses.
 pub(super) struct ConnectionGroup {
-    inner: Arc<Mutex<Inner>>,
+    //inner: Arc<Mutex<Inner>>,
 }
 
 impl ConnectionGroup {
     pub async fn new(
         config: QuicP2pConfig,
         full_id: SafeKey,
-        connection_hook: Sender<Result<(), CoreError>>,
+        _connection_hook: Sender<Result<(), CoreError>>,
     ) -> Result<Self, CoreError> {
-        let (node_tx, node_rx) = crossbeam_channel::unbounded();
-        let (client_tx, _client_rx) = crossbeam_channel::unbounded();
+        let mut quic_p2p =
+            QuicP2pAsync::with_config(Some(config), Default::default(), false)?;
 
-        let ev_tx = EventSenders { node_tx, client_tx };
-        let mut quic_p2p = QuicP2p::with_config(ev_tx, Some(config), Default::default(), false)?;
+        // Let's first bootstrap to the network
+        let node_connection = quic_p2p.bootstrap().await?;
 
-        let mut initial_state = Bootstrapping {
+        // We can now connect to the node sending a handshake request
+        let handshake = HandshakeRequest::Bootstrap(full_id.public_id());
+        let msg = Bytes::from(serialize(&handshake)?);
+        info!("SENDING REQ..");
+        let response = node_connection.send(msg).await?;
+
+        info!("RESPONSE: {:?}", response);
+
+        /*let initial_state = Bootstrapping {
             connection_hook,
             full_id,
         };
-        initial_state.init(&mut quic_p2p);
 
         let inner = Arc::new(Mutex::new(Inner {
             quic_p2p,
@@ -97,52 +103,52 @@ impl ConnectionGroup {
             state: State::Bootstrapping(initial_state),
         }));
 
-        setup_quic_p2p_events_receiver(&inner, node_rx);
+        //setup_quic_p2p_events_receiver(&inner, event_stream);
 
-        Ok(Self { inner })
+        Ok(Self { inner })*/
+        Ok(Self{})
     }
 
-    pub async fn send(&mut self, msg_id: MessageId, msg: &Message) -> Result<Response, CoreError> {
+    pub async fn send(&mut self, _msg_id: MessageId, _msg: &Message) -> Result<Response, CoreError> {
         // user block here to drop lock asap
-        let receiver_future = { self.inner.lock().await.send(msg_id, msg).await? };
+        /*let receiver_future = { self.inner.lock().await.send(msg_id, msg).await? };
 
         match timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS), receiver_future).await {
             Ok(response) => response.map_err(|err| CoreError::from(format!("{}", err))),
             Err(_) => Err(CoreError::RequestTimeout),
-        }
+        }*/
+        Err(CoreError::RequestTimeout)
     }
 
     /// Terminate the QUIC connections gracefully.
     pub async fn close(&mut self) -> Result<(), CoreError> {
         // user block here to drop lock asap
-        let disconnect_receiver_future = { self.inner.lock().await.close().await? };
+        /*let disconnect_receiver_future = { self.inner.lock().await.close().await? };
 
         disconnect_receiver_future
             .await
-            .map_err(|e| CoreError::Unexpected(format!("{}", e)))
+            .map_err(|e| CoreError::Unexpected(format!("{}", e)))*/
+
+        Err(CoreError::RequestTimeout)
     }
 }
-
+/*
 struct Bootstrapping {
     connection_hook: Sender<Result<(), CoreError>>,
     full_id: SafeKey,
 }
 
 impl Bootstrapping {
-    fn init(&mut self, quic_p2p: &mut QuicP2p) {
-        quic_p2p.bootstrap();
-    }
-
-    fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2p, socket: SocketAddr) {
+    async fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2pAsync, socket: SocketAddr) {
         let token = rand::thread_rng().gen();
         let handshake = HandshakeRequest::Bootstrap(self.full_id.public_id());
         let msg = Bytes::from(unwrap!(serialize(&handshake)));
-        quic_p2p.send(Peer::Node(socket), msg, token);
+        quic_p2p.send(Peer::Node(socket), msg, token).await;
     }
 
     fn handle_new_message(
         &mut self,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
         peer_addr: SocketAddr,
         msg: Bytes,
     ) -> Transition {
@@ -151,7 +157,7 @@ impl Bootstrapping {
                 trace!("HandshakeResponse::Rebootstrap, trying again");
 
                 // Try again
-                quic_p2p.disconnect_from(peer_addr);
+                //quic_p2p.disconnect_from(peer_addr);
 
                 // TODO: initialise `hard_coded_contacts` with received `_elders`.
                 unimplemented!();
@@ -163,7 +169,7 @@ impl Bootstrapping {
                 );
 
                 // Drop the current connection to clean up the state.
-                quic_p2p.disconnect_from(peer_addr);
+                //quic_p2p.disconnect_from(peer_addr);
 
                 // Transition to a new state
                 let pending_elders: Vec<_> = elders.into_iter().map(|(_xor_name, ci)| ci).collect();
@@ -190,13 +196,13 @@ struct Joining {
 }
 
 impl Joining {
-    fn new(
+    async fn new(
         old_state: Bootstrapping,
         mut pending_elders: Vec<SocketAddr>,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
     ) -> Self {
         for elder in pending_elders.drain(..) {
-            quic_p2p.connect_to(elder);
+            quic_p2p.connect_to(elder).await;
         }
         Self {
             connected_elders: Default::default(),
@@ -205,16 +211,16 @@ impl Joining {
         }
     }
 
-    fn terminate(self, quic_p2p: &mut QuicP2p) {
+    fn terminate(self, quic_p2p: &mut QuicP2pAsync) {
         for e in self.connected_elders.values() {
-            quic_p2p.disconnect_from(e.elder.peer().peer_addr());
+            //quic_p2p.disconnect_from(e.elder.peer().peer_addr());
         }
     }
 
     /// Handle a challenge request from a newly-connected vault.
-    fn handle_challenge(
+    async fn handle_challenge(
         &mut self,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
         sender_addr: SocketAddr,
         _sender_id: NodePublicId,
         challenge: Vec<u8>,
@@ -228,14 +234,16 @@ impl Joining {
             let token = rand::thread_rng().gen();
             let response = HandshakeRequest::ChallengeResult(self.full_id.sign(&challenge));
             let msg = Bytes::from(unwrap!(serialize(&response)));
-            quic_p2p.send(connected.elder.peer.clone(), msg, token);
+            quic_p2p
+                .send(connected.elder.peer.clone(), msg, token)
+                .await;
             connected.sent_challenge = true;
         } else {
             // Doesn't have this connected peer?
         }
     }
 
-    fn handle_connected_to(&mut self, quic_p2p: &mut QuicP2p, peer: Peer) {
+    async fn handle_connected_to(&mut self, quic_p2p: &mut QuicP2pAsync, peer: Peer) {
         if let Peer::Node(socket) = &peer {
             let _ = self.connected_elders.insert(
                 *socket,
@@ -247,7 +255,7 @@ impl Joining {
             let token = rand::thread_rng().gen();
             let handshake = HandshakeRequest::Join(self.full_id.public_id());
             let msg = Bytes::from(unwrap!(serialize(&handshake)));
-            quic_p2p.send(peer, msg, token);
+            quic_p2p.send(peer, msg, token).await;
         } else {
             // Invalid state
         }
@@ -257,16 +265,17 @@ impl Joining {
         self.connected_elders.values().all(|e| e.sent_challenge)
     }
 
-    fn handle_new_message(
+    async fn handle_new_message(
         &mut self,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
         peer_addr: SocketAddr,
         msg: Bytes,
     ) -> Transition {
         match deserialize(&msg) {
             Ok(HandshakeResponse::Challenge(PublicId::Node(node_public_id), challenge)) => {
                 trace!("Got the challenge from {:?}", peer_addr);
-                self.handle_challenge(quic_p2p, peer_addr, node_public_id, challenge);
+                self.handle_challenge(quic_p2p, peer_addr, node_public_id, challenge)
+                    .await;
 
                 if self.is_everyone_joined() {
                     return Transition::ToConnected;
@@ -305,15 +314,15 @@ impl Connected {
         }
     }
 
-    fn terminate(self, quic_p2p: &mut QuicP2p) {
+    fn terminate(self, quic_p2p: &mut QuicP2pAsync) {
         for peer in self.elders.values().map(Elder::peer) {
-            quic_p2p.disconnect_from(peer.peer_addr());
+            //quic_p2p.disconnect_from(peer.peer_addr());
         }
     }
 
     async fn send(
         &mut self,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
         msg_id: MessageId,
         msg: &Message,
     ) -> Result<oneshot::Receiver<Response>, CoreError> {
@@ -334,7 +343,7 @@ impl Connected {
         {
             for peer in self.elders.values().map(Elder::peer) {
                 let token = rand::random();
-                quic_p2p.send(peer, bytes.clone(), token);
+                quic_p2p.send(peer, bytes.clone(), token).await;
             }
         }
 
@@ -343,7 +352,7 @@ impl Connected {
 
     fn handle_new_message(
         &mut self,
-        _quic_p2p: &mut QuicP2p,
+        _quic_p2p: &mut QuicP2pAsync,
         peer_addr: SocketAddr,
         msg: Bytes,
     ) -> Transition {
@@ -403,13 +412,13 @@ enum Transition {
 }
 
 impl State {
-    fn apply_transition(self, quic_p2p: &mut QuicP2p, transition: Transition) -> State {
+    async fn apply_transition(self, quic_p2p: &mut QuicP2pAsync, transition: Transition) -> State {
         use Transition::*;
         match transition {
             None => self,
             ToJoining(pending_elders) => {
                 if let State::Bootstrapping(old_state) = self {
-                    State::Joining(Joining::new(old_state, pending_elders, quic_p2p))
+                    State::Joining(Joining::new(old_state, pending_elders, quic_p2p).await)
                 } else {
                     unreachable!()
                 }
@@ -425,7 +434,7 @@ impl State {
         }
     }
 
-    fn terminate(self, quic_p2p: &mut QuicP2p) -> State {
+    fn terminate(self, quic_p2p: &mut QuicP2pAsync) -> State {
         match self {
             State::Connected(state) => state.terminate(quic_p2p),
             State::Bootstrapping(_state) => (), // No state to terminate
@@ -437,7 +446,7 @@ impl State {
 
     async fn send(
         &mut self,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
         msg_id: MessageId,
         msg: &Message,
     ) -> Result<oneshot::Receiver<Response>, CoreError> {
@@ -448,10 +457,10 @@ impl State {
         }
     }
 
-    fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2p, socket: SocketAddr) {
+    async fn handle_bootstrapped_to(&mut self, quic_p2p: &mut QuicP2pAsync, socket: SocketAddr) {
         trace!("Bootstrapped; SocketAddr: {:?}", socket);
         match self {
-            State::Bootstrapping(state) => state.handle_bootstrapped_to(quic_p2p, socket),
+            State::Bootstrapping(state) => state.handle_bootstrapped_to(quic_p2p, socket).await,
             // This message is not expected for the rest of states
             _state => {
                 warn!("handle_bootstrapped_to called for invalid state");
@@ -459,9 +468,9 @@ impl State {
         }
     }
 
-    fn handle_connected_to(&mut self, quic_p2p: &mut QuicP2p, peer: Peer) {
+    async fn handle_connected_to(&mut self, quic_p2p: &mut QuicP2pAsync, peer: Peer) {
         match self {
-            State::Joining(state) => state.handle_connected_to(quic_p2p, peer),
+            State::Joining(state) => state.handle_connected_to(quic_p2p, peer).await,
             // This message is not expected for the rest of states
             _state => {
                 warn!("handle_connected_to called for invalid state");
@@ -469,15 +478,15 @@ impl State {
         }
     }
 
-    fn handle_new_message(
+    async fn handle_new_message(
         &mut self,
-        quic_p2p: &mut QuicP2p,
+        quic_p2p: &mut QuicP2pAsync,
         peer_addr: SocketAddr,
         msg: Bytes,
     ) -> Transition {
         match self {
             State::Bootstrapping(state) => state.handle_new_message(quic_p2p, peer_addr, msg),
-            State::Joining(state) => state.handle_new_message(quic_p2p, peer_addr, msg),
+            State::Joining(state) => state.handle_new_message(quic_p2p, peer_addr, msg).await,
             State::Connected(state) => state.handle_new_message(quic_p2p, peer_addr, msg),
             State::Terminated => Transition::None,
         }
@@ -485,7 +494,7 @@ impl State {
 }
 
 struct Inner {
-    quic_p2p: QuicP2p,
+    quic_p2p: QuicP2pAsync,
     disconnect_tx: Option<Sender<()>>,
     id: u64,
     state: State,
@@ -522,14 +531,22 @@ impl Inner {
         Ok(disconnect_rx)
     }
 
-    fn handle_quic_p2p_event(&mut self, event: Event) {
+    async fn handle_quic_p2p_event(&mut self, event: Event) {
         use Event::*;
         // should handle new messages sent by vault (assuming it's only the `Challenge::Request` for now)
         // if the message is found to be related to a certain `ConnectionGroup`, `connection_group.response_manager.handle_response(message_id, response)` should be called.
         match event {
             BootstrapFailure => self.handle_bootstrap_failure(),
-            BootstrappedTo { node } => self.state.handle_bootstrapped_to(&mut self.quic_p2p, node),
-            ConnectedTo { peer } => self.state.handle_connected_to(&mut self.quic_p2p, peer),
+            BootstrappedTo { node } => {
+                self.state
+                    .handle_bootstrapped_to(&mut self.quic_p2p, node)
+                    .await
+            }
+            ConnectedTo { peer } => {
+                self.state
+                    .handle_connected_to(&mut self.quic_p2p, peer)
+                    .await
+            }
             SentUserMessage { peer, msg, token } => {
                 self.handle_sent_user_message(peer.peer_addr(), msg, token)
             }
@@ -537,15 +554,16 @@ impl Inner {
                 self.handle_unsent_user_message(peer.peer_addr(), &msg, token)
             }
             NewMessage { peer, msg } => {
-                let transition =
-                    self.state
-                        .handle_new_message(&mut self.quic_p2p, peer.peer_addr(), msg);
+                let transition = self
+                    .state
+                    .handle_new_message(&mut self.quic_p2p, peer.peer_addr(), msg)
+                    .await;
 
                 match transition {
                     Transition::None => (), // do nothing
                     t => {
                         let old_state = mem::replace(&mut self.state, State::Terminated);
-                        self.state = old_state.apply_transition(&mut self.quic_p2p, t);
+                        self.state = old_state.apply_transition(&mut self.quic_p2p, t).await;
                     }
                 }
             }
@@ -616,10 +634,11 @@ impl Inner {
     }
 }
 
-fn setup_quic_p2p_events_receiver(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<Event>) {
+
+fn setup_quic_p2p_events_receiver(inner: &Arc<Mutex<Inner>>, mut event_stream: EventStream) {
     let inner_weak = Arc::downgrade(inner);
-    let _ = tokio::task::spawn_blocking(move || {
-        while let Ok(event) = event_rx.recv() {
+    let _ = tokio::task::spawn(async move {
+        while let Some(event) = event_stream.next().await {
             match event {
                 Event::Finish => {
                     // Graceful shutdown
@@ -627,9 +646,11 @@ fn setup_quic_p2p_events_receiver(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<
                     break;
                 }
                 event => {
+                    info!("NEW EVENT: {:?}", event);
+
                     if let Some(inner) = inner_weak.upgrade() {
                         let mut inner = futures::executor::block_on(inner.lock());
-                        inner.handle_quic_p2p_event(event);
+                        inner.handle_quic_p2p_event(event).await;
                     } else {
                         // Event loop got dropped
                         trace!("Gracefully terminating quic-p2p event loop");
@@ -640,3 +661,4 @@ fn setup_quic_p2p_events_receiver(inner: &Arc<Mutex<Inner>>, event_rx: Receiver<
         }
     });
 }
+*/
