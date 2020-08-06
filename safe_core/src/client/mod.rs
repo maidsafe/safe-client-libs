@@ -194,23 +194,6 @@ pub trait Client: Clone + Send + Sync {
         inner.lock().await.timeout = duration;
     }
 
-    /// Restart the client and reconnect to the network.
-    async fn restart_network(&self) -> Result<(), CoreError> {
-        trace!("Restarting the network connection");
-
-        let inner = self.inner();
-        let mut inner = inner.lock().await;
-
-        inner.connection_manager.restart_network();
-
-        inner
-            .net_tx
-            .unbounded_send(NetworkEvent::Connected)
-            .map_err(|error| CoreError::from(format!("{:?}", error)))?;
-
-        Ok(())
-    }
-
     /// Put unsequenced mutable data to the network
     async fn put_unseq_mutable_data(&self, data: UnseqMutableData) -> Result<(), CoreError>
     where

@@ -368,7 +368,7 @@ impl AuthClient {
             Self::prepare_account_packet_update(*acc_loc, account, keys, &account_packet_id)?;
 
         let mut client_inner = self.inner.lock().await;
-
+/*
         let mut cm = client_inner.cm().clone();
         let mut cm2 = cm.clone();
         let mut cm4 = cm.clone();
@@ -397,7 +397,7 @@ impl AuthClient {
         };
 
         cm4.disconnect(&account_pub_id2).await?;
-
+*/
         Ok(())
     }
 
