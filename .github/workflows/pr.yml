@@ -14,34 +14,30 @@ jobs:
     name: Rustfmt-Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
+      # Install Rust and required components
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
           components: rustfmt, clippy
-      # Check if the code is formatted correctly.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+
       # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+
+      # Check if the code is formatted correctly.
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
       # Run Clippy.
       - shell: bash
         run: ./scripts/clippy-all
@@ -51,35 +47,28 @@ jobs:
     name: Build Scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+
       # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+
       # Test build scripts.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-
-
-
+      - name: Build
+        run: cargo build
 
   # Run test suite.
   test:
@@ -89,28 +78,25 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+
       # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+
       # Run tests.
       - shell: bash
         run: ./scripts/test-real-network
@@ -122,46 +108,42 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+
       # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --manifest-path=safe_core/Cargo.toml --features=testing create_and_retrieve # id tests only
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+
+      # Test
+      - name: Immutable Data Tests
+        run: cargo test --features=testing create_and_retrieve # id tests only
 
   # Test publish using --dry-run.
-  # Only safe_core, as auth and app will fail if core was version-updated.
   test-publish:
     name: Test Publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --manifest-path=safe_core/Cargo.toml --dry-run
+
+      - name: Publish Dry Run
+        run: cargo publish --dry-run

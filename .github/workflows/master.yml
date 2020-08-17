@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - fleming
 
 env:
   # Run all cargo commands with --verbose.
@@ -26,43 +25,36 @@ jobs:
           - os: macos-latest
             target: x86_64-apple-darwin
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+
       # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
+      - name: Cargo cache registry, index and build
+        uses: actions/cache@v2
         with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
 
       # Build prod libraries.
-   
       - shell: bash
         run: |
           [[ -d "artifacts" ]] && rm -rf artifacts
           mkdir artifacts
           find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+
       - uses: actions/upload-artifact@master
         with:
           name: safe_client_libs-${{ matrix.target }}-prod
           path: artifacts
-
-     
-     
 
   deploy:
     name: Deploy
@@ -74,38 +66,46 @@ jobs:
       AWS_DEFAULT_REGION: eu-west-2
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+
     steps:
       # Checkout and get all the artifacts built in the previous jobs.
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+      
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-script
+
+      - name: Install cargo-script
+        run: cargo install cargo-script
+
       - uses: actions/download-artifact@master
         with:
           name: safe_client_libs-x86_64-pc-windows-gnu-prod
           path: artifacts/prod/x86_64-pc-windows-gnu/release
+
       - uses: actions/download-artifact@master
         with:
           name: safe_client_libs-x86_64-pc-windows-gnu-dev
           path: artifacts/dev/x86_64-pc-windows-gnu/release
+
       - uses: actions/download-artifact@master
         with:
           name: safe_client_libs-x86_64-unknown-linux-gnu-prod
           path: artifacts/prod/x86_64-unknown-linux-gnu/release
+
       - uses: actions/download-artifact@master
         with:
           name: safe_client_libs-x86_64-unknown-linux-gnu-dev
           path: artifacts/dev/x86_64-unknown-linux-gnu/release
+
       - uses: actions/download-artifact@master
         with:
           name: safe_client_libs-x86_64-apple-darwin-prod
           path: artifacts/prod/x86_64-apple-darwin/release
+
       - uses: actions/download-artifact@master
         with:
           name: safe_client_libs-x86_64-apple-darwin-dev
@@ -126,6 +126,7 @@ jobs:
       - shell: bash
         run: make package-versioned-deploy-artifacts
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+
       # # Get release description (requires generated archives)
       # - shell: bash
       #   id: release_description
@@ -143,18 +144,16 @@ jobs:
       - name: Upload prod to S3
         run: aws s3 sync deploy/prod s3://safe-client-libs --acl public-read
 
-    
-    
-
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
     name: Publish
-    needs: deploy
+    needs: [deploy]
     runs-on: ubuntu-latest
     # Is this a version change commit?
     if: startsWith(github.event.head_commit.message, 'Version change')
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
+
       - shell: bash
         id: versioning
         run: |
@@ -164,31 +163,20 @@ jobs:
           echo "Old core version: $old_core_version"
           echo "::set-output name=core_version::$core_version"
           echo "::set-output name=old_core_version::$old_core_version"
+
+      # Install Rust
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: login
-          args: ${{ secrets.CRATES_IO_TOKEN }}
+
+      # Log into crates.io so we can publish
+      - name: crates.io login
+        run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
 
       # Only publish crates if their Cargo.toml version != their crates.io version.
       # Otherwise, cargo publish would fail on individual crates that haven't had their versions changed.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --manifest-path=safe_core/Cargo.toml
+      - name: Publish safe_core
         if: steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
-      # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
-      - shell: bash
-        name: Sleep
-        run: sleep 120
-        if: steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --manifest-path=safe_authenticator/Cargo.toml
-        if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
-     
+        run: cargo publish
