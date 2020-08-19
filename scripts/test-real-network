@@ -3,7 +3,4 @@
 set -e -x
 
 # create and retrieve tests run separately
-cargo test --release --features=testing --manifest-path=safe_core/Cargo.toml -- --skip create_and_retrieve
-cargo test --release --features=testing --manifest-path=safe_authenticator/Cargo.toml
-cargo test --release --features=testing --manifest-path=safe_authenticator_ffi/Cargo.toml
-cargo test --release --features=testing --manifest-path=safe_app/Cargo.toml
+cargo test --release --features=testing  -- --skip retrieve

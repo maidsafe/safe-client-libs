@@ -17,15 +17,9 @@ language: rust
 rust:
   - stable
 stages:
-  - test-binary
   - build-binary
 jobs:
   include:
-    # Test binary compatibility
-    - stage: test-binary
-      script: scripts/test-binary
-      os: linux
-
     # Build tests for binary compatibility (only when pushing)
     - stage: build-binary
       script: scripts/build-binary
