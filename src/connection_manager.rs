@@ -95,7 +95,7 @@ impl ConnectionManager {
                 let response = conn.lock().await.send(msg_bytes_clone).await?;
                 match deserialize(&response) {
                     Ok(res) => {
-                        trace!("Query response received");
+                        trace!("Query response received: {:?}", res);
                         Ok(res)
                     }
                     Err(e) => {

@@ -277,7 +277,7 @@ pub mod exported_tests {
             Err(e) => panic!("Unexpected: {:?}", e),
         }
         // Put blob
-        client.store_blob(data.clone()).await?;
+        let _ = client.store_blob(data.clone()).await?;
         let res = client.store_blob(test_data.clone()).await;
         match res {
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
@@ -326,7 +326,7 @@ pub mod exported_tests {
         }
 
         // Put blob
-        client.store_blob(data.clone()).await?;
+        let _ = client.store_blob(data.clone()).await?;
         // Test putting unpub blob with the same value.
         // Should conflict because duplication does .await?;not apply to unpublished data.
         let res = client.store_blob(data2.clone()).await;
@@ -340,7 +340,7 @@ pub mod exported_tests {
         assert_eq!(balance, expected_bal);
 
         // Test putting published blob with the same value. Should not conflict.
-        client.store_blob(pub_data).await?;
+        let _ = client.store_blob(pub_data).await?;
         // Fetch blob
         let fetched_data = client.get_blob(address, None, None).await?;
 
@@ -356,7 +356,7 @@ pub mod exported_tests {
         }
 
         // Test putting unpub blob with the same value again. Should not conflict.
-        client.store_blob(data3.clone()).await?;
+        let _ = client.store_blob(data3.clone()).await?;
         Ok(())
     }
 
@@ -368,7 +368,7 @@ pub mod exported_tests {
             client.public_key().await,
         ));
         let blob_address = *blob.address();
-        client.store_blob(blob).await?;
+        let _ = client.store_blob(blob).await?;
 
         let balance_before_delete = client.get_balance(None).await?;
         client.delete_blob(blob_address).await?;
