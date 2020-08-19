@@ -6,17 +6,21 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-///
-pub mod blob_apis;
-///
-pub mod map_apis;
+
 /// `MapInfo` utilities.
 pub mod map_info;
 
-///
-pub mod sequence_apis;
+/// Map APIs
+pub mod map_apis;
+
+/// Blob APIs
+pub mod blob_apis;
+
 /// Safe Transfers wrapper, with Money APIs
 pub mod transfer_actor;
+
+/// Sequence APIs
+pub mod sequence_apis;
 
 mod blob_storage;
 
@@ -38,8 +42,11 @@ use safe_nd::{
     QueryResponse, Sequence, SequenceAddress,
 };
 
-use rand::{thread_rng, Rng};
 use std::sync::Arc;
+
+use xor_name::XorName;
+
+use rand::thread_rng;
 use std::{collections::HashSet, net::SocketAddr};
 use threshold_crypto::{PublicKeySet, SecretKey};
 use xor_name::XorName;
