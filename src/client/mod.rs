@@ -206,10 +206,9 @@ impl Client {
 
     // Build and sign Cmd Message Envelope
     pub(crate) fn create_cmd_message(msg_contents: Cmd) -> Message {
-        trace!("Creating cmd message");
-        let mut rng = thread_rng();
-        let random_xor = rng.gen::<XorName>();
+        let random_xor = XorName::random();
         let id = MessageId(random_xor);
+        trace!("Creating cmd message with id: {:?}", id);
         println!("cmd msg id: {:?}", id);
 
         Message::Cmd {
@@ -220,13 +219,10 @@ impl Client {
 
     // Build and sign Query Message Envelope
     pub(crate) fn create_query_message(msg_contents: Query) -> Message {
-        trace!("Creating query message");
-
-        let mut rng = thread_rng();
-        let random_xor = rng.gen::<XorName>();
+        let random_xor = XorName::random();
         let id = MessageId(random_xor);
+        trace!("Creating query message qith id : {:?}", id);
 
-        println!("query msg id: {:?}", id);
         Message::Query {
             query: msg_contents,
             id,
