@@ -41,19 +41,14 @@ impl Client {
         let message = Self::create_cmd_message(simluated_farming_cmd);
 
         let pub_id = self.full_id.public_id();
-
-        let _bootstrapped = self.connection_manager.bootstrap().await;
         let _ = self.connection_manager.send_cmd(&message).await?;
 
         // If we're getting the payout for our own actor, update it here
-        // if to == self.full_id().await.public_key() {
         info!("Applying simulated payout locally, via query for history...");
-
-        // std::thread::sleep(std::time::Duration::from_millis(15500));
 
         // get full history from network and apply locally
         self.get_history().await?;
-        // }
+
         Ok(())
     }
 }

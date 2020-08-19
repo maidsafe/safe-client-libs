@@ -74,8 +74,6 @@ impl Client {
 
         let message = Self::create_query_message(msg_contents);
 
-        let _bootstrapped = self.connection_manager.bootstrap().await;
-
         // This is a normal response manager request. We want quorum on this for now...
         let res = self.connection_manager.send_query(&message).await?;
 
@@ -150,9 +148,6 @@ impl Client {
                 signed_transfer,
             }))?;
 
-        // setup connection manager
-        let _bootstrapped = self.connection_manager.bootstrap().await;
-
         let payment_proof: DebitAgreementProof = self.await_validation(&transfer_message).await?;
 
         debug!("payment proof retrieved");
@@ -171,21 +166,5 @@ impl Client {
 
         //Ok(proof)
         unimplemented!()
-    }
-}
-
-// TODO: Do we need "new" to actually instantiate with a transfer?...
-#[cfg(all(test, feature = "simulated-payouts"))]
-mod tests {
-
-    use super::*;
-    use crate::crypto::shared_box;
-
-    #[tokio::test]
-    async fn client_creation() {
-        let (sk, pk) = shared_box::gen_bls_keypair();
-        let _transfer_actor = Client::new(Some(sk)).await.unwrap();
-
-        assert!(true);
     }
 }

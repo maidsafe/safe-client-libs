@@ -9,14 +9,20 @@
 use crate::CoreError;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use futures::{future::join_all, lock::Mutex};
-use log::{error, info, trace};
+use futures::{
+    future::{join_all, select_all},
+    lock::Mutex,
+};
+use log::{error, info, trace, warn};
 use quic_p2p::{self, Config as QuicP2pConfig, Connection, QuicP2pAsync};
 use safe_nd::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+
+/// Simple map for correlating a response with votes from various elder responses.
+type VoteMap = HashMap<QueryResponse, usize>;
 
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
@@ -75,7 +81,7 @@ impl ConnectionManager {
         let _results = join_all(tasks).await;
 
         // TODO: return an error if we didn't successfully
-        // sent it to at least a majority of Elders??
+        // send it to at least a majority of Elders??
 
         Ok(())
     }
@@ -91,13 +97,12 @@ impl ConnectionManager {
         for elder_conn in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let conn = Arc::clone(elder_conn);
-            let task_handle = tokio::spawn(async move {
+
+            let mut task_handle = tokio::spawn(async move {
                 let response = conn.lock().await.send(msg_bytes_clone).await?;
+
                 match deserialize(&response) {
-                    Ok(res) => {
-                        trace!("Query response received: {:?}", res);
-                        Ok(res)
-                    }
+                    Ok(MsgEnvelope { message, .. }) => Ok(message),
                     Err(e) => {
                         let err_msg = format!("Unexpected deserialisation error: {:?}", e);
                         error!("{}", err_msg);
@@ -105,55 +110,81 @@ impl ConnectionManager {
                     }
                 }
             });
+
             tasks.push(task_handle);
         }
 
-        // Let's await for all responses
-        // TODO: await only for a majority
-        let responses = join_all(tasks).await;
-
         // Let's figure out what's the value which is in the majority of responses obtained
-        let mut votes_map = HashMap::<MsgEnvelope, usize>::default();
-        let mut winner: (Option<MsgEnvelope>, usize) = (None, 0);
-        for join_result in responses.into_iter() {
-            if let Ok(response_result) = join_result {
-                let response: MsgEnvelope = response_result.map_err(|err| {
-                    CoreError::from(format!(
-                        "Failed to obtain a response from the network: {}",
-                        err
-                    ))
-                })?;
+        let mut vote_map = VoteMap::default();
 
-                let counter = votes_map.entry(response.clone()).or_insert(0);
-                *counter += 1;
-                if *counter > winner.1 {
-                    winner = (Some(response), *counter);
+        // TODO: make threshold dynamic based upon known elders
+        let threshold = 2;
+        let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
+
+        // Let's await for all responses
+        let mut has_elected_a_response = false;
+
+        let mut todo = tasks;
+
+        while !has_elected_a_response {
+            let (res, idx, remaining_futures) = select_all(todo.into_iter()).await;
+            todo = remaining_futures;
+
+            if let Ok(res) = res {
+                match res {
+                    Ok(Message::QueryResponse { response, .. }) => {
+                        trace!("QueryResponse is: {:?}", response);
+                        let counter = vote_map.entry(response.clone()).or_insert(0);
+                        *counter += 1;
+
+                        // First, see if this latest response brings us above the threashold for any response
+                        if *counter > threshold {
+                            winner = (Some(response.clone()), *counter);
+                            has_elected_a_response = true;
+                        }
+
+                        // Second, let's handle no winner on majority responses.
+                        if !has_elected_a_response {
+                            let mut number_of_responses = 0;
+                            let mut most_popular_response = winner.clone();
+
+                            for (message, votes) in vote_map.iter() {
+                                number_of_responses += votes;
+
+                                if most_popular_response.0 == None {
+                                    most_popular_response = (Some(message.clone()), *votes);
+                                }
+
+                                if votes > &most_popular_response.1 {
+                                    trace!("setting winner, with {:?} votes: {:?}", votes, message);
+
+                                    most_popular_response = (Some(message.clone()), *votes)
+                                }
+                            }
+
+                            if number_of_responses == self.elders.len() {
+                                trace!("No clear response above the threshold ({:?}), so choosing most popular response with: {:?} votes: {:?}", threshold, most_popular_response.1, most_popular_response.0);
+                                winner = most_popular_response;
+                                has_elected_a_response = true;
+                            }
+                        }
+                    }
+                    _ => {
+                        error!("Unexpected message in reply to Query: {:?}", res);
+                    }
                 }
             }
         }
-
-        // TODO: return an error if we didn't successfully got enough number
-        // of responses to represent a majority of Elders
 
         trace!(
             "Response obtained from majority {} of nodes: {:?}",
             winner.1,
             winner.0
         );
-        winner.0.map_or_else(
-            || {
-                Err(CoreError::from(format!(
-                    "Failed to obtain a response from the network."
-                )))
-            },
-            |res| match res.message {
-                Message::QueryResponse { response, .. } => Ok(response),
-                m => Err(CoreError::from(format!(
-                    "Unexpected Response Message type while sending query: {:?}",
-                    m
-                ))),
-            },
-        )
+
+        winner.0.ok_or(CoreError::from(format!(
+            "Failed to obtain a response from the network."
+        )))
     }
 
     // Private helpers
@@ -245,16 +276,30 @@ impl ConnectionManager {
         }
 
         // Let's await for them to all successfully connect, or fail if at least one failed
-        let conn_results = join_all(tasks).await;
+        let mut has_sufficent_connections = false;
 
-        // We can now keep each of the connections in our instance
-        for join_result in conn_results.into_iter() {
-            if let Ok(conn_result) = join_result {
+        let mut todo = tasks;
+
+        while !has_sufficent_connections {
+            let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
+            todo = remaining_futures;
+
+            if let Ok(conn_result) = res {
                 let conn = conn_result.map_err(|err| {
                     CoreError::from(format!("Failed to connect to an Elder: {}", err))
                 })?;
 
+                // We can now keep this connections in our instance
                 self.elders.push(conn);
+            }
+
+            if self.elders.len() > 2 {
+                has_sufficent_connections = true;
+            }
+
+            // TODO: is this an error?
+            if self.elders.len() < 7 {
+                warn!("Connected to only {:?} elders.", self.elders.len());
             }
         }
 

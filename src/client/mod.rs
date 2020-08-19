@@ -6,7 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-
 /// `MapInfo` utilities.
 pub mod map_info;
 
@@ -42,6 +41,8 @@ use safe_nd::{
     QueryResponse, Sequence, SequenceAddress,
 };
 
+use std::str::FromStr;
+
 use std::sync::Arc;
 
 use xor_name::XorName;
@@ -49,7 +50,6 @@ use xor_name::XorName;
 use rand::thread_rng;
 use std::{collections::HashSet, net::SocketAddr};
 use threshold_crypto::{PublicKeySet, SecretKey};
-use xor_name::XorName;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
@@ -125,6 +125,14 @@ impl Client {
             sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
         };
 
+        #[cfg(feature = "simulated-payouts")]
+        {
+            // we're testing, and currently a lot of tests expect 10 money to start
+            let _ = full_client
+                .trigger_simulated_farming_payout(Money::from_str("10")?)
+                .await?;
+        }
+
         full_client.get_history().await?;
 
         Ok(full_client)
@@ -145,14 +153,6 @@ impl Client {
         // Create the connection manager
         let mut connection_manager =
             attempt_bootstrap(&Config::new().quic_p2p, full_id.clone()).await?;
-
-        // let mut the_actor = TransferActor::new(full_id.clone(), connection_manager).await?;
-        // let transfer_actor = the_self.clone();
-
-        // TODO: Do we need this again?
-        // connection_manager
-        // .bootstrap(maid_keys.client_safe_key())
-        // .await?;
 
         let simulated_farming_payout_dot =
             Dot::new(PublicKey::from(SecretKey::random().public_key()), 0);
@@ -282,10 +282,21 @@ pub async fn attempt_bootstrap(
 #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
 pub mod exported_tests {
     use super::*;
+    use crate::crypto::shared_box;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use safe_nd::{Error as SndError, Money, PublicBlob};
     use std::str::FromStr;
     use unwrap::unwrap;
+
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn client_creation() -> Result<(), CoreError> {
+        let (sk, pk) = shared_box::gen_bls_keypair();
+        let _transfer_actor = Client::new(Some(sk)).await?;
+
+        assert!(true);
+
+        Ok(())
+    }
 
     // 1. Create a client A with a wallet and allocate some test safecoin to it.
     // 2. Get the balance and verify it.
@@ -364,6 +375,12 @@ pub mod exported_tests {
 mod tests {
     use super::exported_tests;
     use super::*;
+
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn client_creation() -> Result<(), CoreError> {
+        exported_tests::client_creation().await
+    }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]

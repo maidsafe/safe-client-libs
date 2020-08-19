@@ -70,7 +70,6 @@ impl Client {
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
 
         let message = Self::create_query_message(msg_contents);
-        self.connection_manager.bootstrap().await?;
 
         match self.connection_manager.send_query(&message).await? {
             QueryResponse::GetBalance(balance) => balance.map_err(CoreError::from),
