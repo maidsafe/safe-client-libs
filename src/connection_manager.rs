@@ -99,7 +99,7 @@ impl ConnectionManager {
                         Ok(res)
                     }
                     Err(e) => {
-                        let err_msg = format!("Unexpected error: {:?}", e);
+                        let err_msg = format!("Unexpected deserialisation error: {:?}", e);
                         error!("{}", err_msg);
                         Err(CoreError::Unexpected(err_msg))
                     }

@@ -404,7 +404,7 @@ pub mod exported_tests {
         let mut client = Client::new(None).await?;
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
-        client.store_blob(data).await?;
+        let _ = client.store_blob(data).await?;
 
         let address = BlobAddress::Private(data_name);
         let res = client.get_blob(address, None, None).await;
@@ -422,7 +422,7 @@ pub mod exported_tests {
 
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
-        client.store_blob(data).await?;
+        let _ = client.store_blob(data).await?;
 
         let address = BlobAddress::Public(data_name);
         let res = client.get_blob(address, None, None).await;
@@ -475,7 +475,7 @@ pub mod exported_tests {
 
         let data = client.store_blob(value).await?;
         let address = *data.address();
-        client.store_blob(data).await?;
+        let _ = client.store_blob(data).await?;
 
         let res = client.get_blob(address, None, None).await;
         assert!(res.is_err());
@@ -493,7 +493,7 @@ pub mod exported_tests {
 
         let data = client.store_blob(value).await?;
         let address = *data.address();
-        client.store_blob(data).await?;
+        let _ = client.store_blob(data).await?;
 
         let res = client.get_blob(address, None, None).await;
         assert!(res.is_err());
@@ -510,7 +510,7 @@ pub mod exported_tests {
 
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
-        client.store_blob(data).await?;
+        let _ = client.store_blob(data).await?;
 
         let address = BlobAddress::Private(data_name);
         let res = client.get_blob(address, None, None).await;
@@ -551,7 +551,7 @@ pub mod exported_tests {
 
             let data = client.store_blob(blob.clone()).await?;
             let address = *data.address();
-            client.store_blob(data).await?;
+            let _ = client.store_blob(data).await?;
 
             let fetched_blob = client
                 .get_blob(address, None, Some(size as u64 / 2))
@@ -566,7 +566,7 @@ pub mod exported_tests {
 
             let data = client.store_blob(blob2.clone()).await?;
             let address = *data.address();
-            client.store_blob(data).await?;
+            let _ = client.store_blob(data).await?;
 
             let fetched_blob = client
                 .get_blob(address, Some(size as u64 / 2), Some(size as u64 / 2))
