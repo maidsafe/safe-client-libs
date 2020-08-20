@@ -33,7 +33,7 @@ use crate::errors::CoreError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
-use log::trace;
+use log::{error, trace, warn};
 use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use rand::thread_rng;
@@ -69,7 +69,6 @@ pub struct Client {
     blob_cache: Arc<Mutex<LruCache<BlobAddress, Blob>>>,
     /// Sequence CRDT replica
     sequence_cache: Arc<Mutex<LruCache<SequenceAddress, Sequence>>>,
-
     transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator>>>,
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
@@ -130,10 +129,53 @@ impl Client {
                 .await?;
         }
 
-        full_client.get_history().await?;
+        full_client.get_history().await;
+
+        //Start listening for Events
+        // full_client.listen().await;
 
         Ok(full_client)
     }
+    /*
+        async fn listen(&mut self) {
+            let (tx, rx) = std::sync::mpsc::channel();
+            loop {
+                self.connection_manager.listen(tx.clone()).await;
+                match rx.recv() {
+                    Ok(bytes) => {
+                        let event = deserialize::<MsgEnvelope>(&bytes);
+                        match event {
+                            Ok(envelope) => match envelope.message {
+                                Message::Event { event, .. } => {
+                                    match self.handle_validation_event(event).await {
+                                        Ok(proof) => {
+                                            match proof {
+                                                Some(debit) => { let _ = self.debit_cache.insert(debit.id(), debit); }
+                                                None => { warn!("Handled a validation Event") }
+                                            }
+                                        },
+                                        Err(e) => error!("Unexpected error while handling validation: {:?}", e),
+                                    }
+                                }
+                                m => error!("Unexpected message found while listening: {:?}", m),
+                            },
+                            Err(e) => error!("Error deserializing message while listening: {:?}", e),
+                        }
+                    }
+                    Err(e) => error!("Error listening to Events from Quic-p2p: {:?}", e),
+                }
+            }
+        }
+
+        async fn check_debit_cache(&mut self, id: TransferId) -> DebitAgreementProof {
+            loop {
+                match self.debit_cache.get(&id) {
+                    Some(proof) => return proof.clone(),
+                    None => (),
+                }
+            }
+        }
+    */
 
     #[cfg(feature = "simulated-payouts")]
     pub async fn new_no_initial_balance(sk: Option<SecretKey>) -> Result<Self, CoreError> {

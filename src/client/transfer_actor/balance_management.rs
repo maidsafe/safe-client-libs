@@ -111,10 +111,12 @@ impl Client {
             .lock()
             .await
             .apply(ActorEvent::TransferInitiated(TransferInitiated {
-                signed_transfer,
+                signed_transfer: signed_transfer.clone(),
             }))?;
 
-        let debit_proof: DebitAgreementProof = self.await_validation(&message).await?;
+        let debit_proof: DebitAgreementProof = self
+            .await_validation(&message, signed_transfer.id())
+            .await?;
 
         // Register the transfer on the network.
         let msg_contents = Cmd::Transfer(TransferCmd::RegisterTransfer(debit_proof.clone()));

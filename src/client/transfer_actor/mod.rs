@@ -1,6 +1,6 @@
 use safe_nd::{
     ClientFullId, Cmd, DebitAgreementProof, Message, Money, PublicKey, Query, QueryResponse,
-    TransferCmd, TransferQuery,
+    TransferCmd, TransferId, TransferQuery,
 };
 
 use safe_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
@@ -19,15 +19,6 @@ pub mod setup;
 pub mod simulated_payouts;
 /// Module containing all PUT apis
 pub mod write_apis;
-
-/// Handle Money Transfers, requests and locally stores a balance
-// pub struct TransferActor {
-//     transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator>>>,
-//     full_id: ClientFullId,
-//     replicas_pk_set: PublicKeySet,
-//     simulated_farming_payout_dot: Dot<PublicKey>,
-//     connection_manager: ConnectionManager,
-// }
 
 /// Simple client side validations
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -145,26 +136,27 @@ impl Client {
             .lock()
             .await
             .apply(ActorEvent::TransferInitiated(TransferInitiated {
-                signed_transfer,
+                signed_transfer: signed_transfer.clone(),
             }))?;
 
-        let payment_proof: DebitAgreementProof = self.await_validation(&transfer_message).await?;
+        let payment_proof: DebitAgreementProof = self
+            .await_validation(&transfer_message, signed_transfer.id())
+            .await?;
 
         debug!("payment proof retrieved");
         Ok(payment_proof)
     }
 
-    /// Send message and await validation and constructin of DebitAgreementProof
+    /// Send message and await validation and constructing of DebitAgreementProof
     async fn await_validation(
         &mut self,
-        _message: &Message,
+        message: &Message,
+        id: TransferId,
     ) -> Result<DebitAgreementProof, CoreError> {
         info!("Awaiting transfer validation");
-        //let mut cm = self.connection_manager();
-
-        //let proof = self.connection_manager.send_cmd(&pub_id, &message).await?;
-
-        //Ok(proof)
+        // self.connection_manager.send_cmd(&message).await?;
+        // let proof = self.check_debit_cache(id).await;
+        // Ok(proof)
         unimplemented!()
     }
 }

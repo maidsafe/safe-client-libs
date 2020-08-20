@@ -15,6 +15,12 @@ use bytes::Bytes;
 use log::{error, info, trace, warn};
 use quic_p2p::{self, Config as QuicP2pConfig, Connection, QuicP2p};
 use safe_nd::{
+    BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
+    Proof, QueryResponse,
+};
+use std::sync::mpsc::Sender;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
 
@@ -300,4 +306,24 @@ impl ConnectionManager {
         trace!("Connected to {} Elders.", self.elders.len());
         Ok(())
     }
+
+    /*
+    /// Listen for incoming events(messages) via IncomingConnections.
+    pub async fn listen(&mut self, tx: Sender<Bytes>) {
+        match self.quic_p2p.listen() {
+            Ok(mut incoming) => match (incoming.next()).await {
+                Some(mut msg) => match (msg.next()).await {
+                    Some(bytes) => {
+                        let _ = tx.send(bytes).unwrap();
+                    }
+                    None => info!("No Incoming Messages"),
+                },
+                None => info!("No Incoming Events"),
+            },
+            Err(e) => {
+                error!("Error from Quic-p2p on listening: {:?}", e);
+            }
+        }
+    }
+     */
 }
