@@ -36,6 +36,7 @@ use futures::lock::Mutex;
 use log::trace;
 use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
+use rand::thread_rng;
 use safe_nd::{
     Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
     QueryResponse, Sequence, SequenceAddress,
@@ -44,10 +45,6 @@ use safe_nd::{
 use std::str::FromStr;
 
 use std::sync::Arc;
-
-use xor_name::XorName;
-
-use rand::thread_rng;
 use std::{collections::HashSet, net::SocketAddr};
 use threshold_crypto::{PublicKeySet, SecretKey};
 

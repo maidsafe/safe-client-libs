@@ -106,7 +106,6 @@ impl Config {
                         };
                     // If there is no config file, assume we are a client
                     QuicP2pConfig {
-                        our_type: quic_p2p::OurType::Client,
                         bootstrap_cache_dir: custom_dir,
                         ..Default::default()
                     }

@@ -9,18 +9,12 @@
 use crate::CoreError;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use futures::{
     future::{join_all, select_all},
     lock::Mutex,
 };
 use log::{error, info, trace, warn};
-use quic_p2p::{self, Config as QuicP2pConfig, Connection, QuicP2pAsync};
+use quic_p2p::{self, Config as QuicP2pConfig, Connection, QuicP2p};
 use safe_nd::{
-    BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
-    Proof, QueryResponse,
-};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
 
@@ -29,7 +23,7 @@ type VoteMap = HashMap<QueryResponse, usize>;
 #[derive(Clone)]
 pub struct ConnectionManager {
     full_id: ClientFullId,
-    quic_p2p: QuicP2pAsync,
+    quic_p2p: QuicP2p,
     elders: Vec<Arc<Mutex<Connection>>>,
 }
 
@@ -37,7 +31,7 @@ impl ConnectionManager {
     /// Create a new connection manager.
     pub fn new(mut config: QuicP2pConfig, full_id: ClientFullId) -> Result<Self, CoreError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
-        let quic_p2p = QuicP2pAsync::with_config(Some(config), Default::default(), false)?;
+        let quic_p2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
 
         Ok(Self {
             full_id,
@@ -250,7 +244,7 @@ impl ConnectionManager {
             let mut quic_p2p = self.quic_p2p.clone();
             let full_id = self.full_id.clone();
             let task_handle = tokio::spawn(async move {
-                let mut conn = quic_p2p.connect_to(peer_addr).await?;
+                let mut conn = quic_p2p.connect_to(&peer_addr).await?;
                 let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
                 let msg = Bytes::from(serialize(&handshake)?);
                 let join_response = conn.send(msg).await?;
