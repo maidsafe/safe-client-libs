@@ -1703,7 +1703,7 @@ dependencies = [
 [[package]]
 name = "self_encryption"
 version = "0.19.0"
-source = "git+https://github.com/joshuef/self_encryption.git?branch=AllowMutGet#a1733a1ef2530cddd46bb1523f0f83d12b296f1e"
+source = "git+https://github.com/joshuef/self_encryption.git?branch=AllowMutGet#33e1b9d0b7361abce6249c9994c94a350f289789"
 dependencies = [
  "aes",
  "async-trait",

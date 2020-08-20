@@ -45,24 +45,3 @@ pub fn calculate_new_balance(
     // }
     balance
 }
-
-/// Initialises `env_logger` with custom settings.
-pub fn init_log() {
-    use std::io::Write;
-    let do_format = move |formatter: &mut env_logger::fmt::Formatter, record: &log::Record<'_>| {
-        let now = formatter.timestamp();
-        writeln!(
-            formatter,
-            "{} {} [{}:{}] {}",
-            formatter.default_styled_level(record.level()),
-            now,
-            record.file().unwrap_or_default(),
-            record.line().unwrap_or_default(),
-            record.args()
-        )
-    };
-    let _ = env_logger::Builder::from_default_env()
-        .format(do_format)
-        .is_test(true)
-        .try_init();
-}

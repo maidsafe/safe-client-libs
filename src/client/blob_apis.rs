@@ -81,7 +81,6 @@ impl Client {
     /// Store a new blob object, self sncrypt and return final blob
     /// Wraps msg_contents for payment validation and mutation
     pub async fn store_blob(&mut self, data: Blob) -> Result<Blob, CoreError> {
-
         let data_to_write_to_network: Blob = self.self_encrypt_blob(data).await?;
         // --------------------------
         // Payment for PUT
@@ -126,10 +125,7 @@ impl Client {
     // --------------------------------------------
 
     // use self_encryption to generated an encrypted blob stored at the data map
-    async fn self_encrypt_blob(
-        &mut self,
-        data: Blob,
-    ) -> Result<Blob, CoreError> {
+    async fn self_encrypt_blob(&mut self, data: Blob) -> Result<Blob, CoreError> {
         let blob_storage = BlobStorageDryRun::new(self.clone(), data.is_pub());
 
         let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)
@@ -261,7 +257,6 @@ mod tests {
     use unwrap::unwrap;
     use xor_name::XorName;
 
-    
     // Test putting and getting pub blob.
     #[tokio::test]
     async fn pub_blob_test() -> Result<(), CoreError> {
@@ -306,7 +301,6 @@ mod tests {
     #[tokio::test]
     async fn unpub_blob_test() -> Result<(), CoreError> {
         println!("blob_Test________");
-        crate::utils::test_utils::init_log();
         // The `Client::new(None)` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
         println!("blob_Test_______pre client_");

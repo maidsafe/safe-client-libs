@@ -88,6 +88,7 @@ pub struct Client {
 impl Client {
     /// This will create a basic Client object which is sufficient only for testing purposes.
     pub async fn new(sk: Option<SecretKey>) -> Result<Self, CoreError> {
+        crate::utils::init_log();
         let full_id = match sk {
             Some(sk) => ClientFullId::from(sk),
             None => {
