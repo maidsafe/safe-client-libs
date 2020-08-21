@@ -33,18 +33,22 @@ use crate::errors::CoreError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
-use log::{error, trace, warn};
+use log::{error, info, trace, warn};
 use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use rand::thread_rng;
 use safe_nd::{
-    Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
-    QueryResponse, Sequence, SequenceAddress,
+    Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, MsgEnvelope, PublicId,
+    PublicKey, Query, QueryResponse, Sequence, SequenceAddress,
 };
 
 use std::str::FromStr;
 
 use std::sync::Arc;
+
+use xor_name::XorName;
+
+use bincode::deserialize;
 use std::{collections::HashSet, net::SocketAddr};
 use threshold_crypto::{PublicKeySet, SecretKey};
 
@@ -132,41 +136,48 @@ impl Client {
         full_client.get_history().await;
 
         //Start listening for Events
-        // full_client.listen().await;
+        full_client.listen_on_network().await;
 
         Ok(full_client)
     }
-    /*
-        async fn listen(&mut self) {
-            let (tx, rx) = std::sync::mpsc::channel();
-            loop {
-                self.connection_manager.listen(tx.clone()).await;
-                match rx.recv() {
-                    Ok(bytes) => {
-                        let event = deserialize::<MsgEnvelope>(&bytes);
-                        match event {
-                            Ok(envelope) => match envelope.message {
-                                Message::Event { event, .. } => {
-                                    match self.handle_validation_event(event).await {
-                                        Ok(proof) => {
-                                            match proof {
-                                                Some(debit) => { let _ = self.debit_cache.insert(debit.id(), debit); }
-                                                None => { warn!("Handled a validation Event") }
-                                            }
-                                        },
-                                        Err(e) => error!("Unexpected error while handling validation: {:?}", e),
+
+    async fn listen_on_network(&mut self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        loop {
+            self.connection_manager.listen(tx.clone()).await;
+            match rx.recv() {
+                Ok(envelope) => {
+                    let message = envelope.message;
+                    match message {
+                        // Ok(envelope) => match envelope.message {
+                        Message::Event { event, correlation_id, .. } => {
+                            match self.handle_validation_event(event).await {
+                                Ok(proof) => {
+                                    match proof {
+                                        Some(debit) => {
+                                            // TODO: store response against correlation ID, 
+                                            // use this id for retrieval in write apis.
+                                            info!("DO SOMETHING WITH PROOF");
+                                            // let _ = self.debit_cache.insert(debit.id(), debit);
+                                        }
+                                        None => warn!("Handled a validation Event"),
                                     }
                                 }
-                                m => error!("Unexpected message found while listening: {:?}", m),
-                            },
-                            Err(e) => error!("Error deserializing message while listening: {:?}", e),
+                                Err(e) => {
+                                    error!("Unexpected error while handling validation: {:?}", e)
+                                }
+                            }
                         }
+                        m => error!("Unexpected message found while listening: {:?}", m),
+                        // },
+                        // Err(e) => error!("Error deserializing message while listening: {:?}", e),
                     }
-                    Err(e) => error!("Error listening to Events from Quic-p2p: {:?}", e),
                 }
+                Err(e) => error!("Error listening to Events from Quic-p2p: {:?}", e),
             }
         }
-
+    }
+    /*
         async fn check_debit_cache(&mut self, id: TransferId) -> DebitAgreementProof {
             loop {
                 match self.debit_cache.get(&id) {

@@ -9,11 +9,9 @@
 use crate::CoreError;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-    future::{join_all, select_all},
-    lock::Mutex,
-};
-use log::{error, info, trace, warn};
-use quic_p2p::{self, Config as QuicP2pConfig, Connection, QuicP2p};
+use futures::{future::join_all, select_all, lock::Mutex};
+use log::{error, info, trace};
+use quic_p2p::{self, Config as QuicP2pConfig, Connection, Message as QP2pMessage, QuicP2p};
 use safe_nd::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,
@@ -307,15 +305,24 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /*
-    /// Listen for incoming events(messages) via IncomingConnections.
-    pub async fn listen(&mut self, tx: Sender<Bytes>) {
+    /// Listen for incoming messages via IncomingConnections.
+    pub async fn listen(&mut self, tx: Sender<MsgEnvelope>) {
         match self.quic_p2p.listen() {
             Ok(mut incoming) => match (incoming.next()).await {
                 Some(mut msg) => match (msg.next()).await {
-                    Some(bytes) => {
-                        let _ = tx.send(bytes).unwrap();
-                    }
+                    Some(qp2p_message) => match qp2p_message {
+                        QP2pMessage::BiStream { bytes, .. } => {
+                            match deserialize::<MsgEnvelope>(&bytes) {
+                                Ok(envelope) => {
+                                    let _ = tx.send(envelope).unwrap();
+                                }
+                                Err(_) => error!("Error deserializing qp2p network message"),
+                            }
+                        }
+                        _ => {
+                            error!("Should not receive qp2p messages on non bi-directional stream")
+                        }
+                    },
                     None => info!("No Incoming Messages"),
                 },
                 None => info!("No Incoming Events"),
@@ -325,5 +332,4 @@ impl ConnectionManager {
             }
         }
     }
-     */
 }
