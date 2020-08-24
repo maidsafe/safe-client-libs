@@ -50,18 +50,7 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       # Build prod libraries.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path=safe_authenticator/Cargo.toml
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path=safe_authenticator_ffi/Cargo.toml
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path=safe_app/Cargo.toml
+   
       - shell: bash
         run: |
           [[ -d "artifacts" ]] && rm -rf artifacts
@@ -72,171 +61,8 @@ jobs:
           name: safe_client_libs-${{ matrix.target }}-prod
           path: artifacts
 
-      # Build dev libraries.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_authenticator/Cargo.toml
-            --features=mock-network
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_authenticator_ffi/Cargo.toml
-            --features=mock-network
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: >
-            --release --manifest-path=safe_app/Cargo.toml
-            --features=mock-network
-      - shell: bash
-        run: |
-          [[ -d "artifacts" ]] && rm -rf artifacts
-          mkdir artifacts
-          find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
-      - uses: actions/upload-artifact@master
-        with:
-          name: safe_client_libs-${{ matrix.target }}-dev
-          path: artifacts
-
-  build-ios:
-    name: Build iOS
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        component: [safe_authenticator_ffi]
-    steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          target: aarch64-apple-ios
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          target: x86_64-apple-ios
-
-      # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      # Install cargo-lipo for universal iOS libs.
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cargo-lipo
-
-      # Build prod libraries.
-      - name: Build universal lib - prod
-        shell: bash
-        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml
-      # Upload prod libs.
-      - uses: actions/upload-artifact@master
-        with:
-          name: ${{ matrix.component }}-apple-ios-prod
-          path: target/universal/release/lib${{ matrix.component }}.a
-      # Build dev libs.
-      - name: Build universal lib - dev
-        shell: bash
-        run: cargo lipo --release --manifest-path=${{ matrix.component}}/Cargo.toml --features=mock-network
-      # Upload dev libs.
-      - uses: actions/upload-artifact@master
-        with:
-          name: ${{ matrix.component }}-apple-ios-dev
-          path: target/universal/release/lib${{ matrix.component }}.a
-
-  build-android:
-    name: Build Android
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [armv7-linux-androideabi, x86_64-linux-android]
-        type: [dev, prod]
-    steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-          target: ${{ matrix.target }}
-
-      # Set output parameter for the feature flag.
-      - name: Set features output parameter for the dev build
-        id: set_dev_flag
-        if: matrix.type == 'dev'
-        run: echo ::set-output name=features::--features=mock-network
-
-      # Cache.
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      # Setup NDK build toolchain for arm.
-      - if: matrix.target == 'armv7-linux-androideabi'
-        name: Setup NDK toolchain for armv7
-        shell: bash
-        run: |
-          mkdir toolchains
-          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch arm --api 21 --install-dir toolchains --force
-          echo "::set-env name=CC_armv7_linux_androideabi::arm-linux-androideabi-clang"
-          echo "::set-env name=CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER::arm-linux-androideabi-clang"
-          echo "::add-path::$PWD/toolchains/bin"
-
-      # Setup NDK build toolchain for x86_64.
-      - if: matrix.target == 'x86_64-linux-android'
-        name: Setup NDK toolchain for x86_64
-        shell: bash
-        run: |
-          mkdir toolchains
-          /usr/local/lib/android/sdk/ndk-bundle/build/tools/make_standalone_toolchain.py --arch x86_64 --api 21 --install-dir toolchains --force
-          echo "::set-env name=CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER::x86_64-linux-android-gcc"
-          echo "::add-path::$PWD/toolchains/bin"
-
-      # Build safe_authenticator_ffi native lib.
-      - name: build safe_authenticator_ffi
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --manifest-path=safe_authenticator_ffi/Cargo.toml --target=${{ matrix.target }} ${{ steps.set_dev_flag.outputs.features }}
-
-      # Upload safe_authenticator_ffi native lib.
-      - name: upload safe_authenticator_ffi artifact
-        uses: actions/upload-artifact@master
-        with:
-          name: safe_authenticator_ffi-${{ matrix.target }}-${{ matrix.type}}
-          path: target/${{ matrix.target }}/release/libsafe_authenticator_ffi.so
+     
+     
 
   deploy:
     name: Deploy
@@ -284,43 +110,14 @@ jobs:
         with:
           name: safe_client_libs-x86_64-apple-darwin-dev
           path: artifacts/dev/x86_64-apple-darwin/release
-      # Android
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_authenticator_ffi-armv7-linux-androideabi-prod
-          path: artifacts/prod/armv7-linux-androideabi/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_authenticator_ffi-armv7-linux-androideabi-dev
-          path: artifacts/dev/armv7-linux-androideabi/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_authenticator_ffi-x86_64-linux-android-prod
-          path: artifacts/prod/x86_64-linux-android/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_authenticator_ffi-x86_64-linux-android-dev
-          path: artifacts/dev/x86_64-linux-android/release
-      # iOS
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_authenticator_ffi-apple-ios-prod
-          path: artifacts/prod/apple-ios/release
-      - uses: actions/download-artifact@master
-        with:
-          name: safe_authenticator_ffi-apple-ios-dev
-          path: artifacts/dev/apple-ios/release
-
+      
+      
       # Get information for the release.
       - shell: bash
         id: versioning
         run: |
-          core_version=$(grep "^version" < safe_core/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          auth_version=$(grep "^version" < safe_authenticator/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          app_version=$(grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          core_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
           echo "::set-output name=core_version::$core_version"
-          echo "::set-output name=auth_version::$auth_version"
-          echo "::set-output name=app_version::$app_version"
 
       # Create `deploy` directory and put the artifacts into tar/zip archives for deployment with the release.
       - shell: bash
@@ -329,16 +126,16 @@ jobs:
       - shell: bash
         run: make package-versioned-deploy-artifacts
         if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      # Get release description (requires generated archives)
-      - shell: bash
-        id: release_description
-        run: |
-          description=$(./scripts/get-release-description ${{ steps.versioning.outputs.auth_version }})
-          description="${description//'%'/'%25'}"
-          description="${description//$'\n'/'%0A'}"
-          description="${description//$'\r'/'%0D'}"
-          echo "::set-output name=description::$description"
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      # # Get release description (requires generated archives)
+      # - shell: bash
+      #   id: release_description
+      #   run: |
+      #     description=$(./scripts/get-release-description ${{ steps.versioning.outputs.auth_version }})
+      #     description="${description//'%'/'%25'}"
+      #     description="${description//$'\n'/'%0A'}"
+      #     description="${description//$'\r'/'%0D'}"
+      #     echo "::set-output name=description::$description"
+      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
 
       # Upload all the release archives to S3.
       - name: Upload dev to S3
@@ -346,60 +143,8 @@ jobs:
       - name: Upload prod to S3
         run: aws s3 sync deploy/prod s3://safe-client-libs --acl public-read
 
-      # Create the release and attach safe_client_libs archives as assets.
-      - uses: csexton/create-release@add-body
-        id: create_release
-        with:
-          tag_name: safe_core-${{ steps.versioning.outputs.core_version }}-safe_auth-${{ steps.versioning.outputs.auth_version }}-safe_app-${{ steps.versioning.outputs.app_version }}
-          release_name: safe_client_libs
-          draft: false
-          prerelease: false
-          body: ${{ steps.release_description.outputs.description }}
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-
-      # Upload safe_auth assets
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
-          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-unknown-linux-gnu.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
-          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-pc-windows-gnu.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
-          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-apple-darwin.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
-          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-x86_64-linux-android.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
-          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-armv7-linux-androideabi.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
-      - uses: actions/upload-release-asset@v1.0.1
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: deploy/prod/safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
-          asset_name: safe_authenticator_ffi-${{ steps.versioning.outputs.auth_version }}-apple-ios.tar.gz
-          asset_content_type: application/zip
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+    
+    
 
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
@@ -413,30 +158,12 @@ jobs:
       - shell: bash
         id: versioning
         run: |
-          core_version=$(grep "^version" < safe_core/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          auth_version=$(grep "^version" < safe_authenticator/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          app_version=$(grep "^version" < safe_app/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          auth_ffi_version=$(grep "^version" < safe_authenticator_ffi/Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          core_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
           old_core_version=$(cargo search safe_core --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          old_auth_version=$(cargo search safe_authenticator --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          old_auth_ffi_version=$(cargo search safe_authenticator_ffi --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          old_app_version=$(cargo search safe_app --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
           echo "Current core version: $core_version"
-          echo "Current auth version: $auth_version"
-          echo "Current app version: $app_version"
-          echo "Current auth FFI version: $auth_ffi_version"
           echo "Old core version: $old_core_version"
-          echo "Old auth version: $old_auth_version"
-          echo "Old app version: $old_app_version"
-          echo "Old auth FFI version: $old_auth_ffi_version"
           echo "::set-output name=core_version::$core_version"
-          echo "::set-output name=auth_version::$auth_version"
-          echo "::set-output name=app_version::$app_version"
-          echo "::set-output name=auth_ffi_version::$auth_ffi_version"
           echo "::set-output name=old_core_version::$old_core_version"
-          echo "::set-output name=old_auth_version::$old_auth_version"
-          echo "::set-output name=old_app_version::$old_app_version"
-          echo "::set-output name=old_auth_ffi_version::$old_auth_ffi_version"
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -464,23 +191,4 @@ jobs:
           command: publish
           args: --manifest-path=safe_authenticator/Cargo.toml
         if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
-      # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
-      - shell: bash
-        name: Sleep
-        run: sleep 120
-        if: steps.versioning.outputs.auth_version != steps.versioning.outputs.old_auth_version
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --manifest-path=safe_app/Cargo.toml
-        if: steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version
-      # Sleep between publishes, crates.io needs some time after publishing a new version before it reports its existence.
-      - shell: bash
-        name: Sleep
-        run: sleep 120
-        if: steps.versioning.outputs.app_version != steps.versioning.outputs.old_app_version
-      - uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --manifest-path=safe_authenticator_ffi/Cargo.toml
-        if: steps.versioning.outputs.auth_ffi_version != steps.versioning.outputs.old_auth_ffi_version
+     
