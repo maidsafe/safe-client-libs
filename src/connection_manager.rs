@@ -98,7 +98,7 @@ impl ConnectionManager {
             let msg_bytes_clone = msg_bytes.clone();
             let conn = Arc::clone(elder_conn);
 
-            let mut task_handle = tokio::spawn(async move {
+            let task_handle = tokio::spawn(async move {
                 let response = conn.lock().await.send(msg_bytes_clone).await?;
 
                 match deserialize(&response) {

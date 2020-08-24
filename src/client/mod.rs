@@ -190,9 +190,7 @@ impl Client {
     /// Return the client's public ID.
     pub async fn public_id(&self) -> PublicId {
         let id = self.full_id().await;
-        let pub_id = PublicId::Client(id.public_id().clone());
-
-        pub_id
+        PublicId::Client(id.public_id().clone())
     }
 
     /// Returns the client's public key.
@@ -285,8 +283,8 @@ pub mod exported_tests {
     use crate::crypto::shared_box;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use safe_nd::{Error as SndError, Money, PublicBlob};
-    use std::str::FromStr;
-    use unwrap::unwrap;
+    // use std::str::FromStr;
+    // use unwrap::unwrap;
 
     #[cfg(feature = "simulated-payouts")]
     pub async fn client_creation() -> Result<(), CoreError> {
@@ -298,83 +296,14 @@ pub mod exported_tests {
         Ok(())
     }
 
-    // 1. Create a client A with a wallet and allocate some test safecoin to it.
-    // 2. Get the balance and verify it.
-    // 3. Create another client B with a wallet holding some safecoin.
-    // 4. Transfer some money from client B to client A and verify the new balance.
-    // 5. Fetch the transfer using the transfer ID and verify the amount.
-    // 6. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
-    // 7. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
-    // 8. Set the client's balance to zero and try to put data. It should fail.
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn money_balance_transfer() -> Result<(), CoreError> {
-        let mut client = Client::new(None).await?;
-
-        // let wallet1: XorName =
-        // TODO: fix this test and use another client w/ key
-        let _owner_key = client.public_key().await;
-        let wallet1 = client.public_key().await;
-
-        client
-            .test_simulate_farming_payout_client(unwrap!(Money::from_str("100.0")))
-            .await
-            .unwrap();
-        let balance = client.get_balance(None).await.unwrap();
-        assert_eq!(balance, unwrap!(Money::from_str("109.999999999"))); // 10 coins added automatically w/ farming sim on account creation. 1 nano paid.
-
-        let mut client = Client::new(None).await?;
-        let init_bal = unwrap!(Money::from_str("10"));
-        let orig_balance = client.get_balance(None).await.unwrap();
-        let _ = client
-            .send_money(wallet1, unwrap!(Money::from_str("5.0")))
-            .await
-            .unwrap();
-        let new_balance = client.get_balance(None).await.unwrap();
-        assert_eq!(
-            new_balance,
-            unwrap!(orig_balance.checked_sub(unwrap!(Money::from_str("5.0")))),
-        );
-
-        let res = client
-            .send_money(wallet1, unwrap!(Money::from_str("5000")))
-            .await;
-        match res {
-            Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-            res => panic!("Unexpected result: {:?}", res),
-        };
-        // Check if money is refunded
-        let balance = client.get_balance(None).await.unwrap();
-        let expected =
-            calculate_new_balance(init_bal, Some(1), Some(unwrap!(Money::from_str("5"))));
-        assert_eq!(balance, expected);
-
-        let client_to_get_all_money = Client::new(None).await?;
-        // send all our money elsewhere to make sure we fail the next put
-        let _ = client
-            .send_money(
-                client_to_get_all_money.public_key().await,
-                unwrap!(Money::from_str("4.999999999")),
-            )
-            .await
-            .unwrap();
-        let data = Blob::Public(PublicBlob::new(generate_random_vector::<u8>(10)));
-        let res = client.store_blob(data).await;
-        match res {
-            Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
-            res => panic!(
-                "Unexpected result in money transfer test, putting without balance: {:?}",
-                res
-            ),
-        };
-
-        Ok(())
-    }
+    
 }
 
 #[cfg(test)]
+#[cfg(feature = "simulated-payouts")]
 mod tests {
     use super::exported_tests;
-    use super::*;
+    use crate::CoreError;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
@@ -382,9 +311,4 @@ mod tests {
         exported_tests::client_creation().await
     }
 
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn money_balance_transfer() -> Result<(), CoreError> {
-        exported_tests::money_balance_transfer().await
-    }
 }

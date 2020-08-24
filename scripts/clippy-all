@@ -3,5 +3,5 @@
 set -e -x;
 export RUSTFLAGS="-D warnings"
 
-cargo clippy --features=testing --all-targets
+cargo clippy --features=simulated-payouts --all-targets
 cargo clippy --all-targets --manifest-path=tests/Cargo.toml

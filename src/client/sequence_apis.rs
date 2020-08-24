@@ -235,6 +235,7 @@ impl Client {
     }
 
     /// Get the last data entry from a Sequence Data.
+    #[allow(dead_code)]
     async fn get_sequence_last_entry(
         &mut self,
         address: SequenceAddress,
@@ -252,6 +253,7 @@ impl Client {
     }
 
     /// Get a set of Entries for the requested range from a Sequence.
+    #[allow(dead_code)]
     async fn get_sequence_range(
         &mut self,
         address: SequenceAddress,
@@ -269,6 +271,7 @@ impl Client {
     }
 
     /// Append to Sequence Data
+    #[allow(dead_code)]
     async fn sequence_append(
         &mut self,
         address: SequenceAddress,
@@ -297,6 +300,7 @@ impl Client {
     }
 
     /// Get the set of Permissions of a Public Sequence.
+    #[allow(dead_code)]
     async fn get_sequence_pub_permissions(
         &mut self,
         address: SequenceAddress,
@@ -316,6 +320,7 @@ impl Client {
     }
 
     /// Get the set of Permissions of a Private Sequence.
+    #[allow(dead_code)]
     async fn get_sequence_private_permissions(
         &mut self,
         address: SequenceAddress,
@@ -335,6 +340,7 @@ impl Client {
     }
 
     /// Get the set of Permissions for a specific user in a Sequence.
+    #[allow(dead_code)]
     async fn get_sequence_user_permissions(
         &mut self,
         address: SequenceAddress,
@@ -356,6 +362,7 @@ impl Client {
     }
 
     /// Set permissions to Public Sequence Data
+    #[allow(dead_code)]
     async fn sequence_set_pub_permissions(
         &mut self,
         address: SequenceAddress,
@@ -387,6 +394,7 @@ impl Client {
     }
 
     /// Set permissions to Private Sequence Data
+    #[allow(dead_code)]
     async fn sequence_set_private_permissions(
         &mut self,
         address: SequenceAddress,
@@ -419,6 +427,7 @@ impl Client {
     }
 
     /// Get the owner of a Sequence.
+    #[allow(dead_code)]
     async fn get_sequence_owner(
         &mut self,
         address: SequenceAddress,
@@ -435,6 +444,7 @@ impl Client {
     }
 
     /// Set the new owner of a Sequence Data
+    #[allow(dead_code)]
     async fn sequence_set_owner(
         &mut self,
         address: SequenceAddress,
@@ -795,13 +805,13 @@ pub mod exported_tests {
         match client.get_sequence(address).await {
             Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
             Err(err) => {
-                return Err(CoreError::from(format!(
+                Err(CoreError::from(format!(
                     "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
                     err
                 )))
             }
             Ok(_res) => {
-                return Err(CoreError::from(
+                Err(CoreError::from(
                     "Unexpectedly retrieved a deleted Private Sequence!",
                 ))
             }
@@ -831,7 +841,7 @@ pub mod exported_tests {
         match client.get_sequence(address).await {
             Err(CoreError::DataError(SndError::InvalidOperation)) => Ok(()),
             Err(err) => {
-                return Err(CoreError::from(format!(
+                Err(CoreError::from(format!(
                     "Unexpected error returned when attempting to get a Public Sequence: {}",
                     err
                 )))

@@ -61,7 +61,7 @@ impl Client {
         }?;
 
         // Put to cache
-        self.blob_cache
+        let _ = self.blob_cache
             .lock()
             .await
             .put(*data.address(), data.clone());
@@ -99,7 +99,7 @@ impl Client {
         let message = Self::create_cmd_message(msg_contents);
         let _ = self.connection_manager.send_cmd(&message).await?;
 
-        self.apply_write_payment_to_local_actor(payment_proof).await;
+        let _ = self.apply_write_payment_to_local_actor(payment_proof).await;
 
         Ok(data_to_write_to_network)
     }
