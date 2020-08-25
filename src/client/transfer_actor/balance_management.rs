@@ -149,9 +149,9 @@ mod tests {
 
     use super::*;
     use crate::crypto::shared_box;
-    use std::str::FromStr;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
-    use safe_nd::{Error as SndError, Money, PublicBlob, Blob};
+    use safe_nd::{Blob, Error as SndError, Money, PublicBlob};
+    use std::str::FromStr;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
@@ -243,7 +243,6 @@ mod tests {
         Ok(())
     }
 
-
     // 1. Create a client A and allocate some test safecoin to it.
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding some safecoin.
@@ -259,26 +258,22 @@ mod tests {
 
         client
             .test_simulate_farming_payout_client(Money::from_str("100.0")?)
-            .await
-            ?;
+            .await?;
 
         let balance = client.get_balance(None).await?;
-        assert_eq!(balance, Money::from_str("110")?); // 10 coins added automatically w/ farming sim on client init. 
+        assert_eq!(balance, Money::from_str("110")?); // 10 coins added automatically w/ farming sim on client init.
         let init_bal = Money::from_str("10")?;
         let orig_balance = client.get_balance(None).await?;
-        let _ = client
-            .send_money(wallet1, Money::from_str("5.0")?)
-            .await
-            ?;
+        let _ = client.send_money(wallet1, Money::from_str("5.0")?).await?;
         let new_balance = client.get_balance(None).await?;
         assert_eq!(
             new_balance,
-            orig_balance.checked_sub(Money::from_str("5.0")?).ok_or(CoreError::from("Invalid checked sub in test"))?,
+            orig_balance
+                .checked_sub(Money::from_str("5.0")?)
+                .ok_or(CoreError::from("Invalid checked sub in test"))?,
         );
 
-        let res = client
-            .send_money(wallet1, Money::from_str("5000")?)
-            .await;
+        let res = client.send_money(wallet1, Money::from_str("5000")?).await;
         match res {
             Err(CoreError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!("Unexpected result: {:?}", res),
@@ -287,12 +282,10 @@ mod tests {
         let balance = client.get_balance(None).await?;
         let receiving_balance = receiving_client.get_balance(None).await?;
 
-        let expected =
-            calculate_new_balance(init_bal, Some(1), Some(Money::from_str("5")?));
+        let expected = calculate_new_balance(init_bal, Some(1), Some(Money::from_str("5")?));
         assert_eq!(balance, expected);
 
         assert_eq!(receiving_balance, Money::from_str("5015")?); // 500 + 5 + initial 10
-
 
         Ok(())
     }
@@ -304,13 +297,8 @@ mod tests {
 
         let wallet1 = receiving_client.public_key().await;
 
-      
-        let _ = client
-            .send_money(wallet1, Money::from_str("10")?)
-            .await
-            ?;
-            
-            
+        let _ = client.send_money(wallet1, Money::from_str("10")?).await?;
+
         let data = Blob::Public(PublicBlob::new(generate_random_vector::<u8>(10)));
         let res = client.store_blob(data).await;
         match res {

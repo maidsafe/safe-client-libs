@@ -804,17 +804,13 @@ pub mod exported_tests {
 
         match client.get_sequence(address).await {
             Err(CoreError::DataError(SndError::NoSuchData)) => Ok(()),
-            Err(err) => {
-                Err(CoreError::from(format!(
-                    "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
-                    err
-                )))
-            }
-            Ok(_res) => {
-                Err(CoreError::from(
-                    "Unexpectedly retrieved a deleted Private Sequence!",
-                ))
-            }
+            Err(err) => Err(CoreError::from(format!(
+                "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
+                err
+            ))),
+            Ok(_res) => Err(CoreError::from(
+                "Unexpectedly retrieved a deleted Private Sequence!",
+            )),
         }
     }
 
@@ -840,12 +836,10 @@ pub mod exported_tests {
         // Check that our data still exists.
         match client.get_sequence(address).await {
             Err(CoreError::DataError(SndError::InvalidOperation)) => Ok(()),
-            Err(err) => {
-                Err(CoreError::from(format!(
-                    "Unexpected error returned when attempting to get a Public Sequence: {}",
-                    err
-                )))
-            }
+            Err(err) => Err(CoreError::from(format!(
+                "Unexpected error returned when attempting to get a Public Sequence: {}",
+                err
+            ))),
             Ok(_data) => Ok(()),
         }
     }

@@ -36,20 +36,15 @@ use futures::lock::Mutex;
 use log::trace;
 use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
+use rand::thread_rng;
 use safe_nd::{
     Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
     QueryResponse, Sequence, SequenceAddress,
 };
-
-use std::str::FromStr;
-
 use std::sync::Arc;
-
-use xor_name::XorName;
-
-use rand::thread_rng;
 use std::{collections::HashSet, net::SocketAddr};
 use threshold_crypto::{PublicKeySet, SecretKey};
+use xor_name::XorName;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
@@ -295,8 +290,6 @@ pub mod exported_tests {
 
         Ok(())
     }
-
-    
 }
 
 #[cfg(test)]
@@ -310,5 +303,4 @@ mod tests {
     pub async fn client_creation() -> Result<(), CoreError> {
         exported_tests::client_creation().await
     }
-
 }

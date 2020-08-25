@@ -9,7 +9,7 @@
 // use crate::self_encryption_storage::SEStorageError;
 use bincode::Error as SerialisationError;
 use futures::channel::mpsc::SendError;
-use quic_p2p::QuicP2pError;
+use quic_p2p::Error as QuicP2pError;
 use safe_nd::Error as SndError;
 
 use std::error::Error as StdError;
