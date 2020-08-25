@@ -9,8 +9,8 @@
 use crate::CoreError;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use futures::{future::join_all, select_all, lock::Mutex};
-use log::{error, info, trace};
+use futures::{future::{join_all, select_all}, lock::Mutex};
+use log::{error, info, trace, warn};
 use quic_p2p::{self, Config as QuicP2pConfig, Connection, Message as QP2pMessage, QuicP2p};
 use safe_nd::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
