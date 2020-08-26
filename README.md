@@ -3,11 +3,36 @@
 | [![](http://meritbadge.herokuapp.com/safe_core)](https://crates.io/crates/safe_core) | [![Documentation](https://docs.rs/safe_core/badge.svg)](https://docs.rs/safe_core) |
 |:----------:|:----------:|
 
-## Build Instructions
+## Overview
 
 `safe_core` can interface conditionally against either the routing crate or a mock used for local testing.
 
-Please see [the project README](https://github.com/maidsafe/safe_client_libs#building-from-source) for full build instructions.
+## Crate Dependencies
+Crate dependencies graph:
+
+![safe_core safe-network dependencies](https://github.com/maidsafe/safe-client-libs/blob/png_generator/safe_core-sn-dependencies.png)
+
+
+### Legend
+Dependencies are coloured depending on their kind:
+* **Black:** regular dependency
+* **Purple:** build dependency
+* **Blue:** dev dependency
+* **Red:** optional dependency
+
+A dependency can be of more than one kind. In such cases, it is coloured with the following priority:
+`Regular -> Build -> Dev -> Optional`
+
+<details>
+<summary> View all safe_core dependencies</summary>
+<p>
+
+![safe_core all dependencies](https://github.com/maidsafe/safe-client-libs/blob/png_generator/safe_core-all-dependencies.png)
+
+</p>
+</details>
+
+Click [here](https://maidsafe.github.io/interdependency-svg-generator/) for an overview of the interdependencies of all the main MaidSafe components.
 
 ## License
 
