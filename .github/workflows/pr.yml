@@ -8,6 +8,11 @@ env:
   RUST_BACKTRACE: 1
   # Deny all compiler warnings.
   RUSTFLAGS: "-D warnings"
+  # set the node, cli and authd version to be downloaded and used, and the time before tests should start
+  SN_CLI_VERSION: "latest"
+  SN_NODE_VERSION: "latest"
+  SN_AUTHD_VERSION: "latest"
+  TEST_STARTUP_INTERVAL: "40"
 
 jobs:
   clippy:
@@ -155,6 +160,49 @@ jobs:
       # Test
       - name: Immutable Data Tests
         run: cargo test --features=testing create_and_retrieve # id tests only
+
+  network-test:
+    name: E2E against real network (latest node, cli & authd releases)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      # Install Rust
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      
+      # Download shared script for starting a section, make it executable
+      - name: Download start-local-section.sh
+        run: |
+          wget "https://raw.githubusercontent.com/maidsafe/QA/master/misc-scripts/start-local-section.sh"
+          chmod +x start-local-section.sh
+                  
+      # Run start-local-section.sh script to start a local section
+      - name: Run start-local-section.sh
+        run: ./start-local-section.sh ${{env.SN_NODE_VERSION}} ${{env.SN_CLI_VERSION}} ${{env.SN_AUTHD_VERSION}} ${{env.TEST_STARTUP_INTERVAL}}
+      
+      # Confirm nodes are running on this VM
+      - name: Check if nodes are running
+        run: pgrep -a sn_node
+                  
+      # Print connection info
+      - name: Print connection info
+        run: cat ~/.safe/node/node_connection_info.config
+      
+      # Run tests.
+      - name: Run the tests
+        run: cargo test --release
+      
+      - name: Stop the network.
+        if: failure()
+        run: safe node killall || true && safe auth stop || true
+      
+      - name: Failure logs.
+        if: failure()
+        run: cat ~/.safe/node/baby-fleming-nodes/*/*.log
 
   # Test publish using --dry-run.
   test-publish:
