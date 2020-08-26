@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e -x
-
-scripts/build-real-core
-cargo build --features=testing --release --lib --tests --manifest-path=safe_authenticator/Cargo.toml
-cargo build --features=testing --release --lib --tests --manifest-path=safe_authenticator_ffi/Cargo.toml
-cargo build --features=testing --release --lib --tests --manifest-path=safe_app/Cargo.toml
-cargo build --release --lib --tests --manifest-path=tests/Cargo.toml

@@ -1,5 +1,0 @@
-#!/bin/bash
-
-set -e -x
-
-cargo test --features="mock-network" --release --manifest-path=tests/Cargo.toml

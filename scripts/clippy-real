@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e -x;
-
-cargo clippy --features=testing --all-targets --manifest-path=safe_core/Cargo.toml
-cargo clippy --features=testing --all-targets --manifest-path=safe_authenticator/Cargo.toml
-cargo clippy --features=testing --all-targets --manifest-path=safe_authenticator_ffi/Cargo.toml
-cargo clippy --features=testing --all-targets --manifest-path=safe_app/Cargo.toml
-cargo clippy --all-targets --manifest-path=tests/Cargo.toml

@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -e -x;
-
-cargo clippy --features="mock-network" --all-targets --manifest-path=safe_core/Cargo.toml
-cargo clippy --features="mock-network" --all-targets --manifest-path=safe_authenticator/Cargo.toml
-cargo clippy --features="mock-network" --all-targets --manifest-path=safe_authenticator_ffi/Cargo.toml
-cargo clippy --features="mock-network" --all-targets --manifest-path=safe_app/Cargo.toml

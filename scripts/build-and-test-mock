@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -e -x
-
-./scripts/build-mock
-./scripts/test-mock

@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -e -x;
-
-scripts/check-real
-scripts/check-mock

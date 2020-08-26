@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -e -x
-
-cargo build --release --manifest-path=safe_core/Cargo.toml
-cargo build --features=testing --release --lib --tests --manifest-path=safe_core/Cargo.toml
