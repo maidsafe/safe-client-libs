@@ -210,13 +210,13 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, CoreError> {
         trace!("Bootstrapping with contacts...");
-        let mut node_connection = self.quic_p2p.bootstrap().await?;
+        let (_endpoint, mut conn) = self.quic_p2p.bootstrap().await?;
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_id = self.full_id.public_id();
         let handshake = HandshakeRequest::Bootstrap(*public_id.public_key());
         let msg = Bytes::from(serialize(&handshake)?);
-        let response = node_connection.send(msg).await?;
+        let response = conn.send(msg).await?;
 
         match deserialize(&response) {
             Ok(HandshakeResponse::Rebootstrap(_elders)) => {
@@ -248,7 +248,7 @@ impl ConnectionManager {
             let mut quic_p2p = self.quic_p2p.clone();
             let full_id = self.full_id.clone();
             let task_handle = tokio::spawn(async move {
-                let mut conn = quic_p2p.connect_to(&peer_addr).await?;
+                let (_endpoint, mut conn) = quic_p2p.connect_to(&peer_addr).await?;
                 let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
                 let msg = Bytes::from(serialize(&handshake)?);
                 let join_response = conn.send(msg).await?;
@@ -307,29 +307,29 @@ impl ConnectionManager {
 
     /// Listen for incoming messages via IncomingConnections.
     pub async fn listen(&mut self, tx: Sender<MsgEnvelope>) {
-        match self.quic_p2p.listen() {
-            Ok(mut incoming) => match (incoming.next()).await {
-                Some(mut msg) => match (msg.next()).await {
-                    Some(qp2p_message) => match qp2p_message {
-                        QP2pMessage::BiStream { bytes, .. } => {
-                            match deserialize::<MsgEnvelope>(&bytes) {
-                                Ok(envelope) => {
-                                    let _ = tx.send(envelope).unwrap();
-                                }
-                                Err(_) => error!("Error deserializing qp2p network message"),
-                            }
-                        }
-                        _ => {
-                            error!("Should not receive qp2p messages on non bi-directional stream")
-                        }
-                    },
-                    None => info!("No Incoming Messages"),
-                },
-                None => info!("No Incoming Events"),
-            },
-            Err(e) => {
-                error!("Error from Quic-p2p on listening: {:?}", e);
-            }
-        }
+        // match self.quic_p2p.listen_events() {
+        //     Ok(mut incoming) => match (incoming.next()).await {
+        //         Some(mut msg) => match (msg.next()).await {
+        //             Some(qp2p_message) => match qp2p_message {
+        //                 QP2pMessage::BiStream { bytes, .. } => {
+        //                     match deserialize::<MsgEnvelope>(&bytes) {
+        //                         Ok(envelope) => {
+        //                             let _ = tx.send(envelope).unwrap();
+        //                         }
+        //                         Err(_) => error!("Error deserializing qp2p network message"),
+        //                     }
+        //                 }
+        //                 _ => {
+        //                     error!("Should not receive qp2p messages on non bi-directional stream")
+        //                 }
+        //             },
+        //             None => info!("No Incoming Messages"),
+        //         },
+        //         None => info!("No Incoming Events"),
+        //     },
+        //     Err(e) => {
+        //         error!("Error from Quic-p2p on listening: {:?}", e);
+        //     }
+        // }
     }
 }

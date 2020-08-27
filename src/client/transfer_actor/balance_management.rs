@@ -223,10 +223,10 @@ mod tests {
         let (sk, cm) = shared_box::gen_bls_keypair();
         let (sk2, _cm) = shared_box::gen_bls_keypair();
 
-        let mut initial_actor = TransferActor::new(sk.clone(), cm.clone()).await?;
+        let mut initial_actor = Client::new(Some(sk)).await?;
 
         let res = initial_actor
-            .send_money(sk2.public_key(), Money::from_str("0")?)
+            .send_money(PublicKey::Bls(sk2.public_key()), Money::from_str("0")?)
             .await?;
 
         println!("res to send 0: {:?}", res);
