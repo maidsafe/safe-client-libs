@@ -1,18 +1,10 @@
+use log::{debug, info, trace, warn};
 use safe_nd::{
     ClientFullId, Cmd, DebitAgreementProof, Message, Money, PublicKey, Query, QueryResponse,
     TransferCmd, TransferId, TransferQuery,
 };
-
 use safe_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
-
-pub use safe_transfers::TransferActor as SafeTransferActor;
-
-use crate::client::ConnectionManager;
-use crate::client::{Client, COST_OF_PUT};
-use crate::errors::CoreError;
-
-use log::{debug, info, trace, warn};
 
 /// Module for Money balance management
 pub mod balance_management;
@@ -20,6 +12,13 @@ pub mod balance_management;
 pub mod simulated_payouts;
 /// Module containing all PUT apis
 pub mod write_apis;
+
+/// Actual Transfer Actor
+pub use safe_transfers::TransferActor as SafeTransferActor;
+
+use crate::client::ConnectionManager;
+use crate::client::{Client, COST_OF_PUT};
+use crate::errors::CoreError;
 
 /// Simple client side validations
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,7 +31,27 @@ impl ReplicaValidator for ClientTransferValidator {
 }
 
 impl Client {
+    /// # Get balance
     /// Get the current coin balance via TransferActor for this client.
+    /// ```
+    /// extern crate tokio;
+    /// use safe_core::Client;
+    /// use safe_nd::Money;
+    /// use std::str::FromStr;
+    /// #[tokio::main]
+    /// async fn main() {
+    ///      
+    /// let mut client = Client::new(None).await.unwrap();
+    /// let initial_balance = Money::from_str("100").unwrap();
+    /// let _ = client
+    ///        .trigger_simulated_farming_payout(initial_balance)
+    ///        .await;
+    /// let balance = client.get_balance(None).unwrap();
+    /// assert_eq!(balance, initial_balance)
+    ///   
+    /// }
+    ///
+    /// ```
     pub async fn get_balance(
         &mut self,
         client_id: Option<&ClientFullId>,
