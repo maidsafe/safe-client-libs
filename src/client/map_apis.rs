@@ -191,6 +191,7 @@ impl Client {
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
+    #[allow(dead_code)]
     async fn get_unseq_map_shell(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
     where
         Self: Sized,

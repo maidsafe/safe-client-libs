@@ -84,8 +84,6 @@ impl Client {
         // first make sure our balance  history is up to date
         self.get_history().await?;
 
-        // let mut actor = self.transfer_actor.lock().await;
-
         println!(
             "Debits form our actor at send: {:?}",
             self.transfer_actor.lock().await.debits_since(0)
@@ -159,9 +157,8 @@ mod tests {
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<(), CoreError> {
         let (sk, pk) = shared_box::gen_bls_keypair();
-        let (sk2, pk2) = shared_box::gen_bls_keypair();
+        let (_sk2, pk2) = shared_box::gen_bls_keypair();
 
-        let pk = PublicKey::Bls(pk);
         let pk2 = PublicKey::Bls(pk2);
 
         let mut initial_actor = Client::new(Some(sk.clone())).await?;
@@ -187,9 +184,9 @@ mod tests {
     async fn transfer_actor_can_send_several_transfers_and_thats_reflected_locally(
     ) -> Result<(), CoreError> {
         let (sk, pk) = shared_box::gen_bls_keypair();
-        let (sk2, pk2) = shared_box::gen_bls_keypair();
+        let (_sk2, pk2) = shared_box::gen_bls_keypair();
 
-        let pk = PublicKey::Bls(pk);
+        let _pk = PublicKey::Bls(pk);
         let pk2 = PublicKey::Bls(pk2);
 
         let mut client = Client::new(Some(sk.clone())).await?;
@@ -220,8 +217,8 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_cannot_send_0_money_req() -> Result<(), CoreError> {
-        let (sk, cm) = shared_box::gen_bls_keypair();
-        let (sk2, _cm) = shared_box::gen_bls_keypair();
+        let (sk, _pk) = shared_box::gen_bls_keypair();
+        let (sk2, _pk) = shared_box::gen_bls_keypair();
 
         let mut initial_actor = Client::new(Some(sk)).await?;
 
@@ -251,6 +248,7 @@ mod tests {
     // 4. Transfer some money from client B to client A and verify the new balance.
     // 5. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
     // 6. Try to do a coin transfer with the amount set to 0, it should return `InvalidOperation`
+    #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     pub async fn balance_transfers_between_clients() -> Result<(), CoreError> {
         let mut client = Client::new(None).await?;
@@ -293,9 +291,10 @@ mod tests {
     }
 
     #[cfg(feature = "simulated-payouts")]
+    #[tokio::test]
     pub async fn cannot_write_with_insufficient_balance() -> Result<(), CoreError> {
         let mut client = Client::new(None).await?;
-        let mut receiving_client = Client::new(None).await?;
+        let receiving_client = Client::new(None).await?;
 
         let wallet1 = receiving_client.public_key().await;
 

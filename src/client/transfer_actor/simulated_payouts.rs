@@ -1,4 +1,7 @@
-use safe_nd::{Cmd, Money, PublicKey, Transfer, TransferCmd};
+use safe_nd::{Cmd, Money};
+
+#[cfg(feature = "simulated-payouts")]
+use safe_nd::{Transfer, TransferCmd};
 
 use crate::client::Client;
 use crate::errors::CoreError;
@@ -40,7 +43,6 @@ impl Client {
 
         let message = Self::create_cmd_message(simluated_farming_cmd);
 
-        let pub_id = self.full_id.public_id();
         let _ = self.connection_manager.send_cmd(&message).await?;
 
         // If we're getting the payout for our own actor, update it here
@@ -69,7 +71,7 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), CoreError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
+        let (sk, _pk) = shared_box::gen_bls_keypair();
         let mut initial_actor = Client::new_no_initial_balance(Some(sk.clone())).await?;
 
         let _ = initial_actor

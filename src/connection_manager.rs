@@ -14,7 +14,7 @@ use futures::{
     lock::Mutex,
 };
 use log::{error, info, trace, warn};
-use quic_p2p::{self, Config as QuicP2pConfig, Connection, Message as QP2pMessage, QuicP2p};
+use quic_p2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p,};
 use safe_nd::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,
@@ -128,7 +128,7 @@ impl ConnectionManager {
         let mut todo = tasks;
 
         while !has_elected_a_response {
-            let (res, idx, remaining_futures) = select_all(todo.into_iter()).await;
+            let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
             todo = remaining_futures;
 
             if let Ok(res) = res {
@@ -309,7 +309,7 @@ impl ConnectionManager {
     }
 
     /// Listen for incoming messages via IncomingConnections.
-    pub async fn listen(&mut self, tx: Sender<MsgEnvelope>) {
+    pub async fn listen(&mut self, _tx: Sender<MsgEnvelope>) {
         // match self.quic_p2p.listen_events() {
         //     Ok(mut incoming) => match (incoming.next()).await {
         //         Some(mut msg) => match (msg.next()).await {

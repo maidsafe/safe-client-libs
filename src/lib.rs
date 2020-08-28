@@ -35,13 +35,7 @@
 
 // Export public core interface.
 
-pub use self::client::{
-    map_info,
-    // test_create_balance,
-    Client,
-    MapInfo,
-    // transfer_actor
-};
+pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::config_dir;
 pub use self::connection_manager::ConnectionManager;
 pub use self::errors::CoreError;

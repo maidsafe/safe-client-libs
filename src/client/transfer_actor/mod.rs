@@ -117,7 +117,6 @@ impl Client {
         self.get_history().await?;
 
         let section_key = PublicKey::Bls(self.replicas_pk_set.public_key());
-        // let mut actor = self.transfer_actor.lock().await;
 
         let signed_transfer = self
             .transfer_actor
@@ -173,8 +172,8 @@ impl Client {
     /// Send message and await validation and constructing of DebitAgreementProof
     async fn await_validation(
         &mut self,
-        message: &Message,
-        id: TransferId,
+        _message: &Message,
+        _id: TransferId,
     ) -> Result<DebitAgreementProof, CoreError> {
         info!("Awaiting transfer validation");
         // self.connection_manager.send_cmd(&message).await?;
@@ -199,7 +198,7 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), CoreError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
+        let (sk, _pk) = shared_box::gen_bls_keypair();
 
         match Client::new(Some(sk)).await {
             Ok(actor) => {
@@ -214,8 +213,8 @@ mod tests {
     #[tokio::test]
     #[cfg(not(feature = "mock-network"))]
     async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), CoreError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
-        let (sk2, pk2) = shared_box::gen_bls_keypair();
+        let (sk, _pk) = shared_box::gen_bls_keypair();
+        let (sk2, _pk2) = shared_box::gen_bls_keypair();
 
         let mut initial_actor = Client::new(Some(sk)).await?;
 
