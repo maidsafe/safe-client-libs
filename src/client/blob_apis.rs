@@ -61,7 +61,8 @@ impl Client {
         }?;
 
         // Put to cache
-        let _ = self.blob_cache
+        let _ = self
+            .blob_cache
             .lock()
             .await
             .put(*data.address(), data.clone());

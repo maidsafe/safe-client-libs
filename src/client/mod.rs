@@ -150,12 +150,16 @@ impl Client {
                     let message = envelope.message;
                     match message {
                         // Ok(envelope) => match envelope.message {
-                        Message::Event { event, correlation_id, .. } => {
+                        Message::Event {
+                            event,
+                            correlation_id,
+                            ..
+                        } => {
                             match self.handle_validation_event(event).await {
                                 Ok(proof) => {
                                     match proof {
                                         Some(debit) => {
-                                            // TODO: store response against correlation ID, 
+                                            // TODO: store response against correlation ID,
                                             // use this id for retrieval in write apis.
                                             info!("DO SOMETHING WITH PROOF");
                                             // let _ = self.debit_cache.insert(debit.id(), debit);
@@ -345,8 +349,6 @@ pub mod exported_tests {
 
         Ok(())
     }
-
-    
 }
 
 #[cfg(test)]
@@ -360,5 +362,4 @@ mod tests {
     pub async fn client_creation() -> Result<(), CoreError> {
         exported_tests::client_creation().await
     }
-
 }
