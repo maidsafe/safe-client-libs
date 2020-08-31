@@ -12,7 +12,7 @@ use log::info;
 /// Handle all Money transfers and Write API requests for a given ClientId.
 impl Client {
     #[cfg(not(feature = "simulated-payouts"))]
-    /// Simulate a farming payout
+    /// Placeholder for simulate farming payout. Will always error if client or network are not built for "simulated-payouts"
     pub async fn trigger_simulated_farming_payout(
         &mut self,
         _amount: Money,
@@ -23,7 +23,42 @@ impl Client {
     }
 
     #[cfg(feature = "simulated-payouts")]
-    /// Simulate a farming payout
+    /// Simulate a farming payout & add a balance to the client's PublicKey.
+    ///
+    /// Useful for testing to generate initial balances needed for sending transfer requests, which is in turn required for performing write operations.
+    /// 
+    /// This also keeps the client transfer actor up to date.
+    ///
+    /// # Examples
+    ///
+    /// Add 100 money to a client
+    /// 
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    /// use safe_nd::{Money, PublicKey};
+    /// use std::str::FromStr;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// let sk = threshold_crypto::SecretKey::random();
+    ///
+    /// // Start our client
+    /// let mut client = Client::new(Some(sk)).await?;
+    /// let target_balance = Money::from_str("100")?
+    /// let _ = client.trigger_simulated_farming_payout(target_balance)?;
+    /// 
+    /// let balance = client.get_balance().await?;
+    /// assert_eq!(balance, target_balance);
+    /// 
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn trigger_simulated_farming_payout(
         &mut self,
         amount: Money,
@@ -59,7 +94,6 @@ impl Client {
 // Tests
 // ---------------------------------
 
-// TODO: Do we need "new" to actually instantiate with a transfer?...
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
 

@@ -33,7 +33,7 @@ use crate::errors::CoreError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use rand::thread_rng;
@@ -95,7 +95,6 @@ impl Client {
     /// # extern crate tokio;
     /// # use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{Money, PublicKey};
     /// use std::str::FromStr;
     ///
     /// # #[tokio::main]
@@ -104,7 +103,7 @@ impl Client {
     ///
     /// let mut client = Client::new(None).await?;
     /// // Now for example you can perform read operations:
-    /// let some_balance = client.get_balance_for(pk).await?;
+    /// let some_balance = client.get_balance().await?;
     ///
     /// # Ok(())
     /// # } );
@@ -219,27 +218,89 @@ impl Client {
         }
     */
 
+    /// Return the client's FullId.
+    ///
+    /// Useful for retrieving the PublicKey or KeyPair in the event you need to _sign_ something
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// let mut client = Client::new(None).await?;
+    /// let full_id = client.full_id().await?;
+    /// 
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     async fn full_id(&self) -> ClientFullId {
         self.full_id.clone()
     }
 
-    /// Return the client's public ID.
+    /// Return the client's PublicId.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// let mut client = Client::new(None).await?;
+    /// let full_id = client.public_id().await?;
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn public_id(&self) -> PublicId {
         let id = self.full_id().await;
         PublicId::Client(id.public_id().clone())
     }
 
-    /// Returns the client's public key.
+    /// Return the client's PublicKey.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// let mut client = Client::new(None).await?;
+    /// let pk = client.public_key().await?;
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn public_key(&self) -> PublicKey {
         let id = self.full_id().await;
 
         *id.public_key()
     }
 
+    /// Send a Query to the network and await a response
     async fn send_query(&mut self, query: Query) -> Result<QueryResponse, CoreError> {
         // `sign` should be false for GETs on published data, true otherwise.
 
-        println!("-->>Request going out: {:?}", query);
+        debug!("Sending QueryRequest: {:?}", query);
 
         let message = Self::create_query_message(query);
         self.connection_manager.send_query(&message).await
@@ -268,22 +329,6 @@ impl Client {
             query: msg_contents,
             id,
         }
-    }
-
-    /// Set the coin balance to a specific value for testing
-    #[cfg(any(test, feature = "simulated-payouts"))]
-    async fn test_simulate_farming_payout_client(&mut self, amount: Money) -> Result<(), CoreError>
-    where
-        Self: Sized,
-    {
-        use log::debug;
-        debug!(
-            "Set the coin balance of {:?} to {:?}",
-            self.public_key().await,
-            amount,
-        );
-
-        self.trigger_simulated_farming_payout(amount).await
     }
 }
 
@@ -319,8 +364,6 @@ pub mod exported_tests {
     use crate::crypto::shared_box;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use safe_nd::{Error as SndError, Money, PublicBlob};
-    // use std::str::FromStr;
-    // use unwrap::unwrap;
 
     #[cfg(feature = "simulated-payouts")]
     pub async fn client_creation() -> Result<(), CoreError> {

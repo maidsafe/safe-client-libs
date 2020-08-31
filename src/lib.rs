@@ -37,7 +37,6 @@
 
 pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::config_dir;
-pub use self::connection_manager::ConnectionManager;
 pub use self::errors::CoreError;
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::utils::logging;
@@ -55,6 +54,3 @@ pub mod utils;
 mod connection_manager;
 mod errors;
 // mod network_event;
-
-/// `Map` type tag for a directory.
-pub const DIR_TAG: u64 = 15_000;

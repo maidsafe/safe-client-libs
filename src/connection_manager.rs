@@ -87,7 +87,7 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Send a `Message` to the network awaiting for the response.
+    /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&mut self, msg: &Message) -> Result<QueryResponse, CoreError> {
         info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;

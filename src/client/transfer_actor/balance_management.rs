@@ -243,7 +243,7 @@ mod tests {
         let wallet1 = receiving_client.public_key().await;
 
         client
-            .test_simulate_farming_payout_client(Money::from_str("100.0")?)
+            .trigger_simulated_farming_payout(Money::from_str("100.0")?)
             .await?;
 
         let balance = client.get_balance().await?;
