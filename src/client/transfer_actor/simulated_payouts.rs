@@ -26,13 +26,13 @@ impl Client {
     /// Simulate a farming payout & add a balance to the client's PublicKey.
     ///
     /// Useful for testing to generate initial balances needed for sending transfer requests, which is in turn required for performing write operations.
-    /// 
+    ///
     /// This also keeps the client transfer actor up to date.
     ///
     /// # Examples
     ///
     /// Add 100 money to a client
-    /// 
+    ///
     /// ```
     /// # extern crate tokio;
     /// # use safe_core::CoreError;
@@ -50,10 +50,10 @@ impl Client {
     /// let mut client = Client::new(Some(sk)).await?;
     /// let target_balance = Money::from_str("100")?
     /// let _ = client.trigger_simulated_farming_payout(target_balance)?;
-    /// 
+    ///
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, target_balance);
-    /// 
+    ///
     /// # Ok(())
     /// # } );
     /// # }

@@ -235,7 +235,7 @@ impl Client {
     ///
     /// let mut client = Client::new(None).await?;
     /// let full_id = client.full_id().await?;
-    /// 
+    ///
     /// # Ok(())
     /// # } );
     /// # }

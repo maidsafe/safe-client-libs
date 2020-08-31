@@ -12,13 +12,36 @@ use log::{debug, info, trace};
 /// Handle all Money transfers and Write API requests for a given ClientId.
 impl Client {
     /// Get the current known account balance from the local actor. (ie. Without querying the network)
+    ///
+    /// # Examples
+    ///
+    /// Create a random client
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    /// use std::str::FromStr;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// let mut client = Client::new(None).await?;
+    /// // now we check the local balance
+    /// let some_balance = client.get_local_balance().await?;
+    /// assert_eq!(some_balance, Money::from_str("0"));
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn get_local_balance(&self) -> Money {
         info!("Retrieving actor's local balance.");
         self.transfer_actor.lock().await.balance()
     }
 
     /// Handle a validation event.
-    pub async fn handle_validation_event(
+    pub(crate) async fn handle_validation_event(
         &mut self,
         event: Event,
     ) -> Result<Option<DebitAgreementProof>, CoreError> {
@@ -75,7 +98,46 @@ impl Client {
         }
     }
 
-    /// Send money
+    /// Send money to another PublicKey.
+    ///
+    /// If the PublicKey does not exist as a balance on the network it will be created with the send amount.
+    ///
+    /// # Examples
+    ///
+    /// Send money to a PublickKey.
+    /// (This test uses "simulated payouts" to generate test money. This of course would not be avaiable on a live network.)
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    /// use safe_nd::{PublicKey, Money};
+    /// use std::str::FromStr;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// // A random sk, to send money to
+    /// let sk = threshold_crypto::SecretKey::random();
+    /// let pk = PublickKey::from(sk.public_key());
+    /// // Next we create a random client.
+    /// let mut client = Client::new(None).await?;
+    /// let target_balance = Money::from_str("100")?
+    /// // And trigger a simulated payout to our client's PublicKey, so we have money to send.
+    /// let _ = client.trigger_simulated_farming_payout(target_balance)?;
+    ///
+    /// // Now we have 100 money at our balance, we can send it elsewhere:
+    /// let some_balance = client.send_money( pk, target_balance ).await?;
+    ///
+    /// // Finally, we can see that the money has arrived:
+    /// let received_balance = client.get_balance_for(pk);
+    ///
+    /// assert_eq!(received_balance, target_balance);
+    ///
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn send_money(&mut self, to: PublicKey, amount: Money) -> Result<(), CoreError> {
         info!("Sending money");
 
