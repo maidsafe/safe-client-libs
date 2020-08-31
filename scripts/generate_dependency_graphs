@@ -7,5 +7,5 @@ mkdir images
 
 cargo install cargo-deps
 
-cargo deps --all-deps --include-orphans --filter safe_core self-encryption quic-p2p safe-nd safe-transfers xor_name | dot -T png -Nfontname=Iosevka -Gfontname=Iosevka -o images/safe_core-sn-dependencies.png
+cargo deps --all-deps --include-orphans --filter safe_core self_encryption quic-p2p safe-nd safe-transfers xor_name | dot -T png -Nfontname=Iosevka -Gfontname=Iosevka -o images/safe_core-sn-dependencies.png
 cargo deps | dot -T png -Nfontname=Iosevka -Gfontname=Iosevka -o images/safe_core-all-dependencies.png

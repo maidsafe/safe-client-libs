@@ -231,7 +231,7 @@
 
 ## [0.18.0]
 - Requests made to safe_core will now timeout after 2 min if there is no response from routing.
-- Self-encrypt write used by safe_core via sequential encryptor will now try to put data onto the Network immediately if possible leading to better progress indication across FFI.
+- Self_encrypt write used by safe_core via sequential encryptor will now try to put data onto the Network immediately if possible leading to better progress indication across FFI.
 - Logging added to safe_core.
 - Accessing DNS will not do a bunch of checks which it used to previously because it lead to erroneous corner cases in which one user could not access websites created by other before they created their own DNS first etc.
 

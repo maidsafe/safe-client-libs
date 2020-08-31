@@ -15,7 +15,7 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use xor_name::{XorName, XOR_NAME_LEN};
 
-/// Network storage is the concrete type which self-encryption crate will use
+/// Network storage is the concrete type which self_encryption crate will use
 /// to put or get data from the network.
 #[derive(Clone)]
 pub struct BlobStorage {
@@ -84,7 +84,7 @@ impl Storage for BlobStorage {
     }
 }
 
-/// Errors arising from storage object being used by self-encryptors.
+/// Errors arising from storage object being used by self_encryptors.
 #[derive(Debug)]
 pub struct BlobStorageError(pub Box<CoreError>);
 
@@ -108,7 +108,7 @@ impl From<CoreError> for BlobStorageError {
 
 impl StorageError for BlobStorageError {}
 
-/// Network storage is the concrete type which self-encryption crate will use
+/// Network storage is the concrete type which self_encryption crate will use
 /// to put or get data from the network.
 #[derive(Clone)]
 pub struct BlobStorageDryRun {
@@ -136,7 +136,7 @@ impl Storage for BlobStorageDryRun {
 
     async fn put(&mut self, _: Vec<u8>, _data: Vec<u8>) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutBlob dry run.");
-        // We do nothing here just return ok so self-encrpytion can finish
+        // We do nothing here just return ok so self_encrpytion can finish
         // and generate chunk addresses and datamap if required
         Ok(())
     }
