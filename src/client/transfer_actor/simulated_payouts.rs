@@ -72,7 +72,7 @@ mod tests {
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), CoreError> {
         let (sk, _pk) = shared_box::gen_bls_keypair();
-        let mut initial_actor = Client::new_no_initial_balance(Some(sk.clone())).await?;
+        let mut initial_actor = Client::new(Some(sk.clone())).await?;
 
         let _ = initial_actor
             .trigger_simulated_farming_payout(Money::from_str("100")?)

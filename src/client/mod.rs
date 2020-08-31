@@ -126,7 +126,7 @@ impl Client {
             attempt_bootstrap(&Config::new().quic_p2p, full_id.clone()).await?;
 
         let simulated_farming_payout_dot =
-            Dot::new(full_id.public_key(), 0);
+            Dot::new(*full_id.public_key(), 0);
 
         let replicas_pk_set =
             Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
@@ -219,52 +219,6 @@ impl Client {
             }
         }
     */
-
-    #[cfg(feature = "simulated-payouts")]
-    /// Helper function to create a 
-    pub async fn new_no_initial_balance(sk: Option<SecretKey>) -> Result<Self, CoreError> {
-        let full_id = match sk {
-            Some(sk) => ClientFullId::from(sk),
-            None => {
-                let mut rng = thread_rng();
-
-                //TODO: Q: should we even have different types of client full id?
-                ClientFullId::new_bls(&mut rng)
-            }
-        };
-
-        // Create the connection manager
-        let mut connection_manager =
-            attempt_bootstrap(&Config::new().quic_p2p, full_id.clone()).await?;
-
-        let simulated_farming_payout_dot =
-            Dot::new(PublicKey::from(SecretKey::random().public_key()), 0);
-
-        let replicas_pk_set =
-            Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
-
-        let validator = ClientTransferValidator {};
-
-        let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(
-            full_id.keypair().clone(),
-            replicas_pk_set.clone(),
-            validator,
-        )));
-
-        let mut full_client = Self {
-            connection_manager,
-            full_id,
-            transfer_actor,
-            replicas_pk_set,
-            simulated_farming_payout_dot,
-            blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
-            sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
-        };
-
-        let _ = full_client.get_history().await;
-
-        Ok(full_client)
-    }
 
     async fn full_id(&self) -> ClientFullId {
         self.full_id.clone()

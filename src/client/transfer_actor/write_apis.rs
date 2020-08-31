@@ -36,7 +36,7 @@ pub mod exported_tests {
 
         let data = Sequence::new_pub(pk, XorName::random(), 33323);
 
-        let mut initial_actor = Client::new_no_initial_balance(Some(sk.clone())).await?;
+        let mut initial_actor = Client::new(Some(sk.clone())).await?;
 
         match initial_actor.new_sequence(data).await {
             Err(CoreError::DataError(e)) => {
