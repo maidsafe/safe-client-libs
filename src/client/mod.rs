@@ -112,8 +112,12 @@ impl Client {
     /// ```
     pub async fn new(sk: Option<SecretKey>) -> Result<Self, CoreError> {
         crate::utils::init_log();
+        let mut is_random_client = true;
         let full_id = match sk {
-            Some(sk) => ClientFullId::from(sk),
+            Some(sk) => {
+                is_random_client = false;
+                ClientFullId::from(sk)
+            },
             None => {
                 let mut rng = thread_rng();
                 ClientFullId::new_bls(&mut rng)
@@ -150,7 +154,7 @@ impl Client {
         #[cfg(feature = "simulated-payouts")]
         {
             // only trigger simulated payouts on new _random_ clients
-            if sk.is_none() {
+            if is_random_client {
                 // we're testing, and currently a lot of tests expect 10 money to start
                 let _ = full_client
                     .trigger_simulated_farming_payout(Money::from_str("10")?)

@@ -39,7 +39,7 @@ pub mod exported_tests {
 
         let mut initial_actor = Client::new(Some(sk.clone())).await?;
 
-        match initial_actor.new_sequence(data).await {
+        match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(CoreError::DataError(e)) => {
                 assert_eq!(e.to_string(), "Not enough money to complete this operation");
             }

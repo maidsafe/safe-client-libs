@@ -35,7 +35,7 @@ fn wrap_map_write(write: MapWrite, payment: DebitAgreementProof) -> Cmd {
 
 impl Client {
     /// Fetch unpublished mutable data from the network
-    async fn get_unseq_map(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
+    pub async fn get_unseq_map(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
     where
         Self: Sized,
     {
@@ -54,7 +54,7 @@ impl Client {
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
-    async fn get_seq_map_value(
+    pub async fn get_seq_map_value(
         &mut self,
         name: XorName,
         tag: u64,
@@ -83,7 +83,7 @@ impl Client {
     }
 
     /// Fetch the value for a given key in a sequenced mutable data
-    async fn get_unseq_map_value(
+    pub async fn get_unseq_map_value(
         &mut self,
         name: XorName,
         tag: u64,
@@ -112,7 +112,7 @@ impl Client {
     }
 
     /// Fetch sequenced mutable data from the network
-    async fn get_seq_map(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
+    pub async fn get_seq_map(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
     where
         Self: Sized,
     {
@@ -131,7 +131,7 @@ impl Client {
     }
 
     /// Mutates sequenced `Map` entries in bulk
-    async fn mutate_seq_map_entries(
+    pub async fn mutate_seq_map_entries(
         &mut self,
         name: XorName,
         tag: u64,
@@ -149,7 +149,7 @@ impl Client {
     }
 
     /// Mutates unsequenced `Map` entries in bulk
-    async fn mutate_unseq_map_entries(
+    pub async fn mutate_unseq_map_entries(
         &mut self,
         name: XorName,
         tag: u64,
@@ -167,7 +167,7 @@ impl Client {
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
-    async fn get_seq_map_shell(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
+    pub async fn get_seq_map_shell(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
     where
         Self: Sized,
     {
@@ -191,8 +191,7 @@ impl Client {
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
-    #[allow(dead_code)]
-    async fn get_unseq_map_shell(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
+    pub async fn get_unseq_map_shell(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
     where
         Self: Sized,
     {
@@ -216,7 +215,7 @@ impl Client {
     }
 
     /// Get a current version of `Map` from the network.
-    async fn get_map_version(&mut self, address: MapAddress) -> Result<u64, CoreError>
+    pub async fn get_map_version(&mut self, address: MapAddress) -> Result<u64, CoreError>
     where
         Self: Sized,
     {
@@ -232,7 +231,7 @@ impl Client {
     }
 
     /// Return a complete list of entries in `Map`.
-    async fn list_unseq_map_entries(
+    pub async fn list_unseq_map_entries(
         &mut self,
         name: XorName,
         tag: u64,
@@ -261,7 +260,7 @@ impl Client {
     }
 
     /// Return a complete list of entries in `Map`.
-    async fn list_seq_map_entries(
+    pub async fn list_seq_map_entries(
         &mut self,
         name: XorName,
         tag: u64,
@@ -290,7 +289,7 @@ impl Client {
     }
 
     /// Return a list of keys in `Map` stored on the network.
-    async fn list_map_keys(&mut self, address: MapAddress) -> Result<BTreeSet<Vec<u8>>, CoreError>
+    pub async fn list_map_keys(&mut self, address: MapAddress) -> Result<BTreeSet<Vec<u8>>, CoreError>
     where
         Self: Sized,
     {
@@ -308,7 +307,7 @@ impl Client {
     }
 
     /// Return a list of values in a Sequenced Mutable Data
-    async fn list_seq_map_values(
+    pub async fn list_seq_map_values(
         &mut self,
         name: XorName,
         tag: u64,
@@ -336,31 +335,10 @@ impl Client {
         }
     }
 
-    /// Return the permissions set for a particular user
-    async fn list_map_user_permissions(
-        &mut self,
-        address: MapAddress,
-        user: PublicKey,
-    ) -> Result<MapPermissionSet, CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("GetMapUserPermissions for {:?}", address);
 
-        match self
-            .send_query(wrap_map_read(MapRead::ListUserPermissions {
-                address,
-                user,
-            }))
-            .await?
-        {
-            QueryResponse::ListMapUserPermissions(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }
 
     /// Returns a list of values in an Unsequenced Mutable Data
-    async fn list_unseq_map_values(
+    pub async fn list_unseq_map_values(
         &mut self,
         name: XorName,
         tag: u64,
@@ -388,8 +366,35 @@ impl Client {
         }
     }
 
+    //-----------------
+    // Permissions
+    //-----------------
+
+    /// Return the permissions set for a particular user
+    pub async fn list_map_user_permissions(
+        &mut self,
+        address: MapAddress,
+        user: PublicKey,
+    ) -> Result<MapPermissionSet, CoreError>
+    where
+        Self: Sized,
+    {
+        trace!("GetMapUserPermissions for {:?}", address);
+
+        match self
+            .send_query(wrap_map_read(MapRead::ListUserPermissions {
+                address,
+                user,
+            }))
+            .await?
+        {
+            QueryResponse::ListMapUserPermissions(res) => res.map_err(CoreError::from),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+    }
+
     /// Return a list of permissions in `Map` stored on the network.
-    async fn list_map_permissions(
+    pub async fn list_map_permissions(
         &mut self,
         address: MapAddress,
     ) -> Result<BTreeMap<PublicKey, MapPermissionSet>, CoreError>
@@ -410,7 +415,7 @@ impl Client {
     }
 
     /// Updates or inserts a permissions set for a user
-    async fn set_map_user_permissions(
+    pub async fn set_map_user_permissions(
         &mut self,
         address: MapAddress,
         user: PublicKey,
@@ -427,7 +432,7 @@ impl Client {
     }
 
     /// Updates or inserts a permissions set for a user
-    async fn del_map_user_permissions(
+    pub async fn del_map_user_permissions(
         &mut self,
         address: MapAddress,
         user: PublicKey,
@@ -442,8 +447,7 @@ impl Client {
     }
 
     /// Sends an ownership transfer request.
-    #[allow(unused)]
-    fn change_map_owner(
+    pub fn change_map_owner(
         &mut self,
         name: XorName,
         tag: u64,
@@ -453,6 +457,12 @@ impl Client {
         unimplemented!();
     }
 
+
+    //-------------------
+    // Write operations
+    // ------------------
+
+    
     /// Delete sequence
     pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), CoreError> {
         // --------------------------

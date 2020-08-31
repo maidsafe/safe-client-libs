@@ -130,7 +130,7 @@ impl Client {
     /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
     ///
     /// # let secret_key = threshold_crypto::SecretKey::random();
-    /// // Let's use an existing client, with a preexisting balance to be used for write payments.
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(Some(sk)).await?;
     /// # let initial_balance = Money::from_str("100")?;
     /// # client.trigger_simulated_farming_payout(initial_balance)?;
@@ -174,7 +174,7 @@ impl Client {
 
     /// Delete blob can only be performed on Private Blobs. But on those private blobs this will remove the data
     /// from the network.
-    /// 
+    ///
     /// # Examples
     ///
     /// Remove data
@@ -192,7 +192,7 @@ impl Client {
     /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
     ///
     /// # let secret_key = threshold_crypto::SecretKey::random();
-    /// // Let's use an existing client, with a preexisting balance to be used for write payments.
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(Some(sk)).await?;
     /// # let initial_balance = Money::from_str("100")?;
     /// # client.trigger_simulated_farming_payout(initial_balance)?;
@@ -200,11 +200,11 @@ impl Client {
     /// let data: [u8] = b"some private data";
     /// let some_blob_for_storage = Blob::Public(PrivateBlob::new(data));
     /// let blob = client.store_blob(some_blob_for_storage).await?;
-    /// 
+    ///
     /// let _ = client.delete_blob(blob.address()).await?;
-    /// 
+    ///
     /// // Now when we attempt to retrieve the blob, we should get an error
-    /// 
+    ///
     /// match client.get_blob(blob.address()).await {
     ///     Err(error) => eprintln!("Expected error getting blob {:?}", e),
     ///     _ => return Err(CoreError::from("Should not have been able to retrieve this blob"))
