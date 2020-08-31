@@ -31,38 +31,87 @@ impl ReplicaValidator for ClientTransferValidator {
 }
 
 impl Client {
-    /// # Get balance
-    /// Get the current coin balance via TransferActor for this client.
+    /// Get the client's current coin balance from the network
+    ///
+    /// # Examples
+    ///
+    /// Retrieve an existing balance
     /// ```
-    /// extern crate tokio;
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
     /// use safe_core::Client;
     /// use safe_nd::Money;
     /// use std::str::FromStr;
-    /// #[tokio::main]
-    /// async fn main() {
-    ///      
-    /// let mut client = Client::new(None).await.unwrap();
-    /// let initial_balance = Money::from_str("100").unwrap();
-    /// let _ = client
-    ///        .trigger_simulated_farming_payout(initial_balance)
-    ///        .await;
-    /// let balance = client.get_balance(None).unwrap();
-    /// assert_eq!(balance, initial_balance)
-    ///   
-    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// // Let's check the balance of a client with a random sk.
+    /// // (It should have 0 balance)
+    /// let sk = threshold_crypto::SecretKey::random();
+    ///
+    /// let mut client = Client::new(Some(sk)).await?;
+    /// let initial_balance = Money::from_str("0")?;
+    /// let balance = client.get_balance().await?;
+    /// assert_eq!(balance, initial_balance);
+    ///
+    /// # Ok(())
+    /// # } );
+    /// # }
     ///
     /// ```
-    pub async fn get_balance(
-        &mut self,
-        client_id: Option<&ClientFullId>,
-    ) -> Result<Money, CoreError>
+    pub async fn get_balance(&mut self) -> Result<Money, CoreError>
     where
         Self: Sized,
     {
-        trace!("Get balance for {:?}", client_id);
+        trace!(
+            "Getting balance for {:?}",
+            self.full_id().await.public_key()
+        );
 
         // we're a standard client grabbing our own key's balance
         self.get_balance_from_network(None).await
+    }
+
+    /// Get balance for a Public Key on the network.
+    ///
+    /// # Examples
+    ///
+    /// Retrieve an existing balance
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    /// use safe_nd::{Money, PublicKey};
+    /// use std::str::FromStr;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// // Let's check the balance of a client with a random sk.
+    /// // (It should have 0 balance)
+    /// let sk = threshold_crypto::SecretKey::random();
+    /// let pk = PublicKey::from(sk.public_key());
+    ///
+    /// // And we use a random client to do this
+    /// let mut client = Client::new(None).await?;
+    /// let initial_balance = Money::from_str("0")?;
+    /// let balance = client.get_balance_for(pk).await?;
+    /// assert_eq!(balance, initial_balance);
+    ///
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
+    pub async fn get_balance_for(&mut self, public_key: PublicKey) -> Result<Money, CoreError>
+    where
+        Self: Sized,
+    {
+        trace!("Get balance for {:?}", public_key);
+        self.get_balance_from_network(Some(public_key)).await
     }
 
     /// Get a payment proof

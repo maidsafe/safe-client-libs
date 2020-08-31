@@ -799,7 +799,7 @@ pub mod exported_tests {
         // TODO: Refunds not yet in place.... Reenable this check when that's the case
 
         // Check money was not taken
-        // let balance = client.get_balance(None).await?;
+        // let balance = client.get_balance().await?;
         // let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         // assert_eq!(balance, expected_bal);
 
@@ -1020,9 +1020,9 @@ pub mod exported_tests {
 
         let map_address = MapAddress::from_kind(MapKind::Unseq, name, tag);
 
-        let balance_before_delete = client.get_balance(None).await?;
+        let balance_before_delete = client.get_balance().await?;
         client.delete_map(map_address).await?;
-        let new_balance = client.get_balance(None).await?;
+        let new_balance = client.get_balance().await?;
 
         // make sure we have _some_ balance
         assert_ne!(balance_before_delete, Money::from_str("0")?);

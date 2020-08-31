@@ -11,7 +11,7 @@ use log::{debug, info, trace};
 
 /// Handle all Money transfers and Write API requests for a given ClientId.
 impl Client {
-    /// Get the account balance without querying the network
+    /// Get the current known account balance from the local actor. (ie. Without querying the network)
     pub async fn get_local_balance(&self) -> Money {
         info!("Retrieving actor's local balance.");
         self.transfer_actor.lock().await.balance()
@@ -57,15 +57,13 @@ impl Client {
     }
 
     /// Get the current balance for this TransferActor PK (by default) or any other...
-    pub async fn get_balance_from_network(
+    pub(crate) async fn get_balance_from_network(
         &mut self,
         pk: Option<PublicKey>,
     ) -> Result<Money, CoreError> {
         info!("Getting balance for {:?} or self", pk);
         let identity = self.full_id().await;
         let public_key = pk.unwrap_or(*identity.public_key());
-
-        // let request = Self::wrap_money_request(Query::GetBalance(public_key));
 
         let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
 
@@ -161,20 +159,14 @@ mod tests {
 
         let pk2 = PublicKey::Bls(pk2);
 
-        let mut initial_actor = Client::new(Some(sk.clone())).await?;
+        let mut client = Client::new(Some(sk.clone())).await?;
 
-        let _ = initial_actor.send_money(pk2, Money::from_str("1")?).await?;
+        let _ = client.send_money(pk2, Money::from_str("1")?).await?;
 
         // initial 10 on creation from farming simulation minus 1
-        assert_eq!(
-            initial_actor.get_local_balance().await,
-            Money::from_str("9")?
-        );
+        assert_eq!(client.get_local_balance().await, Money::from_str("9")?);
 
-        assert_eq!(
-            initial_actor.get_balance_from_network(None).await?,
-            Money::from_str("9")?
-        );
+        assert_eq!(client.get_balance().await?, Money::from_str("9")?);
 
         Ok(())
     }
@@ -220,24 +212,18 @@ mod tests {
         let (sk, _pk) = shared_box::gen_bls_keypair();
         let (sk2, _pk) = shared_box::gen_bls_keypair();
 
-        let mut initial_actor = Client::new(Some(sk)).await?;
+        let mut client = Client::new(Some(sk)).await?;
 
-        let res = initial_actor
+        let res = client
             .send_money(PublicKey::Bls(sk2.public_key()), Money::from_str("0")?)
             .await?;
 
         println!("res to send 0: {:?}", res);
 
         // initial 10 on creation from farming simulation minus 1
-        assert_eq!(
-            initial_actor.get_local_balance().await,
-            Money::from_str("10")?
-        );
+        assert_eq!(client.get_local_balance().await, Money::from_str("10")?);
 
-        assert_eq!(
-            initial_actor.get_balance_from_network(None).await?,
-            Money::from_str("10")?
-        );
+        assert_eq!(client.get_balance().await?, Money::from_str("10")?);
 
         Ok(())
     }
@@ -260,12 +246,12 @@ mod tests {
             .test_simulate_farming_payout_client(Money::from_str("100.0")?)
             .await?;
 
-        let balance = client.get_balance(None).await?;
+        let balance = client.get_balance().await?;
         assert_eq!(balance, Money::from_str("110")?); // 10 coins added automatically w/ farming sim on client init.
         let init_bal = Money::from_str("10")?;
-        let orig_balance = client.get_balance(None).await?;
+        let orig_balance = client.get_balance().await?;
         let _ = client.send_money(wallet1, Money::from_str("5.0")?).await?;
-        let new_balance = client.get_balance(None).await?;
+        let new_balance = client.get_balance().await?;
         assert_eq!(
             new_balance,
             orig_balance
@@ -279,8 +265,8 @@ mod tests {
             res => panic!("Unexpected result: {:?}", res),
         };
         // Check if money is refunded
-        let balance = client.get_balance(None).await?;
-        let receiving_balance = receiving_client.get_balance(None).await?;
+        let balance = client.get_balance().await?;
+        let receiving_balance = receiving_client.get_balance().await?;
 
         let expected = calculate_new_balance(init_bal, Some(1), Some(Money::from_str("5")?));
         assert_eq!(balance, expected);

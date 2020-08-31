@@ -286,7 +286,7 @@ pub mod exported_tests {
             Err(e) => panic!("Unexpected: {:?}", e),
         }
 
-        let balance = client.get_balance(None).await?;
+        let balance = client.get_balance().await?;
         let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         assert_eq!(balance, expected_bal);
         // Fetch blob
@@ -335,7 +335,7 @@ pub mod exported_tests {
             Err(CoreError::DataError(SndError::DataExists)) => (),
             res => panic!("Unexpected: {:?}", res),
         }
-        let balance = client.get_balance(None).await?;
+        let balance = client.get_balance().await?;
         // mutation_count of 3 as even our failed op counts as a mutation
         let expected_bal = calculate_new_balance(start_bal, Some(3), None);
         assert_eq!(balance, expected_bal);
@@ -371,9 +371,9 @@ pub mod exported_tests {
         let blob_address = *blob.address();
         let _ = client.store_blob(blob).await?;
 
-        let balance_before_delete = client.get_balance(None).await?;
+        let balance_before_delete = client.get_balance().await?;
         client.delete_blob(blob_address).await?;
-        let new_balance = client.get_balance(None).await?;
+        let new_balance = client.get_balance().await?;
 
         // make sure we have _some_ balance
         assert_ne!(balance_before_delete, Money::from_str("0")?);

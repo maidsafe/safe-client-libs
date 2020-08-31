@@ -60,3 +60,7 @@ testing = []
 safe-nd = { git = "https://github.com/maidsafe/safe-nd.git" }
 safe-transfers = { git = "https://github.com/maidsafe/safe-transfers.git" }
 self_encryption = { git = "https://github.com/joshuef/self_encryption.git", branch = "AllowMutGet" }
+
+
+[package.metadata.docs.rs]
+features = ["simulated-payouts"]

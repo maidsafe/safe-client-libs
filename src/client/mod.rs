@@ -126,10 +126,13 @@ impl Client {
 
         #[cfg(feature = "simulated-payouts")]
         {
-            // we're testing, and currently a lot of tests expect 10 money to start
-            let _ = full_client
-                .trigger_simulated_farming_payout(Money::from_str("10")?)
-                .await?;
+            // only trigger simulated payouts on new _random_ clients
+            if sk.is_none() {
+                // we're testing, and currently a lot of tests expect 10 money to start
+                let _ = full_client
+                    .trigger_simulated_farming_payout(Money::from_str("10")?)
+                    .await?;
+            }
         }
 
         let _ = full_client.get_history().await;
