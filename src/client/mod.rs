@@ -83,15 +83,40 @@ pub struct Client {
 /// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
 /// abstraction from the futures-rs crate.
 impl Client {
-    /// This will create a basic Client object which is sufficient only for testing purposes.
+    /// Create a Safe Network client instance. Either for an existing SecretKey (in which case) the client will attempt
+    /// to retrieve the history of the key's balance in order to be ready for any Money operations. Or if no SecreteKey
+    /// is passed, a random keypair will be used, which provides a client that can only perform Read operations (at
+    /// least until the client's SecretKey receives some Money).
+    ///
+    /// # Examples
+    ///
+    /// Create a random client
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    /// use safe_nd::{Money, PublicKey};
+    /// use std::str::FromStr;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// let mut client = Client::new(None).await?;
+    /// // Now for example you can perform read operations:
+    /// let some_balance = client.get_balance_for(pk).await?;
+    ///
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn new(sk: Option<SecretKey>) -> Result<Self, CoreError> {
         crate::utils::init_log();
         let full_id = match sk {
             Some(sk) => ClientFullId::from(sk),
             None => {
                 let mut rng = thread_rng();
-
-                //TODO: Q: should we even have different types of client full id?
                 ClientFullId::new_bls(&mut rng)
             }
         };
@@ -101,7 +126,7 @@ impl Client {
             attempt_bootstrap(&Config::new().quic_p2p, full_id.clone()).await?;
 
         let simulated_farming_payout_dot =
-            Dot::new(PublicKey::from(SecretKey::random().public_key()), 0);
+            Dot::new(full_id.public_key(), 0);
 
         let replicas_pk_set =
             Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
@@ -143,6 +168,10 @@ impl Client {
         Ok(full_client)
     }
 
+    /// Listen to network events. 
+    /// 
+    /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
+    ///
     async fn listen_on_network(&mut self) {
         let (tx, rx) = std::sync::mpsc::channel();
         loop {
@@ -192,6 +221,7 @@ impl Client {
     */
 
     #[cfg(feature = "simulated-payouts")]
+    /// Helper function to create a 
     pub async fn new_no_initial_balance(sk: Option<SecretKey>) -> Result<Self, CoreError> {
         let full_id = match sk {
             Some(sk) => ClientFullId::from(sk),

@@ -114,15 +114,36 @@ impl Client {
         self.get_balance_from_network(Some(public_key)).await
     }
 
-    /// Get a payment proof
-    pub async fn get_payment_proof(&mut self) -> Result<DebitAgreementProof, CoreError> {
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        self.create_write_payment_proof().await
-    }
-
-    /// Retrieve the history of the acocunt from the network and apply to our local actor
+    /// Retrieve the history of the account from the network and apply to our local client's AT2 actor.
+    ///
+    /// # Examples
+    ///
+    /// Retrieving an existing balance history
+    /// ```
+    /// # extern crate tokio;
+    /// # use safe_core::CoreError;
+    /// use safe_core::Client;
+    /// use safe_nd::{Money, PublicKey};
+    /// use std::str::FromStr;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    ///
+    /// // Let's check the balance of a client with a random sk.
+    /// let sk = threshold_crypto::SecretKey::random();
+    /// let pk = PublicKey::from(sk.public_key());
+    ///
+    /// // And we use a random client to do this
+    /// let mut client = Client::new(Some(sk)).await?;
+    /// // Upon calling, history is retrieved and applied to the local AT2 actor.
+    /// let _ = client.get_history().await?;
+    ///
+    /// # Ok(())
+    /// # } );
+    /// # }
+    ///
+    /// ```
     pub async fn get_history(&mut self) -> Result<(), CoreError> {
         let public_key = *self.full_id.public_key();
         info!("Getting SafeTransfers history for pk: {:?}", public_key);
@@ -211,12 +232,12 @@ impl Client {
             .await_validation(&transfer_message, signed_transfer.id())
             .await?;
 
-        debug!("payment proof retrieved");
+        debug!("Payment proof retrieved");
         Ok(payment_proof)
     }
 
     /// Get our replica instance PK set
-    pub async fn get_replica_keys(
+    pub(crate) async fn get_replica_keys(
         full_id: ClientFullId,
         cm: &mut ConnectionManager,
     ) -> Result<PublicKeySet, CoreError> {
