@@ -125,8 +125,7 @@ impl Client {
         let mut connection_manager =
             attempt_bootstrap(&Config::new().quic_p2p, full_id.clone()).await?;
 
-        let simulated_farming_payout_dot =
-            Dot::new(*full_id.public_key(), 0);
+        let simulated_farming_payout_dot = Dot::new(*full_id.public_key(), 0);
 
         let replicas_pk_set =
             Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
@@ -168,8 +167,8 @@ impl Client {
         Ok(full_client)
     }
 
-    /// Listen to network events. 
-    /// 
+    /// Listen to network events.
+    ///
     /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
     ///
     async fn listen_on_network(&mut self) {
