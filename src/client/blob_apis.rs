@@ -41,28 +41,18 @@ impl Client {
     ///
     /// Get data
     ///
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
     /// use safe_nd::BlobAddress;
-    /// use std::str::FromStr;
     /// use xor_name::XorName;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
     /// let mut client = Client::new(None).await?;
     ///
     /// // grab the random blob from the network
-    /// let blob = client.get_blob().await?;
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// let _blob = client.get_blob(target_blob, None, None).await?;
+    /// # Ok(())} );}
     /// ```
     pub async fn get_blob(
         &mut self,
@@ -118,37 +108,22 @@ impl Client {
     ///
     /// Store data
     ///
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{BlobAddress, Blob, PublicBlob};
+    /// use safe_nd::{Blob, Money, PublicBlob};
     /// use std::str::FromStr;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
-    /// # let secret_key = threshold_crypto::SecretKey::random();
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
-    /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
-    ///
-    ///
-    /// let data: [u8] = b"some data";
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let data = b"some data".to_vec();
     /// let blob_for_storage = Blob::Public(PublicBlob::new(data));
     /// // grab the random blob from the network
     /// let blob = client.store_blob(blob_for_storage).await?;
     ///
-    /// println!(blob.value().to_string()); // prints "some data"
-    ///
-    /// # let balance_after_write = client.get_local_balance()?.await;
-    /// # assert_ne!(initial_balance, balance_after_write);
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// println!( "{:?}",blob.value() ); // prints "some data"
+    /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_blob(&mut self, data: Blob) -> Result<Blob, CoreError> {
         let data_to_write_to_network: Blob = self.self_encrypt_blob(data).await?;
@@ -180,42 +155,28 @@ impl Client {
     /// Remove data
     ///
     /// ```no_run
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{BlobAddress, Blob, PrivateBlob};
+    /// use safe_nd::{Money, Blob, PrivateBlob, PublicKey};
     /// use std::str::FromStr;
-    /// use xor_name::XorName;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
-    /// # let secret_key = threshold_crypto::SecretKey::random();
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = SecretKey::random();
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
-    /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
-    ///
-    /// let data: [u8] = b"some private data";
-    /// let some_blob_for_storage = Blob::Public(PrivateBlob::new(data));
+    /// let mut client = Client::new(Some(secret_key.clone())).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let data = b"some private data".to_vec();
+    /// let some_blob_for_storage = Blob::Private(PrivateBlob::new(data, PublicKey::from(secret_key.public_key())));
     /// let blob = client.store_blob(some_blob_for_storage).await?;
     ///
-    /// let _ = client.delete_blob(blob.address()).await?;
+    /// let _ = client.delete_blob(*blob.address()).await?;
     ///
     /// // Now when we attempt to retrieve the blob, we should get an error
     ///
-    /// match client.get_blob(blob.address()).await {
-    ///     Err(error) => eprintln!("Expected error getting blob {:?}", e),
+    /// match client.get_blob(*blob.address(), None, None).await {
+    ///     Err(error) => eprintln!("Expected error getting blob {:?}", error),
     ///     _ => return Err(CoreError::from("Should not have been able to retrieve this blob"))
-    /// }
-    ///
-    /// # let balance_after_write = client.get_local_balance()?.await;
-    /// # assert_ne!(initial_balance, balance_after_write);
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// };
+    /// #  Ok(())} );}
     /// ```
     pub async fn delete_blob(&mut self, address: BlobAddress) -> Result<(), CoreError> {
         // --------------------------

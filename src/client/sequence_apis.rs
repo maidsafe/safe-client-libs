@@ -62,9 +62,9 @@ impl Client {
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// let name = XorName(rand::random());
@@ -145,9 +145,9 @@ impl Client {
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// let name = XorName(rand::random());
@@ -223,9 +223,9 @@ impl Client {
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// # let name = XorName(rand::random());
@@ -286,9 +286,9 @@ impl Client {
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// # let name = XorName(rand::random());
@@ -403,9 +403,9 @@ impl Client {
     ///
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
-    /// # let mut client = Client::new(Some(sk)).await?;
+    /// # let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// # let name = XorName(rand::random());
@@ -480,9 +480,9 @@ impl Client {
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// # let name = XorName(rand::random());
@@ -547,9 +547,9 @@ impl Client {
     /// # let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?;
-    /// # client.trigger_simulated_farming_payout(initial_balance)?;
+    /// # client.trigger_simulated_farming_payout(initial_balance).await?;
     ///
     ///
     /// # let name = XorName(rand::random());

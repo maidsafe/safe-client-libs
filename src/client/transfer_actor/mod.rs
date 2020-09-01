@@ -51,7 +51,7 @@ impl Client {
     /// // (It should have 0 balance)
     /// let sk = threshold_crypto::SecretKey::random();
     ///
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
@@ -135,7 +135,7 @@ impl Client {
     /// let pk = PublicKey::from(sk.public_key());
     ///
     /// // And we use a random client to do this
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     ///

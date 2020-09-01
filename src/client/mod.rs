@@ -92,31 +92,30 @@ impl Client {
     /// # Examples
     ///
     /// Create a random client
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use std::str::FromStr;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     ///
     /// let mut client = Client::new(None).await?;
     /// // Now for example you can perform read operations:
-    /// let some_balance = client.get_balance().await?;
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// let _some_balance = client.get_balance().await?;
+    /// # Ok(()) } ); }
     /// ```
     pub async fn new(sk: Option<SecretKey>) -> Result<Self, CoreError> {
         crate::utils::init_log();
+
+        #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
+        
         let full_id = match sk {
             Some(sk) => {
-                is_random_client = false;
+                #[cfg(feature = "simulated-payouts")]
+                {
+                    is_random_client = false;
+                }
+
                 ClientFullId::from(sk)
             }
             None => {
@@ -229,24 +228,16 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// let client = Client::new(None).await?;
+    /// let _full_id = client.full_id().await;
     ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
-    /// let mut client = Client::new(None).await?;
-    /// let full_id = client.full_id().await?;
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # Ok(()) } ); }
     /// ```
-    async fn full_id(&self) -> ClientFullId {
+    pub async fn full_id(&self) -> ClientFullId {
         self.full_id.clone()
     }
 
@@ -254,21 +245,13 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
-    /// let mut client = Client::new(None).await?;
-    /// let full_id = client.public_id().await?;
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// let client = Client::new(None).await?;
+    /// let _public_id = client.public_id().await;
+    /// # Ok(()) } ); }
     /// ```
     pub async fn public_id(&self) -> PublicId {
         let id = self.full_id().await;
@@ -279,21 +262,13 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
-    /// let mut client = Client::new(None).await?;
-    /// let pk = client.public_key().await?;
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// let client = Client::new(None).await?;
+    /// let _pk = client.public_key().await;
+    /// # Ok(()) } ); }
     /// ```
     pub async fn public_key(&self) -> PublicKey {
         let id = self.full_id().await;

@@ -268,7 +268,7 @@ mod tests {
         let (sk, _pk) = shared_box::gen_bls_keypair();
         let (sk2, _pk) = shared_box::gen_bls_keypair();
 
-        let mut client = Client::new(Some(sk)).await?;
+        let mut client = Client::new(Some(secret_key)).await?;
 
         let res = client
             .send_money(PublicKey::Bls(sk2.public_key()), Money::from_str("0")?)

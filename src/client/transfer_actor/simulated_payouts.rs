@@ -47,7 +47,7 @@ impl Client {
     /// let sk = threshold_crypto::SecretKey::random();
     ///
     /// // Start our client
-    /// let mut client = Client::new(Some(sk)).await?;
+    /// let mut client = Client::new(Some(secret_key)).await?;
     /// let target_balance = Money::from_str("100")?
     /// let _ = client.trigger_simulated_farming_payout(target_balance)?;
     ///
