@@ -23,7 +23,7 @@ impl Client {
     }
 }
 
-#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
+#[cfg(all(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
     use super::*;
     use crate::crypto::shared_box;
@@ -54,7 +54,7 @@ pub mod exported_tests {
 }
 
 // TODO: Do we need "new" to actually instantiate with a transfer?...
-#[cfg(any(test, feature = "simulated-payouts"))]
+#[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
     use super::CoreError;

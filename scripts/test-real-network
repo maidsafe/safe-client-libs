@@ -3,4 +3,4 @@
 set -e -x
 
 # create and retrieve tests run separately
-cargo test --release --features=testing  -- --skip retrieve
+cargo test --release  -- --skip retrieve

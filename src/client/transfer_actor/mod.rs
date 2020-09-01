@@ -175,7 +175,6 @@ impl Client {
             }
             Err(error) => {
                 if !error
-                    .clone()
                     .to_string()
                     .contains("No credits or debits found to sync to actor")
                 {

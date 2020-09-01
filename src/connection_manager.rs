@@ -183,9 +183,9 @@ impl ConnectionManager {
             winner.0
         );
 
-        winner.0.ok_or(CoreError::from(format!(
-            "Failed to obtain a response from the network."
-        )))
+        winner
+            .0
+            .ok_or_else(|| CoreError::from("Failed to obtain a response from the network."))
     }
 
     // Private helpers
@@ -267,9 +267,9 @@ impl ConnectionManager {
                         conn.send_only(msg).await?;
                         Ok(Arc::new(Mutex::new(conn)))
                     }
-                    Ok(_) => Err(CoreError::from(format!(
-                        "Unexpected message type while expeccting challenge from Elder."
-                    ))),
+                    Ok(_) => Err(CoreError::from(
+                        "Unexpected message type while expeccting challenge from Elder.",
+                    )),
                     Err(e) => Err(CoreError::from(format!("Unexpected error {:?}", e))),
                 }
             });

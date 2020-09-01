@@ -60,11 +60,7 @@ impl Client {
             Ok(Some(validation)) => validation,
             Ok(None) => return Ok(None),
             Err(error) => {
-                if !error
-                    .clone()
-                    .to_string()
-                    .contains("Already received validation")
-                {
+                if !error.to_string().contains("Already received validation") {
                     return Err(CoreError::from(error));
                 }
 
@@ -193,7 +189,7 @@ impl Client {
             .register(debit_proof)?
             .ok_or_else(|| CoreError::from("No transfer event to register locally"))?;
 
-        actor.apply(ActorEvent::TransferRegistrationSent(register_event.clone()))?;
+        actor.apply(ActorEvent::TransferRegistrationSent(register_event))?;
 
         Ok(())
     }
@@ -216,7 +212,7 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<(), CoreError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
+        let (sk, _pk) = shared_box::gen_bls_keypair();
         let (_sk2, pk2) = shared_box::gen_bls_keypair();
 
         let pk2 = PublicKey::Bls(pk2);
@@ -261,10 +257,8 @@ mod tests {
         let _ = client.send_money(pk2, Money::from_str("2")?).await?;
 
         // initial 10 on creation from farming simulation minus 3
-        Ok(assert_eq!(
-            client.get_local_balance().await,
-            Money::from_str("7")?
-        ))
+        assert_eq!(client.get_local_balance().await, Money::from_str("7")?);
+        Ok(())
     }
 
     // TODO: do we want to be able to send 0 transfer reqs? This should probably be an actor side check if not
@@ -318,7 +312,7 @@ mod tests {
             new_balance,
             orig_balance
                 .checked_sub(Money::from_str("5.0")?)
-                .ok_or(CoreError::from("Invalid checked sub in test"))?,
+                .ok_or_else(|| CoreError::from("Invalid checked sub in test"))?,
         );
 
         let res = client.send_money(wallet1, Money::from_str("5000")?).await;

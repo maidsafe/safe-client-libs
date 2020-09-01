@@ -740,7 +740,7 @@ pub mod exported_tests {
 }
 
 #[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts"))]
+#[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
     use super::CoreError;

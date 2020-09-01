@@ -63,7 +63,7 @@ impl Client {
         &mut self,
         amount: Money,
     ) -> Result<(), CoreError> {
-        let pk = self.full_id().await.public_key().clone();
+        let pk = *self.full_id().await.public_key();
         info!("Triggering a simulated farming payout to: {:?}", pk);
         self.simulated_farming_payout_dot.apply_inc();
 

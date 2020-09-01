@@ -191,7 +191,11 @@ impl Client {
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
-    pub async fn get_unseq_map_shell(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
+    pub async fn get_unseq_map_shell(
+        &mut self,
+        name: XorName,
+        tag: u64,
+    ) -> Result<UnseqMap, CoreError>
     where
         Self: Sized,
     {
@@ -289,7 +293,10 @@ impl Client {
     }
 
     /// Return a list of keys in `Map` stored on the network.
-    pub async fn list_map_keys(&mut self, address: MapAddress) -> Result<BTreeSet<Vec<u8>>, CoreError>
+    pub async fn list_map_keys(
+        &mut self,
+        address: MapAddress,
+    ) -> Result<BTreeSet<Vec<u8>>, CoreError>
     where
         Self: Sized,
     {
@@ -334,8 +341,6 @@ impl Client {
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
-
-
 
     /// Returns a list of values in an Unsequenced Mutable Data
     pub async fn list_unseq_map_values(
@@ -449,20 +454,18 @@ impl Client {
     /// Sends an ownership transfer request.
     pub fn change_map_owner(
         &mut self,
-        name: XorName,
-        tag: u64,
-        new_owner: PublicKey,
-        version: u64,
+        _name: XorName,
+        _tag: u64,
+        _new_owner: PublicKey,
+        _version: u64,
     ) -> Result<(), CoreError> {
         unimplemented!();
     }
-
 
     //-------------------
     // Write operations
     // ------------------
 
-    
     /// Delete sequence
     pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), CoreError> {
         // --------------------------
@@ -789,7 +792,7 @@ pub mod exported_tests {
 
         let test_data_name = XorName(rand::random());
         let test_data_with_different_owner_than_client = Map::Seq(SeqMap::new_with_data(
-            test_data_name.clone(),
+            test_data_name,
             15000,
             Default::default(),
             permissions,
@@ -1043,7 +1046,7 @@ pub mod exported_tests {
 }
 
 #[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts"))]
+#[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
     use super::CoreError;

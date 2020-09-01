@@ -3,5 +3,4 @@
 set -e -x;
 
 cargo check --release
-cargo check --features=testing --release --lib --tests
-cargo check --release --lib --tests --manifest-path=tests/Cargo.toml
+cargo check --features=simulated-payouts --release --lib --tests

@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -e -x
-
-scripts/build-real-core
-cargo build --release --lib --tests --manifest-path=tests/Cargo.toml

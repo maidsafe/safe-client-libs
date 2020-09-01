@@ -117,7 +117,7 @@ impl Client {
             Some(sk) => {
                 is_random_client = false;
                 ClientFullId::from(sk)
-            },
+            }
             None => {
                 let mut rng = thread_rng();
                 ClientFullId::new_bls(&mut rng)
@@ -362,26 +362,26 @@ pub async fn attempt_bootstrap(
 }
 
 #[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
+#[cfg(all(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
     use super::*;
     use crate::crypto::shared_box;
-    use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
-    use safe_nd::{Error as SndError, Money, PublicBlob};
 
-    #[cfg(feature = "simulated-payouts")]
     pub async fn client_creation() -> Result<(), CoreError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
-        let _transfer_actor = Client::new(Some(sk)).await?;
+        let _transfer_actor = Client::new(None).await?;
 
-        assert!(true);
+        Ok(())
+    }
+
+    pub async fn client_creation_for_existing_sk() -> Result<(), CoreError> {
+        let (sk, _pk) = shared_box::gen_bls_keypair();
+        let _transfer_actor = Client::new(Some(sk)).await?;
 
         Ok(())
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "simulated-payouts")]
+#[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
     use crate::CoreError;
@@ -390,5 +390,11 @@ mod tests {
     #[cfg(feature = "simulated-payouts")]
     pub async fn client_creation() -> Result<(), CoreError> {
         exported_tests::client_creation().await
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn client_creation_for_existing_sk() -> Result<(), CoreError> {
+        exported_tests::client_creation_for_existing_sk().await
     }
 }

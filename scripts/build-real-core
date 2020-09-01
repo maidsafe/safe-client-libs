@@ -3,4 +3,4 @@
 set -e -x
 
 cargo build --release
-cargo build --features=testing --release --lib --tests 
+cargo build --features=simulated-payouts --release --lib --tests 
