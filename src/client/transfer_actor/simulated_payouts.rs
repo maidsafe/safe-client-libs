@@ -1,7 +1,7 @@
 use safe_nd::Money;
 
 #[cfg(feature = "simulated-payouts")]
-use safe_nd::{Transfer, TransferCmd, Cmd};
+use safe_nd::{Cmd, Transfer, TransferCmd};
 
 use crate::client::Client;
 use crate::errors::CoreError;
@@ -33,31 +33,22 @@ impl Client {
     ///
     /// Add 100 money to a client
     ///
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{Money, PublicKey};
+    /// use safe_nd::Money;
     /// use std::str::FromStr;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
-    /// let sk = threshold_crypto::SecretKey::random();
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Start our client
     /// let mut client = Client::new(Some(secret_key)).await?;
-    /// let target_balance = Money::from_str("100")?
-    /// let _ = client.trigger_simulated_farming_payout(target_balance)?;
+    /// let target_balance = Money::from_str("100")?;
+    /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, target_balance);
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # Ok(())} );}
     /// ```
     pub async fn trigger_simulated_farming_payout(
         &mut self,

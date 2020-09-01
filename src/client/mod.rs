@@ -108,7 +108,7 @@ impl Client {
 
         #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
-        
+
         let full_id = match sk {
             Some(sk) => {
                 #[cfg(feature = "simulated-payouts")]

@@ -36,30 +36,21 @@ impl Client {
     /// # Examples
     ///
     /// Retrieve an existing balance
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
     /// use safe_nd::Money;
     /// use std::str::FromStr;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
     /// // (It should have 0 balance)
-    /// let sk = threshold_crypto::SecretKey::random();
+    /// let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// let mut client = Client::new(Some(secret_key)).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # Ok(()) } ); }
     /// ```
     pub async fn get_balance(&mut self) -> Result<Money, CoreError>
     where
@@ -79,32 +70,23 @@ impl Client {
     /// # Examples
     ///
     /// Retrieve an existing balance
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
     /// use safe_nd::{Money, PublicKey};
     /// use std::str::FromStr;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
     /// // (It should have 0 balance)
-    /// let sk = threshold_crypto::SecretKey::random();
-    /// let pk = PublicKey::from(sk.public_key());
+    /// let secret_key = threshold_crypto::SecretKey::random();
+    /// let pk = PublicKey::from(secret_key.public_key());
     ///
     /// // And we use a random client to do this
     /// let mut client = Client::new(None).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # Ok(()) } ); }
     /// ```
     pub async fn get_balance_for(&mut self, public_key: PublicKey) -> Result<Money, CoreError>
     where
@@ -119,30 +101,18 @@ impl Client {
     /// # Examples
     ///
     /// Retrieving an existing balance history
-    /// ```
-    /// # extern crate tokio;
-    /// # use safe_core::CoreError;
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{Money, PublicKey};
-    /// use std::str::FromStr;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() {
-    /// # let _: Result<(), CoreError> = futures::executor::block_on( async {
-    ///
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
-    /// let sk = threshold_crypto::SecretKey::random();
-    /// let pk = PublicKey::from(sk.public_key());
+    /// let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // And we use a random client to do this
     /// let mut client = Client::new(Some(secret_key)).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
-    ///
-    /// # Ok(())
-    /// # } );
-    /// # }
-    ///
+    /// # Ok(()) } ); }
     /// ```
     pub async fn get_history(&mut self) -> Result<(), CoreError> {
         let public_key = *self.full_id.public_key();
