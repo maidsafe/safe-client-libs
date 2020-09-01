@@ -1,7 +1,7 @@
-use safe_nd::{Cmd, Money};
+use safe_nd::Money;
 
 #[cfg(feature = "simulated-payouts")]
-use safe_nd::{Transfer, TransferCmd};
+use safe_nd::{Transfer, TransferCmd, Cmd};
 
 use crate::client::Client;
 use crate::errors::CoreError;

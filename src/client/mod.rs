@@ -42,6 +42,7 @@ use safe_nd::{
     QueryResponse, Sequence, SequenceAddress,
 };
 
+#[cfg(feature = "simulated-payouts")]
 use std::str::FromStr;
 
 use std::sync::Arc;
