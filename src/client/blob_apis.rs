@@ -113,8 +113,9 @@ impl Client {
     /// use safe_core::Client;
     /// use safe_nd::{Blob, Money, PublicBlob};
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let secret_key = threshold_crypto::SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
