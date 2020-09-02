@@ -202,14 +202,10 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn delete_sequence(&mut self, address: SequenceAddress) -> Result<(), CoreError> {
-        // --------------------------
         // Payment for PUT
-        // --------------------------
         let payment_proof = self.create_write_payment_proof().await?;
 
-        //---------------------------------
         // The _actual_ message
-        //---------------------------------
         let msg_contents = wrap_seq_write(SequenceWrite::Delete(address), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self.connection_manager.send_cmd(&message).await?;
@@ -282,14 +278,10 @@ impl Client {
         &mut self,
         op: SequenceWriteOp<Vec<u8>>,
     ) -> Result<(), CoreError> {
-        // --------------------------
         // Payment for PUT
-        // --------------------------
         let payment_proof = self.create_write_payment_proof().await?;
 
-        //---------------------------------
         // The _actual_ message
-        //---------------------------------
         let msg_contents = wrap_seq_write(SequenceWrite::Edit(op), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self.connection_manager.send_cmd(&message).await?;
@@ -303,14 +295,10 @@ impl Client {
         &mut self,
         data: Sequence,
     ) -> Result<(), CoreError> {
-        // --------------------------
         // Payment for PUT
-        // --------------------------
         let payment_proof = self.create_write_payment_proof().await?;
 
-        //---------------------------------
         // The _actual_ message
-        //---------------------------------
         let msg_contents = wrap_seq_write(SequenceWrite::New(data), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self.connection_manager.send_cmd(&message).await?;

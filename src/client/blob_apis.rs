@@ -128,14 +128,10 @@ impl Client {
     /// ```
     pub async fn store_blob(&mut self, data: Blob) -> Result<Blob, CoreError> {
         let data_to_write_to_network: Blob = self.self_encrypt_blob(data).await?;
-        // --------------------------
         // Payment for PUT
-        // --------------------------
         let payment_proof = self.create_write_payment_proof().await?;
 
-        //---------------------------------
         // The _actual_ message
-        //---------------------------------
         let msg_contents = wrap_blob_write(
             BlobWrite::New(data_to_write_to_network.clone()),
             payment_proof.clone(),
@@ -180,14 +176,10 @@ impl Client {
     /// #  Ok(())} );}
     /// ```
     pub async fn delete_blob(&mut self, address: BlobAddress) -> Result<(), CoreError> {
-        // --------------------------
         // Payment for PUT
-        // --------------------------
         let payment_proof = self.create_write_payment_proof().await?;
 
-        //---------------------------------
         // The _actual_ message
-        //---------------------------------
         let msg_contents =
             wrap_blob_write(BlobWrite::DeletePrivate(address), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);

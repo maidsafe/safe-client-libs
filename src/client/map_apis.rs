@@ -34,6 +34,183 @@ fn wrap_map_write(write: MapWrite, payment: DebitAgreementProof) -> Cmd {
 }
 
 impl Client {
+    //-------------------
+    // Store
+    // ------------------
+
+    /// Store a new map
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
+    /// use safe_core::Client;
+    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let secret_key = SecretKey::random();
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 15001;
+    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
+    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
+    ///     name,
+    ///     tag,
+    ///     entries.clone(),
+    ///     permissions,
+    ///     client.public_key().await,
+    /// ));
+    /// let _ = client.store_map(our_map.clone()).await?;
+    ///
+    /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
+    /// ```
+    pub async fn store_map(&mut self, data: Map) -> Result<(), CoreError> {
+        // Payment for PUT
+        let payment_proof = self.create_write_payment_proof().await?;
+
+        // The _actual_ message
+        let msg_contents = wrap_map_write(MapWrite::New(data), payment_proof.clone());
+        let message = Self::create_cmd_message(msg_contents);
+        let _ = self.connection_manager.send_cmd(&message).await?;
+
+        self.apply_write_payment_to_local_actor(payment_proof).await
+    }
+
+    /// Delete Map
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
+    /// use safe_core::Client;
+    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let secret_key = SecretKey::random();
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 15001;
+    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
+    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
+    ///     name,
+    ///     tag,
+    ///     entries.clone(),
+    ///     permissions,
+    ///     client.public_key().await,
+    /// ));
+    /// let _ = client.store_map(our_map.clone()).await?;
+    /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
+    /// let _ = client.delete_map(*our_map.address()).await?;
+    /// # let balance_after_second_write = client.get_local_balance().await; assert_ne!(balance_after_second_write, balance_after_first_write);
+    /// # Ok(()) } ); }
+    /// ```
+    pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), CoreError> {
+        // Payment for PUT
+        let payment_proof = self.create_write_payment_proof().await?;
+
+        // The _actual_ message
+        let msg_contents = wrap_map_write(MapWrite::Delete(address), payment_proof.clone());
+        let message = Self::create_cmd_message(msg_contents);
+        let _ = self.connection_manager.send_cmd(&message).await?;
+
+        self.apply_write_payment_to_local_actor(payment_proof).await
+    }
+
+    /// Delete mutable data user permission
+    pub async fn delete_map_user_perms(
+        &mut self,
+        address: MapAddress,
+        user: PublicKey,
+        version: u64,
+    ) -> Result<(), CoreError> {
+        // Payment for PUT
+        let payment_proof = self.create_write_payment_proof().await?;
+
+        // The _actual_ message
+
+        let msg_contents = wrap_map_write(
+            MapWrite::DelUserPermissions {
+                address,
+                user,
+                version,
+            },
+            payment_proof.clone(),
+        );
+
+        let message = Self::create_cmd_message(msg_contents);
+
+        let _ = self.connection_manager.send_cmd(&message).await?;
+
+        self.apply_write_payment_to_local_actor(payment_proof).await
+    }
+
+    /// Set mutable data user permissions
+    pub async fn set_map_user_perms(
+        &mut self,
+        address: MapAddress,
+        user: PublicKey,
+        permissions: MapPermissionSet,
+        version: u64,
+    ) -> Result<(), CoreError> {
+        // Payment for PUT
+        let payment_proof = self.create_write_payment_proof().await?;
+
+        // The _actual_ message
+
+        let msg_contents = wrap_map_write(
+            MapWrite::SetUserPermissions {
+                address,
+                user,
+                permissions,
+                version,
+            },
+            payment_proof.clone(),
+        );
+
+        let message = Self::create_cmd_message(msg_contents);
+
+        // TODO what will be the correct reponse here?... We have it validated, so registered?
+        let _ = self.connection_manager.send_cmd(&message).await?;
+
+        self.apply_write_payment_to_local_actor(payment_proof).await
+    }
+
+    /// Mutate mutable data user entries
+    pub async fn edit_map_entries(
+        &mut self,
+        address: MapAddress,
+        changes: MapEntryActions,
+    ) -> Result<(), CoreError> {
+        // Payment for PUT
+        let payment_proof = self.create_write_payment_proof().await?;
+
+        // The _actual_ message
+
+        let msg_contents =
+            wrap_map_write(MapWrite::Edit { address, changes }, payment_proof.clone());
+
+        let message = Self::create_cmd_message(msg_contents);
+        let _ = self.connection_manager.send_cmd(&message).await?;
+
+        self.apply_write_payment_to_local_actor(payment_proof).await
+    }
+
     /// Fetch unpublished mutable data from the network
     pub async fn get_unseq_map(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
     where
@@ -48,6 +225,29 @@ impl Client {
             QueryResponse::GetMap(res) => res.map_err(CoreError::from).and_then(|map| match map {
                 Map::Unseq(data) => Ok(data),
                 Map::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+            }),
+            _ => Err(CoreError::ReceivedUnexpectedEvent),
+        }
+    }
+
+    //-------------------
+    // Gets
+    // ------------------
+
+    /// Fetch sequenced mutable data from the network
+    pub async fn get_seq_map(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
+    where
+        Self: Sized,
+    {
+        trace!("Fetch Sequenced Mutable Data");
+
+        match self
+            .send_query(wrap_map_read(MapRead::Get(MapAddress::Seq { name, tag })))
+            .await?
+        {
+            QueryResponse::GetMap(res) => res.map_err(CoreError::from).and_then(|map| match map {
+                Map::Seq(data) => Ok(data),
+                Map::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
             }),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
@@ -109,61 +309,6 @@ impl Client {
             }
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
-    }
-
-    /// Fetch sequenced mutable data from the network
-    pub async fn get_seq_map(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("Fetch Sequenced Mutable Data");
-
-        match self
-            .send_query(wrap_map_read(MapRead::Get(MapAddress::Seq { name, tag })))
-            .await?
-        {
-            QueryResponse::GetMap(res) => res.map_err(CoreError::from).and_then(|map| match map {
-                Map::Seq(data) => Ok(data),
-                Map::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
-            }),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }
-
-    /// Mutates sequenced `Map` entries in bulk
-    pub async fn mutate_seq_map_entries(
-        &mut self,
-        name: XorName,
-        tag: u64,
-        actions: MapSeqEntryActions,
-    ) -> Result<(), CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("Mutate Map for {:?}", name);
-
-        let map_actions = MapEntryActions::Seq(actions);
-        let address = MapAddress::Seq { name, tag };
-
-        self.edit_map_entries(address, map_actions).await
-    }
-
-    /// Mutates unsequenced `Map` entries in bulk
-    pub async fn mutate_unseq_map_entries(
-        &mut self,
-        name: XorName,
-        tag: u64,
-        actions: MapUnseqEntryActions,
-    ) -> Result<(), CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("Mutate Map for {:?}", name);
-
-        let map_actions = MapEntryActions::Unseq(actions);
-        let address = MapAddress::Unseq { name, tag };
-
-        self.edit_map_entries(address, map_actions).await
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
@@ -232,6 +377,46 @@ impl Client {
             QueryResponse::GetMapVersion(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
+    }
+
+    //----------
+    // Entries
+    //----------
+
+    /// Mutates sequenced `Map` entries in bulk
+    pub async fn mutate_seq_map_entries(
+        &mut self,
+        name: XorName,
+        tag: u64,
+        actions: MapSeqEntryActions,
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
+        trace!("Mutate Map for {:?}", name);
+
+        let map_actions = MapEntryActions::Seq(actions);
+        let address = MapAddress::Seq { name, tag };
+
+        self.edit_map_entries(address, map_actions).await
+    }
+
+    /// Mutates unsequenced `Map` entries in bulk
+    pub async fn mutate_unseq_map_entries(
+        &mut self,
+        name: XorName,
+        tag: u64,
+        actions: MapUnseqEntryActions,
+    ) -> Result<(), CoreError>
+    where
+        Self: Sized,
+    {
+        trace!("Mutate Map for {:?}", name);
+
+        let map_actions = MapEntryActions::Unseq(actions);
+        let address = MapAddress::Unseq { name, tag };
+
+        self.edit_map_entries(address, map_actions).await
     }
 
     /// Return a complete list of entries in `Map`.
@@ -461,136 +646,6 @@ impl Client {
     ) -> Result<(), CoreError> {
         unimplemented!();
     }
-
-    //-------------------
-    // Write operations
-    // ------------------
-
-    /// Delete sequence
-    pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), CoreError> {
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        let payment_proof = self.create_write_payment_proof().await?;
-
-        //---------------------------------
-        // The _actual_ message
-        //---------------------------------
-        let msg_contents = wrap_map_write(MapWrite::Delete(address), payment_proof.clone());
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
-    }
-
-    /// Delete mutable data user permission
-    pub async fn delete_map_user_perms(
-        &mut self,
-        address: MapAddress,
-        user: PublicKey,
-        version: u64,
-    ) -> Result<(), CoreError> {
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        let payment_proof = self.create_write_payment_proof().await?;
-
-        //---------------------------------
-        // The _actual_ message
-        //---------------------------------
-
-        let msg_contents = wrap_map_write(
-            MapWrite::DelUserPermissions {
-                address,
-                user,
-                version,
-            },
-            payment_proof.clone(),
-        );
-
-        let message = Self::create_cmd_message(msg_contents);
-
-        let _ = self.connection_manager.send_cmd(&message).await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
-    }
-
-    /// Set mutable data user permissions
-    pub async fn set_map_user_perms(
-        &mut self,
-        address: MapAddress,
-        user: PublicKey,
-        permissions: MapPermissionSet,
-        version: u64,
-    ) -> Result<(), CoreError> {
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        let payment_proof = self.create_write_payment_proof().await?;
-
-        //---------------------------------
-        // The _actual_ message
-        //---------------------------------
-
-        let msg_contents = wrap_map_write(
-            MapWrite::SetUserPermissions {
-                address,
-                user,
-                permissions,
-                version,
-            },
-            payment_proof.clone(),
-        );
-
-        let message = Self::create_cmd_message(msg_contents);
-
-        // TODO what will be the correct reponse here?... We have it validated, so registered?
-        let _ = self.connection_manager.send_cmd(&message).await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
-    }
-
-    /// Mutate mutable data user entries
-    pub async fn edit_map_entries(
-        &mut self,
-        address: MapAddress,
-        changes: MapEntryActions,
-    ) -> Result<(), CoreError> {
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        let payment_proof = self.create_write_payment_proof().await?;
-
-        //---------------------------------
-        // The _actual_ message
-        //---------------------------------
-
-        let msg_contents =
-            wrap_map_write(MapWrite::Edit { address, changes }, payment_proof.clone());
-
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
-    }
-
-    /// Store a new public mutable data object
-    /// Wraps msg_contents for payment validation and mutation
-    pub async fn new_map(&mut self, data: Map) -> Result<(), CoreError> {
-        // --------------------------
-        // Payment for PUT
-        // --------------------------
-        let payment_proof = self.create_write_payment_proof().await?;
-
-        //---------------------------------
-        // The _actual_ message
-        //---------------------------------
-        let msg_contents = wrap_map_write(MapWrite::New(data), payment_proof.clone());
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
-    }
 }
 
 #[allow(missing_docs)]
@@ -625,7 +680,7 @@ pub mod exported_tests {
             permissions,
             client.public_key().await,
         ));
-        client.new_map(data.clone()).await?;
+        client.store_map(data.clone()).await?;
         println!("Put unseq. Map successfully");
 
         let version = client
@@ -675,7 +730,7 @@ pub mod exported_tests {
             client.public_key().await,
         ));
 
-        client.new_map(data.clone()).await?;
+        client.store_map(data.clone()).await?;
         println!("Put seq. Map successfully");
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
@@ -710,7 +765,7 @@ pub mod exported_tests {
             client.public_key().await,
         ));
 
-        client.new_map(data.clone()).await?;
+        client.store_map(data.clone()).await?;
         client.delete_map(mapref).await?;
         let res = client.get_unseq_map(*data.name(), data.tag()).await;
         match res {
@@ -735,7 +790,7 @@ pub mod exported_tests {
             client.public_key().await,
         ));
 
-        client.new_map(data.clone()).await?;
+        client.store_map(data.clone()).await?;
         client.delete_map(mapref).await?;
 
         let res = client.get_unseq_map(*data.name(), data.tag()).await;
@@ -763,7 +818,7 @@ pub mod exported_tests {
             client.public_key().await,
         ));
 
-        client.new_map(data).await?;
+        client.store_map(data).await?;
 
         let mut client = Client::new(None).await?;
         let res = client.delete_map(mapref).await;
@@ -800,7 +855,7 @@ pub mod exported_tests {
         ));
 
         client
-            .new_map(test_data_with_different_owner_than_client.clone())
+            .store_map(test_data_with_different_owner_than_client.clone())
             .await?;
         let res = client.get_seq_map_shell(test_data_name, 1500).await;
         match res {
@@ -846,7 +901,7 @@ pub mod exported_tests {
             client.public_key().await,
         ));
 
-        client.new_map(data).await?;
+        client.store_map(data).await?;
 
         let new_perm_set = MapPermissionSet::new()
             .allow(MapAction::ManagePermissions)
@@ -916,7 +971,7 @@ pub mod exported_tests {
             permissions,
             client.public_key().await,
         ));
-        client.new_map(data).await?;
+        client.store_map(data).await?;
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
 
@@ -991,7 +1046,7 @@ pub mod exported_tests {
             permissions,
             client.public_key().await,
         ));
-        client.new_map(data).await?;
+        client.store_map(data).await?;
         println!("Put unseq. Map successfully");
 
         let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
@@ -1029,7 +1084,7 @@ pub mod exported_tests {
         let mut client = Client::new(None).await?;
 
         let map = Map::Unseq(UnseqMap::new(name, tag, client.public_key().await));
-        client.new_map(map).await?;
+        client.store_map(map).await?;
 
         let map_address = MapAddress::from_kind(MapKind::Unseq, name, tag);
 
