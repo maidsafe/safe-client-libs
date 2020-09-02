@@ -525,7 +525,7 @@ impl Client {
     ///
     /// // The returned address can then be used to `append` data to.
     /// let address = client.store_private_sequence(None, name, tag, owner, perms).await?;
-    /// 
+    ///
     /// let mut sequence = client.get_sequence(address).await?;
     /// let write_op = sequence.set_owner(new_owner);
     /// let _ = client.set_sequence_owner(write_op).await?;

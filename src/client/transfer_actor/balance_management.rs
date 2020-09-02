@@ -250,7 +250,7 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_cannot_send_0_money_req() -> Result<(), CoreError> {
-        let (sk, _pk) = shared_box::gen_bls_keypair();
+        let (secret_key, _pk) = shared_box::gen_bls_keypair();
         let (sk2, _pk) = shared_box::gen_bls_keypair();
 
         let mut client = Client::new(Some(secret_key)).await?;
