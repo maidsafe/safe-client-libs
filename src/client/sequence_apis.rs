@@ -497,7 +497,40 @@ impl Client {
     // Ownership
     //---------------------
 
-    /// Mutate sequence data owners
+    /// Update sequence data owners
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
+    /// use safe_core::Client;
+    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = SecretKey::random();
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 10;
+    /// let owner = client.public_key().await;
+    /// let new_owner = PublicKey::from( SecretKey::random().public_key() );
+    /// let mut perms = BTreeMap::<PublicKey, SequencePrivUserPermissions>::new();
+    ///
+    /// // Set the access permissions
+    /// let _ = perms.insert(
+    ///    owner,
+    ///    SequencePrivUserPermissions::new(true, true, true),
+    /// );
+    ///
+    /// // The returned address can then be used to `append` data to.
+    /// let address = client.store_private_sequence(None, name, tag, owner, perms).await?;
+    /// 
+    /// let mut sequence = client.get_sequence(address).await?;
+    /// let write_op = sequence.set_owner(new_owner);
+    /// let _ = client.set_sequence_owner(write_op).await?;
+    /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
+    /// ```
     pub async fn set_sequence_owner(
         &mut self,
         op: SequenceWriteOp<SequenceOwner>,
