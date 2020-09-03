@@ -79,10 +79,10 @@ pub struct Client {
     connection_manager: ConnectionManager,
 }
 
-/// Trait providing an interface for self-authentication client implementations, so they can
-/// interface all requests from high-level APIs to the actual routing layer and manage all
-/// interactions with it. Clients are non-blocking, with an asynchronous API using the futures
-/// abstraction from the futures-rs crate.
+/// Easily manage connections to/from The Safe Network with the client and its APIs.
+/// Use a random client for read-only or one-time operations.
+/// Supply an existing, SecretKey which holds a SafeCoin balance to be able to perform
+/// write operations.
 impl Client {
     /// Create a Safe Network client instance. Either for an existing SecretKey (in which case) the client will attempt
     /// to retrieve the history of the key's balance in order to be ready for any Money operations. Or if no SecreteKey

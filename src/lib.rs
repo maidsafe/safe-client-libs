@@ -1,4 +1,4 @@
-// Copyright 2018 MaidSafe.net limited.
+// Copyright 2020 MaidSafe.net limited.
 //
 // This SAFE Network Software is licensed to you under The General Public License (GPL), version 3.
 // Unless required by applicable law or agreed to in writing, the SAFE Network Software distributed
@@ -6,7 +6,46 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-//! SAFE Core.
+//! The Safe Network Client.
+//!
+//! In order to connect to The Safe Network you'll need to send messages back and forth to network nodes.
+//! The [Client] has everything needed to perform this communication, with APIs to enable
+//! working with data.
+//!
+//! With these APIs you can easily:
+//! - Connect to The Safe Network
+//! - Read Public data from the network
+//! - Write data to the network (assuming you have a SafeCoin balance)
+//!
+//! ## Basic Usage
+//!
+//! Setting up a random client for read only access:
+//!
+//! ```no_run
+//! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
+//! # extern crate tokio; use safe_core::CoreError;
+//! use safe_core::Client;
+//! # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+//! let mut client = Client::new(None).await?;
+//! // Now for example you can perform read operations:
+//! let _some_balance = client.get_balance().await?;
+//! # Ok(()) } ); }
+//! ```
+//!
+//! Or use a pre-existing SecretKey which has a SafeCoin balance to be able to write to the network:
+//!
+//! ```no_run
+//! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
+//! # extern crate tokio; use safe_core::CoreError;
+//! use safe_core::Client;
+//! use threshold_crypto::SecretKey;
+//! # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+//! let secret_key = SecretKey::random();
+//! let mut client = Client::new(Some(secret_key)).await?;
+//! // Now for example you can perform read operations:
+//! let _some_balance = client.get_balance().await?;
+//! # Ok(()) } ); }
+//! ```
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
