@@ -1,5 +1,5 @@
 use safe_nd::DebitAgreementProof;
-use safe_transfers::ActorEvent;
+use sn_transfers::ActorEvent;
 
 use crate::client::Client;
 use crate::errors::CoreError;

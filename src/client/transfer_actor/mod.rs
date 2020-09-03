@@ -3,11 +3,11 @@ use safe_nd::{
     TransferCmd, TransferQuery,
 };
 
-use safe_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
+use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 
 use crate::client::{Client, COST_OF_PUT};
 use crate::errors::CoreError;
-pub use safe_transfers::TransferActor as SafeTransferActor;
+pub use sn_transfers::TransferActor as SafeTransferActor;
 
 use log::{debug, info, trace, warn};
 
@@ -65,7 +65,7 @@ impl Client {
     /// Retrieve the history of the acocunt from the network and apply to our local actor
     pub async fn get_history(&mut self) -> Result<(), CoreError> {
         let public_key = *self.full_id.public_key();
-        info!("Getting SafeTransfers history for pk: {:?}", public_key);
+        info!("Getting SnTransfers history for pk: {:?}", public_key);
 
         let msg_contents = Query::Transfer(TransferQuery::GetHistory {
             at: public_key,

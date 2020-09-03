@@ -2,7 +2,7 @@ use safe_nd::{
     Cmd, DebitAgreementProof, Event, Money, PublicKey, Query, QueryResponse, TransferCmd,
     TransferQuery,
 };
-use safe_transfers::{ActorEvent, TransferInitiated};
+use sn_transfers::{ActorEvent, TransferInitiated};
 
 use crate::client::Client;
 use crate::errors::CoreError;

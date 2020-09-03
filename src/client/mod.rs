@@ -23,7 +23,7 @@ pub mod sequence_apis;
 
 mod blob_storage;
 
-// safe-transfers wrapper
+// sn_transfers wrapper
 pub use self::map_info::MapInfo;
 pub use self::transfer_actor::{ClientTransferValidator, SafeTransferActor};
 
