@@ -13,7 +13,7 @@ use log::trace;
 use safe_nd::{
     Cmd, DataCmd, DataQuery, DebitAgreementProof, Map, MapAddress, MapEntries, MapEntryActions,
     MapPermissionSet, MapRead, MapSeqEntries, MapSeqEntryActions, MapSeqValue,
-    MapUnseqEntryActions, MapValue, MapValues, PublicKey, Query, QueryResponse, SeqMap, UnseqMap,
+    MapUnseqEntryActions, MapValue, MapValues, PublicKey, Query, QueryResponse,
 };
 
 use safe_nd::MapWrite;
@@ -132,7 +132,7 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
-    /// Delete mutable data user permission
+    /// Delete map user permission
     pub async fn delete_map_user_perms(
         &mut self,
         address: MapAddress,
@@ -160,7 +160,7 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
-    /// Set mutable data user permissions
+    /// Set map user permissions
     pub async fn set_map_user_perms(
         &mut self,
         address: MapAddress,
@@ -191,7 +191,7 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
-    /// Mutate mutable data user entries
+    /// Mutate map user entries
     pub async fn edit_map_entries(
         &mut self,
         address: MapAddress,
@@ -211,159 +211,172 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
-    /// Fetch unpublished mutable data from the network
-    pub async fn get_unseq_map(&mut self, name: XorName, tag: u64) -> Result<UnseqMap, CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("Fetch Unsequenced Mutable Data");
-
-        match self
-            .send_query(wrap_map_read(MapRead::Get(MapAddress::Unseq { name, tag })))
-            .await?
-        {
-            QueryResponse::GetMap(res) => res.map_err(CoreError::from).and_then(|map| match map {
-                Map::Unseq(data) => Ok(data),
-                Map::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
-            }),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }
-
     //-------------------
     // Gets
     // ------------------
 
-    /// Fetch sequenced mutable data from the network
-    pub async fn get_seq_map(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
+    /// Fetch map data from the network
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
+    /// use safe_core::Client;
+    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let secret_key = SecretKey::random();
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 15001;
+    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
+    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
+    ///     name,
+    ///     tag,
+    ///     entries.clone(),
+    ///     permissions,
+    ///     client.public_key().await,
+    /// ));
+    /// let _ = client.store_map(our_map.clone()).await?;
+    /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
+    /// let _ = client.get_map(*our_map.address()).await?;
+    /// # Ok(()) } ); }
+    /// ```
+    pub async fn get_map(&mut self, address: MapAddress) -> Result<Map, CoreError>
     where
         Self: Sized,
     {
         trace!("Fetch Sequenced Mutable Data");
 
         match self
-            .send_query(wrap_map_read(MapRead::Get(MapAddress::Seq { name, tag })))
+            .send_query(wrap_map_read(MapRead::Get(address)))
             .await?
         {
-            QueryResponse::GetMap(res) => res.map_err(CoreError::from).and_then(|map| match map {
-                Map::Seq(data) => Ok(data),
-                Map::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
-            }),
+            QueryResponse::GetMap(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
 
-    /// Fetch the value for a given key in a sequenced mutable data
-    pub async fn get_seq_map_value(
+    /// Fetch the value for a given key in a map
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
+    /// use safe_core::Client;
+    /// use safe_nd::{ Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let secret_key = SecretKey::random();
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 15001;
+    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let _ = entries.insert(b"beep".to_vec(), b"boop".to_vec() );
+    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
+    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
+    ///     name,
+    ///     tag,
+    ///     entries.clone(),
+    ///     permissions,
+    ///     client.public_key().await,
+    /// ));
+    /// let _ = client.store_map(our_map.clone()).await?;
+    /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
+    /// let received_value = match client.get_map_value(*our_map.address(), b"beep".to_vec()).await? {
+    ///     MapValue::Unseq(value) => value,
+    ///     _ => panic!("Exptected an unsequenced map")
+    /// };
+    /// assert_eq!(received_value, b"boop".to_vec());
+    /// # Ok(()) } ); }
+    /// ```
+    pub async fn get_map_value(
         &mut self,
-        name: XorName,
-        tag: u64,
+        address: MapAddress,
         key: Vec<u8>,
-    ) -> Result<MapSeqValue, CoreError>
+    ) -> Result<MapValue, CoreError>
     where
         Self: Sized,
     {
-        trace!("Fetch MapValue for {:?}", name);
+        trace!("Fetch MapValue for {:?}", address);
 
         match self
-            .send_query(wrap_map_read(MapRead::GetValue {
-                address: MapAddress::Seq { name, tag },
-                key,
-            }))
+            .send_query(wrap_map_read(MapRead::GetValue { address, key }))
             .await?
         {
-            QueryResponse::GetMapValue(res) => {
-                res.map_err(CoreError::from).and_then(|value| match value {
-                    MapValue::Seq(val) => Ok(val),
-                    MapValue::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
-                })
-            }
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }
-
-    /// Fetch the value for a given key in a sequenced mutable data
-    pub async fn get_unseq_map_value(
-        &mut self,
-        name: XorName,
-        tag: u64,
-        key: Vec<u8>,
-    ) -> Result<Vec<u8>, CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("Fetch MapValue for {:?}", name);
-
-        match self
-            .send_query(wrap_map_read(MapRead::GetValue {
-                address: MapAddress::Unseq { name, tag },
-                key,
-            }))
-            .await?
-        {
-            QueryResponse::GetMapValue(res) => {
-                res.map_err(CoreError::from).and_then(|value| match value {
-                    MapValue::Unseq(val) => Ok(val),
-                    MapValue::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
-                })
-            }
+            QueryResponse::GetMapValue(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
-    pub async fn get_seq_map_shell(&mut self, name: XorName, tag: u64) -> Result<SeqMap, CoreError>
+    pub async fn get_map_shell(&mut self, address: MapAddress) -> Result<Map, CoreError>
     where
         Self: Sized,
     {
-        trace!("GetMapShell for {:?}", name);
+        trace!("GetMapShell for {:?}", address);
 
         match self
-            .send_query(wrap_map_read(MapRead::GetShell(MapAddress::Seq {
-                name,
-                tag,
-            })))
+            .send_query(wrap_map_read(MapRead::GetShell(address)))
             .await?
         {
-            QueryResponse::GetMapShell(res) => {
-                res.map_err(CoreError::from).and_then(|map| match map {
-                    Map::Seq(data) => Ok(data),
-                    _ => Err(CoreError::ReceivedUnexpectedData),
-                })
-            }
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
-        }
-    }
-
-    /// Get a shell (bare bones) version of `Map` from the network.
-    pub async fn get_unseq_map_shell(
-        &mut self,
-        name: XorName,
-        tag: u64,
-    ) -> Result<UnseqMap, CoreError>
-    where
-        Self: Sized,
-    {
-        trace!("GetMapShell for {:?}", name);
-
-        match self
-            .send_query(wrap_map_read(MapRead::GetShell(MapAddress::Unseq {
-                name,
-                tag,
-            })))
-            .await?
-        {
-            QueryResponse::GetMapShell(res) => {
-                res.map_err(CoreError::from).and_then(|map| match map {
-                    Map::Unseq(data) => Ok(data),
-                    _ => Err(CoreError::ReceivedUnexpectedData),
-                })
-            }
+            QueryResponse::GetMapShell(res) => res.map_err(CoreError::from),
             _ => Err(CoreError::ReceivedUnexpectedEvent),
         }
     }
 
     /// Get a current version of `Map` from the network.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
+    /// use safe_core::Client;
+    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use threshold_crypto::SecretKey;
+    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let secret_key = SecretKey::random();
+    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 15001;
+    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let _ = entries.insert(b"beep".to_vec(), b"boop".to_vec() );
+    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
+    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
+    ///     name,
+    ///     tag,
+    ///     entries.clone(),
+    ///     permissions,
+    ///     client.public_key().await,
+    /// ));
+    /// let _ = client.store_map(our_map.clone()).await?;
+    /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
+    /// let version = client.get_map_version(*our_map.address()).await?;
+    /// assert_eq!(version, 0);
+    /// # Ok(()) } ); }
+    /// ```
     pub async fn get_map_version(&mut self, address: MapAddress) -> Result<u64, CoreError>
     where
         Self: Sized,
@@ -653,7 +666,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use safe_nd::{Error as SndError, MapAction, MapKind, Money};
+    use safe_nd::{Error as SndError, MapAction, MapKind, Money, SeqMap, UnseqMap};
     use std::str::FromStr;
     use xor_name::XorName;
 
@@ -695,7 +708,7 @@ pub mod exported_tests {
         assert_eq!(keys, entries_keys);
         let values = client.list_unseq_map_values(name, tag).await?;
         assert_eq!(values, entries_values);
-        let fetched_data = client.get_unseq_map(*data.name(), data.tag()).await?;
+        let fetched_data = client.get_map(*data.address()).await?;
         assert_eq!(fetched_data.name(), data.name());
         assert_eq!(fetched_data.tag(), data.tag());
         Ok(())
@@ -730,12 +743,17 @@ pub mod exported_tests {
             client.public_key().await,
         ));
 
+        let address = *data.clone().address();
+
         client.store_map(data.clone()).await?;
         println!("Put seq. Map successfully");
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
-        let map_shell = client.get_seq_map_shell(name, tag).await?;
+        let map_shell = match client.get_map_shell(address).await? {
+            Map::Seq(data) => data,
+            _ => panic!("expected sequence map"),
+        };
         assert_eq!(*map_shell.name(), name);
         assert_eq!(map_shell.tag(), tag);
         assert_eq!(map_shell.entries().len(), 0);
@@ -743,7 +761,10 @@ pub mod exported_tests {
         assert_eq!(keys, entries_keys);
         let values = client.list_seq_map_values(name, tag).await?;
         assert_eq!(values, entries_values);
-        let fetched_data = client.get_seq_map(name, tag).await?;
+        let fetched_data = match client.get_map(address).await? {
+            Map::Seq(data) => data,
+            _ => panic!("Expected seq map"),
+        };
         assert_eq!(fetched_data.name(), data.name());
         assert_eq!(fetched_data.tag(), data.tag());
         assert_eq!(fetched_data.entries().len(), 1);
@@ -767,7 +788,7 @@ pub mod exported_tests {
 
         client.store_map(data.clone()).await?;
         client.delete_map(mapref).await?;
-        let res = client.get_unseq_map(*data.name(), data.tag()).await;
+        let res = client.get_map(*data.address()).await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -793,7 +814,7 @@ pub mod exported_tests {
         client.store_map(data.clone()).await?;
         client.delete_map(mapref).await?;
 
-        let res = client.get_unseq_map(*data.name(), data.tag()).await;
+        let res = client.get_map(*data.address()).await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -857,7 +878,9 @@ pub mod exported_tests {
         client
             .store_map(test_data_with_different_owner_than_client.clone())
             .await?;
-        let res = client.get_seq_map_shell(test_data_name, 1500).await;
+        let res = client
+            .get_map_shell(*test_data_with_different_owner_than_client.address())
+            .await;
         match res {
             Err(CoreError::DataError(SndError::NoSuchData)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
@@ -874,7 +897,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    // 1. Create a mutable data with some permissions and store it on the network.
+    // 1. Create a map with some permissions and store it on the network.
     // 2. Modify the permissions of a user in the permission set.
     // 3. Fetch the list of permissions and verify the edit.
     // 4. Delete a user's permissions from the permission set and verify the deletion.
@@ -932,7 +955,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    // 1. Create a mutable data and store it on the network
+    // 1. Create a map and store it on the network
     // 2. Create some entry actions and mutate the data on the network.
     // 3. List the entries and verify that the mutation was applied.
     // 4. Fetch a value for a particular key and verify
@@ -971,6 +994,8 @@ pub mod exported_tests {
             permissions,
             client.public_key().await,
         ));
+
+        let address = *data.clone().address();
         client.store_map(data).await?;
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
@@ -1004,9 +1029,10 @@ pub mod exported_tests {
 
         assert_eq!(fetched_entries, expected_entries);
 
-        let fetched_value = client
-            .get_seq_map_value(name, tag, b"key3".to_vec())
-            .await?;
+        let fetched_value = match client.get_map_value(address, b"key3".to_vec()).await? {
+            MapValue::Seq(value) => value,
+            _ => panic!("unexpeced seq mutable data"),
+        };
 
         assert_eq!(
             fetched_value,
@@ -1016,9 +1042,7 @@ pub mod exported_tests {
             }
         );
 
-        let res = client
-            .get_seq_map_value(name, tag, b"wrongKey".to_vec())
-            .await;
+        let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
             Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
@@ -1064,13 +1088,12 @@ pub mod exported_tests {
         let _ = expected_entries.insert(b"key1".to_vec(), b"newValue".to_vec());
         let _ = expected_entries.insert(b"key3".to_vec(), b"value".to_vec());
         assert_eq!(fetched_entries, expected_entries);
-        let fetched_value = client
-            .get_unseq_map_value(name, tag, b"key1".to_vec())
-            .await?;
+        let fetched_value = match client.get_map_value(address, b"key1".to_vec()).await? {
+            MapValue::Unseq(value) => value,
+            _ => panic!("unexpeced seq mutable data"),
+        };
         assert_eq!(fetched_value, b"newValue".to_vec());
-        let res = client
-            .get_unseq_map_value(name, tag, b"wrongKey".to_vec())
-            .await;
+        let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
             Err(CoreError::DataError(SndError::NoSuchEntry)) => Ok(()),
