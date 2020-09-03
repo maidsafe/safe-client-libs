@@ -199,7 +199,7 @@ pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     Ok(path)
 }
 
-#[cfg(all(test, feature = "mock-network"))]
+#[cfg(test)]
 mod test {
     use super::*;
     use std::env::temp_dir;
@@ -209,13 +209,12 @@ mod test {
     // 3. Assert that `Config::new()` reads the default config written to disk.
     // 4. Verify that `Config::new()` generates the correct default config.
     //    The default config will have the custom config path in the
-    //    `boostrap_cache_dir` field and `our_type` will be set to `Client`
+    //    `boostrap_cache_dir` field
     #[test]
     fn custom_config_path() {
         let path = temp_dir();
         let temp_dir_path = path.clone();
         set_config_dir_path(&path);
-        // In the default config, `our_type` will be set to Node.
         let config: Config = Default::default();
         unwrap!(write_config_file(&config));
 
@@ -228,11 +227,10 @@ mod test {
         unwrap!(std::fs::remove_file(path));
 
         // In the absence of a config file, the config handler
-        // should initialize the `our_type` field to Client.
+        // should initialize bootstrap_cache_dir only
         let config = Config::new();
         let expected_config = Config {
             quic_p2p: QuicP2pConfig {
-                our_type: quic_p2p::OurType::Client,
                 bootstrap_cache_dir: Some(unwrap!(temp_dir_path.into_os_string().into_string())),
                 ..Default::default()
             },
