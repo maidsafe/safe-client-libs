@@ -3,7 +3,7 @@ use safe_nd::{
     ClientFullId, Cmd, DebitAgreementProof, Message, Money, PublicKey, Query, QueryResponse,
     TransferCmd, TransferId, TransferQuery,
 };
-use safe_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
+use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
 
 /// Module for Money balance management
@@ -14,7 +14,7 @@ pub mod simulated_payouts;
 pub mod write_apis;
 
 /// Actual Transfer Actor
-pub use safe_transfers::TransferActor as SafeTransferActor;
+pub use sn_transfers::TransferActor as SafeTransferActor;
 
 use crate::client::ConnectionManager;
 use crate::client::{Client, COST_OF_PUT};
@@ -116,7 +116,7 @@ impl Client {
     /// ```
     pub async fn get_history(&mut self) -> Result<(), CoreError> {
         let public_key = *self.full_id.public_key();
-        info!("Getting SafeTransfers history for pk: {:?}", public_key);
+        info!("Getting SnTransfers history for pk: {:?}", public_key);
 
         let msg_contents = Query::Transfer(TransferQuery::GetHistory {
             at: public_key,
