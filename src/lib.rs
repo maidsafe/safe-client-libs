@@ -7,12 +7,6 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 //! SAFE Core.
-//!
-//! ## Configuring SAFE Core
-//!
-//! Please see the [Configuring Client
-//! Libs](https://github.com/maidsafe/safe_client_libs/wiki/Configuring-Client-Libs) section of the
-//! wiki.
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/maidsafe/QA/master/Images/maidsafe_logo.png",
@@ -30,8 +24,6 @@
     unused_qualifications,
     unused_results
 )]
-
-// Public exports. See https://github.com/maidsafe/safe_client_libs/wiki/Export-strategy.
 
 // Export public core interface.
 
