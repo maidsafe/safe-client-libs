@@ -38,8 +38,8 @@ use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use rand::thread_rng;
 use safe_nd::{
-    Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
-    QueryResponse, Sequence, SequenceAddress,
+    Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, MsgEnvelope, PublicId,
+    PublicKey, Query, QueryResponse, Sequence, SequenceAddress,
 };
 
 #[cfg(feature = "simulated-payouts")]
@@ -49,8 +49,11 @@ use std::sync::Arc;
 
 use xor_name::XorName;
 
+use bincode::deserialize;
+use std::sync::mpsc::Sender;
 use std::{collections::HashSet, net::SocketAddr};
 use threshold_crypto::{PublicKeySet, SecretKey};
+use tokio::task::JoinHandle;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
@@ -76,7 +79,9 @@ pub struct Client {
     transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator>>>,
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
-    connection_manager: ConnectionManager,
+    /// Quic-p2p wrapper for Client
+    pub connection_manager: ConnectionManager,
+    listener_handle: Arc<Option<JoinHandle<()>>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -149,6 +154,7 @@ impl Client {
             simulated_farming_payout_dot,
             blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
             sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
+            listener_handle: Arc::new(None),
         };
 
         #[cfg(feature = "simulated-payouts")]
@@ -173,11 +179,11 @@ impl Client {
     /// Listen to network events.
     ///
     /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
-    ///
     async fn listen_on_network(&mut self) {
         let (tx, rx) = std::sync::mpsc::channel();
+        let handle = listen(self.connection_manager.clone(), tx);
+        self.listener_handle = Arc::new(Some(handle));
         loop {
-            self.connection_manager.listen(tx.clone()).await;
             match rx.recv() {
                 Ok(envelope) => {
                     let message = envelope.message;
@@ -310,6 +316,43 @@ impl Client {
             id,
         }
     }
+}
+
+// Listen for incoming messages via IncomingConnections.
+fn listen(mut conn: ConnectionManager, tx: Sender<MsgEnvelope>) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut handles = vec![];
+        for connection in &conn.elders {
+            let conn = Arc::clone(connection);
+            let sender = tx.clone();
+            // Spawn a thread for all the connections
+            let handle = tokio::spawn(async move {
+                while let Ok(mut incoming) = conn.lock().await.0.listen() {
+                    while let Some(mut msg) = (incoming.next()).await {
+                        while let Some(qp2p_message) = (msg.next()).await {
+                            match qp2p_message {
+                                quic_p2p::Message::BiStream { bytes, .. } => {
+                                    match deserialize::<MsgEnvelope>(&bytes) {
+                                        Ok(envelope) => {
+                                            let _ = sender.send(envelope).unwrap();
+                                        }
+                                        Err(_) => {
+                                            error!("Error deserializing qp2p network message")
+                                        }
+                                    }
+                                }
+                                _ => error!(
+                                    "Should not receive qp2p messages on non bi-directional stream"
+                                ),
+                            }
+                        }
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+        conn.listener_handle = Arc::new(Some(handles));
+    })
 }
 
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.

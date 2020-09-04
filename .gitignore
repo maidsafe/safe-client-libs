@@ -25,6 +25,7 @@ build-tests/
 *.bk
 *.swp
 *.sublime-*
+.idea/
 
 # Manual
 .cargo/

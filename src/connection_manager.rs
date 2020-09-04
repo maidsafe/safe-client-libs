@@ -14,13 +14,13 @@ use futures::{
     lock::Mutex,
 };
 use log::{error, info, trace, warn};
-use quic_p2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p,};
+use quic_p2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p};
 use safe_nd::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,
 };
-use std::sync::mpsc::Sender;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::task::JoinHandle;
 
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
@@ -31,7 +31,8 @@ type VoteMap = HashMap<QueryResponse, usize>;
 pub struct ConnectionManager {
     full_id: ClientFullId,
     quic_p2p: QuicP2p,
-    elders: Vec<Arc<Mutex<Connection>>>,
+    pub elders: Vec<Arc<Mutex<(Endpoint, Connection)>>>,
+    pub listener_handle: Arc<Option<Vec<JoinHandle<()>>>>,
 }
 
 impl ConnectionManager {
@@ -44,6 +45,7 @@ impl ConnectionManager {
             full_id,
             quic_p2p,
             elders: Vec::default(),
+            listener_handle: Arc::new(None),
         })
     }
 
@@ -74,7 +76,7 @@ impl ConnectionManager {
             let msg_bytes_clone = msg_bytes.clone();
             let conn = Arc::clone(elder_conn);
             let task_handle =
-                tokio::spawn(async move { conn.lock().await.send_only(msg_bytes_clone).await });
+                tokio::spawn(async move { conn.lock().await.1.send_only(msg_bytes_clone).await });
             tasks.push(task_handle);
         }
 
@@ -100,7 +102,7 @@ impl ConnectionManager {
             let conn = Arc::clone(elder_conn);
 
             let task_handle = tokio::spawn(async move {
-                let response = conn.lock().await.send(msg_bytes_clone).await?;
+                let response = conn.lock().await.1.send(msg_bytes_clone).await?;
 
                 match deserialize(&response) {
                     Ok(MsgEnvelope { message, .. }) => Ok(message),
@@ -251,7 +253,7 @@ impl ConnectionManager {
             let mut quic_p2p = self.quic_p2p.clone();
             let full_id = self.full_id.clone();
             let task_handle = tokio::spawn(async move {
-                let (_endpoint, mut conn) = quic_p2p.connect_to(&peer_addr).await?;
+                let (endpoint, mut conn) = quic_p2p.connect_to(&peer_addr).await?;
                 let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
                 let msg = Bytes::from(serialize(&handshake)?);
                 let join_response = conn.send(msg).await?;
@@ -265,7 +267,7 @@ impl ConnectionManager {
                         let response = HandshakeRequest::ChallengeResult(full_id.sign(&challenge));
                         let msg = Bytes::from(serialize(&response)?);
                         conn.send_only(msg).await?;
-                        Ok(Arc::new(Mutex::new(conn)))
+                        Ok(Arc::new(Mutex::new((endpoint, conn))))
                     }
                     Ok(_) => Err(CoreError::from(
                         "Unexpected message type while expeccting challenge from Elder.",
@@ -306,33 +308,5 @@ impl ConnectionManager {
 
         trace!("Connected to {} Elders.", self.elders.len());
         Ok(())
-    }
-
-    /// Listen for incoming messages via IncomingConnections.
-    pub async fn listen(&mut self, _tx: Sender<MsgEnvelope>) {
-        // match self.quic_p2p.listen_events() {
-        //     Ok(mut incoming) => match (incoming.next()).await {
-        //         Some(mut msg) => match (msg.next()).await {
-        //             Some(qp2p_message) => match qp2p_message {
-        //                 QP2pMessage::BiStream { bytes, .. } => {
-        //                     match deserialize::<MsgEnvelope>(&bytes) {
-        //                         Ok(envelope) => {
-        //                             let _ = tx.send(envelope).unwrap();
-        //                         }
-        //                         Err(_) => error!("Error deserializing qp2p network message"),
-        //                     }
-        //                 }
-        //                 _ => {
-        //                     error!("Should not receive qp2p messages on non bi-directional stream")
-        //                 }
-        //             },
-        //             None => info!("No Incoming Messages"),
-        //         },
-        //         None => info!("No Incoming Events"),
-        //     },
-        //     Err(e) => {
-        //         error!("Error from Quic-p2p on listening: {:?}", e);
-        //     }
-        // }
     }
 }
