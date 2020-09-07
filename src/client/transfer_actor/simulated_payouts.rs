@@ -1,7 +1,7 @@
-use safe_nd::Money;
+use sn_data_types::Money;
 
 #[cfg(feature = "simulated-payouts")]
-use safe_nd::{Cmd, Transfer, TransferCmd};
+use sn_data_types::{Cmd, Transfer, TransferCmd};
 
 use crate::client::Client;
 use crate::errors::CoreError;
@@ -36,7 +36,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::Money;
+    /// use sn_data_types::Money;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// let secret_key = threshold_crypto::SecretKey::random();

@@ -16,7 +16,7 @@
 
 ## [0.41.1]
 - Update quic-p2p to 0.6.2
-- Update safe-nd to 0.9.0
+- Update sn_data_types to 0.9.0
 - Refactor to use updated request/response types
 
 ## [0.41.0]
@@ -43,7 +43,7 @@
 - Fix broken master workflow
 
 ## [0.38.0]
-- Update to safe-nd 0.7.2
+- Update to sn_data_types 0.7.2
 - Update to lazy_static 1.4.0
 - Update ffi_utils to 0.15.0
 - Use GHA for Android libs build
@@ -81,7 +81,7 @@
 ## [0.33.0]
 - Remove Routing dependency from safe_core.
 - Use quic-p2p for communication with Vaults.
-- Use new data types from safe-nd (AppendOnlyData and unpublished ImmutableData).
+- Use new data types from sn_data_types (AppendOnlyData and unpublished ImmutableData).
 - Add Safecoin-related tests and features.
 - Use the `stable` branch of the Rust compiler and Rust edition 2018.
 

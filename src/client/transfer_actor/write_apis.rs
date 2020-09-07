@@ -1,4 +1,4 @@
-use safe_nd::DebitAgreementProof;
+use sn_data_types::DebitAgreementProof;
 use sn_transfers::ActorEvent;
 
 use crate::client::Client;
@@ -27,7 +27,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::crypto::shared_box;
-    use safe_nd::{PublicKey, Sequence};
+    use sn_data_types::{PublicKey, Sequence};
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
@@ -35,7 +35,7 @@ pub mod exported_tests {
         let (sk, pk) = shared_box::gen_bls_keypair();
         let pk = PublicKey::Bls(pk);
 
-        let data = Sequence::new_pub(pk, XorName::random(), 33323);
+        let data = Sequence::new_public(pk, XorName::random(), 33323);
 
         let mut initial_actor = Client::new(Some(sk.clone())).await?;
 

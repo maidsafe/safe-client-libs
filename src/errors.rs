@@ -10,7 +10,7 @@
 use bincode::Error as SerialisationError;
 use futures::channel::mpsc::SendError;
 use quic_p2p::Error as QuicP2pError;
-use safe_nd::Error as SndError;
+use sn_data_types::Error as SndError;
 
 use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display, Formatter};

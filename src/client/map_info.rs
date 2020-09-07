@@ -11,8 +11,8 @@ use crate::errors::CoreError;
 use crate::utils::{
     self, symmetric_decrypt, symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN,
 };
-use safe_nd::{MapAddress, MapKind, MapSeqEntries, MapSeqEntryAction, MapSeqValue};
 use serde::{Deserialize, Serialize};
+use sn_data_types::{MapAddress, MapKind, MapSeqEntries, MapSeqEntryAction, MapSeqValue};
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
 use tiny_keccak::sha3_256;

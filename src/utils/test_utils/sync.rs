@@ -12,7 +12,7 @@
 use crate::ConnectionManager;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use safe_nd::{QueryResponse, Request};
+use sn_data_types::{QueryResponse, Request};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 use unwrap::unwrap;

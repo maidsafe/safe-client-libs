@@ -404,9 +404,9 @@ dependencies = [
 
 [[package]]
 name = "crdts"
-version = "4.1.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbe3a81de7c6d486b5087559d310092b053e7e9fddefe5257b745a233b2a66a7"
+checksum = "71539d73d24504c101d5eaf61902a7888e4ec13fa21ec294858b81d22e818563"
 dependencies = [
  "bitvec",
  "num-bigint",
@@ -473,6 +473,34 @@ dependencies = [
  "rand_core",
  "subtle 2.2.3",
  "zeroize 1.1.0",
+]
+
+[[package]]
+name = "data-encoding"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4d0e2d24e5ee3b23a01de38eefdcd978907890701f08ffffd4cb457ca4ee8d6"
+
+[[package]]
+name = "data-encoding-macro"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de6489dde5128f5ab2f71f88f8807a237cecf08d96dc7ca4be64e0730dc7d961"
+dependencies = [
+ "data-encoding",
+ "data-encoding-macro-internal",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "data-encoding-macro-internal"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d2d6daefd5f1d4b74a891a5d2ab7dccba028d423107c074232a0c5dc0d40a9e"
+dependencies = [
+ "data-encoding",
+ "proc-macro-hack",
+ "syn 1.0.38",
 ]
 
 [[package]]
@@ -1085,11 +1113,13 @@ dependencies = [
 
 [[package]]
 name = "multibase"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9c35dac080fd6e16a99924c8dfdef0af89d797dd851adab25feaffacf7850d6"
+checksum = "b78c60039650ff12e140ae867ef5299a58e19dded4d334c849dc7177083667e2"
 dependencies = [
  "base-x",
+ "data-encoding",
+ "data-encoding-macro",
 ]
 
 [[package]]
@@ -1554,27 +1584,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
-name = "safe-nd"
-version = "0.11.3"
-source = "git+https://github.com/maidsafe/safe-nd.git#39ed587b76c3ef92c6827264d5c8592d66d8abcc"
-dependencies = [
- "bincode",
- "crdts",
- "ed25519",
- "ed25519-dalek",
- "hex_fmt",
- "multibase",
- "rand",
- "serde",
- "sha3",
- "signature",
- "threshold_crypto",
- "tiny-keccak 1.5.0",
- "unwrap",
- "xor_name",
-]
-
-[[package]]
 name = "safe_core"
 version = "0.42.1"
 dependencies = [
@@ -1596,12 +1605,12 @@ dependencies = [
  "quic-p2p",
  "rand",
  "regex",
- "safe-nd",
  "self_encryption",
  "serde",
  "serde-value",
  "serde_json",
  "sha3",
+ "sn_data_types",
  "sn_transfers",
  "threshold_crypto",
  "tiny-keccak 1.5.0",
@@ -1744,18 +1753,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
+name = "sn_data_types"
+version = "0.11.12"
+source = "git+https://github.com/maidsafe/sn_data_types.git#de60b94cafee41ef234163698c5fdfc1a4c990ec"
+dependencies = [
+ "bincode",
+ "crdts",
+ "ed25519",
+ "ed25519-dalek",
+ "hex_fmt",
+ "multibase",
+ "rand",
+ "serde",
+ "sha3",
+ "signature",
+ "threshold_crypto",
+ "tiny-keccak 1.5.0",
+ "unwrap",
+ "xor_name",
+]
+
+[[package]]
 name = "sn_transfers"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8138235120e51c208f6cb47319f13b5db6ce15f6fe380be00cf9a7fdffef9d58"
+source = "git+https://github.com/maidsafe/sn_transfers.git#bf5e770bf4ab05f23abb41cf56819bb90cd4978e"
 dependencies = [
  "bincode",
  "crdts",
  "itertools",
  "log",
  "rand",
- "safe-nd",
  "serde",
+ "sn_data_types",
  "threshold_crypto",
  "xor_name",
 ]

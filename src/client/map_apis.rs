@@ -10,13 +10,13 @@ use crate::errors::CoreError;
 use crate::Client;
 use log::trace;
 
-use safe_nd::{
+use sn_data_types::{
     Cmd, DataCmd, DataQuery, DebitAgreementProof, Map, MapAddress, MapEntries, MapEntryActions,
     MapPermissionSet, MapRead, MapSeqEntries, MapSeqEntryActions, MapSeqValue,
     MapUnseqEntryActions, MapValue, MapValues, PublicKey, Query, QueryResponse,
 };
 
-use safe_nd::MapWrite;
+use sn_data_types::MapWrite;
 
 use xor_name::XorName;
 
@@ -45,7 +45,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -91,7 +91,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -222,7 +222,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -272,7 +272,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{ Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -347,7 +347,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -666,7 +666,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use safe_nd::{Error as SndError, MapAction, MapKind, Money, SeqMap, UnseqMap};
+    use sn_data_types::{Error as SndError, MapAction, MapKind, Money, SeqMap, UnseqMap};
     use std::str::FromStr;
     use xor_name::XorName;
 

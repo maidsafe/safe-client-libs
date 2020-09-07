@@ -15,7 +15,7 @@ use futures::{
 };
 use log::{error, info, trace, warn};
 use quic_p2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p,};
-use safe_nd::{
+use sn_data_types::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,
 };

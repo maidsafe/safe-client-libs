@@ -37,7 +37,7 @@ use log::{debug, error, info, trace, warn};
 use lru::LruCache;
 use quic_p2p::Config as QuicP2pConfig;
 use rand::thread_rng;
-use safe_nd::{
+use sn_data_types::{
     Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
     QueryResponse, Sequence, SequenceAddress,
 };
