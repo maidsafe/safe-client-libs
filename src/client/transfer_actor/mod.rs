@@ -1,5 +1,5 @@
 use log::{debug, info, trace, warn};
-use safe_nd::{
+use sn_data_types::{
     ClientFullId, Cmd, DebitAgreementProof, Message, Money, PublicKey, Query, QueryResponse,
     TransferCmd, TransferId, TransferQuery,
 };
@@ -39,7 +39,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::Money;
+    /// use sn_data_types::Money;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
@@ -73,7 +73,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{Money, PublicKey};
+    /// use sn_data_types::{Money, PublicKey};
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
@@ -251,7 +251,7 @@ mod tests {
 
     use super::*;
     use crate::crypto::shared_box;
-    use safe_nd::Money;
+    use sn_data_types::Money;
     use std::str::FromStr;
 
     #[tokio::test]

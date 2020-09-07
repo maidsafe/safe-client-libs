@@ -8,7 +8,7 @@
 
 use crate::client::COST_OF_PUT;
 
-use safe_nd::{ClientFullId, Keypair, Money};
+use sn_data_types::{ClientFullId, Keypair, Money};
 
 use unwrap::unwrap;
 

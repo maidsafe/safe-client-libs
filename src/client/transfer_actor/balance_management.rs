@@ -1,4 +1,4 @@
-use safe_nd::{
+use sn_data_types::{
     Cmd, DebitAgreementProof, Event, Money, PublicKey, Query, QueryResponse, TransferCmd,
     TransferQuery,
 };
@@ -20,7 +20,7 @@ impl Client {
     /// # extern crate tokio;use safe_core::CoreError;
     /// use safe_core::Client;
     /// use std::str::FromStr;
-    /// use safe_nd::Money;
+    /// use sn_data_types::Money;
     /// # #[tokio::main]async fn main() {let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// let client = Client::new(None).await?;
     /// // now we check the local balance
@@ -98,7 +98,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio;use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money};
+    /// use sn_data_types::{PublicKey, Money};
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // A random sk, to send money to
@@ -191,7 +191,7 @@ mod tests {
     use super::*;
     use crate::crypto::shared_box;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
-    use safe_nd::{Blob, Error as SndError, Money, PublicBlob};
+    use sn_data_types::{Blob, Error as SndError, Money, PublicBlob};
     use std::str::FromStr;
 
     #[tokio::test]

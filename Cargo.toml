@@ -29,7 +29,7 @@ miscreant = { version = "~0.4.2", features = ["soft-aes"] }
 quic-p2p = { git = "https://github.com/maidsafe/quic-p2p.git", branch = "master" }
 rand = "~0.7.3"
 regex = "1.3.1"
-safe-nd = "~0.11.2"
+sn_data_types = "~0.11.7"
 sn_transfers = "~0.2.0"
 self_encryption = "~0.19.0"
 serde = { version = "1.0.111", features = ["derive", "rc"] }
@@ -42,18 +42,17 @@ tokio = { version="~0.2.21", features=["rt-core", "blocking", "stream", "rt-util
 unwrap = "1.2.0"
 url = "2.1.0"
 ws = "~0.9.1"
-crdts = "~4.1.0"
+crdts = "~4.2.0"
 xor_name = "1.1.0"
 
 [dev-dependencies]
 serde_json = "1.0.9"
 
 [features]
-simulated-payouts = ["safe-nd/simulated-payouts", "sn_transfers/simulated-payouts"]
+simulated-payouts = ["sn_data_types/simulated-payouts", "sn_transfers/simulated-payouts"]
 testing = []
 
 [patch.crates-io]
-safe-nd = { git = "https://github.com/maidsafe/safe-nd.git" }
 self_encryption = { git = "https://github.com/maidsafe/self_encryption.git", branch = "master" }
 
 [package.metadata.docs.rs]

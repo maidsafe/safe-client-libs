@@ -9,7 +9,7 @@
 use crate::errors::CoreError;
 use crate::Client;
 use log::trace;
-use safe_nd::{
+use sn_data_types::{
     Cmd, DataCmd, DataQuery, DebitAgreementProof, PublicKey, Query, QueryResponse, Sequence,
     SequenceAction, SequenceAddress, SequenceEntries, SequenceEntry, SequenceIndex, SequenceOwner,
     SequencePrivUserPermissions, SequencePrivatePermissions, SequencePubUserPermissions,
@@ -50,7 +50,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -116,7 +116,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{SequenceUser, Money, SequencePubUserPermissions};
+    /// use sn_data_types::{SequenceUser, Money, SequencePubUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -177,7 +177,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -221,7 +221,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -316,7 +316,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -379,7 +379,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -421,7 +421,7 @@ impl Client {
         let sequence = self.get_sequence(address).await?;
         match sequence.last_entry() {
             Some(entry) => Ok((sequence.entries_index() - 1, entry.to_vec())),
-            None => Err(CoreError::from(safe_nd::Error::NoSuchEntry)),
+            None => Err(CoreError::from(sn_data_types::Error::NoSuchEntry)),
         }
     }
 
@@ -431,7 +431,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions, SequenceIndex};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions, SequenceIndex};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = threshold_crypto::SecretKey::random();
@@ -476,7 +476,7 @@ impl Client {
         let sequence = self.get_sequence(address).await?;
         sequence
             .in_range(range.0, range.1)
-            .ok_or_else(|| CoreError::from(safe_nd::Error::NoSuchEntry))
+            .ok_or_else(|| CoreError::from(sn_data_types::Error::NoSuchEntry))
     }
 
     //----------------------
@@ -489,7 +489,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -538,7 +538,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -613,7 +613,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{Money, SequenceUser,SequencePubUserPermissions};
+    /// use sn_data_types::{Money, SequenceUser,SequencePubUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -664,7 +664,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -715,7 +715,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -768,7 +768,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, SequenceUser, Money, SequencePubUserPermissions};
+    /// use sn_data_types::{PublicKey, SequenceUser, Money, SequencePubUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -847,7 +847,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
     /// use safe_core::Client;
-    /// use safe_nd::{PublicKey, Money, SequencePrivUserPermissions};
+    /// use sn_data_types::{PublicKey, Money, SequencePrivUserPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
@@ -926,7 +926,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use safe_nd::{Error as SndError, Money, SequencePrivUserPermissions};
+    use sn_data_types::{Error as SndError, Money, SequencePrivUserPermissions};
     use std::str::FromStr;
     use unwrap::unwrap;
     use xor_name::XorName;

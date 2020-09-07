@@ -9,8 +9,8 @@
 use super::Client;
 use async_trait::async_trait;
 use log::trace;
-use safe_nd::{Blob, BlobAddress, PrivateBlob, PublicBlob};
 use self_encryption::{SelfEncryptionError, Storage};
+use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
 use xor_name::{XorName, XOR_NAME_LEN};
 
 /// Network storage is the concrete type which self_encryption crate will use

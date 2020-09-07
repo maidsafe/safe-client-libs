@@ -9,7 +9,7 @@
 use super::{Client, CoreError};
 use async_trait::async_trait;
 use log::trace;
-use safe_nd::{Blob, BlobAddress, PrivateBlob, PublicBlob};
+use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
 use self_encryption::{Storage, StorageError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};

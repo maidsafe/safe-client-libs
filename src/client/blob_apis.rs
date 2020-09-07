@@ -14,11 +14,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
 
-use safe_nd::{
+use self_encryption::{DataMap, SelfEncryptor};
+use sn_data_types::{
     Blob, BlobAddress, BlobRead, BlobWrite, Cmd, DataCmd, DataQuery, DebitAgreementProof,
     PrivateBlob, PublicBlob, PublicKey, Query, QueryResponse,
 };
-use self_encryption::{DataMap, SelfEncryptor};
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
@@ -44,7 +44,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::BlobAddress;
+    /// use sn_data_types::BlobAddress;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
@@ -111,7 +111,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{Blob, Money, PublicBlob};
+    /// use sn_data_types::{Blob, Money, PublicBlob};
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
@@ -154,7 +154,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use safe_core::CoreError;
     /// use safe_core::Client;
-    /// use safe_nd::{Money, Blob, PrivateBlob, PublicKey};
+    /// use sn_data_types::{Money, Blob, PrivateBlob, PublicKey};
     /// use std::str::FromStr;
     /// use threshold_crypto::SecretKey;
     /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = SecretKey::random();
@@ -317,7 +317,7 @@ pub mod exported_tests {
         generate_random_vector,
         test_utils::{calculate_new_balance, gen_bls_keypair},
     };
-    use safe_nd::{Error as SndError, Money, PrivateBlob, PublicBlob};
+    use sn_data_types::{Error as SndError, Money, PrivateBlob, PublicBlob};
     use std::str::FromStr;
     use unwrap::unwrap;
 
