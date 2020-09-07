@@ -1012,16 +1012,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3728d817d99e5ac407411fa471ff9800a778d88a24685968b36824eaf4bee400"
 
 [[package]]
-name = "memmap"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6585fd95e7bb50d6cc31e20d4cf9afb4e2ba16c5846fc76793f11218da9c475b"
-dependencies = [
- "libc",
- "winapi 0.3.9",
-]
-
-[[package]]
 name = "miniz_oxide"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1635,21 +1625,20 @@ dependencies = [
 [[package]]
 name = "self_encryption"
 version = "0.19.0"
-source = "git+https://github.com/joshuef/self_encryption.git?branch=AllowMutGet#33e1b9d0b7361abce6249c9994c94a350f289789"
+source = "git+https://github.com/maidsafe/self_encryption.git#7f8f2181b61f94ea728459577dc8c9505ca04d91"
 dependencies = [
  "aes",
  "async-trait",
  "bincode",
  "block-modes",
  "brotli",
+ "err-derive",
  "futures",
- "memmap",
  "rand",
  "rand_chacha",
  "serde",
  "tiny-keccak 1.5.0",
  "tokio",
- "unwrap",
 ]
 
 [[package]]

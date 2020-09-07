@@ -6,13 +6,11 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{Client, CoreError};
+use super::Client;
 use async_trait::async_trait;
 use log::trace;
 use safe_nd::{Blob, BlobAddress, PrivateBlob, PublicBlob};
-use self_encryption::{Storage, StorageError};
-use std::error::Error;
-use std::fmt::{self, Display, Formatter};
+use self_encryption::{SelfEncryptionError, Storage};
 use xor_name::{XorName, XOR_NAME_LEN};
 
 /// Network storage is the concrete type which self_encryption crate will use
@@ -32,15 +30,13 @@ impl BlobStorage {
 
 #[async_trait]
 impl Storage for BlobStorage {
-    type Error = BlobStorageError;
-
-    async fn get(&mut self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
+    async fn get(&mut self, name: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
         trace!("Self encrypt invoked GetBlob.");
 
         if name.len() != XOR_NAME_LEN {
-            let err = CoreError::Unexpected("Requested `name` is incorrect size.".to_owned());
-            let err = BlobStorageError::from(err);
-            return Err(err);
+            return Err(SelfEncryptionError::Generic(
+                "Requested `name` is incorrect size.".to_owned(),
+            ));
         }
 
         let name = {
@@ -57,11 +53,11 @@ impl Storage for BlobStorage {
 
         match self.client.get_blob(address, None, None).await {
             Ok(data) => Ok(data.value().clone()),
-            Err(error) => Err(BlobStorageError::from(error)),
+            Err(error) => Err(SelfEncryptionError::Generic(format!("{}", error))),
         }
     }
 
-    async fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), Self::Error> {
+    async fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), SelfEncryptionError> {
         trace!("Self encrypt invoked PutBlob.");
         let blob: Blob = if self.published {
             PublicBlob::new(data).into()
@@ -70,7 +66,7 @@ impl Storage for BlobStorage {
         };
         match self.client.store_blob(blob).await {
             Ok(_r) => Ok(()),
-            Err(error) => Err(BlobStorageError::from(error)),
+            Err(error) => Err(SelfEncryptionError::Generic(format!("{}", error))),
         }
     }
 
@@ -83,30 +79,6 @@ impl Storage for BlobStorage {
         blob.name().0.to_vec()
     }
 }
-
-/// Errors arising from storage object being used by self_encryptors.
-#[derive(Debug)]
-pub struct BlobStorageError(pub Box<CoreError>);
-
-impl Display for BlobStorageError {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        Display::fmt(&self.0, formatter)
-    }
-}
-
-impl Error for BlobStorageError {
-    fn cause(&self) -> Option<&dyn Error> {
-        self.0.source()
-    }
-}
-
-impl From<CoreError> for BlobStorageError {
-    fn from(error: CoreError) -> Self {
-        Self(Box::new(error))
-    }
-}
-
-impl StorageError for BlobStorageError {}
 
 /// Network storage is the concrete type which self_encryption crate will use
 /// to put or get data from the network.
@@ -125,16 +97,14 @@ impl BlobStorageDryRun {
 
 #[async_trait]
 impl Storage for BlobStorageDryRun {
-    type Error = BlobStorageError;
-
-    async fn get(&mut self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
+    async fn get(&mut self, _name: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
         trace!("Self encrypt invoked GetBlob dry run.");
-        Err(BlobStorageError::from(CoreError::Unexpected(
+        Err(SelfEncryptionError::Generic(
             "Cannot get from storage since it's a dry run.".to_owned(),
-        )))
+        ))
     }
 
-    async fn put(&mut self, _: Vec<u8>, _data: Vec<u8>) -> Result<(), Self::Error> {
+    async fn put(&mut self, _: Vec<u8>, _data: Vec<u8>) -> Result<(), SelfEncryptionError> {
         trace!("Self encrypt invoked PutBlob dry run.");
         // We do nothing here just return ok so self_encrpytion can finish
         // and generate chunk addresses and datamap if required

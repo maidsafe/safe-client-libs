@@ -54,7 +54,7 @@ testing = []
 
 [patch.crates-io]
 safe-nd = { git = "https://github.com/maidsafe/safe-nd.git" }
-self_encryption = { git = "https://github.com/joshuef/self_encryption.git", branch = "AllowMutGet" }
+self_encryption = { git = "https://github.com/maidsafe/self_encryption.git", branch = "master" }
 
 [package.metadata.docs.rs]
 features = ["simulated-payouts"]
