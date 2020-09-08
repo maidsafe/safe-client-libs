@@ -10,7 +10,7 @@ use crate::CoreError;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
 use log::{info, trace};
-use quic_p2p::Config as QuicP2pConfig;
+use qp2p::Config as QuicP2pConfig;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(test)]
 use std::fs;
@@ -55,7 +55,7 @@ pub fn set_config_dir_path<P: AsRef<OsStr> + ?Sized>(path: &P) {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Config {
     /// QuicP2p options.
-    pub quic_p2p: QuicP2pConfig,
+    pub qp2p: QuicP2pConfig,
     /// Developer options.
     pub dev: Option<DevConfig>,
 }
@@ -63,7 +63,7 @@ pub struct Config {
 #[cfg(any(target_os = "android", target_os = "androideabi", target_os = "ios"))]
 fn check_config_path_set() -> Result<(), CoreError> {
     if unwrap!(CONFIG_DIR_PATH.lock()).is_none() {
-        Err(CoreError::QuicP2p(quic_p2p::QuicP2pError::Configuration {
+        Err(CoreError::QuicP2p(qp2p::QuicP2pError::Configuration {
             e: "Boostrap cache directory not set".to_string(),
         }))
     } else {
@@ -74,9 +74,9 @@ fn check_config_path_set() -> Result<(), CoreError> {
 impl Config {
     /// Returns a new `Config` instance. Tries to read quic-p2p config from file.
     pub fn new() -> Self {
-        let quic_p2p = Self::read_qp2p_from_file().unwrap_or_default();
+        let qp2p = Self::read_qp2p_from_file().unwrap_or_default();
         Self {
-            quic_p2p,
+            qp2p,
             dev: None,
         }
     }
@@ -230,7 +230,7 @@ mod test {
         // should initialize bootstrap_cache_dir only
         let config = Config::new();
         let expected_config = Config {
-            quic_p2p: QuicP2pConfig {
+            qp2p: QuicP2pConfig {
                 bootstrap_cache_dir: Some(unwrap!(temp_dir_path.into_os_string().into_string())),
                 ..Default::default()
             },

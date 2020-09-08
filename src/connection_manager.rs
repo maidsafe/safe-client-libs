@@ -14,7 +14,7 @@ use futures::{
     lock::Mutex,
 };
 use log::{error, info, trace, warn};
-use quic_p2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p,};
+use qp2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p,};
 use sn_data_types::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,
@@ -30,7 +30,7 @@ type VoteMap = HashMap<QueryResponse, usize>;
 #[derive(Clone)]
 pub struct ConnectionManager {
     full_id: ClientFullId,
-    quic_p2p: QuicP2p,
+    qp2p: QuicP2p,
     elders: Vec<Arc<Mutex<Connection>>>,
 }
 
@@ -38,11 +38,11 @@ impl ConnectionManager {
     /// Create a new connection manager.
     pub fn new(mut config: QuicP2pConfig, full_id: ClientFullId) -> Result<Self, CoreError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
-        let quic_p2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
+        let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
 
         Ok(Self {
             full_id,
-            quic_p2p,
+            qp2p,
             elders: Vec::default(),
         })
     }
@@ -214,7 +214,7 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, CoreError> {
         trace!("Bootstrapping with contacts...");
-        let (_endpoint, conn) = self.quic_p2p.bootstrap().await?;
+        let (_endpoint, conn) = self.qp2p.bootstrap().await?;
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_id = self.full_id.public_id();
@@ -250,10 +250,10 @@ impl ConnectionManager {
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
         for peer_addr in elders_addrs {
-            let mut quic_p2p = self.quic_p2p.clone();
+            let mut qp2p = self.qp2p.clone();
             let full_id = self.full_id.clone();
             let task_handle = tokio::spawn(async move {
-                let (_endpoint, conn) = quic_p2p.connect_to(&peer_addr).await?;
+                let (_endpoint, conn) = qp2p.connect_to(&peer_addr).await?;
                 let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
                 let msg = Bytes::from(serialize(&handshake)?);
                 let mut streams = conn.send(msg).await?;
@@ -314,7 +314,7 @@ impl ConnectionManager {
 
     /// Listen for incoming messages via IncomingConnections.
     pub async fn listen(&mut self, _tx: Sender<MsgEnvelope>) {
-        // match self.quic_p2p.listen_events() {
+        // match self.qp2p.listen_events() {
         //     Ok(mut incoming) => match (incoming.next()).await {
         //         Some(mut msg) => match (msg.next()).await {
         //             Some(qp2p_message) => match qp2p_message {

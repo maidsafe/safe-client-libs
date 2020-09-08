@@ -35,7 +35,7 @@ use crdts::Dot;
 use futures::lock::Mutex;
 use log::{debug, error, info, trace, warn};
 use lru::LruCache;
-use quic_p2p::Config as QuicP2pConfig;
+use qp2p::Config as QuicP2pConfig;
 use rand::thread_rng;
 use sn_data_types::{
     Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
@@ -63,7 +63,7 @@ pub const COST_OF_PUT: Money = Money::from_nano(1);
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, CoreError> {
-    Ok(Config::new().quic_p2p.hard_coded_contacts)
+    Ok(Config::new().qp2p.hard_coded_contacts)
 }
 
 /// Client object
@@ -126,7 +126,7 @@ impl Client {
 
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().quic_p2p, full_id.clone()).await?;
+            attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
 
         let simulated_farming_payout_dot = Dot::new(*full_id.public_key(), 0);
 

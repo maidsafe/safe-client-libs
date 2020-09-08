@@ -71,7 +71,7 @@ pub use self::config_handler::config_dir;
 pub use self::errors::CoreError;
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::utils::logging;
-pub use quic_p2p::Config as QuicP2pConfig;
+pub use qp2p::Config as QuicP2pConfig;
 
 /// Client trait and related constants.
 pub mod client;

@@ -1311,9 +1311,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "quic_p2p"
-version = "0.7.0"
-source = "git+https://github.com/maidsafe/quic_p2p.git#f17eac0e52e222a469056890426e6a76684d167b"
+name = "qp2p"
+version = "0.8.1"
+source = "git+https://github.com/maidsafe/qp2p.git#4f5d114afee01a7ec327816f7f1550e289f0219d"
 dependencies = [
  "base64 0.12.3",
  "bincode",
@@ -1580,7 +1580,7 @@ dependencies = [
  "log4rs",
  "lru",
  "miscreant",
- "quic_p2p",
+ "qp2p",
  "rand",
  "regex",
  "self_encryption",
