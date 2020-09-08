@@ -73,8 +73,9 @@ impl ConnectionManager {
         for elder_conn in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let conn = Arc::clone(elder_conn);
-            let task_handle =
-                tokio::spawn(async move { conn.lock().await.send_only(msg_bytes_clone).await });
+            let task_handle = tokio::spawn(async move {
+                let _ = conn.lock().await.send(msg_bytes_clone).await;
+            });
             tasks.push(task_handle);
         }
 
@@ -100,8 +101,8 @@ impl ConnectionManager {
             let conn = Arc::clone(elder_conn);
 
             let task_handle = tokio::spawn(async move {
-                let response = conn.lock().await.send(msg_bytes_clone).await?;
-
+                let mut streams = conn.lock().await.send(msg_bytes_clone).await?;
+                let response = streams.1.next().await?;
                 match deserialize(&response) {
                     Ok(MsgEnvelope { message, .. }) => Ok(message),
                     Err(e) => {
@@ -213,13 +214,14 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, CoreError> {
         trace!("Bootstrapping with contacts...");
-        let (_endpoint, mut conn) = self.quic_p2p.bootstrap().await?;
+        let (_endpoint, conn) = self.quic_p2p.bootstrap().await?;
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_id = self.full_id.public_id();
         let handshake = HandshakeRequest::Bootstrap(*public_id.public_key());
         let msg = Bytes::from(serialize(&handshake)?);
-        let response = conn.send(msg).await?;
+        let mut streams = conn.send(msg).await?;
+        let response = streams.1.next().await?;
 
         match deserialize(&response) {
             Ok(HandshakeResponse::Rebootstrap(_elders)) => {
@@ -251,11 +253,13 @@ impl ConnectionManager {
             let mut quic_p2p = self.quic_p2p.clone();
             let full_id = self.full_id.clone();
             let task_handle = tokio::spawn(async move {
-                let (_endpoint, mut conn) = quic_p2p.connect_to(&peer_addr).await?;
+                let (_endpoint, conn) = quic_p2p.connect_to(&peer_addr).await?;
                 let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
                 let msg = Bytes::from(serialize(&handshake)?);
-                let join_response = conn.send(msg).await?;
-                match deserialize(&join_response) {
+                let mut streams = conn.send(msg).await?;
+                let final_response = streams.1.next().await?;
+
+                match deserialize(&final_response) {
                     Ok(HandshakeResponse::Challenge(node_public_key, challenge)) => {
                         trace!(
                             "Got the challenge from {:?}, public id: {}",
@@ -264,7 +268,7 @@ impl ConnectionManager {
                         );
                         let response = HandshakeRequest::ChallengeResult(full_id.sign(&challenge));
                         let msg = Bytes::from(serialize(&response)?);
-                        conn.send_only(msg).await?;
+                        let _ = conn.send(msg).await?;
                         Ok(Arc::new(Mutex::new(conn)))
                     }
                     Ok(_) => Err(CoreError::from(
