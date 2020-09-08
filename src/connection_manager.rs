@@ -14,7 +14,7 @@ use futures::{
     lock::Mutex,
 };
 use log::{error, info, trace, warn};
-use qp2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p,};
+use qp2p::{self, Config as QuicP2pConfig, Connection, /*Message as QP2pMessage,*/ QuicP2p};
 use sn_data_types::{
     BlsProof, ClientFullId, HandshakeRequest, HandshakeResponse, Message, MsgEnvelope, MsgSender,
     Proof, QueryResponse,

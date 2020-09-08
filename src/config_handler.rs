@@ -75,10 +75,7 @@ impl Config {
     /// Returns a new `Config` instance. Tries to read quic-p2p config from file.
     pub fn new() -> Self {
         let qp2p = Self::read_qp2p_from_file().unwrap_or_default();
-        Self {
-            qp2p,
-            dev: None,
-        }
+        Self { qp2p, dev: None }
     }
 
     fn read_qp2p_from_file() -> Result<QuicP2pConfig, CoreError> {

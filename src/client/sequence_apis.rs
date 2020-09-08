@@ -522,7 +522,7 @@ impl Client {
         let sequence = self.get_sequence(address).await?;
 
         let owner = match &sequence {
-            Sequence::Public(_seq) => sequence.pub_policy(sequence.policy_version())?.owner,
+            Sequence::Public(_seq) => sequence.public_policy(sequence.policy_version())?.owner,
             Sequence::Private(_seq) => sequence.private_policy(sequence.policy_version())?.owner,
         };
 
