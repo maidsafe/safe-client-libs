@@ -108,6 +108,7 @@ impl Client {
 
         #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
+        let mut rng = thread_rng();
 
         let full_id = match sk {
             Some(sk) => {
@@ -119,16 +120,21 @@ impl Client {
                 ClientFullId::from(sk)
             }
             None => {
-                let mut rng = thread_rng();
                 ClientFullId::new_bls(&mut rng)
             }
         };
+
+        info!("Cliented started for pk: {:?}", full_id.public_key());
 
         // Create the connection manager
         let mut connection_manager =
             attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
 
-        let simulated_farming_payout_dot = Dot::new(*full_id.public_key(), 0);
+        // random PK used for from payment
+        let random_payment_id =  ClientFullId::new_bls(&mut rng);
+        let random_payment_pk = random_payment_id.public_key();
+
+        let simulated_farming_payout_dot = Dot::new(*random_payment_pk, 0);
 
         let replicas_pk_set =
             Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
@@ -155,17 +161,21 @@ impl Client {
         {
             // only trigger simulated payouts on new _random_ clients
             if is_random_client {
+                debug!("Attempting to trigger simulated payout");
                 // we're testing, and currently a lot of tests expect 10 money to start
                 let _ = full_client
                     .trigger_simulated_farming_payout(Money::from_str("10")?)
                     .await?;
             }
+            else{
+                warn!("No automatic simulated payout occurs for clients created for pre-existing SecretKeys")
+            }
         }
 
         let _ = full_client.get_history().await;
-
+        
         //Start listening for Events
-        full_client.listen_on_network().await;
+        // full_client.listen_on_network().await;
 
         Ok(full_client)
     }
@@ -303,7 +313,7 @@ impl Client {
     pub(crate) fn create_query_message(msg_contents: Query) -> Message {
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
-        trace!("Creating query message qith id : {:?}", id);
+        trace!("Creating query message with id : {:?}", id);
 
         Message::Query {
             query: msg_contents,

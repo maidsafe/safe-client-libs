@@ -197,12 +197,11 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<(), CoreError> {
-        let (sk, _pk) = shared_box::gen_bls_keypair();
         let (_sk2, pk2) = shared_box::gen_bls_keypair();
 
         let pk2 = PublicKey::Bls(pk2);
 
-        let mut client = Client::new(Some(sk.clone())).await?;
+        let mut client = Client::new(None).await?;
 
         let _ = client.send_money(pk2, Money::from_str("1")?).await?;
 

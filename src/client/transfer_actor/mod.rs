@@ -136,6 +136,8 @@ impl Client {
             ))),
         }?;
 
+        debug!("Received history response is: {:?}", history);
+
         let mut actor = self.transfer_actor.lock().await;
         match actor.synch(history) {
             Ok(synced_transfer_outcome) => {
@@ -156,9 +158,10 @@ impl Client {
                     public_key
                 );
 
-                warn!("current balance {:?}", actor.balance());
             }
         }
+
+        debug!("Current balance after GetHistory {:?}", actor.balance());
 
         Ok(())
     }
