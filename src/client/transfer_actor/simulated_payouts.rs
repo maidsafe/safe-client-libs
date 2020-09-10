@@ -69,7 +69,12 @@ impl Client {
 
         let message = Self::create_cmd_message(simluated_farming_cmd);
 
-        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
+        let _ = self
+            .connection_manager
+            .lock()
+            .await
+            .send_cmd(&message)
+            .await?;
 
         // If we're getting the payout for our own actor, update it here
         info!("Applying simulated payout locally, via query for history...");

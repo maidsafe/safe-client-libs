@@ -46,6 +46,7 @@ use sn_data_types::{
 use std::str::FromStr;
 
 use std::sync::Arc;
+use tokio::task::JoinHandle;
 
 use xor_name::XorName;
 
@@ -77,6 +78,7 @@ pub struct Client {
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
+    network_listener: Arc<Mutex<Option<JoinHandle<Result<(), CoreError>>>>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -119,26 +121,23 @@ impl Client {
 
                 ClientFullId::from(sk)
             }
-            None => {
-                ClientFullId::new_bls(&mut rng)
-            }
+            None => ClientFullId::new_bls(&mut rng),
         };
 
         info!("Cliented started for pk: {:?}", full_id.public_key());
 
         // Create the connection manager
         let mut connection_manager =
-                attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
-        
+            attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
 
         // random PK used for from payment
-        let random_payment_id =  ClientFullId::new_bls(&mut rng);
+        let random_payment_id = ClientFullId::new_bls(&mut rng);
         let random_payment_pk = random_payment_id.public_key();
 
         let simulated_farming_payout_dot = Dot::new(*random_payment_pk, 0);
 
         let replicas_pk_set =
-            Self::get_replica_keys(full_id.clone(), &mut connection_manager ).await?;
+            Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
 
         let validator = ClientTransferValidator {};
 
@@ -149,14 +148,14 @@ impl Client {
         )));
 
         let mut full_client = Self {
-            connection_manager: Arc::new( Mutex::new( 
-                connection_manager  )),
+            connection_manager: Arc::new(Mutex::new(connection_manager)),
             full_id,
             transfer_actor,
             replicas_pk_set,
             simulated_farming_payout_dot,
             blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
             sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
+            network_listener: Arc::new(Mutex::new(None)),
         };
 
         #[cfg(feature = "simulated-payouts")]
@@ -168,16 +167,15 @@ impl Client {
                 let _ = full_client
                     .trigger_simulated_farming_payout(Money::from_str("10")?)
                     .await?;
-            }
-            else{
+            } else {
                 warn!("No automatic simulated payout occurs for clients created for pre-existing SecretKeys")
             }
         }
 
         let _ = full_client.get_history().await;
-        
+
         //Start listening for Events
-        // full_client.listen_on_network().await;
+        full_client.listen_to_network().await;
 
         Ok(full_client)
     }
@@ -186,42 +184,46 @@ impl Client {
     ///
     /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
     ///
-    async fn listen_on_network(&mut self) {
-        // let (tx, rx) = std::sync::mpsc::channel();
-        // loop {
-        //     self.connection_manager.lock().await.listen(tx.clone()).await;
-        //     match rx.recv() {
-        //         Ok(envelope) => {
-        //             let message = envelope.message;
-        //             match message {
-        //                 Message::Event {
-        //                     event,
-        //                     // correlation_id: _,
-        //                     ..
-        //                 } => {
-        //                     match self.handle_validation_event(event).await {
-        //                         Ok(proof) => {
-        //                             match proof {
-        //                                 Some(_debit) => {
-        //                                     // TODO: store response against correlation ID,
-        //                                     // use this id for retrieval in write apis.
-        //                                     info!("DO SOMETHING WITH PROOF");
-        //                                     // let _ = self.debit_cache.insert(debit.id(), debit);
-        //                                 }
-        //                                 None => warn!("Handled a validation Event"),
-        //                             }
-        //                         }
-        //                         Err(e) => {
-        //                             error!("Unexpected error while handling validation: {:?}", e)
-        //                         }
-        //                     }
-        //                 }
-        //                 m => error!("Unexpected message found while listening: {:?}", m),
-        //             }
-        //         }
-        //         Err(e) => error!("Error listening to Events from Quic-p2p: {:?}", e),
-        //     }
-        // }
+    async fn listen_to_network(&mut self) -> Result<(), CoreError> {
+        let conn_manager = Arc::clone(&self.connection_manager);
+        let mut receiver = conn_manager.lock().await.listen().await?;
+
+        let listener = async move {
+            while let Some(message) = receiver.try_next().map_err(|error| {
+                CoreError::from(format!("Error listening to network {:?}", error))
+            })? {
+                match message {
+                    Message::Event {
+                        event,
+                        // correlation_id: _,
+                        ..
+                    } => {
+                        info!("Event received {:?}", event);
+                        // match self.handle_validation_event(event).await {
+                        //     Ok(proof) => {
+                        //         match proof {
+                        //             Some(_debit) => {
+                        //                 // TODO: store response against correlation ID,
+                        //                 // use this id for retrieval in write apis.
+                        //                 info!("DO SOMETHING WITH PROOF");
+                        //                 // let _ = self.debit_cache.insert(debit.id(), debit);
+                        //             }
+                        //             None => warn!("Handled a validation Event"),
+                        //         }
+                        //     }
+                        //     Err(e) => error!("Unexpected error while handling validation: {:?}", e),
+                        // }
+                    }
+                    m => error!("Unexpected message found while listening: {:?}", m),
+                }
+            }
+
+            Ok::<(), CoreError>(())
+        };
+
+        self.network_listener = Arc::new(Mutex::new(Some(tokio::spawn(listener))));
+
+        Ok(())
     }
     /*
         async fn check_debit_cache(&mut self, id: TransferId) -> DebitAgreementProof {
@@ -295,7 +297,11 @@ impl Client {
         debug!("Sending QueryRequest: {:?}", query);
 
         let message = Self::create_query_message(query);
-        self.connection_manager.lock().await.send_query(&message).await
+        self.connection_manager
+            .lock()
+            .await
+            .send_query(&message)
+            .await
     }
 
     // Build and sign Cmd Message Envelope

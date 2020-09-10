@@ -126,7 +126,12 @@ impl Client {
         let message = Self::create_query_message(msg_contents);
 
         // This is a normal response manager request. We want quorum on this for now...
-        let res = self.connection_manager.lock().await.send_query(&message).await?;
+        let res = self
+            .connection_manager
+            .lock()
+            .await
+            .send_query(&message)
+            .await?;
 
         let history = match res {
             QueryResponse::GetHistory(history) => history.map_err(CoreError::from),
@@ -157,7 +162,6 @@ impl Client {
                     "No new transfer history  by TransferActor for pk: {:?}",
                     public_key
                 );
-
             }
         }
 
@@ -233,13 +237,21 @@ impl Client {
     /// Send message and await validation and constructing of DebitAgreementProof
     async fn await_validation(
         &mut self,
-        _message: &Message,
+        message: &Message,
         _id: TransferId,
     ) -> Result<DebitAgreementProof, CoreError> {
         info!("Awaiting transfer validation");
-        // self.connection_manager.lock().await.send_cmd(&message).await?;
+        self.connection_manager
+            .lock()
+            .await
+            .send_cmd(&message)
+            .await?;
         // let proof = self.check_debit_cache(id).await;
         // Ok(proof)
+
+        // wait and see if any events come in before hitting unimpl
+        std::thread::sleep(std::time::Duration::from_secs(20));
+
         unimplemented!()
     }
 }
