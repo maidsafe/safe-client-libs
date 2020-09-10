@@ -67,6 +67,7 @@ pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, CoreError> {
     Ok(Config::new().qp2p.hard_coded_contacts)
 }
 
+type ListenHandle = JoinHandle<Result<(), CoreError>>;
 /// Client object
 #[derive(Clone)]
 pub struct Client {
@@ -78,7 +79,7 @@ pub struct Client {
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
-    network_listener: Arc<Mutex<Option<JoinHandle<Result<(), CoreError>>>>>,
+    network_listener: Arc<Mutex<Option<ListenHandle>>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -172,10 +173,10 @@ impl Client {
             }
         }
 
-        let _ = full_client.get_history().await;
+        let _ = full_client.get_history().await?;
 
         //Start listening for Events
-        full_client.listen_to_network().await;
+        let _ = full_client.listen_to_network().await?;
 
         Ok(full_client)
     }
@@ -198,7 +199,7 @@ impl Client {
                         // correlation_id: _,
                         ..
                     } => {
-                        info!("Event received {:?}", event);
+                        warn!("Event received {:?}", event);
                         // match self.handle_validation_event(event).await {
                         //     Ok(proof) => {
                         //         match proof {

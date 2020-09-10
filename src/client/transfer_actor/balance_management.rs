@@ -34,6 +34,7 @@ impl Client {
     }
 
     /// Handle a validation event.
+    #[allow(dead_code)]
     pub(crate) async fn handle_validation_event(
         &mut self,
         event: Event,
