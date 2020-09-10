@@ -79,7 +79,7 @@ impl Client {
         // The _actual_ message
         let msg_contents = wrap_map_write(MapWrite::New(data), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -127,7 +127,7 @@ impl Client {
         // The _actual_ message
         let msg_contents = wrap_map_write(MapWrite::Delete(address), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -155,7 +155,7 @@ impl Client {
 
         let message = Self::create_cmd_message(msg_contents);
 
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -186,7 +186,7 @@ impl Client {
         let message = Self::create_cmd_message(msg_contents);
 
         // TODO what will be the correct reponse here?... We have it validated, so registered?
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -206,7 +206,7 @@ impl Client {
             wrap_map_write(MapWrite::Edit { address, changes }, payment_proof.clone());
 
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

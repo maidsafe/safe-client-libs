@@ -81,7 +81,7 @@ impl Client {
 
         let message = Self::create_query_message(msg_contents);
 
-        match self.connection_manager.send_query(&message).await? {
+        match self.connection_manager.lock().await.send_query(&message).await? {
             QueryResponse::GetBalance(balance) => balance.map_err(CoreError::from),
             _ => Err(CoreError::from("Unexpected response when querying balance")),
         }
@@ -166,7 +166,7 @@ impl Client {
             debit_proof
         );
 
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.

@@ -126,7 +126,7 @@ impl Client {
         let message = Self::create_query_message(msg_contents);
 
         // This is a normal response manager request. We want quorum on this for now...
-        let res = self.connection_manager.send_query(&message).await?;
+        let res = self.connection_manager.lock().await.send_query(&message).await?;
 
         let history = match res {
             QueryResponse::GetHistory(history) => history.map_err(CoreError::from),
@@ -237,7 +237,7 @@ impl Client {
         _id: TransferId,
     ) -> Result<DebitAgreementProof, CoreError> {
         info!("Awaiting transfer validation");
-        // self.connection_manager.send_cmd(&message).await?;
+        // self.connection_manager.lock().await.send_cmd(&message).await?;
         // let proof = self.check_debit_cache(id).await;
         // Ok(proof)
         unimplemented!()

@@ -137,7 +137,7 @@ impl Client {
             payment_proof.clone(),
         );
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         let _ = self.apply_write_payment_to_local_actor(payment_proof).await;
 
@@ -183,7 +183,7 @@ impl Client {
         let msg_contents =
             wrap_blob_write(BlobWrite::DeletePrivate(address), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }

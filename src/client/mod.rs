@@ -76,7 +76,7 @@ pub struct Client {
     transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator>>>,
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
-    connection_manager: ConnectionManager,
+    connection_manager: Arc<Mutex<ConnectionManager>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -128,7 +128,8 @@ impl Client {
 
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
+                attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
+        
 
         // random PK used for from payment
         let random_payment_id =  ClientFullId::new_bls(&mut rng);
@@ -137,7 +138,7 @@ impl Client {
         let simulated_farming_payout_dot = Dot::new(*random_payment_pk, 0);
 
         let replicas_pk_set =
-            Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
+            Self::get_replica_keys(full_id.clone(), &mut connection_manager ).await?;
 
         let validator = ClientTransferValidator {};
 
@@ -148,7 +149,8 @@ impl Client {
         )));
 
         let mut full_client = Self {
-            connection_manager,
+            connection_manager: Arc::new( Mutex::new( 
+                connection_manager  )),
             full_id,
             transfer_actor,
             replicas_pk_set,
@@ -185,41 +187,41 @@ impl Client {
     /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
     ///
     async fn listen_on_network(&mut self) {
-        let (tx, rx) = std::sync::mpsc::channel();
-        loop {
-            self.connection_manager.listen(tx.clone()).await;
-            match rx.recv() {
-                Ok(envelope) => {
-                    let message = envelope.message;
-                    match message {
-                        Message::Event {
-                            event,
-                            // correlation_id: _,
-                            ..
-                        } => {
-                            match self.handle_validation_event(event).await {
-                                Ok(proof) => {
-                                    match proof {
-                                        Some(_debit) => {
-                                            // TODO: store response against correlation ID,
-                                            // use this id for retrieval in write apis.
-                                            info!("DO SOMETHING WITH PROOF");
-                                            // let _ = self.debit_cache.insert(debit.id(), debit);
-                                        }
-                                        None => warn!("Handled a validation Event"),
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Unexpected error while handling validation: {:?}", e)
-                                }
-                            }
-                        }
-                        m => error!("Unexpected message found while listening: {:?}", m),
-                    }
-                }
-                Err(e) => error!("Error listening to Events from Quic-p2p: {:?}", e),
-            }
-        }
+        // let (tx, rx) = std::sync::mpsc::channel();
+        // loop {
+        //     self.connection_manager.lock().await.listen(tx.clone()).await;
+        //     match rx.recv() {
+        //         Ok(envelope) => {
+        //             let message = envelope.message;
+        //             match message {
+        //                 Message::Event {
+        //                     event,
+        //                     // correlation_id: _,
+        //                     ..
+        //                 } => {
+        //                     match self.handle_validation_event(event).await {
+        //                         Ok(proof) => {
+        //                             match proof {
+        //                                 Some(_debit) => {
+        //                                     // TODO: store response against correlation ID,
+        //                                     // use this id for retrieval in write apis.
+        //                                     info!("DO SOMETHING WITH PROOF");
+        //                                     // let _ = self.debit_cache.insert(debit.id(), debit);
+        //                                 }
+        //                                 None => warn!("Handled a validation Event"),
+        //                             }
+        //                         }
+        //                         Err(e) => {
+        //                             error!("Unexpected error while handling validation: {:?}", e)
+        //                         }
+        //                     }
+        //                 }
+        //                 m => error!("Unexpected message found while listening: {:?}", m),
+        //             }
+        //         }
+        //         Err(e) => error!("Error listening to Events from Quic-p2p: {:?}", e),
+        //     }
+        // }
     }
     /*
         async fn check_debit_cache(&mut self, id: TransferId) -> DebitAgreementProof {
@@ -293,7 +295,7 @@ impl Client {
         debug!("Sending QueryRequest: {:?}", query);
 
         let message = Self::create_query_message(query);
-        self.connection_manager.send_query(&message).await
+        self.connection_manager.lock().await.send_query(&message).await
     }
 
     // Build and sign Cmd Message Envelope

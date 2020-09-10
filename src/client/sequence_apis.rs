@@ -204,7 +204,7 @@ impl Client {
         // The _actual_ message
         let msg_contents = wrap_seq_write(SequenceWrite::Delete(address), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -280,7 +280,7 @@ impl Client {
         // The _actual_ message
         let msg_contents = wrap_seq_write(SequenceWrite::Edit(op), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -297,7 +297,7 @@ impl Client {
         // The _actual_ message
         let msg_contents = wrap_seq_write(SequenceWrite::New(data), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -600,7 +600,7 @@ impl Client {
         let msg_contents =
             wrap_seq_write(SequenceWrite::SetPrivatePolicy(op), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -843,7 +843,7 @@ impl Client {
         let msg_contents =
             wrap_seq_write(SequenceWrite::SetPublicPolicy(op), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -918,7 +918,7 @@ impl Client {
         let msg_contents =
             wrap_seq_write(SequenceWrite::SetPrivatePolicy(op), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
-        let _ = self.connection_manager.send_cmd(&message).await?;
+        let _ = self.connection_manager.lock().await.send_cmd(&message).await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
