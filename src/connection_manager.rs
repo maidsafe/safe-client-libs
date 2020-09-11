@@ -26,18 +26,15 @@ use tokio::task::JoinHandle;
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
 
-#[derive(Clone)]
-pub struct ElderConnection {
-    pub connection: Arc<Mutex<Connection>>,
-    pub endpoint: Arc<Mutex<Endpoint>>,
-}
+
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
 #[derive(Clone)]
 pub struct ConnectionManager {
     full_id: ClientFullId,
     qp2p: QuicP2p,
-    elders: Vec<ElderConnection>,
+    elder_connections: Vec<Arc<Mutex<Connection>>>,
+    endpoint: Arc<Mutex<Endpoint>>,
     listeners: Vec<Arc<Option<Vec<JoinHandle<()>>>>>,
 }
 
@@ -46,11 +43,13 @@ impl ConnectionManager {
     pub fn new(mut config: QuicP2pConfig, full_id: ClientFullId) -> Result<Self, CoreError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
+        let endpoint = qp2p.new_endpoint()?;
 
         Ok(Self {
             full_id,
             qp2p,
-            elders: Vec::default(),
+            elder_connections: Vec::default(),
+            endpoint: Arc::new(Mutex::new(endpoint)),
             listeners: Vec::default(),
         })
     }
@@ -78,9 +77,9 @@ impl ConnectionManager {
         // Send message to all Elders concurrently
         trace!("Sending command to all Elders...");
         let mut tasks = Vec::default();
-        for elder in &self.elders {
+        for connection in &self.elder_connections {
             let msg_bytes_clone = msg_bytes.clone();
-            let connection = Arc::clone(&elder.connection);
+            let connection = Arc::clone(&connection);
             let task_handle = tokio::spawn(async move {
                 let _ = connection.lock().await.send(msg_bytes_clone).await;
             });
@@ -104,9 +103,9 @@ impl ConnectionManager {
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
         let mut tasks = Vec::default();
-        for elder in &self.elders {
+        for connection in &self.elder_connections {
             let msg_bytes_clone = msg_bytes.clone();
-            let connection = Arc::clone(&elder.connection);
+            let connection = Arc::clone(&connection);
 
             let task_handle = tokio::spawn(async move {
                 let mut streams = connection.lock().await.send(msg_bytes_clone).await?;
@@ -172,7 +171,7 @@ impl ConnectionManager {
                                 }
                             }
 
-                            if number_of_responses == self.elders.len() {
+                            if number_of_responses == self.elder_connections.len() {
                                 trace!("No clear response above the threshold ({:?}), so choosing most popular response with: {:?} votes: {:?}", threshold, most_popular_response.1, most_popular_response.0);
                                 winner = most_popular_response;
                                 has_elected_a_response = true;
@@ -222,7 +221,8 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, CoreError> {
         trace!("Bootstrapping with contacts...");
-        let (_endpoint, conn) = self.qp2p.bootstrap().await?;
+        let (endpoint, conn) = self.qp2p.bootstrap().await?;
+        self.endpoint = Arc::new(Mutex::new(endpoint));
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_id = self.full_id.public_id();
@@ -257,15 +257,21 @@ impl ConnectionManager {
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
+        
         for peer_addr in elders_addrs {
-            let mut qp2p = self.qp2p.clone();
             let full_id = self.full_id.clone();
+            
+            // We use one endpoint for all elders
+            let endpoint = Arc::clone(&self.endpoint);
+
             let task_handle = tokio::spawn(async move {
-                let (endpoint, connection) = qp2p.connect_to(&peer_addr).await?;
+                
+                let  connection = endpoint.lock().await.connect_to(&peer_addr).await?;
+
                 let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
                 let msg = Bytes::from(serialize(&handshake)?);
-                let mut streams = connection.send(msg).await?;
-                let final_response = streams.1.next().await?;
+                let (_send_stream, mut receive_stream ) = connection.send(msg).await?;
+                let final_response = receive_stream.next().await?;
 
                 match deserialize(&final_response) {
                     Ok(HandshakeResponse::Challenge(node_public_key, challenge)) => {
@@ -277,10 +283,8 @@ impl ConnectionManager {
                         let response = HandshakeRequest::ChallengeResult(full_id.sign(&challenge));
                         let msg = Bytes::from(serialize(&response)?);
                         let _ = connection.send(msg).await?;
-                        Ok(ElderConnection {
-                            connection: Arc::new(Mutex::new(connection)),
-                            endpoint: Arc::new(Mutex::new(endpoint)),
-                        })
+                        
+                        Ok( Arc::new(Mutex::new(connection)) )
                     }
                     Ok(_) => Err(CoreError::from(
                         "Unexpected message type while expeccting challenge from Elder.",
@@ -306,36 +310,55 @@ impl ConnectionManager {
                 })?;
 
                 // We can now keep this connections in our instance
-                self.elders.push(elder);
+                self.elder_connections.push(elder);
             }
 
-            if self.elders.len() > 2 {
+            if self.elder_connections.len() > 2 {
                 has_sufficent_connections = true;
             }
 
             // TODO: is this an error?
-            if self.elders.len() < 7 {
-                warn!("Connected to only {:?} elders.", self.elders.len());
+            if self.elder_connections.len() < 7 {
+                warn!("Connected to only {:?} elders.", self.elder_connections.len());
             }
         }
 
-        trace!("Connected to {} Elders.", self.elders.len());
+        trace!("Connected to {} Elders.", self.elder_connections.len());
         Ok(())
     }
 
     /// Listen for incoming messages via IncomingConnections.
     pub async fn listen(&mut self) -> Result<Receiver<Message>, CoreError> {
         let (tx, rx) = channel::<Message>(128);
-
+        info!("CM: Adding listener");
         let mut conn_handles = vec![];
-        for elder in &self.elders {
-            let endpoint = Arc::clone(&elder.endpoint);
+        for connection in &self.elder_connections {
+
+            // self.endpoint.listen... gets us incoming connections... (per elder)
+            let endpoint = Arc::clone(&self.endpoint);
+            // let endpoint = self.endpoint.lock().await;
+
             let mut sender = tx.clone();
             // Spawn a thread for all the connections
             let handle = tokio::spawn(async move {
-                while let Ok(mut incoming) = endpoint.lock().await.listen() {
+
+                warn!("...............................................................Listening for incoming connections on elder.......");
+
+                // do this ONCE not a loop
+                // while let Ok(mut incoming) = 
+                let mut incoming = endpoint.lock().await.listen().unwrap();
+
+
+
+                    // incoming is for every new connection.
+                    // things that are already establish....
+                    // 
+                    // one idea is one 
                     while let Some(mut msg) = (incoming.next()).await {
+                        warn!("Something this way comes......");
                         while let Some(qp2p_message) = (msg.next()).await {
+                            warn!("qp2p message came innnnnnnnnnnnnnnnnnnnnnnnnnnnnn this way comes......");
+
                             match qp2p_message {
                                 qp2p::Message::BiStream { bytes, .. } => {
                                     match deserialize::<MsgEnvelope>(&bytes) {
@@ -353,7 +376,7 @@ impl ConnectionManager {
                             }
                         }
                     }
-                }
+                // }
             });
             conn_handles.push(handle);
         }

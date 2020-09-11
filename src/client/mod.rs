@@ -173,10 +173,11 @@ impl Client {
             }
         }
 
-        let _ = full_client.get_history().await?;
-
         //Start listening for Events
         let _ = full_client.listen_to_network().await?;
+
+        let _ = full_client.get_history().await?;
+
 
         Ok(full_client)
     }
@@ -186,6 +187,8 @@ impl Client {
     /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
     ///
     async fn listen_to_network(&mut self) -> Result<(), CoreError> {
+
+        trace!("^^^^^^^^^^^^^^listening!");
         let conn_manager = Arc::clone(&self.connection_manager);
         let mut receiver = conn_manager.lock().await.listen().await?;
 
@@ -193,6 +196,7 @@ impl Client {
             while let Some(message) = receiver.try_next().map_err(|error| {
                 CoreError::from(format!("Error listening to network {:?}", error))
             })? {
+                trace!("loglogin listener..................................");
                 match message {
                     Message::Event {
                         event,
@@ -215,7 +219,7 @@ impl Client {
                         //     Err(e) => error!("Unexpected error while handling validation: {:?}", e),
                         // }
                     }
-                    m => error!("Unexpected message found while listening: {:?}", m),
+                    m => error!(">>>>>>>>>>>>>>>>Unexpected message found while listening: {:?}", m),
                 }
             }
 
