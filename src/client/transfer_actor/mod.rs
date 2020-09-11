@@ -20,6 +20,8 @@ use crate::client::ConnectionManager;
 use crate::client::{Client, COST_OF_PUT};
 use crate::errors::CoreError;
 
+use futures::channel::oneshot::channel;
+
 /// Simple client side validations
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClientTransferValidator {}
@@ -241,18 +243,21 @@ impl Client {
         _id: TransferId,
     ) -> Result<DebitAgreementProof, CoreError> {
         info!("Awaiting transfer validation");
+
+        let (sender, receiver) = channel::<Result<DebitAgreementProof, CoreError>>();
+
         self.connection_manager
             .lock()
             .await
-            .send_cmd(&message)
+            .send_transfer_validation(&message, sender)
             .await?;
-        // let proof = self.check_debit_cache(id).await;
-        // Ok(proof)
 
-        // wait and see if any events come in before hitting unimpl
-        std::thread::sleep(std::time::Duration::from_secs(20));
-
-        unimplemented!()
+        receiver.await.map_err(|error| {
+            CoreError::from(format!(
+                "Error with validation receiver channel, {:?}",
+                error
+            ))
+        })?
     }
 }
 

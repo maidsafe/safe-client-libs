@@ -33,7 +33,9 @@ use crate::errors::CoreError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
-use log::{debug, error, info, trace, warn};
+#[cfg(feature = "simulated-payouts")]
+use log::warn;
+use log::{debug, info, trace};
 use lru::LruCache;
 use qp2p::Config as QuicP2pConfig;
 use rand::thread_rng;
@@ -45,13 +47,9 @@ use sn_data_types::{
 #[cfg(feature = "simulated-payouts")]
 use std::str::FromStr;
 
-use std::sync::Arc;
-use tokio::task::JoinHandle;
-
-use xor_name::XorName;
-
-use std::{collections::HashSet, net::SocketAddr};
+use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use threshold_crypto::{PublicKeySet, SecretKey};
+use xor_name::XorName;
 
 /// Capacity of the immutable data cache.
 pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
@@ -67,7 +65,6 @@ pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, CoreError> {
     Ok(Config::new().qp2p.hard_coded_contacts)
 }
 
-type ListenHandle = JoinHandle<Result<(), CoreError>>;
 /// Client object
 #[derive(Clone)]
 pub struct Client {
@@ -79,7 +76,6 @@ pub struct Client {
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
-    network_listener: Arc<Mutex<Option<ListenHandle>>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -156,7 +152,6 @@ impl Client {
             simulated_farming_payout_dot,
             blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
             sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
-            network_listener: Arc::new(Mutex::new(None)),
         };
 
         #[cfg(feature = "simulated-payouts")]
@@ -173,73 +168,10 @@ impl Client {
             }
         }
 
-        //Start listening for Events
-        let _ = full_client.listen_to_network().await?;
-
         let _ = full_client.get_history().await?;
-
 
         Ok(full_client)
     }
-
-    /// Listen to network events.
-    ///
-    /// This can be useful to check for CmdErrors related to write operations, or to handle incoming TransferValidation events.
-    ///
-    async fn listen_to_network(&mut self) -> Result<(), CoreError> {
-
-        trace!("^^^^^^^^^^^^^^listening!");
-        let conn_manager = Arc::clone(&self.connection_manager);
-        let mut receiver = conn_manager.lock().await.listen().await?;
-
-        let listener = async move {
-            while let Some(message) = receiver.try_next().map_err(|error| {
-                CoreError::from(format!("Error listening to network {:?}", error))
-            })? {
-                trace!("loglogin listener..................................");
-                match message {
-                    Message::Event {
-                        event,
-                        // correlation_id: _,
-                        ..
-                    } => {
-                        warn!("Event received {:?}", event);
-                        // match self.handle_validation_event(event).await {
-                        //     Ok(proof) => {
-                        //         match proof {
-                        //             Some(_debit) => {
-                        //                 // TODO: store response against correlation ID,
-                        //                 // use this id for retrieval in write apis.
-                        //                 info!("DO SOMETHING WITH PROOF");
-                        //                 // let _ = self.debit_cache.insert(debit.id(), debit);
-                        //             }
-                        //             None => warn!("Handled a validation Event"),
-                        //         }
-                        //     }
-                        //     Err(e) => error!("Unexpected error while handling validation: {:?}", e),
-                        // }
-                    }
-                    m => error!(">>>>>>>>>>>>>>>>Unexpected message found while listening: {:?}", m),
-                }
-            }
-
-            Ok::<(), CoreError>(())
-        };
-
-        self.network_listener = Arc::new(Mutex::new(Some(tokio::spawn(listener))));
-
-        Ok(())
-    }
-    /*
-        async fn check_debit_cache(&mut self, id: TransferId) -> DebitAgreementProof {
-            loop {
-                match self.debit_cache.get(&id) {
-                    Some(proof) => return proof.clone(),
-                    None => (),
-                }
-            }
-        }
-    */
 
     /// Return the client's FullId.
     ///
