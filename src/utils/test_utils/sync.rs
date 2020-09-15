@@ -37,14 +37,14 @@ impl<T: Clone + Rng> Synchronizer<T> {
         }
     }
 
-    /// Install necessary hooks on the given routing instance.
+    /// Install necessary hooks on the given sn_routing instance.
     pub fn hook(&self, mut cm: ConnectionManager) -> ConnectionManager {
         // let req_hook = Arc::new(Hook::new(Arc::clone(&self.inner)));
         // let res_hook = Arc::clone(&req_hook);
 
         // FIXME:
-        // routing.set_request_hook(move |req| req_hook.request(req));
-        // routing.set_response_hook(move |res| res_hook.response(res));
+        // sn_routing.set_request_hook(move |req| req_hook.request(req));
+        // sn_routing.set_response_hook(move |res| res_hook.response(res));
         cm
     }
 }

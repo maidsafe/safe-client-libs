@@ -1,11 +1,11 @@
-# SAFE Core
+# Safe Core
 
 | [![](http://meritbadge.herokuapp.com/safe_core)](https://crates.io/crates/safe_core) | [![Documentation](https://docs.rs/safe_core/badge.svg)](https://docs.rs/safe_core) |
 |:----------:|:----------:|
 
 ## Overview
 
-`safe_core` can interface conditionally against either the routing crate or a mock used for local testing.
+`safe_core` can interface conditionally against either the sn_routing crate or a mock used for local testing.
 
 ## Crate Dependencies
 Crate dependencies graph:
@@ -36,7 +36,7 @@ Click [here](https://maidsafe.github.io/interdependency-svg-generator/) for an o
 
 ## License
 
-This SAFE Network library is licensed under the General Public License (GPL), version 3 ([LICENSE](LICENSE) http://www.gnu.org/licenses/gpl-3.0.en.html).
+This Safe Network library is licensed under the General Public License (GPL), version 3 ([LICENSE](LICENSE) http://www.gnu.org/licenses/gpl-3.0.en.html).
 
 ### Linking exception
 
