@@ -357,7 +357,7 @@ pub async fn attempt_bootstrap(
 }
 
 #[allow(missing_docs)]
-#[cfg(all(test, feature = "simulated-payouts"))]
+#[cfg(feature = "simulated-payouts")]
 pub mod exported_tests {
     use super::*;
     use crate::crypto::shared_box;
