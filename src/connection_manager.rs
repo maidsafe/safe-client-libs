@@ -358,6 +358,11 @@ impl ConnectionManager {
 
         while !has_sufficent_connections {
             let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
+
+            if remaining_futures.is_empty() {
+                has_sufficent_connections = true;
+            }
+
             todo = remaining_futures;
 
             if let Ok(elder_result) = res {
@@ -380,9 +385,12 @@ impl ConnectionManager {
                 has_sufficent_connections = true;
             }
 
-            // TODO: is this an error?
             if self.elders.len() < 7 {
                 warn!("Connected to only {:?} elders.", self.elders.len());
+            }
+
+            if self.elders.len() < 3 && has_sufficent_connections {
+                return Err(CoreError::from("Could not connect to sufficient elders."));
             }
         }
 
