@@ -287,7 +287,7 @@ mod tests {
         }
     }
 
-    // TODO: only do this for real vault until we a local replica bank
+    // TODO: only do this for real node until we a local replica bank
     #[tokio::test]
     #[cfg(not(feature = "mock-network"))]
     async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), CoreError> {

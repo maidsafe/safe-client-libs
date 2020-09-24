@@ -28,8 +28,8 @@ const CONFIG_DIR_ORGANISATION: &str = "MaidSafe";
 const CONFIG_DIR_APPLICATION: &str = "safe_core";
 const CONFIG_FILE: &str = "safe_core.config";
 
-const VAULT_CONFIG_DIR_APPLICATION: &str = "safe_vault";
-const VAULT_CONNECTION_INFO_FILE: &str = "vault_connection_info.config";
+const NODE_CONFIG_DIR_APPLICATION: &str = "sn_node";
+const NODE_CONNECTION_INFO_FILE: &str = "node_connection_info.config";
 
 lazy_static! {
     static ref CONFIG_DIR_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
@@ -38,10 +38,10 @@ lazy_static! {
         CONFIG_DIR_ORGANISATION,
         CONFIG_DIR_APPLICATION,
     );
-    static ref DEFAULT_VAULT_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
+    static ref DEFAULT_NODE_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
         CONFIG_DIR_QUALIFIER,
         CONFIG_DIR_ORGANISATION,
-        VAULT_CONFIG_DIR_APPLICATION,
+        NODE_CONFIG_DIR_APPLICATION,
     );
 }
 
@@ -110,8 +110,8 @@ impl Config {
                 result => result?,
             }
         };
-        // Then if there is a locally running Vault we add it to the list of know contacts.
-        if let Ok(node_info) = read_config_file(vault_dirs()?, VAULT_CONNECTION_INFO_FILE) {
+        // Then if there is a locally running Node we add it to the list of know contacts.
+        if let Ok(node_info) = read_config_file(node_dirs()?, NODE_CONNECTION_INFO_FILE) {
             let _ = config.hard_coded_contacts.insert(node_info);
         }
         Ok(config)
@@ -121,12 +121,12 @@ impl Config {
 /// Extra configuration options intended for developers.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct DevConfig {
-    /// Switch off mutations limit in mock-vault.
+    /// Switch off mutations limit in mock-node.
     pub mock_unlimited_money: bool,
-    /// Use memory store instead of file store in mock-vault.
+    /// Use memory store instead of file store in mock-node.
     pub mock_in_memory_storage: bool,
-    /// Set the mock-vault path if using file store (`mock_in_memory_storage` is `false`).
-    pub mock_vault_path: Option<String>,
+    /// Set the mock-node path if using file store (`mock_in_memory_storage` is `false`).
+    pub mock_node_path: Option<String>,
 }
 
 /// Reads the `safe_core` config file and returns it or a default if this fails.
@@ -148,13 +148,13 @@ fn dirs() -> Result<ProjectDirs, CoreError> {
     project_dirs.ok_or_else(|| CoreError::from("Cannot determine project directory paths"))
 }
 
-fn vault_dirs() -> Result<ProjectDirs, CoreError> {
+fn node_dirs() -> Result<ProjectDirs, CoreError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         ProjectDirs::from_path(custom_path)
     } else {
-        DEFAULT_VAULT_PROJECT_DIRS.clone()
+        DEFAULT_NODE_PROJECT_DIRS.clone()
     };
-    project_dirs.ok_or_else(|| CoreError::from("Cannot determine vault directory paths"))
+    project_dirs.ok_or_else(|| CoreError::from("Cannot determine node directory paths"))
 }
 
 fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, CoreError>
@@ -182,7 +182,7 @@ where
 /// Writes a `safe_core` config file **for use by tests and examples**.
 ///
 /// N.B. This method should only be used as a utility for test and examples.  In normal use cases,
-/// the config file should be created by the Vault's installer.
+/// the config file should be created by the Node's installer.
 #[cfg(test)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
     let dir = config_dir()?;
