@@ -66,13 +66,13 @@ package-nightly-deploy-artifacts:
 	./scripts/package-runner "nightly"
 	find . -name "*.zip" -exec rm "{}" \;
 
-test-with-mock-vault-file:
+test-with-mock-node-file:
 ifeq ($(UNAME_S),Darwin)
 	rm -rf artifacts
-	./scripts/test-with-mock-vault-file
+	./scripts/test-with-mock-node-file
 	make copy-artifacts
 else
-	@echo "Tests against the mock vault file are run only on OS X."
+	@echo "Tests against the mock node file are run only on OS X."
 	@exit 1
 endif
 
