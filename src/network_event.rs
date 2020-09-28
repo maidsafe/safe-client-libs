@@ -15,9 +15,9 @@ pub const NETWORK_EVENT_START_RANGE: i32 = 0;
 /// Network Events that Client Modules need to deal with.
 #[derive(Debug)]
 pub enum NetworkEvent {
-    /// The core engine is connected to atleast one peer
+    /// The client engine is connected to atleast one peer
     Connected,
-    /// The core engine is disconnected from the network (under usual
+    /// The client engine is disconnected from the network (under usual
     /// circumstances this would indicate that client connection to proxy node
     /// has been lost)
     Disconnected,

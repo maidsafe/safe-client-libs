@@ -36,7 +36,7 @@
 //! ```
 //! use log::{error, info};
 //! use std::thread;
-//! use safe_core::utils::logging;
+//! use sn_client::utils::logging;
 //! use unwrap::unwrap;
 //!
 //! mod my_mod {

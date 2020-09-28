@@ -1562,44 +1562,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
-name = "safe_core"
-version = "0.42.1"
-dependencies = [
- "async-trait",
- "bincode",
- "bytes 0.5.6",
- "chrono",
- "crdts",
- "crossbeam-channel",
- "directories 3.0.1",
- "env_logger 0.6.2",
- "futures",
- "futures-util",
- "lazy_static",
- "log",
- "log4rs",
- "lru",
- "miscreant",
- "qp2p",
- "rand",
- "regex",
- "self_encryption",
- "serde",
- "serde-value",
- "serde_json",
- "sha3",
- "sn_data_types",
- "sn_transfers",
- "threshold_crypto",
- "tiny-keccak 1.5.0",
- "tokio",
- "unwrap",
- "url",
- "ws",
- "xor_name",
-]
-
-[[package]]
 name = "sct"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1729,6 +1691,44 @@ name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
+
+[[package]]
+name = "sn_client"
+version = "0.42.1"
+dependencies = [
+ "async-trait",
+ "bincode",
+ "bytes 0.5.6",
+ "chrono",
+ "crdts",
+ "crossbeam-channel",
+ "directories 3.0.1",
+ "env_logger 0.6.2",
+ "futures",
+ "futures-util",
+ "lazy_static",
+ "log",
+ "log4rs",
+ "lru",
+ "miscreant",
+ "qp2p",
+ "rand",
+ "regex",
+ "self_encryption",
+ "serde",
+ "serde-value",
+ "serde_json",
+ "sha3",
+ "sn_data_types",
+ "sn_transfers",
+ "threshold_crypto",
+ "tiny-keccak 1.5.0",
+ "tokio",
+ "unwrap",
+ "url",
+ "ws",
+ "xor_name",
+]
 
 [[package]]
 name = "sn_data_types"

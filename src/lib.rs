@@ -23,9 +23,9 @@
 //!
 //! ```no_run
 //! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
-//! # extern crate tokio; use safe_core::CoreError;
-//! use safe_core::Client;
-//! # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+//! # extern crate tokio; use sn_client::ClientError;
+//! use sn_client::Client;
+//! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
 //! let mut client = Client::new(None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
@@ -36,10 +36,10 @@
 //!
 //! ```no_run
 //! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
-//! # extern crate tokio; use safe_core::CoreError;
-//! use safe_core::Client;
+//! # extern crate tokio; use sn_client::ClientError;
+//! use sn_client::Client;
 //! use threshold_crypto::SecretKey;
-//! # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+//! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
 //! let secret_key = SecretKey::random();
 //! let mut client = Client::new(Some(secret_key)).await?;
 //! // Now for example you can perform read operations:
@@ -64,11 +64,11 @@
     unused_results
 )]
 
-// Export public core interface.
+// Export public client interface.
 
 pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::config_dir;
-pub use self::errors::CoreError;
+pub use self::errors::ClientError;
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::utils::logging;
 pub use qp2p::Config as QuicP2pConfig;

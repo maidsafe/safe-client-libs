@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::CoreError;
+use crate::ClientError;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
@@ -26,7 +26,7 @@ use tokio::task::JoinHandle;
 type VoteMap = HashMap<QueryResponse, usize>;
 
 // channel for sending result of transfer validation
-type TransferValidationSender = Sender<Result<DebitAgreementProof, CoreError>>;
+type TransferValidationSender = Sender<Result<DebitAgreementProof, ClientError>>;
 
 #[derive(Clone)]
 struct ElderStream {
@@ -36,7 +36,7 @@ struct ElderStream {
 }
 
 /// JoinHandle for recv stream listener thread
-type NetworkListenerHandle = JoinHandle<Result<(), CoreError>>;
+type NetworkListenerHandle = JoinHandle<Result<(), ClientError>>;
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
 #[derive(Clone)]
@@ -50,7 +50,7 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager.
-    pub fn new(mut config: QuicP2pConfig, full_id: ClientFullId) -> Result<Self, CoreError> {
+    pub fn new(mut config: QuicP2pConfig, full_id: ClientFullId) -> Result<Self, ClientError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
         let endpoint = qp2p.new_endpoint()?;
@@ -65,7 +65,7 @@ impl ConnectionManager {
     }
 
     /// Bootstrap to the network maintaining connections to several nodes.
-    pub async fn bootstrap(&mut self) -> Result<(), CoreError> {
+    pub async fn bootstrap(&mut self) -> Result<(), ClientError> {
         trace!(
             "Trying to bootstrap to the network with public_id: {:?}",
             self.full_id.public_id()
@@ -80,7 +80,7 @@ impl ConnectionManager {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&mut self, msg: &Message) -> Result<(), CoreError> {
+    pub async fn send_cmd(&mut self, msg: &Message) -> Result<(), ClientError> {
         info!("Sending command message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
@@ -108,8 +108,8 @@ impl ConnectionManager {
     pub async fn send_transfer_validation(
         &mut self,
         msg: &Message,
-        sender: Sender<Result<DebitAgreementProof, CoreError>>,
-    ) -> Result<(), CoreError> {
+        sender: Sender<Result<DebitAgreementProof, ClientError>>,
+    ) -> Result<(), ClientError> {
         info!(
             "Sending transfer validation command {:?} w/ id: {:?}",
             msg,
@@ -145,7 +145,7 @@ impl ConnectionManager {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&mut self, msg: &Message) -> Result<QueryResponse, CoreError> {
+    pub async fn send_query(&mut self, msg: &Message) -> Result<QueryResponse, ClientError> {
         info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
@@ -166,7 +166,7 @@ impl ConnectionManager {
                     Err(e) => {
                         let err_msg = format!("Unexpected deserialisation error: {:?}", e);
                         error!("{}", err_msg);
-                        Err(CoreError::Unexpected(err_msg))
+                        Err(ClientError::Unexpected(err_msg))
                     }
                 }
             });
@@ -244,13 +244,13 @@ impl ConnectionManager {
 
         winner
             .0
-            .ok_or_else(|| CoreError::from("Failed to obtain a response from the network."))
+            .ok_or_else(|| ClientError::from("Failed to obtain a response from the network."))
     }
 
     // Private helpers
 
     // Put a `Message` in an envelope so it can be sent to the network
-    fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, CoreError> {
+    fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, ClientError> {
         trace!("Putting message in envelope: {:?}", message);
         let sign = self.full_id.sign(&serialize(message)?);
         let msg_proof = BlsProof {
@@ -270,7 +270,7 @@ impl ConnectionManager {
 
     // Bootstrap to the network to obtaining the list of
     // nodes we should establish connections with
-    async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, CoreError> {
+    async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, ClientError> {
         trace!("Bootstrapping with contacts...");
         let (endpoint, conn) = self.qp2p.bootstrap().await?;
         self.endpoint = Arc::new(Mutex::new(endpoint));
@@ -295,16 +295,19 @@ impl ConnectionManager {
                 let elders_addrs = elders.into_iter().map(|(_xor_name, ci)| ci).collect();
                 Ok(elders_addrs)
             }
-            Ok(_msg) => Err(CoreError::from(
+            Ok(_msg) => Err(ClientError::from(
                 "Unexpected message type received while expecting list of Elders to join.",
             )),
-            Err(e) => Err(CoreError::from(format!("Unexpected error {:?}", e))),
+            Err(e) => Err(ClientError::from(format!("Unexpected error {:?}", e))),
         }
     }
 
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
-    async fn connect_to_elders(&mut self, elders_addrs: Vec<SocketAddr>) -> Result<(), CoreError> {
+    async fn connect_to_elders(
+        &mut self,
+        elders_addrs: Vec<SocketAddr>,
+    ) -> Result<(), ClientError> {
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
@@ -340,10 +343,10 @@ impl ConnectionManager {
                             recv_stream,
                         ))
                     }
-                    Ok(_) => Err(CoreError::from(
+                    Ok(_) => Err(ClientError::from(
                         "Unexpected message type while expeccting challenge from Elder.",
                     )),
-                    Err(e) => Err(CoreError::from(format!("Unexpected error {:?}", e))),
+                    Err(e) => Err(ClientError::from(format!("Unexpected error {:?}", e))),
                 }
             });
             tasks.push(task_handle);
@@ -367,7 +370,7 @@ impl ConnectionManager {
 
             if let Ok(elder_result) = res {
                 let (send_stream, connection, recv_stream) = elder_result.map_err(|err| {
-                    CoreError::from(format!("Failed to connect to an Elder: {}", err))
+                    ClientError::from(format!("Failed to connect to an Elder: {}", err))
                 })?;
 
                 let listener = self.listen_to_receive_stream(recv_stream).await?;
@@ -390,7 +393,7 @@ impl ConnectionManager {
             }
 
             if self.elders.len() < 3 && has_sufficent_connections {
-                return Err(CoreError::from("Could not connect to sufficient elders."));
+                return Err(ClientError::from("Could not connect to sufficient elders."));
             }
         }
 
@@ -402,7 +405,7 @@ impl ConnectionManager {
     pub async fn listen_to_receive_stream(
         &mut self,
         mut receiver: RecvStream,
-    ) -> Result<NetworkListenerHandle, CoreError> {
+    ) -> Result<NetworkListenerHandle, ClientError> {
         trace!("Adding listener");
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
@@ -440,7 +443,7 @@ impl ConnectionManager {
                                     .await
                                     .remove(&correlation_id)
                                 {
-                                    let _ = sender.send(Err(CoreError::from(format!(
+                                    let _ = sender.send(Err(ClientError::from(format!(
                                         "CmdError received: {:?}",
                                         error
                                     ))));
@@ -457,7 +460,7 @@ impl ConnectionManager {
 
             error!("Receive stream listener stopped.");
 
-            Ok::<(), CoreError>(())
+            Ok::<(), ClientError>(())
         });
 
         Ok(handle)

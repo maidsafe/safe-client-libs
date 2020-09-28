@@ -19,7 +19,7 @@ use std::sync::mpsc;
 
 /// Client Errors
 #[allow(clippy::large_enum_variant)]
-pub enum CoreError {
+pub enum ClientError {
     /// Could not Serialise or Deserialise.
     EncodeDecodeError(SerialisationError),
     /// Asymmetric Key Decryption Failed.
@@ -61,61 +61,61 @@ pub enum CoreError {
     QuicP2p(QuicP2pError),
 }
 
-impl<'a> From<&'a str> for CoreError {
+impl<'a> From<&'a str> for ClientError {
     fn from(error: &'a str) -> Self {
         Self::Unexpected(error.to_string())
     }
 }
 
-impl From<String> for CoreError {
+impl From<String> for ClientError {
     fn from(error: String) -> Self {
         Self::Unexpected(error)
     }
 }
 
-// impl From<SelfEncryptionError<E>> for CoreError {
+// impl From<SelfEncryptionError<E>> for ClientError {
 //     fn from(error: SelfEncryptionError<E> ) -> Self {
 //         Self::from(format!("Self encryption error: {}",error))
 //     }
 // }
 
-impl From<SendError> for CoreError {
+impl From<SendError> for ClientError {
     fn from(error: SendError) -> Self {
         Self::from(format!("Couldn't send message to the channel: {}", error))
     }
 }
 
-impl From<SerialisationError> for CoreError {
+impl From<SerialisationError> for ClientError {
     fn from(error: SerialisationError) -> Self {
         Self::EncodeDecodeError(error)
     }
 }
 
-impl From<SndError> for CoreError {
+impl From<SndError> for ClientError {
     fn from(error: SndError) -> Self {
         Self::DataError(error)
     }
 }
 
-impl From<mpsc::RecvError> for CoreError {
+impl From<mpsc::RecvError> for ClientError {
     fn from(_: mpsc::RecvError) -> Self {
         Self::OperationAborted
     }
 }
 
-impl From<io::Error> for CoreError {
+impl From<io::Error> for ClientError {
     fn from(error: io::Error) -> Self {
         Self::IoError(error)
     }
 }
 
-impl From<QuicP2pError> for CoreError {
+impl From<QuicP2pError> for ClientError {
     fn from(error: QuicP2pError) -> Self {
         Self::QuicP2p(error)
     }
 }
 
-impl From<serde_json::error::Error> for CoreError {
+impl From<serde_json::error::Error> for ClientError {
     fn from(error: serde_json::error::Error) -> Self {
         use serde_json::error::Category;
         match error.classify() {
@@ -125,49 +125,53 @@ impl From<serde_json::error::Error> for CoreError {
     }
 }
 
-impl Debug for CoreError {
+impl Debug for ClientError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         write!(formatter, "{} - ", self.to_string())?;
         match *self {
             Self::EncodeDecodeError(ref error) => {
-                write!(formatter, "CoreError::EncodeDecodeError -> {:?}", error)
+                write!(formatter, "ClientError::EncodeDecodeError -> {:?}", error)
             }
             Self::AsymmetricDecipherFailure => {
-                write!(formatter, "CoreError::AsymmetricDecipherFailure")
+                write!(formatter, "ClientError::AsymmetricDecipherFailure")
             }
             Self::SymmetricDecipherFailure => {
-                write!(formatter, "CoreError::SymmetricDecipherFailure")
+                write!(formatter, "ClientError::SymmetricDecipherFailure")
             }
-            Self::ReceivedUnexpectedData => write!(formatter, "CoreError::ReceivedUnexpectedData"),
+            Self::ReceivedUnexpectedData => {
+                write!(formatter, "ClientError::ReceivedUnexpectedData")
+            }
             Self::ReceivedUnexpectedEvent => {
-                write!(formatter, "CoreError::ReceivedUnexpectedEvent")
+                write!(formatter, "ClientError::ReceivedUnexpectedEvent")
             }
-            Self::VersionCacheMiss => write!(formatter, "CoreError::VersionCacheMiss"),
-            Self::RootDirectoryExists => write!(formatter, "CoreError::RootDirectoryExists"),
+            Self::VersionCacheMiss => write!(formatter, "ClientError::VersionCacheMiss"),
+            Self::RootDirectoryExists => write!(formatter, "ClientError::RootDirectoryExists"),
             Self::RandomDataGenerationFailure => {
-                write!(formatter, "CoreError::RandomDataGenerationFailure")
+                write!(formatter, "ClientError::RandomDataGenerationFailure")
             }
-            Self::OperationForbidden => write!(formatter, "CoreError::OperationForbidden"),
+            Self::OperationForbidden => write!(formatter, "ClientError::OperationForbidden"),
             Self::Unexpected(ref error) => {
-                write!(formatter, "CoreError::Unexpected::{{{:?}}}", error)
+                write!(formatter, "ClientError::Unexpected::{{{:?}}}", error)
             }
-            Self::DataError(ref error) => write!(formatter, "CoreError::DataError -> {:?}", error),
+            Self::DataError(ref error) => {
+                write!(formatter, "ClientError::DataError -> {:?}", error)
+            }
             Self::UnsupportedSaltSizeForPwHash => {
-                write!(formatter, "CoreError::UnsupportedSaltSizeForPwHash")
+                write!(formatter, "ClientError::UnsupportedSaltSizeForPwHash")
             }
-            Self::UnsuccessfulPwHash => write!(formatter, "CoreError::UnsuccessfulPwHash"),
-            Self::OperationAborted => write!(formatter, "CoreError::OperationAborted"),
-            Self::RequestTimeout => write!(formatter, "CoreError::RequestTimeout"),
+            Self::UnsuccessfulPwHash => write!(formatter, "ClientError::UnsuccessfulPwHash"),
+            Self::OperationAborted => write!(formatter, "ClientError::OperationAborted"),
+            Self::RequestTimeout => write!(formatter, "ClientError::RequestTimeout"),
             Self::ConfigError(ref error) => {
-                write!(formatter, "CoreError::ConfigError -> {:?}", error)
+                write!(formatter, "ClientError::ConfigError -> {:?}", error)
             }
-            Self::IoError(ref error) => write!(formatter, "CoreError::IoError -> {:?}", error),
-            Self::QuicP2p(ref error) => write!(formatter, "CoreError::QuicP2p -> {:?}", error),
+            Self::IoError(ref error) => write!(formatter, "ClientError::IoError -> {:?}", error),
+            Self::QuicP2p(ref error) => write!(formatter, "ClientError::QuicP2p -> {:?}", error),
         }
     }
 }
 
-impl Display for CoreError {
+impl Display for ClientError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match *self {
             Self::EncodeDecodeError(ref error) => write!(
@@ -209,7 +213,7 @@ impl Display for CoreError {
     }
 }
 
-impl StdError for CoreError {
+impl StdError for ClientError {
     fn cause(&self) -> Option<&dyn StdError> {
         match *self {
             Self::EncodeDecodeError(ref err) => Some(err),

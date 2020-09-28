@@ -29,7 +29,7 @@ pub use self::transfer_actor::{ClientTransferValidator, SafeTransferActor};
 
 use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
@@ -61,7 +61,7 @@ pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 pub const COST_OF_PUT: Money = Money::from_nano(1);
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
-pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, CoreError> {
+pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, ClientError> {
     Ok(Config::new().qp2p.hard_coded_contacts)
 }
 
@@ -92,17 +92,17 @@ impl Client {
     ///
     /// Create a random client
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     ///
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     ///
     /// let mut client = Client::new(None).await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(sk: Option<SecretKey>) -> Result<Self, CoreError> {
+    pub async fn new(sk: Option<SecretKey>) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
@@ -180,9 +180,9 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let client = Client::new(None).await?;
     /// let _full_id = client.full_id().await;
     ///
@@ -197,9 +197,9 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let client = Client::new(None).await?;
     /// let _public_id = client.public_id().await;
     /// # Ok(()) } ); }
@@ -214,9 +214,9 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let client = Client::new(None).await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
@@ -228,7 +228,7 @@ impl Client {
     }
 
     /// Send a Query to the network and await a response
-    async fn send_query(&mut self, query: Query) -> Result<QueryResponse, CoreError> {
+    async fn send_query(&mut self, query: Query) -> Result<QueryResponse, ClientError> {
         // `sign` should be false for GETs on published data, true otherwise.
 
         debug!("Sending QueryRequest: {:?}", query);
@@ -272,7 +272,7 @@ impl Client {
 pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
     full_id: ClientFullId,
-) -> Result<ConnectionManager, CoreError> {
+) -> Result<ConnectionManager, ClientError> {
     let mut attempts: u32 = 0;
 
     loop {
@@ -298,13 +298,13 @@ pub mod exported_tests {
     use super::*;
     use crate::crypto::shared_box;
 
-    pub async fn client_creation() -> Result<(), CoreError> {
+    pub async fn client_creation() -> Result<(), ClientError> {
         let _transfer_actor = Client::new(None).await?;
 
         Ok(())
     }
 
-    pub async fn client_creation_for_existing_sk() -> Result<(), CoreError> {
+    pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
         let (sk, _pk) = shared_box::gen_bls_keypair();
         let _transfer_actor = Client::new(Some(sk)).await?;
 
@@ -315,17 +315,17 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use crate::CoreError;
+    use crate::ClientError;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation() -> Result<(), CoreError> {
+    pub async fn client_creation() -> Result<(), ClientError> {
         exported_tests::client_creation().await
     }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_for_existing_sk() -> Result<(), CoreError> {
+    pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
         exported_tests::client_creation_for_existing_sk().await
     }
 }

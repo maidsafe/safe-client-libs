@@ -24,12 +24,12 @@ FFI is used to generate the native libraries which can be used by other high lev
 
 EOF
 
-s3_safe_auth_ffi_linux_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-unknown-linux-gnu.tar.gz"
-s3_safe_auth_ffi_win_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-pc-windows-gnu.tar.gz"
-s3_safe_auth_ffi_macos_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-apple-darwin.tar.gz"
-s3_safe_auth_ffi_ios_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-apple-ios.tar.gz"
-s3_safe_auth_ffi_android_armv7_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-armv7-linux-androideabi.tar.gz"
-s3_safe_auth_ffi_android_x86_64_deploy_url="https:\/\/safe-client-libs.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-linux-android.tar.gz"
+s3_safe_auth_ffi_linux_deploy_url="https:\/\/sn-client.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-unknown-linux-gnu.tar.gz"
+s3_safe_auth_ffi_win_deploy_url="https:\/\/sn-client.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-pc-windows-gnu.tar.gz"
+s3_safe_auth_ffi_macos_deploy_url="https:\/\/sn-client.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-apple-darwin.tar.gz"
+s3_safe_auth_ffi_ios_deploy_url="https:\/\/sn-client.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-apple-ios.tar.gz"
+s3_safe_auth_ffi_android_armv7_deploy_url="https:\/\/sn-client.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-armv7-linux-androideabi.tar.gz"
+s3_safe_auth_ffi_android_x86_64_deploy_url="https:\/\/sn-client.s3.amazonaws.com\/safe_authenticator_ffi-dev-$auth_version-x86_64-linux-android.tar.gz"
 
 tar_safe_auth_ffi_linux_checksum=$(sha256sum \
     "./deploy/prod/safe_authenticator_ffi-$auth_version-x86_64-unknown-linux-gnu.tar.gz" | \

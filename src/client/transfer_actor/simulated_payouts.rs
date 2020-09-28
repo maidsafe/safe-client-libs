@@ -4,7 +4,7 @@ use sn_data_types::Money;
 use sn_data_types::{Cmd, Transfer, TransferCmd};
 
 use crate::client::Client;
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 
 #[cfg(feature = "simulated-payouts")]
 use log::info;
@@ -16,8 +16,8 @@ impl Client {
     pub async fn trigger_simulated_farming_payout(
         &mut self,
         _amount: Money,
-    ) -> Result<(), CoreError> {
-        Err(CoreError::from(
+    ) -> Result<(), ClientError> {
+        Err(ClientError::from(
             "Simulated payouts not available without 'simulated-payouts' feature flag",
         ))
     }
@@ -34,11 +34,11 @@ impl Client {
     /// Add 100 money to a client
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     /// use sn_data_types::Money;
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let secret_key = threshold_crypto::SecretKey::random();
     ///
     /// // Start our client
@@ -53,7 +53,7 @@ impl Client {
     pub async fn trigger_simulated_farming_payout(
         &mut self,
         amount: Money,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let pk = *self.full_id().await.public_key();
         info!("Triggering a simulated farming payout to: {:?}", pk);
         self.simulated_farming_payout_dot.apply_inc();
@@ -100,7 +100,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), CoreError> {
+    async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), ClientError> {
         let (sk, _pk) = shared_box::gen_bls_keypair();
         let mut initial_actor = Client::new(Some(sk.clone())).await?;
 

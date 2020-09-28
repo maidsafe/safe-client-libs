@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::CoreError;
+use crate::ClientError;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
 use log::{info, trace};
@@ -25,15 +25,15 @@ use unwrap::unwrap;
 
 const CONFIG_DIR_QUALIFIER: &str = "net";
 const CONFIG_DIR_ORGANISATION: &str = "MaidSafe";
-const CONFIG_DIR_APPLICATION: &str = "safe_core";
-const CONFIG_FILE: &str = "safe_core.config";
+const CONFIG_DIR_APPLICATION: &str = "sn_client";
+const CONFIG_FILE: &str = "sn_client.config";
 
 const NODE_CONFIG_DIR_APPLICATION: &str = "sn_node";
 const NODE_CONNECTION_INFO_FILE: &str = "node_connection_info.config";
 
 lazy_static! {
     static ref CONFIG_DIR_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-    static ref DEFAULT_SAFE_CORE_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
+    static ref DEFAULT_SN_CLIENT_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
         CONFIG_DIR_QUALIFIER,
         CONFIG_DIR_ORGANISATION,
         CONFIG_DIR_APPLICATION,
@@ -51,7 +51,7 @@ pub fn set_config_dir_path<P: AsRef<OsStr> + ?Sized>(path: &P) {
     *unwrap!(CONFIG_DIR_PATH.lock()) = Some(From::from(path));
 }
 
-/// Configuration for safe-core.
+/// Configuration for sn_client.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct Config {
     /// QuicP2p options.
@@ -61,9 +61,9 @@ pub struct Config {
 }
 
 #[cfg(any(target_os = "android", target_os = "androideabi", target_os = "ios"))]
-fn check_config_path_set() -> Result<(), CoreError> {
+fn check_config_path_set() -> Result<(), ClientError> {
     if unwrap!(CONFIG_DIR_PATH.lock()).is_none() {
-        Err(CoreError::QuicP2p(qp2p::QuicP2pError::Configuration {
+        Err(ClientError::QuicP2p(qp2p::QuicP2pError::Configuration {
             e: "Boostrap cache directory not set".to_string(),
         }))
     } else {
@@ -78,12 +78,12 @@ impl Config {
         Self { qp2p, dev: None }
     }
 
-    fn read_qp2p_from_file() -> Result<QuicP2pConfig, CoreError> {
+    fn read_qp2p_from_file() -> Result<QuicP2pConfig, ClientError> {
         // First we read the default configuration file, and use a slightly modified default config
         // if there is none.
         let mut config: QuicP2pConfig = {
             match read_config_file(dirs()?, CONFIG_FILE) {
-                Err(CoreError::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
+                Err(ClientError::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
                     // Bootstrap cache dir must be set on mobile platforms
                     // using set_config_dir_path
                     #[cfg(any(
@@ -96,7 +96,7 @@ impl Config {
                     let custom_dir =
                         if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
                             Some(custom_path.into_os_string().into_string().map_err(|_| {
-                                CoreError::from("Config path is not a valid UTF-8 string")
+                                ClientError::from("Config path is not a valid UTF-8 string")
                             })?)
                         } else {
                             None
@@ -129,35 +129,35 @@ pub struct DevConfig {
     pub mock_node_path: Option<String>,
 }
 
-/// Reads the `safe_core` config file and returns it or a default if this fails.
+/// Reads the `sn_client` config file and returns it or a default if this fails.
 pub fn get_config() -> Config {
     Config::new()
 }
 
 /// Returns the directory from which the config files are read
-pub fn config_dir() -> Result<PathBuf, CoreError> {
+pub fn config_dir() -> Result<PathBuf, ClientError> {
     Ok(dirs()?.config_dir().to_path_buf())
 }
 
-fn dirs() -> Result<ProjectDirs, CoreError> {
+fn dirs() -> Result<ProjectDirs, ClientError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         ProjectDirs::from_path(custom_path)
     } else {
-        DEFAULT_SAFE_CORE_PROJECT_DIRS.clone()
+        DEFAULT_SN_CLIENT_PROJECT_DIRS.clone()
     };
-    project_dirs.ok_or_else(|| CoreError::from("Cannot determine project directory paths"))
+    project_dirs.ok_or_else(|| ClientError::from("Cannot determine project directory paths"))
 }
 
-fn node_dirs() -> Result<ProjectDirs, CoreError> {
+fn node_dirs() -> Result<ProjectDirs, ClientError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         ProjectDirs::from_path(custom_path)
     } else {
         DEFAULT_NODE_PROJECT_DIRS.clone()
     };
-    project_dirs.ok_or_else(|| CoreError::from("Cannot determine node directory paths"))
+    project_dirs.ok_or_else(|| ClientError::from("Cannot determine node directory paths"))
 }
 
-fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, CoreError>
+fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, ClientError>
 where
     T: DeserializeOwned,
 {
@@ -179,12 +179,12 @@ where
     })
 }
 
-/// Writes a `safe_core` config file **for use by tests and examples**.
+/// Writes a `sn_client` config file **for use by tests and examples**.
 ///
 /// N.B. This method should only be used as a utility for test and examples.  In normal use cases,
 /// the config file should be created by the Node's installer.
 #[cfg(test)]
-pub fn write_config_file(config: &Config) -> Result<PathBuf, CoreError> {
+pub fn write_config_file(config: &Config) -> Result<PathBuf, ClientError> {
     let dir = config_dir()?;
     fs::create_dir_all(dir.clone())?;
 

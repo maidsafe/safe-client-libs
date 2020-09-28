@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 use crate::Client;
 use bincode::{deserialize, serialize};
 use log::trace;
@@ -42,11 +42,11 @@ impl Client {
     /// Get data
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     /// use sn_data_types::BlobAddress;
     /// use xor_name::XorName;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
     /// let mut client = Client::new(None).await?;
     ///
@@ -59,7 +59,7 @@ impl Client {
         address: BlobAddress,
         position: Option<u64>,
         len: Option<u64>,
-    ) -> Result<Blob, CoreError>
+    ) -> Result<Blob, ClientError>
     where
         Self: Sized,
     {
@@ -74,8 +74,8 @@ impl Client {
             .send_query(Query::Data(DataQuery::Blob(BlobRead::Get(address))))
             .await?;
         let data: Blob = match res {
-            QueryResponse::GetBlob(res) => res.map_err(CoreError::from),
-            _ => return Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::GetBlob(res) => res.map_err(ClientError::from),
+            _ => return Err(ClientError::ReceivedUnexpectedEvent),
         }?;
 
         // Put to cache
@@ -109,11 +109,11 @@ impl Client {
     /// Store data
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     /// use sn_data_types::{Blob, Money, PublicBlob};
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let secret_key = threshold_crypto::SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
@@ -126,7 +126,7 @@ impl Client {
     /// println!( "{:?}",blob.value() ); // prints "some data"
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn store_blob(&mut self, data: Blob) -> Result<Blob, CoreError> {
+    pub async fn store_blob(&mut self, data: Blob) -> Result<Blob, ClientError> {
         let data_to_write_to_network: Blob = self.self_encrypt_blob(data).await?;
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
@@ -157,12 +157,12 @@ impl Client {
     /// Remove data
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     /// use sn_data_types::{Money, Blob, PrivateBlob, PublicKey};
     /// use std::str::FromStr;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async { let secret_key = SecretKey::random();
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async { let secret_key = SecretKey::random();
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(Some(secret_key.clone())).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
@@ -176,11 +176,11 @@ impl Client {
     ///
     /// match client.get_blob(*blob.address(), None, None).await {
     ///     Err(error) => eprintln!("Expected error getting blob {:?}", error),
-    ///     _ => return Err(CoreError::from("Should not have been able to retrieve this blob"))
+    ///     _ => return Err(ClientError::from("Should not have been able to retrieve this blob"))
     /// };
     /// #  Ok(())} );}
     /// ```
-    pub async fn delete_blob(&mut self, address: BlobAddress) -> Result<(), CoreError> {
+    pub async fn delete_blob(&mut self, address: BlobAddress) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
@@ -203,19 +203,19 @@ impl Client {
     // --------------------------------------------
 
     // use self_encryption to generated an encrypted blob stored at the data map
-    async fn self_encrypt_blob(&mut self, data: Blob) -> Result<Blob, CoreError> {
+    async fn self_encrypt_blob(&mut self, data: Blob) -> Result<Blob, ClientError> {
         let blob_storage = BlobStorageDryRun::new(self.clone(), data.is_pub());
 
         let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)
-            .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
         self_encryptor
             .write(data.value(), 0)
             .await
-            .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
         let (data_map, _) = self_encryptor
             .close()
             .await
-            .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
         let serialised_data_map = serialize(&data_map)?;
 
         let value = serialize(&DataTypeEncoding::Serialised(serialised_data_map))?;
@@ -232,7 +232,7 @@ impl Client {
         data: Blob,
         position: Option<u64>,
         len: Option<u64>,
-    ) -> Result<Vec<u8>, CoreError> {
+    ) -> Result<Vec<u8>, ClientError> {
         let published = data.is_pub();
         let _blob_storage = BlobStorage::new(self.clone(), published);
         let value = self.unpack(data).await?;
@@ -241,7 +241,7 @@ impl Client {
 
         let blob_storage = BlobStorage::new(self.clone(), published);
         let self_encryptor = SelfEncryptor::new(blob_storage, data_map)
-            .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
 
         let length = match len {
             None => self_encryptor.len().await,
@@ -255,7 +255,7 @@ impl Client {
 
         match self_encryptor.read(read_position, length).await {
             Ok(data) => Ok(data),
-            Err(error) => Err(CoreError::from(format!("{}", error))),
+            Err(error) => Err(ClientError::from(format!("{}", error))),
         }
     }
 
@@ -264,7 +264,7 @@ impl Client {
         public_key: PublicKey,
         mut value: Vec<u8>,
         published: bool,
-    ) -> Result<Blob, CoreError> {
+    ) -> Result<Blob, ClientError> {
         let blob_storage = BlobStorage::new(self.clone(), published);
 
         loop {
@@ -281,36 +281,36 @@ impl Client {
             }
 
             let self_encryptor = SelfEncryptor::new(blob_storage.clone(), DataMap::None)
-                .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+                .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
 
             self_encryptor
                 .write(&serialised_data, 0)
                 .await
-                .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+                .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
 
             let (data_map, _) = self_encryptor
                 .close()
                 .await
-                .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+                .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
 
             value = serialize(&DataTypeEncoding::DataMap(data_map))?;
         }
     }
 
-    async fn unpack(&mut self, mut data: Blob) -> Result<Vec<u8>, CoreError> {
+    async fn unpack(&mut self, mut data: Blob) -> Result<Vec<u8>, ClientError> {
         loop {
             match deserialize(data.value())? {
                 DataTypeEncoding::Serialised(value) => return Ok(value),
                 DataTypeEncoding::DataMap(data_map) => {
                     let blob_storage = BlobStorage::new(self.clone(), data.is_pub());
                     let self_encryptor = SelfEncryptor::new(blob_storage, data_map)
-                        .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+                        .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
                     let length = self_encryptor.len().await;
 
                     let serialised_data = self_encryptor
                         .read(0, length)
                         .await
-                        .map_err(|e| CoreError::from(format!("Self encryption error: {}", e)))?;
+                        .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
 
                     data = deserialize(&serialised_data)?;
                 }
@@ -332,7 +332,7 @@ pub mod exported_tests {
     use unwrap::unwrap;
 
     // Test putting and getting pub blob.
-    pub async fn pub_blob_test() -> Result<(), CoreError> {
+    pub async fn pub_blob_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
         // The `Client::new(None)` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
@@ -349,7 +349,7 @@ pub mod exported_tests {
             .await;
         match res {
             Ok(data) => panic!("Pub blob should not exist yet: {:?}", data),
-            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(ClientError::DataError(SndError::NoSuchData)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),
         }
         // Put blob
@@ -357,7 +357,7 @@ pub mod exported_tests {
         let res = client.store_blob(test_data.clone()).await;
         match res {
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-            Err(CoreError::DataError(SndError::InvalidOwners)) => (),
+            Err(ClientError::DataError(SndError::InvalidOwners)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),
         }
 
@@ -371,7 +371,7 @@ pub mod exported_tests {
     }
 
     // Test putting, getting, and deleting unpub blob.
-    pub async fn unpub_blob_test() -> Result<(), CoreError> {
+    pub async fn unpub_blob_test() -> Result<(), ClientError> {
         println!("blob_Test________");
         // The `Client::new(None)` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
@@ -397,7 +397,7 @@ pub mod exported_tests {
             .await;
         match res {
             Ok(_) => panic!("Private blob should not exist yet"),
-            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(ClientError::DataError(SndError::NoSuchData)) => (),
             Err(e) => panic!("Unexpected: {:?}", e),
         }
 
@@ -407,7 +407,7 @@ pub mod exported_tests {
         // Should conflict because duplication does .await?;not apply to unpublished data.
         let res = client.store_blob(data2.clone()).await;
         match res {
-            Err(CoreError::DataError(SndError::DataExists)) => (),
+            Err(ClientError::DataError(SndError::DataExists)) => (),
             res => panic!("Unexpected: {:?}", res),
         }
         let balance = client.get_balance().await?;
@@ -436,7 +436,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn blob_deletions_should_cost_put_price() -> Result<(), CoreError> {
+    pub async fn blob_deletions_should_cost_put_price() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
 
         let blob = Blob::Private(PrivateBlob::new(
@@ -458,7 +458,7 @@ pub mod exported_tests {
     }
 
     // Test creating and retrieving a 1kb blob.
-    pub async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<(), ClientError> {
         let size = 1024;
 
         gen_data_then_create_and_retrieve(size, true).await?;
@@ -466,14 +466,14 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn create_and_retrieve_1kb_private_unencrypted() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_1kb_private_unencrypted() -> Result<(), ClientError> {
         let size = 1024;
 
         gen_data_then_create_and_retrieve(size, false).await?;
         Ok(())
     }
 
-    pub async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<(), ClientError> {
         let size = 1024;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
@@ -489,7 +489,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<(), ClientError> {
         let size = 1024;
 
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
@@ -512,7 +512,7 @@ pub mod exported_tests {
     // ----------------------------------------------------------------
 
     // Test creating and retrieving a 1kb blob.
-    pub async fn create_and_retrieve_10mb_pub_unencrypted() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_10mb_pub_unencrypted() -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
 
         gen_data_then_create_and_retrieve(size, true).await?;
@@ -520,28 +520,28 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn create_and_retrieve_10mb_private_unencrypted() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_10mb_private_unencrypted() -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
 
         gen_data_then_create_and_retrieve(size, false).await?;
         Ok(())
     }
 
-    pub async fn create_and_retrieve_10mb_private_encrypted() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_10mb_private_encrypted() -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, false).await?;
 
         Ok(())
     }
 
-    pub async fn create_and_retrieve_10mb_pub_encrypted() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_10mb_pub_encrypted() -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, true).await?;
         Ok(())
     }
 
     pub async fn create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted(
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
@@ -559,7 +559,7 @@ pub mod exported_tests {
     }
 
     pub async fn create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted(
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
@@ -578,7 +578,7 @@ pub mod exported_tests {
     }
 
     pub async fn create_and_retrieve_10mb_encrypted_put_pub_retrieve_private(
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
@@ -596,7 +596,7 @@ pub mod exported_tests {
     }
 
     pub async fn create_and_retrieve_10mb_encrypted_put_private_retrieve_pub(
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
 
         let mut client = Client::new(None).await?;
@@ -615,11 +615,11 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn create_and_retrieve_index_based() -> Result<(), CoreError> {
+    pub async fn create_and_retrieve_index_based() -> Result<(), ClientError> {
         create_and_index_based_retrieve(1024).await
     }
 
-    async fn create_and_index_based_retrieve(size: usize) -> Result<(), CoreError> {
+    async fn create_and_index_based_retrieve(size: usize) -> Result<(), ClientError> {
         let blob = Blob::Public(PublicBlob::new(generate_random_vector(size)));
         {
             // Read first half
@@ -660,7 +660,7 @@ pub mod exported_tests {
     async fn gen_data_then_create_and_retrieve(
         size: usize,
         publish: bool,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let raw_data = generate_random_vector(size);
 
         let mut client = Client::new(None).await?;
@@ -681,7 +681,7 @@ pub mod exported_tests {
         // attempt to retrieve it with generated address (it should error)
         let res = client.get_blob(*address_before, None, None).await;
         let _data_map_before = match res {
-            Err(CoreError::DataError(SndError::NoSuchData)) => {
+            Err(ClientError::DataError(SndError::NoSuchData)) => {
                 // let's put it to the network (published)
                 client.store_blob(blob.clone()).await?
             }
@@ -707,91 +707,91 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use super::CoreError;
+    use super::ClientError;
 
     // Test putting and getting pub blob.
     #[tokio::test]
-    async fn pub_blob_test() -> Result<(), CoreError> {
+    async fn pub_blob_test() -> Result<(), ClientError> {
         exported_tests::pub_blob_test().await
     }
 
     // Test putting, getting, and deleting unpub blob.
     #[tokio::test]
-    async fn unpub_blob_test() -> Result<(), CoreError> {
+    async fn unpub_blob_test() -> Result<(), ClientError> {
         exported_tests::unpub_blob_test().await
     }
 
     #[tokio::test]
-    async fn blob_deletions_should_cost_put_price() -> Result<(), CoreError> {
+    async fn blob_deletions_should_cost_put_price() -> Result<(), ClientError> {
         exported_tests::blob_deletions_should_cost_put_price().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<(), CoreError> {
+    async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_1kb_pub_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_private_unencrypted() -> Result<(), CoreError> {
+    async fn create_and_retrieve_1kb_private_unencrypted() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_1kb_private_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<(), CoreError> {
+    async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_1kb_put_pub_retrieve_private().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<(), CoreError> {
+    async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_1kb_put_private_retrieve_pub().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_private_encrypted() -> Result<(), CoreError> {
+    async fn create_and_retrieve_10mb_private_encrypted() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_10mb_private_encrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_pub_encrypted() -> Result<(), CoreError> {
+    async fn create_and_retrieve_10mb_pub_encrypted() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_10mb_pub_encrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_private_unencrypted() -> Result<(), CoreError> {
+    async fn create_and_retrieve_10mb_private_unencrypted() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_10mb_private_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_pub_unencrypted() -> Result<(), CoreError> {
+    async fn create_and_retrieve_10mb_pub_unencrypted() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_10mb_pub_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted() -> Result<(), CoreError>
+    async fn create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted() -> Result<(), ClientError>
     {
         exported_tests::create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted() -> Result<(), CoreError>
+    async fn create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted() -> Result<(), ClientError>
     {
         exported_tests::create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_encrypted_put_pub_retrieve_private() -> Result<(), CoreError>
+    async fn create_and_retrieve_10mb_encrypted_put_pub_retrieve_private() -> Result<(), ClientError>
     {
         exported_tests::create_and_retrieve_10mb_encrypted_put_pub_retrieve_private().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_encrypted_put_private_retrieve_pub() -> Result<(), CoreError>
+    async fn create_and_retrieve_10mb_encrypted_put_private_retrieve_pub() -> Result<(), ClientError>
     {
         exported_tests::create_and_retrieve_10mb_encrypted_put_private_retrieve_pub().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_index_based() -> Result<(), CoreError> {
+    async fn create_and_retrieve_index_based() -> Result<(), ClientError> {
         exported_tests::create_and_retrieve_index_based().await
     }
 }

@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 use crate::Client;
 use log::trace;
 
@@ -43,13 +43,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// use sn_client::Client;
     /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let secret_key = SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
@@ -72,7 +72,7 @@ impl Client {
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn store_map(&mut self, data: Map) -> Result<(), CoreError> {
+    pub async fn store_map(&mut self, data: Map) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
@@ -94,13 +94,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// use sn_client::Client;
     /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let secret_key = SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
@@ -125,7 +125,7 @@ impl Client {
     /// # let balance_after_second_write = client.get_local_balance().await; assert_ne!(balance_after_second_write, balance_after_first_write);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), CoreError> {
+    pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
@@ -148,7 +148,7 @@ impl Client {
         address: MapAddress,
         user: PublicKey,
         version: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
@@ -182,7 +182,7 @@ impl Client {
         user: PublicKey,
         permissions: MapPermissionSet,
         version: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
@@ -216,7 +216,7 @@ impl Client {
         &mut self,
         address: MapAddress,
         changes: MapEntryActions,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
@@ -245,13 +245,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// use sn_client::Client;
     /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let secret_key = SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
@@ -275,7 +275,7 @@ impl Client {
     /// let _ = client.get_map(*our_map.address()).await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_map(&mut self, address: MapAddress) -> Result<Map, CoreError>
+    pub async fn get_map(&mut self, address: MapAddress) -> Result<Map, ClientError>
     where
         Self: Sized,
     {
@@ -285,8 +285,8 @@ impl Client {
             .send_query(wrap_map_read(MapRead::Get(address)))
             .await?
         {
-            QueryResponse::GetMap(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::GetMap(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -295,13 +295,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// use sn_client::Client;
     /// use sn_data_types::{ Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let secret_key = SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
@@ -334,7 +334,7 @@ impl Client {
         &mut self,
         address: MapAddress,
         key: Vec<u8>,
-    ) -> Result<MapValue, CoreError>
+    ) -> Result<MapValue, ClientError>
     where
         Self: Sized,
     {
@@ -344,13 +344,13 @@ impl Client {
             .send_query(wrap_map_read(MapRead::GetValue { address, key }))
             .await?
         {
-            QueryResponse::GetMapValue(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::GetMapValue(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
-    pub async fn get_map_shell(&mut self, address: MapAddress) -> Result<Map, CoreError>
+    pub async fn get_map_shell(&mut self, address: MapAddress) -> Result<Map, ClientError>
     where
         Self: Sized,
     {
@@ -360,8 +360,8 @@ impl Client {
             .send_query(wrap_map_read(MapRead::GetShell(address)))
             .await?
         {
-            QueryResponse::GetMapShell(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::GetMapShell(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -370,13 +370,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError; use std::str::FromStr;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// use sn_client::Client;
     /// use sn_data_types::{ Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let secret_key = SecretKey::random();
     /// let mut client = Client::new(Some(secret_key)).await?;
@@ -402,7 +402,7 @@ impl Client {
     /// assert_eq!(version, 0);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_map_version(&mut self, address: MapAddress) -> Result<u64, CoreError>
+    pub async fn get_map_version(&mut self, address: MapAddress) -> Result<u64, ClientError>
     where
         Self: Sized,
     {
@@ -412,8 +412,8 @@ impl Client {
             .send_query(wrap_map_read(MapRead::GetVersion(address)))
             .await?
         {
-            QueryResponse::GetMapVersion(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::GetMapVersion(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -427,7 +427,7 @@ impl Client {
         name: XorName,
         tag: u64,
         actions: MapSeqEntryActions,
-    ) -> Result<(), CoreError>
+    ) -> Result<(), ClientError>
     where
         Self: Sized,
     {
@@ -445,7 +445,7 @@ impl Client {
         name: XorName,
         tag: u64,
         actions: MapUnseqEntryActions,
-    ) -> Result<(), CoreError>
+    ) -> Result<(), ClientError>
     where
         Self: Sized,
     {
@@ -462,7 +462,7 @@ impl Client {
         &mut self,
         name: XorName,
         tag: u64,
-    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, CoreError>
+    ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, ClientError>
     where
         Self: Sized,
     {
@@ -476,13 +476,13 @@ impl Client {
             .await?
         {
             QueryResponse::ListMapEntries(res) => {
-                res.map_err(CoreError::from)
+                res.map_err(ClientError::from)
                     .and_then(|entries| match entries {
                         MapEntries::Unseq(data) => Ok(data),
-                        MapEntries::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        MapEntries::Seq(_) => Err(ClientError::ReceivedUnexpectedData),
                     })
             }
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -491,7 +491,7 @@ impl Client {
         &mut self,
         name: XorName,
         tag: u64,
-    ) -> Result<MapSeqEntries, CoreError>
+    ) -> Result<MapSeqEntries, ClientError>
     where
         Self: Sized,
     {
@@ -505,13 +505,13 @@ impl Client {
             .await?
         {
             QueryResponse::ListMapEntries(res) => {
-                res.map_err(CoreError::from)
+                res.map_err(ClientError::from)
                     .and_then(|entries| match entries {
                         MapEntries::Seq(data) => Ok(data),
-                        MapEntries::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        MapEntries::Unseq(_) => Err(ClientError::ReceivedUnexpectedData),
                     })
             }
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -519,7 +519,7 @@ impl Client {
     pub async fn list_map_keys(
         &mut self,
         address: MapAddress,
-    ) -> Result<BTreeSet<Vec<u8>>, CoreError>
+    ) -> Result<BTreeSet<Vec<u8>>, ClientError>
     where
         Self: Sized,
     {
@@ -529,8 +529,8 @@ impl Client {
             .send_query(wrap_map_read(MapRead::ListKeys(address)))
             .await?
         {
-            QueryResponse::ListMapKeys(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::ListMapKeys(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }?;
 
         Ok(res)
@@ -541,7 +541,7 @@ impl Client {
         &mut self,
         name: XorName,
         tag: u64,
-    ) -> Result<Vec<MapSeqValue>, CoreError>
+    ) -> Result<Vec<MapSeqValue>, ClientError>
     where
         Self: Sized,
     {
@@ -555,13 +555,13 @@ impl Client {
             .await?
         {
             QueryResponse::ListMapValues(res) => {
-                res.map_err(CoreError::from)
+                res.map_err(ClientError::from)
                     .and_then(|values| match values {
                         MapValues::Seq(data) => Ok(data),
-                        MapValues::Unseq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        MapValues::Unseq(_) => Err(ClientError::ReceivedUnexpectedData),
                     })
             }
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -570,7 +570,7 @@ impl Client {
         &mut self,
         name: XorName,
         tag: u64,
-    ) -> Result<Vec<Vec<u8>>, CoreError>
+    ) -> Result<Vec<Vec<u8>>, ClientError>
     where
         Self: Sized,
     {
@@ -584,13 +584,13 @@ impl Client {
             .await?
         {
             QueryResponse::ListMapValues(res) => {
-                res.map_err(CoreError::from)
+                res.map_err(ClientError::from)
                     .and_then(|values| match values {
                         MapValues::Unseq(data) => Ok(data),
-                        MapValues::Seq(_) => Err(CoreError::ReceivedUnexpectedData),
+                        MapValues::Seq(_) => Err(ClientError::ReceivedUnexpectedData),
                     })
             }
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -603,7 +603,7 @@ impl Client {
         &mut self,
         address: MapAddress,
         user: PublicKey,
-    ) -> Result<MapPermissionSet, CoreError>
+    ) -> Result<MapPermissionSet, ClientError>
     where
         Self: Sized,
     {
@@ -616,8 +616,8 @@ impl Client {
             }))
             .await?
         {
-            QueryResponse::ListMapUserPermissions(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::ListMapUserPermissions(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }
     }
 
@@ -625,7 +625,7 @@ impl Client {
     pub async fn list_map_permissions(
         &mut self,
         address: MapAddress,
-    ) -> Result<BTreeMap<PublicKey, MapPermissionSet>, CoreError>
+    ) -> Result<BTreeMap<PublicKey, MapPermissionSet>, ClientError>
     where
         Self: Sized,
     {
@@ -635,8 +635,8 @@ impl Client {
             .send_query(wrap_map_read(MapRead::ListPermissions(address)))
             .await?
         {
-            QueryResponse::ListMapPermissions(res) => res.map_err(CoreError::from),
-            _ => Err(CoreError::ReceivedUnexpectedEvent),
+            QueryResponse::ListMapPermissions(res) => res.map_err(ClientError::from),
+            _ => Err(ClientError::ReceivedUnexpectedEvent),
         }?;
 
         Ok(res)
@@ -649,7 +649,7 @@ impl Client {
         user: PublicKey,
         permissions: MapPermissionSet,
         version: u64,
-    ) -> Result<(), CoreError>
+    ) -> Result<(), ClientError>
     where
         Self: Sized,
     {
@@ -665,7 +665,7 @@ impl Client {
         address: MapAddress,
         user: PublicKey,
         version: u64,
-    ) -> Result<(), CoreError>
+    ) -> Result<(), ClientError>
     where
         Self: Sized,
     {
@@ -681,7 +681,7 @@ impl Client {
         _tag: u64,
         _new_owner: PublicKey,
         _version: u64,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         unimplemented!();
     }
 }
@@ -698,7 +698,7 @@ pub mod exported_tests {
     // 1. Create unseq. map with some entries and perms and put it on the network
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
-    pub async fn unseq_map_test() -> Result<(), CoreError> {
+    pub async fn unseq_map_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
 
         let name = XorName(rand::random());
@@ -742,7 +742,7 @@ pub mod exported_tests {
     // 1. Create an put seq. map on the network with some entries and permissions.
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
-    pub async fn seq_map_test() -> Result<(), CoreError> {
+    pub async fn seq_map_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
 
         let name = XorName(rand::random());
@@ -798,7 +798,7 @@ pub mod exported_tests {
 
     // 1. Put seq. map on the network and then delete it
     // 2. Try getting the data object. It should panic
-    pub async fn del_seq_map_test() -> Result<(), CoreError> {
+    pub async fn del_seq_map_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
@@ -815,7 +815,7 @@ pub mod exported_tests {
         client.delete_map(mapref).await?;
         let res = client.get_map(*data.address()).await;
         match res {
-            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(ClientError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
         }
         Ok(())
@@ -823,7 +823,7 @@ pub mod exported_tests {
 
     // 1. Put unseq. map on the network and then delete it
     // 2. Try getting the data object. It should panic
-    pub async fn del_unseq_map_test() -> Result<(), CoreError> {
+    pub async fn del_unseq_map_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
@@ -841,7 +841,7 @@ pub mod exported_tests {
 
         let res = client.get_map(*data.address()).await;
         match res {
-            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(ClientError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
         }
 
@@ -850,7 +850,7 @@ pub mod exported_tests {
 
     // 1. Create a client that PUTs some map on the network
     // 2. Create a different client that tries to delete the data. It should panic.
-    pub async fn del_unseq_map_permission_test() -> Result<(), CoreError> {
+    pub async fn del_unseq_map_permission_test() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
@@ -869,7 +869,7 @@ pub mod exported_tests {
         let mut client = Client::new(None).await?;
         let res = client.delete_map(mapref).await;
         match res {
-            Err(CoreError::DataError(SndError::AccessDenied)) => (),
+            Err(ClientError::DataError(SndError::AccessDenied)) => (),
             res => panic!("Unexpected result: {:?}", res),
         }
 
@@ -877,7 +877,7 @@ pub mod exported_tests {
     }
 
     pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new()
@@ -907,7 +907,7 @@ pub mod exported_tests {
             .get_map_shell(*test_data_with_different_owner_than_client.address())
             .await;
         match res {
-            Err(CoreError::DataError(SndError::NoSuchData)) => (),
+            Err(ClientError::DataError(SndError::NoSuchData)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(e) => panic!("Unexpected: {:?}", e),
         };
@@ -926,7 +926,7 @@ pub mod exported_tests {
     // 2. Modify the permissions of a user in the permission set.
     // 3. Fetch the list of permissions and verify the edit.
     // 4. Delete a user's permissions from the permission set and verify the deletion.
-    pub async fn map_can_modify_permissions_test() -> Result<(), CoreError> {
+    pub async fn map_can_modify_permissions_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
@@ -984,7 +984,7 @@ pub mod exported_tests {
     // 2. Create some entry actions and mutate the data on the network.
     // 3. List the entries and verify that the mutation was applied.
     // 4. Fetch a value for a particular key and verify
-    pub async fn map_mutations_test() -> Result<(), CoreError> {
+    pub async fn map_mutations_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
 
         let name = XorName(rand::random());
@@ -1070,7 +1070,7 @@ pub mod exported_tests {
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
-            Err(CoreError::DataError(SndError::NoSuchEntry)) => (),
+            Err(ClientError::DataError(SndError::NoSuchEntry)) => (),
             Err(err) => panic!("Unexpected error: {:?}", err),
         };
 
@@ -1121,12 +1121,12 @@ pub mod exported_tests {
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
-            Err(CoreError::DataError(SndError::NoSuchEntry)) => Ok(()),
+            Err(ClientError::DataError(SndError::NoSuchEntry)) => Ok(()),
             Err(err) => panic!("Unexpected error: {:?}", err),
         }
     }
 
-    pub async fn map_deletions_should_cost_put_price() -> Result<(), CoreError> {
+    pub async fn map_deletions_should_cost_put_price() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
         let mut client = Client::new(None).await?;
@@ -1152,51 +1152,51 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use super::CoreError;
+    use super::ClientError;
 
     #[tokio::test]
-    pub async fn unseq_map_test() -> Result<(), CoreError> {
+    pub async fn unseq_map_test() -> Result<(), ClientError> {
         exported_tests::unseq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn seq_map_test() -> Result<(), CoreError> {
+    pub async fn seq_map_test() -> Result<(), ClientError> {
         exported_tests::seq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn del_seq_map_test() -> Result<(), CoreError> {
+    pub async fn del_seq_map_test() -> Result<(), ClientError> {
         exported_tests::del_seq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn del_unseq_map_test() -> Result<(), CoreError> {
+    pub async fn del_unseq_map_test() -> Result<(), ClientError> {
         exported_tests::del_unseq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn del_unseq_map_permission_test() -> Result<(), CoreError> {
+    pub async fn del_unseq_map_permission_test() -> Result<(), ClientError> {
         exported_tests::del_unseq_map_permission_test().await
     }
 
     #[tokio::test]
     pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         exported_tests::map_cannot_initially_put_data_with_another_owner_than_current_client().await
     }
 
     #[tokio::test]
-    pub async fn map_can_modify_permissions_test() -> Result<(), CoreError> {
+    pub async fn map_can_modify_permissions_test() -> Result<(), ClientError> {
         exported_tests::map_can_modify_permissions_test().await
     }
 
     #[tokio::test]
-    pub async fn map_mutations_test() -> Result<(), CoreError> {
+    pub async fn map_mutations_test() -> Result<(), ClientError> {
         exported_tests::map_mutations_test().await
     }
 
     #[tokio::test]
-    pub async fn map_deletions_should_cost_put_price() -> Result<(), CoreError> {
+    pub async fn map_deletions_should_cost_put_price() -> Result<(), ClientError> {
         exported_tests::map_deletions_should_cost_put_price().await
     }
 }

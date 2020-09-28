@@ -12,7 +12,7 @@ pub mod logging;
 #[cfg(any(test, feature = "testing", feature = "simulated-payouts"))]
 pub mod test_utils;
 
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 use bincode::{deserialize, serialize};
 use miscreant::aead::Aead;
 use miscreant::Aes128SivAead;
@@ -94,7 +94,7 @@ pub fn symmetric_encrypt(
     plain_text: &[u8],
     secret_key: &SymEncKey,
     nonce: Option<&SymEncNonce>,
-) -> Result<Vec<u8>, CoreError> {
+) -> Result<Vec<u8>, ClientError> {
     let nonce = match nonce {
         Some(nonce) => *nonce,
         None => generate_nonce(),
@@ -107,12 +107,15 @@ pub fn symmetric_encrypt(
 }
 
 /// Symmetric decryption.
-pub fn symmetric_decrypt(cipher_text: &[u8], secret_key: &SymEncKey) -> Result<Vec<u8>, CoreError> {
+pub fn symmetric_decrypt(
+    cipher_text: &[u8],
+    secret_key: &SymEncKey,
+) -> Result<Vec<u8>, ClientError> {
     let SymmetricEnc { nonce, cipher_text } = deserialize::<SymmetricEnc>(cipher_text)?;
     let mut cipher = Aes128SivAead::new(secret_key);
     cipher
         .open(&nonce, &[], &cipher_text)
-        .map_err(|_| CoreError::SymmetricDecipherFailure)
+        .map_err(|_| ClientError::SymmetricDecipherFailure)
 }
 
 /// Generates a `String` from `length` random UTF-8 `char`s.  Note that the NULL character will be

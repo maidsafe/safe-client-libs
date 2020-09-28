@@ -127,7 +127,7 @@ fn main() {
         .collect();
 
     // Parse command line arguments.
-    let matches = App::new("safe_client_libs packaging tool")
+    let matches = App::new("sn_client packaging tool")
         .arg(
             Arg::with_name("NAME")
                 .short("n")

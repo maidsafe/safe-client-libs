@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{Client, CoreError};
+use super::{Client, ClientError};
 use async_trait::async_trait;
 use log::trace;
 use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
@@ -38,7 +38,7 @@ impl Storage for SelfEncryptionStorage {
         trace!("Self encrypt invoked GetBlob.");
 
         if name.len() != XOR_NAME_LEN {
-            let err = CoreError::Unexpected("Requested `name` is incorrect size.".to_owned());
+            let err = ClientError::Unexpected("Requested `name` is incorrect size.".to_owned());
             let err = SEStorageError::from(err);
             return Err(err);
         }
@@ -86,7 +86,7 @@ impl Storage for SelfEncryptionStorage {
 
 /// Errors arising from storage object being used by self_encryptors.
 #[derive(Debug)]
-pub struct SEStorageError(pub Box<CoreError>);
+pub struct SEStorageError(pub Box<ClientError>);
 
 impl Display for SEStorageError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
@@ -100,8 +100,8 @@ impl Error for SEStorageError {
     }
 }
 
-impl From<CoreError> for SEStorageError {
-    fn from(error: CoreError) -> Self {
+impl From<ClientError> for SEStorageError {
+    fn from(error: ClientError) -> Self {
         Self(Box::new(error))
     }
 }
@@ -129,7 +129,7 @@ impl Storage for SelfEncryptionStorageDryRun {
 
     async fn get(&mut self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetBlob dry run.");
-        Err(SEStorageError::from(CoreError::Unexpected(
+        Err(SEStorageError::from(ClientError::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned(),
         )))
     }

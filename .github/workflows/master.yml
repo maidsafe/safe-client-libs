@@ -53,7 +53,7 @@ jobs:
 
       - uses: actions/upload-artifact@master
         with:
-          name: safe_client_libs-${{ matrix.target }}-prod
+          name: sn_client-${{ matrix.target }}-prod
           path: artifacts
 
   deploy:
@@ -83,32 +83,32 @@ jobs:
 
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-x86_64-pc-windows-gnu-prod
+          name: sn_client-x86_64-pc-windows-gnu-prod
           path: artifacts/prod/x86_64-pc-windows-gnu/release
 
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-x86_64-pc-windows-gnu-dev
+          name: sn_client-x86_64-pc-windows-gnu-dev
           path: artifacts/dev/x86_64-pc-windows-gnu/release
 
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-x86_64-unknown-linux-gnu-prod
+          name: sn_client-x86_64-unknown-linux-gnu-prod
           path: artifacts/prod/x86_64-unknown-linux-gnu/release
 
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-x86_64-unknown-linux-gnu-dev
+          name: sn_client-x86_64-unknown-linux-gnu-dev
           path: artifacts/dev/x86_64-unknown-linux-gnu/release
 
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-x86_64-apple-darwin-prod
+          name: sn_client-x86_64-apple-darwin-prod
           path: artifacts/prod/x86_64-apple-darwin/release
 
       - uses: actions/download-artifact@master
         with:
-          name: safe_client_libs-x86_64-apple-darwin-dev
+          name: sn_client-x86_64-apple-darwin-dev
           path: artifacts/dev/x86_64-apple-darwin/release
       
       
@@ -116,8 +116,8 @@ jobs:
       - shell: bash
         id: versioning
         run: |
-          core_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          echo "::set-output name=core_version::$core_version"
+          client_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          echo "::set-output name=client_version::$client_version"
 
       # Create `deploy` directory and put the artifacts into tar/zip archives for deployment with the release.
       - shell: bash
@@ -140,9 +140,9 @@ jobs:
 
       # Upload all the release archives to S3.
       - name: Upload dev to S3
-        run: aws s3 sync deploy/dev s3://safe-client-libs --acl public-read
+        run: aws s3 sync deploy/dev s3://sn-client --acl public-read
       - name: Upload prod to S3
-        run: aws s3 sync deploy/prod s3://safe-client-libs --acl public-read
+        run: aws s3 sync deploy/prod s3://sn-client --acl public-read
 
   # Automatic publish, triggered by a commit starting with "Version change".
   publish:
@@ -157,12 +157,12 @@ jobs:
       - shell: bash
         id: versioning
         run: |
-          core_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          old_core_version=$(cargo search safe_core --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          echo "Current core version: $core_version"
-          echo "Old core version: $old_core_version"
-          echo "::set-output name=core_version::$core_version"
-          echo "::set-output name=old_core_version::$old_core_version"
+          client_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          old_client_version=$(cargo search sn_client --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
+          echo "Current client version: $client_version"
+          echo "Old client version: $old_client_version"
+          echo "::set-output name=client_version::$client_version"
+          echo "::set-output name=old_client_version::$old_client_version"
 
       # Install Rust
       - uses: actions-rs/toolchain@v1
@@ -177,6 +177,6 @@ jobs:
 
       # Only publish crates if their Cargo.toml version != their crates.io version.
       # Otherwise, cargo publish would fail on individual crates that haven't had their versions changed.
-      - name: Publish safe_core
-        if: steps.versioning.outputs.core_version != steps.versioning.outputs.old_core_version
+      - name: Publish sn_client
+        if: steps.versioning.outputs.client_version != steps.versioning.outputs.old_client_version
         run: cargo publish

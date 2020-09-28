@@ -1,4 +1,4 @@
-# Safe Core - Change Log
+# Changelog
 
 ## [0.42.1]
 - Update ffi-utils to 0.17.0

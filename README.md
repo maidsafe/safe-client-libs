@@ -1,16 +1,16 @@
-# Safe Core
+# sn_client
 
-| [![](http://meritbadge.herokuapp.com/safe_core)](https://crates.io/crates/safe_core) | [![Documentation](https://docs.rs/safe_core/badge.svg)](https://docs.rs/safe_core) |
+| [![](http://meritbadge.herokuapp.com/sn_client)](https://crates.io/crates/sn_client) | [![Documentation](https://docs.rs/sn_client/badge.svg)](https://docs.rs/sn_client) |
 |:----------:|:----------:|
 
 ## Overview
 
-`safe_core` can interface conditionally against either the sn_routing crate or a mock used for local testing.
+`sn_client` can interface conditionally against either the sn_routing crate or a mock used for local testing.
 
 ## Crate Dependencies
 Crate dependencies graph:
 
-![safe_core safe-network dependencies](https://github.com/maidsafe/safe-client-libs/blob/png_generator/safe_core-sn-dependencies.png)
+![sn_client Safe Network dependencies](https://github.com/maidsafe/sn_client/blob/png_generator/sn_client-sn-dependencies.png)
 
 
 ### Legend
@@ -24,10 +24,10 @@ A dependency can be of more than one kind. In such cases, it is coloured with th
 `Regular -> Build -> Dev -> Optional`
 
 <details>
-<summary> View all safe_core dependencies</summary>
+<summary> View all sn_client dependencies</summary>
 <p>
 
-![safe_core all dependencies](https://github.com/maidsafe/safe-client-libs/blob/png_generator/safe_core-all-dependencies.png)
+![sn_client all dependencies](https://github.com/maidsafe/sn_client/blob/png_generator/sn_client-all-dependencies.png)
 
 </p>
 </details>
@@ -40,6 +40,6 @@ This Safe Network library is licensed under the General Public License (GPL), ve
 
 ### Linking exception
 
-safe_core is licensed under GPLv3 with linking exception. This means you can link to and use the library from any program, proprietary or open source; paid or gratis. However, if you modify safe_core, you must distribute the source to your modified version under the terms of the GPLv3.
+sn_client is licensed under GPLv3 with linking exception. This means you can link to and use the library from any program, proprietary or open source; paid or gratis. However, if you modify sn_client, you must distribute the source to your modified version under the terms of the GPLv3.
 
-See the LICENSE file for more details.
+See the [LICENSE](LICENSE) file for more details.

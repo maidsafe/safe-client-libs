@@ -18,7 +18,7 @@ pub use sn_transfers::TransferActor as SafeTransferActor;
 
 use crate::client::ConnectionManager;
 use crate::client::{Client, COST_OF_PUT};
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 
 use futures::channel::oneshot::channel;
 
@@ -39,11 +39,11 @@ impl Client {
     ///
     /// Retrieve an existing balance
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     /// use sn_data_types::Money;
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
     /// // (It should have 0 balance)
     /// let secret_key = threshold_crypto::SecretKey::random();
@@ -54,7 +54,7 @@ impl Client {
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance(&mut self) -> Result<Money, CoreError>
+    pub async fn get_balance(&mut self) -> Result<Money, ClientError>
     where
         Self: Sized,
     {
@@ -73,11 +73,11 @@ impl Client {
     ///
     /// Retrieve an existing balance
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
     /// use sn_data_types::{Money, PublicKey};
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
     /// // (It should have 0 balance)
     /// let secret_key = threshold_crypto::SecretKey::random();
@@ -90,7 +90,7 @@ impl Client {
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance_for(&mut self, public_key: PublicKey) -> Result<Money, CoreError>
+    pub async fn get_balance_for(&mut self, public_key: PublicKey) -> Result<Money, ClientError>
     where
         Self: Sized,
     {
@@ -104,9 +104,9 @@ impl Client {
     ///
     /// Retrieving an existing balance history
     /// ```no_run
-    /// # extern crate tokio; use safe_core::CoreError;
-    /// use safe_core::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), CoreError> = futures::executor::block_on( async {
+    /// # extern crate tokio; use sn_client::ClientError;
+    /// use sn_client::Client;
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random sk.
     /// let secret_key = threshold_crypto::SecretKey::random();
     ///
@@ -116,7 +116,7 @@ impl Client {
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_history(&mut self) -> Result<(), CoreError> {
+    pub async fn get_history(&mut self) -> Result<(), ClientError> {
         let public_key = *self.full_id.public_key();
         info!("Getting SnTransfers history for pk: {:?}", public_key);
 
@@ -136,8 +136,8 @@ impl Client {
             .await?;
 
         let history = match res {
-            QueryResponse::GetHistory(history) => history.map_err(CoreError::from),
-            _ => Err(CoreError::from(format!(
+            QueryResponse::GetHistory(history) => history.map_err(ClientError::from),
+            _ => Err(ClientError::from(format!(
                 "Unexpected response when retrieving account history {:?}",
                 res
             ))),
@@ -157,7 +157,7 @@ impl Client {
                     .to_string()
                     .contains("No credits or debits found to sync to actor")
                 {
-                    return Err(CoreError::from(error));
+                    return Err(ClientError::from(error));
                 }
 
                 warn!(
@@ -175,7 +175,7 @@ impl Client {
     /// Validates a tranction for paying store_cost
     pub(crate) async fn create_write_payment_proof(
         &mut self,
-    ) -> Result<DebitAgreementProof, CoreError> {
+    ) -> Result<DebitAgreementProof, ClientError> {
         info!("Sending requests for payment for write operation");
 
         //set up message
@@ -190,7 +190,7 @@ impl Client {
             .lock()
             .await
             .transfer(COST_OF_PUT, section_key)?
-            .ok_or_else(|| CoreError::from("No transfer produced by actor."))?
+            .ok_or_else(|| ClientError::from("No transfer produced by actor."))?
             .signed_transfer;
 
         let command = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
@@ -218,7 +218,7 @@ impl Client {
     pub(crate) async fn get_replica_keys(
         full_id: ClientFullId,
         cm: &mut ConnectionManager,
-    ) -> Result<PublicKeySet, CoreError> {
+    ) -> Result<PublicKeySet, ClientError> {
         trace!("Getting replica keys for {:?}", full_id);
 
         let keys_query_msg = Query::Transfer(TransferQuery::GetReplicaKeys(*full_id.public_key()));
@@ -229,7 +229,7 @@ impl Client {
 
         match res {
             QueryResponse::GetReplicaKeys(pk_set) => Ok(pk_set?),
-            _ => Err(CoreError::from(format!(
+            _ => Err(ClientError::from(format!(
                 "Unexpected response when retrieving account replica keys for {:?}",
                 full_id.public_key()
             ))),
@@ -241,10 +241,10 @@ impl Client {
         &mut self,
         message: &Message,
         _id: TransferId,
-    ) -> Result<DebitAgreementProof, CoreError> {
+    ) -> Result<DebitAgreementProof, ClientError> {
         info!("Awaiting transfer validation");
 
-        let (sender, receiver) = channel::<Result<DebitAgreementProof, CoreError>>();
+        let (sender, receiver) = channel::<Result<DebitAgreementProof, ClientError>>();
 
         self.connection_manager
             .lock()
@@ -253,7 +253,7 @@ impl Client {
             .await?;
 
         receiver.await.map_err(|error| {
-            CoreError::from(format!(
+            ClientError::from(format!(
                 "Error with validation receiver channel, {:?}",
                 error
             ))
@@ -275,7 +275,8 @@ mod tests {
     use std::str::FromStr;
 
     #[tokio::test]
-    async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), CoreError> {
+    async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), ClientError>
+    {
         let (sk, _pk) = shared_box::gen_bls_keypair();
 
         match Client::new(Some(sk)).await {
@@ -290,7 +291,7 @@ mod tests {
     // TODO: only do this for real node until we a local replica bank
     #[tokio::test]
     #[cfg(not(feature = "mock-network"))]
-    async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), CoreError> {
+    async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError> {
         let (sk, _pk) = shared_box::gen_bls_keypair();
         let (sk2, _pk2) = shared_box::gen_bls_keypair();
 

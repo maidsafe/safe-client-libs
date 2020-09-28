@@ -2,7 +2,7 @@ use sn_data_types::DebitAgreementProof;
 use sn_transfers::ActorEvent;
 
 use crate::client::Client;
-use crate::errors::CoreError;
+use crate::errors::ClientError;
 
 /// Handle Write API msg_contents for a given Client.
 impl Client {
@@ -10,12 +10,12 @@ impl Client {
     pub(crate) async fn apply_write_payment_to_local_actor(
         &mut self,
         debit_proof: DebitAgreementProof,
-    ) -> Result<(), CoreError> {
+    ) -> Result<(), ClientError> {
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.
         let register_event = actor
             .register(debit_proof.clone())?
-            .ok_or_else(|| CoreError::from("No events to register for proof."))?;
+            .ok_or_else(|| ClientError::from("No events to register for proof."))?;
 
         actor.apply(ActorEvent::TransferRegistrationSent(register_event))?;
 
@@ -31,7 +31,7 @@ pub mod exported_tests {
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), CoreError> {
+    pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), ClientError> {
         let (sk, pk) = shared_box::gen_bls_keypair();
         let pk = PublicKey::Bls(pk);
 
@@ -40,7 +40,7 @@ pub mod exported_tests {
         let mut initial_actor = Client::new(Some(sk.clone())).await?;
 
         match initial_actor.pay_and_write_sequence_to_network(data).await {
-            Err(CoreError::DataError(e)) => {
+            Err(ClientError::DataError(e)) => {
                 assert_eq!(e.to_string(), "Not enough money to complete this operation");
             }
             res => panic!(
@@ -57,11 +57,11 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use super::CoreError;
+    use super::ClientError;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), CoreError> {
+    async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), ClientError> {
         exported_tests::transfer_actor_with_no_balance_cannot_store_data().await
     }
 }
