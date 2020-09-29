@@ -22,6 +22,8 @@ use sn_data_types::{
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
+use tokio::time::{delay_for, Duration};
+
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
 
@@ -33,6 +35,7 @@ struct ElderStream {
     send_stream: Arc<Mutex<SendStream>>,
     connection: Arc<Mutex<Connection>>,
     listener: Arc<Mutex<NetworkListenerHandle>>,
+    socket_addr: SocketAddr,
 }
 
 /// JoinHandle for recv stream listener thread
@@ -154,13 +157,60 @@ impl ConnectionManager {
         let mut tasks = Vec::default();
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
+            let socket_addr = elder.socket_addr.clone();
 
             // Create a new stream here to not have to worry about filtering replies
             let connection = Arc::clone(&elder.connection);
 
             let task_handle = tokio::spawn(async move {
-                let mut streams = connection.lock().await.send(msg_bytes_clone).await?;
-                let response = streams.1.next().await?;
+                let mut done_trying = false;
+                let mut result = Err(ClientError::from("Error querying elder"));
+                let mut attempts: i32 = 1;
+                while !done_trying {
+                    let msg_bytes_clone = msg_bytes_clone.clone();
+
+                    match connection.lock().await.send(msg_bytes_clone).await {
+                        Ok(mut streams) => {
+                            result = match streams.1.next().await {
+                                Ok(bytes) => Ok(bytes),
+                                Err(error) => {
+                                    done_trying = true;
+                                    Err(ClientError::from(format!(
+                                        "Error receiving query via qp2p: {:?}",
+                                        error
+                                    )))
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            result = Err(ClientError::from(format!(
+                                "Error receiving query via qp2p: {:?}",
+                                error
+                            )));
+                        }
+                    };
+
+                    debug!(
+                        "Retry # {:?} @ {:?} QUERY results in ok? : {:?}",
+                        attempts,
+                        socket_addr,
+                        &result.is_ok()
+                    );
+
+                    if let Ok(_) = result {
+                        done_trying = true;
+                    }
+
+                    // TODO: adjust this number as we have a more solid section startup (this was set when we were getting only 3 elders on avg)
+                    if attempts > 5 {
+                        done_trying = true;
+                    }
+
+                    attempts += 1;
+                }
+
+                let response = result?;
+
                 match deserialize(&response) {
                     Ok(MsgEnvelope { message, .. }) => Ok(message),
                     Err(e) => {
@@ -176,6 +226,7 @@ impl ConnectionManager {
 
         // Let's figure out what's the value which is in the majority of responses obtained
         let mut vote_map = VoteMap::default();
+        let mut received_errors = 0;
 
         // TODO: make threshold dynamic based upon known elders
         let threshold = 2;
@@ -187,6 +238,11 @@ impl ConnectionManager {
         let mut todo = tasks;
 
         while !has_elected_a_response {
+            if todo.is_empty() {
+                warn!("No more connections to try");
+                break;
+            }
+
             let (res, _idx, remaining_futures) = select_all(todo.into_iter()).await;
             todo = remaining_futures;
 
@@ -199,45 +255,35 @@ impl ConnectionManager {
 
                         // First, see if this latest response brings us above the threashold for any response
                         if *counter > threshold {
+                            trace!("Enough votes to be above response threshold");
+
                             winner = (Some(response.clone()), *counter);
                             has_elected_a_response = true;
                         }
-
-                        // Second, let's handle no winner on majority responses.
-                        if !has_elected_a_response {
-                            let mut number_of_responses = 0;
-                            let mut most_popular_response = winner.clone();
-
-                            for (message, votes) in vote_map.iter() {
-                                number_of_responses += votes;
-
-                                if most_popular_response.0 == None {
-                                    most_popular_response = (Some(message.clone()), *votes);
-                                }
-
-                                if votes > &most_popular_response.1 {
-                                    trace!("setting winner, with {:?} votes: {:?}", votes, message);
-
-                                    most_popular_response = (Some(message.clone()), *votes)
-                                }
-                            }
-
-                            if number_of_responses == self.elders.len() {
-                                trace!("No clear response above the threshold ({:?}), so choosing most popular response with: {:?} votes: {:?}", threshold, most_popular_response.1, most_popular_response.0);
-                                winner = most_popular_response;
-                                has_elected_a_response = true;
-                            }
-                        }
                     }
                     _ => {
-                        error!("Unexpected message in reply to Query: {:?}", res);
+                        warn!("Unexpected message in reply to query (retrying): {:?}", res);
+                        received_errors += 1;
                     }
                 }
+            } else if let Err(error) = res {
+                error!("Error spawning query task: {:?} ", error);
+                received_errors += 1;
+            }
+
+            // Second, let's handle no winner on majority responses.
+            if !has_elected_a_response {
+                winner = self.select_best_of_the_rest_response(
+                    winner,
+                    &vote_map,
+                    received_errors,
+                    &mut has_elected_a_response,
+                )?;
             }
         }
 
         trace!(
-            "Response obtained from majority {} of nodes: {:?}",
+            "Response obtained after querying {} nodes: {:?}",
             winner.1,
             winner.0
         );
@@ -245,6 +291,48 @@ impl ConnectionManager {
         winner
             .0
             .ok_or_else(|| ClientError::from("Failed to obtain a response from the network."))
+    }
+
+    /// Choose the best response when no single responses passes the threshold
+    fn select_best_of_the_rest_response(
+        &self,
+        current_winner: (Option<QueryResponse>, usize),
+        vote_map: &VoteMap,
+        received_errors: usize,
+        has_elected_a_response: &mut bool,
+    ) -> Result<(Option<QueryResponse>, usize), ClientError> {
+        trace!("No response selected yet, checking if fallback needed");
+        let mut number_of_responses = 0;
+        let mut most_popular_response = current_winner.clone();
+
+        for (message, votes) in vote_map.iter() {
+            number_of_responses += votes;
+            trace!("Number of votes cast :{:?}", number_of_responses);
+
+            number_of_responses += received_errors;
+
+            trace!(
+                "Total number of responses (votes and errors) :{:?}",
+                number_of_responses
+            );
+
+            if most_popular_response.0 == None {
+                most_popular_response = (Some(message.clone()), *votes);
+            }
+
+            if votes > &most_popular_response.1 {
+                trace!("Selecting winner, with {:?} votes: {:?}", votes, message);
+
+                most_popular_response = (Some(message.clone()), *votes)
+            }
+        }
+
+        if number_of_responses == self.elders.len() {
+            trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
+            *has_elected_a_response = true;
+        }
+
+        Ok(most_popular_response)
     }
 
     // Private helpers
@@ -302,6 +390,52 @@ impl ConnectionManager {
         }
     }
 
+    /// Connect and bootstrap to one specific elder
+    async fn connect_to_elder(
+        endpoint: Arc<Mutex<Endpoint>>,
+        peer_addr: SocketAddr,
+        full_id: ClientFullId,
+    ) -> Result<
+        (
+            Arc<Mutex<SendStream>>,
+            Arc<Mutex<Connection>>,
+            RecvStream,
+            SocketAddr,
+        ),
+        ClientError,
+    > {
+        let connection = endpoint.lock().await.connect_to(&peer_addr).await?;
+
+        let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
+        let msg = Bytes::from(serialize(&handshake)?);
+        let (_send_stream, mut recv_stream) = connection.send(msg).await?;
+        let final_response = recv_stream.next().await?;
+
+        match deserialize(&final_response) {
+            Ok(HandshakeResponse::Challenge(node_public_key, challenge)) => {
+                trace!(
+                    "Got the challenge from {:?}, public id: {}",
+                    peer_addr,
+                    node_public_key
+                );
+                let response = HandshakeRequest::ChallengeResult(full_id.sign(&challenge));
+                let msg = Bytes::from(serialize(&response)?);
+                let (send_stream, recv_stream) = connection.send(msg).await?;
+
+                Ok((
+                    Arc::new(Mutex::new(send_stream)),
+                    Arc::new(Mutex::new(connection)),
+                    recv_stream,
+                    peer_addr,
+                ))
+            }
+            Ok(_) => Err(ClientError::from(
+                "Unexpected message type while expeccting challenge from Elder.",
+            )),
+            Err(e) => Err(ClientError::from(format!("Unexpected error {:?}", e))),
+        }
+    }
+
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
     async fn connect_to_elders(
@@ -319,35 +453,29 @@ impl ConnectionManager {
             let endpoint = Arc::clone(&self.endpoint);
 
             let task_handle = tokio::spawn(async move {
-                let connection = endpoint.lock().await.connect_to(&peer_addr).await?;
+                let mut done_trying = false;
+                let mut result = Err(ClientError::from("Could not to connect to this elder"));
+                let mut attempts: i32 = 1;
+                while !done_trying {
+                    let endpoint = Arc::clone(&endpoint);
+                    let full_id = full_id.clone();
+                    result = Self::connect_to_elder(endpoint, peer_addr, full_id).await;
 
-                let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
-                let msg = Bytes::from(serialize(&handshake)?);
-                let (_send_stream, mut recv_stream) = connection.send(msg).await?;
-                let final_response = recv_stream.next().await?;
+                    debug!(
+                        "Elder conn attempt #{:?} @ {:?} is ok? : {:?}",
+                        attempts,
+                        peer_addr,
+                        result.is_ok()
+                    );
 
-                match deserialize(&final_response) {
-                    Ok(HandshakeResponse::Challenge(node_public_key, challenge)) => {
-                        trace!(
-                            "Got the challenge from {:?}, public id: {}",
-                            peer_addr,
-                            node_public_key
-                        );
-                        let response = HandshakeRequest::ChallengeResult(full_id.sign(&challenge));
-                        let msg = Bytes::from(serialize(&response)?);
-                        let (send_stream, recv_stream) = connection.send(msg).await?;
-
-                        Ok((
-                            Arc::new(Mutex::new(send_stream)),
-                            Arc::new(Mutex::new(connection)),
-                            recv_stream,
-                        ))
+                    if result.is_ok() || attempts > 5 {
+                        done_trying = true;
                     }
-                    Ok(_) => Err(ClientError::from(
-                        "Unexpected message type while expeccting challenge from Elder.",
-                    )),
-                    Err(e) => Err(ClientError::from(format!("Unexpected error {:?}", e))),
+
+                    attempts += 1;
                 }
+
+                result
             });
             tasks.push(task_handle);
         }
@@ -369,9 +497,10 @@ impl ConnectionManager {
             todo = remaining_futures;
 
             if let Ok(elder_result) = res {
-                let (send_stream, connection, recv_stream) = elder_result.map_err(|err| {
-                    ClientError::from(format!("Failed to connect to an Elder: {}", err))
-                })?;
+                let (send_stream, connection, recv_stream, socket_addr) =
+                    elder_result.map_err(|err| {
+                        ClientError::from(format!("Failed to connect to an Elder: {}", err))
+                    })?;
 
                 let listener = self.listen_to_receive_stream(recv_stream).await?;
                 // We can now keep this connections in our instance
@@ -379,12 +508,13 @@ impl ConnectionManager {
                     send_stream,
                     connection,
                     listener: Arc::new(Mutex::new(listener)),
+                    socket_addr,
                 });
             }
 
             // TODO: this will effectively stop driving futures after we get 2...
             // We should still let all progress... just without blocking
-            if self.elders.len() > 2 {
+            if self.elders.len() > 5 {
                 has_sufficent_connections = true;
             }
 

@@ -143,7 +143,7 @@ impl Client {
             ))),
         }?;
 
-        debug!("Received history response is: {:?}", history);
+        trace!("Received history response is: {:?}", history);
 
         let mut actor = self.transfer_actor.lock().await;
         match actor.synch(history) {
