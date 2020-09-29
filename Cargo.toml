@@ -17,7 +17,6 @@ async-trait = "~0.1.41"
 bincode = "1.2.1"
 bytes = { version = "~0.5.4", features = ["serde"] }
 chrono = { version = "~0.4.0", features = ["serde"] }
-crossbeam-channel = "~0.4.2"
 dirs-next = "1.0.1"
 futures = "~0.3.5"
 futures-util = "~0.3.4"

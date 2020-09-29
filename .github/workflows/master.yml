@@ -150,19 +150,12 @@ jobs:
     needs: [deploy]
     runs-on: ubuntu-latest
     # Is this a version change commit?
-    if: startsWith(github.event.head_commit.message, 'Version change')
+    if: "startsWith(github.event.head_commit.message, 'chore(release):')"
     steps:
       - uses: actions/checkout@v2
-
-      - shell: bash
-        id: versioning
-        run: |
-          client_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          old_client_version=$(cargo search sn_client --limit 1 | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
-          echo "Current client version: $client_version"
-          echo "Old client version: $old_client_version"
-          echo "::set-output name=client_version::$client_version"
-          echo "::set-output name=old_client_version::$old_client_version"
+      # checkout with fetch-depth: '0' to be sure to retrieve all commits to look for the semver commit message
+        with:
+          fetch-depth: '0'
 
       # Install Rust
       - uses: actions-rs/toolchain@v1
@@ -171,12 +164,9 @@ jobs:
           toolchain: stable
           override: true
 
-      # Log into crates.io so we can publish
-      - name: crates.io login
+      # Publish to crates.io.
+      - name: Cargo Login
         run: cargo login ${{ secrets.CRATES_IO_TOKEN }}
 
-      # Only publish crates if their Cargo.toml version != their crates.io version.
-      # Otherwise, cargo publish would fail on individual crates that haven't had their versions changed.
-      - name: Publish sn_client
-        if: steps.versioning.outputs.client_version != steps.versioning.outputs.old_client_version
+      - name: Cargo Publish
         run: cargo publish
