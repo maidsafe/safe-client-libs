@@ -158,7 +158,7 @@ impl ConnectionManager {
         let mut tasks = Vec::default();
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
-            let socket_addr = elder.socket_addr.clone();
+            let socket_addr = elder.socket_addr;
 
             // Create a new stream here to not have to worry about filtering replies
             let connection = Arc::clone(&elder.connection);
@@ -199,11 +199,7 @@ impl ConnectionManager {
                         &result.is_ok()
                     );
 
-                    if let Ok(_) = result {
-                        done_trying = true;
-                    }
-
-                    if attempts > NUMBER_OF_RETRIES {
+                    if result.is_ok() || attempts > NUMBER_OF_RETRIES {
                         done_trying = true;
                     }
 
@@ -230,7 +226,7 @@ impl ConnectionManager {
         let mut received_errors = 0;
 
         // TODO: make threshold dynamic based upon known elders
-        let threshold: usize = (self.elders.len() as f32 / 2 as f32).ceil() as usize;
+        let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
 
         // Let's await for all responses
@@ -306,7 +302,7 @@ impl ConnectionManager {
     ) -> Result<(Option<QueryResponse>, usize), ClientError> {
         trace!("No response selected yet, checking if fallback needed");
         let mut number_of_responses = 0;
-        let mut most_popular_response = current_winner.clone();
+        let mut most_popular_response = current_winner;
 
         for (message, votes) in vote_map.iter() {
             number_of_responses += votes;
