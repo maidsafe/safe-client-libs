@@ -22,7 +22,8 @@ use sn_data_types::{
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
-use tokio::time::{delay_for, Duration};
+
+static NUMBER_OF_RETRIES: usize = 3;
 
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
@@ -163,9 +164,10 @@ impl ConnectionManager {
             let connection = Arc::clone(&elder.connection);
 
             let task_handle = tokio::spawn(async move {
+                // Retry queries that failed for connection issues
                 let mut done_trying = false;
                 let mut result = Err(ClientError::from("Error querying elder"));
-                let mut attempts: i32 = 1;
+                let mut attempts: usize = 1;
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
 
@@ -201,8 +203,7 @@ impl ConnectionManager {
                         done_trying = true;
                     }
 
-                    // TODO: adjust this number as we have a more solid section startup (this was set when we were getting only 3 elders on avg)
-                    if attempts > 5 {
+                    if attempts > NUMBER_OF_RETRIES {
                         done_trying = true;
                     }
 
@@ -229,7 +230,7 @@ impl ConnectionManager {
         let mut received_errors = 0;
 
         // TODO: make threshold dynamic based upon known elders
-        let threshold = 2;
+        let threshold: usize = (self.elders.len() as f32 / 2 as f32).ceil() as usize;
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
 
         // Let's await for all responses
@@ -275,6 +276,7 @@ impl ConnectionManager {
             if !has_elected_a_response {
                 winner = self.select_best_of_the_rest_response(
                     winner,
+                    threshold,
                     &vote_map,
                     received_errors,
                     &mut has_elected_a_response,
@@ -297,6 +299,7 @@ impl ConnectionManager {
     fn select_best_of_the_rest_response(
         &self,
         current_winner: (Option<QueryResponse>, usize),
+        threshold: usize,
         vote_map: &VoteMap,
         received_errors: usize,
         has_elected_a_response: &mut bool,
@@ -327,7 +330,7 @@ impl ConnectionManager {
             }
         }
 
-        if number_of_responses == self.elders.len() {
+        if number_of_responses > threshold {
             trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
             *has_elected_a_response = true;
         }
@@ -455,7 +458,7 @@ impl ConnectionManager {
             let task_handle = tokio::spawn(async move {
                 let mut done_trying = false;
                 let mut result = Err(ClientError::from("Could not to connect to this elder"));
-                let mut attempts: i32 = 1;
+                let mut attempts: usize = 1;
                 while !done_trying {
                     let endpoint = Arc::clone(&endpoint);
                     let full_id = full_id.clone();
@@ -468,7 +471,7 @@ impl ConnectionManager {
                         result.is_ok()
                     );
 
-                    if result.is_ok() || attempts > 5 {
+                    if result.is_ok() || attempts > NUMBER_OF_RETRIES {
                         done_trying = true;
                     }
 
