@@ -126,16 +126,25 @@ impl Client {
     /// println!( "{:?}",blob.value() ); // prints "some data"
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn store_blob(&mut self, data: Blob) -> Result<Blob, ClientError> {
-        let data_to_write_to_network: Blob = self.self_encrypt_blob(data).await?;
+    pub async fn store_blob(&mut self, the_blob: Blob) -> Result<Blob, ClientError> {
+        let is_pub = the_blob.is_pub();
+        let data_map = self.self_encrypt_blob(&the_blob).await?;
+
+        let serialised_data_map = serialize(&data_map)?;
+        let data_to_write_to_network =
+            serialize(&DataTypeEncoding::Serialised(serialised_data_map))
+                .map_err(ClientError::from)?;
+
+        let blob_to_write = self
+            .pack(self.public_key().await, data_to_write_to_network, is_pub)
+            .await?;
+
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof().await?;
 
         // The _actual_ message
-        let msg_contents = wrap_blob_write(
-            BlobWrite::New(data_to_write_to_network.clone()),
-            payment_proof.clone(),
-        );
+        let msg_contents =
+            wrap_blob_write(BlobWrite::New(blob_to_write.clone()), payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -146,7 +155,7 @@ impl Client {
 
         let _ = self.apply_write_payment_to_local_actor(payment_proof).await;
 
-        Ok(data_to_write_to_network)
+        Ok(blob_to_write)
     }
 
     /// Delete blob can only be performed on Private Blobs. But on those private blobs this will remove the data
@@ -198,34 +207,27 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
-    // --------------------------------------------
-    // ---------- Private helpers -----------------
-    // --------------------------------------------
-
-    // use self_encryption to generated an encrypted blob stored at the data map
-    async fn self_encrypt_blob(&mut self, data: Blob) -> Result<Blob, ClientError> {
-        let blob_storage = BlobStorageDryRun::new(self.clone(), data.is_pub());
+    /// Uses self_encryption to generated an encrypted blob serialised data map, without writing to the network
+    pub async fn self_encrypt_blob(&mut self, the_blob: &Blob) -> Result<DataMap, ClientError> {
+        let blob_storage = BlobStorageDryRun::new(self.clone(), the_blob.is_pub());
 
         let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)
             .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
         self_encryptor
-            .write(data.value(), 0)
+            .write(the_blob.value(), 0)
             .await
             .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
         let (data_map, _) = self_encryptor
             .close()
             .await
             .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
-        let serialised_data_map = serialize(&data_map)?;
 
-        let value = serialize(&DataTypeEncoding::Serialised(serialised_data_map))?;
-
-        let _blob_storage = BlobStorageDryRun::new(self.clone(), data.is_pub());
-
-        // why the back and forth here betweenblob and value??
-        self.pack(self.public_key().await, value, data.is_pub())
-            .await
+        Ok(data_map)
     }
+
+    // --------------------------------------------
+    // ---------- Private helpers -----------------
+    // --------------------------------------------
 
     async fn extract_blob_data(
         &mut self,
@@ -259,12 +261,14 @@ impl Client {
         }
     }
 
+    /// Write Blob to the network.
     async fn pack(
         &mut self,
         public_key: PublicKey,
         mut value: Vec<u8>,
         published: bool,
     ) -> Result<Blob, ClientError> {
+        // This blob storage is used to perform write operations to the network, via self encryptor
         let blob_storage = BlobStorage::new(self.clone(), published);
 
         loop {
@@ -320,7 +324,7 @@ impl Client {
 }
 
 #[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
+#[cfg(any(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
     use super::*;
     use crate::utils::{
