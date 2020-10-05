@@ -128,7 +128,7 @@ impl Client {
     /// ```
     pub async fn store_blob(&mut self, the_blob: Blob) -> Result<Blob, ClientError> {
         let is_pub = the_blob.is_pub();
-        let data_map = self.self_encrypt_blob(&the_blob).await?;
+        let data_map = self.generate_data_map(&the_blob).await?;
 
         let serialised_data_map = serialize(&data_map)?;
         let data_to_write_to_network =
@@ -208,7 +208,7 @@ impl Client {
     }
 
     /// Uses self_encryption to generated an encrypted blob serialised data map, without writing to the network
-    pub async fn self_encrypt_blob(&mut self, the_blob: &Blob) -> Result<DataMap, ClientError> {
+    pub async fn generate_data_map(&mut self, the_blob: &Blob) -> Result<DataMap, ClientError> {
         let blob_storage = BlobStorageDryRun::new(self.clone(), the_blob.is_pub());
 
         let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)

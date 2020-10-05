@@ -21,11 +21,14 @@ pub mod transfer_actor;
 /// Sequence APIs
 pub mod sequence_apis;
 
-mod blob_storage;
+/// Blob storage for self encryption.
+pub mod blob_storage;
 
 // sn_transfers wrapper
 pub use self::map_info::MapInfo;
 pub use self::transfer_actor::{ClientTransferValidator, SafeTransferActor};
+
+pub use blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
