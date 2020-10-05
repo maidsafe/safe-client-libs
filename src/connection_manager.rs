@@ -16,10 +16,7 @@ use futures::{
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
-use sn_data_types::{
-    ClientFullId, DebitAgreementProof, HandshakeRequest, HandshakeResponse, Message, MessageId,
-    MsgEnvelope, MsgSender, QueryResponse,
-};
+use sn_data_types::{ClientFullId, DebitAgreementProof, HandshakeRequest, HandshakeResponse, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse, Event};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
 
