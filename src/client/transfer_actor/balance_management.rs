@@ -170,7 +170,7 @@ impl Client {
             }))?;
 
         let debit_proof: DebitAgreementProof = self
-            .await_validation(&message, signed_transfer.id())
+            .await_validation(&message, self.replicas_pk_set.clone(), signed_transfer.id())
             .await?;
 
         // Register the transfer on the network.

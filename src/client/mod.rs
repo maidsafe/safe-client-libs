@@ -250,7 +250,6 @@ impl Client {
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
         trace!("Creating cmd message with id: {:?}", id);
-        println!("cmd msg id: {:?}", id);
 
         Message::Cmd {
             cmd: msg_contents,

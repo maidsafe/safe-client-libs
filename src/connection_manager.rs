@@ -16,8 +16,13 @@ use futures::{
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
-use sn_data_types::{ClientFullId, DebitAgreementProof, HandshakeRequest, HandshakeResponse, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse, Event};
+use sn_data_types::{
+    ClientFullId, DebitAgreementProof, Event, HandshakeRequest, HandshakeResponse, Message,
+    MessageId, MsgEnvelope, MsgSender, QueryResponse,
+};
+use std::collections::BTreeMap;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use threshold_crypto::{PublicKeySet, Signature, SignatureShare};
 use tokio::task::JoinHandle;
 
 static NUMBER_OF_RETRIES: usize = 3;
@@ -36,6 +41,23 @@ struct ElderStream {
     socket_addr: SocketAddr,
 }
 
+struct DebitProofAggregator {
+    sig_shares: BTreeMap<usize, SignatureShare>,
+    pk_set: PublicKeySet,
+}
+
+impl DebitProofAggregator {
+    pub fn try_aggregate(&mut self) -> Option<Signature> {
+        self.pk_set.combine_signatures(self.sig_shares.iter()).ok()
+    }
+
+    pub fn is_ready(&self) -> bool {
+        // TODO: Make it dynamic based on number of elders.
+        // Check if we have received all 7 Signature shares.
+        self.sig_shares.len() == 7
+    }
+}
+
 /// JoinHandle for recv stream listener thread
 type NetworkListenerHandle = JoinHandle<Result<(), ClientError>>;
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
@@ -46,7 +68,8 @@ pub struct ConnectionManager {
     qp2p: QuicP2p,
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
-    pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
+    pending_transfer_validations:
+        Arc<Mutex<HashMap<MessageId, (DebitProofAggregator, TransferValidationSender)>>>,
 }
 
 impl ConnectionManager {
@@ -109,6 +132,7 @@ impl ConnectionManager {
     pub async fn send_transfer_validation(
         &mut self,
         msg: &Message,
+        pk_set: PublicKeySet,
         sender: Sender<Result<DebitAgreementProof, ClientError>>,
     ) -> Result<(), ClientError> {
         info!(
@@ -118,12 +142,17 @@ impl ConnectionManager {
         );
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
+        let aggregator = DebitProofAggregator {
+            sig_shares: BTreeMap::new(),
+            pk_set,
+        };
+
         let msg_id = msg.id();
         let _ = self
             .pending_transfer_validations
             .lock()
             .await
-            .insert(msg_id, sender);
+            .insert(msg_id, (aggregator, sender));
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -131,6 +160,7 @@ impl ConnectionManager {
             let msg_bytes_clone = msg_bytes.clone();
             let connection = Arc::clone(&elder.connection);
             let task_handle = tokio::spawn(async move {
+                info!("Sending transfer validation to Elder");
                 let _ = connection.lock().await.send(msg_bytes_clone).await;
             });
             tasks.push(task_handle);
@@ -190,7 +220,7 @@ impl ConnectionManager {
                     };
 
                     debug!(
-                        "Retry # {:?} @ {:?} QUERY results in ok? : {:?}",
+                        "Try #{:?} @ {:?}. Got back response: {:?}",
                         attempts,
                         socket_addr,
                         &result.is_ok()
@@ -247,7 +277,7 @@ impl ConnectionManager {
                         let counter = vote_map.entry(response.clone()).or_insert(0);
                         *counter += 1;
 
-                        // First, see if this latest response brings us above the threashold for any response
+                        // First, see if this latest response brings us above the threshold for any response
                         if *counter > threshold {
                             trace!("Enough votes to be above response threshold");
 
@@ -506,7 +536,7 @@ impl ConnectionManager {
 
             // TODO: this will effectively stop driving futures after we get 2...
             // We should still let all progress... just without blocking
-            if self.elders.len() > 5 {
+            if self.elders.len() >= 7 {
                 has_sufficent_connections = true;
             }
 
@@ -546,12 +576,51 @@ impl ConnectionManager {
 
                         match envelope.message.clone() {
                             Message::Event {
-                                event: _,
-                                correlation_id: _,
+                                event,
+                                correlation_id,
                                 ..
                             } => {
                                 // TODO: Send full event or error out to desired listener.
                                 warn!("Event received {:?}", envelope.message);
+                                if let Event::TransferValidated { event, .. } = event {
+                                    let mut validations = pending_transfer_validations.lock().await;
+                                    if let Some((mut aggregator, sender)) =
+                                        validations.remove(&correlation_id)
+                                    {
+                                        info!("Accumulating SignatureShare");
+                                        if aggregator
+                                            .sig_shares
+                                            .insert(
+                                                event.replica_signature.index,
+                                                event.replica_signature.share,
+                                            )
+                                            .is_some()
+                                        {
+                                            error!("Inserted an already present SignatureShare!");
+                                        }
+                                        if aggregator.is_ready() {
+                                            info!("Ready to Aggregate SignatureShares.");
+                                            let sig =
+                                                aggregator.try_aggregate().ok_or_else(|| {
+                                                    ClientError::Unexpected(
+                                                        "Could not aggregate signature shares"
+                                                            .to_string(),
+                                                    )
+                                                })?;
+                                            info!("Generating DebitAgreementProof . . .");
+                                            let dap = DebitAgreementProof {
+                                                signed_transfer: event.signed_transfer,
+                                                debiting_replicas_sig:
+                                                    sn_data_types::Signature::Bls(sig),
+                                                replica_key: aggregator.pk_set.clone(),
+                                            };
+                                            let _ = sender.send(Ok(dap));
+                                        } else {
+                                            let _ = validations
+                                                .insert(correlation_id, (aggregator, sender));
+                                        }
+                                    }
+                                }
                             }
                             Message::CmdError {
                                 error,
@@ -560,7 +629,7 @@ impl ConnectionManager {
                             } => {
                                 error!("CmdError received {:?}", error);
 
-                                if let Some(sender) = pending_transfer_validations
+                                if let Some((_, sender)) = pending_transfer_validations
                                     .lock()
                                     .await
                                     .remove(&correlation_id)
