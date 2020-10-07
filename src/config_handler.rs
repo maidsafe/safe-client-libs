@@ -31,7 +31,6 @@ const NODE_CONNECTION_INFO_FILE: &str = "node_connection_info.config";
 
 lazy_static! {
     static ref CONFIG_DIR_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-
 }
 
 /// Set a custom path for the config files.
@@ -134,7 +133,8 @@ fn dirs() -> Result<PathBuf, ClientError> {
         path.push(custom_path);
         path
     } else {
-        let mut path = dirs_next::home_dir().ok_or_else(|| "Cannot determine project directory paths")?;
+        let mut path =
+            dirs_next::home_dir().ok_or_else(|| "Cannot determine project directory paths")?;
         path.push(HOME_DIR_SAFE);
         path.push(CONFIG_DIR_APPLICATION);
         path
@@ -148,11 +148,11 @@ fn node_dirs() -> Result<PathBuf, ClientError> {
         path.push(custom_path);
         path
     } else {
-        let mut path = dirs_next::home_dir().ok_or_else(|| "Cannot determine project directory paths")?;
+        let mut path =
+            dirs_next::home_dir().ok_or_else(|| "Cannot determine project directory paths")?;
         path.push(HOME_DIR_SAFE);
         path.push(NODE_CONFIG_DIR_APPLICATION);
         path
-
     };
     Ok(project_dirs)
 }
@@ -217,9 +217,9 @@ mod test {
 
         let read_cfg = Config::new();
         assert_eq!(config, read_cfg);
-        
-            let mut path = PathBuf::new();
-            path.push(temp_dir_path.clone());
+
+        let mut path = PathBuf::new();
+        path.push(temp_dir_path.clone());
 
         path.push(CONFIG_FILE);
         unwrap!(std::fs::remove_file(path));

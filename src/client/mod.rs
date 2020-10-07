@@ -43,7 +43,6 @@ use lru::LruCache;
 use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 
-
 use sn_data_types::{
     Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
     QueryResponse, Sequence, SequenceAddress,
@@ -178,7 +177,6 @@ impl Client {
         Ok(full_client)
     }
 
-    
     /// Return the client's FullId.
     ///
     /// Useful for retrieving the PublicKey or KeyPair in the event you need to _sign_ something
