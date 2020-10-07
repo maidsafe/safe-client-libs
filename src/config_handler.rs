@@ -124,7 +124,7 @@ pub fn get_config() -> Config {
 
 /// Returns the directory from which the config files are read
 pub fn config_dir() -> Result<PathBuf, ClientError> {
-    Ok(dirs()?.to_path_buf())
+    Ok(dirs())
 }
 
 fn dirs() -> Result<PathBuf, ClientError> {
