@@ -302,7 +302,7 @@ impl Deserialize for AsyncFileAppenderCreator {
             );
         }
 
-        let write_file_path = crate::config_dir()?.join(op_file);
+        let write_file_path = crate::dirs()?.join(op_file);
         let log_file = OpenOptions::new()
             .read(true)
             .write(true)

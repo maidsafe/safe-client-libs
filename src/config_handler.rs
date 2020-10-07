@@ -122,12 +122,8 @@ pub fn get_config() -> Config {
     Config::new()
 }
 
-/// Returns the directory from which the config files are read
-pub fn config_dir() -> Result<PathBuf, ClientError> {
-    Ok(dirs())
-}
-
-fn dirs() -> Result<PathBuf, ClientError> {
+/// Return the Project directory
+pub fn dirs() -> Result<PathBuf, ClientError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         let mut path = PathBuf::new();
         path.push(custom_path);
@@ -185,7 +181,7 @@ where
 /// the config file should be created by the Node's installer.
 #[cfg(test)]
 pub fn write_config_file(config: &Config) -> Result<PathBuf, ClientError> {
-    let dir = config_dir()?;
+    let dir = dirs()?;
     fs::create_dir_all(dir.clone())?;
 
     let path = dir.join(CONFIG_FILE);
