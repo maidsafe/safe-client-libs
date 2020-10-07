@@ -41,7 +41,9 @@ use log::warn;
 use log::{debug, info, trace};
 use lru::LruCache;
 use qp2p::Config as QuicP2pConfig;
-use rand::thread_rng;
+use rand::rngs::OsRng;
+
+
 use sn_data_types::{
     Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
     QueryResponse, Sequence, SequenceAddress,
@@ -110,7 +112,7 @@ impl Client {
 
         #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
-        let mut rng = thread_rng();
+        let mut rng = OsRng;
 
         let full_id = match sk {
             Some(sk) => {
@@ -121,7 +123,7 @@ impl Client {
 
                 ClientFullId::from(sk)
             }
-            None => ClientFullId::new_bls(&mut rng),
+            None => ClientFullId::new_ed25519(&mut rng),
         };
 
         info!("Cliented started for pk: {:?}", full_id.public_key());
@@ -176,6 +178,7 @@ impl Client {
         Ok(full_client)
     }
 
+    
     /// Return the client's FullId.
     ///
     /// Useful for retrieving the PublicKey or KeyPair in the event you need to _sign_ something
