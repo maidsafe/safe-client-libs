@@ -7,7 +7,6 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::ClientError;
-use directories::ProjectDirs;
 use lazy_static::lazy_static;
 use log::{info, trace};
 use qp2p::Config as QuicP2pConfig;
@@ -23,26 +22,16 @@ use std::{
 };
 use unwrap::unwrap;
 
-const CONFIG_DIR_QUALIFIER: &str = "net";
-const CONFIG_DIR_ORGANISATION: &str = "MaidSafe";
-const CONFIG_DIR_APPLICATION: &str = "sn_client";
+const HOME_DIR_SAFE: &str = ".safe";
+const CONFIG_DIR_APPLICATION: &str = "client";
 const CONFIG_FILE: &str = "sn_client.config";
 
-const NODE_CONFIG_DIR_APPLICATION: &str = "sn_node";
+const NODE_CONFIG_DIR_APPLICATION: &str = "node";
 const NODE_CONNECTION_INFO_FILE: &str = "node_connection_info.config";
 
 lazy_static! {
     static ref CONFIG_DIR_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-    static ref DEFAULT_SN_CLIENT_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
-        CONFIG_DIR_QUALIFIER,
-        CONFIG_DIR_ORGANISATION,
-        CONFIG_DIR_APPLICATION,
-    );
-    static ref DEFAULT_NODE_PROJECT_DIRS: Option<ProjectDirs> = ProjectDirs::from(
-        CONFIG_DIR_QUALIFIER,
-        CONFIG_DIR_ORGANISATION,
-        NODE_CONFIG_DIR_APPLICATION,
-    );
+
 }
 
 /// Set a custom path for the config files.
@@ -136,32 +125,43 @@ pub fn get_config() -> Config {
 
 /// Returns the directory from which the config files are read
 pub fn config_dir() -> Result<PathBuf, ClientError> {
-    Ok(dirs()?.config_dir().to_path_buf())
+    Ok(dirs()?.to_path_buf())
 }
 
-fn dirs() -> Result<ProjectDirs, ClientError> {
+fn dirs() -> Result<PathBuf, ClientError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
-        ProjectDirs::from_path(custom_path)
+        let mut path = PathBuf::new();
+        path.push(custom_path);
+        path
     } else {
-        DEFAULT_SN_CLIENT_PROJECT_DIRS.clone()
+        let mut path = dirs_next::home_dir().ok_or_else(|| "Cannot determine project directory paths")?;
+        path.push(HOME_DIR_SAFE);
+        path.push(CONFIG_DIR_APPLICATION);
+        path
     };
-    project_dirs.ok_or_else(|| ClientError::from("Cannot determine project directory paths"))
+    Ok(project_dirs)
 }
 
-fn node_dirs() -> Result<ProjectDirs, ClientError> {
+fn node_dirs() -> Result<PathBuf, ClientError> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
-        ProjectDirs::from_path(custom_path)
+        let mut path = PathBuf::new();
+        path.push(custom_path);
+        path
     } else {
-        DEFAULT_NODE_PROJECT_DIRS.clone()
+        let mut path = dirs_next::home_dir().ok_or_else(|| "Cannot determine project directory paths")?;
+        path.push(HOME_DIR_SAFE);
+        path.push(NODE_CONFIG_DIR_APPLICATION);
+        path
+
     };
-    project_dirs.ok_or_else(|| ClientError::from("Cannot determine node directory paths"))
+    Ok(project_dirs)
 }
 
-fn read_config_file<T>(dirs: ProjectDirs, file: &str) -> Result<T, ClientError>
+fn read_config_file<T>(dirs: PathBuf, file: &str) -> Result<T, ClientError>
 where
     T: DeserializeOwned,
 {
-    let path = dirs.config_dir().join(file);
+    let path = dirs.join(file);
     let file = match File::open(&path) {
         Ok(file) => {
             trace!("Reading: {}", path.display());
@@ -217,9 +217,10 @@ mod test {
 
         let read_cfg = Config::new();
         assert_eq!(config, read_cfg);
-        let mut path = unwrap!(ProjectDirs::from_path(temp_dir_path.clone()))
-            .config_dir()
-            .to_path_buf();
+        
+            let mut path = PathBuf::new();
+            path.push(temp_dir_path.clone());
+
         path.push(CONFIG_FILE);
         unwrap!(std::fs::remove_file(path));
 

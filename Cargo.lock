@@ -529,12 +529,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "directories"
-version = "3.0.1"
+name = "dirs-next"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8fed639d60b58d0f53498ab13d26f621fd77569cc6edb031f4cc36a2ad9da0f"
+checksum = "1cbcf9241d9e8d106295bd496bbe2e9cffd5fa098f2a8c9e2bbcbf09773c11a8"
 dependencies = [
- "dirs-sys",
+ "cfg-if",
+ "dirs-sys-next",
 ]
 
 [[package]]
@@ -542,6 +543,17 @@ name = "dirs-sys"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e93d7f5705de3e49895a2b5e0b8855a1c27f080192ae9c32a6432d50741a57a"
+dependencies = [
+ "libc",
+ "redox_users",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "dirs-sys-next"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c60f7b8a8953926148223260454befb50c751d3c50e1c178c4fd1ace4083c9a"
 dependencies = [
  "libc",
  "redox_users",
@@ -1319,7 +1331,7 @@ dependencies = [
  "bincode",
  "bytes 0.5.6",
  "crossbeam-channel",
- "directories 2.0.2",
+ "directories",
  "err-derive",
  "futures",
  "log",
@@ -1702,7 +1714,7 @@ dependencies = [
  "chrono",
  "crdts",
  "crossbeam-channel",
- "directories 3.0.1",
+ "dirs-next",
  "env_logger 0.6.2",
  "futures",
  "futures-util",
