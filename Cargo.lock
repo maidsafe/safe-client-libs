@@ -1845,7 +1845,8 @@ dependencies = [
 [[package]]
 name = "sn_transfers"
 version = "0.2.1"
-source = "git+https://github.com/maidsafe/sn_transfers.git?branch=master#e59612a5b44f6fdaea69e002c8c997ea39664467"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9154f8eebdc714f6707653b9f58229a6f34e18550e6f4e838c7b5e239da4a3dc"
 dependencies = [
  "bincode",
  "crdts",
@@ -2412,3 +2413,8 @@ dependencies = [
  "syn",
  "synstructure",
 ]
+
+[[patch.unused]]
+name = "sn_transfers"
+version = "0.2.0"
+source = "git+https://github.com/yoga07/sn_transfers.git?branch=fix-signature#3a965927f0d7c200bd36cee7428d3c06e2921aae"
