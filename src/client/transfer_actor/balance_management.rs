@@ -109,7 +109,6 @@ impl Client {
     /// use sn_client::Client;
     /// use sn_data_types::{PublicKey, Money};
     /// use std::str::FromStr;
-    /// use log::debug;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // A random sk, to send money to
     /// let sk = threshold_crypto::SecretKey::random();

@@ -1744,8 +1744,8 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.12"
-source = "git+https://github.com/maidsafe/sn_data_types.git#43901867b642022f69895e521443fb773f5ecd29"
+version = "0.11.19"
+source = "git+https://github.com/maidsafe/sn_data_types.git?branch=master#32005130398744052ed7f323546306de0b63136f"
 dependencies = [
  "bincode",
  "crdts",
@@ -1754,6 +1754,7 @@ dependencies = [
  "hex_fmt",
  "multibase",
  "rand",
+ "rand_core",
  "serde",
  "sha3",
  "signature",
