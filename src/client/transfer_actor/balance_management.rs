@@ -109,6 +109,7 @@ impl Client {
     /// use sn_client::Client;
     /// use sn_data_types::{PublicKey, Money};
     /// use std::str::FromStr;
+    /// use log::debug;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // A random sk, to send money to
     /// let sk = threshold_crypto::SecretKey::random();
@@ -125,13 +126,10 @@ impl Client {
     /// // Finally, we can see that the money has arrived:
     /// let received_balance = client.get_balance_for(pk).await?;
     ///
-    /// println!("COUNT {:?}", count);
-    /// println!("sending_pk {:?}", sending_pk);
-    /// assert_eq!(42, count);
+    /// assert_eq!(1, count);
     /// assert_ne!(pk, sending_pk);
     /// assert_eq!(received_balance, target_balance);
-    /// # Ok(())
-    /// } ); }
+    /// # Ok(())} ); }
     /// ```
     pub async fn send_money(
         &mut self,
