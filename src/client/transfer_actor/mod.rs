@@ -1,10 +1,11 @@
-use log::{debug, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use sn_data_types::{
     ClientFullId, Cmd, DebitAgreementProof, Message, Money, PublicKey, Query, QueryResponse,
-    TransferCmd, TransferId, TransferQuery,
+    TransferCmd, TransferId, TransferQuery, TransferValidated,
 };
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
+use tokio::sync::mpsc::channel;
 
 /// Module for Money balance management
 pub mod balance_management;
@@ -19,8 +20,6 @@ pub use sn_transfers::TransferActor as SafeTransferActor;
 use crate::client::ConnectionManager;
 use crate::client::{Client, COST_OF_PUT};
 use crate::errors::ClientError;
-
-use futures::channel::oneshot::channel;
 
 /// Simple client side validations
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -209,11 +208,7 @@ impl Client {
             }))?;
 
         let payment_proof: DebitAgreementProof = self
-            .await_validation(
-                &transfer_message,
-                self.replicas_pk_set.clone(),
-                signed_transfer.id(),
-            )
+            .await_validation(&transfer_message, signed_transfer.id())
             .await?;
 
         debug!("Payment proof retrieved");
@@ -246,25 +241,41 @@ impl Client {
     async fn await_validation(
         &mut self,
         message: &Message,
-        pk_set: PublicKeySet,
         _id: TransferId,
     ) -> Result<DebitAgreementProof, ClientError> {
         info!("Awaiting transfer validation");
 
-        let (sender, receiver) = channel::<Result<DebitAgreementProof, ClientError>>();
+        let (sender, mut receiver) = channel::<Result<TransferValidated, ClientError>>(7);
 
         self.connection_manager
             .lock()
             .await
-            .send_transfer_validation(&message, pk_set, sender)
+            .send_transfer_validation(&message, sender)
             .await?;
 
-        receiver.await.map_err(|error| {
-            ClientError::from(format!(
-                "Error with validation receiver channel, {:?}",
-                error
-            ))
-        })?
+        loop {
+            match receiver.recv().await {
+                Some(event) => match event {
+                    Ok(transfer_validated) => {
+                        match self.transfer_actor.lock().await.receive(transfer_validated) {
+                            Ok(result) => {
+                                if let Some(validation) = result {
+                                    info!("Transfer successfully validated.");
+                                    if let Some(dap) = validation.proof {
+                                        return Ok(dap);
+                                    }
+                                } else {
+                                    info!("Aggregated given SignatureShare.");
+                                }
+                            }
+                            Err(e) => error!("Error accumulating SignatureShare: {:?}", e),
+                        }
+                    }
+                    Err(e) => error!("Error receiving SignatureShare: {:?}", e),
+                },
+                None => continue,
+            }
+        }
     }
 }
 

@@ -10,19 +10,17 @@ use crate::ClientError;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
-    channel::oneshot::Sender,
     future::{join_all, select_all},
     lock::Mutex,
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
 use sn_data_types::{
-    ClientFullId, DebitAgreementProof, Event, HandshakeRequest, HandshakeResponse, Message,
-    MessageId, MsgEnvelope, MsgSender, QueryResponse,
+    ClientFullId, Event, HandshakeRequest, HandshakeResponse, Message, MessageId, MsgEnvelope,
+    MsgSender, QueryResponse, TransferValidated,
 };
-use std::collections::BTreeMap;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use threshold_crypto::{PublicKeySet, Signature, SignatureShare};
+use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 
 static NUMBER_OF_RETRIES: usize = 3;
@@ -31,7 +29,7 @@ static NUMBER_OF_RETRIES: usize = 3;
 type VoteMap = HashMap<QueryResponse, usize>;
 
 // channel for sending result of transfer validation
-type TransferValidationSender = Sender<Result<DebitAgreementProof, ClientError>>;
+type TransferValidationSender = Sender<Result<TransferValidated, ClientError>>;
 
 #[derive(Clone)]
 struct ElderStream {
@@ -39,23 +37,6 @@ struct ElderStream {
     connection: Arc<Mutex<Connection>>,
     listener: Arc<Mutex<NetworkListenerHandle>>,
     socket_addr: SocketAddr,
-}
-
-struct DebitProofAggregator {
-    sig_shares: BTreeMap<usize, SignatureShare>,
-    pk_set: PublicKeySet,
-}
-
-impl DebitProofAggregator {
-    pub fn try_aggregate(&mut self) -> Option<Signature> {
-        self.pk_set.combine_signatures(self.sig_shares.iter()).ok()
-    }
-
-    pub fn is_ready(&self) -> bool {
-        // TODO: Make it dynamic based on number of elders.
-        // Check if we have received all 7 Signature shares.
-        self.sig_shares.len() == 7
-    }
 }
 
 /// JoinHandle for recv stream listener thread
@@ -68,8 +49,7 @@ pub struct ConnectionManager {
     qp2p: QuicP2p,
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
-    pending_transfer_validations:
-        Arc<Mutex<HashMap<MessageId, (DebitProofAggregator, TransferValidationSender)>>>,
+    pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
 }
 
 impl ConnectionManager {
@@ -132,8 +112,7 @@ impl ConnectionManager {
     pub async fn send_transfer_validation(
         &mut self,
         msg: &Message,
-        pk_set: PublicKeySet,
-        sender: Sender<Result<DebitAgreementProof, ClientError>>,
+        sender: Sender<Result<TransferValidated, ClientError>>,
     ) -> Result<(), ClientError> {
         info!(
             "Sending transfer validation command {:?} w/ id: {:?}",
@@ -142,17 +121,12 @@ impl ConnectionManager {
         );
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
-        let aggregator = DebitProofAggregator {
-            sig_shares: BTreeMap::new(),
-            pk_set,
-        };
-
         let msg_id = msg.id();
         let _ = self
             .pending_transfer_validations
             .lock()
             .await
-            .insert(msg_id, (aggregator, sender));
+            .insert(msg_id, sender);
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -580,45 +554,14 @@ impl ConnectionManager {
                                 correlation_id,
                                 ..
                             } => {
-                                // TODO: Send full event or error out to desired listener.
-                                warn!("Event received {:?}", envelope.message);
                                 if let Event::TransferValidated { event, .. } = event {
-                                    let mut validations = pending_transfer_validations.lock().await;
-                                    if let Some((mut aggregator, sender)) =
-                                        validations.remove(&correlation_id)
+                                    if let Some(sender) = pending_transfer_validations
+                                        .lock()
+                                        .await
+                                        .get_mut(&correlation_id)
                                     {
                                         info!("Accumulating SignatureShare");
-                                        if aggregator
-                                            .sig_shares
-                                            .insert(
-                                                event.replica_signature.index,
-                                                event.replica_signature.share,
-                                            )
-                                            .is_some()
-                                        {
-                                            error!("Inserted an already present SignatureShare!");
-                                        }
-                                        if aggregator.is_ready() {
-                                            info!("Ready to Aggregate SignatureShares.");
-                                            let sig =
-                                                aggregator.try_aggregate().ok_or_else(|| {
-                                                    ClientError::Unexpected(
-                                                        "Could not aggregate signature shares"
-                                                            .to_string(),
-                                                    )
-                                                })?;
-                                            info!("Generating DebitAgreementProof . . .");
-                                            let dap = DebitAgreementProof {
-                                                signed_transfer: event.signed_transfer,
-                                                debiting_replicas_sig:
-                                                    sn_data_types::Signature::Bls(sig),
-                                                replica_key: aggregator.pk_set.clone(),
-                                            };
-                                            let _ = sender.send(Ok(dap));
-                                        } else {
-                                            let _ = validations
-                                                .insert(correlation_id, (aggregator, sender));
-                                        }
+                                        let _ = sender.send(Ok(event)).await.unwrap();
                                     }
                                 }
                             }
@@ -629,7 +572,7 @@ impl ConnectionManager {
                             } => {
                                 error!("CmdError received {:?}", error);
 
-                                if let Some((_, sender)) = pending_transfer_validations
+                                if let Some(mut sender) = pending_transfer_validations
                                     .lock()
                                     .await
                                     .remove(&correlation_id)
