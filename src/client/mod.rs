@@ -52,7 +52,7 @@ use sn_data_types::{
 use std::str::FromStr;
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
-use threshold_crypto::{PublicKeySet, SecretKey};
+use threshold_crypto::PublicKeySet;
 use xor_name::XorName;
 
 /// Capacity of the immutable data cache.
@@ -106,21 +106,21 @@ impl Client {
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(sk: Option<SecretKey>) -> Result<Self, ClientError> {
+    pub async fn new(optional_id: Option<ClientFullId>) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
         let mut rng = OsRng;
 
-        let full_id = match sk {
-            Some(sk) => {
+        let full_id = match optional_id {
+            Some(id) => {
                 #[cfg(feature = "simulated-payouts")]
                 {
                     is_random_client = false;
                 }
 
-                ClientFullId::from(sk)
+                id
             }
             None => ClientFullId::new_ed25519(&mut rng),
         };
@@ -309,8 +309,9 @@ pub mod exported_tests {
     }
 
     pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
-        let (sk, _pk) = shared_box::gen_bls_keypair();
-        let _transfer_actor = Client::new(Some(sk)).await?;
+        let mut rng = OsRng;
+        let fulld_id = ClientFullId::new_ed25519(&mut rng);
+        let _transfer_actor = Client::new(Some(fulld_id)).await?;
 
         Ok(())
     }

@@ -115,8 +115,7 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let secret_key = threshold_crypto::SecretKey::random();
-    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// let mut client = Client::new(None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// let blob_for_storage = Blob::Public(PublicBlob::new(data));
@@ -168,15 +167,15 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::{Money, Blob, PrivateBlob, PublicKey};
+    /// use sn_data_types::{Money, Blob, PrivateBlob};
     /// use std::str::FromStr;
-    /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async { let secret_key = SecretKey::random();
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async { 
+    /// 
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(Some(secret_key.clone())).await?;
+    /// let mut client = Client::new(None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
-    /// let some_blob_for_storage = Blob::Private(PrivateBlob::new(data, PublicKey::from(secret_key.public_key())));
+    /// let some_blob_for_storage = Blob::Private(PrivateBlob::new(data, client.public_key().await));
     /// let blob = client.store_blob(some_blob_for_storage).await?;
     ///
     /// let _ = client.delete_blob(*blob.address()).await?;
