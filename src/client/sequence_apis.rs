@@ -7,26 +7,19 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::ClientError;
-use crate::Client;
+use crate::{utils::wrap_data_cmd, Client};
 use log::trace;
 use sn_data_types::{
-    Cmd, DataCmd, DataQuery, DebitAgreementProof, PublicKey, Query, QueryResponse, Sequence,
-    SequenceAction, SequenceAddress, SequenceDataWriteOp, SequenceEntries, SequenceEntry,
-    SequenceIndex, SequencePermissions, SequencePrivatePermissions, SequencePublicPermissions,
-    SequenceRead, SequenceUser, SequenceWrite,
+    DataCmd, DataQuery, PublicKey, Query, QueryResponse, Sequence, SequenceAction, SequenceAddress,
+    SequenceDataWriteOp, SequenceEntries, SequenceEntry, SequenceIndex, SequencePermissions,
+    SequencePrivatePermissions, SequencePublicPermissions, SequenceRead, SequenceUser,
+    SequenceWrite,
 };
 use std::collections::BTreeMap;
 use xor_name::XorName;
 
 fn wrap_seq_read(read: SequenceRead) -> Query {
     Query::Data(DataQuery::Sequence(read))
-}
-
-fn wrap_seq_write(write: SequenceWrite, payment: DebitAgreementProof) -> Cmd {
-    Cmd::Data {
-        cmd: DataCmd::Sequence(write),
-        payment,
-    }
 }
 
 impl Client {
@@ -204,11 +197,12 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn delete_sequence(&mut self, address: SequenceAddress) -> Result<(), ClientError> {
+        let cmd = DataCmd::Sequence(SequenceWrite::Delete(address));
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_seq_write(SequenceWrite::Delete(address), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -287,11 +281,12 @@ impl Client {
         &mut self,
         op: SequenceDataWriteOp<Vec<u8>>,
     ) -> Result<(), ClientError> {
+        let cmd = DataCmd::Sequence(SequenceWrite::Edit(op));
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_seq_write(SequenceWrite::Edit(op), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -309,11 +304,12 @@ impl Client {
         &mut self,
         data: Sequence,
     ) -> Result<(), ClientError> {
+        let cmd = DataCmd::Sequence(SequenceWrite::New(data));
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_seq_write(SequenceWrite::New(data), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -626,12 +622,13 @@ impl Client {
             .await
             .put(*sequence.address(), sequence.clone());
 
+        let cmd = DataCmd::Sequence(SequenceWrite::SetPrivatePolicy(op));
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents =
-            wrap_seq_write(SequenceWrite::SetPrivatePolicy(op), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -875,12 +872,12 @@ impl Client {
             .await
             .put(*sequence.address(), sequence.clone());
 
+        let cmd = DataCmd::Sequence(SequenceWrite::SetPublicPolicy(op));
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents =
-            wrap_seq_write(SequenceWrite::SetPublicPolicy(op), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -956,12 +953,13 @@ impl Client {
             .await
             .put(*sequence.address(), sequence.clone());
 
+        let cmd = DataCmd::Sequence(SequenceWrite::SetPrivatePolicy(op));
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents =
-            wrap_seq_write(SequenceWrite::SetPrivatePolicy(op), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager

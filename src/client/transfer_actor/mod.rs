@@ -1,7 +1,8 @@
+use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
-    ClientFullId, Cmd, DebitAgreementProof, Message, Money, PublicKey, Query, QueryResponse,
-    TransferCmd, TransferId, TransferQuery, TransferValidated,
+    ClientFullId, Cmd, DataCmd, DebitAgreementProof, Message, Money, PublicKey, Query,
+    QueryResponse, TransferCmd, TransferId, TransferQuery, TransferValidated,
 };
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
@@ -17,8 +18,7 @@ pub mod write_apis;
 /// Actual Transfer Actor
 pub use sn_transfers::TransferActor as SafeTransferActor;
 
-use crate::client::ConnectionManager;
-use crate::client::{Client, COST_OF_PUT};
+use crate::client::{Client, ConnectionManager};
 use crate::errors::ClientError;
 
 /// Simple client side validations
@@ -173,11 +173,45 @@ impl Client {
         Ok(())
     }
 
-    /// Validates a tranction for paying store_cost
+    /// Fetch latest StoreCost for given number of bytes from the network.
+    pub async fn get_store_cost(&mut self, bytes: u64) -> Result<Money, ClientError> {
+        info!("Sending Query for latest StoreCost");
+
+        let public_key = *self.full_id.public_key();
+
+        let msg_contents = Query::Transfer(TransferQuery::GetStoreCost {
+            requester: public_key,
+            bytes,
+        });
+
+        let message = Self::create_query_message(msg_contents);
+
+        // This is a normal response manager request. We want quorum on this for now...
+        let res = self
+            .connection_manager
+            .lock()
+            .await
+            .send_query(&message)
+            .await?;
+
+        match res {
+            QueryResponse::GetStoreCost(cost) => cost.map_err(ClientError::DataError),
+            _ => Err(ClientError::from(format!(
+                "Unexpected response when retrieving account history {:?}",
+                res
+            ))),
+        }
+    }
+
+    /// Validates a transaction for paying store_cost
     pub(crate) async fn create_write_payment_proof(
         &mut self,
+        cmd: &DataCmd,
     ) -> Result<DebitAgreementProof, ClientError> {
         info!("Sending requests for payment for write operation");
+
+        // Compute number of bytes
+        let bytes = serialize(cmd)?.len() as u64;
 
         //set up message
         let _full_id = self.full_id.clone();
@@ -186,11 +220,13 @@ impl Client {
 
         let section_key = PublicKey::Bls(self.replicas_pk_set.public_key());
 
+        let cost_of_put = self.get_store_cost(bytes).await?;
+
         let signed_transfer = self
             .transfer_actor
             .lock()
             .await
-            .transfer(COST_OF_PUT, section_key)?
+            .transfer(cost_of_put, section_key)?
             .ok_or_else(|| ClientError::from("No transfer produced by actor."))?
             .signed_transfer;
 

@@ -53,9 +53,9 @@ simulated-payouts = ["sn_data_types/simulated-payouts", "sn_transfers/simulated-
 testing = []
 
 [patch.crates-io]
-# sn_data_types = {path="../safe-nd"}
+#sn_data_types = {path="../safe-nd"}
 self_encryption = { git = "https://github.com/maidsafe/self_encryption.git", branch = "master" }
-sn_transfers = { git = "https://github.com/yoga07/sn_transfers.git", branch = "fix-signature" }
+sn_transfers= { git = "https://github.com/yoga07/sn_transfers.git", branch = "fix-signature" }
 
 [package.metadata.docs.rs]
 features = ["simulated-payouts"]

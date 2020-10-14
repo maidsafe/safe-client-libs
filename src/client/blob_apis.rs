@@ -7,30 +7,23 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::ClientError;
-use crate::Client;
+use crate::{utils::wrap_data_cmd, Client};
 use bincode::{deserialize, serialize};
-use log::trace;
+use log::{info, trace};
 use serde::{Deserialize, Serialize};
 
 use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use self_encryption::{DataMap, SelfEncryptor};
 use sn_data_types::{
-    Blob, BlobAddress, BlobRead, BlobWrite, Cmd, DataCmd, DataQuery, DebitAgreementProof,
-    PrivateBlob, PublicBlob, PublicKey, Query, QueryResponse,
+    Blob, BlobAddress, BlobRead, BlobWrite, DataCmd, DataQuery, PrivateBlob, PublicBlob, PublicKey,
+    Query, QueryResponse,
 };
 
 #[derive(Serialize, Deserialize)]
 enum DataTypeEncoding {
     Serialised(Vec<u8>),
     DataMap(DataMap),
-}
-
-fn wrap_blob_write(write: BlobWrite, payment: DebitAgreementProof) -> Cmd {
-    Cmd::Data {
-        cmd: DataCmd::Blob(write),
-        payment,
-    }
 }
 
 impl Client {
@@ -126,6 +119,8 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_blob(&mut self, the_blob: Blob) -> Result<Blob, ClientError> {
+        info!("Storing blob at given address: {:?}", the_blob.address());
+
         let is_pub = the_blob.is_pub();
         let data_map = self.generate_data_map(&the_blob).await?;
 
@@ -138,12 +133,13 @@ impl Client {
             .pack(self.public_key().await, data_to_write_to_network, is_pub)
             .await?;
 
+        let cmd = DataCmd::Blob(BlobWrite::New(blob_to_write.clone()));
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents =
-            wrap_blob_write(BlobWrite::New(blob_to_write.clone()), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -189,12 +185,15 @@ impl Client {
     /// #  Ok(())} );}
     /// ```
     pub async fn delete_blob(&mut self, address: BlobAddress) -> Result<(), ClientError> {
+        info!("Deleting blob at given address: {:?}", address);
+
+        let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(address));
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents =
-            wrap_blob_write(BlobWrite::DeletePrivate(address), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -395,9 +394,10 @@ pub mod exported_tests {
         let pub_data = Blob::Public(PublicBlob::new(value));
 
         let res = client
-            // Get inexistent blob
+            // Get nonexistent blob
             .get_blob(address, None, None)
             .await;
+
         match res {
             Ok(_) => panic!("Private blob should not exist yet"),
             Err(ClientError::DataError(SndError::NoSuchData)) => (),

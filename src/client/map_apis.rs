@@ -7,13 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::ClientError;
-use crate::Client;
+use crate::{utils::wrap_data_cmd, Client};
 use log::trace;
 
 use sn_data_types::{
-    Cmd, DataCmd, DataQuery, DebitAgreementProof, Map, MapAddress, MapEntries, MapEntryActions,
-    MapPermissionSet, MapRead, MapSeqEntries, MapSeqEntryActions, MapSeqValue,
-    MapUnseqEntryActions, MapValue, MapValues, PublicKey, Query, QueryResponse,
+    DataCmd, DataQuery, Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet, MapRead,
+    MapSeqEntries, MapSeqEntryActions, MapSeqValue, MapUnseqEntryActions, MapValue, MapValues,
+    PublicKey, Query, QueryResponse,
 };
 
 use sn_data_types::MapWrite;
@@ -24,13 +24,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 fn wrap_map_read(read: MapRead) -> Query {
     Query::Data(DataQuery::Map(read))
-}
-
-fn wrap_map_write(write: MapWrite, payment: DebitAgreementProof) -> Cmd {
-    Cmd::Data {
-        cmd: DataCmd::Map(write),
-        payment,
-    }
 }
 
 impl Client {
@@ -73,11 +66,13 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_map(&mut self, data: Map) -> Result<(), ClientError> {
+        let cmd = DataCmd::Map(MapWrite::New(data));
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_map_write(MapWrite::New(data), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -126,11 +121,13 @@ impl Client {
     /// # Ok(()) } ); }
     /// ```
     pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), ClientError> {
+        let cmd = DataCmd::Map(MapWrite::Delete(address));
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_map_write(MapWrite::Delete(address), payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -149,19 +146,17 @@ impl Client {
         user: PublicKey,
         version: u64,
     ) -> Result<(), ClientError> {
+        let cmd = DataCmd::Map(MapWrite::DelUserPermissions {
+            address,
+            user,
+            version,
+        });
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-
-        let msg_contents = wrap_map_write(
-            MapWrite::DelUserPermissions {
-                address,
-                user,
-                version,
-            },
-            payment_proof.clone(),
-        );
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
 
         let message = Self::create_cmd_message(msg_contents);
 
@@ -183,20 +178,18 @@ impl Client {
         permissions: MapPermissionSet,
         version: u64,
     ) -> Result<(), ClientError> {
+        let cmd = DataCmd::Map(MapWrite::SetUserPermissions {
+            address,
+            user,
+            permissions,
+            version,
+        });
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-
-        let msg_contents = wrap_map_write(
-            MapWrite::SetUserPermissions {
-                address,
-                user,
-                permissions,
-                version,
-            },
-            payment_proof.clone(),
-        );
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
 
         let message = Self::create_cmd_message(msg_contents);
 
@@ -217,13 +210,14 @@ impl Client {
         address: MapAddress,
         changes: MapEntryActions,
     ) -> Result<(), ClientError> {
+        let cmd = DataCmd::Map(MapWrite::Edit { address, changes });
+
         // Payment for PUT
-        let payment_proof = self.create_write_payment_proof().await?;
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
 
-        let msg_contents =
-            wrap_map_write(MapWrite::Edit { address, changes }, payment_proof.clone());
+        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
 
         let message = Self::create_cmd_message(msg_contents);
         let _ = self

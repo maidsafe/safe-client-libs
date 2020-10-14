@@ -20,6 +20,7 @@ use rand::distributions::{Alphanumeric, Distribution, Standard};
 use rand::rngs::OsRng;
 use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
+use sn_data_types::{Cmd, DataCmd, DebitAgreementProof};
 use tiny_keccak::sha3_512;
 
 /// Length of the symmetric encryption key.
@@ -182,6 +183,11 @@ pub fn bin_data_format(data: &[u8]) -> String {
         data[len - 2],
         data[len - 1]
     )
+}
+
+/// Wrap a data Cmd.
+pub fn wrap_data_cmd(cmd: DataCmd, payment: DebitAgreementProof) -> Cmd {
+    Cmd::Data { cmd, payment }
 }
 
 /// Initialises `env_logger` with custom settings.
