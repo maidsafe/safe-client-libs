@@ -1744,9 +1744,9 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.16"
+version = "0.11.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "193341fca93118ab8704958c2893fb6293233777a2a4f972526e11a4f9870f68"
+checksum = "0d523ac2a54ea686e492f42beb4679bdd1433fd5ec22babdac3cabdd4c1331a1"
 dependencies = [
  "bincode",
  "crdts",
@@ -1755,6 +1755,7 @@ dependencies = [
  "hex_fmt",
  "multibase",
  "rand",
+ "rand_core",
  "serde",
  "sha3",
  "signature",
@@ -1767,7 +1768,7 @@ dependencies = [
 [[package]]
 name = "sn_transfers"
 version = "0.2.0"
-source = "git+https://github.com/maidsafe/sn_transfers.git#bf5e770bf4ab05f23abb41cf56819bb90cd4978e"
+source = "git+https://github.com/maidsafe/sn_transfers.git#fffbf8ca19debfcbf36a212e184a273ae4ba1830"
 dependencies = [
  "bincode",
  "crdts",

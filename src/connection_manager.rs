@@ -17,8 +17,8 @@ use futures::{
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
 use sn_data_types::{
-    BlsProof, ClientFullId, DebitAgreementProof, HandshakeRequest, HandshakeResponse, Message,
-    MessageId, MsgEnvelope, MsgSender, Proof, QueryResponse,
+    ClientFullId, DebitAgreementProof, HandshakeRequest, HandshakeResponse, Message, MessageId,
+    MsgEnvelope, MsgSender, QueryResponse,
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::task::JoinHandle;
@@ -340,14 +340,10 @@ impl ConnectionManager {
     fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, ClientError> {
         trace!("Putting message in envelope: {:?}", message);
         let sign = self.full_id.sign(&serialize(message)?);
-        let msg_proof = BlsProof {
-            public_key: self.full_id.public_key().bls().unwrap(),
-            signature: sign.into_bls().unwrap(),
-        };
 
         let envelope = MsgEnvelope {
             message: message.clone(),
-            origin: MsgSender::Client(Proof::Bls(msg_proof)),
+            origin: MsgSender::client(*self.full_id.public_key(), sign)?,
             proxies: Default::default(),
         };
 
