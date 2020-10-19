@@ -1392,7 +1392,8 @@ dependencies = [
 [[package]]
 name = "qp2p"
 version = "0.8.4"
-source = "git+https://github.com/maidsafe/qp2p.git?branch=master#94ec2f2295d0b26695579629c88f289da1b1379e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f12fcdb68c3b167a48ceb6c18e118459c1ef8a0484ac97be2f8808ebef688fa"
 dependencies = [
  "base64 0.12.3",
  "bincode",
@@ -1653,7 +1654,8 @@ dependencies = [
 [[package]]
 name = "self_encryption"
 version = "0.19.3"
-source = "git+https://github.com/maidsafe/self_encryption.git?branch=master#3523e8b54cddbb5692ade15fe414b84337a75ff5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "febd0df6db88d0fad4480909ee1193a5dd08a7b8be42dc2b3d1fd85911eb098a"
 dependencies = [
  "aes",
  "async-trait",
@@ -2413,8 +2415,3 @@ dependencies = [
  "syn",
  "synstructure",
 ]
-
-[[patch.unused]]
-name = "sn_transfers"
-version = "0.2.0"
-source = "git+https://github.com/yoga07/sn_transfers.git?branch=fix-signature#3a965927f0d7c200bd36cee7428d3c06e2921aae"

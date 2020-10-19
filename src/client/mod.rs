@@ -165,7 +165,7 @@ impl Client {
                 debug!("Attempting to trigger simulated payout");
                 // we're testing, and currently a lot of tests expect 10 money to start
                 let _ = full_client
-                    .trigger_simulated_farming_payout(Money::from_str("10000000")?)
+                    .trigger_simulated_farming_payout(Money::from_str("10")?)
                     .await?;
             } else {
                 warn!("No automatic simulated payout occurs for clients created for pre-existing SecretKeys")

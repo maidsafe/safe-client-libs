@@ -211,6 +211,7 @@ mod tests {
 
     use super::*;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
+    use log::error;
     use rand::rngs::OsRng;
     use sn_data_types::{Blob, ClientFullId, Error as SndError, Money, PublicBlob};
     use std::str::FromStr;
@@ -286,7 +287,7 @@ mod tests {
             .send_money(*full_id2.public_key(), Money::from_str("0")?)
             .await
         {
-            Err(ClientError::DataError(Error::Unexpected(_))) => (),
+            Err(ClientError::DataError(SndError::Unexpected(_))) => (),
             _result => error!("Unexpected error. Zero-Value Transfers should not pass"),
         }
 

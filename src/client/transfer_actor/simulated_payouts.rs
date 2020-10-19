@@ -105,15 +105,15 @@ mod tests {
             .trigger_simulated_farming_payout(Money::from_str("100")?)
             .await?;
 
-        // 100 sent
+        // 100 sent + 10 starting balance.
         assert_eq!(
             initial_actor.get_local_balance().await,
-            Money::from_str("100")?
+            Money::from_str("110")?
         );
 
         assert_eq!(
             initial_actor.get_balance_from_network(None).await?,
-            Money::from_str("100")?
+            Money::from_str("110")?
         );
 
         Ok(())

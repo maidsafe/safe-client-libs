@@ -293,9 +293,13 @@ impl Client {
             match receiver.recv().await {
                 Some(event) => match event {
                     Ok(transfer_validated) => {
-                        match self.transfer_actor.lock().await.receive(transfer_validated) {
+                        let mut actor = self.transfer_actor.lock().await;
+                        match actor.receive(transfer_validated) {
                             Ok(result) => {
                                 if let Some(validation) = result {
+                                    actor.apply(ActorEvent::TransferValidationReceived(
+                                        validation.clone(),
+                                    ))?;
                                     info!("Transfer successfully validated.");
                                     if let Some(dap) = validation.proof {
                                         return Ok(dap);
