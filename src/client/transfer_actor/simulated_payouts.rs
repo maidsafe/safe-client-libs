@@ -94,8 +94,6 @@ impl Client {
 mod tests {
 
     use super::*;
-    use rand::rngs::OsRng;
-    use sn_data_types::ClientFullId;
     use std::str::FromStr;
 
     #[tokio::test]

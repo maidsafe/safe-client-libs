@@ -27,7 +27,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use rand::rngs::OsRng;
-    use sn_data_types::{ClientFullId, PublicKey, Sequence};
+    use sn_data_types::{ClientFullId, Sequence};
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]

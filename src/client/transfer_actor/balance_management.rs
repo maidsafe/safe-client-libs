@@ -210,7 +210,6 @@ impl Client {
 mod tests {
 
     use super::*;
-    use crate::crypto::shared_box;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use rand::rngs::OsRng;
     use sn_data_types::{Blob, ClientFullId, Error as SndError, Money, PublicBlob};

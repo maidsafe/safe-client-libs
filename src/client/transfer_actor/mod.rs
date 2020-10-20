@@ -270,7 +270,6 @@ impl Client {
 mod tests {
 
     use super::*;
-    use crate::crypto::shared_box;
     use rand::rngs::OsRng;
     use sn_data_types::Money;
     use std::str::FromStr;
