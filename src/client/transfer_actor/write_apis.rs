@@ -26,18 +26,17 @@ impl Client {
 #[cfg(all(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
     use super::*;
-    use crate::crypto::shared_box;
-    use sn_data_types::{PublicKey, Sequence};
+    use rand::rngs::OsRng;
+    use sn_data_types::{ClientFullId, PublicKey, Sequence};
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
     pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), ClientError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
-        let pk = PublicKey::Bls(pk);
+        let full_id = ClientFullId::new_ed25519(&mut OsRng);
 
-        let data = Sequence::new_public(pk, XorName::random(), 33323);
+        let data = Sequence::new_public(*full_id.public_key(), XorName::random(), 33323);
 
-        let mut initial_actor = Client::new(Some(sk.clone())).await?;
+        let mut initial_actor = Client::new(Some(full_id)).await?;
 
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(ClientError::DataError(e)) => {

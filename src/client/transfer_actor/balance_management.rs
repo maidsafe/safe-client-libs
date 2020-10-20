@@ -212,20 +212,21 @@ mod tests {
     use super::*;
     use crate::crypto::shared_box;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
-    use sn_data_types::{Blob, Error as SndError, Money, PublicBlob};
+    use rand::rngs::OsRng;
+    use sn_data_types::{Blob, ClientFullId, Error as SndError, Money, PublicBlob};
     use std::str::FromStr;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<(), ClientError>
     {
-        let (_sk2, pk2) = shared_box::gen_bls_keypair();
-
-        let pk2 = PublicKey::Bls(pk2);
+        let full_id = ClientFullId::new_ed25519(&mut OsRng);
 
         let mut client = Client::new(None).await?;
 
-        let _ = client.send_money(pk2, Money::from_str("1")?).await?;
+        let _ = client
+            .send_money(*full_id.public_key(), Money::from_str("1")?)
+            .await?;
 
         // initial 10 on creation from farming simulation minus 1
         assert_eq!(client.get_local_balance().await, Money::from_str("9")?);
@@ -239,16 +240,14 @@ mod tests {
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_send_several_transfers_and_thats_reflected_locally(
     ) -> Result<(), ClientError> {
-        let (sk, pk) = shared_box::gen_bls_keypair();
-        let (_sk2, pk2) = shared_box::gen_bls_keypair();
+        let full_id2 = ClientFullId::new_ed25519(&mut OsRng);
 
-        let _pk = PublicKey::Bls(pk);
-        let pk2 = PublicKey::Bls(pk2);
-
-        let mut client = Client::new(Some(sk.clone())).await?;
+        let mut client = Client::new(None).await?;
 
         println!("starting.....");
-        let _ = client.send_money(pk2, Money::from_str("1")?).await?;
+        let _ = client
+            .send_money(*full_id2.public_key(), Money::from_str("1")?)
+            .await?;
 
         // initial 10 on creation from farming simulation minus 1
         assert_eq!(client.get_local_balance().await, Money::from_str("9")?);
@@ -258,9 +257,9 @@ mod tests {
             Money::from_str("9")?
         );
 
-        println!("FIRST DONE!!!!!!!!!!!!!!");
-
-        let _ = client.send_money(pk2, Money::from_str("2")?).await?;
+        let _ = client
+            .send_money(*full_id2.public_key(), Money::from_str("2")?)
+            .await?;
 
         // initial 10 on creation from farming simulation minus 3
         assert_eq!(client.get_local_balance().await, Money::from_str("7")?);
@@ -271,13 +270,12 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_cannot_send_0_money_req() -> Result<(), ClientError> {
-        let (secret_key, _pk) = shared_box::gen_bls_keypair();
-        let (sk2, _pk) = shared_box::gen_bls_keypair();
+        let full_id2 = ClientFullId::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(Some(secret_key)).await?;
+        let mut client = Client::new(None).await?;
 
         let res = client
-            .send_money(PublicKey::Bls(sk2.public_key()), Money::from_str("0")?)
+            .send_money(*full_id2.public_key(), Money::from_str("0")?)
             .await?;
 
         println!("res to send 0: {:?}", res);

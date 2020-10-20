@@ -94,15 +94,14 @@ impl Client {
 mod tests {
 
     use super::*;
-
-    use crate::crypto::shared_box;
+    use rand::rngs::OsRng;
+    use sn_data_types::ClientFullId;
     use std::str::FromStr;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), ClientError> {
-        let (sk, _pk) = shared_box::gen_bls_keypair();
-        let mut initial_actor = Client::new(Some(sk.clone())).await?;
+        let mut initial_actor = Client::new(None).await?;
 
         let _ = initial_actor
             .trigger_simulated_farming_payout(Money::from_str("100")?)

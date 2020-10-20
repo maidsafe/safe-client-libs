@@ -169,8 +169,8 @@ impl Client {
     /// use sn_client::Client;
     /// use sn_data_types::{Money, Blob, PrivateBlob};
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async { 
-    /// 
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;

@@ -300,7 +300,6 @@ pub async fn attempt_bootstrap(
 #[cfg(feature = "simulated-payouts")]
 pub mod exported_tests {
     use super::*;
-    use crate::crypto::shared_box;
 
     pub async fn client_creation() -> Result<(), ClientError> {
         let _transfer_actor = Client::new(None).await?;

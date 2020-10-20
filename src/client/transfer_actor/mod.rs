@@ -271,15 +271,16 @@ mod tests {
 
     use super::*;
     use crate::crypto::shared_box;
+    use rand::rngs::OsRng;
     use sn_data_types::Money;
     use std::str::FromStr;
 
     #[tokio::test]
     async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), ClientError>
     {
-        let (sk, _pk) = shared_box::gen_bls_keypair();
+        let full_id = ClientFullId::new_ed25519(&mut OsRng);
 
-        match Client::new(Some(sk)).await {
+        match Client::new(Some(full_id)).await {
             Ok(actor) => {
                 assert_eq!(actor.get_local_balance().await, Money::from_str("0").unwrap() );
                 Ok(())
@@ -288,20 +289,16 @@ mod tests {
         }
     }
 
-    // TODO: only do this for real node until we a local replica bank
     #[tokio::test]
-    #[cfg(not(feature = "mock-network"))]
     async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError> {
-        let (sk, _pk) = shared_box::gen_bls_keypair();
-        let (sk2, _pk2) = shared_box::gen_bls_keypair();
-
-        let mut initial_actor = Client::new(Some(sk)).await?;
+        let full_id = ClientFullId::new_ed25519(&mut OsRng);
+        let mut initial_actor = Client::new(Some(full_id.clone())).await?;
 
         let _ = initial_actor
             .trigger_simulated_farming_payout(Money::from_str("100")?)
             .await?;
 
-        match Client::new(Some(sk2)).await {
+        match Client::new(Some(full_id)).await {
             Ok(mut client) => {
                 assert_eq!(
                     client.get_balance_from_network(None).await?,
