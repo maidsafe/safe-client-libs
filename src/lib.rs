@@ -38,10 +38,11 @@
 //! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
 //! # extern crate tokio; use sn_client::ClientError;
 //! use sn_client::Client;
-//! use threshold_crypto::SecretKey;
+//! use rand::rngs::OsRng;
+//! use sn_data_types::ClientFullId;
 //! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-//! let secret_key = SecretKey::random();
-//! let mut client = Client::new(Some(secret_key)).await?;
+//! let id = ClientFullId::new_ed25519(&mut OsRng);
+//! let mut client = Client::new(Some(id)).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }

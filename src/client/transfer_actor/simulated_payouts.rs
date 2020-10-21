@@ -36,13 +36,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::Money;
+    /// use sn_data_types::{ClientFullId, Money};
     /// use std::str::FromStr;
+    /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let secret_key = threshold_crypto::SecretKey::random();
-    ///
+    /// let id = ClientFullId::new_ed25519(&mut OsRng);
     /// // Start our client
-    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// let mut client = Client::new(Some(id)).await?;
     /// let target_balance = Money::from_str("100")?;
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///

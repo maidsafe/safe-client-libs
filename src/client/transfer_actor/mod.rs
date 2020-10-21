@@ -41,14 +41,15 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::Money;
+    /// use sn_data_types::{ClientFullId, Money};
+    /// use rand::rngs::OsRng;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// // Let's check the balance of a client with a random sk.
+    /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
-    /// let secret_key = threshold_crypto::SecretKey::random();
-    ///
-    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+
+    /// let mut client = Client::new(Some(id)).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
@@ -75,18 +76,18 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::{Money, PublicKey};
+    /// use sn_data_types::{ClientFullId, Money};
     /// use std::str::FromStr;
+    /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// // Let's check the balance of a client with a random sk.
-    /// // (It should have 0 balance)
-    /// let secret_key = threshold_crypto::SecretKey::random();
-    /// let pk = PublicKey::from(secret_key.public_key());
+    /// // Let's check the balance of a client with a random id.
+    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
     /// let mut client = Client::new(None).await?;
     /// let initial_balance = Money::from_str("0")?;
-    /// let balance = client.get_balance_for(pk).await?;
+    /// let balance = client.get_balance_for(*pk).await?;
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
@@ -106,12 +107,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
+    /// use sn_data_types::ClientFullId;
+    /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// // Let's check the balance of a client with a random sk.
-    /// let secret_key = threshold_crypto::SecretKey::random();
-    ///
-    /// // And we use a random client to do this
-    /// let mut client = Client::new(Some(secret_key)).await?;
+    /// // Let's check the balance of a random client.
+    /// // And we use a random client id to do this
+    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let mut client = Client::new(Some(id)).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
