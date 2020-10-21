@@ -13,7 +13,7 @@ keywords = [ "Safe", "Network", "SafeNetwork" ]
 
 
 [dependencies]
-async-trait = "~0.1.30"
+async-trait = "~0.1.41"
 bincode = "1.2.1"
 bytes = { version = "~0.5.4", features = ["serde"] }
 chrono = { version = "~0.4.0", features = ["serde"] }
