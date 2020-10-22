@@ -27,16 +27,16 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use rand::rngs::OsRng;
-    use sn_data_types::{ClientFullId, Sequence};
+    use sn_data_types::{Keypair, Sequence};
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
     pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), ClientError> {
-        let full_id = ClientFullId::new_ed25519(&mut OsRng);
+        let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        let data = Sequence::new_public(*full_id.public_key(), XorName::random(), 33323);
+        let data = Sequence::new_public(keypair.public_key(), XorName::random(), 33323);
 
-        let mut initial_actor = Client::new(Some(full_id)).await?;
+        let mut initial_actor = Client::new(Some(keypair)).await?;
 
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(ClientError::DataError(e)) => {

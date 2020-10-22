@@ -16,7 +16,7 @@ use futures::{
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
 use sn_data_types::{
-    ClientFullId, Event, HandshakeRequest, HandshakeResponse, Message, MessageId, MsgEnvelope,
+    Event, HandshakeRequest, HandshakeResponse, Keypair, Message, MessageId, MsgEnvelope,
     MsgSender, QueryResponse, TransferValidated,
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
@@ -43,9 +43,8 @@ struct ElderStream {
 type NetworkListenerHandle = JoinHandle<Result<(), ClientError>>;
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
-#[derive(Clone)]
 pub struct ConnectionManager {
-    full_id: ClientFullId,
+    keypair: Arc<Keypair>,
     qp2p: QuicP2p,
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
@@ -54,13 +53,13 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager.
-    pub fn new(mut config: QuicP2pConfig, full_id: ClientFullId) -> Result<Self, ClientError> {
+    pub fn new(mut config: QuicP2pConfig, keypair: Arc<Keypair>) -> Result<Self, ClientError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
         let endpoint = qp2p.new_endpoint()?;
 
         Ok(Self {
-            full_id,
+            keypair,
             qp2p,
             elders: Vec::default(),
             endpoint: Arc::new(Mutex::new(endpoint)),
@@ -71,8 +70,8 @@ impl ConnectionManager {
     /// Bootstrap to the network maintaining connections to several nodes.
     pub async fn bootstrap(&mut self) -> Result<(), ClientError> {
         trace!(
-            "Trying to bootstrap to the network with public_id: {:?}",
-            self.full_id.public_id()
+            "Trying to bootstrap to the network with public_key: {:?}",
+            self.keypair.public_key()
         );
 
         // Bootstrap and send a handshake request to receive
@@ -340,11 +339,11 @@ impl ConnectionManager {
     // Put a `Message` in an envelope so it can be sent to the network
     fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, ClientError> {
         trace!("Putting message in envelope: {:?}", message);
-        let sign = self.full_id.sign(&serialize(message)?);
+        let sign = self.keypair.sign(&serialize(message)?);
 
         let envelope = MsgEnvelope {
             message: message.clone(),
-            origin: MsgSender::client(*self.full_id.public_key(), sign)?,
+            origin: MsgSender::client(self.keypair.public_key(), sign)?,
             proxies: Default::default(),
         };
 
@@ -360,8 +359,8 @@ impl ConnectionManager {
         self.endpoint = Arc::new(Mutex::new(endpoint));
 
         trace!("Sending handshake request to bootstrapped node...");
-        let public_id = self.full_id.public_id();
-        let handshake = HandshakeRequest::Bootstrap(*public_id.public_key());
+        let public_key = self.keypair.public_key();
+        let handshake = HandshakeRequest::Bootstrap(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
         let mut streams = conn.send(msg).await?;
         let response = streams.1.next().await?;
@@ -390,7 +389,7 @@ impl ConnectionManager {
     async fn connect_to_elder(
         endpoint: Arc<Mutex<Endpoint>>,
         peer_addr: SocketAddr,
-        full_id: ClientFullId,
+        keypair: Arc<Keypair>,
     ) -> Result<
         (
             Arc<Mutex<SendStream>>,
@@ -402,7 +401,7 @@ impl ConnectionManager {
     > {
         let connection = endpoint.lock().await.connect_to(&peer_addr).await?;
 
-        let handshake = HandshakeRequest::Join(*full_id.public_id().public_key());
+        let handshake = HandshakeRequest::Join(keypair.public_key());
         let msg = Bytes::from(serialize(&handshake)?);
         let (_send_stream, mut recv_stream) = connection.send(msg).await?;
         let final_response = recv_stream.next().await?;
@@ -414,7 +413,7 @@ impl ConnectionManager {
                     peer_addr,
                     node_public_key
                 );
-                let response = HandshakeRequest::ChallengeResult(full_id.sign(&challenge));
+                let response = HandshakeRequest::ChallengeResult(keypair.sign(&challenge));
                 let msg = Bytes::from(serialize(&response)?);
                 let (send_stream, recv_stream) = connection.send(msg).await?;
 
@@ -443,7 +442,7 @@ impl ConnectionManager {
         let mut tasks = Vec::default();
 
         for peer_addr in elders_addrs {
-            let full_id = self.full_id.clone();
+            let keypair = self.keypair.clone();
 
             // We use one endpoint for all elders
             let endpoint = Arc::clone(&self.endpoint);
@@ -454,8 +453,8 @@ impl ConnectionManager {
                 let mut attempts: usize = 1;
                 while !done_trying {
                     let endpoint = Arc::clone(&endpoint);
-                    let full_id = full_id.clone();
-                    result = Self::connect_to_elder(endpoint, peer_addr, full_id).await;
+                    let keypair = keypair.clone();
+                    result = Self::connect_to_elder(endpoint, peer_addr, keypair).await;
 
                     debug!(
                         "Elder conn attempt #{:?} @ {:?} is ok? : {:?}",

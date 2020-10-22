@@ -38,13 +38,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ ClientFullId, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -94,13 +94,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ ClientFullId, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -256,13 +256,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ ClientFullId, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -306,13 +306,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ ClientFullId, Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -381,13 +381,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ ClientFullId, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();

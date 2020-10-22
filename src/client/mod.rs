@@ -44,8 +44,8 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 
 use sn_data_types::{
-    Blob, BlobAddress, ClientFullId, Cmd, Message, MessageId, Money, PublicId, PublicKey, Query,
-    QueryResponse, Sequence, SequenceAddress,
+    Blob, BlobAddress, Cmd, Keypair, Message, MessageId, Money, PublicKey, Query, QueryResponse,
+    Sequence, SequenceAddress,
 };
 
 #[cfg(feature = "simulated-payouts")]
@@ -72,7 +72,7 @@ pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, ClientError> {
 /// Client object
 #[derive(Clone)]
 pub struct Client {
-    full_id: ClientFullId,
+    keypair: Arc<Keypair>,
     blob_cache: Arc<Mutex<LruCache<BlobAddress, Blob>>>,
     /// Sequence CRDT replica
     sequence_cache: Arc<Mutex<LruCache<SequenceAddress, Sequence>>>,
@@ -106,14 +106,14 @@ impl Client {
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(optional_id: Option<ClientFullId>) -> Result<Self, ClientError> {
+    pub async fn new(optional_id: Option<Keypair>) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
         let mut rng = OsRng;
 
-        let full_id = match optional_id {
+        let keypair = match optional_id {
             Some(id) => {
                 #[cfg(feature = "simulated-payouts")]
                 {
@@ -122,35 +122,37 @@ impl Client {
 
                 id
             }
-            None => ClientFullId::new_ed25519(&mut rng),
+            None => Keypair::new_ed25519(&mut rng),
         };
 
-        info!("Cliented started for pk: {:?}", full_id.public_key());
+        let keypair = Arc::new(keypair);
+
+        info!("Cliented started for pk: {:?}", keypair.public_key());
 
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().qp2p, full_id.clone()).await?;
+            attempt_bootstrap(&Config::new().qp2p, keypair.clone()).await?;
 
         // random PK used for from payment
-        let random_payment_id = ClientFullId::new_bls(&mut rng);
+        let random_payment_id = Keypair::new_bls(&mut rng);
         let random_payment_pk = random_payment_id.public_key();
 
-        let simulated_farming_payout_dot = Dot::new(*random_payment_pk, 0);
+        let simulated_farming_payout_dot = Dot::new(random_payment_pk, 0);
 
         let replicas_pk_set =
-            Self::get_replica_keys(full_id.clone(), &mut connection_manager).await?;
+            Self::get_replica_keys(keypair.clone(), &mut connection_manager).await?;
 
         let validator = ClientTransferValidator {};
 
         let transfer_actor = Arc::new(Mutex::new(SafeTransferActor::new(
-            full_id.keypair().clone(),
+            keypair.clone(),
             replicas_pk_set.clone(),
             validator,
         )));
 
         let mut full_client = Self {
             connection_manager: Arc::new(Mutex::new(connection_manager)),
-            full_id,
+            keypair,
             transfer_actor,
             replicas_pk_set,
             simulated_farming_payout_dot,
@@ -188,29 +190,12 @@ impl Client {
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let client = Client::new(None).await?;
-    /// let _full_id = client.full_id().await;
+    /// let _keypair = client.keypair().await;
     ///
     /// # Ok(()) } ); }
     /// ```
-    pub async fn full_id(&self) -> ClientFullId {
-        self.full_id.clone()
-    }
-
-    /// Return the client's PublicId.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
-    /// use sn_client::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let client = Client::new(None).await?;
-    /// let _public_id = client.public_id().await;
-    /// # Ok(()) } ); }
-    /// ```
-    pub async fn public_id(&self) -> PublicId {
-        let id = self.full_id().await;
-        PublicId::Client(id.public_id().clone())
+    pub async fn keypair(&self) -> Arc<Keypair> {
+        self.keypair.clone()
     }
 
     /// Return the client's PublicKey.
@@ -226,9 +211,9 @@ impl Client {
     /// # Ok(()) } ); }
     /// ```
     pub async fn public_key(&self) -> PublicKey {
-        let id = self.full_id().await;
+        let id = self.keypair().await;
 
-        *id.public_key()
+        id.public_key()
     }
 
     /// Send a Query to the network and await a response
@@ -274,12 +259,12 @@ impl Client {
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
 pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
-    full_id: ClientFullId,
+    keypair: Arc<Keypair>,
 ) -> Result<ConnectionManager, ClientError> {
     let mut attempts: u32 = 0;
 
     loop {
-        let mut connection_manager = ConnectionManager::new(qp2p_config.clone(), full_id.clone())?;
+        let mut connection_manager = ConnectionManager::new(qp2p_config.clone(), keypair.clone())?;
         let res = connection_manager.bootstrap().await;
         match res {
             Ok(()) => return Ok(connection_manager),
@@ -308,7 +293,7 @@ pub mod exported_tests {
 
     pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
         let mut rng = OsRng;
-        let fulld_id = ClientFullId::new_ed25519(&mut rng);
+        let fulld_id = Keypair::new_ed25519(&mut rng);
         let _transfer_actor = Client::new(Some(fulld_id)).await?;
 
         Ok(())

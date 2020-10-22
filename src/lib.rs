@@ -39,9 +39,9 @@
 //! # extern crate tokio; use sn_client::ClientError;
 //! use sn_client::Client;
 //! use rand::rngs::OsRng;
-//! use sn_data_types::ClientFullId;
+//! use sn_data_types::Keypair;
 //! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-//! let id = ClientFullId::new_ed25519(&mut OsRng);
+//! let id = Keypair::new_ed25519(&mut OsRng);
 //! let mut client = Client::new(Some(id)).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;

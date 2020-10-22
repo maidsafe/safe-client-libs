@@ -8,7 +8,7 @@
 
 use crate::client::COST_OF_PUT;
 
-use sn_data_types::{ClientFullId, Keypair, Money};
+use sn_data_types::{Keypair, Money};
 
 use unwrap::unwrap;
 
@@ -16,12 +16,6 @@ use unwrap::unwrap;
 pub fn gen_bls_keypair() -> Keypair {
     let mut rng = rand::thread_rng();
     Keypair::new_bls(&mut rng)
-}
-
-/// Generates a random client full ID.
-pub fn gen_client_id() -> ClientFullId {
-    let mut rng = rand::thread_rng();
-    ClientFullId::new_bls(&mut rng)
 }
 
 /// Helper function to calculate the total cost of expenditure by adding number of mutations and

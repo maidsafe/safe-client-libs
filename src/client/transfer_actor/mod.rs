@@ -1,10 +1,11 @@
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
-    ClientFullId, Cmd, DataCmd, DebitAgreementProof, Message, Money, PublicKey, Query,
-    QueryResponse, TransferCmd, TransferId, TransferQuery, TransferValidated,
+    Cmd, DataCmd, DebitAgreementProof, Keypair, Message, Money, PublicKey, Query, QueryResponse,
+    TransferCmd, TransferId, TransferQuery, TransferValidated,
 };
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
+use std::sync::Arc;
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::channel;
 
@@ -40,13 +41,13 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::{ClientFullId, Money};
+    /// use sn_data_types::{Keypair, Money};
     /// use rand::rngs::OsRng;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id)).await?;
     /// let initial_balance = Money::from_str("0")?;
@@ -58,10 +59,7 @@ impl Client {
     where
         Self: Sized,
     {
-        trace!(
-            "Getting balance for {:?}",
-            self.full_id().await.public_key()
-        );
+        trace!("Getting balance for {:?}", self.public_key().await);
 
         // we're a standard client grabbing our own key's balance
         self.get_balance_from_network(None).await
@@ -75,18 +73,18 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::{ClientFullId, Money};
+    /// use sn_data_types::{Keypair, Money};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
     /// let mut client = Client::new(None).await?;
     /// let initial_balance = Money::from_str("0")?;
-    /// let balance = client.get_balance_for(*pk).await?;
+    /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
@@ -106,19 +104,19 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::ClientFullId;
+    /// use sn_data_types::Keypair;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// let mut client = Client::new(Some(id)).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
     /// ```
     pub async fn get_history(&mut self) -> Result<(), ClientError> {
-        let public_key = *self.full_id.public_key();
+        let public_key = self.public_key().await;
         info!("Getting SnTransfers history for pk: {:?}", public_key);
 
         let msg_contents = Query::Transfer(TransferQuery::GetHistory {
@@ -177,7 +175,7 @@ impl Client {
     pub async fn get_store_cost(&mut self, bytes: u64) -> Result<Money, ClientError> {
         info!("Sending Query for latest StoreCost");
 
-        let public_key = *self.full_id.public_key();
+        let public_key = self.public_key().await;
 
         let msg_contents = Query::Transfer(TransferQuery::GetStoreCost {
             requester: public_key,
@@ -212,9 +210,6 @@ impl Client {
 
         // Compute number of bytes
         let bytes = serialize(cmd)?.len() as u64;
-
-        //set up message
-        let _full_id = self.full_id.clone();
 
         self.get_history().await?;
 
@@ -253,12 +248,12 @@ impl Client {
 
     /// Get our replica instance PK set
     pub(crate) async fn get_replica_keys(
-        full_id: ClientFullId,
+        keypair: Arc<Keypair>,
         cm: &mut ConnectionManager,
     ) -> Result<PublicKeySet, ClientError> {
-        trace!("Getting replica keys for {:?}", full_id);
-
-        let keys_query_msg = Query::Transfer(TransferQuery::GetReplicaKeys(*full_id.public_key()));
+        trace!("Getting replica keys for {:?}", keypair);
+        let pk = keypair.public_key();
+        let keys_query_msg = Query::Transfer(TransferQuery::GetReplicaKeys(pk));
 
         let message = Self::create_query_message(keys_query_msg);
 
@@ -268,7 +263,7 @@ impl Client {
             QueryResponse::GetReplicaKeys(pk_set) => Ok(pk_set?),
             _ => Err(ClientError::from(format!(
                 "Unexpected response when retrieving account replica keys for {:?}",
-                full_id.public_key()
+                pk
             ))),
         }
     }
@@ -335,9 +330,9 @@ mod tests {
     #[tokio::test]
     async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), ClientError>
     {
-        let full_id = ClientFullId::new_ed25519(&mut OsRng);
+        let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        match Client::new(Some(full_id)).await {
+        match Client::new(Some(keypair)).await {
             Ok(actor) => {
                 assert_eq!(actor.get_local_balance().await, Money::from_str("0").unwrap() );
                 Ok(())
@@ -348,14 +343,22 @@ mod tests {
 
     #[tokio::test]
     async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError> {
-        let full_id = ClientFullId::new_ed25519(&mut OsRng);
-        let mut initial_actor = Client::new(Some(full_id.clone())).await?;
+        let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        let _ = initial_actor
-            .trigger_simulated_farming_payout(Money::from_str("100")?)
-            .await?;
+        let keypair = {
+            // let keypair_again = keypair
+            let mut initial_actor = Client::new(Some(keypair)).await?;
 
-        match Client::new(Some(full_id)).await {
+            let _ = initial_actor
+                .trigger_simulated_farming_payout(Money::from_str("100")?)
+                .await?;
+            // lets grab the keypair from the client before we drop it
+            initial_actor.keypair().await
+        };
+
+        let keypair = Arc::try_unwrap(keypair).map_err(|_| "Could not unwrap Arc<keypair>")?;
+
+        match Client::new(Some(keypair)).await {
             Ok(mut client) => {
                 assert_eq!(
                     client.get_balance_from_network(None).await?,

@@ -36,11 +36,11 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
-    /// use sn_data_types::{ClientFullId, Money};
+    /// use sn_data_types::{Keypair, Money};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let id = ClientFullId::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
     /// // Start our client
     /// let mut client = Client::new(Some(id)).await?;
     /// let target_balance = Money::from_str("100")?;
@@ -54,7 +54,7 @@ impl Client {
         &mut self,
         amount: Money,
     ) -> Result<(), ClientError> {
-        let pk = *self.full_id().await.public_key();
+        let pk = self.public_key().await;
         info!("Triggering a simulated farming payout to: {:?}", pk);
         self.simulated_farming_payout_dot.apply_inc();
 
