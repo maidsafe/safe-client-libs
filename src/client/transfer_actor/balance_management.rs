@@ -302,8 +302,7 @@ mod tests {
     // 1. Create a client A and allocate 100 Money to it. (Clients start with 10 Money by default on simulated-farming)
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding 10 Money on start.
-    // 4. Transfer 5 Money from client A to client B and verify the new balance.
-    // 5. Try to do a coin transfer without enough funds, it should return `InsufficientBalance`
+    // 4. Transfer 5 Money from client A to client B and verify the new balances.
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     pub async fn balance_transfers_between_clients() -> Result<(), ClientError> {
@@ -319,7 +318,6 @@ mod tests {
         let balance = client.get_balance().await?;
         assert_eq!(balance, Money::from_str("110")?); // 10 coins added automatically w/ farming sim on client init.
 
-        let orig_balance = client.get_balance().await?;
         let _ = client.send_money(wallet1, Money::from_str("5.0")?).await?;
 
         // Assert sender is debited.
@@ -330,24 +328,38 @@ mod tests {
         );
 
         // Assert that the receiver has been credited.
-        let mut receiving_bal = receiving_client.get_balance().await?;
+        let receiving_bal = receiving_client.get_balance().await?;
         assert_eq!(receiving_bal, Money::from_str("15.0")?);
 
+        Ok(())
+    }
+
+    // 1. Create a sender client A w/10 Money by default.
+    // 2. Create a receiver client B w/10 Money by default.
+    // 3. Attempt to send 5000 Money from A to B which should fail with 'InsufficientBalance'.
+    // 4. Assert Client A's balance is unchanged.
+    // 5. Assert Client B's balance is unchanged.
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn insufficient_balance_transfers() -> Result<(), ClientError> {
+        let mut client = Client::new(None).await?;
+        let mut receiving_client = Client::new(None).await?;
+
+        let wallet1 = receiving_client.public_key().await;
+
         // Try transferring money exceeding our balance.
-        let res = client.send_money(wallet1, Money::from_str("5000")?).await;
-        match res {
+        match client.send_money(wallet1, Money::from_str("5000")?).await {
             Err(ClientError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!("Unexpected result: {:?}", res),
         };
 
-        // Assert if money is refunded.
+        // Assert if sender's money is unchanged.
         let balance = client.get_balance().await?;
-        let expected = calculate_new_balance(orig_balance, None, Some(Money::from_str("5")?));
-        assert_eq!(balance, expected);
+        assert_eq!(balance, Money::from_str("10")?);
 
-        // Assert no money is credited accidentally.
-        receiving_bal = receiving_client.get_balance().await?;
-        assert_eq!(receiving_bal, Money::from_str("15")?);
+        // Assert no money is credited to receiver's bal accidentally by logic error.
+        let receiving_bal = receiving_client.get_balance().await?;
+        assert_eq!(receiving_bal, Money::from_str("10")?);
 
         Ok(())
     }
