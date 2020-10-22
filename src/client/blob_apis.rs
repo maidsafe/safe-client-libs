@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::ClientError;
-use crate::{utils::wrap_data_cmd, Client};
+use crate::Client;
 use bincode::{deserialize, serialize};
 use log::{info, trace};
 use serde::{Deserialize, Serialize};
@@ -16,8 +16,8 @@ use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use self_encryption::{DataMap, SelfEncryptor};
 use sn_data_types::{
-    Blob, BlobAddress, BlobRead, BlobWrite, DataCmd, DataQuery, PrivateBlob, PublicBlob, PublicKey,
-    Query, QueryResponse,
+    Blob, BlobAddress, BlobRead, BlobWrite, Cmd, DataCmd, DataQuery, PrivateBlob, PublicBlob,
+    PublicKey, Query, QueryResponse,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -139,7 +139,10 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -193,7 +196,10 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -210,15 +216,15 @@ impl Client {
         let blob_storage = BlobStorageDryRun::new(self.clone(), the_blob.is_pub());
 
         let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)
-            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
         self_encryptor
             .write(the_blob.value(), 0)
             .await
-            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
         let (data_map, _) = self_encryptor
             .close()
             .await
-            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
         Ok(data_map)
     }
@@ -241,7 +247,7 @@ impl Client {
 
         let blob_storage = BlobStorage::new(self.clone(), published);
         let self_encryptor = SelfEncryptor::new(blob_storage, data_map)
-            .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
         let length = match len {
             None => self_encryptor.len().await,
@@ -255,7 +261,7 @@ impl Client {
 
         match self_encryptor.read(read_position, length).await {
             Ok(data) => Ok(data),
-            Err(error) => Err(ClientError::from(format!("{}", error))),
+            Err(error) => Err(ClientError::from(format!("{:?}", error))),
         }
     }
 
@@ -283,17 +289,17 @@ impl Client {
             }
 
             let self_encryptor = SelfEncryptor::new(blob_storage.clone(), DataMap::None)
-                .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+                .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
             self_encryptor
                 .write(&serialised_data, 0)
                 .await
-                .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+                .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
             let (data_map, _) = self_encryptor
                 .close()
                 .await
-                .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+                .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
             value = serialize(&DataTypeEncoding::DataMap(data_map))?;
         }
@@ -305,14 +311,15 @@ impl Client {
                 DataTypeEncoding::Serialised(value) => return Ok(value),
                 DataTypeEncoding::DataMap(data_map) => {
                     let blob_storage = BlobStorage::new(self.clone(), data.is_pub());
-                    let self_encryptor = SelfEncryptor::new(blob_storage, data_map)
-                        .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+                    let self_encryptor =
+                        SelfEncryptor::new(blob_storage, data_map).map_err(|e| {
+                            ClientError::from(format!("Self encryption error: {:?}", e))
+                        })?;
                     let length = self_encryptor.len().await;
 
-                    let serialised_data = self_encryptor
-                        .read(0, length)
-                        .await
-                        .map_err(|e| ClientError::from(format!("Self encryption error: {}", e)))?;
+                    let serialised_data = self_encryptor.read(0, length).await.map_err(|e| {
+                        ClientError::from(format!("Self encryption error: {:?}", e))
+                    })?;
 
                     data = deserialize(&serialised_data)?;
                 }

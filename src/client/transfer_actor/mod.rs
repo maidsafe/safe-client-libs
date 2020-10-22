@@ -197,7 +197,7 @@ impl Client {
         match res {
             QueryResponse::GetStoreCost(cost) => cost.map_err(ClientError::DataError),
             _ => Err(ClientError::from(format!(
-                "Unexpected response when retrieving account history {:?}",
+                "Unexpected response when retrieving StoreCost {:?}",
                 res
             ))),
         }

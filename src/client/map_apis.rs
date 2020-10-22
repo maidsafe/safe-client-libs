@@ -7,13 +7,13 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::errors::ClientError;
-use crate::{utils::wrap_data_cmd, Client};
+use crate::Client;
 use log::trace;
 
 use sn_data_types::{
-    DataCmd, DataQuery, Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet, MapRead,
-    MapSeqEntries, MapSeqEntryActions, MapSeqValue, MapUnseqEntryActions, MapValue, MapValues,
-    PublicKey, Query, QueryResponse,
+    Cmd, DataCmd, DataQuery, Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet,
+    MapRead, MapSeqEntries, MapSeqEntryActions, MapSeqValue, MapUnseqEntryActions, MapValue,
+    MapValues, PublicKey, Query, QueryResponse,
 };
 
 use sn_data_types::MapWrite;
@@ -72,7 +72,10 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -127,7 +130,10 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
             .connection_manager
@@ -156,7 +162,10 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
 
         let message = Self::create_cmd_message(msg_contents);
 
@@ -189,7 +198,10 @@ impl Client {
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
         // The _actual_ message
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
 
         let message = Self::create_cmd_message(msg_contents);
 
@@ -217,7 +229,10 @@ impl Client {
 
         // The _actual_ message
 
-        let msg_contents = wrap_data_cmd(cmd, payment_proof.clone());
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
 
         let message = Self::create_cmd_message(msg_contents);
         let _ = self
