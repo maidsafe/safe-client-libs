@@ -24,15 +24,15 @@ jobs:
           override: true
           components: rustfmt, clippy
 
-      # Cache.
-      - name: Cargo cache registry, index and build
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+      # # Cache.
+      # - name: Cargo cache registry, index and build
+      #   uses: actions/cache@v2
+      #   with:
+      #     path: |
+      #       ~/.cargo/registry
+      #       ~/.cargo/git
+      #       target
+      #     key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
 
       # Check if the code is formatted correctly.
       - name: Check formatting
@@ -57,14 +57,14 @@ jobs:
           override: true
 
       # Cache.
-      - name: Cargo cache registry, index and build
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+      # - name: Cargo cache registry, index and build
+      #   uses: actions/cache@v2
+      #   with:
+      #     path: |
+      #       ~/.cargo/registry
+      #       ~/.cargo/git
+      #       target
+      #     key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
 
       # Test build scripts.
       - name: Build
@@ -88,14 +88,14 @@ jobs:
           override: true
 
       # Cache.
-      - name: Cargo cache registry, index and build
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
+      # - name: Cargo cache registry, index and build
+      #   uses: actions/cache@v2
+      #   with:
+      #     path: |
+      #       ~/.cargo/registry
+      #       ~/.cargo/git
+      #       target
+      #     key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
 
       # TODO: Reenable as we get tests going again
       # Run tests.
