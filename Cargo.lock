@@ -1847,6 +1847,8 @@ dependencies = [
 [[package]]
 name = "sn_transfers"
 version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95eb9402be53656d9b00fdb678f1579e759c6221661c80c0dd813267e96718e3"
 dependencies = [
  "bincode",
  "crdts",
