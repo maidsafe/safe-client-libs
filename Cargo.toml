@@ -52,9 +52,5 @@ serde_json = "1.0.9"
 simulated-payouts = ["sn_data_types/simulated-payouts", "sn_transfers/simulated-payouts"]
 testing = []
 
-[patch.crates-io]
-# sn_data_types = {path="../safe-nd"}
-# sn_transfers = {path="../safe-transfers"}
-
 [package.metadata.docs.rs]
 features = ["simulated-payouts"]
