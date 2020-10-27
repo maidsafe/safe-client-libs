@@ -106,14 +106,14 @@ impl Client {
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(optional_id: Option<Keypair>) -> Result<Self, ClientError> {
+    pub async fn new(optional_keypair: Option<Keypair>) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
         let mut is_random_client = true;
         let mut rng = OsRng;
 
-        let keypair = match optional_id {
+        let keypair = match optional_keypair {
             Some(id) => {
                 #[cfg(feature = "simulated-payouts")]
                 {
