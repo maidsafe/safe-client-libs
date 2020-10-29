@@ -318,18 +318,17 @@ impl Client {
 // Tests
 // ---------------------------------
 
-// TODO: Do we need "new" to actually instantiate with a transfer?...
-#[cfg(all(test, feature = "simulated-payouts"))]
-mod tests {
+#[allow(missing_docs)]
+#[cfg(feature = "simulated-payouts")]
+pub mod exported_tests {
 
     use super::*;
     use rand::rngs::OsRng;
     use sn_data_types::Money;
     use std::str::FromStr;
 
-    #[tokio::test]
-    async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), ClientError>
-    {
+    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance(
+    ) -> Result<(), ClientError> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
         match Client::new(Some(keypair)).await {
@@ -337,12 +336,12 @@ mod tests {
                 assert_eq!(actor.get_local_balance().await, Money::from_str("0").unwrap() );
                 Ok(())
             },
-            Err(e) => panic!("Should not error for nonexistant keys, only create a new instance with no history, we got: {:?}" , e )
+            Err(e) => panic!("Should not error for nonexistent keys, only create a new instance with no history, we got: {:?}" , e )
         }
     }
 
-    #[tokio::test]
-    async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError> {
+    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError>
+    {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
         let keypair = {
@@ -370,5 +369,25 @@ mod tests {
             }
             Err(e) => panic!("Account should exist {:?}", e),
         }
+    }
+}
+
+#[cfg(all(test, feature = "simulated-payouts"))]
+mod tests {
+    use super::exported_tests;
+    use crate::ClientError;
+
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance(
+    ) -> Result<(), ClientError> {
+        exported_tests::transfer_actor_creation_hydration_for_nonexistant_balance().await
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError>
+    {
+        exported_tests::transfer_actor_creation_hydration_for_existing_balance().await
     }
 }

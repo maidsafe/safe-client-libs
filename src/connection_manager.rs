@@ -560,7 +560,7 @@ impl ConnectionManager {
                                         .get_mut(&correlation_id)
                                     {
                                         info!("Accumulating SignatureShare");
-                                        let _ = sender.send(Ok(event)).await.unwrap();
+                                        let _ = sender.send(Ok(event)).await;
                                     }
                                 }
                             }
