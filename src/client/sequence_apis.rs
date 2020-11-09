@@ -10,10 +10,10 @@ use crate::errors::ClientError;
 use crate::Client;
 use log::trace;
 use sn_data_types::{
-    Cmd, DataCmd, DataQuery, PublicKey, Query, QueryResponse, Sequence, SequenceAction,
-    SequenceAddress, SequenceDataWriteOp, SequenceEntries, SequenceEntry, SequenceIndex,
-    SequencePermissions, SequencePrivatePermissions, SequencePublicPermissions, SequenceRead,
-    SequenceUser, SequenceWrite,
+    Cmd, DataCmd, DataQuery, PublicKey, Query, QueryResponse, Sequence, SequenceAddress,
+    SequenceDataWriteOp, SequenceEntries, SequenceEntry, SequenceIndex, SequencePermissions,
+    SequencePrivatePermissions, SequencePublicPermissions, SequenceRead, SequenceUser,
+    SequenceWrite,
 };
 use std::collections::BTreeMap;
 use xor_name::XorName;
@@ -75,7 +75,8 @@ impl Client {
         permissions: BTreeMap<PublicKey, SequencePrivatePermissions>,
     ) -> Result<SequenceAddress, ClientError> {
         trace!("Store Private Sequence Data {:?}", name);
-        let mut data = Sequence::new_private(owner, name, tag);
+        let pk = self.public_key().await;
+        let mut data = Sequence::new_private(pk, pk, name, tag);
         let address = *data.address();
         let _ = data.set_private_policy(owner, permissions)?;
 
@@ -141,7 +142,8 @@ impl Client {
         permissions: BTreeMap<SequenceUser, SequencePublicPermissions>,
     ) -> Result<SequenceAddress, ClientError> {
         trace!("Store Public Sequence Data {:?}", name);
-        let mut data = Sequence::new_public(owner, name, tag);
+        let pk = self.public_key().await;
+        let mut data = Sequence::new_public(pk, pk, name, tag);
         let address = *data.address();
         let _ = data.set_public_policy(owner, permissions)?;
 
@@ -259,11 +261,6 @@ impl Client {
         // First we fetch it so we can get the causality info,
         // either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
-
-        // We do a permissions check just to make sure it won't fail when the operation
-        // is broadcasted to the network, assuming our replica is in sync and up to date
-        // with the permissions and ownership information compared with the replicas on the network.
-        sequence.check_permission(SequenceAction::Append, self.public_key().await)?;
 
         // We can now append the entry to the Sequence
         let op = sequence.append(entry)?;
@@ -450,8 +447,9 @@ impl Client {
         );
 
         let sequence = self.get_sequence(address).await?;
-        match sequence.last_entry() {
-            Some(entry) => Ok((sequence.len() - 1, entry.to_vec())),
+        // TODO: do we need to query with some specific PK?
+        match sequence.last_entry(None)? {
+            Some(entry) => Ok((sequence.len(None)? - 1, entry.to_vec())),
             None => Err(ClientError::from(sn_data_types::Error::NoSuchEntry)),
         }
     }
@@ -507,8 +505,9 @@ impl Client {
         );
 
         let sequence = self.get_sequence(address).await?;
+        // TODO: do we need to query with some specific PK?
         sequence
-            .in_range(range.0, range.1)
+            .in_range(range.0, range.1, None)?
             .ok_or_else(|| ClientError::from(sn_data_types::Error::NoSuchEntry))
     }
 
@@ -558,9 +557,11 @@ impl Client {
         // TODO: perhaps we want to grab it directly from the network and update local replica
         let sequence = self.get_sequence(address).await?;
 
-        let owner = match &sequence {
-            Sequence::Public(_seq) => sequence.public_policy(sequence.policy_version())?.owner,
-            Sequence::Private(_seq) => sequence.private_policy(sequence.policy_version())?.owner,
+        let owner = if sequence.is_pub() {
+            sequence.public_policy()?.owner
+        } else {
+            // TODO: do we need to query with some specific PK?
+            sequence.private_policy(None)?.owner
         };
 
         Ok(owner)
@@ -610,16 +611,9 @@ impl Client {
         let mut sequence = self.get_sequence(address).await?;
 
         let pk = self.public_key().await;
-        // We do a permissions check just to make sure it won't fail when the operation
-        // is broadcasted to the network, assuming our replica is in sync and up to date
-        // with the ownership information compared with the replicas on the network.
-        sequence.check_permission(SequenceAction::Admin, pk)?;
 
         // get current policy permissions
-        let permissions = sequence
-            .private_policy(sequence.policy_version())?
-            .permissions
-            .clone();
+        let permissions = sequence.private_policy(Some(pk))?.permissions.clone();
 
         // set new owner against this
         let op = sequence.set_private_policy(owner, permissions)?;
@@ -699,10 +693,12 @@ impl Client {
             address.name()
         );
 
-        // TODO: perhaps we want to grab it directly from the network and update local replica
+        // TODO: perhaps we want to grab it directly from
+        // the network and update local replica
         let sequence = self.get_sequence(address).await?;
+        // TODO: do we need to query with some specific PK?
         let perms = match sequence
-            .permissions(SequenceUser::Key(user), sequence.policy_version() - 1)
+            .permissions(SequenceUser::Key(user), None)
             .map_err(ClientError::from)?
         {
             SequencePermissions::Public(perms) => perms,
@@ -755,10 +751,12 @@ impl Client {
             address.name()
         );
 
-        // TODO: perhaps we want to grab it directly from the network and update local replica
+        // TODO: perhaps we want to grab it directly from
+        // the network and update local replica
         let sequence = self.get_sequence(address).await?;
+        // TODO: do we need to query with some specific PK?
         let perms = match sequence
-            .permissions(SequenceUser::Key(user), sequence.policy_version() - 1)
+            .permissions(SequenceUser::Key(user), None)
             .map_err(ClientError::from)?
         {
             SequencePermissions::Private(perms) => perms,
@@ -812,10 +810,12 @@ impl Client {
             address.name()
         );
 
-        // TODO: perhaps we want to grab it directly from the network and update local replica
+        // TODO: perhaps we want to grab it directly from
+        // the network and update local replica
         let sequence = self.get_sequence(address).await?;
+        // TODO: do we need to query with some specific PK?
         let perms = sequence
-            .permissions(user, sequence.policy_version() - 1)
+            .permissions(user, None)
             .map_err(ClientError::from)?;
 
         Ok(perms)
@@ -868,11 +868,6 @@ impl Client {
     ) -> Result<(), ClientError> {
         // First we fetch it either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
-
-        // We do a permissions check just to make sure it won't fail when the operation
-        // is broadcasted to the network, assuming our replica is in sync and up to date
-        // with the permissions information compared with the replicas on the network.
-        sequence.check_permission(SequenceAction::Admin, self.public_key().await)?;
 
         // We can now set the new permissions to the Sequence
         let op = sequence.set_public_policy(self.public_key().await, permissions)?;
@@ -952,12 +947,6 @@ impl Client {
         // First we fetch it either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
 
-        // We do a permissions check just to make sure it won't fail when the operation
-        // is broadcasted to the network, assuming our replica is in sync and up to date
-        // with the permissions information compared with the replicas on the network.
-        // TODO: if it fails, try to sync-up perms with rmeote replicas and try once more
-        sequence.check_permission(SequenceAction::Admin, self.public_key().await)?;
-
         // We can now set the new permissions to the Sequence
         let op = sequence.set_private_policy(self.public_key().await, permissions)?;
 
@@ -995,7 +984,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use sn_data_types::{Error as SndError, Money, SequencePrivatePermissions};
+    use sn_data_types::{Error as SndError, Money, SequenceAction, SequencePrivatePermissions};
     use std::str::FromStr;
     use unwrap::unwrap;
     use xor_name::XorName;
@@ -1040,9 +1029,9 @@ pub mod exported_tests {
         assert!(sequence.is_private());
         assert_eq!(*sequence.name(), name);
         assert_eq!(sequence.tag(), tag);
-        assert_eq!(sequence.policy_version(), 1);
-        assert_eq!(sequence.policy_version(), 1);
-        assert_eq!(sequence.len(), 0);
+        assert_eq!(sequence.policy_version(None)?, Some(1));
+        assert_eq!(sequence.policy_version(None)?, Some(1));
+        assert_eq!(sequence.len(None)?, 0);
 
         // store a Public Sequence
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
@@ -1057,9 +1046,9 @@ pub mod exported_tests {
         assert!(sequence.is_pub());
         assert_eq!(*sequence.name(), name);
         assert_eq!(sequence.tag(), tag);
-        assert_eq!(sequence.policy_version(), 1);
-        assert_eq!(sequence.policy_version(), 1);
-        assert_eq!(sequence.len(), 0);
+        assert_eq!(sequence.policy_version(None)?, Some(1));
+        assert_eq!(sequence.policy_version(None)?, Some(1));
+        assert_eq!(sequence.len(None)?, 0);
 
         Ok(())
     }
@@ -1077,8 +1066,8 @@ pub mod exported_tests {
             .await?;
 
         let data = client.get_sequence(address).await?;
-        assert_eq!(data.len(), 0);
-        assert_eq!(data.policy_version(), 1);
+        assert_eq!(data.len(None)?, 0);
+        assert_eq!(data.policy_version(None)?, Some(1));
 
         let user_perms = client
             .get_sequence_private_permissions_for_user(address, owner)
@@ -1154,8 +1143,8 @@ pub mod exported_tests {
             .await?;
 
         let data = client.get_sequence(address).await?;
-        assert_eq!(data.len(), 0);
-        assert_eq!(data.policy_version(), 1);
+        assert_eq!(data.len(None)?, 0);
+        assert_eq!(data.policy_version(None)?, Some(1));
 
         let user_perms = client
             .get_sequence_pub_permissions_for_user(address, owner)
@@ -1277,9 +1266,8 @@ pub mod exported_tests {
             .await?;
 
         let data = client.get_sequence(address).await?;
-        assert_eq!(data.len(), 2);
-        assert_eq!(data.policy_version(), 1);
-        // assert_eq!(data.permissions_index(), 1);
+        assert_eq!(data.len(None)?, 2);
+        assert_eq!(data.policy_version(None)?, Some(1));
 
         let current_owner = client.get_sequence_owner(address).await?;
         assert_eq!(owner, current_owner);

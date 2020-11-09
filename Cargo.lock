@@ -1824,8 +1824,7 @@ dependencies = [
 [[package]]
 name = "sn_data_types"
 version = "0.11.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c86571e80211b58999a1a4ef26387cf9237bb8384f7fbdaee1135e3f0de07435"
+source = "git+https://github.com/bochaco/sn_data_types?branch=feat-add-policy-enforcement#6a8de3e4593a62355b49cd813e3abb0d43b9766a"
 dependencies = [
  "bincode",
  "crdts",
