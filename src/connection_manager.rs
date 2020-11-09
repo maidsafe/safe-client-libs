@@ -21,6 +21,7 @@ use sn_data_types::{
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 
 static NUMBER_OF_RETRIES: usize = 3;
@@ -50,11 +51,16 @@ pub struct ConnectionManager {
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
+    notif_sender: UnboundedSender<ClientError>,
 }
 
 impl ConnectionManager {
     /// Create a new connection manager.
-    pub fn new(mut config: QuicP2pConfig, keypair: Arc<Keypair>) -> Result<Self, ClientError> {
+    pub fn new(
+        mut config: QuicP2pConfig,
+        keypair: Arc<Keypair>,
+        notif_sender: UnboundedSender<ClientError>,
+    ) -> Result<Self, ClientError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
         let endpoint = qp2p.new_endpoint()?;
@@ -65,6 +71,7 @@ impl ConnectionManager {
             elders: Vec::default(),
             endpoint: Arc::new(Mutex::new(endpoint)),
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
+            notif_sender,
         })
     }
 
@@ -541,6 +548,7 @@ impl ConnectionManager {
         trace!("Adding listener");
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
+        let notifier = self.notif_sender.clone();
 
         // Spawn a thread for all the connections
         let handle = tokio::spawn(async move {
@@ -576,8 +584,7 @@ impl ConnectionManager {
                                 correlation_id,
                                 ..
                             } => {
-                                error!("CmdError received {:?}", error);
-
+                                warn!("CmdError received {:?}", error);
                                 if let Some(mut sender) = pending_transfer_validations
                                     .lock()
                                     .await
@@ -588,6 +595,8 @@ impl ConnectionManager {
                                         error
                                     ))));
                                 };
+
+                                let _ = notifier.send(ClientError::from(error));
                             }
                             _ => {
                                 warn!("another message type received");

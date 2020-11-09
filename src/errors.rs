@@ -10,7 +10,7 @@
 use bincode::Error as SerialisationError;
 use futures::channel::mpsc::SendError;
 use qp2p::Error as QuicP2pError;
-use sn_data_types::Error as SndError;
+use sn_data_types::{CmdError, Error as SndError, TransferError};
 
 use std::error::Error as StdError;
 use std::fmt::{self, Debug, Display, Formatter};
@@ -115,6 +115,20 @@ impl From<QuicP2pError> for ClientError {
     }
 }
 
+impl From<CmdError> for ClientError {
+    fn from(error: CmdError) -> Self {
+        let err = match error {
+            CmdError::Data(data_err) => data_err,
+            CmdError::Transfer(err) => match err {
+                TransferError::TransferValidation(err) => err,
+                TransferError::TransferRegistration(err) => err,
+            },
+            CmdError::Auth(auth_error) => auth_error,
+        };
+        Self::DataError(err)
+    }
+}
+
 impl From<serde_json::error::Error> for ClientError {
     fn from(error: serde_json::error::Error) -> Self {
         use serde_json::error::Category;
@@ -208,7 +222,7 @@ impl Display for ClientError {
             Self::RequestTimeout => write!(formatter, "RequestTimeout"),
             Self::ConfigError(ref error) => write!(formatter, "Config file error: {}", error),
             Self::IoError(ref error) => write!(formatter, "Io error: {}", error),
-            Self::QuicP2p(ref error) => write!(formatter, "QuicP2P error: {}", error),
+            Self::QuicP2p(ref error) => write!(formatter, "QuicP2P error: {:?}", error),
         }
     }
 }

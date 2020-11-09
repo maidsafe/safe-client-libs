@@ -654,6 +654,8 @@ pub mod exported_tests {
     use crate::utils::test_utils::gen_bls_keypair;
     use sn_data_types::{Error as SndError, MapAction, MapKind, Money};
     use std::str::FromStr;
+    use std::thread::sleep;
+    use std::time::Duration;
     use xor_name::XorName;
 
     // 1. Create unseq. map with some entries and perms and put it on the network
@@ -675,7 +677,7 @@ pub mod exported_tests {
         let address = client
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-        println!("Put unseq. Map successfully");
+        sleep(Duration::from_secs(1));
 
         let version = client
             .get_map_version(MapAddress::Unseq { name, tag })
@@ -721,6 +723,7 @@ pub mod exported_tests {
         let address = client
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
+        sleep(Duration::from_secs(1));
         println!("Put seq. Map successfully");
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
@@ -756,8 +759,13 @@ pub mod exported_tests {
         let owner = client.public_key().await;
 
         let address = client.store_seq_map(name, tag, owner, None, None).await?;
+        sleep(Duration::from_secs(1));
+
         client.delete_map(mapref).await?;
+        sleep(Duration::from_secs(1));
+
         let res = client.get_map(address).await;
+
         match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -775,7 +783,10 @@ pub mod exported_tests {
         let owner = client.public_key().await;
 
         let address = client.store_unseq_map(name, tag, owner, None, None).await?;
+        sleep(Duration::from_secs(1));
+
         client.delete_map(mapref).await?;
+        sleep(Duration::from_secs(1));
 
         let res = client.get_map(address).await;
         match res {
@@ -799,11 +810,12 @@ pub mod exported_tests {
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
         let mut client = Client::new(None).await?;
-        let res = client.delete_map(mapref).await;
-        match res {
-            Err(ClientError::DataError(SndError::AccessDenied)) => (),
-            res => panic!("Unexpected result: {:?}", res),
-        }
+        client.delete_map(mapref).await?;
+        client
+            .expect_error(ClientError::DataError(SndError::NetworkOther(
+                "Access denied".to_string(),
+            )))
+            .await;
 
         Ok(())
     }
@@ -875,7 +887,7 @@ pub mod exported_tests {
         client
             .set_map_user_permissions(MapAddress::Seq { name, tag }, user, new_perm_set, 1)
             .await?;
-        println!("Modified user permissions");
+        sleep(Duration::from_secs(1));
 
         let permissions = client
             .list_map_user_permissions(MapAddress::Seq { name, tag }, user)
@@ -883,17 +895,16 @@ pub mod exported_tests {
         assert!(!permissions.is_allowed(MapAction::Insert));
         assert!(permissions.is_allowed(MapAction::Read));
         assert!(permissions.is_allowed(MapAction::ManagePermissions));
-        println!("Verified new permissions");
 
         client
             .del_map_user_permissions(MapAddress::Seq { name, tag }, random_user, 2)
             .await?;
-        println!("Deleted permissions");
+        sleep(Duration::from_secs(1));
+
         let permissions = client
             .list_map_permissions(MapAddress::Seq { name, tag })
             .await?;
         assert_eq!(permissions.len(), 1);
-        println!("Permission set verified");
 
         Ok(())
     }
@@ -930,11 +941,12 @@ pub mod exported_tests {
                 version: 0,
             },
         );
+
         let owner = client.public_key().await;
         let address = client
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-
+        sleep(Duration::from_secs(1));
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
 
         assert_eq!(fetched_entries, entries);
@@ -946,6 +958,7 @@ pub mod exported_tests {
         client
             .mutate_seq_map_entries(name, tag, entry_actions)
             .await?;
+        sleep(std::time::Duration::from_secs(1));
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
         let mut expected_entries: BTreeMap<_, _> = Default::default();
@@ -968,7 +981,7 @@ pub mod exported_tests {
 
         let fetched_value = match client.get_map_value(address, b"key3".to_vec()).await? {
             MapValue::Seq(value) => value,
-            _ => panic!("unexpeced seq mutable data"),
+            _ => panic!("Unexpected seq mutable data"),
         };
 
         assert_eq!(
@@ -1000,11 +1013,12 @@ pub mod exported_tests {
         let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
         let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
         let _ = entries.insert(b"key2".to_vec(), b"value".to_vec());
+
         let owner = client.public_key().await;
-        let _ = client
+        let address = client
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-        println!("Put unseq. Map successfully");
+        sleep(Duration::from_secs(1));
 
         let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
@@ -1016,7 +1030,10 @@ pub mod exported_tests {
         client
             .mutate_unseq_map_entries(name, tag, entry_actions)
             .await?;
+        sleep(std::time::Duration::from_secs(1));
+
         let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
+
         let mut expected_entries: BTreeMap<_, _> = Default::default();
         let _ = expected_entries.insert(b"key1".to_vec(), b"newValue".to_vec());
         let _ = expected_entries.insert(b"key3".to_vec(), b"value".to_vec());
@@ -1025,6 +1042,7 @@ pub mod exported_tests {
             MapValue::Unseq(value) => value,
             _ => panic!("unexpeced seq mutable data"),
         };
+
         assert_eq!(fetched_value, b"newValue".to_vec());
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {

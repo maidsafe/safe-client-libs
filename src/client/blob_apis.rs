@@ -349,13 +349,10 @@ pub mod exported_tests {
 
     // Test putting, getting, and deleting unpub blob.
     pub async fn unpub_blob_test() -> Result<(), ClientError> {
-        println!("blob_Test________");
         // The `Client::new(None)` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
-        println!("blob_Test_______pre client_");
 
         let mut client = Client::new(None).await?;
-        println!("blob_Test_______post client_");
 
         let pk = client.public_key().await;
 

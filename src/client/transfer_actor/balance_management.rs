@@ -235,7 +235,6 @@ pub mod exported_tests {
 
         let mut client = Client::new(None).await?;
 
-        println!("starting.....");
         let _ = client
             .send_money(keypair2.public_key(), Money::from_str("1")?)
             .await?;

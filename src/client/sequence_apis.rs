@@ -1004,6 +1004,7 @@ pub mod exported_tests {
     use crate::utils::test_utils::gen_bls_keypair;
     use sn_data_types::{Error as SndError, Money, SequenceAction, SequencePrivatePermissions};
     use std::str::FromStr;
+    use std::thread::sleep;
     use unwrap::unwrap;
     use xor_name::XorName;
 
@@ -1276,15 +1277,18 @@ pub mod exported_tests {
         let address = client
             .store_private_sequence(None, name, tag, owner, perms)
             .await?;
-
+        sleep(std::time::Duration::from_secs(2));
         client
             .append_to_sequence(address, b"VALUE1".to_vec())
             .await?;
+        sleep(std::time::Duration::from_secs(2));
         client
             .append_to_sequence(address, b"VALUE2".to_vec())
             .await?;
+        sleep(std::time::Duration::from_secs(2));
 
         let data = client.get_sequence(address).await?;
+
         assert_eq!(data.len(None)?, 2);
         assert_eq!(data.policy_version(None)?, Some(0));
 
@@ -1295,6 +1299,7 @@ pub mod exported_tests {
         client
             .set_private_sequence_owner(address, sim_client)
             .await?;
+        sleep(std::time::Duration::from_secs(2));
 
         let current_owner = client.get_sequence_owner(address).await?;
         assert_eq!(sim_client, current_owner);
