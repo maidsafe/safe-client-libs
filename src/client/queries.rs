@@ -1,7 +1,10 @@
 use bincode::serialize;
 use bytes::Bytes;
 use sn_data_types::Message;
-use sn_data_types::{PublicKey, Query, QueryResponse, Signature, TransferQuery};
+use sn_data_types::{
+    DataQuery, PublicKey, Query, QueryResponse, SequenceAddress, SequenceRead, Signature,
+    TransferQuery,
+};
 
 use crate::client::Client;
 use crate::errors::ClientError;
@@ -25,11 +28,36 @@ impl Client {
             .await
             .serialise_in_envelope(msg, Some((pk, signature)))?;
 
-        self.connection_manager
+        let response = self
+            .connection_manager
             .lock()
             .await
             .send_signed_query(msg_bytes)
-            .await
+            .await?;
+
+        // Update local CRDT replicas if the Query corresponds to a CRDT op,
+        // and/or the cache for any other type of data retrieved like Blobs.
+        match &response {
+            QueryResponse::GetSequence(Ok(data)) => {
+                // Update local Sequence CRDT replica
+                let _ = self
+                    .sequence_cache
+                    .lock()
+                    .await
+                    .put(*data.address(), data.clone());
+            }
+            QueryResponse::GetBlob(Ok(data)) => {
+                // Put Blob to cache
+                let _ = self
+                    .blob_cache
+                    .lock()
+                    .await
+                    .put(*data.address(), data.clone());
+            }
+            _ => {}
+        }
+
+        Ok(response)
     }
 
     /// Generate a network Query message to get the current balance for
@@ -41,12 +69,29 @@ impl Client {
         let public_key = pk.unwrap_or(self.public_key().await);
         info!("Generating Query message to get balance for {:?}", pk);
 
-        let msg_contents = Query::Transfer(TransferQuery::GetBalance(public_key));
+        let msg_content = Query::Transfer(TransferQuery::GetBalance(public_key));
+        Self::create_serialised_query_message(msg_content)
+    }
 
-        let msg = Self::create_query_message(msg_contents);
+    /// Generate a network Query message to get Sequence Data from the Network
+    pub fn generate_get_sequence_query_msg(
+        &mut self,
+        address: SequenceAddress,
+    ) -> Result<(Message, Bytes), ClientError> {
+        info!(
+            "Generating Query message to get Sequence Data from address {:?}",
+            address.name()
+        );
+        let msg_content = Query::Data(DataQuery::Sequence(SequenceRead::Get(address)));
+        Self::create_serialised_query_message(msg_content)
+    }
 
+    // Private helper to create a Query mesasge and its serialised bytes
+    fn create_serialised_query_message(
+        msg_content: Query,
+    ) -> Result<(Message, Bytes), ClientError> {
+        let msg = Self::create_query_message(msg_content);
         let msg_bytes = Bytes::from(serialize(&msg)?);
-
         Ok((msg, msg_bytes))
     }
 }

@@ -2,7 +2,7 @@ use bincode::serialize;
 use bytes::Bytes;
 use sn_data_types::{
     Cmd, DataCmd, DebitAgreementProof, Message, PublicKey, Sequence, SequenceAddress,
-    SequenceWrite, Signature,
+    SequenceEntry, SequenceWrite, Signature,
 };
 use xor_name::XorName;
 
@@ -34,8 +34,23 @@ impl Client {
             .send_signed_cmd(msg_bytes)
             .await?;
 
-        // Store in local CRDT replica if the Command corresponds to a CRDT op
-        //let _ = self.sequence_cache.lock().await.put(*data.address(), data);
+        // Store/update in local CRDT replica if the Command corresponds to a CRDT op
+        if let Message::Cmd {
+            cmd:
+                Cmd::Data {
+                    cmd: DataCmd::Sequence(SequenceWrite::New(data)),
+                    ..
+                },
+            ..
+        } = msg
+        {
+            // Update local Sequence CRDT replica
+            let _ = self
+                .sequence_cache
+                .lock()
+                .await
+                .put(*data.address(), data.clone());
+        }
 
         Ok(())
     }
@@ -60,11 +75,44 @@ impl Client {
         let cmd = DataCmd::Sequence(SequenceWrite::New(data));
 
         // The _actual_ message
-        let msg_contents = Cmd::Data { cmd, payment };
-        let msg = Self::create_cmd_message(msg_contents);
-
-        let msg_bytes = Bytes::from(serialize(&msg)?);
+        let msg_content = Cmd::Data { cmd, payment };
+        let (msg, msg_bytes) = Self::create_serialised_cmd_message(msg_content)?;
 
         Ok((msg, msg_bytes, address))
+    }
+
+    /// Generate a network Command message to append an entry to a Sequence.
+    /// Public or private isn't important for append. You can append to either
+    /// (though the data you append will be Public or Private).
+    /// The payment proof obtained from the network for this operation also needs
+    /// to be supplied since this is a write operation.
+    pub async fn generate_append_to_sequence_cmd(
+        &mut self,
+        address: SequenceAddress,
+        entry: SequenceEntry,
+        payment: DebitAgreementProof,
+    ) -> Result<(Message, Bytes), ClientError> {
+        // First we fetch it so we can get the causality info,
+        // either from local CRDT replica or from the network if not found
+        // FIXME: this is currently using the Client's default key for the signature
+        // ...perhaps we need the user to get the Sequence first, to refresh/update the
+        // local replica, and then here we simply use the local replica always
+        let mut sequence = self.get_sequence(address).await?;
+
+        // We can now generate the append operation
+        let op = sequence.create_append_op(entry)?;
+
+        let cmd = DataCmd::Sequence(SequenceWrite::Edit(op));
+
+        // The _actual_ message
+        let msg_content = Cmd::Data { cmd, payment };
+        Self::create_serialised_cmd_message(msg_content)
+    }
+
+    // Private helper to create a Query mesasge and its serialised bytes
+    fn create_serialised_cmd_message(msg_content: Cmd) -> Result<(Message, Bytes), ClientError> {
+        let msg = Self::create_cmd_message(msg_content);
+        let msg_bytes = Bytes::from(serialize(&msg)?);
+        Ok((msg, msg_bytes))
     }
 }
