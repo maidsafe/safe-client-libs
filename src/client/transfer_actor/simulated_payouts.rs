@@ -42,7 +42,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let id = Keypair::new_ed25519(&mut OsRng);
     /// // Start our client
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// let target_balance = Money::from_str("100")?;
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///
@@ -99,7 +99,7 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), ClientError> {
-        let mut initial_actor = Client::new(None).await?;
+        let mut initial_actor = Client::new(None, None).await?;
 
         let _ = initial_actor
             .trigger_simulated_farming_payout(Money::from_str("100")?)

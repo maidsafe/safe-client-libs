@@ -49,7 +49,7 @@ impl Client {
     /// // (It should have 0 balance)
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
@@ -82,7 +82,7 @@ impl Client {
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
@@ -110,7 +110,7 @@ impl Client {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
     /// let id = Keypair::new_ed25519(&mut OsRng);
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
@@ -331,7 +331,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        match Client::new(Some(keypair)).await {
+        match Client::new(Some(keypair), None).await {
             Ok(actor) => {
                 assert_eq!(actor.get_local_balance().await, Money::from_str("0").unwrap() );
                 Ok(())
@@ -346,7 +346,7 @@ pub mod exported_tests {
 
         let keypair = {
             // let keypair_again = keypair
-            let mut initial_actor = Client::new(Some(keypair)).await?;
+            let mut initial_actor = Client::new(Some(keypair), None).await?;
 
             let _ = initial_actor
                 .trigger_simulated_farming_payout(Money::from_str("100")?)
@@ -357,7 +357,7 @@ pub mod exported_tests {
 
         let keypair = Arc::try_unwrap(keypair).map_err(|_| "Could not unwrap Arc<keypair>")?;
 
-        match Client::new(Some(keypair)).await {
+        match Client::new(Some(keypair), None).await {
             Ok(mut client) => {
                 assert_eq!(
                     client.get_balance_from_network(None).await?,

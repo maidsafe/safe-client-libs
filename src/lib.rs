@@ -22,11 +22,11 @@
 //! Setting up a random client for read only access:
 //!
 //! ```no_run
-//! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
+//! # // The Safe Client is an async library so will need some kind of runtime. Here we use tokio.
 //! # extern crate tokio; use sn_client::ClientError;
 //! use sn_client::Client;
 //! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-//! let mut client = Client::new(None).await?;
+//! let mut client = Client::new(None, None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }
@@ -35,14 +35,14 @@
 //! Or use a pre-existing SecretKey which has a SafeCoin balance to be able to write to the network:
 //!
 //! ```no_run
-//! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
+//! # // The Safe Client is an async library so will need some kind of runtime. Here we use tokio.
 //! # extern crate tokio; use sn_client::ClientError;
 //! use sn_client::Client;
 //! use rand::rngs::OsRng;
 //! use sn_data_types::Keypair;
 //! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
 //! let id = Keypair::new_ed25519(&mut OsRng);
-//! let mut client = Client::new(Some(id)).await?;
+//! let mut client = Client::new(Some(id), None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }

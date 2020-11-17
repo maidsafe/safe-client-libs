@@ -24,6 +24,12 @@ pub mod sequence_apis;
 /// Blob storage for self encryption.
 pub mod blob_storage;
 
+/// APIs to generate network Query messages
+pub mod queries;
+
+/// APIs to generate network Command messages
+pub mod commands;
+
 // sn_transfers wrapper
 pub use self::map_info::MapInfo;
 pub use self::transfer_actor::{ClientTransferValidator, SafeTransferActor};
@@ -64,7 +70,7 @@ pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 /// Expected cost of mutation operations.
 pub const COST_OF_PUT: Money = Money::from_nano(1);
 
-/// Return the `crust::Config` associated with the `crust::Service` (if any).
+/// Return the set of configured hard-coded contacts addresses, if any.
 pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, ClientError> {
     Ok(Config::new().qp2p.hard_coded_contacts)
 }
@@ -80,6 +86,7 @@ pub struct Client {
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
+    instance_id: String,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -101,12 +108,15 @@ impl Client {
     ///
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     ///
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(optional_keypair: Option<Keypair>) -> Result<Self, ClientError> {
+    pub async fn new(
+        optional_keypair: Option<Keypair>,
+        instance_id: Option<&str>,
+    ) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
@@ -127,7 +137,10 @@ impl Client {
 
         let keypair = Arc::new(keypair);
 
-        info!("Cliented started for pk: {:?}", keypair.public_key());
+        // Set instance id as empty string if not provided by the user
+        let instance_id = instance_id.unwrap_or("");
+
+        info!("Client started for pk: {:?}", keypair.public_key());
 
         // Create the connection manager
         let mut connection_manager =
@@ -158,6 +171,7 @@ impl Client {
             simulated_farming_payout_dot,
             blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
             sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
+            instance_id: instance_id.to_string(),
         };
 
         #[cfg(feature = "simulated-payouts")]
@@ -189,7 +203,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let client = Client::new(None).await?;
+    /// let client = Client::new(None, None).await?;
     /// let _keypair = client.keypair().await;
     ///
     /// # Ok(()) } ); }
@@ -206,7 +220,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let client = Client::new(None).await?;
+    /// let client = Client::new(None, None).await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
     /// ```
@@ -216,7 +230,9 @@ impl Client {
         id.public_key()
     }
 
-    /// Send a Query to the network and await a response
+    // Private helpers for Client impl follow
+
+    // Send a Query to the network and await a response
     async fn send_query(&mut self, query: Query) -> Result<QueryResponse, ClientError> {
         // `sign` should be false for GETs on published data, true otherwise.
 
@@ -230,8 +246,8 @@ impl Client {
             .await
     }
 
-    // Build and sign Cmd Message Envelope
-    pub(crate) fn create_cmd_message(msg_contents: Cmd) -> Message {
+    // Build a Cmd Message Envelope
+    fn create_cmd_message(msg_contents: Cmd) -> Message {
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
         trace!("Creating cmd message with id: {:?}", id);
@@ -242,8 +258,8 @@ impl Client {
         }
     }
 
-    // Build and sign Query Message Envelope
-    pub(crate) fn create_query_message(msg_contents: Query) -> Message {
+    // Build a Query Message Envelope
+    fn create_query_message(msg_contents: Query) -> Message {
         let random_xor = XorName::random();
         let id = MessageId(random_xor);
         trace!("Creating query message with id : {:?}", id);
@@ -286,7 +302,7 @@ pub mod exported_tests {
     use super::*;
 
     pub async fn client_creation() -> Result<(), ClientError> {
-        let _transfer_actor = Client::new(None).await?;
+        let _transfer_actor = Client::new(None, None).await?;
 
         Ok(())
     }
@@ -294,7 +310,7 @@ pub mod exported_tests {
     pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
         let mut rng = OsRng;
         let fulld_id = Keypair::new_ed25519(&mut rng);
-        let _transfer_actor = Client::new(Some(fulld_id)).await?;
+        let _transfer_actor = Client::new(Some(fulld_id), None).await?;
 
         Ok(())
     }
