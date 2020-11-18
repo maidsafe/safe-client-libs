@@ -1934,7 +1934,7 @@ dependencies = [
 [[package]]
 name = "sn_data_types"
 version = "0.11.28"
-source = "git+https://github.com/joshuef/sn_data_types.git?branch=Feat-SignedOps#3e9750752b218f8dcdc271671735cb2516d9079c"
+source = "git+https://github.com/joshuef/sn_data_types.git?branch=Feat-SignedOps#aba81273cd77ed19663b3a446ff6f91c0e3312d5"
 dependencies = [
  "bincode",
  "crdts",
