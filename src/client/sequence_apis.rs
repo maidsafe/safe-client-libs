@@ -79,11 +79,11 @@ impl Client {
         let actor = serde_json::to_string(&(pk, self.instance_id.clone()))?;
         let mut data = Sequence::new_private(pk, actor, name, tag);
         let address = *data.address();
-        let _ = data.set_private_policy(owner, permissions)?;
+        let _ = data.create_unsigned_private_policy_op(owner, permissions)?;
 
         if let Some(entries) = sequence {
             for entry in entries {
-                let _op = data.create_append_op(entry);
+                let _op = data.create_unsigned_append_op(entry);
             }
         }
 
@@ -147,11 +147,11 @@ impl Client {
         let actor = serde_json::to_string(&(pk, self.instance_id.clone()))?;
         let mut data = Sequence::new_public(pk, actor, name, tag);
         let address = *data.address();
-        let _ = data.set_public_policy(owner, permissions)?;
+        let _ = data.create_unsigned_public_policy_op(owner, permissions)?;
 
         if let Some(entries) = sequence {
             for entry in entries {
-                let _op = data.create_append_op(entry);
+                let _op = data.create_unsigned_append_op(entry);
             }
         }
 
@@ -265,7 +265,7 @@ impl Client {
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now append the entry to the Sequence
-        let op = sequence.create_append_op(entry)?;
+        let op = sequence.create_unsigned_append_op(entry)?;
 
         // Update the local Sequence CRDT replica
         let _ = self
@@ -618,7 +618,7 @@ impl Client {
         let permissions = sequence.private_policy(Some(pk))?.permissions.clone();
 
         // set new owner against this
-        let op = sequence.set_private_policy(owner, permissions)?;
+        let op = sequence.create_unsigned_private_policy_op(owner, permissions)?;
 
         // Update the local Sequence CRDT replica
         let _ = self
@@ -872,7 +872,7 @@ impl Client {
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now set the new permissions to the Sequence
-        let op = sequence.set_public_policy(self.public_key().await, permissions)?;
+        let op = sequence.create_unsigned_public_policy_op(self.public_key().await, permissions)?;
 
         // Update the local Sequence CRDT replica
         let _ = self
@@ -950,7 +950,7 @@ impl Client {
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now set the new permissions to the Sequence
-        let op = sequence.set_private_policy(self.public_key().await, permissions)?;
+        let op = sequence.create_unsigned_private_policy_op(self.public_key().await, permissions)?;
 
         // Update the local Sequence CRDT replica
         let _ = self

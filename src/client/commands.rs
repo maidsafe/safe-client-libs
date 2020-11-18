@@ -2,14 +2,14 @@ use bincode::serialize;
 use bytes::Bytes;
 use sn_data_types::{
     Cmd, DataCmd, DebitAgreementProof, Message, PublicKey, Sequence, SequenceAddress,
-    SequenceEntry, SequenceWrite, Signature,
+    SequenceEntry, SequenceWrite, Signature, SequenceDataWriteOp
 };
 use xor_name::XorName;
 
 use crate::client::Client;
 use crate::errors::ClientError;
 
-use log::trace;
+use log::{info, trace};
 
 /// Handle all Money transfers and Write API requests for a given ClientId.
 impl Client {
@@ -81,6 +81,27 @@ impl Client {
         Ok((msg, msg_bytes, address))
     }
 
+    /// Generate a network CRDT operation to sign
+    pub async fn generate_unsigned_sequence_append_op(
+        &mut self,
+        address: SequenceAddress,
+        entry: SequenceEntry,
+    ) -> Result<(SequenceDataWriteOp<SequenceEntry>, Bytes), ClientError> {
+
+
+        // // First we fetch it so we can get the causality info,
+        // // either from local CRDT replica or from the network if not found
+        // // FIXME: this is currently using the Client's default key for the signature
+        // // ...perhaps we need the user to get the Sequence first, to refresh/update the
+        // // local replica, and then here we simply use the local replica always
+        let mut sequence = self.get_sequence(address).await?;
+        let op = sequence.create_unsigned_append_op(entry)?;
+
+        let bytes = Bytes::from( serialize(&op.crdt_op).map_err(|_| "Could not serialize op")? );
+
+        Ok( ( op, bytes ) )
+    }
+    
     /// Generate a network Command message to append an entry to a Sequence.
     /// Public or private isn't important for append. You can append to either
     /// (though the data you append will be Public or Private).
@@ -88,21 +109,16 @@ impl Client {
     /// to be supplied since this is a write operation.
     pub async fn generate_append_to_sequence_cmd(
         &mut self,
-        address: SequenceAddress,
-        entry: SequenceEntry,
         payment: DebitAgreementProof,
+        signed_op: SequenceDataWriteOp<SequenceEntry>
     ) -> Result<(Message, Bytes), ClientError> {
-        // First we fetch it so we can get the causality info,
-        // either from local CRDT replica or from the network if not found
-        // FIXME: this is currently using the Client's default key for the signature
-        // ...perhaps we need the user to get the Sequence first, to refresh/update the
-        // local replica, and then here we simply use the local replica always
-        let mut sequence = self.get_sequence(address).await?;
 
-        // We can now generate the append operation
-        let op = sequence.create_append_op(entry)?;
+        if let None = signed_op.signature
+        {
+            return Err(ClientError::Unexpected("Sequence Op must be signed.".to_string())) ;
+        }
 
-        let cmd = DataCmd::Sequence(SequenceWrite::Edit(op));
+        let cmd = DataCmd::Sequence(SequenceWrite::Edit(signed_op));
 
         // The _actual_ message
         let msg_content = Cmd::Data { cmd, payment };
@@ -114,5 +130,54 @@ impl Client {
         let msg = Self::create_cmd_message(msg_content);
         let msg_bytes = Bytes::from(serialize(&msg)?);
         Ok((msg, msg_bytes))
+    }
+
+
+    
+}
+
+
+
+#[allow(missing_docs)]
+#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
+pub mod exported_tests {
+    use super::*;
+    use rand::rngs::OsRng;
+    use sn_data_types::{Keypair, Money};
+    use std::str::FromStr;
+
+    // 1. Create a client A w/10 Money by default.
+    // 2. Generate a seq
+    pub async fn test_send_seq_append() -> Result<(), ClientError> {
+        let mut client = Client::new(None, None).await?;
+        let mut rng = OsRng;
+        let keypair = Keypair::new_ed25519(&mut rng);
+        let tag = 43_000u64;
+
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
+
+
+        // let (msg, msg_bytes) = client
+        //     .generate_store_pub_sequence_cmd(XorName::random(), tag, payment )
+        //     .await?;
+
+        // sign message with client's pk
+        let signature = keypair.sign(&msg_bytes);
+
+        // // send signed message to the network
+        // // let balance = match client
+        // //     .send_signed_query_msg(&msg, keypair.public_key(), signature)
+        // //     .await
+        // // {
+        // //     Ok(QueryResponse::GetBalance(balance)) => balance.map_err(ClientError::from),
+        // //     _ => Err(ClientError::from(
+        // //         "Unexpected response when querying balance",
+        // //     )),
+        // // }?;
+
+        // // Assert if client's money is correct.
+        // assert_eq!(balance, Money::from_str("10")?);
+
+        Ok(())
     }
 }
