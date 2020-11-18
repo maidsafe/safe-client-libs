@@ -1930,9 +1930,8 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2480c7269163a6aa0636c6d32026f0d82ffafebb5c7930399b296dba06d60fc"
+version = "0.11.28"
+source = "git+https://github.com/joshuef/sn_data_types.git?branch=Feat-SignedOps#aba81273cd77ed19663b3a446ff6f91c0e3312d5"
 dependencies = [
  "bincode",
  "crdts",

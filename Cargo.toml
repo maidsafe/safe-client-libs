@@ -11,6 +11,10 @@ repository = "https://github.com/maidsafe/sn_client"
 version = "0.42.1"
 keywords = [ "Safe", "Network", "SafeNetwork" ]
 
+[patch.crates-io]
+sn_data_types = { git = "https://github.com/joshuef/sn_data_types.git", branch = "Feat-SignedOps" }
+
+
 [dependencies]
 async-trait = "~0.1.41"
 bincode = "1.2.1"
