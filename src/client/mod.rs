@@ -44,8 +44,8 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 
 use sn_data_types::{
-    Blob, BlobAddress, Cmd, Keypair, Message, MessageId, Money, PublicKey, Query, QueryResponse,
-    Sequence, SequenceAddress,
+    Blob, BlobAddress, Cmd, DataCmd, Keypair, Message, MessageId, Money, PublicKey, Query,
+    QueryResponse, Sequence, SequenceAddress,
 };
 
 #[cfg(feature = "simulated-payouts")]
@@ -252,6 +252,28 @@ impl Client {
             query: msg_contents,
             id,
         }
+    }
+
+    // Private helper to obtain payment proof for a data command, send it to the network,
+    // and also apply the payment to local replica actor.
+    async fn pay_and_send_data_command(&mut self, cmd: DataCmd) -> Result<(), ClientError> {
+        // Payment for PUT
+        let payment_proof = self.create_write_payment_proof(&cmd).await?;
+
+        // The _actual_ message
+        let msg_contents = Cmd::Data {
+            cmd,
+            payment: payment_proof.clone(),
+        };
+        let message = Self::create_cmd_message(msg_contents);
+        let _ = self
+            .connection_manager
+            .lock()
+            .await
+            .send_cmd(&message)
+            .await?;
+
+        self.apply_write_payment_to_local_actor(payment_proof).await
     }
 }
 

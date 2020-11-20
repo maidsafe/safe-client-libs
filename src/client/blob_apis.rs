@@ -16,8 +16,8 @@ use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use self_encryption::{DataMap, SelfEncryptor};
 use sn_data_types::{
-    Blob, BlobAddress, BlobRead, BlobWrite, Cmd, DataCmd, DataQuery, PrivateBlob, PublicBlob,
-    PublicKey, Query, QueryResponse,
+    Blob, BlobAddress, BlobRead, BlobWrite, DataCmd, DataQuery, PrivateBlob, PublicBlob, PublicKey,
+    Query, QueryResponse,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -135,23 +135,7 @@ impl Client {
 
         let cmd = DataCmd::Blob(BlobWrite::New(blob_to_write.clone()));
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
-
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        let _ = self.apply_write_payment_to_local_actor(payment_proof).await;
+        self.pay_and_send_data_command(cmd).await?;
 
         Ok(blob_to_write)
     }
@@ -192,23 +176,7 @@ impl Client {
 
         let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(address));
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
-
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     /// Uses self_encryption to generated an encrypted blob serialised data map, without writing to the network

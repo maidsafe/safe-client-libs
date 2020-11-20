@@ -11,9 +11,9 @@ use crate::Client;
 use log::trace;
 
 use sn_data_types::{
-    Cmd, DataCmd, DataQuery, Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet,
-    MapRead, MapSeqEntries, MapSeqEntryActions, MapSeqValue, MapUnseqEntryActions, MapValue,
-    MapValues, PublicKey, Query, QueryResponse,
+    DataCmd, DataQuery, Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet, MapRead,
+    MapSeqEntries, MapSeqEntryActions, MapSeqValue, MapUnseqEntries, MapUnseqEntryActions,
+    MapValue, MapValues, PublicKey, Query, QueryResponse, SeqMap, UnseqMap,
 };
 
 use sn_data_types::MapWrite;
@@ -31,14 +31,14 @@ impl Client {
     // Store
     // ------------------
 
-    /// Store a new map
+    /// Store a new sequenced Map
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapSeqValue, MapSeqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -49,42 +49,89 @@ impl Client {
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
-    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
-    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let mut entries = MapSeqEntries::default();
+    /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
     /// let _ = permissions.insert(client.public_key().await, permission_set);
-    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
-    ///     name,
-    ///     tag,
-    ///     entries.clone(),
-    ///     permissions,
-    ///     client.public_key().await,
-    /// ));
-    /// let _ = client.store_map(our_map.clone()).await?;
+    /// let _ = entries.insert(b"key".to_vec(), MapSeqValue { data: b"value".to_vec(), version: 0 });
+    /// let owner = client.public_key().await;
+    /// let _ = client.store_seq_map(name, tag, owner, Some(entries), Some(permissions)).await?;
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn store_map(&mut self, data: Map) -> Result<(), ClientError> {
+    pub async fn store_seq_map(
+        &mut self,
+        name: XorName,
+        tag: u64,
+        owner: PublicKey,
+        entries: Option<MapSeqEntries>,
+        permissions: Option<BTreeMap<PublicKey, MapPermissionSet>>,
+    ) -> Result<MapAddress, ClientError> {
+        let data = Map::Seq(SeqMap::new_with_data(
+            name,
+            tag,
+            entries.unwrap_or_else(MapSeqEntries::default),
+            permissions.unwrap_or_else(BTreeMap::default),
+            owner,
+        ));
+        let address = *data.address();
         let cmd = DataCmd::Map(MapWrite::New(data));
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
+        self.pay_and_send_data_command(cmd).await?;
 
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
+        Ok(address)
+    }
 
-        self.apply_write_payment_to_local_actor(payment_proof).await
+    /// Store a new unsequenced Map
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// use sn_client::Client;
+    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
+    /// use rand::rngs::OsRng;
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let mut client = Client::new(Some(id)).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 15001;
+    /// let mut entries = MapUnseqEntries::default();
+    /// let mut permissions = BTreeMap::default();
+    /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
+    /// let _ = permissions.insert(client.public_key().await, permission_set);
+    /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
+    /// let owner = client.public_key().await;
+    /// let _ = client.store_unseq_map(name, tag, owner, Some(entries), Some(permissions)).await?;
+    ///
+    /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
+    /// ```
+    pub async fn store_unseq_map(
+        &mut self,
+        name: XorName,
+        tag: u64,
+        owner: PublicKey,
+        entries: Option<MapUnseqEntries>,
+        permissions: Option<BTreeMap<PublicKey, MapPermissionSet>>,
+    ) -> Result<MapAddress, ClientError> {
+        let data = Map::Unseq(UnseqMap::new_with_data(
+            name,
+            tag,
+            entries.unwrap_or_else(MapUnseqEntries::default),
+            permissions.unwrap_or_else(BTreeMap::default),
+            owner,
+        ));
+        let address = *data.address();
+
+        let cmd = DataCmd::Map(MapWrite::New(data));
+
+        self.pay_and_send_data_command(cmd).await?;
+
+        Ok(address)
     }
 
     /// Delete Map
@@ -94,7 +141,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -105,44 +152,22 @@ impl Client {
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
-    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
-    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let mut entries = MapUnseqEntries::default();
+    /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
     /// let _ = permissions.insert(client.public_key().await, permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
-    ///     name,
-    ///     tag,
-    ///     entries.clone(),
-    ///     permissions,
-    ///     client.public_key().await,
-    /// ));
-    /// let _ = client.store_map(our_map.clone()).await?;
+    /// let owner = client.public_key().await;
+    /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
-    /// let _ = client.delete_map(*our_map.address()).await?;
+    /// let _ = client.delete_map(address).await?;
     /// # let balance_after_second_write = client.get_local_balance().await; assert_ne!(balance_after_second_write, balance_after_first_write);
     /// # Ok(()) } ); }
     /// ```
     pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), ClientError> {
         let cmd = DataCmd::Map(MapWrite::Delete(address));
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
-
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     /// Delete map user permission
@@ -158,25 +183,7 @@ impl Client {
             version,
         });
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
-
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-
-        let message = Self::create_cmd_message(msg_contents);
-
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     /// Set map user permissions
@@ -194,26 +201,7 @@ impl Client {
             version,
         });
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
-
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-
-        let message = Self::create_cmd_message(msg_contents);
-
-        // TODO what will be the correct reponse here?... We have it validated, so registered?
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     /// Mutate map user entries
@@ -224,25 +212,7 @@ impl Client {
     ) -> Result<(), ClientError> {
         let cmd = DataCmd::Map(MapWrite::Edit { address, changes });
 
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
-
-        // The _actual_ message
-
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     //-------------------
@@ -256,7 +226,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -267,21 +237,15 @@ impl Client {
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
-    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
-    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let mut entries = MapUnseqEntries::default();
+    /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
     /// let _ = permissions.insert(client.public_key().await, permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
-    ///     name,
-    ///     tag,
-    ///     entries.clone(),
-    ///     permissions,
-    ///     client.public_key().await,
-    /// ));
-    /// let _ = client.store_map(our_map.clone()).await?;
+    /// let owner = client.public_key().await;
+    /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
-    /// let _ = client.get_map(*our_map.address()).await?;
+    /// let _ = client.get_map(address).await?;
     /// # Ok(()) } ); }
     /// ```
     pub async fn get_map(&mut self, address: MapAddress) -> Result<Map, ClientError>
@@ -306,7 +270,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapValue, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, MapAction, MapValue, MapPermissionSet, MapUnseqEntries};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -317,22 +281,16 @@ impl Client {
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
-    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let mut entries = MapUnseqEntries::default();
     /// let _ = entries.insert(b"beep".to_vec(), b"boop".to_vec() );
-    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
     /// let _ = permissions.insert(client.public_key().await, permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
-    ///     name,
-    ///     tag,
-    ///     entries.clone(),
-    ///     permissions,
-    ///     client.public_key().await,
-    /// ));
-    /// let _ = client.store_map(our_map.clone()).await?;
+    /// let owner = client.public_key().await;
+    /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
-    /// let received_value = match client.get_map_value(*our_map.address(), b"beep".to_vec()).await? {
+    /// let received_value = match client.get_map_value(address, b"beep".to_vec()).await? {
     ///     MapValue::Unseq(value) => value,
     ///     _ => panic!("Exptected an unsequenced map")
     /// };
@@ -381,7 +339,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, Map, MapAction, MapPermissionSet, UnseqMap};
+    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -392,22 +350,16 @@ impl Client {
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
-    /// let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
+    /// let mut entries = MapUnseqEntries::default();
     /// let _ = entries.insert(b"beep".to_vec(), b"boop".to_vec() );
-    /// let mut permissions: BTreeMap<_, _> = Default::default();
+    /// let mut permissions = BTreeMap::default();
     /// let permission_set = MapPermissionSet::new().allow(MapAction::Read);
     /// let _ = permissions.insert(client.public_key().await, permission_set);
     /// let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
-    /// let our_map = Map::Unseq(UnseqMap::new_with_data(
-    ///     name,
-    ///     tag,
-    ///     entries.clone(),
-    ///     permissions,
-    ///     client.public_key().await,
-    /// ));
-    /// let _ = client.store_map(our_map.clone()).await?;
+    /// let owner = client.public_key().await;
+    /// let address = client.store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions)).await?;
     /// # let balance_after_first_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_first_write);
-    /// let version = client.get_map_version(*our_map.address()).await?;
+    /// let version = client.get_map_version(address).await?;
     /// assert_eq!(version, 0);
     /// # Ok(()) } ); }
     /// ```
@@ -700,7 +652,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use sn_data_types::{Error as SndError, MapAction, MapKind, Money, SeqMap, UnseqMap};
+    use sn_data_types::{Error as SndError, MapAction, MapKind, Money};
     use std::str::FromStr;
     use xor_name::XorName;
 
@@ -719,15 +671,10 @@ pub mod exported_tests {
         let _ = entries.insert(b"key".to_vec(), b"value".to_vec());
         let entries_keys = entries.keys().cloned().collect();
         let entries_values: Vec<Vec<u8>> = entries.values().cloned().collect();
-
-        let data = Map::Unseq(UnseqMap::new_with_data(
-            name,
-            tag,
-            entries.clone(),
-            permissions,
-            client.public_key().await,
-        ));
-        client.store_map(data.clone()).await?;
+        let owner = client.public_key().await;
+        let address = client
+            .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
+            .await?;
         println!("Put unseq. Map successfully");
 
         let version = client
@@ -742,9 +689,9 @@ pub mod exported_tests {
         assert_eq!(keys, entries_keys);
         let values = client.list_unseq_map_values(name, tag).await?;
         assert_eq!(values, entries_values);
-        let fetched_data = client.get_map(*data.address()).await?;
-        assert_eq!(fetched_data.name(), data.name());
-        assert_eq!(fetched_data.tag(), data.tag());
+        let fetched_data = client.get_map(address).await?;
+        assert_eq!(*fetched_data.name(), name);
+        assert_eq!(fetched_data.tag(), tag);
         Ok(())
     }
 
@@ -769,17 +716,11 @@ pub mod exported_tests {
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new().allow(MapAction::Read);
         let _ = permissions.insert(client.public_key().await, permission_set);
-        let data = Map::Seq(SeqMap::new_with_data(
-            name,
-            tag,
-            entries.clone(),
-            permissions,
-            client.public_key().await,
-        ));
+        let owner = client.public_key().await;
 
-        let address = *data.clone().address();
-
-        client.store_map(data.clone()).await?;
+        let address = client
+            .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
+            .await?;
         println!("Put seq. Map successfully");
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
@@ -799,8 +740,8 @@ pub mod exported_tests {
             Map::Seq(data) => data,
             _ => panic!("Expected seq map"),
         };
-        assert_eq!(fetched_data.name(), data.name());
-        assert_eq!(fetched_data.tag(), data.tag());
+        assert_eq!(*fetched_data.name(), name);
+        assert_eq!(fetched_data.tag(), tag);
         assert_eq!(fetched_data.entries().len(), 1);
         Ok(())
     }
@@ -812,17 +753,11 @@ pub mod exported_tests {
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Seq { name, tag };
-        let data = Map::Seq(SeqMap::new_with_data(
-            name,
-            tag,
-            Default::default(),
-            Default::default(),
-            client.public_key().await,
-        ));
+        let owner = client.public_key().await;
 
-        client.store_map(data.clone()).await?;
+        let address = client.store_seq_map(name, tag, owner, None, None).await?;
         client.delete_map(mapref).await?;
-        let res = client.get_map(*data.address()).await;
+        let res = client.get_map(address).await;
         match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -837,18 +772,12 @@ pub mod exported_tests {
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
-        let data = Map::Unseq(UnseqMap::new_with_data(
-            name,
-            tag,
-            Default::default(),
-            Default::default(),
-            client.public_key().await,
-        ));
+        let owner = client.public_key().await;
 
-        client.store_map(data.clone()).await?;
+        let address = client.store_unseq_map(name, tag, owner, None, None).await?;
         client.delete_map(mapref).await?;
 
-        let res = client.get_map(*data.address()).await;
+        let res = client.get_map(address).await;
         match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -865,15 +794,9 @@ pub mod exported_tests {
         let mapref = MapAddress::Unseq { name, tag };
 
         let mut client = Client::new(None).await?;
-        let data = Map::Unseq(UnseqMap::new_with_data(
-            name,
-            tag,
-            Default::default(),
-            Default::default(),
-            client.public_key().await,
-        ));
+        let owner = client.public_key().await;
 
-        client.store_map(data).await?;
+        let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
         let mut client = Client::new(None).await?;
         let res = client.delete_map(mapref).await;
@@ -901,20 +824,10 @@ pub mod exported_tests {
         let _ = permissions.insert(random_user, permission_set);
 
         let test_data_name = XorName(rand::random());
-        let test_data_with_different_owner_than_client = Map::Seq(SeqMap::new_with_data(
-            test_data_name,
-            15000,
-            Default::default(),
-            permissions,
-            random_pk,
-        ));
-
-        client
-            .store_map(test_data_with_different_owner_than_client.clone())
+        let address = client
+            .store_seq_map(test_data_name, 15000u64, random_pk, None, Some(permissions))
             .await?;
-        let res = client
-            .get_map_shell(*test_data_with_different_owner_than_client.address())
-            .await;
+        let res = client.get_map_shell(address).await;
         match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
@@ -950,15 +863,11 @@ pub mod exported_tests {
         let _ = permissions.insert(user, permission_set.clone());
         let _ = permissions.insert(random_user, permission_set);
 
-        let data = Map::Seq(SeqMap::new_with_data(
-            name,
-            tag,
-            Default::default(),
-            permissions.clone(),
-            client.public_key().await,
-        ));
+        let owner = client.public_key().await;
 
-        client.store_map(data).await?;
+        let _ = client
+            .store_seq_map(name, tag, owner, None, Some(permissions))
+            .await?;
 
         let new_perm_set = MapPermissionSet::new()
             .allow(MapAction::ManagePermissions)
@@ -1021,16 +930,10 @@ pub mod exported_tests {
                 version: 0,
             },
         );
-        let data = Map::Seq(SeqMap::new_with_data(
-            name,
-            tag,
-            entries.clone(),
-            permissions,
-            client.public_key().await,
-        ));
-
-        let address = *data.clone().address();
-        client.store_map(data).await?;
+        let owner = client.public_key().await;
+        let address = client
+            .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
+            .await?;
 
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
 
@@ -1097,14 +1000,10 @@ pub mod exported_tests {
         let mut entries: BTreeMap<Vec<u8>, Vec<u8>> = Default::default();
         let _ = entries.insert(b"key1".to_vec(), b"value".to_vec());
         let _ = entries.insert(b"key2".to_vec(), b"value".to_vec());
-        let data = Map::Unseq(UnseqMap::new_with_data(
-            name,
-            tag,
-            entries.clone(),
-            permissions,
-            client.public_key().await,
-        ));
-        client.store_map(data).await?;
+        let owner = client.public_key().await;
+        let _ = client
+            .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
+            .await?;
         println!("Put unseq. Map successfully");
 
         let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
@@ -1139,9 +1038,9 @@ pub mod exported_tests {
         let name = XorName(rand::random());
         let tag = 10;
         let mut client = Client::new(None).await?;
+        let owner = client.public_key().await;
 
-        let map = Map::Unseq(UnseqMap::new(name, tag, client.public_key().await));
-        client.store_map(map).await?;
+        let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
         let map_address = MapAddress::from_kind(MapKind::Unseq, name, tag);
 

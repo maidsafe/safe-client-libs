@@ -294,23 +294,8 @@ impl Client {
         op: SequenceDataWriteOp<Vec<u8>>,
     ) -> Result<(), ClientError> {
         let cmd = DataCmd::Sequence(SequenceWrite::Edit(op));
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     /// Store a new public sequenced data object
@@ -320,23 +305,8 @@ impl Client {
         data: Sequence,
     ) -> Result<(), ClientError> {
         let cmd = DataCmd::Sequence(SequenceWrite::New(data));
-        // Payment for PUT
-        let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
-        // The _actual_ message
-        let msg_contents = Cmd::Data {
-            cmd,
-            payment: payment_proof.clone(),
-        };
-        let message = Self::create_cmd_message(msg_contents);
-        let _ = self
-            .connection_manager
-            .lock()
-            .await
-            .send_cmd(&message)
-            .await?;
-
-        self.apply_write_payment_to_local_actor(payment_proof).await
+        self.pay_and_send_data_command(cmd).await
     }
 
     //----------------------
