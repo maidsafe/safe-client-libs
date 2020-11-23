@@ -8,7 +8,7 @@
 
 use crate::errors::ClientError;
 use crate::Client;
-use log::trace;
+use log::{debug, trace};
 use sn_data_types::{
     Cmd, DataCmd, DataQuery, PublicKey, Query, QueryResponse, Sequence, SequenceAddress,
     SequenceDataWriteOp, SequenceEntries, SequenceEntry, SequenceIndex, SequencePermissions,
@@ -217,12 +217,21 @@ impl Client {
             payment: payment_proof.clone(),
         };
         let message = Self::create_cmd_message(msg_contents);
+
         let _ = self
             .connection_manager
             .lock()
             .await
             .send_cmd(&message)
             .await?;
+
+        {
+            let mut cache = self.sequence_cache.lock().await;
+
+            if let Some(_sequence) = cache.get(&address) {
+                let _ = cache.pop(&address);
+            }
+        }
 
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
@@ -356,7 +365,7 @@ impl Client {
         // is too old, to mitigate the risk of successfully apply mutations locally but which
         // can fail on other replicas, e.g. due to being out of sync with permissions/owner
         if let Some(sequence) = self.sequence_cache.lock().await.get(&address) {
-            trace!("Sequence found in local CRDT replica");
+            debug!("Sequence found in local CRDT replica");
             return Ok(sequence.clone());
         }
 
@@ -1008,12 +1017,13 @@ pub mod exported_tests {
         let address = client
             .store_private_sequence(None, name, tag, owner, perms)
             .await?;
+
         let sequence = client.get_sequence(address).await?;
         assert!(sequence.is_private());
         assert_eq!(*sequence.name(), name);
         assert_eq!(sequence.tag(), tag);
-        assert_eq!(sequence.policy_version(None)?, Some(1));
-        assert_eq!(sequence.policy_version(None)?, Some(1));
+        assert_eq!(sequence.policy_version(None)?, Some(0));
+        assert_eq!(sequence.policy_version(None)?, Some(0));
         assert_eq!(sequence.len(None)?, 0);
 
         // store a Public Sequence
@@ -1029,8 +1039,8 @@ pub mod exported_tests {
         assert!(sequence.is_pub());
         assert_eq!(*sequence.name(), name);
         assert_eq!(sequence.tag(), tag);
-        assert_eq!(sequence.policy_version(None)?, Some(1));
-        assert_eq!(sequence.policy_version(None)?, Some(1));
+        assert_eq!(sequence.policy_version(None)?, Some(0));
+        assert_eq!(sequence.policy_version(None)?, Some(0));
         assert_eq!(sequence.len(None)?, 0);
 
         Ok(())
@@ -1050,7 +1060,7 @@ pub mod exported_tests {
 
         let data = client.get_sequence(address).await?;
         assert_eq!(data.len(None)?, 0);
-        assert_eq!(data.policy_version(None)?, Some(1));
+        assert_eq!(data.policy_version(None)?, Some(0));
 
         let user_perms = client
             .get_sequence_private_permissions_for_user(address, owner)
@@ -1127,7 +1137,7 @@ pub mod exported_tests {
 
         let data = client.get_sequence(address).await?;
         assert_eq!(data.len(None)?, 0);
-        assert_eq!(data.policy_version(None)?, Some(1));
+        assert_eq!(data.policy_version(None)?, Some(0));
 
         let user_perms = client
             .get_sequence_pub_permissions_for_user(address, owner)
@@ -1250,7 +1260,7 @@ pub mod exported_tests {
 
         let data = client.get_sequence(address).await?;
         assert_eq!(data.len(None)?, 2);
-        assert_eq!(data.policy_version(None)?, Some(1));
+        assert_eq!(data.policy_version(None)?, Some(0));
 
         let current_owner = client.get_sequence_owner(address).await?;
         assert_eq!(owner, current_owner);
@@ -1290,7 +1300,7 @@ pub mod exported_tests {
                 "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
                 err
             ))),
-            Ok(_res) => Err(ClientError::from(
+            Ok(_data) => Err(ClientError::from(
                 "Unexpectedly retrieved a deleted Private Sequence!",
             )),
         }
