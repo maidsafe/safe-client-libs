@@ -70,13 +70,13 @@ impl Storage for BlobStorage {
         }
     }
 
-    async fn generate_address(&self, data: &[u8]) -> Vec<u8> {
+    async fn generate_address(&self, data: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
         let blob: Blob = if self.published {
             PublicBlob::new(data.to_vec()).into()
         } else {
             PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
         };
-        blob.name().0.to_vec()
+        Ok(blob.name().0.to_vec())
     }
 }
 
@@ -111,12 +111,12 @@ impl Storage for BlobStorageDryRun {
         Ok(())
     }
 
-    async fn generate_address(&self, data: &[u8]) -> Vec<u8> {
+    async fn generate_address(&self, data: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
         let blob: Blob = if self.published {
             PublicBlob::new(data.to_vec()).into()
         } else {
             PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
         };
-        blob.name().0.to_vec()
+        Ok(blob.name().0.to_vec())
     }
 }
