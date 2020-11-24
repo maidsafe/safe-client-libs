@@ -333,7 +333,7 @@ pub mod exported_tests {
 
         match Client::new(Some(keypair)).await {
             Ok(actor) => {
-                assert_eq!(actor.get_local_balance().await, Money::from_str("0").unwrap() );
+                assert_eq!(actor.get_local_balance().await, Money::from_str("0")? );
                 Ok(())
             },
             Err(e) => panic!("Should not error for nonexistent keys, only create a new instance with no history, we got: {:?}" , e )

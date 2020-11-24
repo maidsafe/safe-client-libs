@@ -27,7 +27,7 @@ static NUMBER_OF_RETRIES: usize = 3;
 static STANDARD_ELDERS_COUNT: usize = 5;
 
 /// Simple map for correlating a response with votes from various elder responses.
-type VoteMap = HashMap<QueryResponse, usize>;
+type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
 
 // channel for sending result of transfer validation
 type TransferValidationSender = Sender<Result<TransferValidated, ClientError>>;
@@ -248,14 +248,15 @@ impl ConnectionManager {
                 match res {
                     Ok(Message::QueryResponse { response, .. }) => {
                         trace!("QueryResponse is: {:?}", response);
-                        let counter = vote_map.entry(response.clone()).or_insert(0);
+                        let key = tiny_keccak::sha3_256(&serialize(&response)?);
+                        let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
                         *counter += 1;
 
                         // First, see if this latest response brings us above the threshold for any response
                         if *counter > threshold {
                             trace!("Enough votes to be above response threshold");
 
-                            winner = (Some(response.clone()), *counter);
+                            winner = (Some(response), *counter);
                             has_elected_a_response = true;
                         }
                     }
@@ -305,7 +306,7 @@ impl ConnectionManager {
         let mut number_of_responses = 0;
         let mut most_popular_response = current_winner;
 
-        for (message, votes) in vote_map.iter() {
+        for (_, (message, votes)) in vote_map.iter() {
             number_of_responses += votes;
             trace!("Number of votes cast :{:?}", number_of_responses);
 

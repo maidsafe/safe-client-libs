@@ -1905,9 +1905,9 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.30"
+version = "0.11.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32188b5848787e17f795b86a8801839210077d98dda52cfcd9ee92352828676c"
+checksum = "d9754e36fc6e8c6a5c0ca1945758d18e4a1654055de106368af2cce50c8341d4"
 dependencies = [
  "bincode",
  "crdts",
@@ -1922,15 +1922,14 @@ dependencies = [
  "signature",
  "threshold_crypto",
  "tiny-keccak 1.5.0",
- "unwrap",
  "xor_name",
 ]
 
 [[package]]
 name = "sn_transfers"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95eb9402be53656d9b00fdb678f1579e759c6221661c80c0dd813267e96718e3"
+checksum = "5c2c166ffa7cf86a89ad7b5dcdc0360232aa5cdbc60518d4d0e062fb8bb27788"
 dependencies = [
  "bincode",
  "crdts",

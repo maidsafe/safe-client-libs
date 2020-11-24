@@ -86,7 +86,7 @@ impl Client {
         let final_blob = if is_published {
             Blob::Public(PublicBlob::new(raw_data))
         } else {
-            Blob::Private(PrivateBlob::new(raw_data, self.public_key().await))
+            Blob::Private(PrivateBlob::new(raw_data, self.public_key().await)?)
         };
 
         Ok(final_blob)
@@ -158,7 +158,7 @@ impl Client {
     /// let mut client = Client::new(None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
-    /// let some_blob_for_storage = Blob::Private(PrivateBlob::new(data, client.public_key().await));
+    /// let some_blob_for_storage = Blob::Private(PrivateBlob::new(data, client.public_key().await)?);
     /// let blob = client.store_blob(some_blob_for_storage).await?;
     ///
     /// let _ = client.delete_blob(*blob.address()).await?;
@@ -247,7 +247,7 @@ impl Client {
             let data: Blob = if published {
                 PublicBlob::new(value).into()
             } else {
-                PrivateBlob::new(value, public_key).into()
+                PrivateBlob::new(value, public_key)?.into()
             };
 
             let serialised_data = serialize(&data)?;
@@ -319,7 +319,7 @@ pub mod exported_tests {
         let address = *data.address();
         let pk = gen_bls_keypair().public_key();
 
-        let test_data = Blob::Private(PrivateBlob::new(value, pk));
+        let test_data = Blob::Private(PrivateBlob::new(value, pk)?);
         let res = client
             // Get inexistent blob
             .get_blob(address, None, None)
@@ -360,7 +360,7 @@ pub mod exported_tests {
         let pk = client.public_key().await;
 
         let value = generate_random_vector::<u8>(10);
-        let data = Blob::Private(PrivateBlob::new(value.clone(), pk));
+        let data = Blob::Private(PrivateBlob::new(value.clone(), pk)?);
         let data2 = data.clone();
         let data3 = data.clone();
         let address = *data.address();
@@ -420,7 +420,7 @@ pub mod exported_tests {
         let blob = Blob::Private(PrivateBlob::new(
             generate_random_vector::<u8>(10),
             client.public_key().await,
-        ));
+        )?);
         let blob_address = *blob.address();
         let _ = client.store_blob(blob).await?;
 
@@ -581,7 +581,7 @@ pub mod exported_tests {
         let value = Blob::Private(PrivateBlob::new(
             generate_random_vector(size),
             client.public_key().await,
-        ));
+        )?);
 
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
@@ -650,7 +650,7 @@ pub mod exported_tests {
             Blob::Private(PrivateBlob::new(
                 raw_data.clone(),
                 client.public_key().await,
-            ))
+            )?)
         };
 
         // let data = gen_data_map(&client, &value.clone(), published, key2.clone()).await?;
