@@ -85,7 +85,7 @@ pub struct Client {
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
-    notif_receiver: Arc<Mutex<UnboundedReceiver<ClientError>>>,
+    notification_receiver: Arc<Mutex<UnboundedReceiver<ClientError>>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -134,10 +134,10 @@ impl Client {
         let keypair = Arc::new(keypair);
 
         info!("Client started for pk: {:?}", keypair.public_key());
-        let (notif_sender, notif_receiver) = unbounded_channel::<ClientError>();
+        let (notification_sender, notification_receiver) = unbounded_channel::<ClientError>();
         // Create the connection manager
         let mut connection_manager =
-            attempt_bootstrap(&Config::new().qp2p, keypair.clone(), notif_sender).await?;
+            attempt_bootstrap(&Config::new().qp2p, keypair.clone(), notification_sender).await?;
 
         // random PK used for from payment
         let random_payment_id = Keypair::new_bls(&mut rng);
@@ -164,7 +164,7 @@ impl Client {
             simulated_farming_payout_dot,
             blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
             sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
-            notif_receiver: Arc::new(Mutex::new(notif_receiver)),
+            notification_receiver: Arc::new(Mutex::new(notification_receiver)),
         };
 
         #[cfg(feature = "simulated-payouts")]
@@ -283,13 +283,19 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
-    /// Assert if all 5 Elders are returning the same errors we expect.
+    /// Assert if all connected Elders are returning the same errors we expect.
     #[cfg(feature = "simulated-payouts")]
     pub(crate) async fn expect_error(&mut self, err: ClientError) {
-        for _ in 0..ELDER_SIZE {
+        for _ in 0..self
+            .connection_manager
+            .clone()
+            .lock()
+            .await
+            .number_of_connected_elders()
+        {
             match tokio::time::timeout(
                 Duration::from_secs(60),
-                self.notif_receiver.clone().lock().await.recv(),
+                self.notification_receiver.clone().lock().await.recv(),
             )
             .await
             {
@@ -306,13 +312,16 @@ impl Client {
 pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
     keypair: Arc<Keypair>,
-    notif_sender: UnboundedSender<ClientError>,
+    notification_sender: UnboundedSender<ClientError>,
 ) -> Result<ConnectionManager, ClientError> {
     let mut attempts: u32 = 0;
 
     loop {
-        let mut connection_manager =
-            ConnectionManager::new(qp2p_config.clone(), keypair.clone(), notif_sender.clone())?;
+        let mut connection_manager = ConnectionManager::new(
+            qp2p_config.clone(),
+            keypair.clone(),
+            notification_sender.clone(),
+        )?;
         let res = connection_manager.bootstrap().await;
         match res {
             Ok(()) => return Ok(connection_manager),

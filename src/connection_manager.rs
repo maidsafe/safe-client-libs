@@ -51,7 +51,7 @@ pub struct ConnectionManager {
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
-    notif_sender: UnboundedSender<ClientError>,
+    notification_sender: UnboundedSender<ClientError>,
 }
 
 impl ConnectionManager {
@@ -59,7 +59,7 @@ impl ConnectionManager {
     pub fn new(
         mut config: QuicP2pConfig,
         keypair: Arc<Keypair>,
-        notif_sender: UnboundedSender<ClientError>,
+        notification_sender: UnboundedSender<ClientError>,
     ) -> Result<Self, ClientError> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
@@ -71,7 +71,7 @@ impl ConnectionManager {
             elders: Vec::default(),
             endpoint: Arc::new(Mutex::new(endpoint)),
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
-            notif_sender,
+            notification_sender,
         })
     }
 
@@ -394,6 +394,10 @@ impl ConnectionManager {
         }
     }
 
+    pub fn number_of_connected_elders(&self) -> usize {
+        self.elders.len()
+    }
+
     /// Connect and bootstrap to one specific elder
     async fn connect_to_elder(
         endpoint: Arc<Mutex<Endpoint>>,
@@ -548,7 +552,7 @@ impl ConnectionManager {
         trace!("Adding listener");
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
-        let notifier = self.notif_sender.clone();
+        let notifier = self.notification_sender.clone();
 
         // Spawn a thread for all the connections
         let handle = tokio::spawn(async move {

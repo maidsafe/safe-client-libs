@@ -995,7 +995,7 @@ pub mod exported_tests {
             .await?;
 
         let mut fetched_entries = client.list_seq_map_entries(name, tag).await?;
-        while fetched_entries.contains_key("key2".as_bytes()) {
+        while fetched_entries.contains_key(&b"key2".to_vec()) {
             fetched_entries = client.list_seq_map_entries(name, tag).await?;
         }
 
@@ -1075,7 +1075,7 @@ pub mod exported_tests {
             .await?;
 
         let mut fetched_entries = client.list_unseq_map_entries(name, tag).await?;
-        while fetched_entries.contains_key("key2".as_bytes()) {
+        while fetched_entries.contains_key(&b"key2".to_vec()) {
             fetched_entries = client.list_unseq_map_entries(name, tag).await?;
         }
 
