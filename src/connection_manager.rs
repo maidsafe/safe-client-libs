@@ -24,6 +24,7 @@ use tokio::sync::mpsc::Sender;
 use tokio::task::JoinHandle;
 
 static NUMBER_OF_RETRIES: usize = 3;
+static STANDARD_ELDERS_COUNT: usize = 5;
 
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<QueryResponse, usize>;
@@ -236,6 +237,7 @@ impl ConnectionManager {
 
         while !has_elected_a_response {
             if todo.is_empty() {
+                println!("No more connections to try");
                 warn!("No more connections to try");
                 break;
             }
@@ -484,6 +486,7 @@ impl ConnectionManager {
 
         while !has_sufficent_connections {
             if todo.is_empty() {
+                println!("No more elder connections to try");
                 warn!("No more elder connections to try");
                 break;
             }
@@ -514,15 +517,15 @@ impl ConnectionManager {
 
             // TODO: this will effectively stop driving futures after we get 2...
             // We should still let all progress... just without blocking
-            if self.elders.len() >= 7 {
+            if self.elders.len() >= STANDARD_ELDERS_COUNT {
                 has_sufficent_connections = true;
             }
 
-            if self.elders.len() < 7 {
+            if self.elders.len() < STANDARD_ELDERS_COUNT {
                 warn!("Connected to only {:?} elders.", self.elders.len());
             }
 
-            if self.elders.len() < 3 && has_sufficent_connections {
+            if self.elders.len() < STANDARD_ELDERS_COUNT - 2 && has_sufficent_connections {
                 return Err(ClientError::from("Could not connect to sufficient elders."));
             }
         }
