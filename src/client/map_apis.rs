@@ -654,8 +654,6 @@ pub mod exported_tests {
     use crate::utils::test_utils::gen_bls_keypair;
     use sn_data_types::{Error as SndError, MapAction, MapKind, Money};
     use std::str::FromStr;
-    use std::thread::sleep;
-    use std::time::Duration;
     use xor_name::XorName;
 
     // 1. Create unseq. map with some entries and perms and put it on the network
@@ -677,11 +675,15 @@ pub mod exported_tests {
         let address = client
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-        sleep(Duration::from_secs(1));
 
-        let version = client
-            .get_map_version(MapAddress::Unseq { name, tag })
-            .await?;
+        let mut res = Err(ClientError::Unexpected("Timeout!".to_string()));
+        while res.is_err() {
+            res = client
+                .get_map_version(MapAddress::Unseq { name, tag })
+                .await;
+        }
+        let version = res?;
+
         assert_eq!(version, 0);
         let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
@@ -723,10 +725,13 @@ pub mod exported_tests {
         let address = client
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-        sleep(Duration::from_secs(1));
-        println!("Put seq. Map successfully");
 
-        let fetched_entries = client.list_seq_map_entries(name, tag).await?;
+        let mut res = Err(ClientError::Unexpected("Timeout!".to_string()));
+        while res.is_err() {
+            res = client.list_seq_map_entries(name, tag).await;
+        }
+        let fetched_entries = res?;
+
         assert_eq!(fetched_entries, entries);
         let map_shell = match client.get_map_shell(address).await? {
             Map::Seq(data) => data,
@@ -759,12 +764,14 @@ pub mod exported_tests {
         let owner = client.public_key().await;
 
         let address = client.store_seq_map(name, tag, owner, None, None).await?;
-        sleep(Duration::from_secs(1));
 
         client.delete_map(mapref).await?;
-        sleep(Duration::from_secs(1));
 
-        let res = client.get_map(address).await;
+        let mut res = client.get_map(address).await;
+        while res.is_ok() {
+            // Keep trying until it fails
+            res = client.get_map(address).await;
+        }
 
         match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => (),
@@ -783,12 +790,15 @@ pub mod exported_tests {
         let owner = client.public_key().await;
 
         let address = client.store_unseq_map(name, tag, owner, None, None).await?;
-        sleep(Duration::from_secs(1));
 
         client.delete_map(mapref).await?;
-        sleep(Duration::from_secs(1));
 
-        let res = client.get_map(address).await;
+        let mut res = client.get_map(address).await;
+        while res.is_ok() {
+            // Keep trying until it fails
+            res = client.get_map(address).await;
+        }
+
         match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
@@ -877,34 +887,53 @@ pub mod exported_tests {
 
         let owner = client.public_key().await;
 
-        let _ = client
+        // Store the data
+        let address = client
             .store_seq_map(name, tag, owner, None, Some(permissions))
             .await?;
+
+        // Assert that the data is stored.
+        let mut res = client.get_map(address).await;
+        while res.is_err() {
+            res = client.get_map(address).await;
+        }
 
         let new_perm_set = MapPermissionSet::new()
             .allow(MapAction::ManagePermissions)
             .allow(MapAction::Read);
+
+        // Set new perms to the data
         client
             .set_map_user_permissions(MapAddress::Seq { name, tag }, user, new_perm_set, 1)
             .await?;
-        sleep(Duration::from_secs(1));
 
-        let permissions = client
+        // Assert that the new perms are set.
+        let mut permissions = client
             .list_map_user_permissions(MapAddress::Seq { name, tag }, user)
             .await?;
+        while permissions.is_allowed(MapAction::Insert) {
+            permissions = client
+                .list_map_user_permissions(MapAddress::Seq { name, tag }, user)
+                .await?;
+        }
         assert!(!permissions.is_allowed(MapAction::Insert));
         assert!(permissions.is_allowed(MapAction::Read));
         assert!(permissions.is_allowed(MapAction::ManagePermissions));
 
+        // Delete user perms
         client
             .del_map_user_permissions(MapAddress::Seq { name, tag }, random_user, 2)
             .await?;
-        sleep(Duration::from_secs(1));
 
-        let permissions = client
+        // Assert perms deletion.
+        let mut permissions = client
             .list_map_permissions(MapAddress::Seq { name, tag })
             .await?;
-        assert_eq!(permissions.len(), 1);
+        while permissions.len() != 1 {
+            permissions = client
+                .list_map_permissions(MapAddress::Seq { name, tag })
+                .await?;
+        }
 
         Ok(())
     }
@@ -946,7 +975,13 @@ pub mod exported_tests {
         let address = client
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-        sleep(Duration::from_secs(1));
+
+        // Assert that the data is stored.
+        let mut res = client.get_map(address).await;
+        while res.is_err() {
+            res = client.get_map(address).await;
+        }
+
         let fetched_entries = client.list_seq_map_entries(name, tag).await?;
 
         assert_eq!(fetched_entries, entries);
@@ -958,9 +993,12 @@ pub mod exported_tests {
         client
             .mutate_seq_map_entries(name, tag, entry_actions)
             .await?;
-        sleep(std::time::Duration::from_secs(1));
 
-        let fetched_entries = client.list_seq_map_entries(name, tag).await?;
+        let mut fetched_entries = client.list_seq_map_entries(name, tag).await?;
+        while fetched_entries.contains_key("key2".as_bytes()) {
+            fetched_entries = client.list_seq_map_entries(name, tag).await?;
+        }
+
         let mut expected_entries: BTreeMap<_, _> = Default::default();
         let _ = expected_entries.insert(
             b"key1".to_vec(),
@@ -1018,7 +1056,12 @@ pub mod exported_tests {
         let address = client
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
-        sleep(Duration::from_secs(1));
+
+        // Assert that the data is stored.
+        let mut res = client.get_map(address).await;
+        while res.is_err() {
+            res = client.get_map(address).await;
+        }
 
         let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
         assert_eq!(fetched_entries, entries);
@@ -1030,9 +1073,11 @@ pub mod exported_tests {
         client
             .mutate_unseq_map_entries(name, tag, entry_actions)
             .await?;
-        sleep(std::time::Duration::from_secs(1));
 
-        let fetched_entries = client.list_unseq_map_entries(name, tag).await?;
+        let mut fetched_entries = client.list_unseq_map_entries(name, tag).await?;
+        while fetched_entries.contains_key("key2".as_bytes()) {
+            fetched_entries = client.list_unseq_map_entries(name, tag).await?;
+        }
 
         let mut expected_entries: BTreeMap<_, _> = Default::default();
         let _ = expected_entries.insert(b"key1".to_vec(), b"newValue".to_vec());
