@@ -237,7 +237,6 @@ impl ConnectionManager {
 
         while !has_elected_a_response {
             if todo.is_empty() {
-                println!("No more connections to try");
                 warn!("No more connections to try");
                 break;
             }
@@ -486,7 +485,6 @@ impl ConnectionManager {
 
         while !has_sufficent_connections {
             if todo.is_empty() {
-                println!("No more elder connections to try");
                 warn!("No more elder connections to try");
                 break;
             }

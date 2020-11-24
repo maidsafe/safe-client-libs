@@ -308,15 +308,18 @@ pub mod exported_tests {
     use super::*;
 
     pub async fn client_creation() -> Result<(), ClientError> {
-        let _transfer_actor = Client::new(None).await?;
+        let _client = Client::new(None).await?;
 
         Ok(())
     }
 
-    pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
+    pub async fn client_creation_with_existing_keypair() -> Result<(), ClientError> {
         let mut rng = OsRng;
         let fulld_id = Keypair::new_ed25519(&mut rng);
-        let _transfer_actor = Client::new(Some(fulld_id)).await?;
+        let pk = fulld_id.public_key();
+
+        let client = Client::new(Some(fulld_id)).await?;
+        assert_eq!(pk, client.public_key().await);
 
         Ok(())
     }
@@ -335,7 +338,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_for_existing_sk() -> Result<(), ClientError> {
-        exported_tests::client_creation_for_existing_sk().await
+    pub async fn client_creation_with_existing_keypair() -> Result<(), ClientError> {
+        exported_tests::client_creation_with_existing_keypair().await
     }
 }
