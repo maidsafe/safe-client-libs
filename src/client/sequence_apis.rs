@@ -78,15 +78,21 @@ impl Client {
         let pk = self.public_key().await;
         let mut data = Sequence::new_private(pk, pk.to_string(), name, tag);
         let address = *data.address();
-        // TODO: currently this applies the op to the data itself too
-        // refactor when this is standardised for crdt
-        let _ = data.create_unsigned_private_policy_op(owner, permissions)?;
+
+        let mut op = data.create_unsigned_private_policy_op(owner, permissions)?;
+        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let signature = self.keypair.sign(&bytes);
+        op.signature = Some(signature);
+
+        data.apply_private_policy_op(op.clone())?;
 
         if let Some(entries) = sequence {
             for entry in entries {
-                // TODO: currently this applies the op to the data itself too
-                // refactor when this is standardised for crdt
-                let _op = data.create_unsigned_append_op(entry);
+                let mut op = data.create_unsigned_append_op(entry)?;
+                let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+                let signature = self.keypair.sign(&bytes);
+                op.signature = Some(signature);
+                data.apply_data_op(op.clone())?;
             }
         }
 
@@ -149,15 +155,20 @@ impl Client {
         let pk = self.public_key().await;
         let mut data = Sequence::new_public(pk, pk.to_string(), name, tag);
         let address = *data.address();
-        // TODO: currently this applies the op to the data itself too
-        // refactor when this is standardised for crdt
-        let _op = data.create_unsigned_public_policy_op(owner, permissions)?;
+
+        let mut op = data.create_unsigned_public_policy_op(owner, permissions)?;
+        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let signature = self.keypair.sign(&bytes);
+        op.signature = Some(signature);
+        data.apply_public_policy_op(op.clone())?;
 
         if let Some(entries) = sequence {
             for entry in entries {
-                // TODO: currently this applies the op to the data itself too
-                // refactor when this is standardised for crdt
-                let _op = data.create_unsigned_append_op(entry);
+                let mut op = data.create_unsigned_append_op(entry)?;
+                let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+                let signature = self.keypair.sign(&bytes);
+                op.signature = Some(signature);
+                data.apply_data_op(op.clone())?;
             }
         }
 
@@ -283,8 +294,8 @@ impl Client {
         let mut op = sequence.create_unsigned_append_op(entry)?;
         let bytes = bincode::serialize(&op.crdt_op).map_err(|_| "Could not serialize op")?;
         let signature = self.keypair.sign(&bytes);
-        // and apply that signature to the op
         op.signature = Some(signature);
+        sequence.apply_data_op(op.clone())?;
 
         // Update the local Sequence CRDT replica
         let _ = self
@@ -607,7 +618,11 @@ impl Client {
         let permissions = sequence.private_policy(Some(pk))?.permissions.clone();
 
         // set new owner against this
-        let op = sequence.create_unsigned_private_policy_op(owner, permissions)?;
+        let mut op = sequence.create_unsigned_private_policy_op(owner, permissions)?;
+        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let signature = self.keypair.sign(&bytes);
+        op.signature = Some(signature);
+        sequence.apply_private_policy_op(op.clone())?;
 
         // Update the local Sequence CRDT replica
         let _ = self
@@ -861,7 +876,12 @@ impl Client {
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now set the new permissions to the Sequence
-        let op = sequence.create_unsigned_public_policy_op(self.public_key().await, permissions)?;
+        let mut op =
+            sequence.create_unsigned_public_policy_op(self.public_key().await, permissions)?;
+        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let signature = self.keypair.sign(&bytes);
+        op.signature = Some(signature);
+        sequence.apply_public_policy_op(op.clone())?;
 
         // Update the local Sequence CRDT replica
         let _ = self
@@ -939,8 +959,12 @@ impl Client {
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now set the new permissions to the Sequence
-        let op =
+        let mut op =
             sequence.create_unsigned_private_policy_op(self.public_key().await, permissions)?;
+        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let signature = self.keypair.sign(&bytes);
+        op.signature = Some(signature);
+        sequence.apply_private_policy_op(op.clone())?;
 
         // Update the local Sequence CRDT replica
         let _ = self
