@@ -80,7 +80,7 @@ impl Client {
         let address = *data.address();
 
         let mut op = data.create_unsigned_private_policy_op(owner, permissions)?;
-        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
 
@@ -89,7 +89,8 @@ impl Client {
         if let Some(entries) = sequence {
             for entry in entries {
                 let mut op = data.create_unsigned_append_op(entry)?;
-                let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+                let bytes =
+                    bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
                 let signature = self.keypair.sign(&bytes);
                 op.signature = Some(signature);
                 data.apply_data_op(op.clone())?;
@@ -157,7 +158,7 @@ impl Client {
         let address = *data.address();
 
         let mut op = data.create_unsigned_public_policy_op(owner, permissions)?;
-        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         data.apply_public_policy_op(op.clone())?;
@@ -165,7 +166,8 @@ impl Client {
         if let Some(entries) = sequence {
             for entry in entries {
                 let mut op = data.create_unsigned_append_op(entry)?;
-                let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+                let bytes =
+                    bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
                 let signature = self.keypair.sign(&bytes);
                 op.signature = Some(signature);
                 data.apply_data_op(op.clone())?;
@@ -619,7 +621,7 @@ impl Client {
 
         // set new owner against this
         let mut op = sequence.create_unsigned_private_policy_op(owner, permissions)?;
-        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_private_policy_op(op.clone())?;
@@ -878,7 +880,7 @@ impl Client {
         // We can now set the new permissions to the Sequence
         let mut op =
             sequence.create_unsigned_public_policy_op(self.public_key().await, permissions)?;
-        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_public_policy_op(op.clone())?;
@@ -961,7 +963,7 @@ impl Client {
         // We can now set the new permissions to the Sequence
         let mut op =
             sequence.create_unsigned_private_policy_op(self.public_key().await, permissions)?;
-        let bytes = bincode::serialize(&op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_private_policy_op(op.clone())?;
