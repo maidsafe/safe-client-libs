@@ -611,7 +611,7 @@ impl ConnectionManager {
                 };
             }
 
-            error!("Receive stream listener stopped.");
+            info!("Receive stream listener stopped.");
 
             Ok::<(), ClientError>(())
         });

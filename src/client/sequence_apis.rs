@@ -99,9 +99,6 @@ impl Client {
 
         self.pay_and_write_sequence_to_network(data.clone()).await?;
 
-        // Store in local Sequence CRDT replica
-        let _ = self.sequence_cache.lock().await.put(*data.address(), data);
-
         Ok(address)
     }
 
@@ -176,9 +173,6 @@ impl Client {
 
         self.pay_and_write_sequence_to_network(data.clone()).await?;
 
-        // Store in local Sequence CRDT replica
-        let _ = self.sequence_cache.lock().await.put(*data.address(), data);
-
         Ok(address)
     }
 
@@ -238,14 +232,6 @@ impl Client {
             .send_cmd(&message)
             .await?;
 
-        {
-            let mut cache = self.sequence_cache.lock().await;
-
-            if let Some(_sequence) = cache.get(&address) {
-                let _ = cache.pop(&address);
-            }
-        }
-
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
@@ -299,12 +285,6 @@ impl Client {
         op.signature = Some(signature);
         sequence.apply_data_op(op.clone())?;
 
-        // Update the local Sequence CRDT replica
-        let _ = self
-            .sequence_cache
-            .lock()
-            .await
-            .put(*sequence.address(), sequence);
         // Finally we can send the mutation to the network's replicas
         self.pay_and_write_append_to_sequence_to_network(op).await
     }
@@ -326,6 +306,7 @@ impl Client {
         &mut self,
         data: Sequence,
     ) -> Result<(), ClientError> {
+        debug!("Attempting to pay and write data to network");
         let cmd = DataCmd::Sequence(SequenceWrite::New(data));
 
         self.pay_and_send_data_command(cmd).await
@@ -373,16 +354,6 @@ impl Client {
         address: SequenceAddress,
     ) -> Result<Sequence, ClientError> {
         trace!("Get Sequence Data at {:?}", address.name());
-        // First try to fetch it from local CRDT replica
-        // TODO: implement some logic to refresh data from the network if local replica
-        // is too old, to mitigate the risk of successfully apply mutations locally but which
-        // can fail on other replicas, e.g. due to being out of sync with permissions/owner
-        if let Some(sequence) = self.sequence_cache.lock().await.get(&address) {
-            debug!("Sequence found in local CRDT replica");
-            return Ok(sequence.clone());
-        }
-
-        trace!("Sequence not found in local CRDT replica");
         // Let's fetch it from the network then
         let sequence = match self
             .send_query(wrap_seq_read(SequenceRead::Get(address)))
@@ -391,14 +362,6 @@ impl Client {
             QueryResponse::GetSequence(res) => res.map_err(ClientError::from),
             _ => Err(ClientError::ReceivedUnexpectedEvent),
         }?;
-
-        trace!("Store Sequence in local CRDT replica");
-        // Store in local Sequence CRDT replica
-        let _ = self
-            .sequence_cache
-            .lock()
-            .await
-            .put(*sequence.address(), sequence.clone());
 
         Ok(sequence)
     }
@@ -626,13 +589,6 @@ impl Client {
         op.signature = Some(signature);
         sequence.apply_private_policy_op(op.clone())?;
 
-        // Update the local Sequence CRDT replica
-        let _ = self
-            .sequence_cache
-            .lock()
-            .await
-            .put(*sequence.address(), sequence.clone());
-
         let cmd = DataCmd::Sequence(SequenceWrite::SetPrivatePolicy(op));
 
         // Payment for PUT
@@ -758,10 +714,8 @@ impl Client {
             "Get permissions from Private Sequence Data at {:?}",
             address.name()
         );
-
-        // TODO: perhaps we want to grab it directly from
-        // the network and update local replica
         let sequence = self.get_sequence(address).await?;
+
         // TODO: do we need to query with some specific PK?
         let perms = match sequence
             .permissions(SequenceUser::Key(user), None)
@@ -885,13 +839,6 @@ impl Client {
         op.signature = Some(signature);
         sequence.apply_public_policy_op(op.clone())?;
 
-        // Update the local Sequence CRDT replica
-        let _ = self
-            .sequence_cache
-            .lock()
-            .await
-            .put(*sequence.address(), sequence.clone());
-
         let cmd = DataCmd::Sequence(SequenceWrite::SetPublicPolicy(op));
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
@@ -968,13 +915,6 @@ impl Client {
         op.signature = Some(signature);
         sequence.apply_private_policy_op(op.clone())?;
 
-        // Update the local Sequence CRDT replica
-        let _ = self
-            .sequence_cache
-            .lock()
-            .await
-            .put(*sequence.address(), sequence.clone());
-
         let cmd = DataCmd::Sequence(SequenceWrite::SetPrivatePolicy(op));
 
         // Payment for PUT
@@ -1044,7 +984,14 @@ pub mod exported_tests {
             .store_private_sequence(None, name, tag, owner, perms)
             .await?;
 
-        let sequence = client.get_sequence(address).await?;
+        let mut seq_res = client.get_sequence(address).await;
+
+        while seq_res.is_err() {
+            seq_res = client.get_sequence(address).await;
+        }
+
+        let sequence = seq_res?;
+
         assert!(sequence.is_private());
         assert_eq!(*sequence.name(), name);
         assert_eq!(sequence.tag(), tag);
@@ -1061,7 +1008,15 @@ pub mod exported_tests {
         let address = client
             .store_public_sequence(None, name, tag, owner, perms)
             .await?;
-        let sequence = client.get_sequence(address).await?;
+
+        let mut seq_res = client.get_sequence(address).await;
+
+        while seq_res.is_err() {
+            seq_res = client.get_sequence(address).await;
+        }
+
+        let sequence = seq_res?;
+
         assert!(sequence.is_pub());
         assert_eq!(*sequence.name(), name);
         assert_eq!(sequence.tag(), tag);
@@ -1074,7 +1029,6 @@ pub mod exported_tests {
 
     pub async fn sequence_private_permissions_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
-
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1084,22 +1038,43 @@ pub mod exported_tests {
             .store_private_sequence(None, name, tag, owner, perms)
             .await?;
 
-        let data = client.get_sequence(address).await?;
+        let mut seq_res = client.get_sequence(address).await;
+
+        while seq_res.is_err() {
+            seq_res = client.get_sequence(address).await;
+        }
+
+        let data = seq_res?;
+
         assert_eq!(data.len(None)?, 0);
         assert_eq!(data.policy_version(None)?, Some(0));
 
-        let user_perms = client
+        let mut seq_res = client
             .get_sequence_private_permissions_for_user(address, owner)
-            .await?;
+            .await;
+
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_private_permissions_for_user(address, owner)
+                .await;
+        }
+
+        let user_perms = seq_res?;
 
         assert!(user_perms.is_allowed(SequenceAction::Read));
         assert!(user_perms.is_allowed(SequenceAction::Append));
         assert!(user_perms.is_allowed(SequenceAction::Admin));
 
-        match client
+        let mut seq_res = client
             .get_sequence_permissions(address, SequenceUser::Key(owner))
-            .await?
-        {
+            .await;
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_permissions(address, SequenceUser::Key(owner))
+                .await;
+        }
+
+        match seq_res? {
             SequencePermissions::Private(user_perms) => {
                 assert!(user_perms.is_allowed(SequenceAction::Read));
                 assert!(user_perms.is_allowed(SequenceAction::Append));
@@ -1122,18 +1097,32 @@ pub mod exported_tests {
             .sequence_set_private_permissions(address, perms2)
             .await?;
 
-        let user_perms = client
+        let mut seq_res = client
             .get_sequence_private_permissions_for_user(address, sim_client)
-            .await?;
+            .await;
+
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_private_permissions_for_user(address, sim_client)
+                .await;
+        }
+
+        let user_perms = seq_res?;
 
         assert!(!user_perms.is_allowed(SequenceAction::Read));
         assert!(user_perms.is_allowed(SequenceAction::Append));
         assert!(!user_perms.is_allowed(SequenceAction::Admin));
 
-        match client
+        let mut seq_res = client
             .get_sequence_permissions(address, SequenceUser::Key(sim_client))
-            .await?
-        {
+            .await;
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_permissions(address, SequenceUser::Key(sim_client))
+                .await;
+        }
+
+        match seq_res? {
             SequencePermissions::Private(user_perms) => {
                 assert!(!user_perms.is_allowed(SequenceAction::Read));
                 assert!(user_perms.is_allowed(SequenceAction::Append));
@@ -1161,22 +1150,43 @@ pub mod exported_tests {
             .store_public_sequence(None, name, tag, owner, perms)
             .await?;
 
-        let data = client.get_sequence(address).await?;
+        let mut seq_res = client.get_sequence(address).await;
+
+        while seq_res.is_err() {
+            seq_res = client.get_sequence(address).await;
+        }
+
+        let data = seq_res?;
+
         assert_eq!(data.len(None)?, 0);
         assert_eq!(data.policy_version(None)?, Some(0));
 
-        let user_perms = client
+        let mut seq_res = client
             .get_sequence_pub_permissions_for_user(address, owner)
-            .await?;
+            .await;
+
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_pub_permissions_for_user(address, owner)
+                .await;
+        }
+
+        let user_perms = seq_res?;
 
         assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Read));
         assert_eq!(None, user_perms.is_allowed(SequenceAction::Append));
         assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Admin));
 
-        match client
+        let mut seq_res = client
             .get_sequence_permissions(address, SequenceUser::Key(owner))
-            .await?
-        {
+            .await;
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_permissions(address, SequenceUser::Key(owner))
+                .await;
+        }
+
+        match seq_res? {
             SequencePermissions::Public(user_perms) => {
                 assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Read));
                 assert_eq!(None, user_perms.is_allowed(SequenceAction::Append));
@@ -1199,17 +1209,32 @@ pub mod exported_tests {
             .sequence_set_public_permissions(address, perms2)
             .await?;
 
-        let user_perms = client
+        let mut seq_res = client
             .get_sequence_pub_permissions_for_user(address, sim_client)
-            .await?;
+            .await;
+
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_pub_permissions_for_user(address, sim_client)
+                .await;
+        }
+
+        let user_perms = seq_res?;
+
         assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Read));
         assert_eq!(Some(false), user_perms.is_allowed(SequenceAction::Append));
         assert_eq!(Some(false), user_perms.is_allowed(SequenceAction::Admin));
 
-        match client
+        let mut seq_res = client
             .get_sequence_permissions(address, SequenceUser::Key(sim_client))
-            .await?
-        {
+            .await;
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_permissions(address, SequenceUser::Key(sim_client))
+                .await;
+        }
+
+        match seq_res? {
             SequencePermissions::Public(user_perms) => {
                 assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Read));
                 assert_eq!(Some(false), user_perms.is_allowed(SequenceAction::Append));
@@ -1233,32 +1258,73 @@ pub mod exported_tests {
             SequenceUser::Key(owner),
             SequencePublicPermissions::new(true, true),
         );
+
         let address = client
             .store_public_sequence(None, name, tag, owner, perms)
             .await?;
 
-        client
-            .append_to_sequence(address, b"VALUE1".to_vec())
-            .await?;
+        // append to the data the data
+        let mut seq_res = client.append_to_sequence(address, b"VALUE1".to_vec()).await;
 
-        let (index, data) = client.get_sequence_last_entry(address).await?;
+        while seq_res.is_err() {
+            seq_res = client.append_to_sequence(address, b"VALUE1".to_vec()).await;
+        }
+
+        // now check last entry
+        let mut seq_res = client.get_sequence_last_entry(address).await;
+
+        while seq_res.is_err() {
+            seq_res = client.get_sequence_last_entry(address).await;
+        }
+
+        let (index, data) = seq_res?;
+
         assert_eq!(0, index);
         assert_eq!(unwrap!(std::str::from_utf8(&data)), "VALUE1");
 
-        client
-            .append_to_sequence(address, b"VALUE2".to_vec())
-            .await?;
+        // append to the data the data
+        let mut seq_res = client.append_to_sequence(address, b"VALUE2".to_vec()).await;
 
-        let (index, data) = client.get_sequence_last_entry(address).await?;
+        while seq_res.is_err() {
+            seq_res = client.append_to_sequence(address, b"VALUE2".to_vec()).await;
+        }
+
+        // and then lets check last entry
+        let mut seq_res = client.get_sequence_last_entry(address).await;
+
+        while seq_res.is_err() {
+            seq_res = client.get_sequence_last_entry(address).await;
+        }
+
+        let (mut index, mut data) = seq_res?;
+        // we might still be getting old data here
+        while index == 0 {
+            let (i, d) = client.get_sequence_last_entry(address).await?;
+            index = i;
+            data = d;
+        }
+
         assert_eq!(1, index);
         assert_eq!(unwrap!(std::str::from_utf8(&data)), "VALUE2");
 
-        let data = client
+        let mut seq_res = client
             .get_sequence_range(
                 address,
                 (SequenceIndex::FromStart(0), SequenceIndex::FromEnd(0)),
             )
-            .await?;
+            .await;
+
+        while seq_res.is_err() {
+            seq_res = client
+                .get_sequence_range(
+                    address,
+                    (SequenceIndex::FromStart(0), SequenceIndex::FromEnd(0)),
+                )
+                .await;
+        }
+
+        let data = seq_res?;
+
         assert_eq!(unwrap!(std::str::from_utf8(&data[0])), "VALUE1");
         assert_eq!(unwrap!(std::str::from_utf8(&data[1])), "VALUE2");
 
@@ -1322,7 +1388,6 @@ pub mod exported_tests {
 
     pub async fn sequence_can_delete_private_test() -> Result<(), ClientError> {
         let mut client = Client::new(None).await?;
-
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1333,12 +1398,24 @@ pub mod exported_tests {
         let address = client
             .store_private_sequence(None, name, tag, owner, perms)
             .await?;
-        let sequence = client.get_sequence(address).await?;
-        assert!(sequence.is_private());
+
+        let mut sequence = client.get_sequence(address).await;
+
+        while sequence.is_err() {
+            sequence = client.get_sequence(address).await;
+        }
+
+        assert!(sequence?.is_private());
 
         client.delete_sequence(address).await?;
 
-        match client.get_sequence(address).await {
+        let mut res = client.get_sequence(address).await;
+
+        while res.is_ok() {
+            res = client.get_sequence(address).await;
+        }
+
+        match res {
             Err(ClientError::DataError(SndError::NoSuchData)) => Ok(()),
             Err(err) => Err(ClientError::from(format!(
                 "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
@@ -1366,8 +1443,14 @@ pub mod exported_tests {
         let address = client
             .store_public_sequence(None, name, tag, owner, perms)
             .await?;
-        let sequence = client.get_sequence(address).await?;
-        assert!(sequence.is_pub());
+
+        let mut sequence = client.get_sequence(address).await;
+
+        while sequence.is_err() {
+            sequence = client.get_sequence(address).await;
+        }
+
+        assert!(sequence?.is_pub());
 
         client.delete_sequence(address).await?;
 

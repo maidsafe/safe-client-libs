@@ -45,7 +45,7 @@ use {log::warn, std::str::FromStr};
 
 use sn_data_types::{
     Blob, BlobAddress, Cmd, DataCmd, Keypair, Message, MessageId, Money, PublicKey, Query,
-    QueryResponse, Sequence, SequenceAddress,
+    QueryResponse,
 };
 
 #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
@@ -79,7 +79,6 @@ pub struct Client {
     keypair: Arc<Keypair>,
     blob_cache: Arc<Mutex<LruCache<BlobAddress, Blob>>>,
     /// Sequence CRDT replica
-    sequence_cache: Arc<Mutex<LruCache<SequenceAddress, Sequence>>>,
     transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator>>>,
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
@@ -162,7 +161,6 @@ impl Client {
             replicas_pk_set,
             simulated_farming_payout_dot,
             blob_cache: Arc::new(Mutex::new(LruCache::new(IMMUT_DATA_CACHE_SIZE))),
-            sequence_cache: Arc::new(Mutex::new(LruCache::new(SEQUENCE_CRDT_REPLICA_SIZE))),
             notification_receiver: Arc::new(Mutex::new(notification_receiver)),
         };
 
