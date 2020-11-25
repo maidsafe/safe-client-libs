@@ -36,22 +36,21 @@ use crate::errors::ClientError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
-#[cfg(feature = "simulated-payouts")]
-use log::warn;
 use log::{debug, info, trace};
 use lru::LruCache;
 use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
+#[cfg(feature = "simulated-payouts")]
+use {log::warn, std::str::FromStr};
 
 use sn_data_types::{
     Blob, BlobAddress, Cmd, DataCmd, Keypair, Message, MessageId, Money, PublicKey, Query,
     QueryResponse, Sequence, SequenceAddress,
 };
 
-#[cfg(feature = "simulated-payouts")]
-use std::str::FromStr;
-
+#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
 use std::time::Duration;
+
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -283,8 +282,9 @@ impl Client {
         self.apply_write_payment_to_local_actor(payment_proof).await
     }
 
+    // TODO: Change cfg to `test` once we move tests out of sn_client
     /// Assert if all connected Elders are returning the same errors we expect.
-    #[cfg(feature = "simulated-payouts")]
+    #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
     pub(crate) async fn expect_error(&mut self, err: ClientError) {
         for _ in 0..self
             .connection_manager
