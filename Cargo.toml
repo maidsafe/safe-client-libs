@@ -59,3 +59,4 @@ features = ["simulated-payouts"]
 
 [patch.crates-io]
 crdts = { git = "https://github.com/joshuef/rust-crdt", branch="Remove-LseqdefaultApply" }
+sn_data_types = { git = "https://github.com/Yoga07/sn_data_types", branch = "cmd-dst" }
