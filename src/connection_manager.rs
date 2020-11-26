@@ -510,19 +510,22 @@ impl ConnectionManager {
             todo = remaining_futures;
 
             if let Ok(elder_result) = res {
-                let (send_stream, connection, recv_stream, socket_addr) =
-                    elder_result.map_err(|err| {
-                        ClientError::from(format!("Failed to connect to an Elder: {}", err))
-                    })?;
-
-                let listener = self.listen_to_receive_stream(recv_stream).await?;
-                // We can now keep this connections in our instance
-                self.elders.push(ElderStream {
-                    send_stream,
-                    connection,
-                    listener: Arc::new(Mutex::new(listener)),
-                    socket_addr,
+                let res = elder_result.map_err(|err| {
+                    // elder connection retires already occur above
+                    warn!("Failed to connect to Elder @ : {}", err);
                 });
+
+                if let Ok((send_stream, connection, recv_stream, socket_addr)) = res {
+                    info!("Connected to elder: {:?}", socket_addr);
+                    let listener = self.listen_to_receive_stream(recv_stream).await?;
+                    // We can now keep this connections in our instance
+                    self.elders.push(ElderStream {
+                        send_stream,
+                        connection,
+                        listener: Arc::new(Mutex::new(listener)),
+                        socket_addr,
+                    });
+                }
             }
 
             // TODO: this will effectively stop driving futures after we get 2...
