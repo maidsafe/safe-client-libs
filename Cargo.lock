@@ -1922,7 +1922,7 @@ dependencies = [
 [[package]]
 name = "sn_data_types"
 version = "0.11.33"
-source = "git+https://github.com/Yoga07/sn_data_types?branch=cmd-dst#b688b0961b01faf66e1be91fd9d2cd705fb99527"
+source = "git+https://github.com/Yoga07/sn_data_types?branch=cmd-dst#6383e7525193baceb8ec06c7427108188d5e8c40"
 dependencies = [
  "bincode",
  "crdts",

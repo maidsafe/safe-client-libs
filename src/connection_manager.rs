@@ -107,7 +107,18 @@ impl ConnectionManager {
         }
 
         // Let's await for all messages to be sent
-        let _results = join_all(tasks).await;
+        let results = join_all(tasks).await;
+
+        let mut failures = 0;
+        results.iter().for_each(|res| {
+            if res.is_err() {
+                failures += 1;
+            }
+        });
+
+        if failures > 0 {
+            error!("Sending the message to {} Elders failed", failures);
+        }
 
         // TODO: return an error if we didn't successfully
         // send it to at least a majority of Elders??

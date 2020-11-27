@@ -66,10 +66,10 @@ impl Storage for BlobStorage {
                 .map_err(|err| SelfEncryptionError::Generic(format!("{}", err)))?
                 .into()
         };
-        match self.client.store_blob(blob).await {
-            Ok(_r) => Ok(()),
-            Err(error) => Err(SelfEncryptionError::Generic(format!("{}", error))),
-        }
+        self.client
+            .store_blob_on_network(blob)
+            .await
+            .map_err(|err| SelfEncryptionError::Generic(format!("{}", err)))
     }
 
     async fn generate_address(&self, data: &[u8]) -> Result<Vec<u8>, SelfEncryptionError> {
