@@ -440,13 +440,13 @@ pub mod exported_tests {
         println!("ASSERTING DELETE UNPUB BLOB");
         // Make sure blob was deleted
         let mut fetched_data = client.get_blob(address, None, None).await;
-        // while fetched_data.is_ok() {
-        // println!("Loop3");
-        // fetched_data = client.get_blob(address, None, None).await;
-        // }
+        while fetched_data.is_ok() {
+        println!("Loop3");
+        fetched_data = client.get_blob(address, None, None).await;
+        }
 
         // Test putting unpub blob with the same value again. Should not conflict.
-        // let _ = client.store_blob(data3.clone()).await?;
+        let _ = client.store_blob(data3.clone()).await?;
         Ok(())
     }
 
