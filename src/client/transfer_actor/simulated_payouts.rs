@@ -40,7 +40,8 @@ impl Client {
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// // Start our client
     /// let mut client = Client::new(Some(id)).await?;
     /// let target_balance = Money::from_str("100")?;

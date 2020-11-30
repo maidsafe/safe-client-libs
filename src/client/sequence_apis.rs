@@ -48,7 +48,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -123,7 +124,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -193,7 +195,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -249,7 +252,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -328,7 +332,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -378,7 +383,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -433,7 +439,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -494,7 +501,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -548,7 +556,8 @@ impl Client {
     /// use threshold_crypto::SecretKey;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -627,7 +636,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -685,7 +695,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -741,7 +752,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -797,7 +809,8 @@ impl Client {
     /// use threshold_crypto::SecretKey;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
@@ -873,7 +886,8 @@ impl Client {
     /// use threshold_crypto::SecretKey;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();

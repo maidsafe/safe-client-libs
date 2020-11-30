@@ -47,7 +47,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
     /// let mut client = Client::new(Some(id)).await?;
     /// let initial_balance = Money::from_str("0")?;
@@ -78,7 +78,8 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
@@ -109,7 +110,8 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
-    /// let id = Keypair::new_ed25519(&mut OsRng);
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
     /// let mut client = Client::new(Some(id)).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
