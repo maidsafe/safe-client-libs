@@ -329,7 +329,7 @@ pub mod exported_tests {
 
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance(
     ) -> Result<(), ClientError> {
-        let keypair = Keypair::new_ed25519(&mut OsRng);
+        let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         match Client::new(Some(keypair)).await {
             Ok(actor) => {
@@ -342,10 +342,9 @@ pub mod exported_tests {
 
     pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError>
     {
-        let keypair = Keypair::new_ed25519(&mut OsRng);
+        let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         let keypair = {
-            // let keypair_again = keypair
             let mut initial_actor = Client::new(Some(keypair)).await?;
 
             let _ = initial_actor
@@ -354,8 +353,6 @@ pub mod exported_tests {
             // lets grab the keypair from the client before we drop it
             initial_actor.keypair().await
         };
-
-        let keypair = Arc::try_unwrap(keypair).map_err(|_| "Could not unwrap Arc<keypair>")?;
 
         match Client::new(Some(keypair)).await {
             Ok(mut client) => {

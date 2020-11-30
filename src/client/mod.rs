@@ -110,7 +110,7 @@ impl Client {
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(optional_keypair: Option<Keypair>) -> Result<Self, ClientError> {
+    pub async fn new(optional_keypair: Option<Arc<Keypair>>) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
@@ -126,10 +126,8 @@ impl Client {
 
                 id
             }
-            None => Keypair::new_ed25519(&mut rng),
+            None => Arc::new(Keypair::new_ed25519(&mut rng)),
         };
-
-        let keypair = Arc::new(keypair);
 
         info!("Client started for pk: {:?}", keypair.public_key());
         let (notification_sender, notification_receiver) = unbounded_channel::<ClientError>();
@@ -348,7 +346,7 @@ pub mod exported_tests {
 
     pub async fn client_creation_with_existing_keypair() -> Result<(), ClientError> {
         let mut rng = OsRng;
-        let fulld_id = Keypair::new_ed25519(&mut rng);
+        let fulld_id = Arc::new(Keypair::new_ed25519(&mut rng));
         let pk = fulld_id.public_key();
 
         let client = Client::new(Some(fulld_id)).await?;

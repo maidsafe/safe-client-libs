@@ -28,11 +28,12 @@ pub mod exported_tests {
     use super::*;
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Sequence};
+    use std::sync::Arc;
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
     pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), ClientError> {
-        let keypair = Keypair::new_ed25519(&mut OsRng);
+        let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
         let pk = keypair.public_key();
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
 
