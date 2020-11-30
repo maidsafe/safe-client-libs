@@ -30,60 +30,6 @@ impl SelfEncryptionStorage {
     }
 }
 
-#[async_trait]
-impl Storage for SelfEncryptionStorage {
-    type Error = SEStorageError;
-
-    async fn get(&mut self, name: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        trace!("Self encrypt invoked GetBlob.");
-
-        if name.len() != XOR_NAME_LEN {
-            let err = ClientError::Unexpected("Requested `name` is incorrect size.".to_owned());
-            let err = SEStorageError::from(err);
-            return Err(err);
-        }
-
-        let name = {
-            let mut temp = [0_u8; XOR_NAME_LEN];
-            temp.clone_from_slice(name);
-            XorName(temp)
-        };
-
-        let address = if self.published {
-            BlobAddress::Public(name)
-        } else {
-            BlobAddress::Private(name)
-        };
-
-        match self.client.get_blob(address).await {
-            Ok(data) => Ok(data.value().clone()),
-            Err(error) => Err(SEStorageError::from(error)),
-        }
-    }
-
-    async fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Result<(), Self::Error> {
-        trace!("Self encrypt invoked PutBlob.");
-        let blob: Blob = if self.published {
-            PublicBlob::new(data).into()
-        } else {
-            PrivateBlob::new(data, self.client.public_key().await).into()
-        };
-        match self.client.store_blob(blob).await {
-            Ok(_r) => Ok(()),
-            Err(error) => Err(SEStorageError::from(error)),
-        }
-    }
-
-    async fn generate_address(&self, data: &[u8]) -> Result<Vec<u8>, Self::Error> {
-        let blob: Blob = if self.published {
-            PublicBlob::new(data.to_vec()).into()
-        } else {
-            PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
-        };
-        Ok(blob.name().0.to_vec())
-    }
-}
-
 /// Errors arising from storage object being used by self_encryptors.
 #[derive(Debug)]
 pub struct SEStorageError(pub Box<ClientError>);

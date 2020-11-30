@@ -51,7 +51,7 @@ impl Storage for BlobStorage {
             BlobAddress::Private(name)
         };
 
-        match self.client.get_blob(address, None, None).await {
+        match self.client.fetch_blob_from_network(address).await {
             Ok(data) => Ok(data.value().clone()),
             Err(error) => Err(SelfEncryptionError::Generic(format!("{}", error))),
         }

@@ -16,16 +16,15 @@ use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use self_encryption::{DataMap, SelfEncryptor};
 use sn_data_types::{
-    Blob, BlobAddress, BlobRead, BlobWrite, DataCmd, DataQuery, PrivateBlob, PublicBlob, PublicKey,
+    Blob, BlobAddress, BlobRead, BlobWrite, DataCmd, DataQuery, PrivateBlob, PublicBlob,
     Query, QueryResponse,
 };
 
 #[derive(Serialize, Deserialize)]
-enum DataTypeEncoding {
-    Serialised(Vec<u8>),
-    DataMap(DataMap),
+enum DataMapLevel {
+    Root(DataMap),
+    Child(DataMap),
 }
-
 impl Client {
     /// Get a data blob from the network. If the data exists locally in the cache then it will be
     /// immediately returned without making an actual network request.
@@ -58,32 +57,15 @@ impl Client {
     {
         trace!("Fetch Blob");
 
-        if let Some(data) = self.blob_cache.lock().await.get_mut(&address) {
-            trace!("Blob found in cache.");
-            return Ok(data.clone());
-        }
+        let data = self.fetch_blob_from_network(address).await?;
+        let published = address.is_pub();
+        let data_map = self.unpack(data).await?;
 
-        let res = self
-            .send_query(Query::Data(DataQuery::Blob(BlobRead::Get(address))))
+        let raw_data = self
+            .read_using_data_map(data_map, published, position, len)
             .await?;
-        let data: Blob = match res {
-            QueryResponse::GetBlob(res) => res.map_err(ClientError::from),
-            _ => return Err(ClientError::ReceivedUnexpectedEvent),
-        }?;
 
-        // Put to cache
-        let _ = self
-            .blob_cache
-            .lock()
-            .await
-            .put(*data.address(), data.clone());
-
-        let is_published = data.is_pub();
-
-        // parse data map and get resulting blob
-        let raw_data = self.extract_blob_data(data, position, len).await?;
-
-        let final_blob = if is_published {
+        let final_blob = if published {
             Blob::Public(PublicBlob::new(raw_data))
         } else {
             Blob::Private(PrivateBlob::new(raw_data, self.public_key().await)?)
@@ -121,29 +103,58 @@ impl Client {
     pub async fn store_blob(&mut self, the_blob: Blob) -> Result<BlobAddress, ClientError> {
         info!("Storing blob: {:?}", &the_blob);
 
-        let is_pub = the_blob.is_pub();
-        let pub_key = if is_pub {
-            self.public_key().await
-        } else {
-            *the_blob
-                .owner()
-                .ok_or_else(|| ClientError::DataError(sn_data_types::Error::InvalidOwners))?
-        };
+        let published = the_blob.is_pub();
+        let value = the_blob.value().clone(); // can be prevented by changing the API
 
-        // let data_map = self.generate_data_map(&the_blob).await?;
+        // Write the contents to the self encryptor.
+        let blob_storage = BlobStorage::new(self.clone(), published);
+        let self_encryptor = SelfEncryptor::new(blob_storage.clone(), DataMap::None)
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
-        // let serialised_data_map = serialize(&data_map)?;
-        // let data_to_write_to_network =
-        //     serialize(&DataTypeEncoding::Serialised(serialised_data_map))
-        //         .map_err(ClientError::from)?;
+        self_encryptor
+            .write(&value, 0)
+            .await
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
-        // FIXME: This is a dirty fix / impl. The below clone can be avoided.
-        let data_map = self.pack(pub_key, the_blob.value().clone(), is_pub).await?;
-        let data_map_address = *data_map.address();
+        let (data_map, _) = self_encryptor
+            .close()
+            .await
+            .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
 
-        self.store_blob_on_network(data_map).await?;
+        let data = serialize(&DataMapLevel::Root(data_map))?;
+
+        let data_map_blob = self.pack(data, published).await?;
+        let data_map_address = *data_map_blob.address();
+
+        self.store_blob_on_network(data_map_blob).await?;
 
         Ok(data_map_address)
+    }
+
+    pub(crate) async fn fetch_blob_from_network(
+        &mut self,
+        address: BlobAddress,
+    ) -> Result<Blob, ClientError> {
+        if let Some(data) = self.blob_cache.lock().await.get_mut(&address) {
+            trace!("Blob found in cache.");
+            return Ok(data.clone());
+        }
+
+        let res = self
+            .send_query(Query::Data(DataQuery::Blob(BlobRead::Get(address))))
+            .await?;
+        let data: Blob = match res {
+            QueryResponse::GetBlob(res) => res.map_err(ClientError::from),
+            _ => return Err(ClientError::ReceivedUnexpectedEvent),
+        }?;
+
+        // Put to cache
+        // let _ = self
+        //     .blob_cache
+        //     .lock()
+        //     .await
+        //     .put(*data.address(), data.clone());
+        Ok(data)
     }
 
     // This is a private function that actually stores the given blob on the network.
@@ -193,11 +204,8 @@ impl Client {
 
         self.pay_and_send_data_command(cmd).await?;
         info!("Dropping from cache");
-        let _ =
-            self.blob_cache.lock().await.pop(&address).ok_or_else(|| {
-                ClientError::Unexpected("Couldn't pop Blob from cache".to_string())
-            })?;
-        info!("Dropped from cache");
+        let res = self.blob_cache.lock().await.pop(&address);
+        info!("Dropped {:?} from cache", res);
         Ok(())
     }
 
@@ -223,18 +231,13 @@ impl Client {
     // ---------- Private helpers -----------------
     // --------------------------------------------
 
-    async fn extract_blob_data(
+    async fn read_using_data_map(
         &mut self,
-        data: Blob,
+        data_map: DataMap,
+        published: bool,
         position: Option<u64>,
         len: Option<u64>,
     ) -> Result<Vec<u8>, ClientError> {
-        let published = data.is_pub();
-        let _blob_storage = BlobStorage::new(self.clone(), published);
-        let value = self.unpack(data).await?;
-
-        let data_map = deserialize(&value)?;
-
         let blob_storage = BlobStorage::new(self.clone(), published);
         let self_encryptor = SelfEncryptor::new(blob_storage, data_map)
             .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
@@ -255,63 +258,57 @@ impl Client {
         }
     }
 
-    /// Write Blob to the network.
-    async fn pack(
-        &mut self,
-        public_key: PublicKey,
-        mut value: Vec<u8>,
-        published: bool,
-    ) -> Result<Blob, ClientError> {
-        // This blob storage is used to perform write operations to the network, via self encryptor
-        let blob_storage = BlobStorage::new(self.clone(), published);
-
+    /// This function takes the "Root data map" and returns a Blob that is acceptable by the network
+    ///
+    /// If the root data map blob is too big, the whole blob is self-encrypted and the child data map is used.
+    /// The above step is repeated as many times as required until the blob size is valid.
+    async fn pack(&mut self, mut contents: Vec<u8>, published: bool) -> Result<Blob, ClientError> {
         loop {
             let data: Blob = if published {
-                PublicBlob::new(value).into()
+                PublicBlob::new(contents).into()
             } else {
-                PrivateBlob::new(value, public_key)?.into()
+                PrivateBlob::new(contents, self.public_key().await)?.into()
             };
 
-            let serialised_data = serialize(&data)?;
-
+            // If data map blob is less thatn 1MB return it so it can be directly sento to the network
             if data.validate_size() {
                 return Ok(data);
+            } else {
+                let serialized_blob = serialize(&data)?;
+                let blob_storage = BlobStorage::new(self.clone(), published);
+                let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)
+                    .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
+
+                self_encryptor
+                    .write(&serialized_blob, 0)
+                    .await
+                    .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
+
+                let (data_map, _) = self_encryptor
+                    .close()
+                    .await
+                    .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
+
+                contents = serialize(&DataMapLevel::Child(data_map))?
             }
-
-            let self_encryptor = SelfEncryptor::new(blob_storage.clone(), DataMap::None)
-                .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
-
-            self_encryptor
-                .write(&serialised_data, 0)
-                .await
-                .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
-
-            let (data_map, _) = self_encryptor
-                .close()
-                .await
-                .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
-
-            value = serialize(&DataTypeEncoding::DataMap(data_map))?;
         }
     }
 
-    async fn unpack(&mut self, mut data: Blob) -> Result<Vec<u8>, ClientError> {
+    /// This function takes a blob and fetches the data map from it.
+    /// If the data map is not the root data map of the user's contents,
+    /// the function repeats itself until it obtains the root data map.
+    async fn unpack(&mut self, mut data: Blob) -> Result<DataMap, ClientError> {
         loop {
+            let published = data.is_pub();
             match deserialize(data.value())? {
-                DataTypeEncoding::Serialised(value) => return Ok(value),
-                DataTypeEncoding::DataMap(data_map) => {
-                    let blob_storage = BlobStorage::new(self.clone(), data.is_pub());
-                    let self_encryptor =
-                        SelfEncryptor::new(blob_storage, data_map).map_err(|e| {
-                            ClientError::from(format!("Self encryption error: {:?}", e))
-                        })?;
-                    let length = self_encryptor.len().await;
-
-                    let serialised_data = self_encryptor.read(0, length).await.map_err(|e| {
-                        ClientError::from(format!("Self encryption error: {:?}", e))
-                    })?;
-
-                    data = deserialize(&serialised_data)?;
+                DataMapLevel::Root(data_map) => {
+                    return Ok(data_map);
+                }
+                DataMapLevel::Child(data_map) => {
+                    let serialised_blob = self
+                        .read_using_data_map(data_map, published, None, None)
+                        .await?;
+                    data = deserialize(&serialised_blob)?;
                 }
             }
         }
@@ -324,7 +321,7 @@ pub mod exported_tests {
     use super::*;
     use crate::utils::{
         generate_random_vector,
-        test_utils::{calculate_new_balance, gen_bls_keypair},
+        test_utils::gen_bls_keypair,
     };
     use sn_data_types::{Error as SndError, Money, PrivateBlob, PublicBlob};
     use std::str::FromStr;
@@ -334,12 +331,12 @@ pub mod exported_tests {
     pub async fn pub_blob_test() -> Result<(), ClientError> {
         let mut client = Client::new(None, None).await?;
         // The `Client::new(None)` initializes the client with 10 money.
-        let start_bal = unwrap!(Money::from_str("10"));
+        let _start_bal = unwrap!(Money::from_str("10"));
 
         let value = generate_random_vector::<u8>(10);
         let data = Blob::Public(PublicBlob::new(value.clone()));
         let address = *data.address();
-        let pk = gen_bls_keypair().public_key();
+        let _pk = gen_bls_keypair().public_key();
 
         let res = client
             // Get non-existent blob
@@ -441,8 +438,8 @@ pub mod exported_tests {
         // Make sure blob was deleted
         let mut fetched_data = client.get_blob(address, None, None).await;
         while fetched_data.is_ok() {
-        println!("Loop3");
-        fetched_data = client.get_blob(address, None, None).await;
+            println!("Loop3");
+            fetched_data = client.get_blob(address, None, None).await;
         }
 
         // Test putting unpub blob with the same value again. Should not conflict.
@@ -491,7 +488,7 @@ pub mod exported_tests {
         let size = 1024;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let address = client.store_blob(value).await?;
 
         let res = client.get_blob(address, None, None).await;
@@ -518,100 +515,16 @@ pub mod exported_tests {
     // ----------------------------------------------------------------
     // 10mb (ie. more than 1 chunk)
     // ----------------------------------------------------------------
-
-    // Test creating and retrieving a 1kb blob.
-    pub async fn create_and_retrieve_10mb_pub_unencrypted() -> Result<(), ClientError> {
-        let size = 1024 * 1024 * 10;
-
-        gen_data_then_create_and_retrieve(size, true).await?;
-
-        Ok(())
-    }
-
-    pub async fn create_and_retrieve_10mb_private_unencrypted() -> Result<(), ClientError> {
-        let size = 1024 * 1024 * 10;
-
-        gen_data_then_create_and_retrieve(size, false).await?;
-        Ok(())
-    }
-
-    pub async fn create_and_retrieve_10mb_private_encrypted() -> Result<(), ClientError> {
+    pub async fn create_and_retrieve_10mb_private() -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, false).await?;
 
         Ok(())
     }
 
-    pub async fn create_and_retrieve_10mb_pub_encrypted() -> Result<(), ClientError> {
+    pub async fn create_and_retrieve_10mb_public() -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, true).await?;
-        Ok(())
-    }
-
-    pub async fn create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted(
-    ) -> Result<(), ClientError> {
-        let size = 1024 * 1024 * 10;
-        let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
-
-        let value = value.clone();
-
-        let mut client = Client::new(None, None).await?;
-
-        let address = client.store_blob(value).await?;
-
-        let res = client.get_blob(address, None, None).await;
-        assert!(res.is_err());
-        Ok(())
-    }
-
-    pub async fn create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted(
-    ) -> Result<(), ClientError> {
-        let size = 1024 * 1024 * 10;
-        let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
-
-        let value = value.clone();
-
-        let mut client = Client::new(None, None).await?;
-
-        let address = client.store_blob(value).await?;
-
-        let res = client.get_blob(address, None, None).await;
-        assert!(res.is_err());
-
-        Ok(())
-    }
-
-    pub async fn create_and_retrieve_10mb_encrypted_put_pub_retrieve_private(
-    ) -> Result<(), ClientError> {
-        let size = 1024 * 1024 * 10;
-        let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
-
-        let mut client = Client::new(None, None).await?;
-
-        let address = client.store_blob(value).await?;
-        let res = client.get_blob(address, None, None).await;
-        assert!(res.is_err());
-
-        Ok(())
-    }
-
-    pub async fn create_and_retrieve_10mb_encrypted_put_private_retrieve_pub(
-    ) -> Result<(), ClientError> {
-        let size = 1024 * 1024 * 10;
-
-        let mut client = Client::new(None, None).await?;
-        let value = Blob::Private(PrivateBlob::new(
-            generate_random_vector(size),
-            client.public_key().await,
-        )?);
-
-        let data = client.store_blob(value).await?;
-        let data_name = *data.name();
-
-        let address = BlobAddress::Public(data_name);
-        let res = client.get_blob(address, None, None).await;
-        assert!(res.is_err());
-
         Ok(())
     }
 
@@ -627,9 +540,11 @@ pub mod exported_tests {
 
             let address = client.store_blob(blob.clone()).await?;
 
-            let fetched_blob = client
-                .get_blob(address, None, Some(size as u64 / 2))
-                .await?;
+            let mut fetch_res = client.get_blob(address, None, Some(size as u64 / 2)).await;
+            while fetch_res.is_err() {
+                fetch_res = client.get_blob(address, None, Some(size as u64 / 2)).await;
+            }
+            let fetched_blob = fetch_res?;
             assert_eq!(*fetched_blob.value(), blob.value()[0..size / 2].to_vec());
         }
 
@@ -640,9 +555,15 @@ pub mod exported_tests {
 
             let address = client.store_blob(blob2.clone()).await?;
 
-            let fetched_blob = client
+            let mut fetch_res = client
                 .get_blob(address, Some(size as u64 / 2), Some(size as u64 / 2))
-                .await?;
+                .await;
+            while fetch_res.is_err() {
+                fetch_res = client
+                    .get_blob(address, Some(size as u64 / 2), Some(size as u64 / 2))
+                    .await;
+            }
+            let fetched_blob = fetch_res?;
             assert_eq!(
                 *fetched_blob.value(),
                 blob2.value()[size / 2..size].to_vec()
@@ -671,29 +592,31 @@ pub mod exported_tests {
             )?)
         };
 
-        // let data = gen_data_map(&client, &value.clone(), published, key2.clone()).await?;
         let address_before = blob.address();
 
         // attempt to retrieve it with generated address (it should error)
         let res = client.get_blob(*address_before, None, None).await;
-        let _data_map_before = match res {
-            Err(ClientError::DataError(SndError::NoSuchData)) => {
-                // let's put it to the network (published)
-                client.store_blob(blob.clone()).await?
-            }
+        match res {
+            Err(ClientError::DataError(SndError::NoSuchData)) => (),
             Ok(_) => panic!("Blob unexpectedly retrieved using address generated by gen_data_map"),
             Err(_) => panic!(
                 "Unexpected error when Blob retrieved using address generated by gen_data_map"
             ),
         };
 
+        let address = client.store_blob(blob.clone()).await?;
+
+        let mut fetch_result;
         // now that it was put to the network we should be able to retrieve it
-        let data_after = client.get_blob(*blob.address(), None, None).await?;
+        fetch_result = client.get_blob(address, None, None).await;
+
+        while fetch_result.is_err() {
+            dbg!("fetching data again");
+            fetch_result = client.get_blob(address, None, None).await;
+        }
 
         // then the content should be what we put
-        assert_eq!(*data_after.value(), raw_data);
-        // sleep
-        std::thread::sleep(std::time::Duration::from_millis(5500));
+        assert_eq!(*fetch_result?.value(), raw_data);
 
         Ok(())
     }
@@ -743,47 +666,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_private_encrypted() -> Result<(), ClientError> {
-        exported_tests::create_and_retrieve_10mb_private_encrypted().await
+    async fn create_and_retrieve_10mb_private() -> Result<(), ClientError> {
+        exported_tests::create_and_retrieve_10mb_private().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_pub_encrypted() -> Result<(), ClientError> {
-        exported_tests::create_and_retrieve_10mb_pub_encrypted().await
-    }
-
-    #[tokio::test]
-    async fn create_and_retrieve_10mb_private_unencrypted() -> Result<(), ClientError> {
-        exported_tests::create_and_retrieve_10mb_private_unencrypted().await
-    }
-
-    #[tokio::test]
-    async fn create_and_retrieve_10mb_pub_unencrypted() -> Result<(), ClientError> {
-        exported_tests::create_and_retrieve_10mb_pub_unencrypted().await
-    }
-
-    #[tokio::test]
-    async fn create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted() -> Result<(), ClientError>
-    {
-        exported_tests::create_and_retrieve_10mb_unencrypted_put_retrieve_encrypted().await
-    }
-
-    #[tokio::test]
-    async fn create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted() -> Result<(), ClientError>
-    {
-        exported_tests::create_and_retrieve_10mb_encrypted_put_retrieve_unencrypted().await
-    }
-
-    #[tokio::test]
-    async fn create_and_retrieve_10mb_encrypted_put_pub_retrieve_private() -> Result<(), ClientError>
-    {
-        exported_tests::create_and_retrieve_10mb_encrypted_put_pub_retrieve_private().await
-    }
-
-    #[tokio::test]
-    async fn create_and_retrieve_10mb_encrypted_put_private_retrieve_pub() -> Result<(), ClientError>
-    {
-        exported_tests::create_and_retrieve_10mb_encrypted_put_private_retrieve_pub().await
+    async fn create_and_retrieve_10mb_public() -> Result<(), ClientError> {
+        exported_tests::create_and_retrieve_10mb_public().await
     }
 
     #[tokio::test]
