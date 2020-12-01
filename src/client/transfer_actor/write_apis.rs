@@ -37,7 +37,7 @@ pub mod exported_tests {
         let pk = keypair.public_key();
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
 
-        let mut initial_actor = Client::new(Some(keypair)).await?;
+        let mut initial_actor = Client::new(Some(keypair), None).await?;
 
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(ClientError::DataError(e)) => {

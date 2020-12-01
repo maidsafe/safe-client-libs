@@ -41,7 +41,7 @@ impl Client {
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     ///
     /// // grab the random blob from the network
     /// let _blob = client.get_blob(target_blob, None, None).await?;
@@ -108,7 +108,7 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// let blob_for_storage = Blob::Public(PublicBlob::new(data));
@@ -155,7 +155,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
     /// let some_blob_for_storage = Blob::Private(PrivateBlob::new(data, client.public_key().await)?);
@@ -310,7 +310,7 @@ pub mod exported_tests {
 
     // Test putting and getting pub blob.
     pub async fn pub_blob_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         // The `Client::new(None)` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
 
@@ -352,7 +352,7 @@ pub mod exported_tests {
         // The `Client::new(None)` initializes the client with 10 money.
         let start_bal = unwrap!(Money::from_str("10"));
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let pk = client.public_key().await;
 
@@ -412,7 +412,7 @@ pub mod exported_tests {
     }
 
     pub async fn blob_deletions_should_cost_put_price() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let blob = Blob::Private(PrivateBlob::new(
             generate_random_vector::<u8>(10),
@@ -452,7 +452,7 @@ pub mod exported_tests {
         let size = 1024;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
         let _ = client.store_blob(data).await?;
@@ -469,7 +469,7 @@ pub mod exported_tests {
 
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
@@ -522,7 +522,7 @@ pub mod exported_tests {
 
         let value = value.clone();
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let data = client.store_blob(value).await?;
         let address = *data.address();
@@ -540,7 +540,7 @@ pub mod exported_tests {
 
         let value = value.clone();
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let data = client.store_blob(value).await?;
         let address = *data.address();
@@ -557,7 +557,7 @@ pub mod exported_tests {
         let size = 1024 * 1024 * 10;
         let value = Blob::Public(PublicBlob::new(generate_random_vector(size)));
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let data = client.store_blob(value).await?;
         let data_name = *data.name();
@@ -574,7 +574,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let size = 1024 * 1024 * 10;
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let value = Blob::Private(PrivateBlob::new(
             generate_random_vector(size),
             client.public_key().await,
@@ -598,7 +598,7 @@ pub mod exported_tests {
         let blob = Blob::Public(PublicBlob::new(generate_random_vector(size)));
         {
             // Read first half
-            let mut client = Client::new(None).await?;
+            let mut client = Client::new(None, None).await?;
 
             let data = client.store_blob(blob.clone()).await?;
             let address = *data.address();
@@ -613,7 +613,7 @@ pub mod exported_tests {
         let blob2 = Blob::Public(PublicBlob::new(generate_random_vector(size)));
         {
             // Read Second half
-            let mut client = Client::new(None).await?;
+            let mut client = Client::new(None, None).await?;
 
             let data = client.store_blob(blob2.clone()).await?;
             let address = *data.address();
@@ -638,7 +638,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let raw_data = generate_random_vector(size);
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         // gen address without putting to the network (published and unencrypted)
         let blob = if publish {

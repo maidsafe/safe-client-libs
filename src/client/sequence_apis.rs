@@ -50,7 +50,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -126,7 +126,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -197,7 +197,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -254,7 +254,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -334,7 +334,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -385,7 +385,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -441,7 +441,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -503,7 +503,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -558,7 +558,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -638,7 +638,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -697,7 +697,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -754,7 +754,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -811,7 +811,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -888,7 +888,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -964,7 +964,7 @@ pub mod exported_tests {
     pub async fn sequence_deletions_should_cost_put_price() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let owner = client.public_key().await;
         let perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
         let sequence_address = client
@@ -985,7 +985,7 @@ pub mod exported_tests {
     /// Sequence data tests ///
 
     pub async fn sequence_basics_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1042,7 +1042,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_private_permissions_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1150,7 +1150,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_pub_permissions_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1264,7 +1264,7 @@ pub mod exported_tests {
     pub async fn append_to_sequence_test() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let owner = client.public_key().await;
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
@@ -1348,7 +1348,7 @@ pub mod exported_tests {
     pub async fn sequence_owner_test() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let owner = client.public_key().await;
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
@@ -1401,7 +1401,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_can_delete_private_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1442,7 +1442,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_cannot_delete_public_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15000;

@@ -22,7 +22,7 @@ impl Client {
     /// use std::str::FromStr;
     /// use sn_data_types::Money;
     /// # #[tokio::main]async fn main() {let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let client = Client::new(None).await?;
+    /// let client = Client::new(None, None).await?;
     /// // now we check the local balance
     /// let some_balance = client.get_local_balance().await;
     /// assert_eq!(some_balance, Money::from_str("0")?);
@@ -113,7 +113,7 @@ impl Client {
     /// let sk = threshold_crypto::SecretKey::random();
     /// let pk = PublicKey::from(sk.public_key());
     /// // Next we create a random client.
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// let target_balance = Money::from_str("100")?;
     /// // And trigger a simulated payout to our client's PublicKey, so we have money to send.
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
@@ -215,7 +215,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let _ = client
             .send_money(keypair.public_key(), Money::from_str("1")?)
@@ -233,7 +233,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let _ = client
             .send_money(keypair2.public_key(), Money::from_str("1")?)
@@ -268,7 +268,7 @@ pub mod exported_tests {
     pub async fn transfer_actor_cannot_send_0_money_req() -> Result<(), ClientError> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         // Send 0 Money to a random PK.
         match client
@@ -292,8 +292,8 @@ pub mod exported_tests {
     // 3. Create another client B with a wallet holding 10 Money on start.
     // 4. Transfer 5 Money from client A to client B and verify the new balances.
     pub async fn balance_transfers_between_clients() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
-        let mut receiving_client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
+        let mut receiving_client = Client::new(None, None).await?;
 
         let wallet1 = receiving_client.public_key().await;
 
@@ -326,8 +326,8 @@ pub mod exported_tests {
     // 4. Assert Client A's balance is unchanged.
     // 5. Assert Client B's balance is unchanged.
     pub async fn insufficient_balance_transfers() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
-        let mut receiving_client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
+        let mut receiving_client = Client::new(None, None).await?;
 
         let wallet1 = receiving_client.public_key().await;
 
@@ -349,8 +349,8 @@ pub mod exported_tests {
     }
 
     pub async fn cannot_write_with_insufficient_balance() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
-        let receiving_client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
+        let receiving_client = Client::new(None, None).await?;
 
         let wallet1 = receiving_client.public_key().await;
 

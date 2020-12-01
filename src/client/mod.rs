@@ -105,12 +105,15 @@ impl Client {
     ///
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     ///
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn new(optional_keypair: Option<Arc<Keypair>>) -> Result<Self, ClientError> {
+    pub async fn new(
+        optional_keypair: Option<Arc<Keypair>>,
+        bootstap_config: Option<HashSet<SocketAddr>>,
+    ) -> Result<Self, ClientError> {
         crate::utils::init_log();
 
         #[cfg(feature = "simulated-payouts")]
@@ -132,8 +135,13 @@ impl Client {
         info!("Client started for pk: {:?}", keypair.public_key());
         let (notification_sender, notification_receiver) = unbounded_channel::<ClientError>();
         // Create the connection manager
-        let mut connection_manager =
-            attempt_bootstrap(&Config::new().qp2p, keypair.clone(), notification_sender).await?;
+        let mut connection_manager = attempt_bootstrap(
+            &Config::new().qp2p,
+            keypair.clone(),
+            notification_sender,
+            bootstap_config,
+        )
+        .await?;
 
         // random PK used for from payment
         let random_payment_id = Keypair::new_bls(&mut rng);
@@ -191,7 +199,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let client = Client::new(None).await?;
+    /// let client = Client::new(None, None).await?;
     /// let _keypair = client.keypair().await;
     ///
     /// # Ok(()) } ); }
@@ -208,7 +216,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::ClientError;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-    /// let client = Client::new(None).await?;
+    /// let client = Client::new(None, None).await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
     /// ```
@@ -309,8 +317,14 @@ pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
     keypair: Arc<Keypair>,
     notification_sender: UnboundedSender<ClientError>,
+    bootstrap_nodes: Option<HashSet<SocketAddr>>,
 ) -> Result<ConnectionManager, ClientError> {
     let mut attempts: u32 = 0;
+    let mut qp2p_config = qp2p_config.clone();
+
+    if let Some(contacts) = bootstrap_nodes {
+        qp2p_config.hard_coded_contacts = contacts;
+    }
 
     loop {
         let mut connection_manager = ConnectionManager::new(
@@ -337,19 +351,31 @@ pub async fn attempt_bootstrap(
 #[cfg(feature = "simulated-payouts")]
 pub mod exported_tests {
     use super::*;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     pub async fn client_creation() -> Result<(), ClientError> {
-        let _client = Client::new(None).await?;
+        let _client = Client::new(None, None).await?;
 
+        Ok(())
+    }
+
+    pub async fn client_creation_with_nonsense_bootstrap_fails() -> Result<(), ClientError> {
+        let mut nonsense_bootstrap = HashSet::new();
+        let _ = nonsense_bootstrap.insert(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+            3033,
+        ));
+        let setup = Client::new(None, Some(nonsense_bootstrap)).await;
+        assert!(setup.is_err());
         Ok(())
     }
 
     pub async fn client_creation_with_existing_keypair() -> Result<(), ClientError> {
         let mut rng = OsRng;
-        let fulld_id = Arc::new(Keypair::new_ed25519(&mut rng));
-        let pk = fulld_id.public_key();
+        let full_id = Arc::new(Keypair::new_ed25519(&mut rng));
+        let pk = full_id.public_key();
 
-        let client = Client::new(Some(fulld_id)).await?;
+        let client = Client::new(Some(full_id), None).await?;
         assert_eq!(pk, client.public_key().await);
 
         Ok(())
@@ -365,6 +391,12 @@ mod tests {
     #[cfg(feature = "simulated-payouts")]
     pub async fn client_creation() -> Result<(), ClientError> {
         exported_tests::client_creation().await
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn client_creation_with_nonsense_bootstrap_fails() -> Result<(), ClientError> {
+        exported_tests::client_creation_with_nonsense_bootstrap_fails().await
     }
 
     #[tokio::test]

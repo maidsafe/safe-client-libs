@@ -26,7 +26,7 @@
 //! # extern crate tokio; use sn_client::ClientError;
 //! use sn_client::Client;
 //! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
-//! let mut client = Client::new(None).await?;
+//! let mut client = Client::new(None, None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }
@@ -42,7 +42,7 @@
 //! use sn_data_types::Keypair;
 //! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
 //! let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
-//! let mut client = Client::new(Some(id)).await?;
+//! let mut client = Client::new(Some(id), None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
 //! # Ok(()) } ); }

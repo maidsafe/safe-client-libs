@@ -46,7 +46,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -98,7 +98,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -151,7 +151,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -237,7 +237,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -282,7 +282,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -352,7 +352,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id)).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -666,7 +666,7 @@ pub mod exported_tests {
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
     pub async fn unseq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -709,7 +709,7 @@ pub mod exported_tests {
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
     pub async fn seq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -763,7 +763,7 @@ pub mod exported_tests {
     // 1. Put seq. map on the network and then delete it
     // 2. Try getting the data object. It should panic
     pub async fn del_seq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Seq { name, tag };
@@ -789,7 +789,7 @@ pub mod exported_tests {
     // 1. Put unseq. map on the network and then delete it
     // 2. Try getting the data object. It should panic
     pub async fn del_unseq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
@@ -820,12 +820,12 @@ pub mod exported_tests {
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let owner = client.public_key().await;
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         client.delete_map(mapref).await?;
         client
             .expect_error(ClientError::DataError(SndError::NetworkOther(
@@ -838,7 +838,7 @@ pub mod exported_tests {
 
     pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
     ) -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new()
             .allow(MapAction::Read)
@@ -877,7 +877,7 @@ pub mod exported_tests {
     // 3. Fetch the list of permissions and verify the edit.
     // 4. Delete a user's permissions from the permission set and verify the deletion.
     pub async fn map_can_modify_permissions_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -949,7 +949,7 @@ pub mod exported_tests {
     // 3. List the entries and verify that the mutation was applied.
     // 4. Fetch a value for a particular key and verify
     pub async fn map_mutations_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -1043,7 +1043,7 @@ pub mod exported_tests {
             Err(err) => panic!("Unexpected error: {:?}", err),
         };
 
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1106,7 +1106,7 @@ pub mod exported_tests {
     pub async fn map_deletions_should_cost_put_price() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None).await?;
+        let mut client = Client::new(None, None).await?;
         let owner = client.public_key().await;
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
