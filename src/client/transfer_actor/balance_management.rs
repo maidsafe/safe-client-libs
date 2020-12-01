@@ -208,7 +208,7 @@ pub mod exported_tests {
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use log::error;
     use rand::rngs::OsRng;
-    use sn_data_types::{Blob, Error as SndError, Keypair, Money, PublicBlob};
+    use sn_data_types::{Error as SndError, Keypair, Money};
     use std::str::FromStr;
 
     pub async fn transfer_actor_can_send_money_and_thats_reflected_locally(
@@ -356,8 +356,8 @@ pub mod exported_tests {
 
         let _ = client.send_money(wallet1, Money::from_str("10")?).await?;
 
-        let data = Blob::Public(PublicBlob::new(generate_random_vector::<u8>(10)));
-        let res = client.store_blob(data).await;
+        let data = generate_random_vector::<u8>(10);
+        let res = client.create_public_blob(&data).await;
         match res {
             Err(ClientError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!(
