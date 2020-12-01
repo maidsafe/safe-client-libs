@@ -357,7 +357,7 @@ pub mod exported_tests {
         let _ = client.send_money(wallet1, Money::from_str("10")?).await?;
 
         let data = generate_random_vector::<u8>(10);
-        let res = client.create_public_blob(&data).await;
+        let res = client.store_public_blob(&data).await;
         match res {
             Err(ClientError::DataError(SndError::InsufficientBalance)) => (),
             res => panic!(

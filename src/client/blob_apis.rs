@@ -22,10 +22,10 @@ use sn_data_types::{
 
 #[derive(Serialize, Deserialize)]
 enum DataMapLevel {
-    // This holds the data map that is returned after writing the client's data
+    // Holds the data map that is returned after writing the client's data
     // to the network
     Root(DataMap),
-    // This holds the data map returned returned after a writing a
+    // Holds the data map returned returned after a writing a
     // serialized blob that holds a non-root data map
     Child(DataMap),
 }
@@ -34,7 +34,7 @@ impl Client {
     /// different blobs in the network. This function invokes the self-encryptor and returns
     /// the data that was initially stored.
     ///
-    /// This API takes `position` and `len` arguments which specify the start position
+    /// Takes `position` and `len` arguments which specify the start position
     /// and the length of bytes to be read. Passing `None` to position reads the data from the beginning.
     /// Passing `None` to length reads the full length of the data.
     ///
@@ -97,11 +97,11 @@ impl Client {
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
-    /// let _address = client.create_public_blob(&data).await?;
+    /// let _address = client.store_public_blob(&data).await?;
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn create_public_blob(&mut self, data: &Vec<u8>) -> Result<BlobAddress, ClientError> {
+    pub async fn store_public_blob(&mut self, data: &[u8]) -> Result<BlobAddress, ClientError> {
         self.create_new_blob(data, true).await
     }
 
@@ -121,25 +121,22 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = Client::new(None).await?;
+    /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
-    /// let fetched_data = client.create_public_blob(&data).await?;
+    /// let fetched_data = client.store_private_blob(&data).await?;
     ///
     /// println!( "{:?}", fetched_data ); // prints "some data"
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn create_private_blob(
-        &mut self,
-        data: &Vec<u8>,
-    ) -> Result<BlobAddress, ClientError> {
+    pub async fn store_private_blob(&mut self, data: &[u8]) -> Result<BlobAddress, ClientError> {
         self.create_new_blob(data, false).await
     }
 
     async fn create_new_blob(
         &mut self,
-        data: &Vec<u8>,
+        data: &[u8],
         published: bool,
     ) -> Result<BlobAddress, ClientError> {
         let data_map = self.write_to_network(data, published).await?;
@@ -174,7 +171,7 @@ impl Client {
         Ok(data)
     }
 
-    // This is a private function that actually stores the given blob on the network.
+    // Private function that actually stores the given blob on the network.
     // Self Encryption is NOT APPLIED ON the blob that is passed to this function.
     // Clients should not call this function directly.
     pub(crate) async fn store_blob_on_network(&mut self, blob: Blob) -> Result<(), ClientError> {
@@ -204,7 +201,7 @@ impl Client {
     /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
-    /// let address = client.create_private_blob(&data).await?;
+    /// let address = client.store_private_blob(&data).await?;
     ///
     /// let _ = client.delete_blob(address).await?;
     ///
@@ -250,10 +247,10 @@ impl Client {
     // ---------- Private helpers -----------------
     // --------------------------------------------
 
-    //This function writes raw data to the network into immutable data chunks
+    // Writes raw data to the network into immutable data chunks
     async fn write_to_network(
         &mut self,
-        data: &Vec<u8>,
+        data: &[u8],
         published: bool,
     ) -> Result<DataMap, ClientError> {
         let blob_storage = BlobStorage::new(self.clone(), published);
@@ -299,7 +296,7 @@ impl Client {
         }
     }
 
-    /// This function takes the "Root data map" and returns a Blob that is acceptable by the network
+    /// Takes the "Root data map" and returns a Blob that is acceptable by the network
     ///
     /// If the root data map blob is too big, the whole blob is self-encrypted and the child data map is put into a blob.
     /// The above step is repeated as many times as required until the blob size is valid.
@@ -322,7 +319,7 @@ impl Client {
         }
     }
 
-    /// This function takes a blob and fetches the data map from it.
+    /// Takes a blob and fetches the data map from it.
     /// If the data map is not the root data map of the user's contents,
     /// the process repeats itself until it obtains the root data map.
     async fn unpack(&mut self, mut data: Blob) -> Result<DataMap, ClientError> {
@@ -373,7 +370,7 @@ pub mod exported_tests {
             Err(e) => panic!("Unexpected: {:?}", e),
         }
         // Put blob
-        let address = client.create_public_blob(&value).await?;
+        let address = client.store_public_blob(&value).await?;
 
         // Assert that the blob was written
         let mut fetched_data = client.read_blob(address, None, None).await;
@@ -408,7 +405,7 @@ pub mod exported_tests {
         }
 
         // Put blob
-        let address = client.create_private_blob(&value).await?;
+        let address = client.store_private_blob(&value).await?;
 
         // Assert that the blob is stored.
         let mut res = client.read_blob(address, None, None).await;
@@ -418,7 +415,7 @@ pub mod exported_tests {
 
         // Test putting unpub blob with the same value.
         // Should conflict because duplication does .await?;not apply to unpublished data.
-        let _ = client.create_private_blob(&value).await;
+        let _ = client.store_private_blob(&value).await;
         client
             .expect_error(ClientError::DataError(SndError::DataExists))
             .await;
@@ -429,7 +426,7 @@ pub mod exported_tests {
         // assert_eq!(balance, expected_bal);
 
         // Test putting published blob with the same value. Should not conflict.
-        let pub_address = client.create_public_blob(&value).await?;
+        let pub_address = client.store_public_blob(&value).await?;
 
         // Fetch blob
         // Assert that the blob is stored.
@@ -447,7 +444,7 @@ pub mod exported_tests {
         }
 
         // Test putting unpub blob with the same value again. Should not conflict.
-        let _ = client.create_private_blob(&value).await?;
+        let _ = client.store_private_blob(&value).await?;
         Ok(())
     }
 
@@ -455,7 +452,7 @@ pub mod exported_tests {
         let mut client = Client::new(None, None).await?;
 
         let address = client
-            .create_private_blob(&generate_random_vector::<u8>(10))
+            .store_private_blob(&generate_random_vector::<u8>(10))
             .await?;
 
         let balance_before_delete = client.get_balance().await?;
@@ -490,7 +487,7 @@ pub mod exported_tests {
         let data = generate_random_vector(size);
 
         let mut client = Client::new(None, None).await?;
-        let address = client.create_public_blob(&data).await?;
+        let address = client.store_public_blob(&data).await?;
 
         let res = client
             .read_blob(BlobAddress::Private(*address.name()), None, None)
@@ -507,7 +504,7 @@ pub mod exported_tests {
 
         let mut client = Client::new(None, None).await?;
 
-        let address = client.create_private_blob(&value).await?;
+        let address = client.store_private_blob(&value).await?;
 
         let res = client
             .read_blob(BlobAddress::Public(*address.name()), None, None)
@@ -543,7 +540,7 @@ pub mod exported_tests {
             // Read first half
             let mut client = Client::new(None, None).await?;
 
-            let address = client.create_public_blob(&data).await?;
+            let address = client.store_public_blob(&data).await?;
 
             let mut fetch_res = client.read_blob(address, None, Some(size as u64 / 2)).await;
             while fetch_res.is_err() {
@@ -558,7 +555,7 @@ pub mod exported_tests {
             // Read Second half
             let mut client = Client::new(None, None).await?;
 
-            let address = client.create_public_blob(&data).await?;
+            let address = client.store_public_blob(&data).await?;
 
             let mut fetch_res = client
                 .read_blob(address, Some(size as u64 / 2), Some(size as u64 / 2))
@@ -607,9 +604,9 @@ pub mod exported_tests {
         };
 
         let address = if publish {
-            client.create_public_blob(&raw_data).await?
+            client.store_public_blob(&raw_data).await?
         } else {
-            client.create_private_blob(&raw_data).await?
+            client.store_private_blob(&raw_data).await?
         };
 
         let mut fetch_result;
