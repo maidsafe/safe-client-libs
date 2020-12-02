@@ -74,3 +74,8 @@ simulated-payouts = [
   "sn_transfers/simulated-payouts"
 ]
 testing = [ ]
+
+
+[patch.crates-io]
+sn_transfers = { path = "../safe-transfers" }
+sn_data_types = { path = "../sn_data_types" }

@@ -1,8 +1,8 @@
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
-    Cmd, DataCmd, DebitAgreementProof, Keypair, Message, Money, PublicKey, Query, QueryResponse,
-    TransferCmd, TransferId, TransferQuery, TransferValidated,
+    Cmd, DataCmd, DebitId, Keypair, Message, Money, PublicKey, Query, QueryResponse,
+    SignedTransfer, TransferAgreementProof, TransferCmd, TransferQuery, TransferValidated,
 };
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use std::sync::Arc;
@@ -147,7 +147,7 @@ impl Client {
         trace!("Received history response is: {:?}", history);
 
         let mut actor = self.transfer_actor.lock().await;
-        match actor.synch(history) {
+        match actor.synch_events(history) {
             Ok(synced_transfer_outcome) => {
                 if let Some(transfers) = synced_transfer_outcome {
                     actor.apply(ActorEvent::TransfersSynched(transfers))?;
@@ -207,7 +207,7 @@ impl Client {
     pub(crate) async fn create_write_payment_proof(
         &self,
         cmd: &DataCmd,
-    ) -> Result<DebitAgreementProof, ClientError> {
+    ) -> Result<TransferAgreementProof, ClientError> {
         info!("Sending requests for payment for write operation");
 
         // Compute number of bytes
@@ -219,13 +219,16 @@ impl Client {
 
         let cost_of_put = self.get_store_cost(bytes).await?;
 
-        let signed_transfer = self
+        let initiated = self
             .transfer_actor
             .lock()
             .await
-            .transfer(cost_of_put, section_key)?
-            .ok_or_else(|| ClientError::from("No transfer produced by actor."))?
-            .signed_transfer;
+            .transfer(cost_of_put, section_key, "asdf".to_string())?
+            .ok_or_else(|| ClientError::from("No transfer produced by actor."))?;
+        let signed_transfer = SignedTransfer {
+            debit: initiated.signed_debit,
+            credit: initiated.signed_credit,
+        };
 
         let command = Cmd::Transfer(TransferCmd::ValidateTransfer(signed_transfer.clone()));
 
@@ -237,10 +240,11 @@ impl Client {
             .lock()
             .await
             .apply(ActorEvent::TransferInitiated(TransferInitiated {
-                signed_transfer: signed_transfer.clone(),
+                signed_debit: signed_transfer.debit.clone(),
+                signed_credit: signed_transfer.credit.clone(),
             }))?;
 
-        let payment_proof: DebitAgreementProof = self
+        let payment_proof: TransferAgreementProof = self
             .await_validation(&transfer_message, signed_transfer.id())
             .await?;
 
@@ -270,12 +274,12 @@ impl Client {
         }
     }
 
-    /// Send message and await validation and constructing of DebitAgreementProof
+    /// Send message and await validation and constructing of TransferAgreementProof
     async fn await_validation(
         &self,
         message: &Message,
-        _id: TransferId,
-    ) -> Result<DebitAgreementProof, ClientError> {
+        _id: DebitId,
+    ) -> Result<TransferAgreementProof, ClientError> {
         info!("Awaiting transfer validation");
 
         let (sender, mut receiver) = channel::<Result<TransferValidated, ClientError>>(7);

@@ -1,4 +1,4 @@
-use sn_data_types::DebitAgreementProof;
+use sn_data_types::TransferAgreementProof;
 use sn_transfers::ActorEvent;
 
 use crate::client::Client;
@@ -14,7 +14,7 @@ impl Client {
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.
         let register_event = actor
-            .register(debit_proof.clone())?
+            .register(transfer_proof.clone())?
             .ok_or_else(|| ClientError::from("No events to register for proof."))?;
 
         actor.apply(ActorEvent::TransferRegistrationSent(register_event))?;

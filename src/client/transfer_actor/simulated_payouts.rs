@@ -62,7 +62,8 @@ impl Client {
         let simulated_transfer = Transfer {
             to: pk,
             amount,
-            id: self.simulated_farming_payout_dot,
+            debit_id: self.simulated_farming_payout_dot,
+            msg: "asdf".to_string(),
         };
 
         let simluated_farming_cmd =
