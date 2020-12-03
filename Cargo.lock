@@ -1857,7 +1857,7 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "sn_client"
-version = "0.44.4"
+version = "0.44.5"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1881,7 +1881,7 @@ dependencies = [
  "serde-value",
  "serde_json",
  "sha3",
- "sn_data_types",
+ "sn_data_types 0.11.36",
  "sn_transfers",
  "threshold_crypto",
  "tiny-keccak 1.5.0",
@@ -1915,6 +1915,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sn_data_types"
+version = "0.11.37"
+dependencies = [
+ "bincode",
+ "crdts",
+ "ed25519",
+ "ed25519-dalek",
+ "hex_fmt",
+ "multibase",
+ "rand",
+ "rand_core",
+ "serde",
+ "sha3",
+ "signature",
+ "threshold_crypto",
+ "tiny-keccak 1.5.0",
+ "xor_name",
+]
+
+[[package]]
 name = "sn_transfers"
 version = "0.2.4"
 dependencies = [
@@ -1924,7 +1944,7 @@ dependencies = [
  "log",
  "rand",
  "serde",
- "sn_data_types",
+ "sn_data_types 0.11.37",
  "threshold_crypto",
  "xor_name",
 ]
