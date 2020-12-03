@@ -353,7 +353,7 @@ pub mod exported_tests {
                 .await?;
         }
 
-        let mut client_res = Client::new(Some(keypair.clone()), None).await;
+        let client_res = Client::new(Some(keypair.clone()), None).await;
         // TODO: get this working in a full test suite run
         // while client_res.is_err() {
         //     client_res = Client::new(Some(keypair.clone()), None).await;
