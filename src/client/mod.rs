@@ -36,12 +36,11 @@ use crate::errors::ClientError;
 
 use crdts::Dot;
 use futures::lock::Mutex;
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use lru::LruCache;
 use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
-#[cfg(feature = "simulated-payouts")]
-use {log::warn, std::str::FromStr};
+use std::str::FromStr;
 
 use sn_data_types::{
     Blob, BlobAddress, Cmd, DataCmd, Keypair, Message, MessageId, Money, PublicKey, Query,
@@ -105,7 +104,7 @@ impl Client {
     ///
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     ///
-    /// let mut client = Client::new(None, None).await?;
+    /// let client = Client::new(None, None).await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
@@ -115,21 +114,11 @@ impl Client {
         bootstap_config: Option<HashSet<SocketAddr>>,
     ) -> Result<Self, ClientError> {
         crate::utils::init_log();
-
-        #[cfg(feature = "simulated-payouts")]
-        let mut is_random_client = true;
         let mut rng = OsRng;
 
-        let keypair = match optional_keypair {
-            Some(id) => {
-                #[cfg(feature = "simulated-payouts")]
-                {
-                    is_random_client = false;
-                }
-
-                id
-            }
-            None => Arc::new(Keypair::new_ed25519(&mut rng)),
+        let (keypair, is_random_client) = match optional_keypair {
+            Some(id) => (id, false),
+            None => (Arc::new(Keypair::new_ed25519(&mut rng)), true),
         };
 
         info!("Client started for pk: {:?}", keypair.public_key());
@@ -170,8 +159,7 @@ impl Client {
             notification_receiver: Arc::new(Mutex::new(notification_receiver)),
         };
 
-        #[cfg(feature = "simulated-payouts")]
-        {
+        if cfg!(feature = "simulated-payouts") {
             // only trigger simulated payouts on new _random_ clients
             if is_random_client {
                 debug!("Attempting to trigger simulated payout");
@@ -227,7 +215,7 @@ impl Client {
     }
 
     /// Send a Query to the network and await a response
-    async fn send_query(&mut self, query: Query) -> Result<QueryResponse, ClientError> {
+    async fn send_query(&self, query: Query) -> Result<QueryResponse, ClientError> {
         // `sign` should be false for GETs on published data, true otherwise.
 
         debug!("Sending QueryRequest: {:?}", query);
@@ -266,7 +254,7 @@ impl Client {
 
     // Private helper to obtain payment proof for a data command, send it to the network,
     // and also apply the payment to local replica actor.
-    async fn pay_and_send_data_command(&mut self, cmd: DataCmd) -> Result<(), ClientError> {
+    async fn pay_and_send_data_command(&self, cmd: DataCmd) -> Result<(), ClientError> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
@@ -289,7 +277,7 @@ impl Client {
     // TODO: Change cfg to `test` once we move tests out of sn_client
     /// Assert if all connected Elders are returning the same errors we expect.
     #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
-    pub(crate) async fn expect_error(&mut self, err: ClientError) {
+    pub(crate) async fn expect_error(&self, err: ClientError) {
         for _ in 0..self
             .connection_manager
             .clone()

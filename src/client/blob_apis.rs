@@ -49,14 +49,14 @@ impl Client {
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
-    /// let mut client = Client::new(None, None).await?;
+    /// let client = Client::new(None, None).await?;
     ///
     /// // grab the random blob from the network
     /// let _data = client.read_blob(target_blob, None, None).await?;
     /// # Ok(())} );}
     /// ```
     pub async fn read_blob(
-        &mut self,
+        &self,
         address: BlobAddress,
         position: Option<u64>,
         len: Option<u64>,
@@ -101,7 +101,7 @@ impl Client {
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn store_public_blob(&mut self, data: &[u8]) -> Result<BlobAddress, ClientError> {
+    pub async fn store_public_blob(&self, data: &[u8]) -> Result<BlobAddress, ClientError> {
         self.create_new_blob(data, true).await
     }
 
@@ -130,12 +130,12 @@ impl Client {
     /// println!( "{:?}", fetched_data ); // prints "some data"
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn store_private_blob(&mut self, data: &[u8]) -> Result<BlobAddress, ClientError> {
+    pub async fn store_private_blob(&self, data: &[u8]) -> Result<BlobAddress, ClientError> {
         self.create_new_blob(data, false).await
     }
 
     async fn create_new_blob(
-        &mut self,
+        &self,
         data: &[u8],
         published: bool,
     ) -> Result<BlobAddress, ClientError> {
@@ -152,7 +152,7 @@ impl Client {
     }
 
     pub(crate) async fn fetch_blob_from_network(
-        &mut self,
+        &self,
         address: BlobAddress,
     ) -> Result<Blob, ClientError> {
         if let Some(data) = self.blob_cache.lock().await.get_mut(&address) {
@@ -174,7 +174,7 @@ impl Client {
     // Private function that actually stores the given blob on the network.
     // Self Encryption is NOT APPLIED ON the blob that is passed to this function.
     // Clients should not call this function directly.
-    pub(crate) async fn store_blob_on_network(&mut self, blob: Blob) -> Result<(), ClientError> {
+    pub(crate) async fn store_blob_on_network(&self, blob: Blob) -> Result<(), ClientError> {
         if !blob.validate_size() {
             return Err(ClientError::DataError(sn_data_types::Error::ExceededSize));
         }
@@ -213,7 +213,7 @@ impl Client {
     /// };
     /// #  Ok(())} );}
     /// ```
-    pub async fn delete_blob(&mut self, address: BlobAddress) -> Result<(), ClientError> {
+    pub async fn delete_blob(&self, address: BlobAddress) -> Result<(), ClientError> {
         info!("Deleting blob at given address: {:?}", address);
 
         let cmd = DataCmd::Blob(BlobWrite::DeletePrivate(address));
@@ -226,7 +226,7 @@ impl Client {
     }
 
     /// Uses self_encryption to generated an encrypted blob serialised data map, without writing to the network
-    pub async fn generate_data_map(&mut self, the_blob: &Blob) -> Result<DataMap, ClientError> {
+    pub async fn generate_data_map(&self, the_blob: &Blob) -> Result<DataMap, ClientError> {
         let blob_storage = BlobStorageDryRun::new(self.clone(), the_blob.is_pub());
 
         let self_encryptor = SelfEncryptor::new(blob_storage, DataMap::None)
@@ -248,11 +248,7 @@ impl Client {
     // --------------------------------------------
 
     // Writes raw data to the network into immutable data chunks
-    async fn write_to_network(
-        &mut self,
-        data: &[u8],
-        published: bool,
-    ) -> Result<DataMap, ClientError> {
+    async fn write_to_network(&self, data: &[u8], published: bool) -> Result<DataMap, ClientError> {
         let blob_storage = BlobStorage::new(self.clone(), published);
         let self_encryptor = SelfEncryptor::new(blob_storage.clone(), DataMap::None)
             .map_err(|e| ClientError::from(format!("Self encryption error: {:?}", e)))?;
@@ -270,7 +266,7 @@ impl Client {
     }
     // This function reads raw data from the network using the data map
     async fn read_using_data_map(
-        &mut self,
+        &self,
         data_map: DataMap,
         published: bool,
         position: Option<u64>,
@@ -300,7 +296,7 @@ impl Client {
     ///
     /// If the root data map blob is too big, the whole blob is self-encrypted and the child data map is put into a blob.
     /// The above step is repeated as many times as required until the blob size is valid.
-    async fn pack(&mut self, mut contents: Vec<u8>, published: bool) -> Result<Blob, ClientError> {
+    async fn pack(&self, mut contents: Vec<u8>, published: bool) -> Result<Blob, ClientError> {
         loop {
             let data: Blob = if published {
                 PublicBlob::new(contents).into()
@@ -322,7 +318,7 @@ impl Client {
     /// Takes a blob and fetches the data map from it.
     /// If the data map is not the root data map of the user's contents,
     /// the process repeats itself until it obtains the root data map.
-    async fn unpack(&mut self, mut data: Blob) -> Result<DataMap, ClientError> {
+    async fn unpack(&self, mut data: Blob) -> Result<DataMap, ClientError> {
         loop {
             let published = data.is_pub();
             match deserialize(data.value())? {
@@ -351,7 +347,7 @@ pub mod exported_tests {
 
     // Test putting and getting pub blob.
     pub async fn pub_blob_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         // The `Client::new(None)` initializes the client with 10 money.
         let _start_bal = unwrap!(Money::from_str("10"));
 
@@ -385,7 +381,7 @@ pub mod exported_tests {
 
     // Test putting, getting, and deleting unpub blob.
     pub async fn unpub_blob_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let pk = client.public_key().await;
 
@@ -449,7 +445,7 @@ pub mod exported_tests {
     }
 
     pub async fn blob_deletions_should_cost_put_price() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let address = client
             .store_private_blob(&generate_random_vector::<u8>(10))
@@ -486,7 +482,7 @@ pub mod exported_tests {
         let size = 1024;
         let data = generate_random_vector(size);
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let address = client.store_public_blob(&data).await?;
 
         let res = client
@@ -502,7 +498,7 @@ pub mod exported_tests {
 
         let value = generate_random_vector(size);
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let address = client.store_private_blob(&value).await?;
 
@@ -538,7 +534,7 @@ pub mod exported_tests {
         let data = generate_random_vector(size);
         {
             // Read first half
-            let mut client = Client::new(None, None).await?;
+            let client = Client::new(None, None).await?;
 
             let address = client.store_public_blob(&data).await?;
 
@@ -553,7 +549,7 @@ pub mod exported_tests {
         let data = generate_random_vector(size);
         {
             // Read Second half
-            let mut client = Client::new(None, None).await?;
+            let client = Client::new(None, None).await?;
 
             let address = client.store_public_blob(&data).await?;
 
@@ -579,7 +575,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let raw_data = generate_random_vector(size);
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         // gen address without putting to the network (published and unencrypted)
         let blob = if publish {

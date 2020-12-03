@@ -8,7 +8,7 @@ use crate::errors::ClientError;
 impl Client {
     /// Apply a successfull payment locally after TransferRegistration has been sent to the network.
     pub(crate) async fn apply_write_payment_to_local_actor(
-        &mut self,
+        &self,
         debit_proof: DebitAgreementProof,
     ) -> Result<(), ClientError> {
         let mut actor = self.transfer_actor.lock().await;
@@ -37,7 +37,7 @@ pub mod exported_tests {
         let pk = keypair.public_key();
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
 
-        let mut initial_actor = Client::new(Some(keypair), None).await?;
+        let initial_actor = Client::new(Some(keypair), None).await?;
 
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(ClientError::DataError(e)) => {

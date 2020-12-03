@@ -91,7 +91,7 @@ impl ConnectionManager {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&mut self, msg: &Message) -> Result<(), ClientError> {
+    pub async fn send_cmd(&self, msg: &Message) -> Result<(), ClientError> {
         info!("Sending command message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
@@ -128,7 +128,7 @@ impl ConnectionManager {
 
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_transfer_validation(
-        &mut self,
+        &self,
         msg: &Message,
         sender: Sender<Result<TransferValidated, ClientError>>,
     ) -> Result<(), ClientError> {
@@ -168,7 +168,7 @@ impl ConnectionManager {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&mut self, msg: &Message) -> Result<QueryResponse, ClientError> {
+    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, ClientError> {
         info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
@@ -560,7 +560,7 @@ impl ConnectionManager {
 
     /// Listen for incoming messages via IncomingConnections.
     pub async fn listen_to_receive_stream(
-        &mut self,
+        &self,
         mut receiver: RecvStream,
     ) -> Result<NetworkListenerHandle, ClientError> {
         trace!("Adding listener");

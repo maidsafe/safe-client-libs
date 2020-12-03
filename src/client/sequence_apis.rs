@@ -68,7 +68,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_private_sequence(
-        &mut self,
+        &self,
         sequence: Option<SequenceEntries>,
         name: XorName,
         tag: u64,
@@ -144,7 +144,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_public_sequence(
-        &mut self,
+        &self,
         sequence: Option<SequenceEntries>,
         name: XorName,
         tag: u64,
@@ -216,7 +216,7 @@ impl Client {
     /// client.delete_sequence(address).await?;
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn delete_sequence(&mut self, address: SequenceAddress) -> Result<(), ClientError> {
+    pub async fn delete_sequence(&self, address: SequenceAddress) -> Result<(), ClientError> {
         let cmd = DataCmd::Sequence(SequenceWrite::Delete(address));
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
@@ -274,7 +274,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn append_to_sequence(
-        &mut self,
+        &self,
         address: SequenceAddress,
         entry: SequenceEntry,
     ) -> Result<(), ClientError> {
@@ -296,7 +296,7 @@ impl Client {
     /// Append data to a sequenced data object
     /// Wraps msg_contents for payment validation and mutation
     async fn pay_and_write_append_to_sequence_to_network(
-        &mut self,
+        &self,
         op: SequenceDataWriteOp<Vec<u8>>,
     ) -> Result<(), ClientError> {
         let cmd = DataCmd::Sequence(SequenceWrite::Edit(op));
@@ -307,7 +307,7 @@ impl Client {
     /// Store a new public sequenced data object
     /// Wraps msg_contents for payment validation and mutation
     pub(crate) async fn pay_and_write_sequence_to_network(
-        &mut self,
+        &self,
         data: Sequence,
     ) -> Result<(), ClientError> {
         debug!("Attempting to pay and write data to network");
@@ -354,10 +354,7 @@ impl Client {
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn get_sequence(
-        &mut self,
-        address: SequenceAddress,
-    ) -> Result<Sequence, ClientError> {
+    pub async fn get_sequence(&self, address: SequenceAddress) -> Result<Sequence, ClientError> {
         trace!("Get Sequence Data at {:?}", address.name());
         // Let's fetch it from the network then
         let sequence = match self
@@ -411,7 +408,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn get_sequence_last_entry(
-        &mut self,
+        &self,
         address: SequenceAddress,
     ) -> Result<(u64, SequenceEntry), ClientError> {
         trace!(
@@ -469,7 +466,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn get_sequence_range(
-        &mut self,
+        &self,
         address: SequenceAddress,
         range: (SequenceIndex, SequenceIndex),
     ) -> Result<SequenceEntries, ClientError> {
@@ -524,7 +521,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn get_sequence_owner(
-        &mut self,
+        &self,
         address: SequenceAddress,
     ) -> Result<PublicKey, ClientError> {
         trace!("Get owner of the Sequence Data at {:?}", address.name());
@@ -579,7 +576,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn set_private_sequence_owner(
-        &mut self,
+        &self,
         address: SequenceAddress,
         owner: PublicKey,
     ) -> Result<(), ClientError> {
@@ -658,7 +655,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn get_sequence_pub_permissions_for_user(
-        &mut self,
+        &self,
         address: SequenceAddress,
         user: PublicKey,
     ) -> Result<SequencePublicPermissions, ClientError> {
@@ -717,7 +714,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn get_sequence_private_permissions_for_user(
-        &mut self,
+        &self,
         address: SequenceAddress,
         user: PublicKey,
     ) -> Result<SequencePrivatePermissions, ClientError> {
@@ -774,7 +771,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn get_sequence_permissions(
-        &mut self,
+        &self,
         address: SequenceAddress,
         user: SequenceUser,
     ) -> Result<SequencePermissions, ClientError> {
@@ -837,7 +834,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn sequence_set_public_permissions(
-        &mut self,
+        &self,
         address: SequenceAddress,
         permissions: BTreeMap<SequenceUser, SequencePublicPermissions>,
     ) -> Result<(), ClientError> {
@@ -914,7 +911,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn sequence_set_private_permissions(
-        &mut self,
+        &self,
         address: SequenceAddress,
         permissions: BTreeMap<PublicKey, SequencePrivatePermissions>,
     ) -> Result<(), ClientError> {
@@ -964,7 +961,7 @@ pub mod exported_tests {
     pub async fn sequence_deletions_should_cost_put_price() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let owner = client.public_key().await;
         let perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
         let sequence_address = client
@@ -985,7 +982,7 @@ pub mod exported_tests {
     /// Sequence data tests ///
 
     pub async fn sequence_basics_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1042,7 +1039,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_private_permissions_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1150,7 +1147,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_pub_permissions_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1264,7 +1261,7 @@ pub mod exported_tests {
     pub async fn append_to_sequence_test() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let owner = client.public_key().await;
         let mut perms = BTreeMap::<SequenceUser, SequencePublicPermissions>::new();
@@ -1348,7 +1345,7 @@ pub mod exported_tests {
     pub async fn sequence_owner_test() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let owner = client.public_key().await;
         let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
@@ -1401,7 +1398,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_can_delete_private_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15000;
         let owner = client.public_key().await;
@@ -1442,7 +1439,7 @@ pub mod exported_tests {
     }
 
     pub async fn sequence_cannot_delete_public_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15000;

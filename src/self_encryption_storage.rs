@@ -73,14 +73,14 @@ impl SelfEncryptionStorageDryRun {
 impl Storage for SelfEncryptionStorageDryRun {
     type Error = SEStorageError;
 
-    async fn get(&mut self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
+    async fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetBlob dry run.");
         Err(SEStorageError::from(ClientError::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned(),
         )))
     }
 
-    async fn put(&mut self, _: Vec<u8>, _data: Vec<u8>) -> Result<(), Self::Error> {
+    async fn put(&self, _: Vec<u8>, _data: Vec<u8>) -> Result<(), Self::Error> {
         trace!("Self encrypt invoked PutBlob dry run.");
         // We do nothing here just return ok so self_encrpytion can finish
         // and generate chunk addresses and datamap if required

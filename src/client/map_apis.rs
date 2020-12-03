@@ -61,7 +61,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_seq_map(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
         owner: PublicKey,
@@ -113,7 +113,7 @@ impl Client {
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
     pub async fn store_unseq_map(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
         owner: PublicKey,
@@ -167,7 +167,7 @@ impl Client {
     /// # let balance_after_second_write = client.get_local_balance().await; assert_ne!(balance_after_second_write, balance_after_first_write);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn delete_map(&mut self, address: MapAddress) -> Result<(), ClientError> {
+    pub async fn delete_map(&self, address: MapAddress) -> Result<(), ClientError> {
         let cmd = DataCmd::Map(MapWrite::Delete(address));
 
         self.pay_and_send_data_command(cmd).await
@@ -175,7 +175,7 @@ impl Client {
 
     /// Delete map user permission
     pub async fn delete_map_user_perms(
-        &mut self,
+        &self,
         address: MapAddress,
         user: PublicKey,
         version: u64,
@@ -191,7 +191,7 @@ impl Client {
 
     /// Set map user permissions
     pub async fn set_map_user_perms(
-        &mut self,
+        &self,
         address: MapAddress,
         user: PublicKey,
         permissions: MapPermissionSet,
@@ -209,7 +209,7 @@ impl Client {
 
     /// Mutate map user entries
     pub async fn edit_map_entries(
-        &mut self,
+        &self,
         address: MapAddress,
         changes: MapEntryActions,
     ) -> Result<(), ClientError> {
@@ -252,7 +252,7 @@ impl Client {
     /// let _ = client.get_map(address).await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_map(&mut self, address: MapAddress) -> Result<Map, ClientError>
+    pub async fn get_map(&self, address: MapAddress) -> Result<Map, ClientError>
     where
         Self: Sized,
     {
@@ -303,7 +303,7 @@ impl Client {
     /// # Ok(()) } ); }
     /// ```
     pub async fn get_map_value(
-        &mut self,
+        &self,
         address: MapAddress,
         key: Vec<u8>,
     ) -> Result<MapValue, ClientError>
@@ -322,7 +322,7 @@ impl Client {
     }
 
     /// Get a shell (bare bones) version of `Map` from the network.
-    pub async fn get_map_shell(&mut self, address: MapAddress) -> Result<Map, ClientError>
+    pub async fn get_map_shell(&self, address: MapAddress) -> Result<Map, ClientError>
     where
         Self: Sized,
     {
@@ -369,7 +369,7 @@ impl Client {
     /// assert_eq!(version, 0);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_map_version(&mut self, address: MapAddress) -> Result<u64, ClientError>
+    pub async fn get_map_version(&self, address: MapAddress) -> Result<u64, ClientError>
     where
         Self: Sized,
     {
@@ -390,7 +390,7 @@ impl Client {
 
     /// Mutates sequenced `Map` entries in bulk
     pub async fn mutate_seq_map_entries(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
         actions: MapSeqEntryActions,
@@ -408,7 +408,7 @@ impl Client {
 
     /// Mutates unsequenced `Map` entries in bulk
     pub async fn mutate_unseq_map_entries(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
         actions: MapUnseqEntryActions,
@@ -426,7 +426,7 @@ impl Client {
 
     /// Return a complete list of entries in `Map`.
     pub async fn list_unseq_map_entries(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
     ) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, ClientError>
@@ -455,7 +455,7 @@ impl Client {
 
     /// Return a complete list of entries in `Map`.
     pub async fn list_seq_map_entries(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
     ) -> Result<MapSeqEntries, ClientError>
@@ -483,10 +483,7 @@ impl Client {
     }
 
     /// Return a list of keys in `Map` stored on the network.
-    pub async fn list_map_keys(
-        &mut self,
-        address: MapAddress,
-    ) -> Result<BTreeSet<Vec<u8>>, ClientError>
+    pub async fn list_map_keys(&self, address: MapAddress) -> Result<BTreeSet<Vec<u8>>, ClientError>
     where
         Self: Sized,
     {
@@ -505,7 +502,7 @@ impl Client {
 
     /// Return a list of values in a Sequenced Mutable Data
     pub async fn list_seq_map_values(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
     ) -> Result<Vec<MapSeqValue>, ClientError>
@@ -534,7 +531,7 @@ impl Client {
 
     /// Returns a list of values in an Unsequenced Mutable Data
     pub async fn list_unseq_map_values(
-        &mut self,
+        &self,
         name: XorName,
         tag: u64,
     ) -> Result<Vec<Vec<u8>>, ClientError>
@@ -567,7 +564,7 @@ impl Client {
 
     /// Return the permissions set for a particular user
     pub async fn list_map_user_permissions(
-        &mut self,
+        &self,
         address: MapAddress,
         user: PublicKey,
     ) -> Result<MapPermissionSet, ClientError>
@@ -590,7 +587,7 @@ impl Client {
 
     /// Return a list of permissions in `Map` stored on the network.
     pub async fn list_map_permissions(
-        &mut self,
+        &self,
         address: MapAddress,
     ) -> Result<BTreeMap<PublicKey, MapPermissionSet>, ClientError>
     where
@@ -611,7 +608,7 @@ impl Client {
 
     /// Updates or inserts a permissions set for a user
     pub async fn set_map_user_permissions(
-        &mut self,
+        &self,
         address: MapAddress,
         user: PublicKey,
         permissions: MapPermissionSet,
@@ -628,7 +625,7 @@ impl Client {
 
     /// Updates or inserts a permissions set for a user
     pub async fn del_map_user_permissions(
-        &mut self,
+        &self,
         address: MapAddress,
         user: PublicKey,
         version: u64,
@@ -643,7 +640,7 @@ impl Client {
 
     /// Sends an ownership transfer request.
     pub fn change_map_owner(
-        &mut self,
+        &self,
         _name: XorName,
         _tag: u64,
         _new_owner: PublicKey,
@@ -666,7 +663,7 @@ pub mod exported_tests {
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
     pub async fn unseq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -709,7 +706,7 @@ pub mod exported_tests {
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
     pub async fn seq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -763,7 +760,7 @@ pub mod exported_tests {
     // 1. Put seq. map on the network and then delete it
     // 2. Try getting the data object. It should panic
     pub async fn del_seq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Seq { name, tag };
@@ -789,7 +786,7 @@ pub mod exported_tests {
     // 1. Put unseq. map on the network and then delete it
     // 2. Try getting the data object. It should panic
     pub async fn del_unseq_map_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
@@ -820,12 +817,12 @@ pub mod exported_tests {
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let owner = client.public_key().await;
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         client.delete_map(mapref).await?;
         client
             .expect_error(ClientError::DataError(SndError::NetworkOther(
@@ -838,7 +835,7 @@ pub mod exported_tests {
 
     pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
     ) -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new()
             .allow(MapAction::Read)
@@ -877,7 +874,7 @@ pub mod exported_tests {
     // 3. Fetch the list of permissions and verify the edit.
     // 4. Delete a user's permissions from the permission set and verify the deletion.
     pub async fn map_can_modify_permissions_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -949,7 +946,7 @@ pub mod exported_tests {
     // 3. List the entries and verify that the mutation was applied.
     // 4. Fetch a value for a particular key and verify
     pub async fn map_mutations_test() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
         let tag = 15001;
@@ -1043,7 +1040,7 @@ pub mod exported_tests {
             Err(err) => panic!("Unexpected error: {:?}", err),
         };
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
         let mut permissions: BTreeMap<_, _> = Default::default();
@@ -1106,7 +1103,7 @@ pub mod exported_tests {
     pub async fn map_deletions_should_cost_put_price() -> Result<(), ClientError> {
         let name = XorName(rand::random());
         let tag = 10;
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let owner = client.public_key().await;
 
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;

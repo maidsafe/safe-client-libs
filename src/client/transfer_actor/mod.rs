@@ -49,13 +49,13 @@ impl Client {
     /// // (It should have 0 balance)
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let client = Client::new(Some(id), None).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance(&mut self) -> Result<Money, ClientError>
+    pub async fn get_balance(&self) -> Result<Money, ClientError>
     where
         Self: Sized,
     {
@@ -83,13 +83,13 @@ impl Client {
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
-    /// let mut client = Client::new(None, None).await?;
+    /// let client = Client::new(None, None).await?;
     /// let initial_balance = Money::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance_for(&mut self, public_key: PublicKey) -> Result<Money, ClientError>
+    pub async fn get_balance_for(&self, public_key: PublicKey) -> Result<Money, ClientError>
     where
         Self: Sized,
     {
@@ -112,12 +112,12 @@ impl Client {
     /// // And we use a random client id to do this
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let client = Client::new(Some(id), None).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_history(&mut self) -> Result<(), ClientError> {
+    pub async fn get_history(&self) -> Result<(), ClientError> {
         let public_key = self.public_key().await;
         info!("Getting SnTransfers history for pk: {:?}", public_key);
 
@@ -174,7 +174,7 @@ impl Client {
     }
 
     /// Fetch latest StoreCost for given number of bytes from the network.
-    pub async fn get_store_cost(&mut self, bytes: u64) -> Result<Money, ClientError> {
+    pub async fn get_store_cost(&self, bytes: u64) -> Result<Money, ClientError> {
         info!("Sending Query for latest StoreCost");
 
         let public_key = self.public_key().await;
@@ -205,7 +205,7 @@ impl Client {
 
     /// Validates a transaction for paying store_cost
     pub(crate) async fn create_write_payment_proof(
-        &mut self,
+        &self,
         cmd: &DataCmd,
     ) -> Result<DebitAgreementProof, ClientError> {
         info!("Sending requests for payment for write operation");
@@ -272,7 +272,7 @@ impl Client {
 
     /// Send message and await validation and constructing of DebitAgreementProof
     async fn await_validation(
-        &mut self,
+        &self,
         message: &Message,
         _id: TransferId,
     ) -> Result<DebitAgreementProof, ClientError> {
@@ -359,7 +359,7 @@ pub mod exported_tests {
         //     client_res = Client::new(Some(keypair.clone()), None).await;
         // }
 
-        let mut client = client_res?;
+        let client = client_res?;
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;

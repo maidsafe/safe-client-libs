@@ -36,7 +36,7 @@ impl Client {
     /// Handle a validation event.
     #[allow(dead_code)]
     pub(crate) async fn handle_validation_event(
-        &mut self,
+        &self,
         event: Event,
     ) -> Result<Option<DebitAgreementProof>, ClientError> {
         debug!("Handling validation event: {:?}", event);
@@ -71,7 +71,7 @@ impl Client {
 
     /// Get the current balance for this TransferActor PK (by default) or any other...
     pub(crate) async fn get_balance_from_network(
-        &mut self,
+        &self,
         pk: Option<PublicKey>,
     ) -> Result<Money, ClientError> {
         info!("Getting balance for {:?} or self", pk);
@@ -130,7 +130,7 @@ impl Client {
     /// # Ok(())} ); }
     /// ```
     pub async fn send_money(
-        &mut self,
+        &self,
         to: PublicKey,
         amount: Money,
     ) -> Result<(u64, PublicKey), ClientError> {
@@ -215,7 +215,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let _ = client
             .send_money(keypair.public_key(), Money::from_str("1")?)
@@ -233,7 +233,7 @@ pub mod exported_tests {
     ) -> Result<(), ClientError> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         let _ = client
             .send_money(keypair2.public_key(), Money::from_str("1")?)
@@ -268,7 +268,7 @@ pub mod exported_tests {
     pub async fn transfer_actor_cannot_send_0_money_req() -> Result<(), ClientError> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
 
         // Send 0 Money to a random PK.
         match client
@@ -293,7 +293,7 @@ pub mod exported_tests {
     // 4. Transfer 5 Money from client A to client B and verify the new balances.
     pub async fn balance_transfers_between_clients() -> Result<(), ClientError> {
         let mut client = Client::new(None, None).await?;
-        let mut receiving_client = Client::new(None, None).await?;
+        let receiving_client = Client::new(None, None).await?;
 
         let wallet1 = receiving_client.public_key().await;
 
@@ -333,8 +333,8 @@ pub mod exported_tests {
     // 4. Assert Client A's balance is unchanged.
     // 5. Assert Client B's balance is unchanged.
     pub async fn insufficient_balance_transfers() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
-        let mut receiving_client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
+        let receiving_client = Client::new(None, None).await?;
 
         let wallet1 = receiving_client.public_key().await;
 
@@ -356,7 +356,7 @@ pub mod exported_tests {
     }
 
     pub async fn cannot_write_with_insufficient_balance() -> Result<(), ClientError> {
-        let mut client = Client::new(None, None).await?;
+        let client = Client::new(None, None).await?;
         let receiving_client = Client::new(None, None).await?;
 
         let wallet1 = receiving_client.public_key().await;
