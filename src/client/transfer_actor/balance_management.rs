@@ -307,15 +307,22 @@ pub mod exported_tests {
         let _ = client.send_money(wallet1, Money::from_str("5.0")?).await?;
 
         // Assert sender is debited.
-        let new_balance = client.get_balance().await?;
-        assert_eq!(
-            new_balance,
-            calculate_new_balance(balance, None, Some(Money::from_str("5.0")?))
-        );
+        let mut new_balance = client.get_balance().await?;
+        let desired_balance = calculate_new_balance(balance, None, Some(Money::from_str("5.0")?));
+
+        // loop until correct
+        while new_balance != desired_balance {
+            new_balance = client.get_balance().await?;
+        }
 
         // Assert that the receiver has been credited.
-        let receiving_bal = receiving_client.get_balance().await?;
-        assert_eq!(receiving_bal, Money::from_str("15.0")?);
+        let mut receiving_bal = receiving_client.get_balance().await?;
+
+        // loop until correct
+        while receiving_bal != Money::from_str("15.0")? {
+            receiving_bal = receiving_client.get_balance().await?;
+            assert_eq!(receiving_bal, Money::from_str("15.0")?);
+        }
 
         Ok(())
     }

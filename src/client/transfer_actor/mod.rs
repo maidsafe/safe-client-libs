@@ -346,28 +346,33 @@ pub mod exported_tests {
     {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
-        let keypair = {
-            let mut initial_actor = Client::new(Some(keypair), None).await?;
-
+        {
+            let mut initial_actor = Client::new(Some(keypair.clone()), None).await?;
             let _ = initial_actor
                 .trigger_simulated_farming_payout(Money::from_str("100")?)
                 .await?;
-            // lets grab the keypair from the client before we drop it
-            initial_actor.keypair().await
-        };
-
-        match Client::new(Some(keypair), None).await {
-            Ok(mut client) => {
-                assert_eq!(
-                    client.get_balance_from_network(None).await?,
-                    Money::from_str("100")?
-                );
-                assert_eq!(client.get_local_balance().await, Money::from_str("100")?);
-
-                Ok(())
-            }
-            Err(e) => panic!("Account should exist {:?}", e),
         }
+
+        let mut client_res = Client::new(Some(keypair.clone()), None).await;
+        // TODO: get this working in a full test suite run
+        // while client_res.is_err() {
+        //     client_res = Client::new(Some(keypair.clone()), None).await;
+        // }
+
+        let mut client = client_res?;
+
+        // Assert sender is debited.
+        let mut new_balance = client.get_balance().await?;
+        let desired_balance = Money::from_str("100")?;
+
+        // loop until correct
+        while new_balance != desired_balance {
+            new_balance = client.get_balance().await?;
+        }
+
+        assert_eq!(client.get_local_balance().await, Money::from_str("100")?);
+
+        Ok(())
     }
 }
 

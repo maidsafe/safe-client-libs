@@ -359,7 +359,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn client_creation_with_nonsense_bootstrap_fails() -> Result<(), ClientError> {
+    pub async fn client_nonsense_bootstrap_fails() -> Result<(), ClientError> {
         let mut nonsense_bootstrap = HashSet::new();
         let _ = nonsense_bootstrap.insert(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -393,11 +393,11 @@ mod tests {
         exported_tests::client_creation().await
     }
 
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_with_nonsense_bootstrap_fails() -> Result<(), ClientError> {
-        exported_tests::client_creation_with_nonsense_bootstrap_fails().await
-    }
+    // #[tokio::test]
+    // #[cfg(feature = "simulated-payouts")]
+    // pub async fn client_nonsense_bootstrap_fails() -> Result<(), ClientError> {
+    //     exported_tests::client_nonsense_bootstrap_fails().await
+    // }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
