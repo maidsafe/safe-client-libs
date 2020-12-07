@@ -24,12 +24,9 @@ if [[ ! -d "artifacts" ]]; then
 fi
 
 export RUST_BACKTRACE=1
-[[ ! -d "deploy" ]] && mkdir -p deploy/prod deploy/dev
+[[ ! -d "deploy" ]] && mkdir -p deploy/prod
 
-declare -a targets=(\
-    "x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" \
-    "armv7-linux-androideabi" "x86_64-linux-android" \
-    "apple-ios")
+declare -a targets=("x86_64-unknown-linux-gnu" "x86_64-pc-windows-gnu" "x86_64-apple-darwin" )
 
 function run_packaging() {
     local name=$1
@@ -47,7 +44,7 @@ function run_packaging() {
     "${package_command[@]}"
 }
 
-for target in "${targets[@]}"; do
-    run_packaging "safe_authenticator_ffi" "$deployment_type" "$target" "dev"
-    run_packaging "safe_authenticator_ffi" "$deployment_type" "$target" "prod"
-done
+# for target in "${targets[@]}"; do
+    # run_packaging "safe_authenticator_ffi" "$deployment_type" "$target" "dev"
+    # run_packaging "safe_authenticator_ffi" "$deployment_type" "$target" "prod"
+# done

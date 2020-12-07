@@ -91,30 +91,14 @@ jobs:
 
       - uses: actions/download-artifact@master
         with:
-          name: sn_client-x86_64-pc-windows-gnu-dev
-          path: artifacts/dev/x86_64-pc-windows-gnu/release
-
-      - uses: actions/download-artifact@master
-        with:
           name: sn_client-x86_64-unknown-linux-gnu-prod
           path: artifacts/prod/x86_64-unknown-linux-gnu/release
-
-      - uses: actions/download-artifact@master
-        with:
-          name: sn_client-x86_64-unknown-linux-gnu-dev
-          path: artifacts/dev/x86_64-unknown-linux-gnu/release
 
       - uses: actions/download-artifact@master
         with:
           name: sn_client-x86_64-apple-darwin-prod
           path: artifacts/prod/x86_64-apple-darwin/release
 
-      - uses: actions/download-artifact@master
-        with:
-          name: sn_client-x86_64-apple-darwin-dev
-          path: artifacts/dev/x86_64-apple-darwin/release
-      
-      
       # Get information for the release.
       - shell: bash
         id: versioning
@@ -142,9 +126,7 @@ jobs:
       #   if: startsWith(env.COMMIT_MESSAGE, 'chore(release):')
 
       # Upload all the release archives to S3.
-      - name: Upload dev to S3
-        run: aws s3 sync deploy/dev s3://sn-client --acl public-read
-      - name: Upload prod to S3
+      - name: Upload to S3
         run: aws s3 sync deploy/prod s3://sn-client --acl public-read
 
   # Automatic publish, triggered by a commit starting with "chore(release):".
