@@ -59,7 +59,7 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    needs: [build, build-android, build-ios]
+    needs: [build]
     env:
       AWS_ACCESS_KEY_ID: AKIAVVODCRMSJ5MV63VB
       AWS_SECRET_ACCESS_KEY: ${{ secrets.DEPLOY_USER_SECRET_ACCESS_KEY }}
@@ -122,10 +122,10 @@ jobs:
       # Create `deploy` directory and put the artifacts into tar/zip archives for deployment with the release.
       - shell: bash
         run: make package-commit_hash-deploy-artifacts
-        if: "!startsWith(env.COMMIT_MESSAGE, 'Version change')"
+        if: "!startsWith(env.COMMIT_MESSAGE, 'chore(release):')"
       - shell: bash
         run: make package-versioned-deploy-artifacts
-        if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+        if: startsWith(env.COMMIT_MESSAGE, 'chore(release):')
 
       # # Get release description (requires generated archives)
       # - shell: bash
@@ -136,7 +136,7 @@ jobs:
       #     description="${description//$'\n'/'%0A'}"
       #     description="${description//$'\r'/'%0D'}"
       #     echo "::set-output name=description::$description"
-      #   if: startsWith(env.COMMIT_MESSAGE, 'Version change')
+      #   if: startsWith(env.COMMIT_MESSAGE, 'chore(release):')
 
       # Upload all the release archives to S3.
       - name: Upload dev to S3
@@ -144,7 +144,7 @@ jobs:
       - name: Upload prod to S3
         run: aws s3 sync deploy/prod s3://sn-client --acl public-read
 
-  # Automatic publish, triggered by a commit starting with "Version change".
+  # Automatic publish, triggered by a commit starting with "chore(release):".
   publish:
     name: Publish
     needs: [deploy]
