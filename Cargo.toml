@@ -30,7 +30,7 @@ miscreant = { version = "~0.4.2", features = ["soft-aes"] }
 qp2p = "~0.9.3"
 rand = "~0.7.3"
 regex = "1.3.1"
-sn_data_types = "~0.11.34"
+sn_data_types = "~0.11.36"
 sn_transfers = "~0.2.4"
 self_encryption = "~0.19.4"
 serde = { version = "1.0.111", features = ["derive", "rc"] }
@@ -43,7 +43,7 @@ tokio = { version="~0.2.21", features=["rt-core", "blocking", "stream", "rt-util
 unwrap = "1.2.0"
 url = "2.1.0"
 ws = "~0.9.1"
-crdts = "~4.2.0"
+crdts = "~4.3.0"
 xor_name = "1.1.3"
 
 [dev-dependencies]
@@ -55,7 +55,3 @@ testing = []
 
 [package.metadata.docs.rs]
 features = ["simulated-payouts"]
-
-
-[patch.crates-io]
-crdts = { git = "https://github.com/joshuef/rust-crdt", branch="Remove-LseqdefaultApply" }

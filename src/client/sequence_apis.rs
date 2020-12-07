@@ -968,13 +968,21 @@ pub mod exported_tests {
             .store_private_sequence(None, name, tag, owner, perms)
             .await?;
 
-        let balance_before_delete = client.get_balance().await?;
-        client.delete_sequence(sequence_address).await?;
-        let new_balance = client.get_balance().await?;
+        let mut balance_before_delete = client.get_balance().await?;
 
-        // make sure we have _some_ balance
-        assert_ne!(balance_before_delete, Money::from_str("0")?);
-        assert_ne!(balance_before_delete, new_balance);
+        while balance_before_delete == Money::from_str("0")?
+            || balance_before_delete == Money::from_str("10")?
+        {
+            balance_before_delete = client.get_balance().await?;
+        }
+
+        client.delete_sequence(sequence_address).await?;
+        let mut new_balance = client.get_balance().await?;
+
+        // now let's ensure we've paid _something_
+        while new_balance == balance_before_delete {
+            new_balance = client.get_balance().await?;
+        }
 
         Ok(())
     }
