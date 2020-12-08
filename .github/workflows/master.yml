@@ -48,11 +48,13 @@ jobs:
       - name: Build
         run: cargo build --release
       
+      # copy artifacts to new artifacts directory
       - shell: bash
         run: |
           [[ -d "artifacts" ]] && rm -rf artifacts
           mkdir artifacts
           find "target/release" -maxdepth 1 -type f -exec cp '{}' artifacts \;
+          ls -al artifacts
 
       - uses: actions/upload-artifact@master
         with:
@@ -81,9 +83,6 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install cargo-script
-        run: cargo install cargo-script
-
       - uses: actions/download-artifact@master
         with:
           name: sn_client-x86_64-pc-windows-gnu-prod
@@ -99,34 +98,57 @@ jobs:
           name: sn_client-x86_64-apple-darwin-prod
           path: artifacts/prod/x86_64-apple-darwin/release
 
-      # Get information for the release.
-      - shell: bash
-        id: versioning
+      # On version change create `deploy` directory and put the artifacts into tar.gz/zip archives for upload
+      - name: Create release `zip and .tar.gz files
+        if: "startsWith(env.COMMIT_MESSAGE, 'chore(release):')"
         run: |
           client_version=$(grep "^version" < Cargo.toml | head -n 1 | awk '{ print $3 }' | sed 's/\"//g')
           echo "::set-output name=client_version::$client_version"
+          ls .
+          rm -f *.tar
+          rm -rf deploy
+          mkdir -p deploy/prod
 
-      # Create `deploy` directory and put the artifacts into tar/zip archives for deployment with the release.
-      - shell: bash
-        run: make package-commit_hash-deploy-artifacts
-        if: "!startsWith(env.COMMIT_MESSAGE, 'chore(release):')"
-      - shell: bash
-        run: make package-versioned-deploy-artifacts
-        if: startsWith(env.COMMIT_MESSAGE, 'chore(release):')
 
-      # # Get release description (requires generated archives)
-      # - shell: bash
-      #   id: release_description
-      #   run: |
-      #     description=$(./scripts/get-release-description ${{ steps.versioning.outputs.auth_version }})
-      #     description="${description//'%'/'%25'}"
-      #     description="${description//$'\n'/'%0A'}"
-      #     description="${description//$'\r'/'%0D'}"
-      #     echo "::set-output name=description::$description"
-      #   if: startsWith(env.COMMIT_MESSAGE, 'chore(release):')
+          zip -j sn_client-${client_version}-x86_64-unknown-linux-gnu.zip \
+          artifacts/prod/x86_64-unknown-linux-gnu/release/libsn_client.rlib
+
+          zip -j sn_client-latest-x86_64-unknown-linux-gnu.zip \
+          artifacts/prod/x86_64-unknown-linux-gnu/release/libsn_client.rlib
+
+          zip -j sn_client-${client_version}-x86_64-pc-windows-gnu.zip \
+          artifacts/prod/x86_64-pc-windows-gnu/release/libsn_client.rlib
+
+          zip -j sn_client-latest-x86_64-pc-windows-gnu.zip \
+          artifacts/prod/x86_64-pc-windows-gnu/release/libsn_client.rlib
+
+          zip -j sn_client-${client_version}-x86_64-apple-darwin.zip \
+          artifacts/prod/x86_64-apple-darwin/release/libsn_client.rlib
+
+          zip -j sn_client-latest-x86_64-apple-darwin.zip \
+          artifacts/prod/x86_64-apple-darwin/release/libsn_client.rlib
+
+
+          tar -C artifacts/prod/x86_64-unknown-linux-gnu/release \
+          -zcvf sn_client-${client_version}-x86_64-unknown-linux-gnu.tar.gz libsn_client.rlib
+
+          tar -C artifacts/prod/x86_64-pc-windows-gnu/release \
+          -zcvf sn_client-${client_version}-x86_64-pc-windows-gnu.tar.gz libsn_client.rlib
+
+          tar -C artifacts/prod/x86_64-apple-darwin/release \
+          -zcvf sn_client-${client_version}-x86_64-apple-darwin.tar.gz libsn_client.rlib
+
+
+          mv *.tar.gz deploy/prod
+          mv *.zip deploy/prod
+
+          echo ""
+          echo "List contents of deploy/prod/ :"
+          ls -al deploy/prod
 
       # Upload all the release archives to S3.
       - name: Upload to S3
+        if: "startsWith(env.COMMIT_MESSAGE, 'chore(release):')"
         run: aws s3 sync deploy/prod s3://sn-client --acl public-read
 
   # Automatic publish, triggered by a commit starting with "chore(release):".

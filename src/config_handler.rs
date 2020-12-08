@@ -48,17 +48,6 @@ pub struct Config {
     pub dev: Option<DevConfig>,
 }
 
-#[cfg(any(target_os = "android", target_os = "androideabi", target_os = "ios"))]
-fn check_config_path_set() -> Result<(), ClientError> {
-    if unwrap!(CONFIG_DIR_PATH.lock()).is_none() {
-        Err(ClientError::QuicP2p(qp2p::QuicP2pError::Configuration {
-            e: "Boostrap cache directory not set".to_string(),
-        }))
-    } else {
-        Ok(())
-    }
-}
-
 impl Config {
     /// Returns a new `Config` instance. Tries to read quic-p2p config from file.
     pub fn new() -> Self {
@@ -72,15 +61,6 @@ impl Config {
         let mut config: QuicP2pConfig = {
             match read_config_file(dirs()?, CONFIG_FILE) {
                 Err(ClientError::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
-                    // Bootstrap cache dir must be set on mobile platforms
-                    // using set_config_dir_path
-                    #[cfg(any(
-                        target_os = "android",
-                        target_os = "androideabi",
-                        target_os = "ios"
-                    ))]
-                    check_config_path_set()?;
-
                     let custom_dir =
                         if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
                             Some(custom_path.into_os_string().into_string().map_err(|_| {
