@@ -346,6 +346,31 @@ pub mod exported_tests {
         }
     }
 
+
+    pub async fn transfer_actor_client_random_creation_gets_initial_balance(
+    ) -> Result<(), ClientError> {
+        match Client::new(None, None).await {
+            Ok(actor) => {
+                let mut bal = actor.get_balance().await;
+
+                while  bal.is_err() {
+                    println!("Trying again was errrrrrrrr");
+                    bal = actor.get_balance().await;
+
+                }
+                let mut money = bal?;
+                while  money != Money::from_str("10")? {
+                    println!("Trying again wasn't credited money existing: {:?}", money);
+                    money = actor.get_balance().await?;
+
+                }
+                // assert_eq!(actor.get_balance().await, Money::from_str("10")? );
+                Ok(())
+            },
+            Err(e) => panic!("Should not error for random client, only create a new instance with 10 money, we got: {:?}" , e )
+        }
+    }
+
     pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError>
     {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
@@ -390,6 +415,13 @@ mod tests {
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance(
     ) -> Result<(), ClientError> {
         exported_tests::transfer_actor_creation_hydration_for_nonexistant_balance().await
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "simulated-payouts")]
+    pub async fn transfer_actor_client_random_creation_gets_initial_balance(
+    ) -> Result<(), ClientError> {
+        exported_tests::transfer_actor_client_random_creation_gets_initial_balance().await
     }
 
     #[tokio::test]

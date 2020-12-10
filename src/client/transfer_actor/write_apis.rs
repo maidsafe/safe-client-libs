@@ -9,12 +9,12 @@ impl Client {
     /// Apply a successfull payment locally after TransferRegistration has been sent to the network.
     pub(crate) async fn apply_write_payment_to_local_actor(
         &self,
-        debit_proof: DebitAgreementProof,
+        debit_proof: TransferAgreementProof,
     ) -> Result<(), ClientError> {
         let mut actor = self.transfer_actor.lock().await;
         // First register with local actor, then reply.
         let register_event = actor
-            .register(transfer_proof.clone())?
+            .register(debit_proof.clone())?
             .ok_or_else(|| ClientError::from("No events to register for proof."))?;
 
         actor.apply(ActorEvent::TransferRegistrationSent(register_event))?;

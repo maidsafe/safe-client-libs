@@ -1881,7 +1881,7 @@ dependencies = [
  "serde-value",
  "serde_json",
  "sha3",
- "sn_data_types 0.11.36",
+ "sn_data_types",
  "sn_transfers",
  "threshold_crypto",
  "tiny-keccak 1.5.0",
@@ -1894,29 +1894,8 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.36"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a73ea6b6c8a183ed00925c1f87b4921498f02c11dab90804774ca05363d65a2e"
-dependencies = [
- "bincode",
- "crdts",
- "ed25519",
- "ed25519-dalek",
- "hex_fmt",
- "multibase",
- "rand",
- "rand_core",
- "serde",
- "sha3",
- "signature",
- "threshold_crypto",
- "tiny-keccak 1.5.0",
- "xor_name",
-]
-
-[[package]]
-name = "sn_data_types"
 version = "0.11.37"
+source = "git+https://github.com/oetyng/sn_data_types?branch=wallet-actor-model#d5ca4672d4751df9803132a3c1098a733f83ee83"
 dependencies = [
  "bincode",
  "crdts",
@@ -1937,6 +1916,7 @@ dependencies = [
 [[package]]
 name = "sn_transfers"
 version = "0.2.4"
+source = "git+https://github.com/joshuef/sn_transfers?branch=Feat-WalletActor#b617dade8210de0bacc6329829c4947e377ef8c5"
 dependencies = [
  "bincode",
  "crdts",
@@ -1944,7 +1924,7 @@ dependencies = [
  "log",
  "rand",
  "serde",
- "sn_data_types 0.11.37",
+ "sn_data_types",
  "threshold_crypto",
  "xor_name",
 ]
