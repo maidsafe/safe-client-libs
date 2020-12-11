@@ -25,7 +25,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 
 static NUMBER_OF_RETRIES: usize = 3;
-static STANDARD_ELDERS_COUNT: usize = 5;
+pub static STANDARD_ELDERS_COUNT: usize = 5;
 
 /// Simple map for correlating a response with votes from various elder responses.
 type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
@@ -602,16 +602,18 @@ impl ConnectionManager {
                                 correlation_id,
                                 ..
                             } => {
-                                warn!("CmdError received {:?}", error);
-                                if let Some(mut sender) = pending_transfer_validations
+                                if let Some(sender) = pending_transfer_validations
                                     .lock()
                                     .await
-                                    .remove(&correlation_id)
+                                    .get_mut(&correlation_id)
                                 {
-                                    let _ = sender.send(Err(ClientError::from(format!(
-                                        "CmdError received: {:?}",
-                                        error
-                                    ))));
+                                    debug!("Cmd Error was received, sending on channel to caller");
+                                    let _ = sender
+                                        .send(Err(ClientError::from(format!(
+                                            "CmdError received: {:?}",
+                                            error
+                                        ))))
+                                        .await;
                                 };
 
                                 let _ = notifier.send(ClientError::from(error));
