@@ -246,6 +246,8 @@ impl ConnectionManager {
 
         // TODO: make threshold dynamic based upon known elders
         let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
+
+        trace!("Vote threshold is: {:?}", threshold);
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
 
         // Let's await for all responses
@@ -265,7 +267,8 @@ impl ConnectionManager {
             if let Ok(res) = res {
                 match res {
                     Ok(Message::QueryResponse { response, .. }) => {
-                        trace!("QueryResponse is: {:?}", response);
+                        trace!("QueryResponse is: {:#?}", response);
+
                         let key = tiny_keccak::sha3_256(&serialize(&response)?);
                         let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
                         *counter += 1;
@@ -340,14 +343,36 @@ impl ConnectionManager {
             }
 
             if votes > &most_popular_response.1 {
-                trace!("Selecting winner, with {:?} votes: {:?}", votes, message);
+                trace!("Reselecting winner, with {:?} votes: {:?}", votes, message);
 
                 most_popular_response = (Some(message.clone()), *votes)
+            } else {
+                // if we're the same and in simu payouts, check if we have more history...
+                // TODO: check w/ farming we get a proper history returned w /matching responses.
+                match &message {
+                    QueryResponse::GetHistory(Ok(history)) => {
+                        if cfg!(feature = "simulated-payouts") && votes == &most_popular_response.1
+                        {
+                            if let Some(QueryResponse::GetHistory(res)) = &most_popular_response.0 {
+                                if let Ok(popular_history) = res {
+                                    if history.len() > popular_history.len() {
+                                        trace!("GetHistory response received in Simulated Payouts... choosing longest history. {:?}", history);
+                                        most_popular_response = (Some(message.clone()), *votes)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        //
+                    }
+                }
             }
         }
 
         if number_of_responses > threshold {
             trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
+
             *has_elected_a_response = true;
         }
 

@@ -172,7 +172,13 @@ impl Client {
             }
         }
 
-        let _ = full_client.get_history().await?;
+        match full_client.get_history().await {
+            Ok(_) => {}
+            Err(error) => {
+                let err = error.to_string();
+                warn!("{:?}", &err);
+            }
+        };
 
         Ok(full_client)
     }

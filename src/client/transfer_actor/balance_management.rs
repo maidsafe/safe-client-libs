@@ -304,14 +304,17 @@ pub mod exported_tests {
             .trigger_simulated_farming_payout(Money::from_str("100.0")?)
             .await?;
 
-        let balance = client.get_balance().await?;
-        assert_eq!(balance, Money::from_str("110")?); // 10 coins added automatically w/ farming sim on client init.
+        let mut balance = client.get_balance().await?;
 
-        let _ = client.send_money(wallet1, Money::from_str("5.0")?).await?;
+        while balance != Money::from_str("110")? {
+            balance = client.get_balance().await?;
+        }
+        println!("sending client balance: {:?}", balance);
+        let _ = client.send_money(wallet1, Money::from_str("11.0")?).await?;
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
-        let desired_balance = calculate_new_balance(balance, None, Some(Money::from_str("5.0")?));
+        let desired_balance = calculate_new_balance(balance, None, Some(Money::from_str("11.0")?));
 
         // loop until correct
         while new_balance != desired_balance {
@@ -322,11 +325,16 @@ pub mod exported_tests {
         let mut receiving_bal = receiving_client.get_balance().await?;
 
         // loop until correct
-        while receiving_bal != Money::from_str("15.0")? {
+        while receiving_bal != Money::from_str("21.0")? {
+            let _ = receiving_client.get_history().await?;
             receiving_bal = receiving_client.get_balance().await?;
-            assert_eq!(receiving_bal, Money::from_str("15.0")?);
+
+            if receiving_bal > Money::from_str("21.0")? {
+                continue;
+            }
         }
 
+        assert_eq!(receiving_bal, Money::from_str("21.0")?);
         Ok(())
     }
 

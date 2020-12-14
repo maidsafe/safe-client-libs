@@ -1916,7 +1916,7 @@ dependencies = [
 [[package]]
 name = "sn_transfers"
 version = "0.2.4"
-source = "git+https://github.com/oetyng/sn_transfers?branch=initiate-section-actor#c9217a12c4d36198e4aeca48c5df066f566ae3dd"
+source = "git+https://github.com/oetyng/sn_transfers?branch=initiate-section-actor#1c0d0d1928ff148710dfb61562da85a2e4671d9f"
 dependencies = [
  "bincode",
  "crdts",

@@ -38,10 +38,11 @@ pub mod exported_tests {
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
 
         let initial_actor = Client::new(Some(keypair), None).await?;
-
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(ClientError::DataError(e)) => {
-                assert_eq!(e.to_string(), "Not enough money to complete this operation");
+                assert!(e
+                    .to_string()
+                    .contains("Could not get history for key PublicKey"));
             }
             res => panic!(
                 "Unexpected response from mutation msg_contentsuest from 0 balance key: {:?}",

@@ -823,7 +823,9 @@ pub mod exported_tests {
         let _ = client.store_unseq_map(name, tag, owner, None, None).await?;
 
         let client = Client::new(None, None).await?;
+
         client.delete_map(mapref).await?;
+
         client
             .expect_error(ClientError::DataError(SndError::NetworkOther(
                 "Access denied".to_string(),

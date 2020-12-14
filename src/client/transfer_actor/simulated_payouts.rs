@@ -101,22 +101,16 @@ mod tests {
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
     async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), ClientError> {
-        let mut initial_actor = Client::new(None, None).await?;
+        let mut client = Client::new(None, None).await?;
 
-        let _ = initial_actor
+        let _ = client
             .trigger_simulated_farming_payout(Money::from_str("100")?)
             .await?;
 
-        // 100 sent + 10 starting balance.
-        assert_eq!(
-            initial_actor.get_local_balance().await,
-            Money::from_str("110")?
-        );
-
-        assert_eq!(
-            initial_actor.get_balance_from_network(None).await?,
-            Money::from_str("110")?
-        );
+        let mut money = client.get_balance_from_network(None).await?;
+        while money != Money::from_str("110")? {
+            money = client.get_balance_from_network(None).await?;
+        }
 
         Ok(())
     }
