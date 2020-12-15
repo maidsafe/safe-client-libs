@@ -347,24 +347,18 @@ impl ConnectionManager {
 
                 most_popular_response = (Some(message.clone()), *votes)
             } else {
-                // if we're the same and in simu payouts, check if we have more history...
                 // TODO: check w/ farming we get a proper history returned w /matching responses.
-                match &message {
-                    QueryResponse::GetHistory(Ok(history)) => {
-                        if cfg!(feature = "simulated-payouts") && votes == &most_popular_response.1
-                        {
-                            if let Some(QueryResponse::GetHistory(res)) = &most_popular_response.0 {
-                                if let Ok(popular_history) = res {
-                                    if history.len() > popular_history.len() {
-                                        trace!("GetHistory response received in Simulated Payouts... choosing longest history. {:?}", history);
-                                        most_popular_response = (Some(message.clone()), *votes)
-                                    }
+                if let QueryResponse::GetHistory(Ok(history)) = &message {
+                    // if we're not more popular but in simu payout mode, check if we have more history...
+                    if cfg!(feature = "simulated-payouts") && votes == &most_popular_response.1 {
+                        if let Some(QueryResponse::GetHistory(res)) = &most_popular_response.0 {
+                            if let Ok(popular_history) = res {
+                                if history.len() > popular_history.len() {
+                                    trace!("GetHistory response received in Simulated Payouts... choosing longest history. {:?}", history);
+                                    most_popular_response = (Some(message.clone()), *votes)
                                 }
                             }
                         }
-                    }
-                    _ => {
-                        //
                     }
                 }
             }

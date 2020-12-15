@@ -293,7 +293,7 @@ pub mod exported_tests {
     // 1. Create a client A and allocate 100 Money to it. (Clients start with 10 Money by default on simulated-farming)
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding 10 Money on start.
-    // 4. Transfer 5 Money from client A to client B and verify the new balances.
+    // 4. Transfer 11 Money from client A to client B and verify the new balances.
     pub async fn balance_transfers_between_clients() -> Result<(), ClientError> {
         let mut client = Client::new(None, None).await?;
         let receiving_client = Client::new(None, None).await?;
@@ -309,7 +309,8 @@ pub mod exported_tests {
         while balance != Money::from_str("110")? {
             balance = client.get_balance().await?;
         }
-        println!("sending client balance: {:?}", balance);
+
+        // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
         let _ = client.send_money(wallet1, Money::from_str("11.0")?).await?;
 
         // Assert sender is debited.
@@ -324,17 +325,18 @@ pub mod exported_tests {
         // Assert that the receiver has been credited.
         let mut receiving_bal = receiving_client.get_balance().await?;
 
+        let target_money = Money::from_str("21.0")?;
         // loop until correct
-        while receiving_bal != Money::from_str("21.0")? {
+        while receiving_bal != target_money {
             let _ = receiving_client.get_history().await?;
             receiving_bal = receiving_client.get_balance().await?;
 
-            if receiving_bal > Money::from_str("21.0")? {
+            if receiving_bal > target_money {
                 continue;
             }
         }
 
-        assert_eq!(receiving_bal, Money::from_str("21.0")?);
+        assert_eq!(receiving_bal, target_money);
         Ok(())
     }
 
