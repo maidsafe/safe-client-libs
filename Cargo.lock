@@ -1894,8 +1894,9 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.37"
-source = "git+https://github.com/oetyng/sn_data_types?branch=initiate-section-actor#3419e275c933caa5b3560aefa45cf0267dbf632b"
+version = "0.11.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96551ff5cd5d5a09cc8e4a5206fb85f0d10a1b5719ae8cb248008de88263b104"
 dependencies = [
  "bincode",
  "crdts",
@@ -1915,8 +1916,9 @@ dependencies = [
 
 [[package]]
 name = "sn_transfers"
-version = "0.2.4"
-source = "git+https://github.com/oetyng/sn_transfers?branch=initiate-section-actor#1c0d0d1928ff148710dfb61562da85a2e4671d9f"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51115a429f553358c46ba6d1fd06b907ca4d103fd4b14af6d87c818f9b1ed531"
 dependencies = [
  "bincode",
  "crdts",
