@@ -44,15 +44,13 @@ pub fn set_config_dir_path<P: AsRef<OsStr> + ?Sized>(path: &P) {
 pub struct Config {
     /// QuicP2p options.
     pub qp2p: QuicP2pConfig,
-    /// Developer options.
-    pub dev: Option<DevConfig>,
 }
 
 impl Config {
     /// Returns a new `Config` instance. Tries to read quic-p2p config from file.
     pub fn new() -> Self {
         let qp2p = Self::read_qp2p_from_file().unwrap_or_default();
-        Self { qp2p, dev: None }
+        Self { qp2p }
     }
 
     fn read_qp2p_from_file() -> Result<QuicP2pConfig, ClientError> {
@@ -80,26 +78,20 @@ impl Config {
         };
         // Then if there is a locally running Node we add it to the list of know contacts.
         if let Ok(node_info) = read_config_file(node_dirs()?, NODE_CONNECTION_INFO_FILE) {
-            let _ = config.hard_coded_contacts.insert(node_info);
+            if config.hard_coded_contacts.insert(node_info) {
+                trace!(
+                    "New contact added to the hard-coed contacts list: {}",
+                    node_info
+                );
+            } else {
+                trace!(
+                    "Contact is already in the hard-coed contacts list: {}",
+                    node_info
+                );
+            }
         }
         Ok(config)
     }
-}
-
-/// Extra configuration options intended for developers.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
-pub struct DevConfig {
-    /// Switch off mutations limit in mock-node.
-    pub mock_unlimited_money: bool,
-    /// Use memory store instead of file store in mock-node.
-    pub mock_in_memory_storage: bool,
-    /// Set the mock-node path if using file store (`mock_in_memory_storage` is `false`).
-    pub mock_node_path: Option<String>,
-}
-
-/// Reads the `sn_client` config file and returns it or a default if this fails.
-pub fn get_config() -> Config {
-    Config::new()
 }
 
 /// Return the Project directory
@@ -206,7 +198,6 @@ mod test {
                 bootstrap_cache_dir: Some(unwrap!(temp_dir_path.into_os_string().into_string())),
                 ..Default::default()
             },
-            ..Default::default()
         };
         assert_eq!(config, expected_config);
     }

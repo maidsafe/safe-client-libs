@@ -117,11 +117,20 @@ impl Client {
         let mut rng = OsRng;
 
         let (keypair, is_random_client) = match optional_keypair {
-            Some(id) => (id, false),
-            None => (Arc::new(Keypair::new_ed25519(&mut rng)), true),
+            Some(id) => {
+                info!("Client started for specific pk: {:?}", id.public_key());
+                (id, false)
+            }
+            None => {
+                let keypair = Arc::new(Keypair::new_ed25519(&mut rng));
+                info!(
+                    "Client started for new randomly created pk: {:?}",
+                    keypair.public_key()
+                );
+                (keypair, true)
+            }
         };
 
-        info!("Client started for pk: {:?}", keypair.public_key());
         let (notification_sender, notification_receiver) = unbounded_channel::<ClientError>();
         // Create the connection manager
         let mut connection_manager = attempt_bootstrap(
