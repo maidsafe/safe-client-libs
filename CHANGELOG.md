@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.44.10](https://github.com/maidsafe/sn_client/compare/v0.44.9...v0.44.10) (2020-12-29)
+
+
+### Features
+
+* **errors:** use thiserror for error creation ([bc093b6](https://github.com/maidsafe/sn_client/commit/bc093b6fc5cb43fe1bdfa8214e2f1907935e98a0))
+
 ### [0.44.9](https://github.com/maidsafe/sn_client/compare/v0.44.8...v0.44.9) (2020-12-28)
 
 ### [0.44.8](https://github.com/maidsafe/sn_client/compare/v0.44.7...v0.44.8) (2020-12-28)
