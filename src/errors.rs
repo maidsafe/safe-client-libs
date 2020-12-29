@@ -16,6 +16,7 @@ use thiserror::Error;
 /// Client Errors
 #[allow(clippy::large_enum_variant)]
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// Asymmetric Key Decryption Failed.
     #[error("Asymmetric key decryption failure")]
