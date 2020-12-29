@@ -182,11 +182,10 @@ impl Client {
     /// Remove data
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// use sn_data_types::Money;
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: anyhow::Result<()> = futures::executor::block_on( async {
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(None, None).await?;
@@ -200,7 +199,7 @@ impl Client {
     ///
     /// match client.read_blob(address, None, None).await {
     ///     Err(error) => eprintln!("Expected error getting blob {:?}", error),
-    ///     _ => return Err(Error::from("Should not have been able to retrieve this blob"))
+    ///     _ => return Err(anyhow::anyhow!("Should not have been able to retrieve this blob"))
     /// };
     /// #  Ok(())} );}
     /// ```
