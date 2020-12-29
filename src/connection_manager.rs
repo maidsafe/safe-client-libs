@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::ClientError;
+use crate::Error;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
@@ -31,7 +31,7 @@ pub static STANDARD_ELDERS_COUNT: usize = 5;
 type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
 
 // channel for sending result of transfer validation
-type TransferValidationSender = Sender<Result<TransferValidated, ClientError>>;
+type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 
 #[derive(Clone)]
 struct ElderStream {
@@ -42,7 +42,7 @@ struct ElderStream {
 }
 
 /// JoinHandle for recv stream listener thread
-type NetworkListenerHandle = JoinHandle<Result<(), ClientError>>;
+type NetworkListenerHandle = JoinHandle<Result<(), Error>>;
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
 pub struct ConnectionManager {
@@ -51,7 +51,7 @@ pub struct ConnectionManager {
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
-    notification_sender: UnboundedSender<ClientError>,
+    notification_sender: UnboundedSender<Error>,
 }
 
 impl ConnectionManager {
@@ -59,8 +59,8 @@ impl ConnectionManager {
     pub fn new(
         mut config: QuicP2pConfig,
         keypair: Arc<Keypair>,
-        notification_sender: UnboundedSender<ClientError>,
-    ) -> Result<Self, ClientError> {
+        notification_sender: UnboundedSender<Error>,
+    ) -> Result<Self, Error> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
         let endpoint = qp2p.new_endpoint()?;
@@ -76,7 +76,7 @@ impl ConnectionManager {
     }
 
     /// Bootstrap to the network maintaining connections to several nodes.
-    pub async fn bootstrap(&mut self) -> Result<(), ClientError> {
+    pub async fn bootstrap(&mut self) -> Result<(), Error> {
         trace!(
             "Trying to bootstrap to the network with public_key: {:?}",
             self.keypair.public_key()
@@ -91,7 +91,7 @@ impl ConnectionManager {
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&self, msg: &Message) -> Result<(), ClientError> {
+    pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
         info!("Sending command message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
@@ -130,8 +130,8 @@ impl ConnectionManager {
     pub async fn send_transfer_validation(
         &self,
         msg: &Message,
-        sender: Sender<Result<TransferValidated, ClientError>>,
-    ) -> Result<(), ClientError> {
+        sender: Sender<Result<TransferValidated, Error>>,
+    ) -> Result<(), Error> {
         info!(
             "Sending transfer validation command {:?} w/ id: {:?}",
             msg,
@@ -168,7 +168,7 @@ impl ConnectionManager {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, ClientError> {
+    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
@@ -185,7 +185,7 @@ impl ConnectionManager {
             let task_handle = tokio::spawn(async move {
                 // Retry queries that failed for connection issues
                 let mut done_trying = false;
-                let mut result = Err(ClientError::from("Error querying elder"));
+                let mut result = Err(Error::ElderQuery);
                 let mut attempts: usize = 1;
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
@@ -194,21 +194,13 @@ impl ConnectionManager {
                         Ok(mut streams) => {
                             result = match streams.1.next().await {
                                 Ok(bytes) => Ok(bytes),
-                                Err(error) => {
+                                Err(_error) => {
                                     done_trying = true;
-                                    Err(ClientError::from(format!(
-                                        "Error receiving query via qp2p: {:?}",
-                                        error
-                                    )))
+                                    Err(Error::ReceivingQuery)
                                 }
                             }
                         }
-                        Err(error) => {
-                            result = Err(ClientError::from(format!(
-                                "Error receiving query via qp2p: {:?}",
-                                error
-                            )));
-                        }
+                        Err(_error) => result = Err(Error::ReceivingQuery),
                     };
 
                     debug!(
@@ -232,7 +224,7 @@ impl ConnectionManager {
                     Err(e) => {
                         let err_msg = format!("Unexpected deserialisation error: {:?}", e);
                         error!("{}", err_msg);
-                        Err(ClientError::Unexpected(err_msg))
+                        Err(Error::from(e))
                     }
                 }
             });
@@ -309,9 +301,7 @@ impl ConnectionManager {
             winner.0
         );
 
-        winner
-            .0
-            .ok_or_else(|| ClientError::from("Failed to obtain a response from the network."))
+        winner.0.ok_or(Error::NoResponse)
     }
 
     /// Choose the best response when no single responses passes the threshold
@@ -322,7 +312,7 @@ impl ConnectionManager {
         vote_map: &VoteMap,
         received_errors: usize,
         has_elected_a_response: &mut bool,
-    ) -> Result<(Option<QueryResponse>, usize), ClientError> {
+    ) -> Result<(Option<QueryResponse>, usize), Error> {
         trace!("No response selected yet, checking if fallback needed");
         let mut number_of_responses = 0;
         let mut most_popular_response = current_winner;
@@ -376,7 +366,7 @@ impl ConnectionManager {
     // Private helpers
 
     // Put a `Message` in an envelope so it can be sent to the network
-    fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, ClientError> {
+    fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, Error> {
         trace!("Putting message in envelope: {:?}", message);
         let sign = self.keypair.sign(&serialize(message)?);
 
@@ -392,7 +382,7 @@ impl ConnectionManager {
 
     // Bootstrap to the network to obtaining the list of
     // nodes we should establish connections with
-    async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, ClientError> {
+    async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, Error> {
         trace!("Bootstrapping with contacts...");
         let (endpoint, conn, _incoming_messages) = self.qp2p.bootstrap().await?;
         self.endpoint = Arc::new(Mutex::new(endpoint));
@@ -417,10 +407,8 @@ impl ConnectionManager {
                 let elders_addrs = elders.into_iter().map(|(_xor_name, ci)| ci).collect();
                 Ok(elders_addrs)
             }
-            Ok(_msg) => Err(ClientError::from(
-                "Unexpected message type received while expecting list of Elders to join.",
-            )),
-            Err(e) => Err(ClientError::from(format!("Unexpected error {:?}", e))),
+            Ok(_msg) => Err(Error::UnexpectedMessageOnJoin),
+            Err(e) => Err(Error::from(e)),
         }
     }
 
@@ -440,27 +428,24 @@ impl ConnectionManager {
             RecvStream,
             SocketAddr,
         ),
-        ClientError,
+        Error,
     > {
         let (connection, _incoming_messages) = endpoint.lock().await.connect_to(&peer_addr).await?;
 
         let handshake = HandshakeRequest::Join(keypair.public_key());
         let msg = Bytes::from(serialize(&handshake)?);
         let (send_stream, recv_stream) = connection.send_bi(msg).await?;
-                Ok((
-                    Arc::new(Mutex::new(send_stream)),
-                    Arc::new(Mutex::new(connection)),
-                    recv_stream,
-                    peer_addr,
-                ))
+        Ok((
+            Arc::new(Mutex::new(send_stream)),
+            Arc::new(Mutex::new(connection)),
+            recv_stream,
+            peer_addr,
+        ))
     }
 
     // Connect to a set of Elders nodes which will be
     // the receipients of our messages on the network.
-    async fn connect_to_elders(
-        &mut self,
-        elders_addrs: Vec<SocketAddr>,
-    ) -> Result<(), ClientError> {
+    async fn connect_to_elders(&mut self, elders_addrs: Vec<SocketAddr>) -> Result<(), Error> {
         // Connect to all Elders concurrently
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
@@ -473,7 +458,7 @@ impl ConnectionManager {
 
             let task_handle = tokio::spawn(async move {
                 let mut done_trying = false;
-                let mut result = Err(ClientError::from("Could not to connect to this elder"));
+                let mut result = Err(Error::ElderConnection);
                 let mut attempts: usize = 1;
                 while !done_trying {
                     let endpoint = Arc::clone(&endpoint);
@@ -550,7 +535,7 @@ impl ConnectionManager {
             }
 
             if self.elders.len() < STANDARD_ELDERS_COUNT - 2 && has_sufficent_connections {
-                return Err(ClientError::from("Could not connect to sufficient elders."));
+                return Err(Error::InsufficientElderConnections);
             }
         }
 
@@ -562,7 +547,7 @@ impl ConnectionManager {
     pub async fn listen_to_receive_stream(
         &self,
         mut receiver: RecvStream,
-    ) -> Result<NetworkListenerHandle, ClientError> {
+    ) -> Result<NetworkListenerHandle, Error> {
         trace!("Adding listener");
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
@@ -608,15 +593,10 @@ impl ConnectionManager {
                                     .get_mut(&correlation_id)
                                 {
                                     debug!("Cmd Error was received, sending on channel to caller");
-                                    let _ = sender
-                                        .send(Err(ClientError::from(format!(
-                                            "CmdError received: {:?}",
-                                            error
-                                        ))))
-                                        .await;
+                                    let _ = sender.send(Err(Error::from(error.clone()))).await;
                                 };
 
-                                let _ = notifier.send(ClientError::from(error));
+                                let _ = notifier.send(Error::from(error));
                             }
                             _ => {
                                 warn!("another message type received");
@@ -629,7 +609,7 @@ impl ConnectionManager {
 
             info!("Receive stream listener stopped.");
 
-            Ok::<(), ClientError>(())
+            Ok::<(), Error>(())
         });
 
         Ok(handle)

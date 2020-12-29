@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::errors::ClientError;
+use crate::errors::Error;
 use crate::Client;
 use log::{debug, trace};
 use sn_data_types::{
@@ -40,13 +40,13 @@ impl Client {
     /// Store data
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -74,14 +74,14 @@ impl Client {
         tag: u64,
         owner: PublicKey,
         permissions: BTreeMap<PublicKey, SequencePrivatePermissions>,
-    ) -> Result<SequenceAddress, ClientError> {
+    ) -> Result<SequenceAddress, Error> {
         trace!("Store Private Sequence Data {:?}", name);
         let pk = self.public_key().await;
         let mut data = Sequence::new_private(pk, pk.to_string(), name, tag);
         let address = *data.address();
 
         let mut op = data.create_unsigned_private_policy_op(owner, permissions)?;
-        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op)?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
 
@@ -90,8 +90,7 @@ impl Client {
         if let Some(entries) = sequence {
             for entry in entries {
                 let mut op = data.create_unsigned_append_op(entry)?;
-                let bytes =
-                    bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+                let bytes = bincode::serialize(&op.crdt_op)?;
                 let signature = self.keypair.sign(&bytes);
                 op.signature = Some(signature);
                 data.apply_data_op(op.clone())?;
@@ -116,13 +115,13 @@ impl Client {
     /// Store data
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, SequenceUser, Money, SequencePublicPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -150,14 +149,14 @@ impl Client {
         tag: u64,
         owner: PublicKey,
         permissions: BTreeMap<SequenceUser, SequencePublicPermissions>,
-    ) -> Result<SequenceAddress, ClientError> {
+    ) -> Result<SequenceAddress, Error> {
         trace!("Store Public Sequence Data {:?}", name);
         let pk = self.public_key().await;
         let mut data = Sequence::new_public(pk, pk.to_string(), name, tag);
         let address = *data.address();
 
         let mut op = data.create_unsigned_public_policy_op(owner, permissions)?;
-        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op)?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         data.apply_public_policy_op(op.clone())?;
@@ -165,8 +164,7 @@ impl Client {
         if let Some(entries) = sequence {
             for entry in entries {
                 let mut op = data.create_unsigned_append_op(entry)?;
-                let bytes =
-                    bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+                let bytes = bincode::serialize(&op.crdt_op)?;
                 let signature = self.keypair.sign(&bytes);
                 op.signature = Some(signature);
                 data.apply_data_op(op.clone())?;
@@ -187,13 +185,13 @@ impl Client {
     /// Delete data
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -216,7 +214,7 @@ impl Client {
     /// client.delete_sequence(address).await?;
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn delete_sequence(&self, address: SequenceAddress) -> Result<(), ClientError> {
+    pub async fn delete_sequence(&self, address: SequenceAddress) -> Result<(), Error> {
         let cmd = DataCmd::Sequence(SequenceWrite::Delete(address));
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
@@ -244,13 +242,13 @@ impl Client {
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -277,14 +275,14 @@ impl Client {
         &self,
         address: SequenceAddress,
         entry: SequenceEntry,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         // First we fetch it so we can get the causality info,
         // either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now append the entry to the Sequence
         let mut op = sequence.create_unsigned_append_op(entry)?;
-        let bytes = bincode::serialize(&op.crdt_op).map_err(|_| "Could not serialize op")?;
+        let bytes = bincode::serialize(&op.crdt_op)?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_data_op(op.clone())?;
@@ -298,7 +296,7 @@ impl Client {
     async fn pay_and_write_append_to_sequence_to_network(
         &self,
         op: SequenceDataWriteOp<Vec<u8>>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         let cmd = DataCmd::Sequence(SequenceWrite::Edit(op));
 
         self.pay_and_send_data_command(cmd).await
@@ -309,7 +307,7 @@ impl Client {
     pub(crate) async fn pay_and_write_sequence_to_network(
         &self,
         data: Sequence,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         debug!("Attempting to pay and write data to network");
         let cmd = DataCmd::Sequence(SequenceWrite::New(data));
 
@@ -324,13 +322,13 @@ impl Client {
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -354,15 +352,15 @@ impl Client {
     ///
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn get_sequence(&self, address: SequenceAddress) -> Result<Sequence, ClientError> {
+    pub async fn get_sequence(&self, address: SequenceAddress) -> Result<Sequence, Error> {
         trace!("Get Sequence Data at {:?}", address.name());
         // Let's fetch it from the network then
         let sequence = match self
             .send_query(wrap_seq_read(SequenceRead::Get(address)))
             .await?
         {
-            QueryResponse::GetSequence(res) => res.map_err(ClientError::from),
-            _ => Err(ClientError::ReceivedUnexpectedEvent),
+            QueryResponse::GetSequence(res) => res.map_err(Error::from),
+            _ => Err(Error::ReceivedUnexpectedEvent),
         }?;
 
         Ok(sequence)
@@ -372,13 +370,13 @@ impl Client {
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -410,7 +408,7 @@ impl Client {
     pub async fn get_sequence_last_entry(
         &self,
         address: SequenceAddress,
-    ) -> Result<(u64, SequenceEntry), ClientError> {
+    ) -> Result<(u64, SequenceEntry), Error> {
         trace!(
             "Get latest entry from Sequence Data at {:?}",
             address.name()
@@ -420,7 +418,7 @@ impl Client {
         // TODO: do we need to query with some specific PK?
         match sequence.last_entry(None)? {
             Some(entry) => Ok((sequence.len(None)? - 1, entry.to_vec())),
-            None => Err(ClientError::from(sn_data_types::Error::NoSuchEntry)),
+            None => Err(Error::from(sn_data_types::Error::NoSuchEntry)),
         }
     }
 
@@ -428,13 +426,13 @@ impl Client {
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions, SequenceIndex};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -469,7 +467,7 @@ impl Client {
         &self,
         address: SequenceAddress,
         range: (SequenceIndex, SequenceIndex),
-    ) -> Result<SequenceEntries, ClientError> {
+    ) -> Result<SequenceEntries, Error> {
         trace!(
             "Get range of entries from Sequence Data at {:?}",
             address.name()
@@ -479,7 +477,7 @@ impl Client {
         // TODO: do we need to query with some specific PK?
         sequence
             .in_range(range.0, range.1, None)?
-            .ok_or_else(|| ClientError::from(sn_data_types::Error::NoSuchEntry))
+            .ok_or_else(|| Error::from(sn_data_types::Error::NoSuchEntry))
     }
 
     //----------------------
@@ -490,13 +488,13 @@ impl Client {
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -520,10 +518,7 @@ impl Client {
     /// assert_eq!(seq_owner, owner);
     /// # let balance_after_write = client.get_local_balance().await; assert_ne!(initial_balance, balance_after_write); Ok(()) } ); }
     /// ```
-    pub async fn get_sequence_owner(
-        &self,
-        address: SequenceAddress,
-    ) -> Result<PublicKey, ClientError> {
+    pub async fn get_sequence_owner(&self, address: SequenceAddress) -> Result<PublicKey, Error> {
         trace!("Get owner of the Sequence Data at {:?}", address.name());
 
         // TODO: perhaps we want to grab it directly from the network and update local replica
@@ -544,14 +539,14 @@ impl Client {
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -579,7 +574,7 @@ impl Client {
         &self,
         address: SequenceAddress,
         owner: PublicKey,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         // First we fetch it either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
 
@@ -590,7 +585,7 @@ impl Client {
 
         // set new owner against this
         let mut op = sequence.create_unsigned_private_policy_op(owner, permissions)?;
-        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op)?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_private_policy_op(op.clone())?;
@@ -625,13 +620,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Money, SequenceUser,SequencePublicPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -658,7 +653,7 @@ impl Client {
         &self,
         address: SequenceAddress,
         user: PublicKey,
-    ) -> Result<SequencePublicPermissions, ClientError> {
+    ) -> Result<SequencePublicPermissions, Error> {
         trace!(
             "Get permissions from Public Sequence Data at {:?}",
             address.name()
@@ -670,10 +665,10 @@ impl Client {
         // TODO: do we need to query with some specific PK?
         let perms = match sequence
             .permissions(SequenceUser::Key(user), None)
-            .map_err(ClientError::from)?
+            .map_err(Error::from)?
         {
             SequencePermissions::Public(perms) => perms,
-            _ => return Err(ClientError::from("Expected public permission set.")),
+            _ => return Err(Error::NotPublicPermissions),
         };
 
         Ok(perms)
@@ -684,13 +679,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -717,7 +712,7 @@ impl Client {
         &self,
         address: SequenceAddress,
         user: PublicKey,
-    ) -> Result<SequencePrivatePermissions, ClientError> {
+    ) -> Result<SequencePrivatePermissions, Error> {
         trace!(
             "Get permissions from Private Sequence Data at {:?}",
             address.name()
@@ -727,10 +722,10 @@ impl Client {
         // TODO: do we need to query with some specific PK?
         let perms = match sequence
             .permissions(SequenceUser::Key(user), None)
-            .map_err(ClientError::from)?
+            .map_err(Error::from)?
         {
             SequencePermissions::Private(perms) => perms,
-            _ => return Err(ClientError::from("Expected private permission set.")),
+            _ => return Err(Error::NotPrivatePermissions),
         };
 
         Ok(perms)
@@ -741,13 +736,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -774,7 +769,7 @@ impl Client {
         &self,
         address: SequenceAddress,
         user: SequenceUser,
-    ) -> Result<SequencePermissions, ClientError> {
+    ) -> Result<SequencePermissions, Error> {
         trace!(
             "Get permissions for user {:?} from Sequence Data at {:?}",
             user,
@@ -785,9 +780,7 @@ impl Client {
         // the network and update local replica
         let sequence = self.get_sequence(address).await?;
         // TODO: do we need to query with some specific PK?
-        let perms = sequence
-            .permissions(user, None)
-            .map_err(ClientError::from)?;
+        let perms = sequence.permissions(user, None).map_err(Error::from)?;
 
         Ok(perms)
     }
@@ -797,14 +790,14 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, SequenceUser, Money, SequencePublicPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -837,14 +830,14 @@ impl Client {
         &self,
         address: SequenceAddress,
         permissions: BTreeMap<SequenceUser, SequencePublicPermissions>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         // First we fetch it either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now set the new permissions to the Sequence
         let mut op =
             sequence.create_unsigned_public_policy_op(self.public_key().await, permissions)?;
-        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op)?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_public_policy_op(op.clone())?;
@@ -874,14 +867,14 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError; use std::str::FromStr;
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
     /// use threshold_crypto::SecretKey;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -914,14 +907,14 @@ impl Client {
         &self,
         address: SequenceAddress,
         permissions: BTreeMap<PublicKey, SequencePrivatePermissions>,
-    ) -> Result<(), ClientError> {
+    ) -> Result<(), Error> {
         // First we fetch it either from local CRDT replica or from the network if not found
         let mut sequence = self.get_sequence(address).await?;
 
         // We can now set the new permissions to the Sequence
         let mut op =
             sequence.create_unsigned_private_policy_op(self.public_key().await, permissions)?;
-        let bytes = bincode::serialize(&op.crdt_op).map_err(|err| err.as_ref().to_string())?;
+        let bytes = bincode::serialize(&op.crdt_op)?;
         let signature = self.keypair.sign(&bytes);
         op.signature = Some(signature);
         sequence.apply_private_policy_op(op.clone())?;
@@ -953,12 +946,12 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use sn_data_types::{Error as SndError, Money, SequenceAction, SequencePrivatePermissions};
+    use sn_data_types::{Error as DtError, Money, SequenceAction, SequencePrivatePermissions};
     use std::str::FromStr;
     use unwrap::unwrap;
     use xor_name::XorName;
 
-    pub async fn sequence_deletions_should_cost_put_price() -> Result<(), ClientError> {
+    pub async fn sequence_deletions_should_cost_put_price() -> Result<(), Error> {
         let name = XorName(rand::random());
         let tag = 10;
         let client = Client::new(None, None).await?;
@@ -989,7 +982,7 @@ pub mod exported_tests {
 
     /// Sequence data tests ///
 
-    pub async fn sequence_basics_test() -> Result<(), ClientError> {
+    pub async fn sequence_basics_test() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
@@ -1046,7 +1039,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn sequence_private_permissions_test() -> Result<(), ClientError> {
+    pub async fn sequence_private_permissions_test() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1099,11 +1092,7 @@ pub mod exported_tests {
                 assert!(user_perms.is_allowed(SequenceAction::Append));
                 assert!(user_perms.is_allowed(SequenceAction::Admin));
             }
-            SequencePermissions::Public(_) => {
-                return Err(ClientError::from(
-                    "Unexpectedly obtained incorrect user permissions",
-                ))
-            }
+            SequencePermissions::Public(_) => return Err(Error::IncorrectPermissions),
         }
 
         let sim_client = gen_bls_keypair().public_key();
@@ -1148,13 +1137,11 @@ pub mod exported_tests {
                 assert!(!user_perms.is_allowed(SequenceAction::Admin));
                 Ok(())
             }
-            SequencePermissions::Public(_) => Err(ClientError::from(
-                "Unexpectedly obtained incorrect user permissions",
-            )),
+            SequencePermissions::Public(_) => Err(Error::IncorrectPermissions),
         }
     }
 
-    pub async fn sequence_pub_permissions_test() -> Result<(), ClientError> {
+    pub async fn sequence_pub_permissions_test() -> anyhow::Result<()> {
         let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
@@ -1212,9 +1199,9 @@ pub mod exported_tests {
                 assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Admin));
             }
             SequencePermissions::Private(_) => {
-                return Err(ClientError::from(
+                return Err(anyhow::anyhow!(
                     "Unexpectedly obtained incorrect user permissions",
-                ))
+                ));
             }
         }
 
@@ -1260,13 +1247,11 @@ pub mod exported_tests {
                 assert_eq!(Some(false), user_perms.is_allowed(SequenceAction::Admin));
                 Ok(())
             }
-            SequencePermissions::Private(_) => Err(ClientError::from(
-                "Unexpectedly obtained incorrect user permissions",
-            )),
+            SequencePermissions::Private(_) => Err(Error::IncorrectPermissions.into()),
         }
     }
 
-    pub async fn append_to_sequence_test() -> Result<(), ClientError> {
+    pub async fn append_to_sequence_test() -> Result<(), Error> {
         let name = XorName(rand::random());
         let tag = 10;
         let client = Client::new(None, None).await?;
@@ -1350,7 +1335,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn sequence_owner_test() -> Result<(), ClientError> {
+    pub async fn sequence_owner_test() -> Result<(), Error> {
         let name = XorName(rand::random());
         let tag = 10;
         let client = Client::new(None, None).await?;
@@ -1405,7 +1390,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn sequence_can_delete_private_test() -> Result<(), ClientError> {
+    pub async fn sequence_can_delete_private_test() -> anyhow::Result<()> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15000;
@@ -1435,18 +1420,18 @@ pub mod exported_tests {
         }
 
         match res {
-            Err(ClientError::DataError(SndError::NoSuchData)) => Ok(()),
-            Err(err) => Err(ClientError::from(format!(
+            Err(Error::NetworkDataError(DtError::NoSuchData)) => Ok(()),
+            Err(err) => Err(anyhow::anyhow!(
                 "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
                 err
-            ))),
-            Ok(_data) => Err(ClientError::from(
+            )),
+            Ok(_data) => Err(anyhow::anyhow!(
                 "Unexpectedly retrieved a deleted Private Sequence!",
             )),
         }
     }
 
-    pub async fn sequence_cannot_delete_public_test() -> Result<(), ClientError> {
+    pub async fn sequence_cannot_delete_public_test() -> anyhow::Result<()> {
         let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
@@ -1475,11 +1460,11 @@ pub mod exported_tests {
 
         // Check that our data still exists.
         match client.get_sequence(address).await {
-            Err(ClientError::DataError(SndError::InvalidOperation)) => Ok(()),
-            Err(err) => Err(ClientError::from(format!(
+            Err(Error::NetworkDataError(DtError::InvalidOperation)) => Ok(()),
+            Err(err) => Err(anyhow::anyhow!(
                 "Unexpected error returned when attempting to get a Public Sequence: {}",
                 err
-            ))),
+            )),
             Ok(_data) => Ok(()),
         }
     }
@@ -1491,45 +1476,45 @@ mod tests {
     #[cfg(test)]
     use super::exported_tests;
     #[cfg(test)]
-    use super::ClientError;
+    use super::Error;
 
     #[tokio::test]
-    async fn sequence_deletions_should_cost_put_price() -> Result<(), ClientError> {
+    async fn sequence_deletions_should_cost_put_price() -> Result<(), Error> {
         exported_tests::sequence_deletions_should_cost_put_price().await
     }
 
     #[tokio::test]
-    async fn sequence_basics_test() -> Result<(), ClientError> {
+    async fn sequence_basics_test() -> Result<(), Error> {
         exported_tests::sequence_basics_test().await
     }
 
     #[tokio::test]
-    async fn sequence_private_permissions_test() -> Result<(), ClientError> {
+    async fn sequence_private_permissions_test() -> Result<(), Error> {
         exported_tests::sequence_private_permissions_test().await
     }
 
     #[tokio::test]
-    async fn sequence_pub_permissions_test() -> Result<(), ClientError> {
+    async fn sequence_pub_permissions_test() -> anyhow::Result<()> {
         exported_tests::sequence_pub_permissions_test().await
     }
 
     #[tokio::test]
-    async fn append_to_sequence_test() -> Result<(), ClientError> {
+    async fn append_to_sequence_test() -> Result<(), Error> {
         exported_tests::append_to_sequence_test().await
     }
 
     #[tokio::test]
-    async fn sequence_owner_test() -> Result<(), ClientError> {
+    async fn sequence_owner_test() -> Result<(), Error> {
         exported_tests::sequence_owner_test().await
     }
 
     #[tokio::test]
-    async fn sequence_can_delete_private_test() -> Result<(), ClientError> {
+    async fn sequence_can_delete_private_test() -> anyhow::Result<()> {
         exported_tests::sequence_can_delete_private_test().await
     }
 
     #[tokio::test]
-    async fn sequence_cannot_delete_public_test() -> Result<(), ClientError> {
+    async fn sequence_cannot_delete_public_test() -> anyhow::Result<()> {
         exported_tests::sequence_cannot_delete_public_test().await
     }
 }

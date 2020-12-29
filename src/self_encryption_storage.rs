@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use super::{Client, ClientError};
+use super::{Client, Error};
 use async_trait::async_trait;
 use log::trace;
 use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
@@ -32,7 +32,7 @@ impl SelfEncryptionStorage {
 
 /// Errors arising from storage object being used by self_encryptors.
 #[derive(Debug)]
-pub struct SEStorageError(pub Box<ClientError>);
+pub struct SEStorageError(pub Box<Error>);
 
 impl Display for SEStorageError {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
@@ -46,8 +46,8 @@ impl Error for SEStorageError {
     }
 }
 
-impl From<ClientError> for SEStorageError {
-    fn from(error: ClientError) -> Self {
+impl From<Error> for SEStorageError {
+    fn from(error: Error) -> Self {
         Self(Box::new(error))
     }
 }
@@ -75,7 +75,7 @@ impl Storage for SelfEncryptionStorageDryRun {
 
     async fn get(&self, _name: &[u8]) -> Result<Vec<u8>, Self::Error> {
         trace!("Self encrypt invoked GetBlob dry run.");
-        Err(SEStorageError::from(ClientError::Unexpected(
+        Err(SEStorageError::from(Error::Unexpected(
             "Cannot get from storage since it's a dry run.".to_owned(),
         )))
     }

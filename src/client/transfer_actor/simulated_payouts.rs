@@ -4,7 +4,7 @@ use sn_data_types::Money;
 use sn_data_types::{Cmd, Transfer, TransferCmd};
 
 use crate::client::Client;
-use crate::errors::ClientError;
+use crate::errors::Error;
 
 #[cfg(feature = "simulated-payouts")]
 use log::info;
@@ -13,13 +13,8 @@ use log::info;
 impl Client {
     #[cfg(not(feature = "simulated-payouts"))]
     /// Placeholder for simulate farming payout. Will always error if client or network are not built for "simulated-payouts"
-    pub async fn trigger_simulated_farming_payout(
-        &mut self,
-        _amount: Money,
-    ) -> Result<(), ClientError> {
-        Err(ClientError::from(
-            "Simulated payouts not available without 'simulated-payouts' feature flag",
-        ))
+    pub async fn trigger_simulated_farming_payout(&mut self, _amount: Money) -> Result<(), Error> {
+        Err(Error::NotBuiltWithSimulatedPayouts)
     }
 
     #[cfg(feature = "simulated-payouts")]
@@ -34,12 +29,12 @@ impl Client {
     /// Add 100 money to a client
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Money};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
     /// // Start our client
@@ -51,10 +46,7 @@ impl Client {
     /// assert_eq!(balance, target_balance);
     /// # Ok(())} );}
     /// ```
-    pub async fn trigger_simulated_farming_payout(
-        &mut self,
-        amount: Money,
-    ) -> Result<(), ClientError> {
+    pub async fn trigger_simulated_farming_payout(&mut self, amount: Money) -> Result<(), Error> {
         let pk = self.public_key().await;
         info!("Triggering a simulated farming payout to: {:?}", pk);
         self.simulated_farming_payout_dot.apply_inc();
@@ -100,7 +92,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), ClientError> {
+    async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), Error> {
         let mut client = Client::new(None, None).await?;
 
         let _ = client

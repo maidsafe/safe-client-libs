@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::crypto::shared_secretbox;
-use crate::errors::ClientError;
+use crate::errors::Error;
 use crate::utils::{
     self, symmetric_decrypt, symmetric_encrypt, SymEncKey, SymEncNonce, SYM_ENC_NONCE_LEN,
 };
@@ -54,7 +54,7 @@ impl MapInfo {
     }
 
     /// Generate random `MapInfo` for private (encrypted) mutable data.
-    pub fn random_private(kind: MapKind, type_tag: u64) -> Result<Self, ClientError> {
+    pub fn random_private(kind: MapKind, type_tag: u64) -> Result<Self, Error> {
         let address = MapAddress::from_kind(kind, rand::random(), type_tag);
         let enc_info = (shared_secretbox::gen_key(), utils::generate_nonce());
 
@@ -62,7 +62,7 @@ impl MapInfo {
     }
 
     /// Generate random `MapInfo` for public mutable data.
-    pub fn random_public(kind: MapKind, type_tag: u64) -> Result<Self, ClientError> {
+    pub fn random_public(kind: MapKind, type_tag: u64) -> Result<Self, Error> {
         let address = MapAddress::from_kind(kind, rand::random(), type_tag);
 
         Ok(Self::new_public(address))
@@ -99,7 +99,7 @@ impl MapInfo {
     }
 
     /// Encrypt the key for the map entry accordingly.
-    pub fn enc_entry_key(&self, plain_text: &[u8]) -> Result<Vec<u8>, ClientError> {
+    pub fn enc_entry_key(&self, plain_text: &[u8]) -> Result<Vec<u8>, Error> {
         if let Some((ref key, seed)) = self.new_enc_info {
             enc_entry_key(plain_text, key, seed)
         } else if let Some((ref key, seed)) = self.enc_info {
@@ -110,7 +110,7 @@ impl MapInfo {
     }
 
     /// Encrypt the value for this map entry accordingly.
-    pub fn enc_entry_value(&self, plain_text: &[u8]) -> Result<Vec<u8>, ClientError> {
+    pub fn enc_entry_value(&self, plain_text: &[u8]) -> Result<Vec<u8>, Error> {
         if let Some((ref key, _)) = self.new_enc_info {
             symmetric_encrypt(plain_text, key, None)
         } else if let Some((ref key, _)) = self.enc_info {
@@ -121,7 +121,7 @@ impl MapInfo {
     }
 
     /// Decrypt key or value of this map entry.
-    pub fn decrypt(&self, cipher: &[u8]) -> Result<Vec<u8>, ClientError> {
+    pub fn decrypt(&self, cipher: &[u8]) -> Result<Vec<u8>, Error> {
         if let Some((ref key, _)) = self.new_enc_info {
             if let Ok(plain) = symmetric_decrypt(cipher, key) {
                 return Ok(plain);
@@ -153,10 +153,7 @@ impl MapInfo {
 }
 
 /// Encrypt the entries (both keys and values) using the `MapInfo`.
-pub fn encrypt_entries(
-    info: &MapInfo,
-    entries: &MapSeqEntries,
-) -> Result<MapSeqEntries, ClientError> {
+pub fn encrypt_entries(info: &MapInfo, entries: &MapSeqEntries) -> Result<MapSeqEntries, Error> {
     let mut output = BTreeMap::new();
 
     for (key, value) in entries {
@@ -173,7 +170,7 @@ pub fn encrypt_entries(
 pub fn encrypt_entry_actions(
     info: &MapInfo,
     actions: &BTreeMap<Vec<u8>, MapSeqEntryAction>,
-) -> Result<BTreeMap<Vec<u8>, MapSeqEntryAction>, ClientError> {
+) -> Result<BTreeMap<Vec<u8>, MapSeqEntryAction>, Error> {
     let mut output = BTreeMap::new();
 
     for (key, action) in actions {
@@ -195,10 +192,7 @@ pub fn encrypt_entry_actions(
 }
 
 /// Decrypt entries using the `MapInfo`.
-pub fn decrypt_entries(
-    info: &MapInfo,
-    entries: &MapSeqEntries,
-) -> Result<MapSeqEntries, ClientError> {
+pub fn decrypt_entries(info: &MapInfo, entries: &MapSeqEntries) -> Result<MapSeqEntries, Error> {
     let mut output = BTreeMap::new();
 
     for (key, value) in entries {
@@ -212,10 +206,7 @@ pub fn decrypt_entries(
 }
 
 /// Decrypt all keys using the `MapInfo`.
-pub fn decrypt_keys(
-    info: &MapInfo,
-    keys: &BTreeSet<Vec<u8>>,
-) -> Result<BTreeSet<Vec<u8>>, ClientError> {
+pub fn decrypt_keys(info: &MapInfo, keys: &BTreeSet<Vec<u8>>) -> Result<BTreeSet<Vec<u8>>, Error> {
     let mut output = BTreeSet::new();
 
     for key in keys {
@@ -226,10 +217,7 @@ pub fn decrypt_keys(
 }
 
 /// Decrypt all values using the `MapInfo`.
-pub fn decrypt_values(
-    info: &MapInfo,
-    values: &[MapSeqValue],
-) -> Result<Vec<MapSeqValue>, ClientError> {
+pub fn decrypt_values(info: &MapInfo, values: &[MapSeqValue]) -> Result<Vec<MapSeqValue>, Error> {
     let mut output = Vec::with_capacity(values.len());
 
     for value in values {
@@ -239,25 +227,21 @@ pub fn decrypt_values(
     Ok(output)
 }
 
-fn encrypt_value(info: &MapInfo, value: &MapSeqValue) -> Result<MapSeqValue, ClientError> {
+fn encrypt_value(info: &MapInfo, value: &MapSeqValue) -> Result<MapSeqValue, Error> {
     Ok(MapSeqValue {
         data: info.enc_entry_value(&value.data)?,
         version: value.version,
     })
 }
 
-fn decrypt_value(info: &MapInfo, value: &MapSeqValue) -> Result<MapSeqValue, ClientError> {
+fn decrypt_value(info: &MapInfo, value: &MapSeqValue) -> Result<MapSeqValue, Error> {
     Ok(MapSeqValue {
         data: info.decrypt(&value.data)?,
         version: value.version,
     })
 }
 
-fn enc_entry_key(
-    plain_text: &[u8],
-    key: &SymEncKey,
-    seed: SymEncNonce,
-) -> Result<Vec<u8>, ClientError> {
+fn enc_entry_key(plain_text: &[u8], key: &SymEncKey, seed: SymEncNonce) -> Result<Vec<u8>, Error> {
     let nonce: SymEncNonce = {
         let mut pt = plain_text.to_vec();
         pt.extend_from_slice(&seed[..]);
@@ -313,7 +297,7 @@ mod tests {
         // After commit, only the new encryption info works.
         info.commit_new_enc_info();
         match info.decrypt(&old_cipher) {
-            Err(ClientError::SymmetricDecipherFailure) => (),
+            Err(Error::SymmetricDecipherFailure) => (),
             x => panic!("Unexpected {:?}", x),
         }
         assert_eq!(unwrap!(info.decrypt(&new_cipher)), plain);

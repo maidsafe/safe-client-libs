@@ -23,9 +23,9 @@
 //!
 //! ```no_run
 //! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
-//! # extern crate tokio; use sn_client::ClientError;
+//! # extern crate tokio; use sn_client::Error;
 //! use sn_client::Client;
-//! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+//! # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
 //! let client = Client::new(None, None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
@@ -36,11 +36,11 @@
 //!
 //! ```no_run
 //! # // The Safe Client is an sync library so will need some kind of runtime. Here we use tokio.
-//! # extern crate tokio; use sn_client::ClientError;
+//! # extern crate tokio; use sn_client::Error;
 //! use sn_client::Client;
 //! use rand::rngs::OsRng;
 //! use sn_data_types::Keypair;
-//! # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+//! # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
 //! let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 //! let client = Client::new(Some(id), None).await?;
 //! // Now for example you can perform read operations:
@@ -69,7 +69,7 @@
 
 pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::dirs;
-pub use self::errors::ClientError;
+pub use self::errors::Error;
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::utils::logging;
 pub use qp2p::Config as QuicP2pConfig;

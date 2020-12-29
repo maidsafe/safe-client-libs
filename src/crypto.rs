@@ -89,7 +89,7 @@ pub mod shared_box {
         }
 
         /// Create new key from the given raw key data.
-        pub fn from_raw(data: &[u8]) -> Result<Self, crate::ClientError> {
+        pub fn from_raw(data: &[u8]) -> Result<Self, crate::Error> {
             // FIXME: this function subverts the purpose of this module - it
             // copies the sensitive data. Possible fix might be to take the input by
             // mutable reference and zero it afterwards.

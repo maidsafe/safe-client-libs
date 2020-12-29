@@ -6,7 +6,7 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::ClientError;
+use crate::Error;
 use lazy_static::lazy_static;
 use log::{info, trace};
 use qp2p::Config as QuicP2pConfig;
@@ -53,17 +53,20 @@ impl Config {
         Self { qp2p }
     }
 
-    fn read_qp2p_from_file() -> Result<QuicP2pConfig, ClientError> {
+    fn read_qp2p_from_file() -> Result<QuicP2pConfig, Error> {
         // First we read the default configuration file, and use a slightly modified default config
         // if there is none.
         let mut config: QuicP2pConfig = {
             match read_config_file(dirs()?, CONFIG_FILE) {
-                Err(ClientError::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
+                Err(Error::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
                     let custom_dir =
                         if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
-                            Some(custom_path.into_os_string().into_string().map_err(|_| {
-                                ClientError::from("Config path is not a valid UTF-8 string")
-                            })?)
+                            Some(
+                                custom_path
+                                    .into_os_string()
+                                    .into_string()
+                                    .map_err(|_| Error::InvalidConfigPath)?,
+                            )
                         } else {
                             None
                         };
@@ -95,13 +98,13 @@ impl Config {
 }
 
 /// Return the Project directory
-pub fn dirs() -> Result<PathBuf, ClientError> {
+pub fn dirs() -> Result<PathBuf, Error> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         let mut path = PathBuf::new();
         path.push(custom_path);
         path
     } else {
-        let mut path = dirs_next::home_dir().ok_or("Cannot determine project directory paths")?;
+        let mut path = dirs_next::home_dir().ok_or(Error::NoHomeDir)?;
         path.push(HOME_DIR_SAFE);
         path.push(CONFIG_DIR_APPLICATION);
         path
@@ -109,13 +112,13 @@ pub fn dirs() -> Result<PathBuf, ClientError> {
     Ok(project_dirs)
 }
 
-fn node_dirs() -> Result<PathBuf, ClientError> {
+fn node_dirs() -> Result<PathBuf, Error> {
     let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
         let mut path = PathBuf::new();
         path.push(custom_path);
         path
     } else {
-        let mut path = dirs_next::home_dir().ok_or("Cannot determine project directory paths")?;
+        let mut path = dirs_next::home_dir().ok_or(Error::NoHomeDir)?;
         path.push(HOME_DIR_SAFE);
         path.push(NODE_CONFIG_DIR_APPLICATION);
         path
@@ -123,7 +126,7 @@ fn node_dirs() -> Result<PathBuf, ClientError> {
     Ok(project_dirs)
 }
 
-fn read_config_file<T>(dirs: PathBuf, file: &str) -> Result<T, ClientError>
+fn read_config_file<T>(dirs: PathBuf, file: &str) -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
@@ -150,7 +153,7 @@ where
 /// N.B. This method should only be used as a utility for test and examples.  In normal use cases,
 /// the config file should be created by the Node's installer.
 #[cfg(test)]
-pub fn write_config_file(config: &Config) -> Result<PathBuf, ClientError> {
+pub fn write_config_file(config: &Config) -> Result<PathBuf, Error> {
     let dir = dirs()?;
     fs::create_dir_all(dir.clone())?;
 

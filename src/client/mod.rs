@@ -32,7 +32,7 @@ pub use blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use crate::config_handler::Config;
 use crate::connection_manager::ConnectionManager;
-use crate::errors::ClientError;
+use crate::errors::Error;
 
 use crdts::Dot;
 use futures::lock::Mutex;
@@ -66,7 +66,7 @@ pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 pub const COST_OF_PUT: Money = Money::from_nano(1);
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
-pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, ClientError> {
+pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, Error> {
     Ok(Config::new().qp2p.hard_coded_contacts)
 }
 
@@ -79,7 +79,7 @@ pub struct Client {
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
-    notification_receiver: Arc<Mutex<UnboundedReceiver<ClientError>>>,
+    notification_receiver: Arc<Mutex<UnboundedReceiver<Error>>>,
 }
 
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
@@ -96,10 +96,10 @@ impl Client {
     ///
     /// Create a random client
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     ///
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     ///
     /// let client = Client::new(None, None).await?;
     /// // Now for example you can perform read operations:
@@ -109,7 +109,7 @@ impl Client {
     pub async fn new(
         optional_keypair: Option<Arc<Keypair>>,
         bootstap_config: Option<HashSet<SocketAddr>>,
-    ) -> Result<Self, ClientError> {
+    ) -> Result<Self, Error> {
         crate::utils::init_log();
         let mut rng = OsRng;
 
@@ -128,7 +128,7 @@ impl Client {
             }
         };
 
-        let (notification_sender, notification_receiver) = unbounded_channel::<ClientError>();
+        let (notification_sender, notification_receiver) = unbounded_channel::<Error>();
         // Create the connection manager
         let mut connection_manager = attempt_bootstrap(
             &Config::new().qp2p,
@@ -195,9 +195,9 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// let client = Client::new(None, None).await?;
     /// let _keypair = client.keypair().await;
     ///
@@ -212,9 +212,9 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// let client = Client::new(None, None).await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
@@ -226,7 +226,7 @@ impl Client {
     }
 
     /// Send a Query to the network and await a response
-    async fn send_query(&self, query: Query) -> Result<QueryResponse, ClientError> {
+    async fn send_query(&self, query: Query) -> Result<QueryResponse, Error> {
         // `sign` should be false for GETs on published data, true otherwise.
 
         debug!("Sending QueryRequest: {:?}", query);
@@ -265,7 +265,7 @@ impl Client {
 
     // Private helper to obtain payment proof for a data command, send it to the network,
     // and also apply the payment to local replica actor.
-    async fn pay_and_send_data_command(&self, cmd: DataCmd) -> Result<(), ClientError> {
+    async fn pay_and_send_data_command(&self, cmd: DataCmd) -> Result<(), Error> {
         // Payment for PUT
         let payment_proof = self.create_write_payment_proof(&cmd).await?;
 
@@ -288,7 +288,8 @@ impl Client {
     // TODO: Change cfg to `test` once we move tests out of sn_client
     /// Assert if all connected Elders are returning the same errors we expect.
     #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
-    pub(crate) async fn expect_error(&self, err: ClientError) {
+    pub(crate) async fn expect_error(&self, err: Error) {
+        dbg!("set up timeout for error read");
         for _ in 0..self
             .connection_manager
             .clone()
@@ -307,6 +308,8 @@ impl Client {
                 Err(_) => panic!("Timeout when expecting {}", err.to_string()),
             }
         }
+
+        dbg!("after error read");
     }
 }
 
@@ -315,9 +318,9 @@ impl Client {
 pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
     keypair: Arc<Keypair>,
-    notification_sender: UnboundedSender<ClientError>,
+    notification_sender: UnboundedSender<Error>,
     bootstrap_nodes: Option<HashSet<SocketAddr>>,
-) -> Result<ConnectionManager, ClientError> {
+) -> Result<ConnectionManager, Error> {
     let mut attempts: u32 = 0;
     let mut qp2p_config = qp2p_config.clone();
 
@@ -352,13 +355,13 @@ pub mod exported_tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    pub async fn client_creation() -> Result<(), ClientError> {
+    pub async fn client_creation() -> Result<(), Error> {
         let _client = Client::new(None, None).await?;
 
         Ok(())
     }
 
-    pub async fn client_nonsense_bootstrap_fails() -> Result<(), ClientError> {
+    pub async fn client_nonsense_bootstrap_fails() -> Result<(), Error> {
         let mut nonsense_bootstrap = HashSet::new();
         let _ = nonsense_bootstrap.insert(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
@@ -369,7 +372,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn client_creation_with_existing_keypair() -> Result<(), ClientError> {
+    pub async fn client_creation_with_existing_keypair() -> Result<(), Error> {
         let mut rng = OsRng;
         let full_id = Arc::new(Keypair::new_ed25519(&mut rng));
         let pk = full_id.public_key();
@@ -384,23 +387,23 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use crate::ClientError;
+    use crate::Error;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation() -> Result<(), ClientError> {
+    pub async fn client_creation() -> Result<(), Error> {
         exported_tests::client_creation().await
     }
 
     // #[tokio::test]
     // #[cfg(feature = "simulated-payouts")]
-    // pub async fn client_nonsense_bootstrap_fails() -> Result<(), ClientError> {
+    // pub async fn client_nonsense_bootstrap_fails() -> Result<(), Error> {
     //     exported_tests::client_nonsense_bootstrap_fails().await
     // }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_with_existing_keypair() -> Result<(), ClientError> {
+    pub async fn client_creation_with_existing_keypair() -> Result<(), Error> {
         exported_tests::client_creation_with_existing_keypair().await
     }
 }

@@ -21,7 +21,7 @@ pub mod write_apis;
 pub use sn_transfers::TransferActor as SafeTransferActor;
 
 use crate::client::{Client, ConnectionManager};
-use crate::errors::ClientError;
+use crate::errors::Error;
 
 /// Simple client side validations
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -40,12 +40,12 @@ impl Client {
     ///
     /// Retrieve an existing balance
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Money};
     /// use rand::rngs::OsRng;
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
@@ -56,7 +56,7 @@ impl Client {
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance(&self) -> Result<Money, ClientError>
+    pub async fn get_balance(&self) -> Result<Money, Error>
     where
         Self: Sized,
     {
@@ -72,12 +72,12 @@ impl Client {
     ///
     /// Retrieve an existing balance
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Money};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -90,7 +90,7 @@ impl Client {
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance_for(&self, public_key: PublicKey) -> Result<Money, ClientError>
+    pub async fn get_balance_for(&self, public_key: PublicKey) -> Result<Money, Error>
     where
         Self: Sized,
     {
@@ -104,11 +104,11 @@ impl Client {
     ///
     /// Retrieving an existing balance history
     /// ```no_run
-    /// # extern crate tokio; use sn_client::ClientError;
+    /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// use sn_data_types::Keypair;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), ClientError> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
     /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
@@ -118,7 +118,7 @@ impl Client {
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_history(&self) -> Result<(), ClientError> {
+    pub async fn get_history(&self) -> Result<(), Error> {
         let public_key = self.public_key().await;
         info!("Getting SnTransfers history for pk: {:?}", public_key);
 
@@ -138,11 +138,8 @@ impl Client {
             .await?;
 
         let history = match res {
-            QueryResponse::GetHistory(history) => history.map_err(ClientError::from),
-            _ => Err(ClientError::from(format!(
-                "Unexpected response when retrieving account history {:?}",
-                res
-            ))),
+            QueryResponse::GetHistory(history) => history.map_err(Error::from),
+            _ => Err(Error::UnexpectedHistoryResponse(res)),
         }?;
 
         let mut actor = self.transfer_actor.lock().await;
@@ -157,7 +154,7 @@ impl Client {
                     .to_string()
                     .contains("No credits or debits found to sync to actor")
                 {
-                    return Err(ClientError::from(error));
+                    return Err(Error::from(error));
                 }
 
                 warn!(
@@ -173,7 +170,7 @@ impl Client {
     }
 
     /// Fetch latest StoreCost for given number of bytes from the network.
-    pub async fn get_store_cost(&self, bytes: u64) -> Result<Money, ClientError> {
+    pub async fn get_store_cost(&self, bytes: u64) -> Result<Money, Error> {
         info!("Sending Query for latest StoreCost");
 
         let public_key = self.public_key().await;
@@ -194,11 +191,8 @@ impl Client {
             .await?;
 
         match res {
-            QueryResponse::GetStoreCost(cost) => cost.map_err(ClientError::DataError),
-            _ => Err(ClientError::from(format!(
-                "Unexpected response when retrieving StoreCost {:?}",
-                res
-            ))),
+            QueryResponse::GetStoreCost(cost) => cost.map_err(Error::NetworkDataError),
+            _ => Err(Error::UnexpectedStoreCostResponse(res)),
         }
     }
 
@@ -206,7 +200,7 @@ impl Client {
     pub(crate) async fn create_write_payment_proof(
         &self,
         cmd: &DataCmd,
-    ) -> Result<TransferAgreementProof, ClientError> {
+    ) -> Result<TransferAgreementProof, Error> {
         info!("Sending requests for payment for write operation");
 
         // Compute number of bytes
@@ -223,7 +217,7 @@ impl Client {
             .lock()
             .await
             .transfer(cost_of_put, section_key, "asdf".to_string())?
-            .ok_or_else(|| ClientError::from("No transfer produced by actor."))?;
+            .ok_or(Error::NoTransferEventsForLocalActor)?;
         let signed_transfer = SignedTransfer {
             debit: initiated.signed_debit,
             credit: initiated.signed_credit,
@@ -255,7 +249,7 @@ impl Client {
     pub(crate) async fn get_replica_keys(
         keypair: Arc<Keypair>,
         cm: &mut ConnectionManager,
-    ) -> Result<PublicKeySet, ClientError> {
+    ) -> Result<PublicKeySet, Error> {
         trace!("Getting replica keys for {:?}", keypair);
         let pk = keypair.public_key();
         let keys_query_msg = Query::Transfer(TransferQuery::GetReplicaKeys(pk));
@@ -266,10 +260,7 @@ impl Client {
 
         match res {
             QueryResponse::GetReplicaKeys(pk_set) => Ok(pk_set?),
-            _ => Err(ClientError::from(format!(
-                "Unexpected response when retrieving account replica keys for {:?}",
-                pk
-            ))),
+            _ => Err(Error::UnexpectedReplicaKeysResponse(pk)),
         }
     }
 
@@ -278,10 +269,10 @@ impl Client {
         &self,
         message: &Message,
         _id: DebitId,
-    ) -> Result<TransferAgreementProof, ClientError> {
+    ) -> Result<TransferAgreementProof, Error> {
         info!("Awaiting transfer validation");
 
-        let (sender, mut receiver) = channel::<Result<TransferValidated, ClientError>>(7);
+        let (sender, mut receiver) = channel::<Result<TransferValidated, Error>>(7);
 
         self.connection_manager
             .lock()
@@ -344,8 +335,7 @@ pub mod exported_tests {
     use sn_data_types::Money;
     use std::str::FromStr;
 
-    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance(
-    ) -> Result<(), ClientError> {
+    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), Error> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         match Client::new(Some(keypair), None).await {
@@ -357,8 +347,7 @@ pub mod exported_tests {
         }
     }
 
-    pub async fn transfer_actor_client_random_creation_gets_initial_balance(
-    ) -> Result<(), ClientError> {
+    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<(), Error> {
         match Client::new(None, None).await {
             Ok(actor) => {
                 let mut bal = actor.get_balance().await;
@@ -377,8 +366,7 @@ pub mod exported_tests {
         }
     }
 
-    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError>
-    {
+    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), Error> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         {
@@ -414,26 +402,23 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use crate::ClientError;
+    use crate::Error;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance(
-    ) -> Result<(), ClientError> {
+    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), Error> {
         exported_tests::transfer_actor_creation_hydration_for_nonexistant_balance().await
     }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_client_random_creation_gets_initial_balance(
-    ) -> Result<(), ClientError> {
+    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<(), Error> {
         exported_tests::transfer_actor_client_random_creation_gets_initial_balance().await
     }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), ClientError>
-    {
+    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), Error> {
         exported_tests::transfer_actor_creation_hydration_for_existing_balance().await
     }
 }
