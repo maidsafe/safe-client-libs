@@ -15,10 +15,8 @@ use futures::{
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
-use sn_data_types::{
-    Event, HandshakeRequest, HandshakeResponse, Keypair, Message, MessageId, MsgEnvelope,
-    MsgSender, QueryResponse, TransferValidated,
-};
+use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, TransferValidated};
+use sn_messaging::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::mpsc::UnboundedSender;

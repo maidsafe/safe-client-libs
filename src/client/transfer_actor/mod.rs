@@ -2,9 +2,9 @@ use crate::connection_manager::STANDARD_ELDERS_COUNT;
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
-    Cmd, DataCmd, DebitId, Keypair, Message, Money, PublicKey, Query, QueryResponse,
-    SignedTransfer, TransferAgreementProof, TransferCmd, TransferQuery, TransferValidated,
+    DebitId, Keypair, Money, PublicKey, SignedTransfer, TransferAgreementProof, TransferValidated,
 };
+use sn_messaging::{Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use std::sync::Arc;
 use threshold_crypto::PublicKeySet;
@@ -191,7 +191,7 @@ impl Client {
             .await?;
 
         match res {
-            QueryResponse::GetStoreCost(cost) => cost.map_err(Error::NetworkDataError),
+            QueryResponse::GetStoreCost(cost) => cost.map_err(Error::ErrorMessage),
             _ => Err(Error::UnexpectedStoreCostResponse(res)),
         }
     }

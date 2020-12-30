@@ -10,11 +10,11 @@ use crate::errors::Error;
 use crate::Client;
 use log::{debug, trace};
 use sn_data_types::{
-    Cmd, DataCmd, DataQuery, PublicKey, Query, QueryResponse, Sequence, SequenceAddress,
-    SequenceDataWriteOp, SequenceEntries, SequenceEntry, SequenceIndex, SequencePermissions,
-    SequencePrivatePermissions, SequencePublicPermissions, SequenceRead, SequenceUser,
-    SequenceWrite,
+    PublicKey, Sequence, SequenceAddress, SequenceDataWriteOp, SequenceEntries, SequenceEntry,
+    SequenceIndex, SequencePermissions, SequencePrivatePermissions, SequencePublicPermissions,
+    SequenceUser,
 };
+use sn_messaging::{Cmd, DataCmd, DataQuery, Query, QueryResponse, SequenceRead, SequenceWrite};
 use std::collections::BTreeMap;
 use xor_name::XorName;
 
@@ -946,7 +946,8 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use sn_data_types::{Error as DtError, Money, SequenceAction, SequencePrivatePermissions};
+    use sn_data_types::{Money, SequenceAction, SequencePrivatePermissions};
+    use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
     use unwrap::unwrap;
     use xor_name::XorName;
@@ -1420,7 +1421,7 @@ pub mod exported_tests {
         }
 
         match res {
-            Err(Error::NetworkDataError(DtError::NoSuchData)) => Ok(()),
+            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => Ok(()),
             Err(err) => Err(anyhow::anyhow!(
                 "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
                 err
@@ -1460,7 +1461,7 @@ pub mod exported_tests {
 
         // Check that our data still exists.
         match client.get_sequence(address).await {
-            Err(Error::NetworkDataError(DtError::InvalidOperation)) => Ok(()),
+            Err(Error::ErrorMessage(ErrorMessage::InvalidOperation)) => Ok(()),
             Err(err) => Err(anyhow::anyhow!(
                 "Unexpected error returned when attempting to get a Public Sequence: {}",
                 err

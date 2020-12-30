@@ -41,12 +41,8 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use std::str::FromStr;
 
-use sn_data_types::{
-    Cmd, DataCmd, Keypair, Message, MessageId, Money, PublicKey, Query, QueryResponse,
-};
-
-#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
-use std::time::Duration;
+use sn_data_types::{Keypair, Money, PublicKey};
+use sn_messaging::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse};
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use threshold_crypto::PublicKeySet;
@@ -283,33 +279,6 @@ impl Client {
             .await?;
 
         self.apply_write_payment_to_local_actor(payment_proof).await
-    }
-
-    // TODO: Change cfg to `test` once we move tests out of sn_client
-    /// Assert if all connected Elders are returning the same errors we expect.
-    #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
-    pub(crate) async fn expect_error(&self, err: Error) {
-        dbg!("set up timeout for error read");
-        for _ in 0..self
-            .connection_manager
-            .clone()
-            .lock()
-            .await
-            .number_of_connected_elders()
-        {
-            match tokio::time::timeout(
-                Duration::from_secs(60),
-                self.notification_receiver.clone().lock().await.recv(),
-            )
-            .await
-            {
-                Ok(Some(received)) => assert_eq!(received.to_string(), err.to_string()),
-                Ok(None) => panic!("Expecting {}, got None", err.to_string()),
-                Err(_) => panic!("Timeout when expecting {}", err.to_string()),
-            }
-        }
-
-        dbg!("after error read");
     }
 }
 

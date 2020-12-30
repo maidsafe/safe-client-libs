@@ -7,7 +7,8 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use qp2p::Error as QuicP2pError;
-use sn_data_types::{CmdError, Error as DtError, Event, PublicKey, QueryResponse, TransferError};
+use sn_data_types::{Error as DtError, PublicKey};
+use sn_messaging::{CmdError, Error as ErrorMessage, Event, QueryResponse, TransferError};
 
 use std::io;
 
@@ -105,9 +106,14 @@ pub enum Error {
     /// Other sn_data_types errors
     #[error(transparent)]
     NetworkDataError(#[from] DtError),
-    /// sn_transfers errors
+    /// Transfers errors
     #[error(transparent)]
-    TransferError(#[from] sn_transfers::Error),
+    Transfer(#[from] sn_transfers::Error),
+
+    /// Errors received from the network via sn_messaging
+    #[error(transparent)]
+    ErrorMessage(#[from] ErrorMessage),
+
     /// self_enryption errors
     #[error(transparent)]
     SelfEncryption(#[from] self_encryption::SelfEncryptionError),
@@ -139,6 +145,6 @@ impl From<CmdError> for Error {
             },
             CmdError::Auth(auth_error) => auth_error,
         };
-        Self::NetworkDataError(err)
+        Error::ErrorMessage(err)
     }
 }

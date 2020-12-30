@@ -1,7 +1,5 @@
-use sn_data_types::{
-    Cmd, Event, Money, PublicKey, Query, QueryResponse, SignedTransfer, TransferAgreementProof,
-    TransferCmd, TransferQuery,
-};
+use sn_data_types::{Money, PublicKey, SignedTransfer, TransferAgreementProof};
+use sn_messaging::{Cmd, Event, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, TransferInitiated};
 
 use crate::client::Client;
@@ -204,7 +202,9 @@ pub mod exported_tests {
     use super::*;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use rand::rngs::OsRng;
-    use sn_data_types::{Error as DtError, Keypair, Money};
+    use sn_data_types::{Keypair, Money};
+
+    use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
 
     pub async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<(), Error> {
@@ -397,7 +397,7 @@ pub mod exported_tests {
 
         // Try transferring money exceeding our balance.
         match client.send_money(wallet1, Money::from_str("5000")?).await {
-            Err(Error::NetworkDataError(DtError::InsufficientBalance)) => (),
+            Err(Error::ErrorMessage(ErrorMessage::InsufficientBalance)) => (),
             res => panic!("Unexpected result: {:?}", res),
         };
 
@@ -423,7 +423,7 @@ pub mod exported_tests {
         let data = generate_random_vector::<u8>(10);
         let res = client.store_public_blob(&data).await;
         match res {
-            Err(Error::NetworkDataError(DtError::InsufficientBalance)) => (),
+            Err(Error::ErrorMessage(ErrorMessage::InsufficientBalance)) => (),
             res => panic!(
                 "Unexpected result in money transfer test, putting without balance: {:?}",
                 res

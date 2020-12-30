@@ -1,7 +1,10 @@
 use sn_data_types::Money;
 
 #[cfg(feature = "simulated-payouts")]
-use sn_data_types::{Cmd, Transfer, TransferCmd};
+use sn_data_types::Transfer;
+
+#[cfg(feature = "simulated-payouts")]
+use sn_messaging::{Cmd, TransferCmd};
 
 use crate::client::Client;
 use crate::errors::Error;

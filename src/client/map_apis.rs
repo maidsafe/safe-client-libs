@@ -11,12 +11,12 @@ use crate::Client;
 use log::trace;
 
 use sn_data_types::{
-    DataCmd, DataQuery, Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet, MapRead,
-    MapSeqEntries, MapSeqEntryActions, MapSeqValue, MapUnseqEntries, MapUnseqEntryActions,
-    MapValue, MapValues, PublicKey, Query, QueryResponse, SeqMap, UnseqMap,
+    Map, MapAddress, MapEntries, MapEntryActions, MapPermissionSet, MapSeqEntries,
+    MapSeqEntryActions, MapSeqValue, MapUnseqEntries, MapUnseqEntryActions, MapValue, MapValues,
+    PublicKey, SeqMap, UnseqMap,
 };
 
-use sn_data_types::MapWrite;
+use sn_messaging::{DataCmd, DataQuery, MapRead, MapWrite, Query, QueryResponse};
 
 use xor_name::XorName;
 
@@ -647,8 +647,10 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
-    use sn_data_types::{Error as DtError, MapAction, MapKind, Money};
+    use sn_data_types::{MapAction, MapKind, Money};
+    use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
+    use std::time::Duration;
     use xor_name::XorName;
 
     // 1. Create unseq. map with some entries and perms and put it on the network
@@ -777,7 +779,7 @@ pub mod exported_tests {
         }
 
         match res {
-            Err(Error::NetworkDataError(DtError::NoSuchData)) => (),
+            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
         }
         Ok(())
@@ -803,7 +805,7 @@ pub mod exported_tests {
         }
 
         match res {
-            Err(Error::NetworkDataError(DtError::NoSuchData)) => (),
+            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
             _ => panic!("Unexpected success"),
         }
 
@@ -826,13 +828,17 @@ pub mod exported_tests {
 
         client.delete_map(mapref).await?;
 
-        client
-            .expect_error(Error::NetworkDataError(DtError::NetworkOther(
-                "Access denied".to_string(),
-            )))
-            .await;
-
-        Ok(())
+        match tokio::time::timeout(
+            Duration::from_secs(60),
+            client.notification_receiver.clone().lock().await.recv(),
+        )
+        .await
+        {
+            Ok(Some(Error::ErrorMessage(ErrorMessage::AccessDenied(_)))) => Ok(()),
+            Ok(Some(error)) => panic!("Expecting AccessDenied error got: {:?}", error),
+            Ok(None) => panic!("Expecting AccessDenited Error, got None"),
+            Err(_) => panic!("Timeout when expecting AcccessDenied error"),
+        }
     }
 
     pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
@@ -856,7 +862,7 @@ pub mod exported_tests {
             .await?;
         let res = client.get_map_shell(address).await;
         match res {
-            Err(Error::NetworkDataError(DtError::NoSuchData)) => (),
+            Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
             Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
             Err(e) => panic!("Unexpected: {:?}", e),
         };
@@ -1038,7 +1044,7 @@ pub mod exported_tests {
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
-            Err(Error::NetworkDataError(DtError::NoSuchEntry)) => (),
+            Err(Error::ErrorMessage(ErrorMessage::NoSuchEntry)) => (),
             Err(err) => panic!("Unexpected error: {:?}", err),
         };
 
@@ -1097,7 +1103,7 @@ pub mod exported_tests {
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
             Ok(_) => panic!("Unexpected: Entry should not exist"),
-            Err(Error::NetworkDataError(DtError::NoSuchEntry)) => Ok(()),
+            Err(Error::ErrorMessage(ErrorMessage::NoSuchEntry)) => Ok(()),
             Err(err) => panic!("Unexpected error: {:?}", err),
         }
     }
