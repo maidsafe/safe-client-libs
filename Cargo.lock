@@ -1863,7 +1863,7 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "sn_client"
-version = "0.44.9"
+version = "0.44.10"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1902,9 +1902,9 @@ dependencies = [
 
 [[package]]
 name = "sn_data_types"
-version = "0.11.41"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f14544777a6f66db8c0e21f13f98a4ec2d1c04041eb806a8638752e63e27f72b"
+checksum = "99b6b74c2b866e491855f5f345cd16b9f123b1fe248c7dac47279110ad61f161"
 dependencies = [
  "bincode",
  "crdts",
@@ -1925,9 +1925,9 @@ dependencies = [
 
 [[package]]
 name = "sn_transfers"
-version = "0.2.6"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dcc581b056dd7c98549342ce68b6483b0af423641d4b8881da9c208837a44bc"
+checksum = "3307d4f8609505d7a7ad7d84fa67aad596af607b22655828d1af8db932903ac2"
 dependencies = [
  "bincode",
  "crdts",
