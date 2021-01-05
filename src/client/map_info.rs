@@ -254,52 +254,57 @@ fn enc_entry_key(plain_text: &[u8], key: &SymEncKey, seed: SymEncNonce) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{bail, Result};
 
     // Ensure that a private map info is encrypted.
     #[test]
-    fn private_map_info_encrypts() {
+    fn private_map_info_encrypts() -> Result<()> {
         let info = unwrap!(MapInfo::random_private(MapKind::Seq, 0));
         let key = Vec::from("str of key");
         let val = Vec::from("other is value");
-        let enc_key = unwrap!(info.enc_entry_key(&key));
-        let enc_val = unwrap!(info.enc_entry_value(&val));
+        let enc_key = info.enc_entry_key(&key)?;
+        let enc_val = info.enc_entry_value(&val)?;
         assert_ne!(enc_key, key);
         assert_ne!(enc_val, val);
-        assert_eq!(unwrap!(info.decrypt(&enc_key)), key);
-        assert_eq!(unwrap!(info.decrypt(&enc_val)), val);
+        assert_eq!(info.decrypt(&enc_key)?, key);
+        assert_eq!(info.decrypt(&enc_val)?, val);
+        Ok(())
     }
 
     // Ensure that a public map info is not encrypted.
     #[test]
-    fn public_map_info_doesnt_encrypt() {
-        let info = unwrap!(MapInfo::random_public(MapKind::Seq, 0));
+    fn public_map_info_doesnt_encrypt() -> Result<()> {
+        let info = MapInfo::random_public(MapKind::Seq, 0)?;
         let key = Vec::from("str of key");
         let val = Vec::from("other is value");
-        assert_eq!(unwrap!(info.enc_entry_key(&key)), key);
-        assert_eq!(unwrap!(info.enc_entry_value(&val)), val);
-        assert_eq!(unwrap!(info.decrypt(&val)), val);
+        assert_eq!(info.enc_entry_key(&key)?, key);
+        assert_eq!(info.enc_entry_value(&val)?, val);
+        assert_eq!(info.decrypt(&val)?, val);
+        Ok(())
     }
 
     // Test creating and committing new encryption info.
     #[test]
-    fn decrypt() {
-        let mut info = unwrap!(MapInfo::random_private(MapKind::Seq, 0));
+    fn decrypt() -> Result<()> {
+        let mut info = MapInfo::random_private(MapKind::Seq, 0)?;
 
         let plain = Vec::from("plaintext");
-        let old_cipher = unwrap!(info.enc_entry_value(&plain));
+        let old_cipher = info.enc_entry_value(&plain)?;
         info.start_new_enc_info();
-        let new_cipher = unwrap!(info.enc_entry_value(&plain));
+        let new_cipher = info.enc_entry_value(&plain)?;
 
         // After start, both encryption infos work.
-        assert_eq!(unwrap!(info.decrypt(&old_cipher)), plain);
-        assert_eq!(unwrap!(info.decrypt(&new_cipher)), plain);
+        assert_eq!(info.decrypt(&old_cipher)?, plain);
+        assert_eq!(info.decrypt(&new_cipher)?, plain);
 
         // After commit, only the new encryption info works.
         info.commit_new_enc_info();
         match info.decrypt(&old_cipher) {
             Err(Error::SymmetricDecipherFailure) => (),
-            x => panic!("Unexpected {:?}", x),
+            x => bail!("Unexpected {:?}", x),
         }
-        assert_eq!(unwrap!(info.decrypt(&new_cipher)), plain);
+        assert_eq!(info.decrypt(&new_cipher)?, plain);
+
+        Ok(())
     }
 }

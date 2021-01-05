@@ -321,15 +321,16 @@ impl Client {
 #[allow(missing_docs)]
 #[cfg(any(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
-    use super::*;
+    use super::{Blob, BlobAddress, Client, Error};
     use crate::utils::{generate_random_vector, test_utils::gen_bls_keypair};
+    use anyhow::{bail, Result};
     use sn_data_types::{Money, PrivateBlob, PublicBlob};
     use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
     use unwrap::unwrap;
 
     // Test putting and getting pub blob.
-    pub async fn pub_blob_test() -> Result<(), Error> {
+    pub async fn pub_blob_test() -> Result<()> {
         let client = Client::new(None, None).await?;
         // The `Client::new(None)` initializes the client with 10 money.
         let _start_bal = unwrap!(Money::from_str("10"));
@@ -344,9 +345,9 @@ pub mod exported_tests {
             .read_blob(address, None, None)
             .await;
         match res {
-            Ok(data) => panic!("Pub blob should not exist yet: {:?}", data),
+            Ok(data) => bail!("Pub blob should not exist yet: {:?}", data),
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
-            Err(e) => panic!("Unexpected: {:?}", e),
+            Err(e) => bail!("Unexpected: {:?}", e),
         }
         // Put blob
         let address = client.store_public_blob(&value).await?;
@@ -363,7 +364,7 @@ pub mod exported_tests {
     }
 
     // Test putting, getting, and deleting unpub blob.
-    pub async fn unpub_blob_test() -> Result<(), Error> {
+    pub async fn unpub_blob_test() -> Result<()> {
         let client = Client::new(None, None).await?;
 
         let pk = client.public_key().await;
@@ -378,9 +379,9 @@ pub mod exported_tests {
             .await;
 
         match res {
-            Ok(_) => panic!("Private blob should not exist yet"),
+            Ok(_) => bail!("Private blob should not exist yet"),
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
-            Err(e) => panic!("Unexpected: {:?}", e),
+            Err(e) => bail!("Unexpected: {:?}", e),
         }
 
         // Put blob
@@ -405,9 +406,9 @@ pub mod exported_tests {
             Ok(Some(Error::ErrorMessage(ErrorMessage::DataExists))) => {
                 // Ok
             }
-            Ok(Some(error)) => panic!("Expecting DataExists error got: {:?}", error),
-            Ok(None) => panic!("Expecting DataExists Error, got None"),
-            Err(_) => panic!("Timeout when expecting DataExists error"),
+            Ok(Some(error)) => bail!("Expecting DataExists error got: {:?}", error),
+            Ok(None) => bail!("Expecting DataExists Error, got None"),
+            Err(_) => bail!("Timeout when expecting DataExists error"),
         };
 
         // let balance = client.get_balance().await?;
@@ -439,7 +440,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn blob_deletions_should_cost_put_price() -> Result<(), Error> {
+    pub async fn blob_deletions_should_cost_put_price() -> Result<()> {
         let client = Client::new(None, None).await?;
 
         let address = client
@@ -458,7 +459,7 @@ pub mod exported_tests {
     }
 
     // Test creating and retrieving a 1kb blob.
-    pub async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<(), Error> {
+    pub async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<()> {
         let size = 1024;
 
         gen_data_then_create_and_retrieve(size, true).await?;
@@ -466,14 +467,14 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn create_and_retrieve_1kb_private_unencrypted() -> Result<(), Error> {
+    pub async fn create_and_retrieve_1kb_private_unencrypted() -> Result<()> {
         let size = 1024;
 
         gen_data_then_create_and_retrieve(size, false).await?;
         Ok(())
     }
 
-    pub async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<(), Error> {
+    pub async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<()> {
         let size = 1024;
         let data = generate_random_vector(size);
 
@@ -488,7 +489,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<(), Error> {
+    pub async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<()> {
         let size = 1024;
 
         let value = generate_random_vector(size);
@@ -508,24 +509,24 @@ pub mod exported_tests {
     // ----------------------------------------------------------------
     // 10mb (ie. more than 1 chunk)
     // ----------------------------------------------------------------
-    pub async fn create_and_retrieve_10mb_private() -> Result<(), Error> {
+    pub async fn create_and_retrieve_10mb_private() -> Result<()> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, false).await?;
 
         Ok(())
     }
 
-    pub async fn create_and_retrieve_10mb_public() -> Result<(), Error> {
+    pub async fn create_and_retrieve_10mb_public() -> Result<()> {
         let size = 1024 * 1024 * 10;
         gen_data_then_create_and_retrieve(size, true).await?;
         Ok(())
     }
 
-    pub async fn create_and_retrieve_index_based() -> Result<(), Error> {
+    pub async fn create_and_retrieve_index_based() -> Result<()> {
         create_and_index_based_retrieve(1024).await
     }
 
-    async fn create_and_index_based_retrieve(size: usize) -> Result<(), Error> {
+    async fn create_and_index_based_retrieve(size: usize) -> Result<()> {
         let data = generate_random_vector(size);
         {
             // Read first half
@@ -564,7 +565,7 @@ pub mod exported_tests {
     }
 
     #[allow(clippy::match_wild_err_arm)]
-    async fn gen_data_then_create_and_retrieve(size: usize, publish: bool) -> Result<(), Error> {
+    async fn gen_data_then_create_and_retrieve(size: usize, publish: bool) -> Result<()> {
         let raw_data = generate_random_vector(size);
 
         let client = Client::new(None, None).await?;
@@ -585,8 +586,8 @@ pub mod exported_tests {
         let res = client.read_blob(*address_before, None, None).await;
         match res {
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
-            Ok(_) => panic!("Blob unexpectedly retrieved using address generated by gen_data_map"),
-            Err(_) => panic!(
+            Ok(_) => bail!("Blob unexpectedly retrieved using address generated by gen_data_map"),
+            Err(_) => bail!(
                 "Unexpected error when Blob retrieved using address generated by gen_data_map"
             ),
         };
@@ -616,57 +617,57 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use super::Error;
+    use anyhow::Result;
 
     // Test putting and getting pub blob.
     #[tokio::test]
-    async fn pub_blob_test() -> Result<(), Error> {
+    async fn pub_blob_test() -> Result<()> {
         exported_tests::pub_blob_test().await
     }
 
     // Test putting, getting, and deleting unpub blob.
     #[tokio::test]
-    async fn unpub_blob_test() -> Result<(), Error> {
+    async fn unpub_blob_test() -> Result<()> {
         exported_tests::unpub_blob_test().await
     }
 
     #[tokio::test]
-    async fn blob_deletions_should_cost_put_price() -> Result<(), Error> {
+    async fn blob_deletions_should_cost_put_price() -> Result<()> {
         exported_tests::blob_deletions_should_cost_put_price().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<(), Error> {
+    async fn create_and_retrieve_1kb_pub_unencrypted() -> Result<()> {
         exported_tests::create_and_retrieve_1kb_pub_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_private_unencrypted() -> Result<(), Error> {
+    async fn create_and_retrieve_1kb_private_unencrypted() -> Result<()> {
         exported_tests::create_and_retrieve_1kb_private_unencrypted().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<(), Error> {
+    async fn create_and_retrieve_1kb_put_pub_retrieve_private() -> Result<()> {
         exported_tests::create_and_retrieve_1kb_put_pub_retrieve_private().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<(), Error> {
+    async fn create_and_retrieve_1kb_put_private_retrieve_pub() -> Result<()> {
         exported_tests::create_and_retrieve_1kb_put_private_retrieve_pub().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_private() -> Result<(), Error> {
+    async fn create_and_retrieve_10mb_private() -> Result<()> {
         exported_tests::create_and_retrieve_10mb_private().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_10mb_public() -> Result<(), Error> {
+    async fn create_and_retrieve_10mb_public() -> Result<()> {
         exported_tests::create_and_retrieve_10mb_public().await
     }
 
     #[tokio::test]
-    async fn create_and_retrieve_index_based() -> Result<(), Error> {
+    async fn create_and_retrieve_index_based() -> Result<()> {
         exported_tests::create_and_retrieve_index_based().await
     }
 }

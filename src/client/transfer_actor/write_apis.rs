@@ -26,13 +26,14 @@ impl Client {
 #[cfg(all(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
     use super::*;
+    use anyhow::{bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Sequence};
     use std::sync::Arc;
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), Error> {
+    pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<()> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
         let pk = keypair.public_key();
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
@@ -44,7 +45,7 @@ pub mod exported_tests {
                     .to_string()
                     .contains("Could not get history for key PublicKey"));
             }
-            res => panic!(
+            res => bail!(
                 "Unexpected response from mutation msg_contentsuest from 0 balance key: {:?}",
                 res
             ),
@@ -58,11 +59,11 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use super::Error;
+    use anyhow::Result;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<(), Error> {
+    async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<()> {
         exported_tests::transfer_actor_with_no_balance_cannot_store_data().await
     }
 }

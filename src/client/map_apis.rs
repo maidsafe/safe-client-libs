@@ -647,6 +647,7 @@ impl Client {
 pub mod exported_tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
+    use anyhow::{anyhow, bail, Result};
     use sn_data_types::{MapAction, MapKind, Money};
     use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
@@ -656,7 +657,7 @@ pub mod exported_tests {
     // 1. Create unseq. map with some entries and perms and put it on the network
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
-    pub async fn unseq_map_test() -> anyhow::Result<()> {
+    pub async fn unseq_map_test() -> Result<()> {
         let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
@@ -673,7 +674,7 @@ pub mod exported_tests {
             .store_unseq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
 
-        let mut res: anyhow::Result<u64> = Err(anyhow::anyhow!("Timeout!".to_string()));
+        let mut res: Result<u64> = Err(anyhow!("Timeout!".to_string()));
         while res.is_err() {
             res = match client
                 .get_map_version(MapAddress::Unseq { name, tag })
@@ -704,7 +705,7 @@ pub mod exported_tests {
     // 1. Create an put seq. map on the network with some entries and permissions.
     // 2. Fetch the shell version, entries, keys, values anv verify them
     // 3. Fetch the entire. data object and verify
-    pub async fn seq_map_test() -> anyhow::Result<()> {
+    pub async fn seq_map_test() -> Result<()> {
         let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
@@ -728,7 +729,7 @@ pub mod exported_tests {
             .store_seq_map(name, tag, owner, Some(entries.clone()), Some(permissions))
             .await?;
 
-        let mut res: anyhow::Result<MapSeqEntries> = Err(anyhow::anyhow!("Timeout!".to_string()));
+        let mut res: Result<MapSeqEntries> = Err(anyhow!("Timeout!".to_string()));
         while res.is_err() {
             res = match client.list_seq_map_entries(name, tag).await {
                 Ok(res) => Ok(res),
@@ -740,7 +741,7 @@ pub mod exported_tests {
         assert_eq!(fetched_entries, entries);
         let map_shell = match client.get_map_shell(address).await? {
             Map::Seq(data) => data,
-            _ => panic!("expected sequence map"),
+            _ => bail!("expected sequence map"),
         };
         assert_eq!(*map_shell.name(), name);
         assert_eq!(map_shell.tag(), tag);
@@ -751,7 +752,7 @@ pub mod exported_tests {
         assert_eq!(values, entries_values);
         let fetched_data = match client.get_map(address).await? {
             Map::Seq(data) => data,
-            _ => panic!("Expected seq map"),
+            _ => bail!("Expected seq map"),
         };
         assert_eq!(*fetched_data.name(), name);
         assert_eq!(fetched_data.tag(), tag);
@@ -760,8 +761,8 @@ pub mod exported_tests {
     }
 
     // 1. Put seq. map on the network and then delete it
-    // 2. Try getting the data object. It should panic
-    pub async fn del_seq_map_test() -> Result<(), Error> {
+    // 2. Try getting the data object. It should bail
+    pub async fn del_seq_map_test() -> Result<()> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
@@ -780,14 +781,14 @@ pub mod exported_tests {
 
         match res {
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
-            _ => panic!("Unexpected success"),
+            _ => bail!("Unexpected success"),
         }
         Ok(())
     }
 
     // 1. Put unseq. map on the network and then delete it
-    // 2. Try getting the data object. It should panic
-    pub async fn del_unseq_map_test() -> Result<(), Error> {
+    // 2. Try getting the data object. It should bail
+    pub async fn del_unseq_map_test() -> Result<()> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
@@ -806,15 +807,15 @@ pub mod exported_tests {
 
         match res {
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
-            _ => panic!("Unexpected success"),
+            _ => bail!("Unexpected success"),
         }
 
         Ok(())
     }
 
     // 1. Create a client that PUTs some map on the network
-    // 2. Create a different client that tries to delete the data. It should panic.
-    pub async fn del_unseq_map_permission_test() -> Result<(), Error> {
+    // 2. Create a different client that tries to delete the data. It should bail.
+    pub async fn del_unseq_map_permission_test() -> Result<()> {
         let name = XorName(rand::random());
         let tag = 15001;
         let mapref = MapAddress::Unseq { name, tag };
@@ -835,14 +836,14 @@ pub mod exported_tests {
         .await
         {
             Ok(Some(Error::ErrorMessage(ErrorMessage::AccessDenied(_)))) => Ok(()),
-            Ok(Some(error)) => panic!("Expecting AccessDenied error got: {:?}", error),
-            Ok(None) => panic!("Expecting AccessDenited Error, got None"),
-            Err(_) => panic!("Timeout when expecting AcccessDenied error"),
+            Ok(Some(error)) => bail!("Expecting AccessDenied error got: {:?}", error),
+            Ok(None) => bail!("Expecting AccessDenited Error, got None"),
+            Err(_) => bail!("Timeout when expecting AcccessDenied error"),
         }
     }
 
-    pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
-    ) -> Result<(), Error> {
+    pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client() -> Result<()>
+    {
         let client = Client::new(None, None).await?;
         let mut permissions: BTreeMap<_, _> = Default::default();
         let permission_set = MapPermissionSet::new()
@@ -863,8 +864,8 @@ pub mod exported_tests {
         let res = client.get_map_shell(address).await;
         match res {
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => (),
-            Ok(_) => panic!("Unexpected Success: Validating owners should fail"),
-            Err(e) => panic!("Unexpected: {:?}", e),
+            Ok(_) => bail!("Unexpected Success: Validating owners should fail"),
+            Err(e) => bail!("Unexpected: {:?}", e),
         };
 
         // TODO: Refunds not yet in place.... Reenable this check when that's the case
@@ -881,7 +882,7 @@ pub mod exported_tests {
     // 2. Modify the permissions of a user in the permission set.
     // 3. Fetch the list of permissions and verify the edit.
     // 4. Delete a user's permissions from the permission set and verify the deletion.
-    pub async fn map_can_modify_permissions_test() -> Result<(), Error> {
+    pub async fn map_can_modify_permissions_test() -> Result<()> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
         let tag = 15001;
@@ -953,7 +954,7 @@ pub mod exported_tests {
     // 2. Create some entry actions and mutate the data on the network.
     // 3. List the entries and verify that the mutation was applied.
     // 4. Fetch a value for a particular key and verify
-    pub async fn map_mutations_test() -> Result<(), Error> {
+    pub async fn map_mutations_test() -> Result<()> {
         let client = Client::new(None, None).await?;
 
         let name = XorName(rand::random());
@@ -1030,7 +1031,7 @@ pub mod exported_tests {
 
         let fetched_value = match client.get_map_value(address, b"key3".to_vec()).await? {
             MapValue::Seq(value) => value,
-            _ => panic!("Unexpected seq mutable data"),
+            _ => bail!("Unexpected seq mutable data"),
         };
 
         assert_eq!(
@@ -1043,9 +1044,9 @@ pub mod exported_tests {
 
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
-            Ok(_) => panic!("Unexpected: Entry should not exist"),
+            Ok(_) => bail!("Unexpected: Entry should not exist"),
             Err(Error::ErrorMessage(ErrorMessage::NoSuchEntry)) => (),
-            Err(err) => panic!("Unexpected error: {:?}", err),
+            Err(err) => bail!("Unexpected error: {:?}", err),
         };
 
         let client = Client::new(None, None).await?;
@@ -1096,19 +1097,19 @@ pub mod exported_tests {
         assert_eq!(fetched_entries, expected_entries);
         let fetched_value = match client.get_map_value(address, b"key1".to_vec()).await? {
             MapValue::Unseq(value) => value,
-            _ => panic!("unexpeced seq mutable data"),
+            _ => bail!("unexpeced seq mutable data"),
         };
 
         assert_eq!(fetched_value, b"newValue".to_vec());
         let res = client.get_map_value(address, b"wrongKey".to_vec()).await;
         match res {
-            Ok(_) => panic!("Unexpected: Entry should not exist"),
+            Ok(_) => bail!("Unexpected: Entry should not exist"),
             Err(Error::ErrorMessage(ErrorMessage::NoSuchEntry)) => Ok(()),
-            Err(err) => panic!("Unexpected error: {:?}", err),
+            Err(err) => bail!("Unexpected error: {:?}", err),
         }
     }
 
-    pub async fn map_deletions_should_cost_put_price() -> Result<(), Error> {
+    pub async fn map_deletions_should_cost_put_price() -> Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
         let client = Client::new(None, None).await?;
@@ -1134,51 +1135,51 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use super::Error;
+    use anyhow::Result;
 
     #[tokio::test]
-    pub async fn unseq_map_test() -> anyhow::Result<()> {
+    pub async fn unseq_map_test() -> Result<()> {
         exported_tests::unseq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn seq_map_test() -> anyhow::Result<()> {
+    pub async fn seq_map_test() -> Result<()> {
         exported_tests::seq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn del_seq_map_test() -> Result<(), Error> {
+    pub async fn del_seq_map_test() -> Result<()> {
         exported_tests::del_seq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn del_unseq_map_test() -> Result<(), Error> {
+    pub async fn del_unseq_map_test() -> Result<()> {
         exported_tests::del_unseq_map_test().await
     }
 
     #[tokio::test]
-    pub async fn del_unseq_map_permission_test() -> Result<(), Error> {
+    pub async fn del_unseq_map_permission_test() -> Result<()> {
         exported_tests::del_unseq_map_permission_test().await
     }
 
     #[tokio::test]
-    pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client(
-    ) -> Result<(), Error> {
+    pub async fn map_cannot_initially_put_data_with_another_owner_than_current_client() -> Result<()>
+    {
         exported_tests::map_cannot_initially_put_data_with_another_owner_than_current_client().await
     }
 
     #[tokio::test]
-    pub async fn map_can_modify_permissions_test() -> Result<(), Error> {
+    pub async fn map_can_modify_permissions_test() -> Result<()> {
         exported_tests::map_can_modify_permissions_test().await
     }
 
     #[tokio::test]
-    pub async fn map_mutations_test() -> Result<(), Error> {
+    pub async fn map_mutations_test() -> Result<()> {
         exported_tests::map_mutations_test().await
     }
 
     #[tokio::test]
-    pub async fn map_deletions_should_cost_put_price() -> Result<(), Error> {
+    pub async fn map_deletions_should_cost_put_price() -> Result<()> {
         exported_tests::map_deletions_should_cost_put_price().await
     }
 }

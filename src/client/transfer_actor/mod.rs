@@ -329,13 +329,13 @@ impl Client {
 #[allow(missing_docs)]
 #[cfg(feature = "simulated-payouts")]
 pub mod exported_tests {
-
     use super::*;
+    use anyhow::{anyhow, Result};
     use rand::rngs::OsRng;
     use sn_data_types::Money;
     use std::str::FromStr;
 
-    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), Error> {
+    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         match Client::new(Some(keypair), None).await {
@@ -343,11 +343,11 @@ pub mod exported_tests {
                 assert_eq!(actor.get_local_balance().await, Money::from_str("0")? );
                 Ok(())
             },
-            Err(e) => panic!("Should not error for nonexistent keys, only create a new instance with no history, we got: {:?}" , e )
+            Err(e) => Err(anyhow!("Should not error for nonexistent keys, only create a new instance with no history, we got: {:?}" , e))
         }
     }
 
-    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<(), Error> {
+    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<()> {
         match Client::new(None, None).await {
             Ok(actor) => {
                 let mut bal = actor.get_balance().await;
@@ -362,11 +362,11 @@ pub mod exported_tests {
                 }
                 Ok(())
             },
-            Err(e) => panic!("Should not error for random client, only create a new instance with 10 money, we got: {:?}" , e )
+            Err(e) => Err(anyhow!("Should not error for random client, only create a new instance with 10 money, we got: {:?}" , e))
         }
     }
 
-    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), Error> {
+    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<()> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         {
@@ -402,23 +402,23 @@ pub mod exported_tests {
 #[cfg(all(test, feature = "simulated-payouts"))]
 mod tests {
     use super::exported_tests;
-    use crate::Error;
+    use anyhow::Result;
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<(), Error> {
+    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
         exported_tests::transfer_actor_creation_hydration_for_nonexistant_balance().await
     }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<(), Error> {
+    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<()> {
         exported_tests::transfer_actor_client_random_creation_gets_initial_balance().await
     }
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<(), Error> {
+    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<()> {
         exported_tests::transfer_actor_creation_hydration_for_existing_balance().await
     }
 }
