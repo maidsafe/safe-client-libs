@@ -14,10 +14,14 @@ use futures::{
     lock::Mutex,
 };
 use log::{debug, error, info, trace, warn};
-use qp2p::{self, Config as QuicP2pConfig, Connection, Endpoint, QuicP2p, RecvStream, SendStream};
+use qp2p::{
+    self, Config as QuicP2pConfig, Connection, Endpoint, IncomingMessages, Message as Qp2pMessage,
+    QuicP2p,
+};
 use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, TransferValidated};
 use sn_messaging::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
@@ -30,10 +34,10 @@ type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
 
 // channel for sending result of transfer validation
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
+type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
 #[derive(Clone)]
 struct ElderStream {
-    send_stream: Arc<Mutex<SendStream>>,
     connection: Arc<Mutex<Connection>>,
     listener: Arc<Mutex<NetworkListenerHandle>>,
     socket_addr: SocketAddr,
@@ -49,6 +53,7 @@ pub struct ConnectionManager {
     elders: Vec<ElderStream>,
     endpoint: Arc<Mutex<Endpoint>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
+    pending_query_responses: Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>,
     notification_sender: UnboundedSender<Error>,
 }
 
@@ -69,6 +74,7 @@ impl ConnectionManager {
             elders: Vec::default(),
             endpoint: Arc::new(Mutex::new(endpoint)),
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
+            pending_query_responses: Arc::new(Mutex::new(HashMap::default())),
             notification_sender,
         })
     }
@@ -85,7 +91,9 @@ impl ConnectionManager {
         let elders_addrs = self.bootstrap_and_handshake().await?;
 
         // Let's now connect to all Elders
-        self.connect_to_elders(elders_addrs).await
+        self.connect_to_elders(elders_addrs).await?;
+
+        Ok(())
     }
 
     /// Send a `Message` to the network without awaiting for a response.
@@ -117,9 +125,6 @@ impl ConnectionManager {
         if failures > 0 {
             error!("Sending the message to {} Elders failed", failures);
         }
-
-        // TODO: return an error if we didn't successfully
-        // send it to at least a majority of Elders??
 
         Ok(())
     }
@@ -168,7 +173,7 @@ impl ConnectionManager {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
-        let msg_bytes = self.serialise_in_envelope(msg)?;
+        let msg_bytes = self.serialise_in_envelope(&msg.clone())?;
 
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
@@ -176,9 +181,12 @@ impl ConnectionManager {
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let socket_addr = elder.socket_addr;
-
+            let endpoint = self.endpoint.clone();
             // Create a new stream here to not have to worry about filtering replies
-            let connection = Arc::clone(&elder.connection);
+            // let connection = Arc::clone(&elder.connection);
+            let msg_id = msg.id();
+
+            let pending_query_responses = self.pending_query_responses.clone();
 
             let task_handle = tokio::spawn(async move {
                 // Retry queries that failed for connection issues
@@ -188,15 +196,26 @@ impl ConnectionManager {
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
 
-                    match connection.lock().await.send_bi(msg_bytes_clone).await {
-                        Ok(mut streams) => {
-                            result = match streams.1.next().await {
-                                Ok(bytes) => Ok(bytes),
-                                Err(_error) => {
-                                    done_trying = true;
-                                    Err(Error::ReceivingQuery)
-                                }
+                    let (connection, _) = endpoint.lock().await.connect_to(&socket_addr).await?;
+
+                    match connection.send_bi(msg_bytes_clone).await {
+                        Ok(_) => {
+                            let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
+                            {
+                                let _ = pending_query_responses
+                                    .lock()
+                                    .await
+                                    .insert((socket_addr, msg_id), sender);
                             }
+
+                            // TODO: receive response here.
+                            result = match receiver.recv().await {
+                                Some(result) => match result {
+                                    Ok(response) => Ok(response),
+                                    Err(_) => Err(Error::ReceivingQuery),
+                                },
+                                None => Err(Error::ReceivingQuery),
+                            };
                         }
                         Err(_error) => result = Err(Error::ReceivingQuery),
                     };
@@ -215,16 +234,7 @@ impl ConnectionManager {
                     attempts += 1;
                 }
 
-                let response = result?;
-
-                match deserialize(&response) {
-                    Ok(MsgEnvelope { message, .. }) => Ok(message),
-                    Err(e) => {
-                        let err_msg = format!("Unexpected deserialisation error: {:?}", e);
-                        error!("{}", err_msg);
-                        Err(Error::from(e))
-                    }
-                }
+                result
             });
 
             tasks.push(task_handle);
@@ -256,7 +266,7 @@ impl ConnectionManager {
 
             if let Ok(res) = res {
                 match res {
-                    Ok(Message::QueryResponse { response, .. }) => {
+                    Ok(response) => {
                         trace!("QueryResponse is: {:#?}", response);
 
                         let key = tiny_keccak::sha3_256(&serialize(&response)?);
@@ -382,7 +392,7 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, Error> {
         trace!("Bootstrapping with contacts...");
-        let (endpoint, conn, _incoming_messages) = self.qp2p.bootstrap().await?;
+        let (endpoint, conn, _) = self.qp2p.bootstrap().await?;
         self.endpoint = Arc::new(Mutex::new(endpoint));
 
         trace!("Sending handshake request to bootstrapped node...");
@@ -390,6 +400,7 @@ impl ConnectionManager {
         let handshake = HandshakeRequest::Bootstrap(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
         let mut streams = conn.send_bi(msg).await?;
+
         let response = streams.1.next().await?;
 
         match deserialize(&response) {
@@ -419,26 +430,17 @@ impl ConnectionManager {
         endpoint: Arc<Mutex<Endpoint>>,
         peer_addr: SocketAddr,
         keypair: Arc<Keypair>,
-    ) -> Result<
-        (
-            Arc<Mutex<SendStream>>,
-            Arc<Mutex<Connection>>,
-            RecvStream,
-            SocketAddr,
-        ),
-        Error,
-    > {
-        let (connection, _incoming_messages) = endpoint.lock().await.connect_to(&peer_addr).await?;
+) -> Result<(Arc<Mutex<Connection>>, IncomingMessages, SocketAddr), Error> {
+        let endpoint = endpoint.lock().await;
+
+        let (connection, incoming_messages) = endpoint.connect_to(&peer_addr).await?;
+
+        let incoming = incoming_messages.ok_or(Error::NoElderListenerEstablished)?;
 
         let handshake = HandshakeRequest::Join(keypair.public_key());
         let msg = Bytes::from(serialize(&handshake)?);
-        let (send_stream, recv_stream) = connection.send_bi(msg).await?;
-        Ok((
-            Arc::new(Mutex::new(send_stream)),
-            Arc::new(Mutex::new(connection)),
-            recv_stream,
-            peer_addr,
-        ))
+        let _ = connection.send_bi(msg).await?;
+        Ok((Arc::new(Mutex::new(connection)), incoming, peer_addr))
     }
 
     // Connect to a set of Elders nodes which will be
@@ -455,10 +457,9 @@ impl ConnectionManager {
             let endpoint = Arc::clone(&self.endpoint);
 
             let task_handle = tokio::spawn(async move {
-                let mut done_trying = false;
                 let mut result = Err(Error::ElderConnection);
-                let mut attempts: usize = 1;
-                while !done_trying {
+                let mut attempts: usize = 0;
+                while result.is_err() && attempts <= NUMBER_OF_RETRIES {
                     let endpoint = Arc::clone(&endpoint);
                     let keypair = keypair.clone();
                     result = Self::connect_to_elder(endpoint, peer_addr, keypair).await;
@@ -509,12 +510,16 @@ impl ConnectionManager {
                     warn!("Failed to connect to Elder @ : {}", err);
                 });
 
-                if let Ok((send_stream, connection, recv_stream, socket_addr)) = res {
+                if let Ok((connection, incoming_messages, socket_addr)) = res {
                     info!("Connected to elder: {:?}", socket_addr);
-                    let listener = self.listen_to_receive_stream(recv_stream).await?;
+
+                    let listener = self
+                        .listen_to_incoming_messages(incoming_messages, socket_addr)
+                        .await?;
+
+                    // let listener = self.listen_to_receive_stream(recv_stream).await?;
                     // We can now keep this connections in our instance
                     self.elders.push(ElderStream {
-                        send_stream,
                         connection,
                         listener: Arc::new(Mutex::new(listener)),
                         socket_addr,
@@ -541,71 +546,90 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Listen for incoming messages via IncomingConnections.
-    pub async fn listen_to_receive_stream(
+    /// Listen for incoming messages on a connection
+    pub async fn listen_to_incoming_messages(
         &self,
-        mut receiver: RecvStream,
+        mut incoming_messages: IncomingMessages,
+        elder_addr: SocketAddr,
     ) -> Result<NetworkListenerHandle, Error> {
-        trace!("Adding listener");
+        debug!("Adding IncomingMessages listener");
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
         let notifier = self.notification_sender.clone();
 
+        let pending_queries = self.pending_query_responses.clone();
+
         // Spawn a thread for all the connections
         let handle = tokio::spawn(async move {
-            info!("Listening for incoming connections started");
-
             // this is recv stream used to send challenge response. Send
-            while let Ok(bytes) = receiver.next().await {
-                trace!("Listener message received");
+            while let Some(message) = incoming_messages.next().await {
+                match message {
+                    Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
+                        match deserialize::<MsgEnvelope>(&bytes) {
+                            Ok(envelope) => {
+                                debug!("Message received at listener: {:?}", &envelope.message);
+                                match envelope.message.clone() {
+                                    Message::QueryResponse {
+                                        response,
+                                        correlation_id,
+                                        ..
+                                    } => {
+                                        trace!("Query response in: {:?}", response);
 
-                match deserialize::<MsgEnvelope>(&bytes) {
-                    Ok(envelope) => {
-                        debug!("Message received at listener: {:?}", &envelope.message);
+                                        if let Some(mut sender) = pending_queries
+                                            .lock()
+                                            .await
+                                            .remove(&(elder_addr, correlation_id))
+                                        {
+                                            trace!("Sender channel found for query response");
+                                            let _ = sender.send(Ok(response)).await;
+                                        }
+                                    }
+                                    Message::Event {
+                                        event,
+                                        correlation_id,
+                                        ..
+                                    } => {
+                                        if let Event::TransferValidated { event, .. } = event {
+                                            if let Some(sender) = pending_transfer_validations
+                                                .lock()
+                                                .await
+                                                .get_mut(&correlation_id)
+                                            {
+                                                info!("Accumulating SignatureShare");
+                                                let _ = sender.send(Ok(event)).await;
+                                            }
+                                        }
+                                    }
+                                    Message::CmdError {
+                                        error,
+                                        correlation_id,
+                                        ..
+                                    } => {
+                                        if let Some(sender) = pending_transfer_validations
+                                            .lock()
+                                            .await
+                                            .get_mut(&correlation_id)
+                                        {
+                                            debug!("Cmd Error was received, sending on channel to caller");
+                                            let _ =
+                                                sender.send(Err(Error::from(error.clone()))).await;
+                                        };
 
-                        match envelope.message.clone() {
-                            Message::Event {
-                                event,
-                                correlation_id,
-                                ..
-                            } => {
-                                if let Event::TransferValidated { event, .. } = event {
-                                    if let Some(sender) = pending_transfer_validations
-                                        .lock()
-                                        .await
-                                        .get_mut(&correlation_id)
-                                    {
-                                        info!("Accumulating SignatureShare");
-                                        let _ = sender.send(Ok(event)).await;
+                                        let _ = notifier.send(Error::from(error));
+                                    }
+                                    msg => {
+                                        warn!("another message type received {:?}", msg);
                                     }
                                 }
                             }
-                            Message::CmdError {
-                                error,
-                                correlation_id,
-                                ..
-                            } => {
-                                if let Some(sender) = pending_transfer_validations
-                                    .lock()
-                                    .await
-                                    .get_mut(&correlation_id)
-                                {
-                                    debug!("Cmd Error was received, sending on channel to caller");
-                                    let _ = sender.send(Err(Error::from(error.clone()))).await;
-                                };
-
-                                let _ = notifier.send(Error::from(error));
-                            }
-                            _ => {
-                                warn!("another message type received");
+                            Err(_error) => {
+                                error!("Could not deserialise MessageEnvelope");
                             }
                         }
                     }
-                    Err(_) => error!("Error deserializing network message"),
-                };
+                }
             }
-
-            info!("Receive stream listener stopped.");
 
             Ok::<(), Error>(())
         });

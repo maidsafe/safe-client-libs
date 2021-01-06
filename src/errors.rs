@@ -66,6 +66,9 @@ pub enum Error {
     /// Permission set provided is not a PrivatePermissionSet.
     #[error("Expected private permission set")]
     NotPrivatePermissions,
+    /// Did not receive an incoming connection listener from qp2p
+    #[error("Could not listen on elder connection")]
+    NoElderListenerEstablished,
     /// Incorrect user permissions were returned
     #[error(" Incorrect user permissions were returned")]
     IncorrectPermissions,

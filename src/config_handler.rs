@@ -83,12 +83,12 @@ impl Config {
         if let Ok(node_info) = read_config_file(node_dirs()?, NODE_CONNECTION_INFO_FILE) {
             if config.hard_coded_contacts.insert(node_info) {
                 trace!(
-                    "New contact added to the hard-coed contacts list: {}",
+                    "New contact added to the hard-coded contacts list: {}",
                     node_info
                 );
             } else {
                 trace!(
-                    "Contact is already in the hard-coed contacts list: {}",
+                    "Contact is already in the hard-coded contacts list: {}",
                     node_info
                 );
             }
