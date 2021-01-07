@@ -55,8 +55,8 @@ pub enum Error {
     NoResponse,
 
     /// Unexpected message type receivied while joining.
-    #[error("Unexpected message type receivied while joining")]
-    UnexpectedMessageOnJoin,
+    #[error("Unexpected message type receivied while joining: {0}")]
+    UnexpectedMessageOnJoin(String),
     /// Serialisation.
     //  #[error("Serialisation")]
     //  Serialisation(Box<>),

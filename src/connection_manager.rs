@@ -18,7 +18,7 @@ use qp2p::{
     self, Config as QuicP2pConfig, Connection, Endpoint, IncomingMessages, Message as Qp2pMessage,
     QuicP2p,
 };
-use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, TransferValidated};
+use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, PublicKey, TransferValidated};
 use sn_messaging::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc::channel;
@@ -399,25 +399,30 @@ impl ConnectionManager {
         let public_key = self.keypair.public_key();
         let handshake = HandshakeRequest::Bootstrap(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
-        let mut streams = conn.send_bi(msg).await?;
+        let (_, mut recv_stream) = conn.send_bi(msg).await?;
 
-        let response = streams.1.next().await?;
+        let response = recv_stream.next().await?;
 
         match deserialize(&response) {
             Ok(HandshakeResponse::Rebootstrap(_elders)) => {
                 trace!("HandshakeResponse::Rebootstrap, trying again");
                 // TODO: initialise `hard_coded_contacts` with received `elders`.
-                unimplemented!();
+                Err(Error::UnexpectedMessageOnJoin("Client should re-bootstrap with a new set of Elders, but it's not yet supported.".to_string()))
             }
             Ok(HandshakeResponse::Join(elders)) => {
                 trace!("HandshakeResponse::Join Elders: ({:?})", elders);
 
                 // Obtain the addresses of the Elders
-                let elders_addrs = elders.into_iter().map(|(_xor_name, ci)| ci).collect();
+                let elders_addrs = elders
+                    .into_iter()
+                    .map(|(_, socket_addr)| socket_addr)
+                    .collect();
                 Ok(elders_addrs)
             }
-            Ok(_msg) => Err(Error::UnexpectedMessageOnJoin),
-            Err(e) => Err(Error::from(e)),
+            Ok(HandshakeResponse::InvalidSection) => Err(Error::UnexpectedMessageOnJoin(
+                "bootstrapping was rejected by since it's an invalid section to join.".to_string(),
+            )),
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -429,7 +434,7 @@ impl ConnectionManager {
     async fn connect_to_elder(
         endpoint: Arc<Mutex<Endpoint>>,
         peer_addr: SocketAddr,
-        keypair: Arc<Keypair>,
+        public_key: PublicKey,
 ) -> Result<(Arc<Mutex<Connection>>, IncomingMessages, SocketAddr), Error> {
         let endpoint = endpoint.lock().await;
 
@@ -437,7 +442,7 @@ impl ConnectionManager {
 
         let incoming = incoming_messages.ok_or(Error::NoElderListenerEstablished)?;
 
-        let handshake = HandshakeRequest::Join(keypair.public_key());
+        let handshake = HandshakeRequest::Join(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
         let _ = connection.send_bi(msg).await?;
         Ok((Arc::new(Mutex::new(connection)), incoming, peer_addr))
@@ -461,21 +466,16 @@ impl ConnectionManager {
                 let mut attempts: usize = 0;
                 while result.is_err() && attempts <= NUMBER_OF_RETRIES {
                     let endpoint = Arc::clone(&endpoint);
-                    let keypair = keypair.clone();
-                    result = Self::connect_to_elder(endpoint, peer_addr, keypair).await;
+                    let public_key = keypair.public_key();
+                    result = Self::connect_to_elder(endpoint, peer_addr, public_key).await;
+                    attempts += 1;
 
                     debug!(
-                        "Elder conn attempt #{:?} @ {:?} is ok? : {:?}",
+                        "Elder conn attempt #{} @ {} is ok? : {:?}",
                         attempts,
                         peer_addr,
                         result.is_ok()
                     );
-
-                    if result.is_ok() || attempts > NUMBER_OF_RETRIES {
-                        done_trying = true;
-                    }
-
-                    attempts += 1;
                 }
 
                 result
@@ -485,7 +485,7 @@ impl ConnectionManager {
 
         // Let's await for them to all successfully connect, or fail if at least one failed
 
-        //TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
+        // TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
         let mut has_sufficent_connections = false;
 
         let mut todo = tasks;
