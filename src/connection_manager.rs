@@ -435,7 +435,7 @@ impl ConnectionManager {
         endpoint: Arc<Mutex<Endpoint>>,
         peer_addr: SocketAddr,
         public_key: PublicKey,
-) -> Result<(Arc<Mutex<Connection>>, IncomingMessages, SocketAddr), Error> {
+    ) -> Result<(Arc<Mutex<Connection>>, IncomingMessages, SocketAddr), Error> {
         let endpoint = endpoint.lock().await;
 
         let (connection, incoming_messages) = endpoint.connect_to(&peer_addr).await?;
