@@ -422,6 +422,63 @@ impl Client {
         }
     }
 
+    /// Get Sequence Data from the Network at a specific version
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// use sn_client::Client;
+    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use std::collections::BTreeMap;
+    /// use xor_name::XorName;
+    /// use rand::rngs::OsRng;
+    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
+    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+
+    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// let name = XorName::random();
+    /// let tag = 10;
+    /// let owner = client.public_key().await;
+    /// let mut perms = BTreeMap::<PublicKey, SequencePrivatePermissions>::new();
+    ///
+    /// // Set the access permissions
+    /// let _ = perms.insert(
+    ///    owner,
+    ///    SequencePrivatePermissions::new(true, true, true),
+    /// );
+    ///
+    /// // The returned address can then be used to `append` data to.
+    /// let address = client.store_private_sequence(None, name, tag, owner, perms).await?;
+    /// client.append_to_sequence(address, b"New Entry Value".to_vec()).await?;
+    /// client.append_to_sequence(address, b"Another New Entry Value".to_vec()).await?;
+    ///
+    /// // Now we can retrieve the alst entry in the sequence:
+    /// let entry_v1 = client.get_sequence_entry(address, 1).await?;
+    ///
+    /// assert_eq!(entry_v1, b"Another New Entry Value".to_vec());
+    /// # Ok(()) } ); }
+    /// ```
+    pub async fn get_sequence_entry(
+        &self,
+        address: SequenceAddress,
+        index_from_start: u64,
+    ) -> Result<SequenceEntry, Error> {
+        trace!(
+            "Get entry at index {:?} from Sequence Data {:?}",
+            index_from_start,
+            address.name()
+        );
+
+        let sequence = self.get_sequence(address).await?;
+        let index = SequenceIndex::FromStart(index_from_start);
+        match sequence.get(index, None)? {
+            Some(entry) => Ok(entry.to_vec()),
+            None => Err(Error::from(sn_data_types::Error::NoSuchEntry)),
+        }
+    }
+
     /// Get a set of Entries for the requested range from a Sequence.
     ///
     /// # Examples
@@ -1252,7 +1309,7 @@ pub mod exported_tests {
         }
     }
 
-    pub async fn append_to_sequence_test() -> Result<(), Error> {
+    pub async fn append_to_sequence_test() -> anyhow::Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
         let client = Client::new(None, None).await?;
@@ -1333,7 +1390,22 @@ pub mod exported_tests {
         assert_eq!(unwrap!(std::str::from_utf8(&data[0])), "VALUE1");
         assert_eq!(unwrap!(std::str::from_utf8(&data[1])), "VALUE2");
 
-        Ok(())
+        // get_sequence_entry
+
+        let data0 = client.get_sequence_entry(address, 0).await?;
+        assert_eq!(unwrap!(std::str::from_utf8(&data0)), "VALUE1");
+
+        let data1 = client.get_sequence_entry(address, 1).await?;
+        assert_eq!(unwrap!(std::str::from_utf8(&data1)), "VALUE2");
+
+        // Requesting a version that's too high throws an error
+        let res = client.get_sequence_entry(address, 2).await;
+        match res {
+            Err(_) => Ok(()),
+            Ok(_data) => Err(anyhow::anyhow!(
+                "Unexpectedly retrieved a sequence entry at index that's too high!",
+            )),
+        }
     }
 
     pub async fn sequence_owner_test() -> Result<(), Error> {
@@ -1500,7 +1572,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn append_to_sequence_test() -> Result<(), Error> {
+    async fn append_to_sequence_test() -> anyhow::Result<()> {
         exported_tests::append_to_sequence_test().await
     }
 
