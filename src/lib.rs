@@ -69,7 +69,7 @@
 
 pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::dirs;
-pub use self::errors::Error;
+pub use self::errors::{Error, TransfersError};
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
 pub use self::utils::logging;
 pub use qp2p::Config as QuicP2pConfig;

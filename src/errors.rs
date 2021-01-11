@@ -9,6 +9,7 @@
 use qp2p::Error as QuicP2pError;
 use sn_data_types::{Error as DtError, PublicKey};
 use sn_messaging::{CmdError, Error as ErrorMessage, Event, QueryResponse, TransferError};
+pub use sn_transfers::Error as TransfersError;
 
 use std::io;
 
@@ -111,7 +112,7 @@ pub enum Error {
     NetworkDataError(#[from] DtError),
     /// Transfers errors
     #[error(transparent)]
-    Transfer(#[from] sn_transfers::Error),
+    Transfer(#[from] TransfersError),
 
     /// Errors received from the network via sn_messaging
     #[error(transparent)]
