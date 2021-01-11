@@ -92,7 +92,6 @@ impl ConnectionManager {
 
         // Let's now connect to all Elders
         self.connect_to_elders(elders_addrs).await?;
-
         Ok(())
     }
 
@@ -277,8 +276,19 @@ impl ConnectionManager {
                         if *counter > threshold {
                             trace!("Enough votes to be above response threshold");
 
-                            winner = (Some(response), *counter);
+                            winner = (Some(response.clone()), *counter);
                             has_elected_a_response = true;
+                        }
+
+                        // short circuit GetHistory w/ simulated payouts, as we will _never_ have two responses which are the same
+                        // due to nodes generating bunk keys/sigs for this operation.
+                        // TODO: remove this once we have farming
+                        #[cfg(feature = "simulated-payouts")]
+                        {
+                            if let QueryResponse::GetHistory(_) = response {
+                                winner = (Some(response.clone()), *counter);
+                                has_elected_a_response = true;
+                            }
                         }
                     }
                     _ => {
@@ -364,10 +374,10 @@ impl ConnectionManager {
 
         if number_of_responses > threshold {
             trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
-
-            *has_elected_a_response = true;
         }
 
+        *has_elected_a_response = true;
+        trace!("Returning chosen response");
         Ok(most_popular_response)
     }
 
@@ -392,37 +402,49 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, Error> {
         trace!("Bootstrapping with contacts...");
-        let (endpoint, conn, _) = self.qp2p.bootstrap().await?;
+        let (endpoint, conn, mut incoming_messages) = self.qp2p.bootstrap().await?;
         self.endpoint = Arc::new(Mutex::new(endpoint));
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_key = self.keypair.public_key();
         let handshake = HandshakeRequest::Bootstrap(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
-        let (_, mut recv_stream) = conn.send_bi(msg).await?;
-
-        let response = recv_stream.next().await?;
-
-        match deserialize(&response) {
-            Ok(HandshakeResponse::Rebootstrap(_elders)) => {
-                trace!("HandshakeResponse::Rebootstrap, trying again");
-                // TODO: initialise `hard_coded_contacts` with received `elders`.
-                Err(Error::UnexpectedMessageOnJoin("Client should re-bootstrap with a new set of Elders, but it's not yet supported.".to_string()))
+        match conn.send_bi(msg).await {
+            Ok(_) => {
+                if let Some(message) = incoming_messages.next().await {
+                    match message {
+                        Qp2pMessage::BiStream { bytes, .. }
+                        | Qp2pMessage::UniStream { bytes, .. } => {
+                            match deserialize(&bytes) {
+                                Ok(HandshakeResponse::Rebootstrap(_elders)) => {
+                                    trace!("HandshakeResponse::Rebootstrap, trying again");
+                                    // TODO: initialise `hard_coded_contacts` with received `elders`.
+                                    return Err(Error::UnexpectedMessageOnJoin("Client should re-bootstrap with a new set of Elders, but it's not yet supported.".to_string()))
+                                }
+                                Ok(HandshakeResponse::Join(elders)) => {
+                                    trace!("HandshakeResponse::Join Elders: ({:?})", elders);
+                                    // Obtain the addresses of the Elders
+                                    let elders_addrs = elders
+                                        .into_iter()
+                                        .map(|(_, socket_addr)| socket_addr)
+                                        .collect();
+                                        return Ok(elders_addrs)
+                                }
+                                Ok(HandshakeResponse::InvalidSection) => return Err(Error::UnexpectedMessageOnJoin(
+                                    "bootstrapping was rejected by since it's an invalid section to join.".to_string(),
+                                )),
+                                Err(e) => return Err(e.into()),
+                            }
+                        }
+                    }
+                } else {
+                    Err(Error::UnexpectedMessageOnJoin(
+                        "bootstrapping was rejected by since it's an invalid section to join."
+                            .to_string(),
+                    ))
+                }
             }
-            Ok(HandshakeResponse::Join(elders)) => {
-                trace!("HandshakeResponse::Join Elders: ({:?})", elders);
-
-                // Obtain the addresses of the Elders
-                let elders_addrs = elders
-                    .into_iter()
-                    .map(|(_, socket_addr)| socket_addr)
-                    .collect();
-                Ok(elders_addrs)
-            }
-            Ok(HandshakeResponse::InvalidSection) => Err(Error::UnexpectedMessageOnJoin(
-                "bootstrapping was rejected by since it's an invalid section to join.".to_string(),
-            )),
-            Err(e) => Err(e.into()),
+            Err(_error) => Err(Error::ReceivingQuery),
         }
     }
 
