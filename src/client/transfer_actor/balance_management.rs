@@ -352,7 +352,6 @@ pub mod exported_tests {
         while balance != Money::from_str("110")? {
             balance = client.get_balance().await?;
         }
-
         // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
         let _ = client.send_money(wallet1, Money::from_str("11.0")?).await?;
 
@@ -364,11 +363,11 @@ pub mod exported_tests {
         while new_balance != desired_balance {
             new_balance = client.get_balance().await?;
         }
-
         // Assert that the receiver has been credited.
         let mut receiving_bal = receiving_client.get_balance().await?;
 
         let target_money = Money::from_str("21.0")?;
+
         // loop until correct
         while receiving_bal != target_money {
             let _ = receiving_client.get_history().await?;
@@ -396,7 +395,7 @@ pub mod exported_tests {
 
         // Try transferring money exceeding our balance.
         match client.send_money(wallet1, Money::from_str("5000")?).await {
-            Err(Error::ErrorMessage(ErrorMessage::InsufficientBalance)) => (),
+            Err(Error::Transfer(sn_transfers::Error::InsufficientBalance)) => (),
             res => bail!("Unexpected result: {:?}", res),
         };
 
@@ -418,13 +417,21 @@ pub mod exported_tests {
         let wallet1 = receiving_client.public_key().await;
 
         let _ = client.send_money(wallet1, Money::from_str("10")?).await?;
+        // Assert sender is debited.
+        let mut new_balance = client.get_balance().await?;
+        let desired_balance = Money::from_nano(0);
+
+        // loop until correct
+        while new_balance != desired_balance {
+            new_balance = client.get_balance().await?;
+        }
 
         let data = generate_random_vector::<u8>(10);
         let res = client.store_public_blob(&data).await;
         match res {
-            Err(Error::ErrorMessage(ErrorMessage::InsufficientBalance)) => (),
+            Err(Error::Transfer(sn_transfers::Error::InsufficientBalance)) => (),
             res => bail!(
-                "Unexpected result in money transfer test, putting without balance: {:?}",
+                "Unexpected result in money transfer test, able to put data without balance: {:?}",
                 res
             ),
         };

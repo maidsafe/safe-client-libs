@@ -154,7 +154,7 @@ impl ConnectionManager {
             let msg_bytes_clone = msg_bytes.clone();
             let connection = Arc::clone(&elder.connection);
             let task_handle = tokio::spawn(async move {
-                info!("Sending transfer validation to Elder");
+                info!("Sending transfer for validation at Elder");
                 let _ = connection.lock().await.send_bi(msg_bytes_clone).await;
             });
             tasks.push(task_handle);
