@@ -58,9 +58,6 @@ pub enum Error {
     /// Unexpected message type receivied while joining.
     #[error("Unexpected message type receivied while joining: {0}")]
     UnexpectedMessageOnJoin(String),
-    /// Serialisation.
-    //  #[error("Serialisation")]
-    //  Serialisation(Box<>),
     /// Permission set provided is not a PublicPermissionSet.
     #[error("Expected public permission set")]
     NotPublicPermissions,

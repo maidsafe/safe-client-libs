@@ -307,8 +307,9 @@ impl ConnectionManager {
                     threshold,
                     &vote_map,
                     received_errors,
-                    &mut has_elected_a_response,
                 )?;
+
+                has_elected_a_response = true;
             }
         }
 
@@ -328,7 +329,6 @@ impl ConnectionManager {
         threshold: usize,
         vote_map: &VoteMap,
         received_errors: usize,
-        has_elected_a_response: &mut bool,
     ) -> Result<(Option<QueryResponse>, usize), Error> {
         trace!("No response selected yet, checking if fallback needed");
         let mut number_of_responses = 0;
@@ -375,7 +375,6 @@ impl ConnectionManager {
             trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
         }
 
-        *has_elected_a_response = true;
         trace!("Returning chosen response");
         Ok(most_popular_response)
     }
