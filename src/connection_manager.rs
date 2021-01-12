@@ -172,7 +172,7 @@ impl ConnectionManager {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
-        let msg_bytes = self.serialise_in_envelope(&msg.clone())?;
+        let msg_bytes = self.serialise_in_envelope(&msg)?;
 
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
@@ -182,7 +182,6 @@ impl ConnectionManager {
             let socket_addr = elder.socket_addr;
             let endpoint = self.endpoint.clone();
             // Create a new stream here to not have to worry about filtering replies
-            // let connection = Arc::clone(&elder.connection);
             let msg_id = msg.id();
 
             let pending_query_responses = self.pending_query_responses.clone();
@@ -583,7 +582,6 @@ impl ConnectionManager {
 
         // Spawn a thread for all the connections
         let handle = tokio::spawn(async move {
-            // this is recv stream used to send challenge response. Send
             while let Some(message) = incoming_messages.next().await {
                 match message {
                     Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
