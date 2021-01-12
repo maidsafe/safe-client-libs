@@ -26,6 +26,7 @@ impl Client {
 #[cfg(all(test, feature = "simulated-payouts"))]
 pub mod exported_tests {
     use super::*;
+    use crate::errors::TransfersError;
     use anyhow::{bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Sequence};
@@ -40,7 +41,7 @@ pub mod exported_tests {
 
         let initial_actor = Client::new(Some(keypair), None).await?;
         match initial_actor.pay_and_write_sequence_to_network(data).await {
-            Err(Error::Transfer(sn_transfers::Error::InsufficientBalance)) => {
+            Err(Error::Transfer(TransfersError::InsufficientBalance)) => {
                 // Ok(())
                 // assert!(e
                 //     .to_string()

@@ -199,11 +199,11 @@ impl Client {
 #[cfg(feature = "simulated-payouts")]
 pub mod exported_tests {
     use super::*;
+    use crate::errors::TransfersError;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use anyhow::{anyhow, bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Money};
-    use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
 
     pub async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<()> {
@@ -319,9 +319,10 @@ pub mod exported_tests {
             .send_money(keypair2.public_key(), Money::from_str("0")?)
             .await
         {
-            Err(Error::Transfer(sn_transfers::Error::ZeroValueTransfer)) => Ok(()),
+            Err(Error::Transfer(TransfersError::ZeroValueTransfer)) => Ok(()),
             result => Err(anyhow!(
-                "Unexpected error. Zero-Value Transfers should not pass. Received: {:?}", result
+                "Unexpected error. Zero-Value Transfers should not pass. Received: {:?}",
+                result
             )),
         }?;
 
@@ -395,7 +396,7 @@ pub mod exported_tests {
 
         // Try transferring money exceeding our balance.
         match client.send_money(wallet1, Money::from_str("5000")?).await {
-            Err(Error::Transfer(sn_transfers::Error::InsufficientBalance)) => (),
+            Err(Error::Transfer(TransfersError::InsufficientBalance)) => (),
             res => bail!("Unexpected result: {:?}", res),
         };
 
@@ -429,7 +430,7 @@ pub mod exported_tests {
         let data = generate_random_vector::<u8>(10);
         let res = client.store_public_blob(&data).await;
         match res {
-            Err(Error::Transfer(sn_transfers::Error::InsufficientBalance)) => (),
+            Err(Error::Transfer(TransfersError::InsufficientBalance)) => (),
             res => bail!(
                 "Unexpected result in money transfer test, able to put data without balance: {:?}",
                 res
