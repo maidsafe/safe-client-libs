@@ -319,9 +319,9 @@ pub mod exported_tests {
             .send_money(keypair2.public_key(), Money::from_str("0")?)
             .await
         {
-            Err(Error::NetworkDataError(_)) => Ok(()),
-            _result => Err(anyhow!(
-                "Unexpected error. Zero-Value Transfers should not pass"
+            Err(Error::Transfer(sn_transfers::Error::ZeroValueTransfer)) => Ok(()),
+            result => Err(anyhow!(
+                "Unexpected error. Zero-Value Transfers should not pass. Received: {:?}", result
             )),
         }?;
 
