@@ -373,6 +373,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cookie-factory"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41f21b581d2f0cb891554812435667bb9610d74feb1a4c6415bf09c28ff0381d"
+
+[[package]]
 name = "cpuid-bool"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1648,6 +1654,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmp"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f10b46df14cf1ee1ac7baa4d2fbc2c52c0622a4b82fa8740e37bc452ac0184f"
+dependencies = [
+ "byteorder",
+ "num-traits",
+]
+
+[[package]]
+name = "rmp-serde"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f74489002493a9984ee753ebd049552a1c82f0740e347ee9fc57c907fb19f83"
+dependencies = [
+ "byteorder",
+ "rmp",
+ "serde",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1884,11 +1911,12 @@ dependencies = [
 
 [[package]]
 name = "sn_messaging"
-version = "1.2.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c666129dacf90242db6f45e4685c6e4395163a78e42a4f44f27ba8ef06f156b"
+checksum = "3c1a8dea8fb078f519ca9494738434369f9d0613920bde32b80bfbed60e82c23"
 dependencies = [
- "bincode",
+ "bytes 1.0.1",
+ "cookie-factory",
  "crdts",
  "ed25519",
  "ed25519-dalek",
@@ -1896,6 +1924,7 @@ dependencies = [
  "multibase",
  "rand",
  "rand_core",
+ "rmp-serde",
  "serde",
  "sha3",
  "signature",
