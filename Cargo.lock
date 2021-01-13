@@ -1912,7 +1912,9 @@ dependencies = [
 
 [[package]]
 name = "sn_messaging"
-version = "1.5.0"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c856835c612454d9d35d4f2eb72fee9042208af0d3d4790d2fad3aa410d6faf"
 dependencies = [
  "bytes 1.0.1",
  "cookie-factory",
