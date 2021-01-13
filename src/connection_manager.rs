@@ -267,6 +267,8 @@ impl ConnectionManager {
                     Ok(response) => {
                         trace!("QueryResponse is: {:#?}", response);
 
+                        // bincode here as we're using the internal qr, without serialisation
+                        // this is only used internally to sn_client
                         let key = tiny_keccak::sha3_256(&serialize(&response)?);
                         let (_, counter) = vote_map.entry(key).or_insert((response.clone(), 0));
                         *counter += 1;
@@ -384,7 +386,7 @@ impl ConnectionManager {
     // Put a `Message` in an envelope so it can be sent to the network
     fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, Error> {
         trace!("Putting message in envelope: {:?}", message);
-        let sign = self.keypair.sign(&serialize(message)?);
+        let sign = self.keypair.sign(&message.serialise()?);
 
         let envelope = MsgEnvelope {
             message: message.clone(),
@@ -392,7 +394,7 @@ impl ConnectionManager {
             proxies: Default::default(),
         };
 
-        let bytes = Bytes::from(serialize(&envelope)?);
+        let bytes = envelope.serialise()?;
         Ok(bytes)
     }
 
@@ -584,7 +586,7 @@ impl ConnectionManager {
             while let Some(message) = incoming_messages.next().await {
                 match message {
                     Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
-                        match deserialize::<MsgEnvelope>(&bytes) {
+                        match MsgEnvelope::from(bytes) {
                             Ok(envelope) => {
                                 debug!("Message received at listener: {:?}", &envelope.message);
                                 match envelope.message.clone() {

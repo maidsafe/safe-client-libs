@@ -304,15 +304,15 @@ name = "bytes"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e4cec68f03f32e44924783795810fa50a7035d8c8ebe78580ad7e6c703fba38"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "bytes"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "cc"
@@ -1444,13 +1444,13 @@ dependencies = [
 
 [[package]]
 name = "qp2p"
-version = "0.9.7"
+version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4e7c14106fa11bc165495ff4249e916fa9d586c94d278992ef694fa36738fd7"
+checksum = "ec101f161fa2438bacb85500713c344946a47b5f24d80721ebbf7a2b3cedb6a5"
 dependencies = [
  "base64 0.12.3",
  "bincode",
- "bytes 0.5.6",
+ "bytes 1.0.1",
  "dirs-next 2.0.0",
  "futures",
  "igd",
@@ -1854,7 +1854,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "bytes 0.5.6",
+ "bytes 1.0.1",
  "chrono",
  "crdts",
  "dirs-next 1.0.2",
@@ -1868,6 +1868,7 @@ dependencies = [
  "qp2p",
  "rand",
  "regex",
+ "rmp-serde",
  "self_encryption",
  "serde",
  "serde-value",
@@ -1911,9 +1912,7 @@ dependencies = [
 
 [[package]]
 name = "sn_messaging"
-version = "1.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c1a8dea8fb078f519ca9494738434369f9d0613920bde32b80bfbed60e82c23"
+version = "1.5.0"
 dependencies = [
  "bytes 1.0.1",
  "cookie-factory",
