@@ -9,10 +9,7 @@
 use crate::Error;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use futures::{
-    future::{join_all, select_all},
-    lock::Mutex,
-};
+use futures::{future::{Join, join_all, select_all}, lock::Mutex};
 use log::{debug, error, info, trace, warn};
 use qp2p::{
     self, Config as QuicP2pConfig, Connection, Endpoint, IncomingMessages, Message as Qp2pMessage,
@@ -37,7 +34,7 @@ type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
 #[derive(Clone)]
-struct ElderStream {
+struct ElderConnection {
     connection: Arc<Mutex<Connection>>,
     listener: Arc<Mutex<NetworkListenerHandle>>,
     socket_addr: SocketAddr,
@@ -50,7 +47,7 @@ type NetworkListenerHandle = JoinHandle<Result<(), Error>>;
 pub struct ConnectionManager {
     keypair: Arc<Keypair>,
     qp2p: QuicP2p,
-    elders: Vec<ElderStream>,
+    elders: Vec<ElderConnection>,
     endpoint: Arc<Mutex<Endpoint>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
     pending_query_responses: Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>,
@@ -88,7 +85,10 @@ impl ConnectionManager {
 
         // Bootstrap and send a handshake request to receive
         // the list of Elders we can then connect to
-        let elders_addrs = self.bootstrap_and_handshake().await?;
+        let mut elders_addrs = self.bootstrap_and_handshake().await?;
+        let mut rng = rand::thread_rng();
+        use rand::prelude::SliceRandom;
+        elders_addrs.shuffle(&mut rng);
 
         // Let's now connect to all Elders
         self.connect_to_elders(elders_addrs).await?;
@@ -97,22 +97,33 @@ impl ConnectionManager {
 
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
-        info!("Sending command message {:?} w/ id: {:?}", msg, msg.id());
+        let msg_id = msg.id();
+        info!("Sending command message {:?} w/ id: {:?}", msg, msg_id);
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
-        // Send message to all Elders concurrently
-        let mut tasks = Vec::default();
-        for elder in &self.elders {
-            let msg_bytes_clone = msg_bytes.clone();
-            let connection = Arc::clone(&elder.connection);
-            let task_handle = tokio::spawn(async move {
-                let _ = connection.lock().await.send_bi(msg_bytes_clone).await;
-            });
-            tasks.push(task_handle);
-        }
+           // Send message to all Elders concurrently
+           let mut tasks = Vec::default();
+           for elder in &self.elders {
+               let msg_bytes_clone = msg_bytes.clone();
+               let connection = Arc::clone(&elder.connection);
+               let socket = elder.socket_addr.clone();
+               let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
 
+                    trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
+                    let _ = connection.lock().await.send_bi(msg_bytes_clone).await?;
+                    trace!("Sent cmd message {:?} to {:?}", msg_id, &socket);
+
+                    Ok(())
+
+               });
+               tasks.push(task_handle);
+           }
+   
+           debug!("Before takss in sendcmd");
         // Let's await for all messages to be sent
         let results = join_all(tasks).await;
+
+        debug!("after tasks in sendcmd");
 
         let mut failures = 0;
         results.iter().for_each(|res| {
@@ -163,9 +174,11 @@ impl ConnectionManager {
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let connection = Arc::clone(&elder.connection);
-            let task_handle = tokio::spawn(async move {
+            let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
                 info!("Sending transfer for validation at Elder");
-                let _ = connection.lock().await.send_bi(msg_bytes_clone).await;
+                let _ = connection.lock().await.send_bi(msg_bytes_clone).await?;
+
+                Ok(())
             });
             tasks.push(task_handle);
         }
@@ -181,7 +194,7 @@ impl ConnectionManager {
 
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
-        info!("Sending query message {:?} w/ id: {:?}", msg, msg.id());
+        info!("ending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(&msg)?;
 
         // We send the same message to all Elders concurrently,
@@ -190,9 +203,10 @@ impl ConnectionManager {
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let socket_addr = elder.socket_addr;
-            let endpoint = self.endpoint.clone();
+            // let endpoint = self.endpoint.clone();
             // Create a new stream here to not have to worry about filtering replies
             let msg_id = msg.id();
+            let connection = elder.connection.clone();
 
             let pending_query_responses = self.pending_query_responses.clone();
 
@@ -201,13 +215,17 @@ impl ConnectionManager {
                 let mut done_trying = false;
                 let mut result = Err(Error::ElderQuery);
                 let mut attempts: usize = 1;
+
+                info!("--------------------------------------------------------");
+
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
+                    let connection = connection.lock().await;
 
-                    let (connection, _) = endpoint.lock().await.connect_to(&socket_addr).await?;
 
                     match connection.send_bi(msg_bytes_clone).await {
                         Ok(_) => {
+                            info!("****-message sent");
                             let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
                             {
                                 let _ = pending_query_responses
@@ -252,8 +270,9 @@ impl ConnectionManager {
         let mut vote_map = VoteMap::default();
         let mut received_errors = 0;
 
-        // TODO: make threshold dynamic based upon known elders
-        let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
+        // 2/3 of known elders
+        // let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
+        let threshold: usize = 1;
 
         trace!("Vote threshold is: {:?}", threshold);
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
@@ -313,7 +332,7 @@ impl ConnectionManager {
             }
         }
 
-        trace!(
+        debug!(
             "Response obtained after querying {} nodes: {:?}",
             winner.1,
             winner.0
@@ -540,7 +559,7 @@ impl ConnectionManager {
 
                     // let listener = self.listen_to_receive_stream(recv_stream).await?;
                     // We can now keep this connections in our instance
-                    self.elders.push(ElderStream {
+                    self.elders.push(ElderConnection {
                         connection,
                         listener: Arc::new(Mutex::new(listener)),
                         socket_addr,
@@ -604,6 +623,9 @@ impl ConnectionManager {
                                             trace!("Sender channel found for query response");
                                             let _ = sender.send(Ok(response)).await;
                                         }
+                                        else {
+                                            error!("No matching pending query found for elder {:?}  and message {:?}", elder_addr, correlation_id);
+                                        }
                                     }
                                     Message::Event {
                                         event,
@@ -618,6 +640,9 @@ impl ConnectionManager {
                                             {
                                                 info!("Accumulating SignatureShare");
                                                 let _ = sender.send(Ok(event)).await;
+                                            }
+                                            else {
+                                                error!("No matching pending query found for elder {:?}  and message {:?}", elder_addr, correlation_id);
                                             }
                                         }
                                     }
@@ -634,7 +659,10 @@ impl ConnectionManager {
                                             debug!("Cmd Error was received, sending on channel to caller");
                                             let _ =
                                                 sender.send(Err(Error::from(error.clone()))).await;
-                                        };
+                                        }
+                                        else {
+                                            warn!("No sender subscribing and listening for errors relating to message {:?}. Error returned is: {:?}", correlation_id, error)
+                                        }
 
                                         let _ = notifier.send(Error::from(error));
                                     }
