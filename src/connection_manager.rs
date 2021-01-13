@@ -128,6 +128,16 @@ impl ConnectionManager {
         Ok(())
     }
 
+    /// Remove a pending transfer sender from the listener map
+    pub async fn remove_pending_transfer_sender( &self, msg_id: &MessageId ) -> Result<(), Error> {
+        let mut listeners = self.pending_transfer_validations.lock().await;
+
+        let _ = listeners.remove(msg_id).ok_or(Error::NoTransferValidationListener)?;
+
+        Ok(())
+    }
+
+
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_transfer_validation(
         &self,
@@ -563,7 +573,7 @@ impl ConnectionManager {
         mut incoming_messages: IncomingMessages,
         elder_addr: SocketAddr,
     ) -> Result<NetworkListenerHandle, Error> {
-        debug!("Adding IncomingMessages listener");
+        debug!("Adding IncomingMessages listener for {:?}", elder_addr);
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
         let notifier = self.notification_sender.clone();
@@ -577,7 +587,7 @@ impl ConnectionManager {
                     Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
                         match MsgEnvelope::from(bytes) {
                             Ok(envelope) => {
-                                trace!("Message received at listener: {:?}", &envelope.message);
+                                trace!("Message received at listener for {:?}: {:?}", &elder_addr, &envelope.message);
                                 match envelope.message.clone() {
                                     Message::QueryResponse {
                                         response,

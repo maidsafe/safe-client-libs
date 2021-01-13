@@ -54,6 +54,9 @@ pub enum Error {
     /// Could not query elder.
     #[error("Failed to obtain a response")]
     NoResponse,
+    /// No transfer validation listener .
+    #[error("Failed to obtain a response")]
+    NoTransferValidationListener,
 
     /// Unexpected message type receivied while joining.
     #[error("Unexpected message type receivied while joining: {0}")]

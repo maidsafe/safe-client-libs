@@ -281,10 +281,12 @@ impl Client {
             .await?;
 
         let mut returned_errors = vec![];
+        let mut response_count = 0;
         loop {
             match receiver.recv().await {
                 Some(event) => match event {
                     Ok(transfer_validated) => {
+                        response_count += 1;
                         let mut actor = self.transfer_actor.lock().await;
                         match actor.receive(transfer_validated) {
                             Ok(result) => {
@@ -294,9 +296,11 @@ impl Client {
                                     ))?;
                                     info!("Transfer successfully validated.");
                                     if let Some(dap) = validation.proof {
+                                        self.connection_manager.lock().await.remove_pending_transfer_sender(&message.id()).await?;
                                         return Ok(dap);
                                     }
                                 } else {
+                                   
                                     info!("Aggregated given SignatureShare.");
                                 }
                             }
@@ -304,19 +308,34 @@ impl Client {
                         }
                     }
                     Err(e) => {
+                        response_count += 1;
                         error!("Error receiving SignatureShare: {:?}", e);
                         returned_errors.push(e);
 
                         if returned_errors.len() > STANDARD_ELDERS_COUNT / 2 {
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
-                            return Err(error);
+
+                            if let Err(e) = self.connection_manager.lock().await.remove_pending_transfer_sender(&message.id()).await {
+                                return Err(e);
+
+                            } else 
+                            {
+                                return Err(error);
+                            }
                         }
 
                         continue;
                     }
                 },
                 None => continue,
+            }
+
+            // at any point if we've had enough responses in, let's clean up
+            if response_count >= STANDARD_ELDERS_COUNT
+            {  
+                // remove pending listener
+                self.connection_manager.lock().await.remove_pending_transfer_sender(&message.id()).await?;
             }
         }
     }
