@@ -265,7 +265,7 @@ impl ConnectionManager {
             if let Ok(res) = res {
                 match res {
                     Ok(response) => {
-                        trace!("QueryResponse is: {:#?}", response);
+                        debug!("QueryResponse recevied is: {:#?}", response);
 
                         // bincode here as we're using the internal qr, without serialisation
                         // this is only used internally to sn_client
@@ -280,17 +280,6 @@ impl ConnectionManager {
                             winner = (Some(response.clone()), *counter);
                             has_elected_a_response = true;
                         }
-
-                        // short circuit GetHistory w/ simulated payouts, as we will _never_ have two responses which are the same
-                        // due to nodes generating bunk keys/sigs for this operation.
-                        // TODO: remove this once we have farming
-                        #[cfg(feature = "simulated-payouts")]
-                        {
-                            if let QueryResponse::GetHistory(_) = response {
-                                winner = (Some(response.clone()), *counter);
-                                has_elected_a_response = true;
-                            }
-                        }
                     }
                     _ => {
                         warn!("Unexpected message in reply to query (retrying): {:?}", res);
@@ -302,16 +291,15 @@ impl ConnectionManager {
                 received_errors += 1;
             }
 
-            // Second, let's handle no winner on majority responses.
+            // Second, let's handle no winner if we have > threshold responses.
             if !has_elected_a_response {
                 winner = self.select_best_of_the_rest_response(
                     winner,
                     threshold,
                     &vote_map,
                     received_errors,
+                    &mut has_elected_a_response
                 )?;
-
-                has_elected_a_response = true;
             }
         }
 
@@ -331,6 +319,7 @@ impl ConnectionManager {
         threshold: usize,
         vote_map: &VoteMap,
         received_errors: usize,
+        has_elected_a_response: &mut bool
     ) -> Result<(Option<QueryResponse>, usize), Error> {
         trace!("No response selected yet, checking if fallback needed");
         let mut number_of_responses = 0;
@@ -338,7 +327,7 @@ impl ConnectionManager {
 
         for (_, (message, votes)) in vote_map.iter() {
             number_of_responses += votes;
-            trace!("Number of votes cast :{:?}", number_of_responses);
+            trace!("Number of votes cast :{:?}. Threshold is: {:?} votes", number_of_responses, threshold);
 
             number_of_responses += received_errors;
 
@@ -375,9 +364,9 @@ impl ConnectionManager {
 
         if number_of_responses > threshold {
             trace!("No clear response above the threshold, so choosing most popular response with: {:?} votes: {:?}", most_popular_response.1, most_popular_response.0);
+            *has_elected_a_response = true;
         }
 
-        trace!("Returning chosen response");
         Ok(most_popular_response)
     }
 
@@ -588,7 +577,7 @@ impl ConnectionManager {
                     Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
                         match MsgEnvelope::from(bytes) {
                             Ok(envelope) => {
-                                debug!("Message received at listener: {:?}", &envelope.message);
+                                trace!("Message received at listener: {:?}", &envelope.message);
                                 match envelope.message.clone() {
                                     Message::QueryResponse {
                                         response,
