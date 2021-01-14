@@ -9,7 +9,7 @@
 use crate::Error;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use futures::{future::{Join, join_all, select_all}, lock::Mutex};
+use futures::{future::{join_all, select_all}, lock::Mutex};
 use log::{debug, error, info, trace, warn};
 use qp2p::{
     self, Config as QuicP2pConfig, Connection, Endpoint, IncomingMessages, Message as Qp2pMessage,
@@ -85,10 +85,7 @@ impl ConnectionManager {
 
         // Bootstrap and send a handshake request to receive
         // the list of Elders we can then connect to
-        let mut elders_addrs = self.bootstrap_and_handshake().await?;
-        let mut rng = rand::thread_rng();
-        use rand::prelude::SliceRandom;
-        elders_addrs.shuffle(&mut rng);
+        let elders_addrs = self.bootstrap_and_handshake().await?;
 
         // Let's now connect to all Elders
         self.connect_to_elders(elders_addrs).await?;
@@ -98,7 +95,8 @@ impl ConnectionManager {
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
-        info!("Sending command message {:?} w/ id: {:?}", msg, msg_id);
+        let src_addr = self.endpoint.lock().await.socket_addr().await?;
+        info!("Sending (from {}) command message {:?} w/ id: {:?}", src_addr, msg, msg_id);
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
            // Send message to all Elders concurrently
@@ -108,18 +106,16 @@ impl ConnectionManager {
                let connection = Arc::clone(&elder.connection);
                let socket = elder.socket_addr.clone();
                let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-
                     trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
-                    let _ = connection.lock().await.send_bi(msg_bytes_clone).await?;
-                    trace!("Sent cmd message {:?} to {:?}", msg_id, &socket);
-
-                    Ok(())
-
+                    let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
+                    let res = send_stream.finish().await?;
+                    trace!("Sent cmd and finished the stream {:?} to {:?}", msg_id, &socket);
+                    Ok(res)
                });
                tasks.push(task_handle);
            }
-   
-           debug!("Before takss in sendcmd");
+
+        debug!("Before joining takss in sendcmd");
         // Let's await for all messages to be sent
         let results = join_all(tasks).await;
 
@@ -174,11 +170,10 @@ impl ConnectionManager {
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let connection = Arc::clone(&elder.connection);
-            let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+            let task_handle = tokio::spawn(async move {
                 info!("Sending transfer for validation at Elder");
-                let _ = connection.lock().await.send_bi(msg_bytes_clone).await?;
-
-                Ok(())
+                let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
+                send_stream.finish().await
             });
             tasks.push(task_handle);
         }
@@ -194,7 +189,7 @@ impl ConnectionManager {
 
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
-        info!("ending query message {:?} w/ id: {:?}", msg, msg.id());
+        info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialise_in_envelope(&msg)?;
 
         // We send the same message to all Elders concurrently,
@@ -222,17 +217,20 @@ impl ConnectionManager {
                     let msg_bytes_clone = msg_bytes_clone.clone();
                     let connection = connection.lock().await;
 
+                    info!("****-message sent");
+                    let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
+                    {
+                        let _ = pending_query_responses
+                            .lock()
+                            .await
+                            .insert((socket_addr, msg_id), sender);
+                    }
 
+                    // TODO: we need to remove the msg_id from
+                    // pending_query_responses upon any failure below
                     match connection.send_bi(msg_bytes_clone).await {
-                        Ok(_) => {
-                            info!("****-message sent");
-                            let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
-                            {
-                                let _ = pending_query_responses
-                                    .lock()
-                                    .await
-                                    .insert((socket_addr, msg_id), sender);
-                            }
+                        Ok((send_stream, _)) => {
+                            send_stream.finish().await?;
 
                             // TODO: receive response here.
                             result = match receiver.recv().await {
@@ -243,7 +241,10 @@ impl ConnectionManager {
                                 None => Err(Error::ReceivingQuery),
                             };
                         }
-                        Err(_error) => result = Err(Error::ReceivingQuery),
+                        Err(_error) => result = {
+                            // TODO: remove it from the pending_query_responses then
+                            Err(Error::ReceivingQuery)
+                        },
                     };
 
                     debug!(
@@ -428,7 +429,8 @@ impl ConnectionManager {
         let handshake = HandshakeRequest::Bootstrap(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
         match conn.send_bi(msg).await {
-            Ok(_) => {
+            Ok((send_stream, _)) => {
+                send_stream.finish().await?;
                 if let Some(message) = incoming_messages.next().await {
                     match message {
                         Qp2pMessage::BiStream { bytes, .. }
@@ -446,7 +448,8 @@ impl ConnectionManager {
                                         .into_iter()
                                         .map(|(_, socket_addr)| socket_addr)
                                         .collect();
-                                        return Ok(elders_addrs)
+
+                                    return Ok(elders_addrs)
                                 }
                                 Ok(HandshakeResponse::InvalidSection) => return Err(Error::UnexpectedMessageOnJoin(
                                     "bootstrapping was rejected by since it's an invalid section to join.".to_string(),
@@ -484,7 +487,9 @@ impl ConnectionManager {
 
         let handshake = HandshakeRequest::Join(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
-        let _ = connection.send_bi(msg).await?;
+        let (send_stream, _) = connection.send_bi(msg).await?;
+        send_stream.finish().await?;
+
         Ok((Arc::new(Mutex::new(connection)), incoming, peer_addr))
     }
 
