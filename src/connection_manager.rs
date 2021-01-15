@@ -9,7 +9,10 @@
 use crate::Error;
 use bincode::{deserialize, serialize};
 use bytes::Bytes;
-use futures::{future::{join_all, select_all}, lock::Mutex};
+use futures::{
+    future::{join_all, select_all},
+    lock::Mutex,
+};
 use log::{debug, error, info, trace, warn};
 use qp2p::{
     self, Config as QuicP2pConfig, Connection, Endpoint, IncomingMessages, Message as Qp2pMessage,
@@ -96,24 +99,31 @@ impl ConnectionManager {
     pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
         let src_addr = self.endpoint.lock().await.socket_addr().await?;
-        info!("Sending (from {}) command message {:?} w/ id: {:?}", src_addr, msg, msg_id);
+        info!(
+            "Sending (from {}) command message {:?} w/ id: {:?}",
+            src_addr, msg, msg_id
+        );
         let msg_bytes = self.serialise_in_envelope(msg)?;
 
-           // Send message to all Elders concurrently
-           let mut tasks = Vec::default();
-           for elder in &self.elders {
-               let msg_bytes_clone = msg_bytes.clone();
-               let connection = Arc::clone(&elder.connection);
-               let socket = elder.socket_addr.clone();
-               let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-                    trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
-                    let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
-                    let res = send_stream.finish().await?;
-                    trace!("Sent cmd and finished the stream {:?} to {:?}", msg_id, &socket);
-                    Ok(res)
-               });
-               tasks.push(task_handle);
-           }
+        // Send message to all Elders concurrently
+        let mut tasks = Vec::default();
+        for elder in &self.elders {
+            let msg_bytes_clone = msg_bytes.clone();
+            let connection = Arc::clone(&elder.connection);
+            let socket = elder.socket_addr;
+            let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+                trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
+                let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
+                let _ = send_stream.finish().await?;
+                trace!(
+                    "Sent cmd and finished the stream {:?} to {:?}",
+                    msg_id,
+                    &socket
+                );
+                Ok(())
+            });
+            tasks.push(task_handle);
+        }
 
         debug!("Before joining takss in sendcmd");
         // Let's await for all messages to be sent
@@ -136,14 +146,15 @@ impl ConnectionManager {
     }
 
     /// Remove a pending transfer sender from the listener map
-    pub async fn remove_pending_transfer_sender( &self, msg_id: &MessageId ) -> Result<(), Error> {
+    pub async fn remove_pending_transfer_sender(&self, msg_id: &MessageId) -> Result<(), Error> {
         let mut listeners = self.pending_transfer_validations.lock().await;
 
-        let _ = listeners.remove(msg_id).ok_or(Error::NoTransferValidationListener)?;
+        let _ = listeners
+            .remove(msg_id)
+            .ok_or(Error::NoTransferValidationListener)?;
 
         Ok(())
     }
-
 
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_transfer_validation(
@@ -241,10 +252,12 @@ impl ConnectionManager {
                                 None => Err(Error::ReceivingQuery),
                             };
                         }
-                        Err(_error) => result = {
-                            // TODO: remove it from the pending_query_responses then
-                            Err(Error::ReceivingQuery)
-                        },
+                        Err(_error) => {
+                            result = {
+                                // TODO: remove it from the pending_query_responses then
+                                Err(Error::ReceivingQuery)
+                            }
+                        }
                     };
 
                     debug!(
@@ -328,15 +341,14 @@ impl ConnectionManager {
                     threshold,
                     &vote_map,
                     received_errors,
-                    &mut has_elected_a_response
+                    &mut has_elected_a_response,
                 )?;
             }
         }
 
         debug!(
             "Response obtained after querying {} nodes: {:?}",
-            winner.1,
-            winner.0
+            winner.1, winner.0
         );
 
         winner.0.ok_or(Error::NoResponse)
@@ -349,7 +361,7 @@ impl ConnectionManager {
         threshold: usize,
         vote_map: &VoteMap,
         received_errors: usize,
-        has_elected_a_response: &mut bool
+        has_elected_a_response: &mut bool,
     ) -> Result<(Option<QueryResponse>, usize), Error> {
         trace!("No response selected yet, checking if fallback needed");
         let mut number_of_responses = 0;
@@ -357,7 +369,11 @@ impl ConnectionManager {
 
         for (_, (message, votes)) in vote_map.iter() {
             number_of_responses += votes;
-            trace!("Number of votes cast :{:?}. Threshold is: {:?} votes", number_of_responses, threshold);
+            trace!(
+                "Number of votes cast :{:?}. Threshold is: {:?} votes",
+                number_of_responses,
+                threshold
+            );
 
             number_of_responses += received_errors;
 
@@ -611,7 +627,11 @@ impl ConnectionManager {
                     Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
                         match MsgEnvelope::from(bytes) {
                             Ok(envelope) => {
-                                trace!("Message received at listener for {:?}: {:?}", &elder_addr, &envelope.message);
+                                trace!(
+                                    "Message received at listener for {:?}: {:?}",
+                                    &elder_addr,
+                                    &envelope.message
+                                );
                                 match envelope.message.clone() {
                                     Message::QueryResponse {
                                         response,
@@ -627,8 +647,7 @@ impl ConnectionManager {
                                         {
                                             trace!("Sender channel found for query response");
                                             let _ = sender.send(Ok(response)).await;
-                                        }
-                                        else {
+                                        } else {
                                             error!("No matching pending query found for elder {:?}  and message {:?}", elder_addr, correlation_id);
                                         }
                                     }
@@ -645,8 +664,7 @@ impl ConnectionManager {
                                             {
                                                 info!("Accumulating SignatureShare");
                                                 let _ = sender.send(Ok(event)).await;
-                                            }
-                                            else {
+                                            } else {
                                                 error!("No matching pending query found for elder {:?}  and message {:?}", elder_addr, correlation_id);
                                             }
                                         }
@@ -664,8 +682,7 @@ impl ConnectionManager {
                                             debug!("Cmd Error was received, sending on channel to caller");
                                             let _ =
                                                 sender.send(Err(Error::from(error.clone()))).await;
-                                        }
-                                        else {
+                                        } else {
                                             warn!("No sender subscribing and listening for errors relating to message {:?}. Error returned is: {:?}", correlation_id, error)
                                         }
 

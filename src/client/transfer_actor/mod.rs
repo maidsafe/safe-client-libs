@@ -296,11 +296,14 @@ impl Client {
                                     ))?;
                                     info!("Transfer successfully validated.");
                                     if let Some(dap) = validation.proof {
-                                        self.connection_manager.lock().await.remove_pending_transfer_sender(&message.id()).await?;
+                                        self.connection_manager
+                                            .lock()
+                                            .await
+                                            .remove_pending_transfer_sender(&message.id())
+                                            .await?;
                                         return Ok(dap);
                                     }
                                 } else {
-                                   
                                     info!("Aggregated given SignatureShare.");
                                 }
                             }
@@ -316,11 +319,15 @@ impl Client {
                             // TODO: Check + handle that errors are the same
                             let error = returned_errors.remove(0);
 
-                            if let Err(e) = self.connection_manager.lock().await.remove_pending_transfer_sender(&message.id()).await {
-                                return Err(e);
-
-                            } else 
+                            if let Err(e) = self
+                                .connection_manager
+                                .lock()
+                                .await
+                                .remove_pending_transfer_sender(&message.id())
+                                .await
                             {
+                                return Err(e);
+                            } else {
                                 return Err(error);
                             }
                         }
@@ -332,10 +339,13 @@ impl Client {
             }
 
             // at any point if we've had enough responses in, let's clean up
-            if response_count >= STANDARD_ELDERS_COUNT
-            {  
+            if response_count >= STANDARD_ELDERS_COUNT {
                 // remove pending listener
-                self.connection_manager.lock().await.remove_pending_transfer_sender(&message.id()).await?;
+                self.connection_manager
+                    .lock()
+                    .await
+                    .remove_pending_transfer_sender(&message.id())
+                    .await?;
             }
         }
     }
