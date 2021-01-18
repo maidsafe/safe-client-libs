@@ -42,18 +42,13 @@ pub mod exported_tests {
         let initial_actor = Client::new(Some(keypair), None).await?;
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(Error::Transfer(TransfersError::InsufficientBalance)) => {
-                // Ok(())
-                // assert!(e
-                //     .to_string()
-                //     .contains("Could not get history for key PublicKey"));
+                Ok(())
             }
             res => bail!(
                 "Unexpected response from mutation msg_contentsuest from 0 balance key: {:?}",
                 res
             ),
         }
-
-        Ok(())
     }
 }
 
