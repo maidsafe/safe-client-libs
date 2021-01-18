@@ -286,8 +286,7 @@ impl ConnectionManager {
         let mut received_errors = 0;
 
         // 2/3 of known elders
-        // let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
-        let threshold: usize = 1;
+        let threshold: usize = (self.elders.len() as f32 / 2_f32).ceil() as usize;
 
         trace!("Vote threshold is: {:?}", threshold);
         let mut winner: (Option<QueryResponse>, usize) = (None, threshold);
@@ -309,7 +308,7 @@ impl ConnectionManager {
             if let Ok(res) = res {
                 match res {
                     Ok(response) => {
-                        debug!("QueryResponse recevied is: {:#?}", response);
+                        debug!("QueryResponse received is: {:#?}", response);
 
                         // bincode here as we're using the internal qr, without serialisation
                         // this is only used internally to sn_client
