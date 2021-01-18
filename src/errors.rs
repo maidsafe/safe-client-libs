@@ -8,9 +8,9 @@
 
 use qp2p::Error as QuicP2pError;
 use sn_data_types::{Error as DtError, PublicKey};
-use sn_messaging::{CmdError, Error as ErrorMessage, Event, QueryResponse, TransferError};
+pub use sn_messaging::Error as ErrorMessage;
+use sn_messaging::{CmdError, Event, QueryResponse, TransferError};
 pub use sn_transfers::Error as TransfersError;
-
 use std::io;
 
 use thiserror::Error;
