@@ -125,11 +125,8 @@ impl ConnectionManager {
             tasks.push(task_handle);
         }
 
-        debug!("Before joining takss in sendcmd");
         // Let's await for all messages to be sent
         let results = join_all(tasks).await;
-
-        debug!("after tasks in sendcmd");
 
         let mut failures = 0;
         results.iter().for_each(|res| {
@@ -157,7 +154,7 @@ impl ConnectionManager {
         Ok(())
     }
 
-    /// Send a `Message` to the network without awaiting for a response.
+    /// Send a transfer validation message to all Elder without awaiting for a response.
     pub async fn send_transfer_validation(
         &self,
         msg: &Message,
@@ -183,8 +180,12 @@ impl ConnectionManager {
             let msg_bytes_clone = msg_bytes.clone();
             let connection = Arc::clone(&elder.connection);
             let task_handle = tokio::spawn(async move {
-                info!("Sending transfer for validation at Elder");
-                let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
+                let conn = connection.lock().await;
+                trace!(
+                    "Sending transfer validation to Elder {}",
+                    conn.remote_address()
+                );
+                let (send_stream, _) = conn.send_bi(msg_bytes_clone).await?;
                 send_stream.finish().await
             });
             tasks.push(task_handle);
@@ -223,13 +224,10 @@ impl ConnectionManager {
                 let mut result = Err(Error::ElderQuery);
                 let mut attempts: usize = 1;
 
-                info!("--------------------------------------------------------");
-
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
                     let connection = connection.lock().await;
 
-                    info!("****-message sent");
                     let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
                     {
                         let _ = pending_query_responses
