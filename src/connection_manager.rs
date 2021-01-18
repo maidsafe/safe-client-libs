@@ -103,7 +103,7 @@ impl ConnectionManager {
             "Sending (from {}) command message {:?} w/ id: {:?}",
             src_addr, msg, msg_id
         );
-        let msg_bytes = self.serialise_in_envelope(msg)?;
+        let msg_bytes = self.serialize_in_envelope(msg)?;
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
@@ -147,6 +147,7 @@ impl ConnectionManager {
 
     /// Remove a pending transfer sender from the listener map
     pub async fn remove_pending_transfer_sender(&self, msg_id: &MessageId) -> Result<(), Error> {
+        trace!("Removing pending transfer sender");
         let mut listeners = self.pending_transfer_validations.lock().await;
 
         let _ = listeners
@@ -167,7 +168,7 @@ impl ConnectionManager {
             msg,
             msg.id()
         );
-        let msg_bytes = self.serialise_in_envelope(msg)?;
+        let msg_bytes = self.serialize_in_envelope(msg)?;
 
         let msg_id = msg.id();
         let _ = self
@@ -201,7 +202,7 @@ impl ConnectionManager {
     /// Send a Query `Message` to the network awaiting for the response.
     pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
-        let msg_bytes = self.serialise_in_envelope(&msg)?;
+        let msg_bytes = self.serialize_in_envelope(&msg)?;
 
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
@@ -419,9 +420,9 @@ impl ConnectionManager {
     // Private helpers
 
     // Put a `Message` in an envelope so it can be sent to the network
-    fn serialise_in_envelope(&self, message: &Message) -> Result<Bytes, Error> {
+    fn serialize_in_envelope(&self, message: &Message) -> Result<Bytes, Error> {
         trace!("Putting message in envelope: {:?}", message);
-        let sign = self.keypair.sign(&message.serialise()?);
+        let sign = self.keypair.sign(&message.serialize()?);
 
         let envelope = MsgEnvelope {
             message: message.clone(),
@@ -429,7 +430,7 @@ impl ConnectionManager {
             proxies: Default::default(),
         };
 
-        let bytes = envelope.serialise()?;
+        let bytes = envelope.serialize()?;
         Ok(bytes)
     }
 
@@ -665,7 +666,8 @@ impl ConnectionManager {
                                                 info!("Accumulating SignatureShare");
                                                 let _ = sender.send(Ok(event)).await;
                                             } else {
-                                                error!("No matching pending query found for elder {:?}  and message {:?}", elder_addr, correlation_id);
+                                                error!("No matching transfer validation event listener found for elder {:?} and message {:?}", elder_addr, correlation_id);
+                                                error!("Event received was {:?}", event);
                                             }
                                         }
                                     }
@@ -694,7 +696,7 @@ impl ConnectionManager {
                                 }
                             }
                             Err(_error) => {
-                                error!("Could not deserialise MessageEnvelope");
+                                error!("Could not deserialize MessageEnvelope");
                             }
                         }
                     }

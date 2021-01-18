@@ -210,7 +210,7 @@ impl Client {
         Ok(())
     }
 
-    /// Uses self_encryption to generated an encrypted blob serialised data map, without writing to the network
+    /// Uses self_encryption to generated an encrypted blob serialized data map, without writing to the network
     pub async fn generate_data_map(&self, the_blob: &Blob) -> Result<DataMap, Error> {
         let blob_storage = BlobStorageDryRun::new(self.clone(), the_blob.is_pub());
 
@@ -308,10 +308,10 @@ impl Client {
                     return Ok(data_map);
                 }
                 DataMapLevel::Child(data_map) => {
-                    let serialised_blob = self
+                    let serialized_blob = self
                         .read_using_data_map(data_map, published, None, None)
                         .await?;
-                    data = deserialize(&serialised_blob)?;
+                    data = deserialize(&serialized_blob)?;
                 }
             }
         }
