@@ -8,7 +8,7 @@ license = "GPL-3.0"
 name = "sn_client"
 readme = "README.md"
 repository = "https://github.com/maidsafe/sn_client"
-version = "0.44.15"
+version = "0.44.16"
 keywords = [ "Safe", "Network", "SafeNetwork" ]
 
 [package.metadata.docs.rs]
