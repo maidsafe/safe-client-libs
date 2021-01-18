@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.44.14](https://github.com/maidsafe/sn_client/compare/v0.44.13...v0.44.14) (2021-01-18)
+
+
+### Features
+
+* listen for bootstrap response on IncomingMessages also ([f880f98](https://github.com/maidsafe/sn_client/commit/f880f9823e77b3727253f9dee01a304cc4e3eddd))
+* **connections:** updates to listen to all messages from each elder ([76c1836](https://github.com/maidsafe/sn_client/commit/76c1836db1eda7cc98e99bdef3d3c336fa03ab7f))
+
+
+### Bug Fixes
+
+* responses require threshold again ([d86bce4](https://github.com/maidsafe/sn_client/commit/d86bce44b2f59a76942b50d50439f2322a450641))
+* **responses:** Remove unneeded shortcircuit and clarify logs in repsonse handling ([a86bbcd](https://github.com/maidsafe/sn_client/commit/a86bbcda6517a25b2080696b0890cf826d86fd65))
+
 ### [0.44.13](https://github.com/maidsafe/sn_client/compare/v0.44.12...v0.44.13) (2021-01-05)
 
 ### [0.44.12](https://github.com/maidsafe/sn_client/compare/v0.44.11...v0.44.12) (2021-01-05)
