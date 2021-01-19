@@ -15,10 +15,9 @@ use futures::{
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{
-    self, Config as QuicP2pConfig, Connection, Endpoint, IncomingMessages, Message as Qp2pMessage,
-    QuicP2p,
+    self, Config as QuicP2pConfig, Endpoint, IncomingMessages, Message as Qp2pMessage, QuicP2p,
 };
-use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, PublicKey, TransferValidated};
+use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, TransferValidated};
 use sn_messaging::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::mpsc::channel;
@@ -36,10 +35,8 @@ type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
-#[derive(Clone)]
 struct ElderConnection {
-    connection: Arc<Mutex<Connection>>,
-    listener: Arc<Mutex<NetworkListenerHandle>>,
+    listener: NetworkListenerHandle,
     socket_addr: SocketAddr,
 }
 
@@ -59,14 +56,15 @@ pub struct ConnectionManager {
 
 impl ConnectionManager {
     /// Create a new connection manager.
-    pub fn new(
+    pub async fn new(
         mut config: QuicP2pConfig,
         keypair: Arc<Keypair>,
         notification_sender: UnboundedSender<Error>,
     ) -> Result<Self, Error> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
-        let endpoint = qp2p.new_endpoint()?;
+        let (endpoint, conn, _) = qp2p.bootstrap().await?;
+        conn.close();
 
         Ok(Self {
             keypair,
@@ -92,13 +90,15 @@ impl ConnectionManager {
 
         // Let's now connect to all Elders
         self.connect_to_elders(elders_addrs).await?;
+
         Ok(())
     }
 
     /// Send a `Message` to the network without awaiting for a response.
-    pub async fn send_cmd(&self, msg: &Message) -> Result<(), Error> {
+    pub async fn send_cmd(&mut self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
-        let src_addr = self.endpoint.lock().await.socket_addr().await?;
+        let endpoint = self.endpoint.lock().await;
+        let src_addr = endpoint.socket_addr().await?;
         info!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
             src_addr, msg, msg_id
@@ -109,12 +109,19 @@ impl ConnectionManager {
         let mut tasks = Vec::default();
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
-            let connection = Arc::clone(&elder.connection);
+            let (connection, incoming) = endpoint.connect_to(&elder.socket_addr).await?;
+
+            if let Some(incoming_messages) = incoming {
+                let socket_addr = elder.socket_addr;
+                error!("no listener exists for elder: {:?}", socket_addr);
+            }
+
             let socket = elder.socket_addr;
             let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
                 trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
-                let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
+                let (send_stream, _) = connection.send_bi(msg_bytes_clone).await?;
                 let _ = send_stream.finish().await?;
+
                 trace!(
                     "Sent cmd and finished the stream {:?} to {:?}",
                     msg_id,
@@ -168,24 +175,29 @@ impl ConnectionManager {
         let msg_bytes = self.serialize_in_envelope(msg)?;
 
         let msg_id = msg.id();
-        let _ = self
-            .pending_transfer_validations
-            .lock()
-            .await
-            .insert(msg_id, sender);
+        {
+            let _ = self
+                .pending_transfer_validations
+                .lock()
+                .await
+                .insert(msg_id, sender);
+        }
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
-            let connection = Arc::clone(&elder.connection);
+
+            let endpoint = self.endpoint.lock().await;
+            let (connection, _) = endpoint.connect_to(&elder.socket_addr).await?;
+
             let task_handle = tokio::spawn(async move {
-                let conn = connection.lock().await;
+                // let conn = connection.lock().await;
                 trace!(
                     "Sending transfer validation to Elder {}",
-                    conn.remote_address()
+                    connection.remote_address()
                 );
-                let (send_stream, _) = conn.send_bi(msg_bytes_clone).await?;
+                let (send_stream, _) = connection.send_bi(msg_bytes_clone).await?;
                 send_stream.finish().await
             });
             tasks.push(task_handle);
@@ -211,12 +223,14 @@ impl ConnectionManager {
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
             let socket_addr = elder.socket_addr;
-            // let endpoint = self.endpoint.clone();
             // Create a new stream here to not have to worry about filtering replies
             let msg_id = msg.id();
-            let connection = elder.connection.clone();
 
             let pending_query_responses = self.pending_query_responses.clone();
+
+            let endpoint = self.endpoint.lock().await;
+            let (connection, _) = endpoint.connect_to(&elder.socket_addr).await?;
+            // drop(endpoint);
 
             let task_handle = tokio::spawn(async move {
                 // Retry queries that failed for connection issues
@@ -226,7 +240,6 @@ impl ConnectionManager {
 
                 while !done_trying {
                     let msg_bytes_clone = msg_bytes_clone.clone();
-                    let connection = connection.lock().await;
 
                     let (sender, mut receiver) = channel::<Result<QueryResponse, Error>>(7);
                     {
@@ -442,7 +455,8 @@ impl ConnectionManager {
         let public_key = self.keypair.public_key();
         let handshake = HandshakeRequest::Bootstrap(public_key);
         let msg = Bytes::from(serialize(&handshake)?);
-        match conn.send_bi(msg).await {
+
+        let result = match conn.send_bi(msg).await {
             Ok((send_stream, _)) => {
                 send_stream.finish().await?;
                 if let Some(message) = incoming_messages.next().await {
@@ -453,7 +467,7 @@ impl ConnectionManager {
                                 Ok(HandshakeResponse::Rebootstrap(_elders)) => {
                                     trace!("HandshakeResponse::Rebootstrap, trying again");
                                     // TODO: initialise `hard_coded_contacts` with received `elders`.
-                                    return Err(Error::UnexpectedMessageOnJoin("Client should re-bootstrap with a new set of Elders, but it's not yet supported.".to_string()))
+                                     Err(Error::UnexpectedMessageOnJoin("Client should re-bootstrap with a new set of Elders, but it's not yet supported.".to_string()))
                                 }
                                 Ok(HandshakeResponse::Join(elders)) => {
                                     trace!("HandshakeResponse::Join Elders: ({:?})", elders);
@@ -463,12 +477,12 @@ impl ConnectionManager {
                                         .map(|(_, socket_addr)| socket_addr)
                                         .collect();
 
-                                    return Ok(elders_addrs)
+                                     Ok(elders_addrs)
                                 }
-                                Ok(HandshakeResponse::InvalidSection) => return Err(Error::UnexpectedMessageOnJoin(
+                                Ok(HandshakeResponse::InvalidSection) =>  Err(Error::UnexpectedMessageOnJoin(
                                     "bootstrapping was rejected by since it's an invalid section to join.".to_string(),
                                 )),
-                                Err(e) => return Err(e.into()),
+                                Err(e) =>  Err(e.into()),
                             }
                         }
                     }
@@ -480,31 +494,13 @@ impl ConnectionManager {
                 }
             }
             Err(_error) => Err(Error::ReceivingQuery),
-        }
+        };
+
+        result
     }
 
     pub fn number_of_connected_elders(&self) -> usize {
         self.elders.len()
-    }
-
-    /// Connect and bootstrap to one specific elder
-    async fn connect_to_elder(
-        endpoint: Arc<Mutex<Endpoint>>,
-        peer_addr: SocketAddr,
-        public_key: PublicKey,
-    ) -> Result<(Arc<Mutex<Connection>>, IncomingMessages, SocketAddr), Error> {
-        let endpoint = endpoint.lock().await;
-
-        let (connection, incoming_messages) = endpoint.connect_to(&peer_addr).await?;
-
-        let incoming = incoming_messages.ok_or(Error::NoElderListenerEstablished)?;
-
-        let handshake = HandshakeRequest::Join(public_key);
-        let msg = Bytes::from(serialize(&handshake)?);
-        let (send_stream, _) = connection.send_bi(msg).await?;
-        send_stream.finish().await?;
-
-        Ok((Arc::new(Mutex::new(connection)), incoming, peer_addr))
     }
 
     // Connect to a set of Elders nodes which will be
@@ -516,33 +512,42 @@ impl ConnectionManager {
 
         for peer_addr in elders_addrs {
             let keypair = self.keypair.clone();
-
-            // We use one endpoint for all elders
-            let endpoint = Arc::clone(&self.endpoint);
+            let endpoint = self.endpoint.clone();
 
             let task_handle = tokio::spawn(async move {
                 let mut result = Err(Error::ElderConnection);
+                let mut connected = false;
                 let mut attempts: usize = 0;
-                while result.is_err() && attempts <= NUMBER_OF_RETRIES {
-                    let endpoint = Arc::clone(&endpoint);
+                while !connected && attempts <= NUMBER_OF_RETRIES {
                     let public_key = keypair.public_key();
-                    result = Self::connect_to_elder(endpoint, peer_addr, public_key).await;
                     attempts += 1;
 
+                    let (connection, incoming_messages) = {
+                        let endpoint = endpoint.lock().await;
+                        endpoint.connect_to(&peer_addr).await?
+                    };
+
+                    let incoming = incoming_messages.ok_or(Error::NoElderListenerEstablished)?;
+
+                    let handshake = HandshakeRequest::Join(public_key);
+                    let msg = Bytes::from(serialize(&handshake)?);
+                    let (send_stream, _) = connection.send_bi(msg).await?;
+                    send_stream.finish().await?;
+
+                    connected = true;
+
                     debug!(
-                        "Elder conn attempt #{} @ {} is ok? : {:?}",
-                        attempts,
-                        peer_addr,
-                        result.is_ok()
+                        "Elder conn attempt #{} @ {} is connected? : {:?}",
+                        attempts, peer_addr, connected
                     );
+
+                    result = Ok((incoming, peer_addr))
                 }
 
                 result
             });
             tasks.push(task_handle);
         }
-
-        // Let's await for them to all successfully connect, or fail if at least one failed
 
         // TODO: Do we need a timeout here to check sufficient time has passed + or sufficient connections?
         let mut has_sufficent_connections = false;
@@ -569,18 +574,16 @@ impl ConnectionManager {
                     warn!("Failed to connect to Elder @ : {}", err);
                 });
 
-                if let Ok((connection, incoming_messages, socket_addr)) = res {
+                if let Ok((incoming_messages, socket_addr)) = res {
                     info!("Connected to elder: {:?}", socket_addr);
 
                     let listener = self
                         .listen_to_incoming_messages(incoming_messages, socket_addr)
                         .await?;
 
-                    // let listener = self.listen_to_receive_stream(recv_stream).await?;
                     // We can now keep this connections in our instance
                     self.elders.push(ElderConnection {
-                        connection,
-                        listener: Arc::new(Mutex::new(listener)),
+                        listener,
                         socket_addr,
                     });
                 }
@@ -621,14 +624,14 @@ impl ConnectionManager {
         // Spawn a thread for all the connections
         let handle = tokio::spawn(async move {
             while let Some(message) = incoming_messages.next().await {
+                warn!("Message received in qp2p listener");
                 match message {
                     Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
                         match MsgEnvelope::from(bytes) {
                             Ok(envelope) => {
-                                trace!(
+                                warn!(
                                     "Message received at listener for {:?}: {:?}",
-                                    &elder_addr,
-                                    &envelope.message
+                                    &elder_addr, &envelope.message
                                 );
                                 match envelope.message.clone() {
                                     Message::QueryResponse {
@@ -663,8 +666,9 @@ impl ConnectionManager {
                                                 info!("Accumulating SignatureShare");
                                                 let _ = sender.send(Ok(event)).await;
                                             } else {
-                                                error!("No matching transfer validation event listener found for elder {:?} and message {:?}", elder_addr, correlation_id);
-                                                error!("Event received was {:?}", event);
+                                                warn!("No matching transfer validation event listener found for elder {:?} and message {:?}", elder_addr, correlation_id);
+                                                warn!("It may be that this transfer is complete and the listener cleaned up already.");
+                                                trace!("Event received was {:?}", event);
                                             }
                                         }
                                     }

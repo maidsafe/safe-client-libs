@@ -302,7 +302,8 @@ pub async fn attempt_bootstrap(
             qp2p_config.clone(),
             keypair.clone(),
             notification_sender.clone(),
-        )?;
+        )
+        .await?;
         let res = connection_manager.bootstrap().await;
         match res {
             Ok(()) => return Ok(connection_manager),
@@ -352,7 +353,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn client_creation_and_slow_request() -> Result<(), Error> {
+    pub async fn long_lived_connection_survives() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
         let balance = client.get_balance().await?;
@@ -386,7 +387,7 @@ mod tests {
     }
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_and_slow_request() -> Result<(), Error> {
-        exported_tests::client_creation_and_slow_request().await
+    pub async fn long_lived_connection_survives() -> Result<(), Error> {
+        exported_tests::long_lived_connection_survives().await
     }
 }
