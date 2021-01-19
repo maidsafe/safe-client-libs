@@ -78,6 +78,24 @@ pub struct Client {
     notification_receiver: Arc<Mutex<UnboundedReceiver<Error>>>,
 }
 
+impl Drop for Client {
+    fn drop(&mut self) {
+        
+        futures::executor::block_on( async {
+            debug!("££££££££££££££££££££££££££££££££££££££££££££££££££");
+            debug!("££££££££££££££££££££££££££££££££££££££££££££££££££");
+            debug!("££££££££££££££££££££££££££££££££££££££££££££££££££");
+            debug!("££££££££££££££££££££££££££££££££££££££££££££££££££");
+            debug!("££££££££££££££££££££££££££££££££££££££££££££££££££");
+            debug!("dropping + closing conns");
+            let res = self.connection_manager.lock().await.close_all_elder_connections().await;
+            debug!("dropped + res {:?}", res);
+
+        } );
+    }
+}
+
+
 /// Easily manage connections to/from The Safe Network with the client and its APIs.
 /// Use a random client for read-only or one-time operations.
 /// Supply an existing, SecretKey which holds a SafeCoin balance to be able to perform
@@ -352,7 +370,7 @@ pub mod exported_tests {
         Ok(())
     }
 
-    pub async fn client_creation_and_slow_request() -> Result<(), Error> {
+    pub async fn long_lived_connection_survives() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
         let balance = client.get_balance().await?;
@@ -386,7 +404,7 @@ mod tests {
     }
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_and_slow_request() -> Result<(), Error> {
-        exported_tests::client_creation_and_slow_request().await
+    pub async fn long_lived_connection_survives() -> Result<(), Error> {
+        exported_tests::long_lived_connection_survives().await
     }
 }

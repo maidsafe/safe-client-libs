@@ -88,10 +88,29 @@ impl ConnectionManager {
 
         // Bootstrap and send a handshake request to receive
         // the list of Elders we can then connect to
-        let elders_addrs = self.bootstrap_and_handshake().await?;
+        // let elders_addrs = self.bootstrap_and_handshake().await?;
+
+        let mut elders_addrs = self.bootstrap_and_handshake().await?;
+        let mut rng = rand::thread_rng();
+        use rand::prelude::SliceRandom;
+        elders_addrs.shuffle(&mut rng);
 
         // Let's now connect to all Elders
         self.connect_to_elders(elders_addrs).await?;
+        Ok(())
+    }
+
+    // close down all elder connections
+    pub async fn close_all_elder_connections(&self) -> Result<(), Error> {
+        for elder in &self.elders {
+            debug!("dropping elder @:  {:?}", elder.socket_addr );
+            let lock = elder.connection.lock();
+            debug!("lock acquired");
+            lock.await.close();
+            debug!("dropped {:?}", elder.socket_addr );
+
+        }
+
         Ok(())
     }
 
@@ -115,6 +134,8 @@ impl ConnectionManager {
                 trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
                 let (send_stream, _) = connection.lock().await.send_bi(msg_bytes_clone).await?;
                 let _ = send_stream.finish().await?;
+                drop(connection);
+
                 trace!(
                     "Sent cmd and finished the stream {:?} to {:?}",
                     msg_id,
@@ -186,7 +207,12 @@ impl ConnectionManager {
                     conn.remote_address()
                 );
                 let (send_stream, _) = conn.send_bi(msg_bytes_clone).await?;
-                send_stream.finish().await
+                let r = send_stream.finish().await;
+                drop(conn);
+
+                trace!("transfer sending done................");
+
+                r
             });
             tasks.push(task_handle);
         }
@@ -241,6 +267,7 @@ impl ConnectionManager {
                     match connection.send_bi(msg_bytes_clone).await {
                         Ok((send_stream, _)) => {
                             send_stream.finish().await?;
+                            drop(connection);
 
                             // TODO: receive response here.
                             result = match receiver.recv().await {
@@ -445,6 +472,7 @@ impl ConnectionManager {
         match conn.send_bi(msg).await {
             Ok((send_stream, _)) => {
                 send_stream.finish().await?;
+                drop(conn);
                 if let Some(message) = incoming_messages.next().await {
                     match message {
                         Qp2pMessage::BiStream { bytes, .. }
@@ -503,6 +531,7 @@ impl ConnectionManager {
         let msg = Bytes::from(serialize(&handshake)?);
         let (send_stream, _) = connection.send_bi(msg).await?;
         send_stream.finish().await?;
+
 
         Ok((Arc::new(Mutex::new(connection)), incoming, peer_addr))
     }
@@ -663,8 +692,9 @@ impl ConnectionManager {
                                                 info!("Accumulating SignatureShare");
                                                 let _ = sender.send(Ok(event)).await;
                                             } else {
-                                                error!("No matching transfer validation event listener found for elder {:?} and message {:?}", elder_addr, correlation_id);
-                                                error!("Event received was {:?}", event);
+                                                warn!("No matching transfer validation event listener found for elder {:?} and message {:?}", elder_addr, correlation_id);
+                                                warn!("It may be that this transfer is complete and the listener cleaned up already.");
+                                                trace!("Event received was {:?}", event);
                                             }
                                         }
                                     }
