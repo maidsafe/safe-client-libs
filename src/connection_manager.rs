@@ -11,7 +11,7 @@ use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
     future::{join_all, select_all},
-    lock::Mutex,
+    lock::{self, Mutex},
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{
@@ -48,7 +48,7 @@ pub struct ConnectionManager {
     keypair: Arc<Keypair>,
     qp2p: QuicP2p,
     elders: Vec<ElderConnection>,
-    endpoint: Arc<Mutex<Endpoint>>,
+    endpoint: Option<Arc<Mutex<Endpoint>>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
     pending_query_responses: Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>,
     notification_sender: UnboundedSender<Error>,
@@ -63,14 +63,12 @@ impl ConnectionManager {
     ) -> Result<Self, Error> {
         config.port = Some(0); // Make sure we always use a random port for client connections.
         let qp2p = QuicP2p::with_config(Some(config), Default::default(), false)?;
-        let (endpoint, conn, _) = qp2p.bootstrap().await?;
-        conn.close();
 
         Ok(Self {
             keypair,
             qp2p,
             elders: Vec::default(),
-            endpoint: Arc::new(Mutex::new(endpoint)),
+            endpoint: None,
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
             pending_query_responses: Arc::new(Mutex::new(HashMap::default())),
             notification_sender,
@@ -97,7 +95,9 @@ impl ConnectionManager {
     /// Send a `Message` to the network without awaiting for a response.
     pub async fn send_cmd(&mut self, msg: &Message) -> Result<(), Error> {
         let msg_id = msg.id();
-        let endpoint = self.endpoint.lock().await;
+
+        let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+        let endpoint = endpoint.lock().await;
         let src_addr = endpoint.socket_addr().await?;
         info!(
             "Sending (from {}) command message {:?} w/ id: {:?}",
@@ -188,7 +188,8 @@ impl ConnectionManager {
         for elder in &self.elders {
             let msg_bytes_clone = msg_bytes.clone();
 
-            let endpoint = self.endpoint.lock().await;
+            let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+            let endpoint = endpoint.lock().await;
             let (connection, _) = endpoint.connect_to(&elder.socket_addr).await?;
 
             let task_handle = tokio::spawn(async move {
@@ -228,9 +229,9 @@ impl ConnectionManager {
 
             let pending_query_responses = self.pending_query_responses.clone();
 
-            let endpoint = self.endpoint.lock().await;
+            let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
+            let endpoint = endpoint.lock().await;
             let (connection, _) = endpoint.connect_to(&elder.socket_addr).await?;
-            // drop(endpoint);
 
             let task_handle = tokio::spawn(async move {
                 // Retry queries that failed for connection issues
@@ -449,7 +450,7 @@ impl ConnectionManager {
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, Error> {
         trace!("Bootstrapping with contacts...");
         let (endpoint, conn, mut incoming_messages) = self.qp2p.bootstrap().await?;
-        self.endpoint = Arc::new(Mutex::new(endpoint));
+        self.endpoint = Some(Arc::new(Mutex::new(endpoint)));
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_key = self.keypair.public_key();
@@ -510,10 +511,11 @@ impl ConnectionManager {
         // We spawn a task per each node to connect to
         let mut tasks = Vec::default();
 
+        let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
         for peer_addr in elders_addrs {
             let keypair = self.keypair.clone();
-            let endpoint = self.endpoint.clone();
 
+            let endpoint = endpoint.clone();
             let task_handle = tokio::spawn(async move {
                 let mut result = Err(Error::ElderConnection);
                 let mut connected = false;

@@ -43,6 +43,10 @@ pub enum Error {
     #[error("Problem connecting to elder")]
     ElderConnection,
 
+    /// Client has not gone trhough qp2p bootstrap process yet
+    #[error("Client has failed to bootstrap yet")]
+    NotBootstrapped,
+
     /// Could not connect to sufficient elder to retrieve reliable responses.
     #[error("Problem connecting to sufficient elder")]
     InsufficientElderConnections,
