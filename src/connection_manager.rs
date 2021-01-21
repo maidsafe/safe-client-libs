@@ -11,7 +11,7 @@ use bincode::{deserialize, serialize};
 use bytes::Bytes;
 use futures::{
     future::{join_all, select_all},
-    lock::{self, Mutex},
+    lock::Mutex,
 };
 use log::{debug, error, info, trace, warn};
 use qp2p::{
@@ -231,7 +231,14 @@ impl ConnectionManager {
 
             let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
             let endpoint = endpoint.lock().await;
-            let (connection, _) = endpoint.connect_to(&elder.socket_addr).await?;
+            let (connection, incoming) = endpoint.connect_to(&elder.socket_addr).await?;
+
+            if let Some(_) = incoming {
+                warn!(
+                    "No listener established for elder connection {:?}",
+                    elder.socket_addr
+                );
+            }
 
             let task_handle = tokio::spawn(async move {
                 // Retry queries that failed for connection issues
