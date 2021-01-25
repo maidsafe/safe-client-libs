@@ -36,6 +36,7 @@ type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
 struct ElderConnection {
+    #[allow(dead_code)]
     listener: NetworkListenerHandle,
     socket_addr: SocketAddr,
 }
@@ -111,7 +112,7 @@ impl ConnectionManager {
             let msg_bytes_clone = msg_bytes.clone();
             let (connection, incoming) = endpoint.connect_to(&elder.socket_addr).await?;
 
-            if let Some(incoming_messages) = incoming {
+            if incoming.is_some() {
                 let socket_addr = elder.socket_addr;
                 error!("no listener exists for elder: {:?}", socket_addr);
             }
@@ -233,7 +234,7 @@ impl ConnectionManager {
             let endpoint = endpoint.lock().await;
             let (connection, incoming) = endpoint.connect_to(&elder.socket_addr).await?;
 
-            if let Some(_) = incoming {
+            if incoming.is_some() {
                 warn!(
                     "No listener established for elder connection {:?}",
                     elder.socket_addr
