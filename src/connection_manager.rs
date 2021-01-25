@@ -19,7 +19,11 @@ use qp2p::{
 };
 use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, TransferValidated};
 use sn_messaging::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    sync::Arc,
+};
 use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::mpsc::UnboundedSender;
@@ -35,11 +39,7 @@ type VoteMap = HashMap<[u8; 32], (QueryResponse, usize)>;
 type TransferValidationSender = Sender<Result<TransferValidated, Error>>;
 type QueryResponseSender = Sender<Result<QueryResponse, Error>>;
 
-struct ElderConnection {
-    #[allow(dead_code)]
-    listener: NetworkListenerHandle,
-    socket_addr: SocketAddr,
-}
+type ElderConnectionMap = BTreeMap<SocketAddr, Arc<NetworkListenerHandle>>;
 
 /// JoinHandle for recv stream listener thread
 type NetworkListenerHandle = JoinHandle<Result<(), Error>>;
@@ -48,7 +48,7 @@ type NetworkListenerHandle = JoinHandle<Result<(), Error>>;
 pub struct ConnectionManager {
     keypair: Arc<Keypair>,
     qp2p: QuicP2p,
-    elders: Vec<ElderConnection>,
+    elders: ElderConnectionMap,
     endpoint: Option<Arc<Mutex<Endpoint>>>,
     pending_transfer_validations: Arc<Mutex<HashMap<MessageId, TransferValidationSender>>>,
     pending_query_responses: Arc<Mutex<HashMap<(SocketAddr, MessageId), QueryResponseSender>>>,
@@ -68,7 +68,7 @@ impl ConnectionManager {
         Ok(Self {
             keypair,
             qp2p,
-            elders: Vec::default(),
+            elders: BTreeMap::default(),
             endpoint: None,
             pending_transfer_validations: Arc::new(Mutex::new(HashMap::default())),
             pending_query_responses: Arc::new(Mutex::new(HashMap::default())),
@@ -108,16 +108,23 @@ impl ConnectionManager {
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
-        for elder in &self.elders {
+
+        // clone elders as we want to update them in this process
+        for socket in self.elders.clone().keys() {
             let msg_bytes_clone = msg_bytes.clone();
-            let (connection, incoming) = endpoint.connect_to(&elder.socket_addr).await?;
+            let (connection, incoming) = endpoint.connect_to(&socket).await?;
 
-            if incoming.is_some() {
-                let socket_addr = elder.socket_addr;
-                error!("no listener exists for elder: {:?}", socket_addr);
+            if let Some(incoming_messages) = incoming {
+                warn!(
+                    "No listener existed for elder: {:?} (a listener will be added now)",
+                    socket
+                );
+                self.listen_to_incoming_messages_for_elder(incoming_messages, *socket)
+                    .await?;
+                info!("Elder listener was updated");
             }
-
-            let socket = elder.socket_addr;
+            // clone to pass intoi thread
+            let socket = *socket;
             let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
                 trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
                 let (send_stream, _) = connection.send_bi(msg_bytes_clone).await?;
@@ -186,15 +193,14 @@ impl ConnectionManager {
 
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
-        for elder in &self.elders {
+        for socket in self.elders.keys() {
             let msg_bytes_clone = msg_bytes.clone();
 
             let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
             let endpoint = endpoint.lock().await;
-            let (connection, _) = endpoint.connect_to(&elder.socket_addr).await?;
+            let (connection, _) = endpoint.connect_to(&socket).await?;
 
             let task_handle = tokio::spawn(async move {
-                // let conn = connection.lock().await;
                 trace!(
                     "Sending transfer validation to Elder {}",
                     connection.remote_address()
@@ -215,16 +221,17 @@ impl ConnectionManager {
     }
 
     /// Send a Query `Message` to the network awaiting for the response.
-    pub async fn send_query(&self, msg: &Message) -> Result<QueryResponse, Error> {
+    pub async fn send_query(&mut self, msg: &Message) -> Result<QueryResponse, Error> {
         info!("sending query message {:?} w/ id: {:?}", msg, msg.id());
         let msg_bytes = self.serialize_in_envelope(&msg)?;
 
         // We send the same message to all Elders concurrently,
         // and we try to find a majority on the responses
         let mut tasks = Vec::default();
-        for elder in &self.elders {
+
+        // clone elders as we want to update them in this process
+        for socket in self.elders.clone().keys() {
             let msg_bytes_clone = msg_bytes.clone();
-            let socket_addr = elder.socket_addr;
             // Create a new stream here to not have to worry about filtering replies
             let msg_id = msg.id();
 
@@ -232,13 +239,17 @@ impl ConnectionManager {
 
             let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
             let endpoint = endpoint.lock().await;
-            let (connection, incoming) = endpoint.connect_to(&elder.socket_addr).await?;
+            let (connection, incoming) = endpoint.connect_to(&socket).await?;
+            let socket = *socket;
 
-            if incoming.is_some() {
+            if let Some(incoming_messages) = incoming {
                 warn!(
-                    "No listener established for elder connection {:?}",
-                    elder.socket_addr
+                    "No listener existed for elder: {:?} (a listener will be added now)",
+                    socket
                 );
+                self.listen_to_incoming_messages_for_elder(incoming_messages, socket)
+                    .await?;
+                info!("Elder listener was updated");
             }
 
             let task_handle = tokio::spawn(async move {
@@ -255,7 +266,7 @@ impl ConnectionManager {
                         let _ = pending_query_responses
                             .lock()
                             .await
-                            .insert((socket_addr, msg_id), sender);
+                            .insert((socket, msg_id), sender);
                     }
 
                     // TODO: we need to remove the msg_id from
@@ -284,7 +295,7 @@ impl ConnectionManager {
                     debug!(
                         "Try #{:?} @ {:?}. Got back response: {:?}",
                         attempts,
-                        socket_addr,
+                        socket,
                         &result.is_ok()
                     );
 
@@ -587,15 +598,9 @@ impl ConnectionManager {
                 if let Ok((incoming_messages, socket_addr)) = res {
                     info!("Connected to elder: {:?}", socket_addr);
 
-                    let listener = self
-                        .listen_to_incoming_messages(incoming_messages, socket_addr)
+                    // save the listener connection for receiving responses
+                    self.listen_to_incoming_messages_for_elder(incoming_messages, socket_addr)
                         .await?;
-
-                    // We can now keep this connections in our instance
-                    self.elders.push(ElderConnection {
-                        listener,
-                        socket_addr,
-                    });
                 }
             }
 
@@ -619,11 +624,11 @@ impl ConnectionManager {
     }
 
     /// Listen for incoming messages on a connection
-    pub async fn listen_to_incoming_messages(
-        &self,
+    pub async fn listen_to_incoming_messages_for_elder(
+        &mut self,
         mut incoming_messages: IncomingMessages,
         elder_addr: SocketAddr,
-    ) -> Result<NetworkListenerHandle, Error> {
+    ) -> Result<(), Error> {
         debug!("Adding IncomingMessages listener for {:?}", elder_addr);
 
         let pending_transfer_validations = Arc::clone(&self.pending_transfer_validations);
@@ -717,6 +722,11 @@ impl ConnectionManager {
             Ok::<(), Error>(())
         });
 
-        Ok(handle)
+        let _ = self
+            .elders
+            .insert(elder_addr, Arc::new(handle))
+            .ok_or(Error::CannotSaveElderConnection)?;
+
+        Ok(())
     }
 }

@@ -39,9 +39,12 @@ pub enum Error {
     /// Could not query elder.
     #[error("Problem querying elder")]
     ElderQuery,
-    /// Could not connecet to elder.
+    /// Could not connect to elder.
     #[error("Problem connecting to elder")]
     ElderConnection,
+    /// Could not save connection to elder.
+    #[error("Could not save elder connection")]
+    CannotSaveElderConnection,
 
     /// Client has not gone trhough qp2p bootstrap process yet
     #[error("Client has failed to bootstrap yet")]
