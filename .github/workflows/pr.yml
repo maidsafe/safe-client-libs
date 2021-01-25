@@ -121,11 +121,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-cache-${{ hashFiles('**/Cargo.lock') }}
 
-      # TODO: Reenable as we get tests going again
-      # Run tests.
-      # - shell: bash
-      #   run: ./scripts/test-real-network
-
       - name: Doc Tests
         shell: bash
         run: cargo test --doc
@@ -194,7 +189,7 @@ jobs:
       
       # Run tests.
       - name: Run the tests
-        run: cargo test --release
+        run: cargo test --release --features=simulated-payouts
       
       - name: Stop the network.
         if: failure()

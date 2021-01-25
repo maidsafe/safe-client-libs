@@ -63,7 +63,7 @@ jobs:
 
       # Run tests.
       - name: Run the tests
-        run: cargo test --release
+        run: cargo test --release --features=simulated-payouts
 
       - name: Stop the network.
         if: failure()
