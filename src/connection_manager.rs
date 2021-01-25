@@ -109,8 +109,9 @@ impl ConnectionManager {
         // Send message to all Elders concurrently
         let mut tasks = Vec::default();
 
+        let elders_addrs: Vec<SocketAddr> = self.elders.keys().cloned().collect();
         // clone elders as we want to update them in this process
-        for socket in self.elders.clone().keys() {
+        for socket in elders_addrs {
             let msg_bytes_clone = msg_bytes.clone();
             let (connection, incoming) = endpoint.connect_to(&socket).await?;
 
@@ -119,12 +120,11 @@ impl ConnectionManager {
                     "No listener existed for elder: {:?} (a listener will be added now)",
                     socket
                 );
-                self.listen_to_incoming_messages_for_elder(incoming_messages, *socket)
+                self.listen_to_incoming_messages_for_elder(incoming_messages, socket)
                     .await?;
                 info!("Elder listener was updated");
             }
-            // clone to pass intoi thread
-            let socket = *socket;
+
             let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
                 trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
                 let (send_stream, _) = connection.send_bi(msg_bytes_clone).await?;
@@ -229,8 +229,8 @@ impl ConnectionManager {
         // and we try to find a majority on the responses
         let mut tasks = Vec::default();
 
-        // clone elders as we want to update them in this process
-        for socket in self.elders.clone().keys() {
+        let elders_addrs: Vec<SocketAddr> = self.elders.keys().cloned().collect();
+        for socket in elders_addrs {
             let msg_bytes_clone = msg_bytes.clone();
             // Create a new stream here to not have to worry about filtering replies
             let msg_id = msg.id();
@@ -240,7 +240,6 @@ impl ConnectionManager {
             let endpoint = self.endpoint.clone().ok_or(Error::NotBootstrapped)?;
             let endpoint = endpoint.lock().await;
             let (connection, incoming) = endpoint.connect_to(&socket).await?;
-            let socket = *socket;
 
             if let Some(incoming_messages) = incoming {
                 warn!(
@@ -722,10 +721,8 @@ impl ConnectionManager {
             Ok::<(), Error>(())
         });
 
-        let _ = self
-            .elders
-            .insert(elder_addr, Arc::new(handle))
-            .ok_or(Error::CannotSaveElderConnection)?;
+        // Some or None, not super important if this existed before...
+        let _ = self.elders.insert(elder_addr, Arc::new(handle));
 
         Ok(())
     }
