@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.44.20](https://github.com/maidsafe/sn_client/compare/v0.44.19...v0.44.20) (2021-01-26)
+
+
+### Features
+
+* update client default config for idle/keep alive time changes. ([547dbdd](https://github.com/maidsafe/sn_client/commit/547dbdd2c7e77b66c8cc5715961c9c68d0fceaf2))
+* update elder listeners when incoming messages available ([90f36ee](https://github.com/maidsafe/sn_client/commit/90f36eed6b98b5329f997a22b2c76518a2adc205))
+
 ### [0.44.19](https://github.com/maidsafe/sn_client/compare/v0.44.18...v0.44.19) (2021-01-21)
 
 
