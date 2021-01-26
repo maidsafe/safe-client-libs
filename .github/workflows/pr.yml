@@ -107,6 +107,7 @@ jobs:
 
       # Cache.
       - name: Cargo cache registry, index and build
+        if: matrix.os != 'macOS-latest'
         uses: actions/cache@v2
         with:
           path: |
@@ -142,6 +143,7 @@ jobs:
 
       # Cache.
       - name: Cargo cache registry, index and build
+        if: matrix.os != 'macOS-latest'
         uses: actions/cache@v2
         with:
           path: |
