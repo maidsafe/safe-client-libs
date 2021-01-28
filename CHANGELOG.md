@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.44.22](https://github.com/maidsafe/sn_client/compare/v0.44.21...v0.44.22) (2021-01-28)
+
+
+### Bug Fixes
+
+* use latest qp2p & so dont remove good connections from pool ([fa8fbd2](https://github.com/maidsafe/sn_client/commit/fa8fbd2573840533f23186f7b9764150863027d4))
+
 ### [0.44.21](https://github.com/maidsafe/sn_client/compare/v0.44.20...v0.44.21) (2021-01-28)
 
 ### [0.44.20](https://github.com/maidsafe/sn_client/compare/v0.44.19...v0.44.20) (2021-01-26)
