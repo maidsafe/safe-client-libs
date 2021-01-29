@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.44.23](https://github.com/maidsafe/sn_client/compare/v0.44.22...v0.44.23) (2021-01-29)
+
+
+### Features
+
+* set simulated-payouts as a default feature for now ([de6b2c9](https://github.com/maidsafe/sn_client/commit/de6b2c93fc994e0166943199e991befee923df80))
+
 ### [0.44.22](https://github.com/maidsafe/sn_client/compare/v0.44.21...v0.44.22) (2021-01-28)
 
 
