@@ -317,9 +317,7 @@ impl Client {
         }
     }
 }
-
-#[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts"))]
+#[cfg(test)]
 mod tests {
     use super::{Blob, BlobAddress, Client, Error};
     use crate::utils::{generate_random_vector, test_utils::gen_bls_keypair};

@@ -195,8 +195,7 @@ impl Client {
 // Tests
 // ---------------------------------
 
-#[allow(missing_docs)]
-#[cfg(feature = "simulated-payouts")]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::errors::TransfersError;

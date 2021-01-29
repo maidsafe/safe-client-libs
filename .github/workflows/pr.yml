@@ -40,7 +40,8 @@ jobs:
 
       # Run Clippy.
       - shell: bash
-        run: ./scripts/clippy-all
+        run: cargo clippy --all-targets
+
 
   # Run `cargo build` in the root directory to test all build scripts.
   build-script:

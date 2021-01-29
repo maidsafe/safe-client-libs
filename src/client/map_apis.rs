@@ -642,8 +642,7 @@ impl Client {
     }
 }
 
-#[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;

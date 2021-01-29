@@ -1,6 +1,0 @@
-#!/bin/bash
-
-set -e -x;
-export RUSTFLAGS="-D warnings"
-
-cargo clippy --features=simulated-payouts --all-targets

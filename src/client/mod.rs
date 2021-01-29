@@ -319,7 +319,7 @@ pub async fn attempt_bootstrap(
     }
 }
 
-#[cfg(feature = "simulated-payouts")]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};

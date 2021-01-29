@@ -355,7 +355,7 @@ impl Client {
 // Tests
 // ---------------------------------
 
-#[cfg(feature = "simulated-payouts")]
+#[cfg(test)]
 mod tests {
     use super::*;
     use anyhow::{anyhow, Result};

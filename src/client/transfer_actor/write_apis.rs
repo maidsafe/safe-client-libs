@@ -23,7 +23,7 @@ impl Client {
     }
 }
 
-#[cfg(all(test, feature = "simulated-payouts"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::errors::TransfersError;
