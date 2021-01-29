@@ -355,15 +355,15 @@ impl Client {
 // Tests
 // ---------------------------------
 
-#[allow(missing_docs)]
 #[cfg(feature = "simulated-payouts")]
-pub mod exported_tests {
+mod tests {
     use super::*;
     use anyhow::{anyhow, Result};
     use rand::rngs::OsRng;
     use sn_data_types::Money;
     use std::str::FromStr;
 
+    #[tokio::test]
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -376,6 +376,7 @@ pub mod exported_tests {
         }
     }
 
+    #[tokio::test]
     pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<()> {
         match Client::new(None, None).await {
             Ok(actor) => {
@@ -395,6 +396,7 @@ pub mod exported_tests {
         }
     }
 
+    #[tokio::test]
     pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<()> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
@@ -425,29 +427,5 @@ pub mod exported_tests {
         assert_eq!(client.get_local_balance().await, Money::from_str("100")?);
 
         Ok(())
-    }
-}
-
-#[cfg(all(test, feature = "simulated-payouts"))]
-mod tests {
-    use super::exported_tests;
-    use anyhow::Result;
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
-        exported_tests::transfer_actor_creation_hydration_for_nonexistant_balance().await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<()> {
-        exported_tests::transfer_actor_client_random_creation_gets_initial_balance().await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<()> {
-        exported_tests::transfer_actor_creation_hydration_for_existing_balance().await
     }
 }

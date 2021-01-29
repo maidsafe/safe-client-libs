@@ -197,7 +197,7 @@ impl Client {
 
 #[allow(missing_docs)]
 #[cfg(feature = "simulated-payouts")]
-pub mod exported_tests {
+mod tests {
     use super::*;
     use crate::errors::TransfersError;
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
@@ -206,6 +206,7 @@ pub mod exported_tests {
     use sn_data_types::{Keypair, Money};
     use std::str::FromStr;
 
+    #[tokio::test]
     pub async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<()> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
@@ -223,6 +224,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn transfer_actor_can_send_several_transfers_and_thats_reflected_locally(
     ) -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
@@ -259,6 +261,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn transfer_actor_can_send_many_many_transfers_and_thats_reflected_locally_and_on_network(
     ) -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
@@ -309,6 +312,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn transfer_actor_cannot_send_0_money_req() -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
@@ -338,6 +342,7 @@ pub mod exported_tests {
     // 2. Get the balance and verify it.
     // 3. Create another client B with a wallet holding 10 Money on start.
     // 4. Transfer 11 Money from client A to client B and verify the new balances.
+    #[tokio::test]
     pub async fn balance_transfers_between_clients() -> Result<()> {
         let mut client = Client::new(None, None).await?;
         let receiving_client = Client::new(None, None).await?;
@@ -388,6 +393,7 @@ pub mod exported_tests {
     // 3. Attempt to send 5000 Money from A to B which should fail with 'InsufficientBalance'.
     // 4. Assert Client A's balance is unchanged.
     // 5. Assert Client B's balance is unchanged.
+    #[tokio::test]
     pub async fn insufficient_balance_transfers() -> Result<()> {
         let client = Client::new(None, None).await?;
         let receiving_client = Client::new(None, None).await?;
@@ -411,6 +417,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn cannot_write_with_insufficient_balance() -> Result<()> {
         let client = Client::new(None, None).await?;
         let receiving_client = Client::new(None, None).await?;
@@ -438,57 +445,5 @@ pub mod exported_tests {
         };
 
         Ok(())
-    }
-}
-
-#[cfg(all(test, feature = "simulated-payouts"))]
-mod tests {
-    use super::exported_tests;
-    use anyhow::Result;
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<()> {
-        exported_tests::transfer_actor_can_send_money_and_thats_reflected_locally().await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_can_send_several_transfers_and_thats_reflected_locally(
-    ) -> Result<()> {
-        exported_tests::transfer_actor_can_send_several_transfers_and_thats_reflected_locally()
-            .await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_can_send_many_many_transfers_and_thats_reflected_locally_and_on_network(
-    ) -> Result<()> {
-        exported_tests::transfer_actor_can_send_many_many_transfers_and_thats_reflected_locally_and_on_network()
-            .await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn transfer_actor_cannot_send_0_money_req() -> Result<()> {
-        exported_tests::transfer_actor_cannot_send_0_money_req().await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn balance_transfers_between_clients() -> Result<()> {
-        exported_tests::balance_transfers_between_clients().await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn insufficient_balance_transfers() -> Result<()> {
-        exported_tests::insufficient_balance_transfers().await
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn cannot_write_with_insufficient_balance() -> Result<()> {
-        exported_tests::cannot_write_with_insufficient_balance().await
     }
 }

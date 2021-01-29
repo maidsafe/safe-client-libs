@@ -1000,7 +1000,7 @@ impl Client {
 
 #[allow(missing_docs)]
 #[cfg(any(test, feature = "simulated-payouts", feature = "testing"))]
-pub mod exported_tests {
+mod tests {
     use super::*;
     use crate::utils::test_utils::gen_bls_keypair;
     use sn_data_types::{Money, SequenceAction, SequencePrivatePermissions};
@@ -1009,6 +1009,7 @@ pub mod exported_tests {
     use unwrap::unwrap;
     use xor_name::XorName;
 
+    #[tokio::test]
     pub async fn sequence_deletions_should_cost_put_price() -> Result<(), Error> {
         let name = XorName(rand::random());
         let tag = 10;
@@ -1040,6 +1041,7 @@ pub mod exported_tests {
 
     /// Sequence data tests ///
 
+    #[tokio::test]
     pub async fn sequence_basics_test() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
 
@@ -1097,6 +1099,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn sequence_private_permissions_test() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
@@ -1199,6 +1202,7 @@ pub mod exported_tests {
         }
     }
 
+    #[tokio::test]
     pub async fn sequence_pub_permissions_test() -> anyhow::Result<()> {
         let client = Client::new(None, None).await?;
 
@@ -1309,6 +1313,7 @@ pub mod exported_tests {
         }
     }
 
+    #[tokio::test]
     pub async fn append_to_sequence_test() -> anyhow::Result<()> {
         let name = XorName(rand::random());
         let tag = 10;
@@ -1408,6 +1413,7 @@ pub mod exported_tests {
         }
     }
 
+    #[tokio::test]
     pub async fn sequence_owner_test() -> Result<(), Error> {
         let name = XorName(rand::random());
         let tag = 10;
@@ -1463,6 +1469,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn sequence_can_delete_private_test() -> anyhow::Result<()> {
         let client = Client::new(None, None).await?;
         let name = XorName(rand::random());
@@ -1504,6 +1511,7 @@ pub mod exported_tests {
         }
     }
 
+    #[tokio::test]
     pub async fn sequence_cannot_delete_public_test() -> anyhow::Result<()> {
         let client = Client::new(None, None).await?;
 
@@ -1540,54 +1548,5 @@ pub mod exported_tests {
             )),
             Ok(_data) => Ok(()),
         }
-    }
-}
-
-#[allow(missing_docs)]
-#[cfg(any(test, feature = "simulated-payouts"))]
-mod tests {
-    #[cfg(test)]
-    use super::exported_tests;
-    #[cfg(test)]
-    use super::Error;
-
-    #[tokio::test]
-    async fn sequence_deletions_should_cost_put_price() -> Result<(), Error> {
-        exported_tests::sequence_deletions_should_cost_put_price().await
-    }
-
-    #[tokio::test]
-    async fn sequence_basics_test() -> Result<(), Error> {
-        exported_tests::sequence_basics_test().await
-    }
-
-    #[tokio::test]
-    async fn sequence_private_permissions_test() -> Result<(), Error> {
-        exported_tests::sequence_private_permissions_test().await
-    }
-
-    #[tokio::test]
-    async fn sequence_pub_permissions_test() -> anyhow::Result<()> {
-        exported_tests::sequence_pub_permissions_test().await
-    }
-
-    #[tokio::test]
-    async fn append_to_sequence_test() -> anyhow::Result<()> {
-        exported_tests::append_to_sequence_test().await
-    }
-
-    #[tokio::test]
-    async fn sequence_owner_test() -> Result<(), Error> {
-        exported_tests::sequence_owner_test().await
-    }
-
-    #[tokio::test]
-    async fn sequence_can_delete_private_test() -> anyhow::Result<()> {
-        exported_tests::sequence_can_delete_private_test().await
-    }
-
-    #[tokio::test]
-    async fn sequence_cannot_delete_public_test() -> anyhow::Result<()> {
-        exported_tests::sequence_cannot_delete_public_test().await
     }
 }

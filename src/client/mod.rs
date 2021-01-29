@@ -319,18 +319,19 @@ pub async fn attempt_bootstrap(
     }
 }
 
-#[allow(missing_docs)]
 #[cfg(feature = "simulated-payouts")]
-pub mod exported_tests {
+mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+    #[tokio::test]
     pub async fn client_creation() -> Result<(), Error> {
         let _client = Client::new(None, None).await?;
 
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn client_nonsense_bootstrap_fails() -> Result<(), Error> {
         let mut nonsense_bootstrap = HashSet::new();
         let _ = nonsense_bootstrap.insert(SocketAddr::new(
@@ -342,6 +343,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn client_creation_with_existing_keypair() -> Result<(), Error> {
         let mut rng = OsRng;
         let full_id = Arc::new(Keypair::new_ed25519(&mut rng));
@@ -353,6 +355,7 @@ pub mod exported_tests {
         Ok(())
     }
 
+    #[tokio::test]
     pub async fn long_lived_connection_survives() -> Result<(), Error> {
         let client = Client::new(None, None).await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
@@ -360,34 +363,5 @@ pub mod exported_tests {
         assert_ne!(balance, Money::from_nano(0));
 
         Ok(())
-    }
-}
-
-#[cfg(all(test, feature = "simulated-payouts"))]
-mod tests {
-    use super::exported_tests;
-    use crate::Error;
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation() -> Result<(), Error> {
-        exported_tests::client_creation().await
-    }
-
-    // #[tokio::test]
-    // #[cfg(feature = "simulated-payouts")]
-    // pub async fn client_nonsense_bootstrap_fails() -> Result<(), Error> {
-    //     exported_tests::client_nonsense_bootstrap_fails().await
-    // }
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn client_creation_with_existing_keypair() -> Result<(), Error> {
-        exported_tests::client_creation_with_existing_keypair().await
-    }
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    pub async fn long_lived_connection_survives() -> Result<(), Error> {
-        exported_tests::long_lived_connection_survives().await
     }
 }

@@ -24,7 +24,7 @@ impl Client {
 }
 
 #[cfg(all(test, feature = "simulated-payouts"))]
-pub mod exported_tests {
+mod tests {
     use super::*;
     use crate::errors::TransfersError;
     use anyhow::{bail, Result};
@@ -34,6 +34,7 @@ pub mod exported_tests {
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
+    #[tokio::test]
     pub async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<()> {
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
         let pk = keypair.public_key();
@@ -47,18 +48,5 @@ pub mod exported_tests {
                 res
             ),
         }
-    }
-}
-
-// TODO: Do we need "new" to actually instantiate with a transfer?...
-#[cfg(all(test, feature = "simulated-payouts"))]
-mod tests {
-    use super::exported_tests;
-    use anyhow::Result;
-
-    #[tokio::test]
-    #[cfg(feature = "simulated-payouts")]
-    async fn transfer_actor_with_no_balance_cannot_store_data() -> Result<()> {
-        exported_tests::transfer_actor_with_no_balance_cannot_store_data().await
     }
 }
