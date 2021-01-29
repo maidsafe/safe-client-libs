@@ -424,8 +424,8 @@ pub mod exported_tests {
         let client = client_res?;
 
         // Assert sender is debited.
-        let mut new_balance = client.get_balance().await?;
-        let desired_balance = Money::from_str("100")?;
+        let mut _new_balance = client.get_balance().await?;
+        let _desired_balance = Money::from_str("100")?;
 
         // loop until correct
         // while new_balance != desired_balance {
