@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.44.24](https://github.com/maidsafe/sn_client/compare/v0.44.23...v0.44.24) (2021-01-29)
+
+
+### Bug Fixes
+
+* adjust for dt updates ([19d77a9](https://github.com/maidsafe/sn_client/commit/19d77a9b35afb9e31a0c42a0bbb0694934fdeac5))
+* remove unused method ([ae2453e](https://github.com/maidsafe/sn_client/commit/ae2453e4b91a6972218ac9a393865d7224b9ad5e))
+
 ### [0.44.23](https://github.com/maidsafe/sn_client/compare/v0.44.22...v0.44.23) (2021-01-29)
 
 
