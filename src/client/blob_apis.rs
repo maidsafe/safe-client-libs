@@ -327,6 +327,7 @@ pub mod exported_tests {
     use sn_data_types::{Money, PrivateBlob, PublicBlob};
     use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
+    use tokio::time::{delay_for, Duration};
     use unwrap::unwrap;
 
     // Test putting and getting pub blob.
@@ -355,6 +356,7 @@ pub mod exported_tests {
         // Assert that the blob was written
         let mut fetched_data = client.read_blob(address, None, None).await;
         while fetched_data.is_err() {
+            delay_for(Duration::from_millis(200)).await;
             fetched_data = client.read_blob(address, None, None).await;
         }
 
@@ -390,6 +392,8 @@ pub mod exported_tests {
         // Assert that the blob is stored.
         let mut res = client.read_blob(address, None, None).await;
         while res.is_err() {
+            delay_for(Duration::from_millis(200)).await;
+
             res = client.read_blob(address, None, None).await;
         }
 
@@ -423,6 +427,8 @@ pub mod exported_tests {
         // Assert that the blob is stored.
         let mut fetched_data = client.read_blob(pub_address, None, None).await;
         while fetched_data.is_err() {
+            delay_for(Duration::from_millis(200)).await;
+
             fetched_data = client.read_blob(pub_address, None, None).await;
         }
 
@@ -432,6 +438,8 @@ pub mod exported_tests {
         // Make sure blob was deleted
         let mut fetched_data = client.read_blob(address, None, None).await;
         while fetched_data.is_ok() {
+            delay_for(Duration::from_millis(200)).await;
+
             fetched_data = client.read_blob(address, None, None).await;
         }
         // Test putting unpub blob with the same value again. Should not conflict.
@@ -536,6 +544,8 @@ pub mod exported_tests {
 
             let mut fetch_res = client.read_blob(address, None, Some(size as u64 / 2)).await;
             while fetch_res.is_err() {
+                delay_for(Duration::from_millis(200)).await;
+
                 fetch_res = client.read_blob(address, None, Some(size as u64 / 2)).await;
             }
             let fetched_data = fetch_res?;
@@ -553,6 +563,7 @@ pub mod exported_tests {
                 .read_blob(address, Some(size as u64 / 2), Some(size as u64 / 2))
                 .await;
             while fetch_res.is_err() {
+                delay_for(Duration::from_millis(200)).await;
                 fetch_res = client
                     .read_blob(address, Some(size as u64 / 2), Some(size as u64 / 2))
                     .await;
@@ -603,6 +614,8 @@ pub mod exported_tests {
         fetch_result = client.read_blob(address, None, None).await;
 
         while fetch_result.is_err() {
+            delay_for(Duration::from_millis(200)).await;
+
             fetch_result = client.read_blob(address, None, None).await;
         }
 

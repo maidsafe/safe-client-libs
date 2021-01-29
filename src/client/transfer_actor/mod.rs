@@ -382,14 +382,14 @@ pub mod exported_tests {
             Ok(actor) => {
                 let mut bal = actor.get_balance().await;
                 while bal.is_err() {
-                    delay_for(Duration::from_millis(500)).await;
+                    delay_for(Duration::from_millis(200)).await;
 
                     bal = actor.get_balance().await;
                 }
 
                 let mut money = bal?;
                 while  money != Money::from_str("10")? {
-                    delay_for(Duration::from_millis(500)).await;
+                    delay_for(Duration::from_millis(200)).await;
 
                     money = actor.get_balance().await?;
 
@@ -401,6 +401,9 @@ pub mod exported_tests {
     }
 
     pub async fn transfer_actor_creation_hydration_for_existing_balance() -> Result<()> {
+        // small delay for starting this test, which seems to have a problem when nodes are under stress..
+        // delay_for(Duration::from_millis(200)).await;
+
         let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
 
         {
@@ -411,8 +414,10 @@ pub mod exported_tests {
         }
 
         let client_res = Client::new(Some(keypair.clone()), None).await;
-        // TODO: get this working in a full test suite run
+
         // while client_res.is_err() {
+        //     delay_for(Duration::from_millis(200)).await;
+
         //     client_res = Client::new(Some(keypair.clone()), None).await;
         // }
 
@@ -423,10 +428,10 @@ pub mod exported_tests {
         let desired_balance = Money::from_str("100")?;
 
         // loop until correct
-        while new_balance != desired_balance {
-            delay_for(Duration::from_millis(500)).await;
-            new_balance = client.get_balance().await?;
-        }
+        // while new_balance != desired_balance {
+        //     delay_for(Duration::from_millis(200)).await;
+        //     new_balance = client.get_balance().await?;
+        // }
 
         assert_eq!(client.get_local_balance().await, Money::from_str("100")?);
 
