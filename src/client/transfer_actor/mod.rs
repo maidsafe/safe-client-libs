@@ -2,16 +2,16 @@ use crate::connection_manager::STANDARD_ELDERS_COUNT;
 use bincode::serialize;
 use log::{debug, error, info, trace, warn};
 use sn_data_types::{
-    DebitId, Keypair, Money, PublicKey, SignedTransfer, TransferAgreementProof, TransferValidated,
+    DebitId, Keypair, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
 use sn_messaging::{Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::channel;
 
-/// Module for Money balance management
+/// Module for token balance management
 pub mod balance_management;
-/// Module for simulating Money for testing
+/// Module for simulating token for testing
 pub mod simulated_payouts;
 /// Module containing all PUT apis
 pub mod write_apis;
@@ -41,7 +41,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, Money};
+    /// use sn_data_types::{Keypair, Token};
     /// use rand::rngs::OsRng;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
@@ -50,12 +50,12 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let client = Client::new(Some(id), None).await?;
-    /// let initial_balance = Money::from_str("0")?;
+    /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance(&self) -> Result<Money, Error>
+    pub async fn get_balance(&self) -> Result<Token, Error>
     where
         Self: Sized,
     {
@@ -73,7 +73,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, Money};
+    /// use sn_data_types::{Keypair, Token};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
@@ -84,12 +84,12 @@ impl Client {
     ///
     /// // And we use a random client to do this
     /// let client = Client::new(None, None).await?;
-    /// let initial_balance = Money::from_str("0")?;
+    /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
     /// # Ok(()) } ); }
     /// ```
-    pub async fn get_balance_for(&self, public_key: PublicKey) -> Result<Money, Error>
+    pub async fn get_balance_for(&self, public_key: PublicKey) -> Result<Token, Error>
     where
         Self: Sized,
     {
@@ -169,7 +169,7 @@ impl Client {
     }
 
     /// Fetch latest StoreCost for given number of bytes from the network.
-    pub async fn get_store_cost(&self, bytes: u64) -> Result<Money, Error> {
+    pub async fn get_store_cost(&self, bytes: u64) -> Result<Token, Error> {
         info!("Sending Query for latest StoreCost");
 
         let public_key = self.public_key().await;
@@ -359,7 +359,7 @@ mod tests {
     use super::*;
     use anyhow::{anyhow, Result};
     use rand::rngs::OsRng;
-    use sn_data_types::Money;
+    use sn_data_types::Token;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
 
@@ -369,7 +369,7 @@ mod tests {
 
         match Client::new(Some(keypair), None).await {
             Ok(actor) => {
-                assert_eq!(actor.get_local_balance().await, Money::from_str("0")? );
+                assert_eq!(actor.get_local_balance().await, Token::from_str("0")? );
                 Ok(())
             },
             Err(e) => Err(anyhow!("Should not error for nonexistent keys, only create a new instance with no history, we got: {:?}" , e))
@@ -387,16 +387,16 @@ mod tests {
                     bal = actor.get_balance().await;
                 }
 
-                let mut money = bal?;
-                while  money != Money::from_str("10")? {
+                let mut tokens = bal?;
+                while tokens != Token::from_str("10")? {
                     delay_for(Duration::from_millis(200)).await;
 
-                    money = actor.get_balance().await?;
+                    tokens = actor.get_balance().await?;
 
                 }
                 Ok(())
             },
-            Err(e) => Err(anyhow!("Should not error for random client, only create a new instance with 10 money, we got: {:?}" , e))
+            Err(e) => Err(anyhow!("Should not error for random client, only create a new instance with 10 token, we got: {:?}" , e))
         }
     }
 
@@ -410,7 +410,7 @@ mod tests {
         {
             let mut initial_actor = Client::new(Some(keypair.clone()), None).await?;
             let _ = initial_actor
-                .trigger_simulated_farming_payout(Money::from_str("100")?)
+                .trigger_simulated_farming_payout(Token::from_str("100")?)
                 .await?;
         }
 
@@ -426,7 +426,7 @@ mod tests {
 
         // Assert sender is debited.
         let mut _new_balance = client.get_balance().await?;
-        let _desired_balance = Money::from_str("100")?;
+        let _desired_balance = Token::from_str("100")?;
 
         // loop until correct
         // while new_balance != desired_balance {
@@ -434,7 +434,7 @@ mod tests {
         //     new_balance = client.get_balance().await?;
         // }
 
-        assert_eq!(client.get_local_balance().await, Money::from_str("100")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("100")?);
 
         Ok(())
     }

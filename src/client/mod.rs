@@ -15,7 +15,7 @@ pub mod map_apis;
 /// Blob APIs
 pub mod blob_apis;
 
-/// Safe Transfers wrapper, with Money APIs
+/// Safe Transfers wrapper, with token APIs
 pub mod transfer_actor;
 
 /// Sequence APIs
@@ -41,7 +41,7 @@ use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
 use std::str::FromStr;
 
-use sn_data_types::{Keypair, Money, PublicKey};
+use sn_data_types::{Keypair, PublicKey, Token};
 use sn_messaging::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse};
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
@@ -59,7 +59,7 @@ pub const IMMUT_DATA_CACHE_SIZE: usize = 300;
 pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 
 /// Expected cost of mutation operations.
-pub const COST_OF_PUT: Money = Money::from_nano(1);
+pub const COST_OF_PUT: Token = Token::from_nano(1);
 
 /// Return the `crust::Config` associated with the `crust::Service` (if any).
 pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, Error> {
@@ -84,9 +84,9 @@ pub struct Client {
 /// write operations.
 impl Client {
     /// Create a Safe Network client instance. Either for an existing SecretKey (in which case) the client will attempt
-    /// to retrieve the history of the key's balance in order to be ready for any Money operations. Or if no SecreteKey
+    /// to retrieve the history of the key's balance in order to be ready for any token operations. Or if no SecreteKey
     /// is passed, a random keypair will be used, which provides a client that can only perform Read operations (at
-    /// least until the client's SecretKey receives some Money).
+    /// least until the client's SecretKey receives some token).
     ///
     /// # Examples
     ///
@@ -164,9 +164,9 @@ impl Client {
             // only trigger simulated payouts on new _random_ clients
             if is_random_client {
                 debug!("Attempting to trigger simulated payout");
-                // we're testing, and currently a lot of tests expect 10 money to start
+                // we're testing, and currently a lot of tests expect 10 token to start
                 let _ = full_client
-                    .trigger_simulated_farming_payout(Money::from_str("10")?)
+                    .trigger_simulated_farming_payout(Token::from_str("10")?)
                     .await?;
             } else {
                 warn!("No automatic simulated payout occurs for clients created for pre-existing SecretKeys")
@@ -361,7 +361,7 @@ mod tests {
         let client = Client::new(None, None).await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
         let balance = client.get_balance().await?;
-        assert_ne!(balance, Money::from_nano(0));
+        assert_ne!(balance, Token::from_nano(0));
 
         Ok(())
     }

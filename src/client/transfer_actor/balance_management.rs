@@ -1,4 +1,4 @@
-use sn_data_types::{Money, PublicKey, SignedTransfer, TransferAgreementProof};
+use sn_data_types::{PublicKey, SignedTransfer, Token, TransferAgreementProof};
 use sn_messaging::{Cmd, Event, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, TransferInitiated};
 
@@ -7,7 +7,7 @@ use crate::errors::Error;
 
 use log::{debug, info, trace};
 
-/// Handle all Money transfers and Write API requests for a given ClientId.
+/// Handle all token transfers and Write API requests for a given ClientId.
 impl Client {
     /// Get the current known account balance from the local actor. (ie. Without querying the network)
     ///
@@ -18,15 +18,15 @@ impl Client {
     /// # extern crate tokio;use sn_client::Error;
     /// use sn_client::Client;
     /// use std::str::FromStr;
-    /// use sn_data_types::Money;
+    /// use sn_data_types::Token;
     /// # #[tokio::main]async fn main() {let _: Result<(), Error> = futures::executor::block_on( async {
     /// let client = Client::new(None, None).await?;
     /// // now we check the local balance
     /// let some_balance = client.get_local_balance().await;
-    /// assert_eq!(some_balance, Money::from_str("0")?);
+    /// assert_eq!(some_balance, Token::from_str("0")?);
     /// # Ok(())} );}
     /// ```
-    pub async fn get_local_balance(&self) -> Money {
+    pub async fn get_local_balance(&self) -> Token {
         info!("Retrieving actor's local balance.");
         self.transfer_actor.lock().await.balance()
     }
@@ -66,7 +66,7 @@ impl Client {
     pub(crate) async fn get_balance_from_network(
         &self,
         pk: Option<PublicKey>,
-    ) -> Result<Money, Error> {
+    ) -> Result<Token, Error> {
         info!("Getting balance for {:?} or self", pk);
         let public_key = pk.unwrap_or(self.public_key().await);
 
@@ -86,33 +86,33 @@ impl Client {
         }
     }
 
-    /// Send money to another PublicKey.
+    /// Send token to another PublicKey.
     ///
     /// If the PublicKey does not exist as a balance on the network it will be created with the send amount.
     ///
     /// # Examples
     ///
-    /// Send money to a PublickKey.
-    /// (This test uses "simulated payouts" to generate test money. This of course would not be avaiable on a live network.)
+    /// Send token to a PublickKey.
+    /// (This test uses "simulated payouts" to generate test token. This of course would not be avaiable on a live network.)
     /// ```no_run
     /// # extern crate tokio;use sn_client::Error;
     /// use sn_client::Client;
-    /// use sn_data_types::{PublicKey, Money};
+    /// use sn_data_types::{PublicKey, Token};
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// // A random sk, to send money to
+    /// // A random sk, to send token to
     /// let sk = threshold_crypto::SecretKey::random();
     /// let pk = PublicKey::from(sk.public_key());
     /// // Next we create a random client.
     /// let mut client = Client::new(None, None).await?;
-    /// let target_balance = Money::from_str("100")?;
-    /// // And trigger a simulated payout to our client's PublicKey, so we have money to send.
+    /// let target_balance = Token::from_str("100")?;
+    /// // And trigger a simulated payout to our client's PublicKey, so we have token to send.
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///
-    /// // Now we have 100 money at our balance, we can send it elsewhere:
-    /// let (count, sending_pk) = client.send_money( pk, target_balance ).await?;
+    /// // Now we have 100 token at our balance, we can send it elsewhere:
+    /// let (count, sending_pk) = client.send_tokens( pk, target_balance ).await?;
     ///
-    /// // Finally, we can see that the money has arrived:
+    /// // Finally, we can see that the token has arrived:
     /// let received_balance = client.get_balance_for(pk).await?;
     ///
     /// assert_eq!(1, count);
@@ -120,12 +120,12 @@ impl Client {
     /// assert_eq!(received_balance, target_balance);
     /// # Ok(())} ); }
     /// ```
-    pub async fn send_money(
+    pub async fn send_tokens(
         &self,
         to: PublicKey,
-        amount: Money,
+        amount: Token,
     ) -> Result<(u64, PublicKey), Error> {
-        info!("Sending money");
+        info!("Sending token");
 
         // first make sure our balance  history is up to date
         self.get_history().await?;
@@ -202,24 +202,24 @@ mod tests {
     use crate::utils::{generate_random_vector, test_utils::calculate_new_balance};
     use anyhow::{anyhow, bail, Result};
     use rand::rngs::OsRng;
-    use sn_data_types::{Keypair, Money};
+    use sn_data_types::{Keypair, Token};
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
 
     #[tokio::test]
-    pub async fn transfer_actor_can_send_money_and_thats_reflected_locally() -> Result<()> {
+    pub async fn transfer_actor_can_send_tokens_and_thats_reflected_locally() -> Result<()> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
         let client = Client::new(None, None).await?;
 
         let _ = client
-            .send_money(keypair.public_key(), Money::from_str("1")?)
+            .send_tokens(keypair.public_key(), Token::from_str("1")?)
             .await?;
 
         // initial 10 on creation from farming simulation minus 1
-        assert_eq!(client.get_local_balance().await, Money::from_str("9")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("9")?);
 
-        assert_eq!(client.get_balance().await?, Money::from_str("9")?);
+        assert_eq!(client.get_balance().await?, Token::from_str("9")?);
 
         Ok(())
     }
@@ -232,30 +232,30 @@ mod tests {
         let client = Client::new(None, None).await?;
 
         let _ = client
-            .send_money(keypair2.public_key(), Money::from_str("1")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
             .await?;
 
-        // Initial 10 Money on creation from farming simulation minus 1
+        // Initial 10 token on creation from farming simulation minus 1
         // Assert locally
-        assert_eq!(client.get_local_balance().await, Money::from_str("9")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("9")?);
 
         // Fetch balance from network and assert the same.
         assert_eq!(
             client.get_balance_from_network(None).await?,
-            Money::from_str("9")?
+            Token::from_str("9")?
         );
 
         let _ = client
-            .send_money(keypair2.public_key(), Money::from_str("2")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("2")?)
             .await?;
 
         // Initial 10 on creation from farming simulation minus 3
-        assert_eq!(client.get_local_balance().await, Money::from_str("7")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
 
         // Fetch balance from network and assert the same.
         assert_eq!(
             client.get_balance_from_network(None).await?,
-            Money::from_str("7")?
+            Token::from_str("7")?
         );
 
         Ok(())
@@ -269,58 +269,58 @@ mod tests {
         let client = Client::new(None, None).await?;
 
         let _ = client
-            .send_money(keypair2.public_key(), Money::from_str("1")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
             .await?;
 
-        // Initial 10 Money on creation from farming simulation minus 1
+        // Initial 10 token on creation from farming simulation minus 1
         // Assert locally
-        assert_eq!(client.get_local_balance().await, Money::from_str("9")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("9")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Money::from_str("9")?);
+        assert_eq!(client.get_balance().await?, Token::from_str("9")?);
 
         let _ = client
-            .send_money(keypair2.public_key(), Money::from_str("1")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
             .await?;
 
         // Initial 10 on creation from farming simulation minus 3
-        assert_eq!(client.get_local_balance().await, Money::from_str("8")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("8")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Money::from_str("8")?);
+        assert_eq!(client.get_balance().await?, Token::from_str("8")?);
 
         let _ = client
-            .send_money(keypair2.public_key(), Money::from_str("1")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
             .await?;
 
         // Initial 10 on creation from farming simulation minus 3
-        assert_eq!(client.get_local_balance().await, Money::from_str("7")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("7")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Money::from_str("7")?);
+        assert_eq!(client.get_balance().await?, Token::from_str("7")?);
 
         let _ = client
-            .send_money(keypair2.public_key(), Money::from_str("1")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("1")?)
             .await?;
 
         // Initial 10 on creation from farming simulation minus 3
-        assert_eq!(client.get_local_balance().await, Money::from_str("6")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("6")?);
 
         // Fetch balance from network and assert the same.
-        assert_eq!(client.get_balance().await?, Money::from_str("6")?);
+        assert_eq!(client.get_balance().await?, Token::from_str("6")?);
 
         Ok(())
     }
 
     #[tokio::test]
-    pub async fn transfer_actor_cannot_send_0_money_req() -> Result<()> {
+    pub async fn transfer_actor_cannot_send_0_token_req() -> Result<()> {
         let keypair2 = Keypair::new_ed25519(&mut OsRng);
 
         let client = Client::new(None, None).await?;
 
-        // Send 0 Money to a random PK.
+        // Send 0 token to a random PK.
         match client
-            .send_money(keypair2.public_key(), Money::from_str("0")?)
+            .send_tokens(keypair2.public_key(), Token::from_str("0")?)
             .await
         {
             Err(Error::Transfer(TransfersError::ZeroValueTransfer)) => Ok(()),
@@ -331,17 +331,17 @@ mod tests {
         }?;
 
         // Unchanged balances - local and network.
-        assert_eq!(client.get_local_balance().await, Money::from_str("10")?);
+        assert_eq!(client.get_local_balance().await, Token::from_str("10")?);
 
-        assert_eq!(client.get_balance().await?, Money::from_str("10")?);
+        assert_eq!(client.get_balance().await?, Token::from_str("10")?);
 
         Ok(())
     }
 
-    // 1. Create a client A and allocate 100 Money to it. (Clients start with 10 Money by default on simulated-farming)
+    // 1. Create a client A and allocate 100 token to it. (Clients start with 10 token by default on simulated-farming)
     // 2. Get the balance and verify it.
-    // 3. Create another client B with a wallet holding 10 Money on start.
-    // 4. Transfer 11 Money from client A to client B and verify the new balances.
+    // 3. Create another client B with a wallet holding 10 token on start.
+    // 4. Transfer 11 token from client A to client B and verify the new balances.
     #[tokio::test]
     pub async fn balance_transfers_between_clients() -> Result<()> {
         let mut client = Client::new(None, None).await?;
@@ -350,22 +350,24 @@ mod tests {
         let wallet1 = receiving_client.public_key().await;
 
         client
-            .trigger_simulated_farming_payout(Money::from_str("100.0")?)
+            .trigger_simulated_farming_payout(Token::from_str("100.0")?)
             .await?;
 
         let mut balance = client.get_balance().await?;
 
-        while balance != Money::from_str("110")? {
+        while balance != Token::from_str("110")? {
             delay_for(Duration::from_millis(200)).await;
 
             balance = client.get_balance().await?;
         }
         // 11 here allows us to more easily debug repeat credits due w/ simulated payouts from each elder
-        let _ = client.send_money(wallet1, Money::from_str("11.0")?).await?;
+        let _ = client
+            .send_tokens(wallet1, Token::from_str("11.0")?)
+            .await?;
 
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
-        let desired_balance = calculate_new_balance(balance, None, Some(Money::from_str("11.0")?));
+        let desired_balance = calculate_new_balance(balance, None, Some(Token::from_str("11.0")?));
 
         // loop until correct
         while new_balance != desired_balance {
@@ -375,26 +377,26 @@ mod tests {
         // Assert that the receiver has been credited.
         let mut receiving_bal = receiving_client.get_balance().await?;
 
-        let target_money = Money::from_str("21.0")?;
+        let target_tokens = Token::from_str("21.0")?;
 
         // loop until correct
-        while receiving_bal != target_money {
+        while receiving_bal != target_tokens {
             let _ = receiving_client.get_history().await?;
             delay_for(Duration::from_millis(200)).await;
             receiving_bal = receiving_client.get_balance().await?;
 
-            if receiving_bal > target_money {
+            if receiving_bal > target_tokens {
                 continue;
             }
         }
 
-        assert_eq!(receiving_bal, target_money);
+        assert_eq!(receiving_bal, target_tokens);
         Ok(())
     }
 
-    // 1. Create a sender client A w/10 Money by default.
-    // 2. Create a receiver client B w/10 Money by default.
-    // 3. Attempt to send 5000 Money from A to B which should fail with 'InsufficientBalance'.
+    // 1. Create a sender client A w/10 token by default.
+    // 2. Create a receiver client B w/10 token by default.
+    // 3. Attempt to send 5000 token from A to B which should fail with 'InsufficientBalance'.
     // 4. Assert Client A's balance is unchanged.
     // 5. Assert Client B's balance is unchanged.
     #[tokio::test]
@@ -404,19 +406,19 @@ mod tests {
 
         let wallet1 = receiving_client.public_key().await;
 
-        // Try transferring money exceeding our balance.
-        match client.send_money(wallet1, Money::from_str("5000")?).await {
+        // Try transferring token exceeding our balance.
+        match client.send_tokens(wallet1, Token::from_str("5000")?).await {
             Err(Error::Transfer(TransfersError::InsufficientBalance)) => (),
             res => bail!("Unexpected result: {:?}", res),
         };
 
-        // Assert if sender's money is unchanged.
+        // Assert if sender's token is unchanged.
         let balance = client.get_balance().await?;
-        assert_eq!(balance, Money::from_str("10")?);
+        assert_eq!(balance, Token::from_str("10")?);
 
-        // Assert no money is credited to receiver's bal accidentally by logic error.
+        // Assert no token is credited to receiver's bal accidentally by logic error.
         let receiving_bal = receiving_client.get_balance().await?;
-        assert_eq!(receiving_bal, Money::from_str("10")?);
+        assert_eq!(receiving_bal, Token::from_str("10")?);
 
         Ok(())
     }
@@ -428,10 +430,10 @@ mod tests {
 
         let wallet1 = receiving_client.public_key().await;
 
-        let _ = client.send_money(wallet1, Money::from_str("10")?).await?;
+        let _ = client.send_tokens(wallet1, Token::from_str("10")?).await?;
         // Assert sender is debited.
         let mut new_balance = client.get_balance().await?;
-        let desired_balance = Money::from_nano(0);
+        let desired_balance = Token::from_nano(0);
 
         // loop until correct
         while new_balance != desired_balance {
@@ -444,7 +446,7 @@ mod tests {
         match res {
             Err(Error::Transfer(TransfersError::InsufficientBalance)) => (),
             res => bail!(
-                "Unexpected result in money transfer test, able to put data without balance: {:?}",
+                "Unexpected result in token transfer test, able to put data without balance: {:?}",
                 res
             ),
         };

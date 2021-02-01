@@ -38,7 +38,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapSeqValue, MapSeqEntries};
+    /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapSeqValue, MapSeqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -47,7 +47,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
     /// let mut entries = MapSeqEntries::default();
@@ -90,7 +90,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
+    /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -99,7 +99,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
     /// let mut entries = MapUnseqEntries::default();
@@ -143,7 +143,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
+    /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -152,7 +152,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
     /// let mut entries = MapUnseqEntries::default();
@@ -229,7 +229,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
+    /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -238,7 +238,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
     /// let mut entries = MapUnseqEntries::default();
@@ -274,7 +274,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, MapAction, MapValue, MapPermissionSet, MapUnseqEntries};
+    /// use sn_data_types::{ Keypair, Token, MapAction, MapValue, MapPermissionSet, MapUnseqEntries};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -283,7 +283,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
     /// let mut entries = MapUnseqEntries::default();
@@ -340,7 +340,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{ Keypair, Money, MapAction, MapPermissionSet, MapUnseqEntries};
+    /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
@@ -349,7 +349,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
     /// let mut entries = MapUnseqEntries::default();
@@ -647,7 +647,7 @@ mod tests {
     use super::*;
     use crate::utils::test_utils::gen_ed_keypair;
     use anyhow::{anyhow, bail, Result};
-    use sn_data_types::{MapAction, MapKind, Money};
+    use sn_data_types::{MapAction, MapKind, Token};
     use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
     use std::time::Duration;
@@ -879,7 +879,7 @@ mod tests {
 
         // TODO: Refunds not yet in place.... Reenable this check when that's the case
 
-        // Check money was not taken
+        // Check token was not taken
         // let balance = client.get_balance().await?;
         // let expected_bal = calculate_new_balance(start_bal, Some(2), None);
         // assert_eq!(balance, expected_bal);
@@ -1139,7 +1139,7 @@ mod tests {
         let new_balance = client.get_balance().await?;
 
         // make sure we have _some_ balance
-        assert_ne!(balance_before_delete, Money::from_str("0")?);
+        assert_ne!(balance_before_delete, Token::from_str("0")?);
         assert_ne!(balance_before_delete, new_balance);
 
         Ok(())

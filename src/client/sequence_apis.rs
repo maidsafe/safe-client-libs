@@ -42,7 +42,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -51,7 +51,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -117,7 +117,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, SequenceUser, Money, SequencePublicPermissions};
+    /// use sn_data_types::{Keypair, SequenceUser, Token, SequencePublicPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -126,7 +126,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -187,7 +187,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -196,7 +196,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -244,7 +244,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -253,7 +253,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -324,7 +324,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -333,7 +333,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -372,7 +372,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -381,7 +381,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -428,7 +428,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -437,7 +437,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -485,7 +485,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions, SequenceIndex};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions, SequenceIndex};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -494,7 +494,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -547,7 +547,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -556,7 +556,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -598,7 +598,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -608,7 +608,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -679,7 +679,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, Money, SequenceUser,SequencePublicPermissions};
+    /// use sn_data_types::{Keypair, Token, SequenceUser,SequencePublicPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -688,7 +688,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -738,7 +738,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -747,7 +747,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -795,7 +795,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -804,7 +804,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -849,7 +849,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, SequenceUser, Money, SequencePublicPermissions};
+    /// use sn_data_types::{Keypair, PublicKey, SequenceUser, Token, SequencePublicPermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -859,7 +859,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -926,7 +926,7 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
     /// use sn_client::Client;
-    /// use sn_data_types::{Keypair, PublicKey, Money, SequencePrivatePermissions};
+    /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
@@ -936,7 +936,7 @@ impl Client {
     /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let mut client = Client::new(Some(id), None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
     /// let owner = client.public_key().await;
@@ -1002,7 +1002,7 @@ impl Client {
 mod tests {
     use super::*;
     use crate::utils::test_utils::gen_ed_keypair;
-    use sn_data_types::{Money, SequenceAction, SequencePrivatePermissions};
+    use sn_data_types::{SequenceAction, SequencePrivatePermissions, Token};
     use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
@@ -1022,8 +1022,8 @@ mod tests {
 
         let mut balance_before_delete = client.get_balance().await?;
 
-        while balance_before_delete == Money::from_str("0")?
-            || balance_before_delete == Money::from_str("10")?
+        while balance_before_delete == Token::from_str("0")?
+            || balance_before_delete == Token::from_str("10")?
         {
             delay_for(Duration::from_millis(200)).await;
             balance_before_delete = client.get_balance().await?;

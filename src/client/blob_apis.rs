@@ -87,12 +87,12 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
-    /// use sn_data_types::Money;
+    /// use sn_data_types::Token;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(None, None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
     /// let _address = client.store_public_blob(&data).await?;
@@ -115,12 +115,12 @@ impl Client {
     /// ```no_run
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
-    /// use sn_data_types::Money;
+    /// use sn_data_types::Token;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(None, None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
     /// let fetched_data = client.store_private_blob(&data).await?;
@@ -181,13 +181,13 @@ impl Client {
     ///
     /// ```no_run
     /// use sn_client::Client;
-    /// use sn_data_types::Money;
+    /// use sn_data_types::Token;
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: anyhow::Result<()> = futures::executor::block_on( async {
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let mut client = Client::new(None, None).await?;
-    /// # let initial_balance = Money::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
+    /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
     /// let address = client.store_private_blob(&data).await?;
     ///
@@ -322,7 +322,7 @@ mod tests {
     use super::{Blob, BlobAddress, Client, Error};
     use crate::utils::{generate_random_vector, test_utils::gen_ed_keypair};
     use anyhow::{bail, Result};
-    use sn_data_types::{Money, PrivateBlob, PublicBlob};
+    use sn_data_types::{PrivateBlob, PublicBlob, Token};
     use sn_messaging::Error as ErrorMessage;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
@@ -332,8 +332,8 @@ mod tests {
     #[tokio::test]
     pub async fn pub_blob_test() -> Result<()> {
         let client = Client::new(None, None).await?;
-        // The `Client::new(None)` initializes the client with 10 money.
-        let _start_bal = unwrap!(Money::from_str("10"));
+        // The `Client::new(None)` initializes the client with 10 token.
+        let _start_bal = unwrap!(Token::from_str("10"));
 
         let value = generate_random_vector::<u8>(10);
         let data = Blob::Public(PublicBlob::new(value.clone()));
@@ -461,7 +461,7 @@ mod tests {
         let new_balance = client.get_balance().await?;
 
         // make sure we have _some_ balance
-        assert_ne!(balance_before_delete, Money::from_str("0")?);
+        assert_ne!(balance_before_delete, Token::from_str("0")?);
         assert_ne!(balance_before_delete, new_balance);
 
         Ok(())

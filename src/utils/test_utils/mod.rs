@@ -8,7 +8,7 @@
 
 use crate::client::COST_OF_PUT;
 
-use sn_data_types::{Keypair, Money};
+use sn_data_types::{Keypair, Token};
 
 use unwrap::unwrap;
 
@@ -21,12 +21,12 @@ pub fn gen_ed_keypair() -> Keypair {
 /// Helper function to calculate the total cost of expenditure by adding number of mutations and
 /// amount of transferred coins if any.
 pub fn calculate_new_balance(
-    mut balance: Money,
+    mut balance: Token,
     mutation_count: Option<u64>,
-    transferred_coins: Option<Money>,
-) -> Money {
+    transferred_coins: Option<Token>,
+) -> Token {
     if let Some(x) = mutation_count {
-        balance = unwrap!(balance.checked_sub(Money::from_nano(x * COST_OF_PUT.as_nano())));
+        balance = unwrap!(balance.checked_sub(Token::from_nano(x * COST_OF_PUT.as_nano())));
     }
     if let Some(coins) = transferred_coins {
         balance = unwrap!(balance.checked_sub(coins));
@@ -35,7 +35,7 @@ pub fn calculate_new_balance(
     // #[cfg(feature = "simulated-payouts")]
     // {
     //     // add on our 10 coin starter balance in testing
-    //     balance = balance.checked_add(Money::from_str("10")?)?;
+    //     balance = balance.checked_add(Token::from_str("10")?)?;
     // }
     balance
 }
