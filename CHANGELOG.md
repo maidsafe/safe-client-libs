@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.45.0](https://github.com/maidsafe/sn_client/compare/v0.44.24...v0.45.0) (2021-02-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* This updates client creation, Arc<Keypair> is no longer
+needed, as they keypair itself contains the Arcs we need.
+
+### Features
+
+* Arc<Keypair>->Keypair updates to accommodate Dt and transfers ([dd23579](https://github.com/maidsafe/sn_client/commit/dd2357943f511a6fd90af837fea208bb1d9a4741))
+
 ### [0.44.24](https://github.com/maidsafe/sn_client/compare/v0.44.23...v0.44.24) (2021-01-29)
 
 
