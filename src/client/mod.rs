@@ -332,6 +332,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore]
     pub async fn client_nonsense_bootstrap_fails() -> Result<(), Error> {
         let mut nonsense_bootstrap = HashSet::new();
         let _ = nonsense_bootstrap.insert(SocketAddr::new(

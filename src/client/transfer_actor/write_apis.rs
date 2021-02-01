@@ -30,7 +30,6 @@ mod tests {
     use anyhow::{bail, Result};
     use rand::rngs::OsRng;
     use sn_data_types::{Keypair, Sequence};
-    use std::sync::Arc;
     use xor_name::XorName;
 
     #[cfg(feature = "simulated-payouts")]
