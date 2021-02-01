@@ -71,7 +71,7 @@ pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, Error> {
 pub struct Client {
     keypair: Keypair,
     /// Sequence CRDT replica
-    transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator, Keypair >>>,
+    transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator, Keypair>>>,
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,

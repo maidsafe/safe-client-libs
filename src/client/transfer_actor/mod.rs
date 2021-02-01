@@ -6,7 +6,6 @@ use sn_data_types::{
 };
 use sn_messaging::{Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery};
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
-use std::sync::Arc;
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::channel;
 
