@@ -38,7 +38,7 @@ impl Client {
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// // Start our client
     /// let mut client = Client::new(Some(id), None).await?;

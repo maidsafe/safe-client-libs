@@ -346,7 +346,7 @@ mod tests {
     #[tokio::test]
     pub async fn client_creation_with_existing_keypair() -> Result<(), Error> {
         let mut rng = OsRng;
-        let full_id = Arc::new(Keypair::new_ed25519(&mut rng));
+        let full_id = Keypair::new_ed25519(&mut rng);
         let pk = full_id.public_key();
 
         let client = Client::new(Some(full_id), None).await?;

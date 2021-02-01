@@ -48,7 +48,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
-    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let client = Client::new(Some(id), None).await?;
     /// let initial_balance = Money::from_str("0")?;
@@ -79,7 +79,7 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
-    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let pk = id.public_key();
     ///
@@ -111,7 +111,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
-    /// let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 
     /// let client = Client::new(Some(id), None).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
@@ -366,7 +366,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
-        let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
+        let keypair = Keypair::new_ed25519(&mut OsRng);
 
         match Client::new(Some(keypair), None).await {
             Ok(actor) => {
@@ -406,7 +406,7 @@ mod tests {
         // small delay for starting this test, which seems to have a problem when nodes are under stress..
         // delay_for(Duration::from_millis(200)).await;
 
-        let keypair = Arc::new(Keypair::new_ed25519(&mut OsRng));
+        let keypair = Keypair::new_ed25519(&mut OsRng);
 
         {
             let mut initial_actor = Client::new(Some(keypair.clone()), None).await?;

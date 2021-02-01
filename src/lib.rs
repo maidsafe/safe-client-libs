@@ -41,7 +41,7 @@
 //! use rand::rngs::OsRng;
 //! use sn_data_types::Keypair;
 //! # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-//! let id = std::sync::Arc::new(Keypair::new_ed25519(&mut OsRng));
+//! let id = std::sync::Keypair::new_ed25519(&mut OsRng);
 //! let client = Client::new(Some(id), None).await?;
 //! // Now for example you can perform read operations:
 //! let _some_balance = client.get_balance().await?;
