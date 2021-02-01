@@ -69,9 +69,9 @@ pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, Error> {
 /// Client object
 #[derive(Clone)]
 pub struct Client {
-    keypair: Arc<Keypair>,
+    keypair: Keypair,
     /// Sequence CRDT replica
-    transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator>>>,
+    transfer_actor: Arc<Mutex<SafeTransferActor<ClientTransferValidator, Keypair >>>,
     replicas_pk_set: PublicKeySet,
     simulated_farming_payout_dot: Dot<PublicKey>,
     connection_manager: Arc<Mutex<ConnectionManager>>,
@@ -103,7 +103,7 @@ impl Client {
     /// # Ok(()) } ); }
     /// ```
     pub async fn new(
-        optional_keypair: Option<Arc<Keypair>>,
+        optional_keypair: Option<Keypair>,
         bootstap_config: Option<HashSet<SocketAddr>>,
     ) -> Result<Self, Error> {
         crate::utils::init_log();
@@ -115,7 +115,7 @@ impl Client {
                 (id, false)
             }
             None => {
-                let keypair = Arc::new(Keypair::new_ed25519(&mut rng));
+                let keypair = Keypair::new_ed25519(&mut rng);
                 info!(
                     "Client started for new randomly created pk: {:?}",
                     keypair.public_key()
@@ -199,7 +199,7 @@ impl Client {
     ///
     /// # Ok(()) } ); }
     /// ```
-    pub async fn keypair(&self) -> Arc<Keypair> {
+    pub async fn keypair(&self) -> Keypair {
         self.keypair.clone()
     }
 
@@ -286,7 +286,7 @@ impl Client {
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
 pub async fn attempt_bootstrap(
     qp2p_config: &QuicP2pConfig,
-    keypair: Arc<Keypair>,
+    keypair: Keypair,
     notification_sender: UnboundedSender<Error>,
     bootstrap_nodes: Option<HashSet<SocketAddr>>,
 ) -> Result<ConnectionManager, Error> {

@@ -46,7 +46,7 @@ type NetworkListenerHandle = JoinHandle<Result<(), Error>>;
 /// Initialises `QuicP2p` instance which can bootstrap to the network, establish
 /// connections and send messages to several nodes, as well as await responses from them.
 pub struct ConnectionManager {
-    keypair: Arc<Keypair>,
+    keypair: Keypair,
     qp2p: QuicP2p,
     elders: ElderConnectionMap,
     endpoint: Option<Arc<Mutex<Endpoint>>>,
@@ -59,7 +59,7 @@ impl ConnectionManager {
     /// Create a new connection manager.
     pub async fn new(
         mut config: QuicP2pConfig,
-        keypair: Arc<Keypair>,
+        keypair: Keypair,
         notification_sender: UnboundedSender<Error>,
     ) -> Result<Self, Error> {
         config.port = Some(0); // Make sure we always use a random port for client connections.

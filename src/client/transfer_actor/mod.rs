@@ -247,7 +247,7 @@ impl Client {
 
     /// Get our replica instance PK set
     pub(crate) async fn get_replica_keys(
-        keypair: Arc<Keypair>,
+        keypair: Keypair,
         cm: &mut ConnectionManager,
     ) -> Result<PublicKeySet, Error> {
         trace!("Getting replica keys for {:?}", keypair);

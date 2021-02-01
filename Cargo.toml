@@ -29,9 +29,12 @@ regex = "1.3.1"
 anyhow = "1.0.36"
 rmp-serde = "~0.15.1"
 thiserror = "1.0.23"
-sn_messaging = "1.6.0"
-sn_data_types = "~0.13.4"
-sn_transfers = "~0.2.11"
+# sn_messaging = "1.6.0"
+# sn_data_types = "~0.13.4"
+# sn_transfers = { git = "https://github.com/oetyng/sn_transfers", branch = "refactor-signing" }
+sn_data_types = { path="../sn_data_types"}
+sn_transfers = { path="../sn_transfers"}
+sn_messaging = { path="../sn_messaging"}
 self_encryption = "~0.19.4"
 serde_json = "1.0.53"
 serde-value = "~0.5.3"
