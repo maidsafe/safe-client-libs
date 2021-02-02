@@ -7,7 +7,7 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::Error;
-use bincode::{deserialize, serialize};
+use bincode::serialize;
 use bytes::Bytes;
 use futures::{
     future::{join_all, select_all},
@@ -17,17 +17,21 @@ use log::{debug, error, info, trace, warn};
 use qp2p::{
     self, Config as QuicP2pConfig, Endpoint, IncomingMessages, Message as Qp2pMessage, QuicP2p,
 };
-use sn_data_types::{HandshakeRequest, HandshakeResponse, Keypair, TransferValidated};
-use sn_messaging::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse};
+use sn_data_types::{HandshakeRequest, Keypair, TransferValidated};
+use sn_messaging::{
+    client::{Event, Message, MessageId, MsgEnvelope, MsgSender, QueryResponse},
+    infrastructure::{GetSectionResponse, Query},
+};
 use std::{
     collections::{BTreeMap, HashMap},
     net::SocketAddr,
     sync::Arc,
 };
-use tokio::sync::mpsc::channel;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::mpsc::UnboundedSender;
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::mpsc::{channel, Sender, UnboundedSender},
+    task::JoinHandle,
+};
+use xor_name::XorName;
 
 static NUMBER_OF_RETRIES: usize = 3;
 pub static STANDARD_ELDERS_COUNT: usize = 5;
@@ -451,7 +455,7 @@ impl ConnectionManager {
     // Put a `Message` in an envelope so it can be sent to the network
     fn serialize_in_envelope(&self, message: &Message) -> Result<Bytes, Error> {
         trace!("Putting message in envelope: {:?}", message);
-        let sign = self.keypair.sign(&message.serialize()?);
+        let sign = self.keypair.sign(&message.serialise()?);
 
         let envelope = MsgEnvelope {
             message: message.clone(),
@@ -459,7 +463,7 @@ impl ConnectionManager {
             proxies: Default::default(),
         };
 
-        let bytes = envelope.serialize()?;
+        let bytes = envelope.serialise()?;
         Ok(bytes)
     }
 
@@ -472,8 +476,8 @@ impl ConnectionManager {
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_key = self.keypair.public_key();
-        let handshake = HandshakeRequest::Bootstrap(public_key);
-        let msg = Bytes::from(serialize(&handshake)?);
+        let xorname = XorName::from(public_key);
+        let msg = Query::GetSectionRequest(xorname).serialise()?;
 
         let result = match conn.send_bi(msg).await {
             Ok((send_stream, _)) => {
@@ -482,13 +486,18 @@ impl ConnectionManager {
                     match message {
                         Qp2pMessage::BiStream { bytes, .. }
                         | Qp2pMessage::UniStream { bytes, .. } => {
-                            match deserialize(&bytes) {
-                                Ok(HandshakeResponse::Rebootstrap(_elders)) => {
-                                    trace!("HandshakeResponse::Rebootstrap, trying again");
+                            match Query::from(bytes) {
+                                Ok(Query::GetSectionResponse(GetSectionResponse::Redirect(
+                                    addresses,
+                                ))) => {
+                                    trace!("GetSectionResponse::Redirect, trying again");
                                     // TODO: initialise `hard_coded_contacts` with received `elders`.
-                                     Err(Error::UnexpectedMessageOnJoin("Client should re-bootstrap with a new set of Elders, but it's not yet supported.".to_string()))
+                                    Err(Error::UnexpectedMessageOnJoin(format!("Client should re-bootstrap with a new set of Elders, but it's not yet supported: {:?}",addresses)))
                                 }
-                                Ok(HandshakeResponse::Join(elders)) => {
+                                Ok(Query::GetSectionResponse(GetSectionResponse::Success {
+                                    elders,
+                                    ..
+                                })) => {
                                     trace!("HandshakeResponse::Join Elders: ({:?})", elders);
                                     // Obtain the addresses of the Elders
                                     let elders_addrs = elders
@@ -496,12 +505,12 @@ impl ConnectionManager {
                                         .map(|(_, socket_addr)| socket_addr)
                                         .collect();
 
-                                     Ok(elders_addrs)
+                                    Ok(elders_addrs)
                                 }
-                                Ok(HandshakeResponse::InvalidSection) =>  Err(Error::UnexpectedMessageOnJoin(
-                                    "bootstrapping was rejected by since it's an invalid section to join.".to_string(),
+                                Ok(Query::GetSectionRequest(xorname)) => Err(Error::UnexpectedMessageOnJoin(
+                                    format!("bootstrapping failed since an invalid response (Query::GetSectionRequest({})) was received", xorname)
                                 )),
-                                Err(e) =>  Err(e.into()),
+                                Err(e) => Err(e.into()),
                             }
                         }
                     }

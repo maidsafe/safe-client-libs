@@ -4,7 +4,7 @@ use sn_data_types::Token;
 use sn_data_types::Transfer;
 
 #[cfg(feature = "simulated-payouts")]
-use sn_messaging::{Cmd, TransferCmd};
+use sn_messaging::client::{Cmd, TransferCmd};
 
 use crate::client::Client;
 use crate::errors::Error;

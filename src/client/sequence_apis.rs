@@ -14,7 +14,9 @@ use sn_data_types::{
     SequenceIndex, SequencePermissions, SequencePrivatePermissions, SequencePublicPermissions,
     SequenceUser,
 };
-use sn_messaging::{Cmd, DataCmd, DataQuery, Query, QueryResponse, SequenceRead, SequenceWrite};
+use sn_messaging::client::{
+    Cmd, DataCmd, DataQuery, Query, QueryResponse, SequenceRead, SequenceWrite,
+};
 use std::collections::BTreeMap;
 use xor_name::XorName;
 
@@ -1002,8 +1004,9 @@ impl Client {
 mod tests {
     use super::*;
     use crate::utils::test_utils::gen_ed_keypair;
+    use anyhow::anyhow;
     use sn_data_types::{SequenceAction, SequencePrivatePermissions, Token};
-    use sn_messaging::Error as ErrorMessage;
+    use sn_messaging::client::Error as ErrorMessage;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
     use unwrap::unwrap;
@@ -1273,9 +1276,7 @@ mod tests {
                 assert_eq!(Some(true), user_perms.is_allowed(SequenceAction::Admin));
             }
             SequencePermissions::Private(_) => {
-                return Err(anyhow::anyhow!(
-                    "Unexpectedly obtained incorrect user permissions",
-                ));
+                return Err(anyhow!("Unexpectedly obtained incorrect user permissions",));
             }
         }
 
@@ -1427,7 +1428,7 @@ mod tests {
         let res = client.get_sequence_entry(address, 2).await;
         match res {
             Err(_) => Ok(()),
-            Ok(_data) => Err(anyhow::anyhow!(
+            Ok(_data) => Err(anyhow!(
                 "Unexpectedly retrieved a sequence entry at index that's too high!",
             )),
         }
@@ -1527,11 +1528,11 @@ mod tests {
 
         match res {
             Err(Error::ErrorMessage(ErrorMessage::NoSuchData)) => Ok(()),
-            Err(err) => Err(anyhow::anyhow!(
+            Err(err) => Err(anyhow!(
                 "Unexpected error returned when deleting a nonexisting Private Sequence: {}",
                 err
             )),
-            Ok(_data) => Err(anyhow::anyhow!(
+            Ok(_data) => Err(anyhow!(
                 "Unexpectedly retrieved a deleted Private Sequence!",
             )),
         }
@@ -1568,7 +1569,7 @@ mod tests {
         // Check that our data still exists.
         match client.get_sequence(address).await {
             Err(Error::ErrorMessage(ErrorMessage::InvalidOperation)) => Ok(()),
-            Err(err) => Err(anyhow::anyhow!(
+            Err(err) => Err(anyhow!(
                 "Unexpected error returned when attempting to get a Public Sequence: {}",
                 err
             )),

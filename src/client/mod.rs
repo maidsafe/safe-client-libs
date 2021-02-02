@@ -42,7 +42,7 @@ use rand::rngs::OsRng;
 use std::str::FromStr;
 
 use sn_data_types::{Keypair, PublicKey, Token};
-use sn_messaging::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse};
+use sn_messaging::client::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse};
 
 use std::{collections::HashSet, net::SocketAddr, sync::Arc};
 use threshold_crypto::PublicKeySet;

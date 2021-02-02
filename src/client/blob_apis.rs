@@ -16,7 +16,7 @@ use crate::client::blob_storage::{BlobStorage, BlobStorageDryRun};
 
 use self_encryption::{DataMap, SelfEncryptor};
 use sn_data_types::{Blob, BlobAddress, PrivateBlob, PublicBlob};
-use sn_messaging::{BlobRead, BlobWrite, DataCmd, DataQuery, Query, QueryResponse};
+use sn_messaging::client::{BlobRead, BlobWrite, DataCmd, DataQuery, Query, QueryResponse};
 
 #[derive(Serialize, Deserialize)]
 enum DataMapLevel {
@@ -323,7 +323,7 @@ mod tests {
     use crate::utils::{generate_random_vector, test_utils::gen_ed_keypair};
     use anyhow::{bail, Result};
     use sn_data_types::{PrivateBlob, PublicBlob, Token};
-    use sn_messaging::Error as ErrorMessage;
+    use sn_messaging::client::Error as ErrorMessage;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
     use unwrap::unwrap;

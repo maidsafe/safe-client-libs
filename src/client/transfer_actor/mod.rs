@@ -4,7 +4,9 @@ use log::{debug, error, info, trace, warn};
 use sn_data_types::{
     DebitId, Keypair, PublicKey, SignedTransfer, Token, TransferAgreementProof, TransferValidated,
 };
-use sn_messaging::{Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery};
+use sn_messaging::client::{
+    Cmd, DataCmd, Message, Query, QueryResponse, TransferCmd, TransferQuery,
+};
 use sn_transfers::{ActorEvent, ReplicaValidator, TransferInitiated};
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::channel;

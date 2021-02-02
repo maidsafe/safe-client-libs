@@ -8,8 +8,9 @@
 
 use qp2p::Error as QuicP2pError;
 use sn_data_types::{Error as DtError, PublicKey};
-pub use sn_messaging::Error as ErrorMessage;
-use sn_messaging::{CmdError, Event, QueryResponse, TransferError};
+pub use sn_messaging::client::Error as ErrorMessage;
+use sn_messaging::client::{CmdError, Event, QueryResponse, TransferError};
+pub use sn_messaging::Error as MessagingError;
 pub use sn_transfers::Error as TransfersError;
 use std::io;
 
@@ -121,6 +122,10 @@ pub enum Error {
     /// Errors received from the network via sn_messaging
     #[error(transparent)]
     ErrorMessage(#[from] ErrorMessage),
+
+    /// Errors occurred when serialising or deserialising messages
+    #[error(transparent)]
+    MessagingProtocol(#[from] MessagingError),
 
     /// self_enryption errors
     #[error(transparent)]
