@@ -126,7 +126,7 @@ jobs:
 
       - name: Doc Tests
         shell: bash
-        run: cargo test --doc
+        run: cargo test --release --doc
 
   test-immutable-data:
     name: Test Immutable Data Upload

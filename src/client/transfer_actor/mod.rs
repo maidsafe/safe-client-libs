@@ -47,7 +47,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
-    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// let client = Client::new(Some(id), None).await?;
     /// let initial_balance = Token::from_str("0")?;
@@ -78,7 +78,7 @@ impl Client {
     /// use rand::rngs::OsRng;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
-    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// let pk = id.public_key();
     ///
@@ -110,7 +110,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
-    /// let id = std::sync::Keypair::new_ed25519(&mut OsRng);
+    /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// let client = Client::new(Some(id), None).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
