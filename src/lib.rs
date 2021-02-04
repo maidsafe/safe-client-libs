@@ -71,7 +71,6 @@ pub use self::client::{map_info, Client, MapInfo};
 pub use self::config_handler::dirs;
 pub use self::errors::{Error, ErrorMessage, TransfersError};
 // pub use self::network_event::{NetworkEvent, NetworkRx, NetworkTx};
-pub use self::utils::logging;
 pub use qp2p::Config as QuicP2pConfig;
 
 /// Client trait and related constants.

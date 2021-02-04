@@ -6,8 +6,6 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-/// Logging utilities.
-pub mod logging;
 /// Common utility functions for writing test cases.
 #[cfg(any(test, feature = "testing", feature = "simulated-payouts"))]
 pub mod test_utils;
@@ -179,27 +177,6 @@ pub fn bin_data_format(data: &[u8]) -> String {
         data[len - 2],
         data[len - 1]
     )
-}
-
-/// Initialises `env_logger` with custom settings.
-pub fn init_log() {
-    use std::io::Write;
-    let do_format = move |formatter: &mut env_logger::fmt::Formatter, record: &log::Record<'_>| {
-        let now = formatter.timestamp();
-        writeln!(
-            formatter,
-            "{} {} [{}:{}] {}",
-            formatter.default_styled_level(record.level()),
-            now,
-            record.file().unwrap_or_default(),
-            record.line().unwrap_or_default(),
-            record.args()
-        )
-    };
-    let _ = env_logger::Builder::from_default_env()
-        .format(do_format)
-        .try_init()
-        .unwrap_or(());
 }
 
 #[cfg(test)]

@@ -106,7 +106,6 @@ impl Client {
         optional_keypair: Option<Keypair>,
         bootstap_config: Option<HashSet<SocketAddr>>,
     ) -> Result<Self, Error> {
-        crate::utils::init_log();
         let mut rng = OsRng;
 
         let (keypair, is_random_client) = match optional_keypair {
