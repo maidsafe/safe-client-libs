@@ -283,7 +283,7 @@ impl Client {
             let data: Blob = if published {
                 PublicBlob::new(contents).into()
             } else {
-                PrivateBlob::new(contents, self.public_key().await)?.into()
+                PrivateBlob::new(contents, self.public_key().await).into()
             };
 
             // If data map blob is less thatn 1MB return it so it can be directly sento to the network
@@ -372,7 +372,7 @@ mod tests {
         let pk = client.public_key().await;
 
         let value = generate_random_vector::<u8>(10);
-        let data = Blob::Private(PrivateBlob::new(value.clone(), pk)?);
+        let data = Blob::Private(PrivateBlob::new(value.clone(), pk));
         let address = *data.address();
 
         let res = client
@@ -596,7 +596,7 @@ mod tests {
             Blob::Private(PrivateBlob::new(
                 raw_data.clone(),
                 client.public_key().await,
-            )?)
+            ))
         };
 
         let address_before = blob.address();

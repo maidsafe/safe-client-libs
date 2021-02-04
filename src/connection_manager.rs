@@ -131,14 +131,9 @@ impl ConnectionManager {
 
             let task_handle: JoinHandle<Result<(), Error>> = tokio::spawn(async move {
                 trace!("About to send cmd message {:?} to {:?}", msg_id, &socket);
-                let (send_stream, _) = connection.send_bi(msg_bytes_clone).await?;
-                let _ = send_stream.finish().await?;
+                connection.send_uni(msg_bytes_clone).await?;
 
-                trace!(
-                    "Sent cmd and finished the stream {:?} to {:?}",
-                    msg_id,
-                    &socket
-                );
+                trace!("Sent cmd {:?} on uni-stream to {:?}", msg_id, &socket);
                 Ok(())
             });
             tasks.push(task_handle);
@@ -209,8 +204,7 @@ impl ConnectionManager {
                     "Sending transfer validation to Elder {}",
                     connection.remote_address()
                 );
-                let (send_stream, _) = connection.send_bi(msg_bytes_clone).await?;
-                send_stream.finish().await
+                connection.send_uni(msg_bytes_clone).await
             });
             tasks.push(task_handle);
         }
@@ -274,10 +268,8 @@ impl ConnectionManager {
 
                     // TODO: we need to remove the msg_id from
                     // pending_query_responses upon any failure below
-                    match connection.send_bi(msg_bytes_clone).await {
-                        Ok((send_stream, _)) => {
-                            send_stream.finish().await?;
-
+                    match connection.send_uni(msg_bytes_clone).await {
+                        Ok(()) => {
                             // TODO: receive response here.
                             result = match receiver.recv().await {
                                 Some(result) => match result {
@@ -455,7 +447,7 @@ impl ConnectionManager {
     // Put a `Message` in an envelope so it can be sent to the network
     fn serialize_in_envelope(&self, message: &Message) -> Result<Bytes, Error> {
         trace!("Putting message in envelope: {:?}", message);
-        let sign = self.keypair.sign(&message.serialise()?);
+        let sign = self.keypair.sign(&message.serialize()?);
 
         let envelope = MsgEnvelope {
             message: message.clone(),
@@ -463,7 +455,7 @@ impl ConnectionManager {
             proxies: Default::default(),
         };
 
-        let bytes = envelope.serialise()?;
+        let bytes = envelope.serialize()?;
         Ok(bytes)
     }
 
@@ -471,60 +463,55 @@ impl ConnectionManager {
     // nodes we should establish connections with
     async fn bootstrap_and_handshake(&mut self) -> Result<Vec<SocketAddr>, Error> {
         trace!("Bootstrapping with contacts...");
-        let (endpoint, conn, mut incoming_messages) = self.qp2p.bootstrap().await?;
+        let (endpoint, connection, mut incoming_messages) = self.qp2p.bootstrap().await?;
         self.endpoint = Some(Arc::new(Mutex::new(endpoint)));
 
         trace!("Sending handshake request to bootstrapped node...");
         let public_key = self.keypair.public_key();
         let xorname = XorName::from(public_key);
-        let msg = Query::GetSectionRequest(xorname).serialise()?;
+        let msg = Query::GetSectionRequest(xorname).serialize()?;
 
-        let result = match conn.send_bi(msg).await {
-            Ok((send_stream, _)) => {
-                send_stream.finish().await?;
-                if let Some(message) = incoming_messages.next().await {
-                    match message {
-                        Qp2pMessage::BiStream { bytes, .. }
-                        | Qp2pMessage::UniStream { bytes, .. } => {
-                            match Query::from(bytes) {
-                                Ok(Query::GetSectionResponse(GetSectionResponse::Redirect(
-                                    addresses,
-                                ))) => {
-                                    trace!("GetSectionResponse::Redirect, trying again");
-                                    // TODO: initialise `hard_coded_contacts` with received `elders`.
-                                    Err(Error::UnexpectedMessageOnJoin(format!("Client should re-bootstrap with a new set of Elders, but it's not yet supported: {:?}",addresses)))
-                                }
-                                Ok(Query::GetSectionResponse(GetSectionResponse::Success {
-                                    elders,
-                                    ..
-                                })) => {
-                                    trace!("HandshakeResponse::Join Elders: ({:?})", elders);
-                                    // Obtain the addresses of the Elders
-                                    let elders_addrs = elders
-                                        .into_iter()
-                                        .map(|(_, socket_addr)| socket_addr)
-                                        .collect();
+        connection
+            .send_uni(msg)
+            .await
+            .map_err(|_| Error::ReceivingQuery)?;
 
-                                    Ok(elders_addrs)
-                                }
-                                Ok(Query::GetSectionRequest(xorname)) => Err(Error::UnexpectedMessageOnJoin(
-                                    format!("bootstrapping failed since an invalid response (Query::GetSectionRequest({})) was received", xorname)
-                                )),
-                                Err(e) => Err(e.into()),
-                            }
+        if let Some(message) = incoming_messages.next().await {
+            match message {
+                Qp2pMessage::BiStream { bytes, .. } | Qp2pMessage::UniStream { bytes, .. } => {
+                    match Query::from(bytes) {
+                        Ok(Query::GetSectionResponse(GetSectionResponse::Redirect(
+                            addresses,
+                        ))) => {
+                            trace!("GetSectionResponse::Redirect, trying again");
+                            // TODO: initialise `hard_coded_contacts` with received `elders`.
+                            Err(Error::UnexpectedMessageOnJoin(format!("Client should re-bootstrap with a new set of Elders, but it's not yet supported: {:?}",addresses)))
                         }
+                        Ok(Query::GetSectionResponse(GetSectionResponse::Success {
+                            elders,
+                            ..
+                        })) => {
+                            trace!("HandshakeResponse::Join Elders: ({:?})", elders);
+                            // Obtain the addresses of the Elders
+                            let elders_addrs = elders
+                                .into_iter()
+                                .map(|(_, socket_addr)| socket_addr)
+                                .collect();
+
+                            Ok(elders_addrs)
+                        }
+                        Ok(Query::GetSectionRequest(xorname)) => Err(Error::UnexpectedMessageOnJoin(
+                            format!("bootstrapping failed since an invalid response (Query::GetSectionRequest({})) was received", xorname)
+                        )),
+                        Err(e) => Err(e.into()),
                     }
-                } else {
-                    Err(Error::UnexpectedMessageOnJoin(
-                        "bootstrapping was rejected by since it's an invalid section to join."
-                            .to_string(),
-                    ))
                 }
             }
-            Err(_error) => Err(Error::ReceivingQuery),
-        };
-
-        result
+        } else {
+            Err(Error::UnexpectedMessageOnJoin(
+                "bootstrapping handshake response was not received.".to_string(),
+            ))
+        }
     }
 
     pub fn number_of_connected_elders(&self) -> usize {
@@ -560,8 +547,7 @@ impl ConnectionManager {
 
                     let handshake = HandshakeRequest::Join(public_key);
                     let msg = Bytes::from(serialize(&handshake)?);
-                    let (send_stream, _) = connection.send_bi(msg).await?;
-                    send_stream.finish().await?;
+                    connection.send_uni(msg).await?;
 
                     connected = true;
 

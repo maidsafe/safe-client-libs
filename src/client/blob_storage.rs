@@ -62,9 +62,7 @@ impl Storage for BlobStorage {
         let blob: Blob = if self.published {
             PublicBlob::new(data).into()
         } else {
-            PrivateBlob::new(data, self.client.public_key().await)
-                .map_err(|err| SelfEncryptionError::Generic(format!("{}", err)))?
-                .into()
+            PrivateBlob::new(data, self.client.public_key().await).into()
         };
         self.client
             .store_blob_on_network(blob)
@@ -76,9 +74,7 @@ impl Storage for BlobStorage {
         let blob: Blob = if self.published {
             PublicBlob::new(data.to_vec()).into()
         } else {
-            PrivateBlob::new(data.to_vec(), self.client.public_key().await)
-                .map_err(|err| SelfEncryptionError::Generic(format!("{}", err)))?
-                .into()
+            PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
         };
         Ok(blob.name().0.to_vec())
     }
@@ -119,9 +115,7 @@ impl Storage for BlobStorageDryRun {
         let blob: Blob = if self.published {
             PublicBlob::new(data.to_vec()).into()
         } else {
-            PrivateBlob::new(data.to_vec(), self.client.public_key().await)
-                .map_err(|err| SelfEncryptionError::Generic(format!("{}", err)))?
-                .into()
+            PrivateBlob::new(data.to_vec(), self.client.public_key().await).into()
         };
         Ok(blob.name().0.to_vec())
     }
