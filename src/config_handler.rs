@@ -14,9 +14,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(test)]
 use std::fs;
 use std::{
+    collections::HashSet,
     ffi::OsStr,
     fs::File,
     io::{self, BufReader},
+    net::SocketAddr,
     path::PathBuf,
     sync::Mutex,
 };
@@ -79,19 +81,24 @@ impl Config {
                 result => result?,
             }
         };
+
         // Then if there is a locally running Node we add it to the list of know contacts.
-        if let Ok(node_info) = read_config_file(node_dirs()?, NODE_CONNECTION_INFO_FILE) {
-            if config.hard_coded_contacts.insert(node_info) {
-                trace!(
-                    "New contact added to the hard-coded contacts list: {}",
-                    node_info
-                );
-            } else {
-                trace!(
-                    "Contact is already in the hard-coded contacts list: {}",
-                    node_info
-                );
-            }
+        if let Ok(contacts) =
+            read_config_file::<HashSet<SocketAddr>>(node_dirs()?, NODE_CONNECTION_INFO_FILE)
+        {
+            contacts.iter().for_each(|node_info| {
+                if config.hard_coded_contacts.insert(*node_info) {
+                    trace!(
+                        "New contact added to the hard-coded contacts list: {}",
+                        node_info
+                    );
+                } else {
+                    trace!(
+                        "Contact is already in the hard-coded contacts list: {}",
+                        node_info
+                    );
+                }
+            })
         }
         Ok(config)
     }
