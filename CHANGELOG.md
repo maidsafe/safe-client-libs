@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.46.3](https://github.com/maidsafe/sn_client/compare/v0.46.2...v0.46.3) (2021-02-08)
+
+
+### Features
+
+* remove logging implementation ([cc320a0](https://github.com/maidsafe/sn_client/commit/cc320a04f01625f7a0e94d5c7df32e5d5d990fc8))
+
 ### [0.46.2](https://github.com/maidsafe/sn_client/compare/v0.46.1...v0.46.2) (2021-02-04)
 
 ### [0.46.1](https://github.com/maidsafe/sn_client/compare/v0.46.0...v0.46.1) (2021-02-03)
