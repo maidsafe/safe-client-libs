@@ -42,7 +42,15 @@ jobs:
       - shell: bash
         run: cargo clippy --all-targets
 
-
+  check_pr_size:
+      name: Check PR size doesn't break set limit
+      runs-on: ubuntu-latest
+      steps:
+      - uses: actions/checkout@v2
+      - uses: maidsafe/pr_size_checker@v1.1
+        with:
+          max_lines_changed: 200
+  
   # Run `cargo build` in the root directory to test all build scripts.
   build-script:
     name: Build Scripts
