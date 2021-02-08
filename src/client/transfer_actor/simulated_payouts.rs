@@ -41,7 +41,7 @@ impl Client {
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// // Start our client
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// let mut client = create_test_client_with(Some(id), None).await?;
     /// let target_balance = Token::from_str("100")?;
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///
@@ -89,15 +89,16 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+    use crate::utils::test_utils::create_test_client;
+    use anyhow::Result;
     use std::str::FromStr;
     use tokio::time::{delay_for, Duration};
 
     #[tokio::test]
     #[cfg(feature = "simulated-payouts")]
-    async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<(), Error> {
-        let mut client = Client::new(None, None).await?;
+    async fn transfer_actor_can_receive_simulated_farming_payout() -> Result<()> {
+        let mut client = create_test_client().await?;
 
         let _ = client
             .trigger_simulated_farming_payout(Token::from_str("100")?)

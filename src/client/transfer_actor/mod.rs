@@ -51,7 +51,7 @@ impl Client {
     /// // (It should have 0 balance)
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let client = Client::new(Some(id), None).await?;
+    /// let client = create_test_client_with(Some(id), None).await?;
     /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
@@ -85,7 +85,7 @@ impl Client {
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
-    /// let client = Client::new(None, None).await?;
+    /// let client = create_test_client().await?;
     /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
@@ -114,7 +114,7 @@ impl Client {
     /// // And we use a random client id to do this
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let client = Client::new(Some(id), None).await?;
+    /// let client = create_test_client_with(Some(id), None).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
@@ -359,6 +359,7 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_utils::{create_test_client, create_test_client_with};
     use anyhow::{anyhow, Result};
     use rand::rngs::OsRng;
     use sn_data_types::Token;
@@ -369,7 +370,7 @@ mod tests {
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        match Client::new(Some(keypair), None).await {
+        match create_test_client_with(Some(keypair), None).await {
             Ok(actor) => {
                 assert_eq!(actor.get_local_balance().await, Token::from_str("0")? );
                 Ok(())
@@ -380,26 +381,24 @@ mod tests {
 
     #[tokio::test]
     pub async fn transfer_actor_client_random_creation_gets_initial_balance() -> Result<()> {
-        match Client::new(None, None).await {
-            Ok(actor) => {
-                let mut bal = actor.get_balance().await;
-                while bal.is_err() {
-                    delay_for(Duration::from_millis(200)).await;
+        let actor = create_test_client().await
+            .map_err(|err| anyhow!("Should not error for random client, only create a new instance with 10 token, we got: {:?}" , err))?;
 
-                    bal = actor.get_balance().await;
-                }
+        let mut bal = actor.get_balance().await;
+        while bal.is_err() {
+            delay_for(Duration::from_millis(200)).await;
 
-                let mut tokens = bal?;
-                while tokens != Token::from_str("10")? {
-                    delay_for(Duration::from_millis(200)).await;
-
-                    tokens = actor.get_balance().await?;
-
-                }
-                Ok(())
-            },
-            Err(e) => Err(anyhow!("Should not error for random client, only create a new instance with 10 token, we got: {:?}" , e))
+            bal = actor.get_balance().await;
         }
+
+        let mut tokens = bal?;
+        while tokens != Token::from_str("10")? {
+            delay_for(Duration::from_millis(200)).await;
+
+            tokens = actor.get_balance().await?;
+        }
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -410,18 +409,18 @@ mod tests {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
         {
-            let mut initial_actor = Client::new(Some(keypair.clone()), None).await?;
+            let mut initial_actor = create_test_client_with(Some(keypair.clone()), None).await?;
             let _ = initial_actor
                 .trigger_simulated_farming_payout(Token::from_str("100")?)
                 .await?;
         }
 
-        let client_res = Client::new(Some(keypair.clone()), None).await;
+        let client_res = create_test_client_with(Some(keypair.clone()), None).await;
 
         // while client_res.is_err() {
         //     delay_for(Duration::from_millis(200)).await;
 
-        //     client_res = Client::new(Some(keypair.clone()), None).await;
+        //     client_res = create_test_client_with(Some(keypair.clone()), None).await;
         // }
 
         let client = client_res?;
