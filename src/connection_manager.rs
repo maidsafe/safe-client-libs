@@ -483,9 +483,7 @@ impl ConnectionManager {
                         Ok(Query::GetSectionResponse(GetSectionResponse::Redirect(
                             addresses,
                         ))) => {
-
                             trace!("GetSectionResponse::Redirect, trying with provided elders");
-                           
                             Ok(addresses)
                         }
                         Ok(Query::GetSectionResponse(GetSectionResponse::Success {
