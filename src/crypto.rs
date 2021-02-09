@@ -14,11 +14,9 @@
 pub mod shared_secretbox {
     use crate::utils::{self, SymEncKey};
     use serde::{Deserialize, Serialize};
-    use std::convert::TryInto;
     use std::fmt::{self, Debug};
     use std::ops::Deref;
     use std::sync::Arc;
-    use unwrap::unwrap;
 
     /// Shared symmetric encryption key.
     #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -41,12 +39,6 @@ pub mod shared_secretbox {
             // copies the sensitive data. Possible fix might be to take the input by
             // mutable reference and zero it afterwards.
             Self(Arc::new(*data))
-        }
-
-        /// Create new key from the data in the given slice.
-        pub fn from_slice(data: &[u8]) -> Option<Self> {
-            let key: SymEncKey = unwrap!(data.try_into());
-            Some(Self(Arc::new(key)))
         }
     }
 

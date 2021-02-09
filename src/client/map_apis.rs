@@ -36,17 +36,19 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// # extern crate tokio; use anyhow::Result; use std::str::FromStr;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapSeqValue, MapSeqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -88,17 +90,19 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// # extern crate tokio; use anyhow::Result; use std::str::FromStr;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -141,17 +145,19 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// # extern crate tokio; use anyhow::Result; use std::str::FromStr;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -227,17 +233,19 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// # extern crate tokio; use anyhow::Result; use std::str::FromStr;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -272,17 +280,19 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// # extern crate tokio; use anyhow::Result; use std::str::FromStr;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{ Keypair, Token, MapAction, MapValue, MapPermissionSet, MapUnseqEntries};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;
@@ -338,17 +348,19 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error; use std::str::FromStr;
+    /// # extern crate tokio; use anyhow::Result; use std::str::FromStr;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{ Keypair, Token, MapAction, MapPermissionSet, MapUnseqEntries};
     /// use rand::rngs::OsRng;
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 15001;

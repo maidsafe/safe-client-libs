@@ -41,17 +41,19 @@ impl Client {
     ///
     /// Retrieve an existing balance
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Token};
     /// use rand::rngs::OsRng;
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// // (It should have 0 balance)
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
@@ -73,19 +75,21 @@ impl Client {
     ///
     /// Retrieve an existing balance
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Token};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's check the balance of a client with a random id.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
-    /// let client = Client::new(None, None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(None, None, bootstrap_contacts).await?;
     /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
@@ -105,16 +109,18 @@ impl Client {
     ///
     /// Retrieving an existing balance history
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::Keypair;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // Let's check the balance of a random client.
     /// // And we use a random client id to do this
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }
@@ -370,7 +376,7 @@ mod tests {
     pub async fn transfer_actor_creation_hydration_for_nonexistant_balance() -> Result<()> {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
-        match create_test_client_with(Some(keypair), None).await {
+        match create_test_client_with(Some(keypair)).await {
             Ok(actor) => {
                 assert_eq!(actor.get_local_balance().await, Token::from_str("0")? );
                 Ok(())
@@ -409,18 +415,18 @@ mod tests {
         let keypair = Keypair::new_ed25519(&mut OsRng);
 
         {
-            let mut initial_actor = create_test_client_with(Some(keypair.clone()), None).await?;
+            let mut initial_actor = create_test_client_with(Some(keypair.clone())).await?;
             let _ = initial_actor
                 .trigger_simulated_farming_payout(Token::from_str("100")?)
                 .await?;
         }
 
-        let client_res = create_test_client_with(Some(keypair.clone()), None).await;
+        let client_res = create_test_client_with(Some(keypair.clone())).await;
 
         // while client_res.is_err() {
         //     delay_for(Duration::from_millis(200)).await;
 
-        //     client_res = create_test_client_with(Some(keypair.clone()), None).await;
+        //     client_res = create_test_client_with(Some(keypair.clone())).await;
         // }
 
         let client = client_res?;

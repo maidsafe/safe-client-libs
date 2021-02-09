@@ -33,9 +33,6 @@ pub enum Error {
     /// Received unexpected event.
     #[error("Unexpected event received")]
     ReceivedUnexpectedEvent,
-    /// Config path is not valid.
-    #[error("Config path is not a valid UTF-8 string")]
-    InvalidConfigPath,
 
     /// Could not query elder.
     #[error("Problem querying elder")]
@@ -105,9 +102,6 @@ pub enum Error {
     /// Transfer actor did not find any events to register locally
     #[error("Transfer actor did not find any events to register locally")]
     NoTransferEventsForLocalActor,
-    /// Could not determine system home dir
-    #[error("Could not determine system home dir")]
-    NoHomeDir,
     /// Not in testnet "simulated payout" mode
     #[error("Simulated payouts unavailable without 'simualted-payouts' feature flag at build")]
     NotBuiltWithSimulatedPayouts,
@@ -145,7 +139,7 @@ pub enum Error {
 
     /// Bincode error
     #[error(transparent)]
-    Bincode(#[from] Box<bincode::ErrorKind>),
+    Serialisation(#[from] Box<bincode::ErrorKind>),
 }
 
 impl From<CmdError> for Error {

@@ -14,9 +14,7 @@ use crate::utils::{
 use serde::{Deserialize, Serialize};
 use sn_data_types::{MapAddress, MapKind, MapSeqEntries, MapSeqEntryAction, MapSeqValue};
 use std::collections::{BTreeMap, BTreeSet};
-use std::convert::TryInto;
 use tiny_keccak::sha3_256;
-use unwrap::unwrap;
 use xor_name::XorName;
 
 /// Information allowing to locate and access mutable data on the network.
@@ -242,12 +240,12 @@ fn decrypt_value(info: &MapInfo, value: &MapSeqValue) -> Result<MapSeqValue, Err
 }
 
 fn enc_entry_key(plain_text: &[u8], key: &SymEncKey, seed: SymEncNonce) -> Result<Vec<u8>, Error> {
-    let nonce: SymEncNonce = {
-        let mut pt = plain_text.to_vec();
-        pt.extend_from_slice(&seed[..]);
-        // safe to unwrap as hash length is 256
-        unwrap!(sha3_256(&pt)[..SYM_ENC_NONCE_LEN].try_into())
-    };
+    let mut pt = plain_text.to_vec();
+    pt.extend_from_slice(&seed[..]);
+    let hash = sha3_256(&pt);
+
+    let mut nonce = SymEncNonce::default();
+    nonce.copy_from_slice(&hash[..SYM_ENC_NONCE_LEN]);
     symmetric_encrypt(plain_text, key, Some(&nonce))
 }
 
@@ -259,7 +257,7 @@ mod tests {
     // Ensure that a private map info is encrypted.
     #[test]
     fn private_map_info_encrypts() -> Result<()> {
-        let info = unwrap!(MapInfo::random_private(MapKind::Seq, 0));
+        let info = MapInfo::random_private(MapKind::Seq, 0)?;
         let key = Vec::from("str of key");
         let val = Vec::from("other is value");
         let enc_key = info.enc_entry_key(&key)?;

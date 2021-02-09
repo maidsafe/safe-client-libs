@@ -39,12 +39,13 @@ use futures::lock::Mutex;
 use log::{debug, info, trace, warn};
 use qp2p::Config as QuicP2pConfig;
 use rand::rngs::OsRng;
-use std::str::FromStr;
-
 use sn_data_types::{Keypair, PublicKey, Token};
 use sn_messaging::client::{Cmd, DataCmd, Message, MessageId, Query, QueryResponse};
-
-use std::{collections::HashSet, net::SocketAddr, sync::Arc};
+use std::{
+    path::Path,
+    str::FromStr,
+    {collections::HashSet, net::SocketAddr, sync::Arc},
+};
 use threshold_crypto::PublicKeySet;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use xor_name::XorName;
@@ -60,11 +61,6 @@ pub const SEQUENCE_CRDT_REPLICA_SIZE: usize = 300;
 
 /// Expected cost of mutation operations.
 pub const COST_OF_PUT: Token = Token::from_nano(1);
-
-/// Return the `crust::Config` associated with the `crust::Service` (if any).
-pub fn bootstrap_config() -> Result<HashSet<SocketAddr>, Error> {
-    Ok(Config::new().qp2p.hard_coded_contacts)
-}
 
 /// Client object
 #[derive(Clone)]
@@ -92,19 +88,22 @@ impl Client {
     ///
     /// Create a random client
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     ///
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     ///
-    /// let client = Client::new(None, None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(None, None, bootstrap_contacts).await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
     /// ```
     pub async fn new(
         optional_keypair: Option<Keypair>,
-        bootstap_config: Option<HashSet<SocketAddr>>,
+        config_file_path: Option<&Path>,
+        bootstrap_config: Option<HashSet<SocketAddr>>,
     ) -> Result<Self, Error> {
         let mut rng = OsRng;
 
@@ -124,14 +123,12 @@ impl Client {
         };
 
         let (notification_sender, notification_receiver) = unbounded_channel::<Error>();
+
+        let qp2p_config = Config::new(config_file_path, bootstrap_config).qp2p;
+
         // Create the connection manager
-        let mut connection_manager = attempt_bootstrap(
-            &Config::new().qp2p,
-            keypair.clone(),
-            notification_sender,
-            bootstap_config,
-        )
-        .await?;
+        let mut connection_manager =
+            attempt_bootstrap(qp2p_config, keypair.clone(), notification_sender).await?;
 
         // random PK used for from payment
         let random_payment_id = Keypair::new_ed25519(&mut rng);
@@ -190,10 +187,12 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = Client::new(None, None).await?;
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(None, None, bootstrap_contacts).await?;
     /// let _keypair = client.keypair().await;
     ///
     /// # Ok(()) } ); }
@@ -207,10 +206,12 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = Client::new(None, None).await?;
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(None, None, bootstrap_contacts).await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
     /// ```
@@ -284,18 +285,11 @@ impl Client {
 /// Utility function that bootstraps a client to the network. If there is a failure then it retries.
 /// After a maximum of three attempts if the boostrap process still fails, then an error is returned.
 pub async fn attempt_bootstrap(
-    qp2p_config: &QuicP2pConfig,
+    qp2p_config: QuicP2pConfig,
     keypair: Keypair,
     notification_sender: UnboundedSender<Error>,
-    bootstrap_nodes: Option<HashSet<SocketAddr>>,
 ) -> Result<ConnectionManager, Error> {
     let mut attempts: u32 = 0;
-    let mut qp2p_config = qp2p_config.clone();
-
-    if let Some(contacts) = bootstrap_nodes {
-        qp2p_config.hard_coded_contacts = contacts;
-    }
-
     loop {
         let mut connection_manager = ConnectionManager::new(
             qp2p_config.clone(),
@@ -340,8 +334,8 @@ mod tests {
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             3033,
         ));
-        let setup = create_test_client_with(None, Some(nonsense_bootstrap)).await;
-        assert!(setup.is_err());
+        //let setup = create_test_client_with(None, Some(nonsense_bootstrap)).await;
+        //assert!(setup.is_err());
         Ok(())
     }
 
@@ -351,7 +345,7 @@ mod tests {
         let full_id = Keypair::new_ed25519(&mut rng);
         let pk = full_id.public_key();
 
-        let client = create_test_client_with(Some(full_id), None).await?;
+        let client = create_test_client_with(Some(full_id)).await?;
         assert_eq!(pk, client.public_key().await);
 
         Ok(())
@@ -359,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn long_lived_connection_survives() -> Result<()> {
-        let client = Client::new(None, None).await?;
+        let client = create_test_client().await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
         let balance = client.get_balance().await?;
         assert_ne!(balance, Token::from_nano(0));

@@ -50,7 +50,7 @@ jobs:
       - uses: maidsafe/pr_size_checker@v1.1
         with:
           max_lines_changed: 200
-  
+
   # Run `cargo build` in the root directory to test all build scripts.
   build-script:
     name: Build Scripts

@@ -6,72 +6,40 @@
 // KIND, either express or implied. Please review the Licences for the specific language governing
 // permissions and limitations relating to use of the SAFE Network Software.
 
-use crate::client::{Client, COST_OF_PUT};
-use anyhow::{anyhow, Result};
-use sn_data_types::{Keypair, Token};
-use std::{collections::HashSet, net::SocketAddr, sync::Once};
-use tracing_subscriber::{fmt, EnvFilter};
-
-static INIT: Once = Once::new();
-
-/// Create a test client without providing any specific keypair or bootstrap_config
-pub async fn create_test_client() -> Result<Client> {
-    create_test_client_with(None, None).await
-}
-
-/// Create a test client optionally providing keypair and/or bootstrap_config
-pub async fn create_test_client_with(
-    optional_keypair: Option<Keypair>,
-    bootstap_config: Option<HashSet<SocketAddr>>,
-) -> Result<Client> {
-    // Setup logger for tests that is only run once, even if called multiple times.
-    INIT.call_once(|| {
-        fmt()
-            // NOTE: comment out this line for more compact (but less readable) log output.
-            .pretty()
-            .with_env_filter(EnvFilter::from_default_env())
-            .with_target(false)
-            .init()
-    });
-
-    let client = Client::new(optional_keypair, bootstap_config).await?;
-    Ok(client)
-}
-
-/// Generates a random BLS secret and public keypair.
+#[cfg(test)]
+mod test_client;
 #[cfg(feature = "simulated-payouts")]
-pub fn gen_ed_keypair() -> Keypair {
-    let mut rng = rand::thread_rng();
-    Keypair::new_ed25519(&mut rng)
-}
+mod tokens;
 
-/// Helper function to calculate the total cost of expenditure by adding number of mutations and
-/// amount of transferred coins if any.
+use anyhow::{anyhow, Context, Result};
+use dirs_next::home_dir;
+use std::{collections::HashSet, fs::File, io::BufReader, net::SocketAddr};
+#[cfg(test)]
+pub use test_client::{create_test_client, create_test_client_with, init_logger};
 #[cfg(feature = "simulated-payouts")]
-pub fn calculate_new_balance(
-    mut balance: Token,
-    mutation_count: Option<u64>,
-    transferred_coins: Option<Token>,
-) -> Result<Token> {
-    if let Some(x) = mutation_count {
-        let amount = Token::from_nano(x * COST_OF_PUT.as_nano());
-        balance = balance.checked_sub(amount).ok_or_else(|| {
-            anyhow!(
-                "Failed to substract {} tokens amount from {}",
-                amount,
-                balance
-            )
-        })?;
-    }
-    if let Some(coins) = transferred_coins {
-        balance = balance.checked_sub(coins).ok_or_else(|| {
-            anyhow!(
-                "Failed to substract {} tokens amount from {}",
-                coins,
-                balance
-            )
-        })?;
-    }
+pub use tokens::{calculate_new_balance, gen_ed_keypair};
 
-    Ok(balance)
+// Relative path from $HOME where to read the genesis node connection information from
+const GENESIS_CONN_INFO_FILEPATH: &str = ".safe/node/node_connection_info.config";
+
+/// Read local network bootstrapping/connection information
+pub fn read_network_conn_info() -> Result<HashSet<SocketAddr>> {
+    let user_dir = home_dir().ok_or_else(|| anyhow!("Could not fetch home directory"))?;
+    let conn_info_path = user_dir.join(GENESIS_CONN_INFO_FILEPATH);
+
+    let file = File::open(&conn_info_path).with_context(|| {
+        format!(
+            "Failed to open node connection information file at '{}'",
+            conn_info_path.display(),
+        )
+    })?;
+    let reader = BufReader::new(file);
+    let contacts: HashSet<SocketAddr> = serde_json::from_reader(reader).with_context(|| {
+        format!(
+            "Failed to parse content of node connection information file at '{}'",
+            conn_info_path.display(),
+        )
+    })?;
+
+    Ok(contacts)
 }

@@ -15,12 +15,14 @@ impl Client {
     ///
     /// Create a random client
     /// ```no_run
-    /// # extern crate tokio;use sn_client::Error;
+    /// # extern crate tokio;use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use std::str::FromStr;
     /// use sn_data_types::Token;
-    /// # #[tokio::main]async fn main() {let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = Client::new(None, None).await?;
+    /// # #[tokio::main]async fn main() {let _: Result<()> = futures::executor::block_on( async {
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let client = Client::new(None, None, bootstrap_contacts).await?;
     /// // now we check the local balance
     /// let some_balance = client.get_local_balance().await;
     /// assert_eq!(some_balance, Token::from_str("0")?);
@@ -95,16 +97,18 @@ impl Client {
     /// Send token to a PublickKey.
     /// (This test uses "simulated payouts" to generate test token. This of course would not be avaiable on a live network.)
     /// ```no_run
-    /// # extern crate tokio;use sn_client::Error;
+    /// # extern crate tokio;use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{PublicKey, Token};
     /// use std::str::FromStr;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// // A random sk, to send token to
     /// let sk = threshold_crypto::SecretKey::random();
     /// let pk = PublicKey::from(sk.public_key());
     /// // Next we create a random client.
-    /// let mut client = Client::new(None, None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(None, None, bootstrap_contacts).await?;
     /// let target_balance = Token::from_str("100")?;
     /// // And trigger a simulated payout to our client's PublicKey, so we have token to send.
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;

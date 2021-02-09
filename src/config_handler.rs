@@ -7,37 +7,16 @@
 // permissions and limitations relating to use of the SAFE Network Software.
 
 use crate::Error;
-use lazy_static::lazy_static;
-use log::{info, trace};
+use log::{debug, warn};
 use qp2p::Config as QuicP2pConfig;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-#[cfg(test)]
-use std::fs;
+use serde::{Deserialize, Serialize};
 use std::{
-    ffi::OsStr,
+    collections::HashSet,
     fs::File,
     io::{self, BufReader},
-    path::PathBuf,
-    sync::Mutex,
+    net::SocketAddr,
+    path::Path,
 };
-use unwrap::unwrap;
-
-const HOME_DIR_SAFE: &str = ".safe";
-const CONFIG_DIR_APPLICATION: &str = "client";
-const CONFIG_FILE: &str = "sn_client.config";
-
-const NODE_CONFIG_DIR_APPLICATION: &str = "node";
-const NODE_CONNECTION_INFO_FILE: &str = "node_connection_info.config";
-
-lazy_static! {
-    static ref CONFIG_DIR_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-}
-
-/// Set a custom path for the config files.
-// `OsStr` is platform-native.
-pub fn set_config_dir_path<P: AsRef<OsStr> + ?Sized>(path: &P) {
-    *unwrap!(CONFIG_DIR_PATH.lock()) = Some(From::from(path));
-}
 
 /// Configuration for sn_client.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
@@ -48,160 +27,104 @@ pub struct Config {
 
 impl Config {
     /// Returns a new `Config` instance. Tries to read quic-p2p config from file.
-    pub fn new() -> Self {
-        let qp2p = Self::read_qp2p_from_file().unwrap_or_default();
-        Self { qp2p }
-    }
-
-    fn read_qp2p_from_file() -> Result<QuicP2pConfig, Error> {
-        // First we read the default configuration file, and use a slightly modified default config
-        // if there is none.
-        let mut config: QuicP2pConfig = {
-            match read_config_file(dirs()?, CONFIG_FILE) {
+    pub fn new(
+        config_file_path: Option<&Path>,
+        bootstrap_config: Option<HashSet<SocketAddr>>,
+    ) -> Self {
+        // If a config file path was provided we try to read it,
+        // otherwise we use default qp2p config.
+        let mut qp2p = match &config_file_path {
+            None => QuicP2pConfig::default(),
+            Some(path) => match read_config_file(path) {
                 Err(Error::IoError(ref err)) if err.kind() == io::ErrorKind::NotFound => {
-                    let custom_dir =
-                        if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
-                            Some(
-                                custom_path
-                                    .into_os_string()
-                                    .into_string()
-                                    .map_err(|_| Error::InvalidConfigPath)?,
-                            )
-                        } else {
-                            None
-                        };
-                    // If there is no config file, assume we are a client
                     QuicP2pConfig {
-                        bootstrap_cache_dir: custom_dir,
+                        bootstrap_cache_dir: path.parent().map(|p| p.display().to_string()),
                         ..Default::default()
                     }
                 }
-                result => result?,
-            }
+                result => result.unwrap_or_default(),
+            },
         };
-        // Then if there is a locally running Node we add it to the list of know contacts.
-        if let Ok(node_info) = read_config_file(node_dirs()?, NODE_CONNECTION_INFO_FILE) {
-            if config.hard_coded_contacts.insert(node_info) {
-                trace!(
-                    "New contact added to the hard-coded contacts list: {}",
-                    node_info
-                );
-            } else {
-                trace!(
-                    "Contact is already in the hard-coded contacts list: {}",
-                    node_info
-                );
-            }
+
+        if let Some(contacts) = bootstrap_config {
+            qp2p.hard_coded_contacts = contacts;
         }
-        Ok(config)
+
+        Self { qp2p }
     }
 }
 
-/// Return the Project directory
-pub fn dirs() -> Result<PathBuf, Error> {
-    let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
-        let mut path = PathBuf::new();
-        path.push(custom_path);
-        path
-    } else {
-        let mut path = dirs_next::home_dir().ok_or(Error::NoHomeDir)?;
-        path.push(HOME_DIR_SAFE);
-        path.push(CONFIG_DIR_APPLICATION);
-        path
-    };
-    Ok(project_dirs)
-}
-
-fn node_dirs() -> Result<PathBuf, Error> {
-    let project_dirs = if let Some(custom_path) = unwrap!(CONFIG_DIR_PATH.lock()).clone() {
-        let mut path = PathBuf::new();
-        path.push(custom_path);
-        path
-    } else {
-        let mut path = dirs_next::home_dir().ok_or(Error::NoHomeDir)?;
-        path.push(HOME_DIR_SAFE);
-        path.push(NODE_CONFIG_DIR_APPLICATION);
-        path
-    };
-    Ok(project_dirs)
-}
-
-fn read_config_file<T>(dirs: PathBuf, file: &str) -> Result<T, Error>
-where
-    T: DeserializeOwned,
-{
-    let path = dirs.join(file);
-    let file = match File::open(&path) {
+fn read_config_file(filepath: &Path) -> Result<QuicP2pConfig, Error> {
+    match File::open(filepath) {
         Ok(file) => {
-            trace!("Reading: {}", path.display());
-            file
+            debug!("Reading config file '{}' ...", filepath.display());
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader).map_err(|err| {
+                warn!(
+                    "Could not parse content of config file '{}': {}",
+                    filepath.display(),
+                    err
+                );
+                err.into()
+            })
         }
-        Err(error) => {
-            trace!("Not available: {}", path.display());
-            return Err(error.into());
+        Err(err) => {
+            warn!(
+                "Failed to open config file from '{}': {}",
+                filepath.display(),
+                err
+            );
+            Err(err.into())
         }
-    };
-    let reader = BufReader::new(file);
-    serde_json::from_reader(reader).map_err(|err| {
-        info!("Could not parse: {} ({:?})", err, err);
-        err.into()
-    })
-}
-
-/// Writes a `sn_client` config file **for use by tests and examples**.
-///
-/// N.B. This method should only be used as a utility for test and examples.  In normal use cases,
-/// the config file should be created by the Node's installer.
-#[cfg(test)]
-pub fn write_config_file(config: &Config) -> Result<PathBuf, Error> {
-    let dir = dirs()?;
-    fs::create_dir_all(dir.clone())?;
-
-    let path = dir.join(CONFIG_FILE);
-    let mut file = File::create(&path)?;
-    serde_json::to_writer_pretty(&mut file, config)?;
-    file.sync_all()?;
-
-    Ok(path)
+    }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
-    use std::env::temp_dir;
+    use crate::utils::test_utils::init_logger;
+    use anyhow::Result;
+    use rand::{distributions::Alphanumeric, thread_rng, Rng};
+    use std::{env::temp_dir, fs::create_dir_all};
 
-    // 1. Write the default config file to temp directory.
-    // 2. Set the temp directory as the custom config directory path.
+    // 1. Verify that `Config::new()` generates the correct default config
+    //    when the file is not found. The default config shall have the provided
+    //    config path in the `boostrap_cache_dir` field.
+    // 2. Write the default config file to temp directory.
     // 3. Assert that `Config::new()` reads the default config written to disk.
-    // 4. Verify that `Config::new()` generates the correct default config.
-    //    The default config will have the custom config path in the
-    //    `boostrap_cache_dir` field
+    // 4. Verify that `Config::new()` returns the correct default config when no path is provided.
     #[test]
-    fn custom_config_path() {
+    fn custom_config_path() -> Result<()> {
+        init_logger();
+
         let path = temp_dir();
-        let temp_dir_path = path.clone();
-        set_config_dir_path(&path);
-        let config: Config = Default::default();
-        unwrap!(write_config_file(&config));
-
-        let read_cfg = Config::new();
-        assert_eq!(config, read_cfg);
-
-        let mut path = PathBuf::new();
-        path.push(temp_dir_path.clone());
-
-        path.push(CONFIG_FILE);
-        unwrap!(std::fs::remove_file(path));
+        let random_filename: String = thread_rng().sample_iter(&Alphanumeric).take(15).collect();
+        let config_filepath = path.join(random_filename);
 
         // In the absence of a config file, the config handler
         // should initialize bootstrap_cache_dir only
-        let config = Config::new();
+        let config = Config::new(Some(&config_filepath), None);
         let expected_config = Config {
             qp2p: QuicP2pConfig {
-                bootstrap_cache_dir: Some(unwrap!(temp_dir_path.into_os_string().into_string())),
+                bootstrap_cache_dir: Some(path.display().to_string()),
                 ..Default::default()
             },
         };
         assert_eq!(config, expected_config);
+
+        create_dir_all(path)?;
+        let mut file = File::create(&config_filepath)?;
+
+        let config_on_disk = Config::default();
+        serde_json::to_writer_pretty(&mut file, &config_on_disk)?;
+        file.sync_all()?;
+
+        let read_cfg = Config::new(Some(&config_filepath), None);
+        assert_eq!(config_on_disk, read_cfg);
+
+        let default_cfg = Config::new(None, None);
+        assert_eq!(Config::default(), default_cfg);
+
+        Ok(())
     }
 }

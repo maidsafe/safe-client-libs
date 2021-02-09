@@ -32,16 +32,18 @@ impl Client {
     /// Add 100 token to a client
     ///
     /// ```no_run
-    /// # extern crate tokio; use sn_client::Error;
+    /// # extern crate tokio; use anyhow::Result;
+    /// # use sn_client::utils::test_utils::read_network_conn_info;
     /// use sn_client::Client;
     /// use sn_data_types::{Keypair, Token};
     /// use std::str::FromStr;
     /// use rand::rngs::OsRng;
-    /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
+    /// # #[tokio::main] async fn main() { let _: Result<()> = futures::executor::block_on( async {
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// // Start our client
-    /// let mut client = Client::new(Some(id), None).await?;
+    /// # let bootstrap_contacts = Some(read_network_conn_info()?);
+    /// let mut client = Client::new(Some(id), None, bootstrap_contacts).await?;
     /// let target_balance = Token::from_str("100")?;
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///

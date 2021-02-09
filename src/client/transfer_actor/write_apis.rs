@@ -39,7 +39,7 @@ mod tests {
         let pk = keypair.public_key();
         let data = Sequence::new_public(pk, pk.to_string(), XorName::random(), 33323);
 
-        let initial_actor = create_test_client_with(Some(keypair), None).await?;
+        let initial_actor = create_test_client_with(Some(keypair)).await?;
         match initial_actor.pay_and_write_sequence_to_network(data).await {
             Err(Error::Transfer(TransfersError::InsufficientBalance)) => Ok(()),
             res => bail!(
