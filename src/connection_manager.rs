@@ -483,9 +483,10 @@ impl ConnectionManager {
                         Ok(Query::GetSectionResponse(GetSectionResponse::Redirect(
                             addresses,
                         ))) => {
-                            trace!("GetSectionResponse::Redirect, trying again");
-                            // TODO: initialise `hard_coded_contacts` with received `elders`.
-                            Err(Error::UnexpectedMessageOnJoin(format!("Client should re-bootstrap with a new set of Elders, but it's not yet supported: {:?}",addresses)))
+
+                            trace!("GetSectionResponse::Redirect, trying with provided elders");
+                           
+                            Ok(addresses)
                         }
                         Ok(Query::GetSectionResponse(GetSectionResponse::Success {
                             elders,
