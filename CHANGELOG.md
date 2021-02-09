@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.46.6](https://github.com/maidsafe/sn_client/compare/v0.46.5...v0.46.6) (2021-02-09)
+
+
+### Features
+
+* **test:** enable logger in tests using tracing-subscriber ([448522b](https://github.com/maidsafe/sn_client/commit/448522b7e994df7c13b5203ce7326c40aad900de))
+
 ### [0.46.5](https://github.com/maidsafe/sn_client/compare/v0.46.4...v0.46.5) (2021-02-08)
 
 ### [0.46.4](https://github.com/maidsafe/sn_client/compare/v0.46.3...v0.46.4) (2021-02-08)
