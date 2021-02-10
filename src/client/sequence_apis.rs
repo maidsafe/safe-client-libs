@@ -52,7 +52,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -127,7 +127,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -197,7 +197,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -254,7 +254,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -334,7 +334,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -382,7 +382,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -438,7 +438,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -495,7 +495,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -557,7 +557,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -603,13 +603,14 @@ impl Client {
     /// use sn_data_types::{Keypair, PublicKey, Token, SequencePrivatePermissions};
     /// use std::collections::BTreeMap;
     /// use xor_name::XorName;
+
     /// use rand::rngs::OsRng;
     /// use threshold_crypto::SecretKey;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -689,7 +690,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -748,7 +749,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -805,7 +806,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -860,7 +861,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;
@@ -937,7 +938,7 @@ impl Client {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let name = XorName::random();
     /// let tag = 10;

@@ -20,7 +20,7 @@ impl Client {
     /// use std::str::FromStr;
     /// use sn_data_types::Token;
     /// # #[tokio::main]async fn main() {let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = create_test_client().await?;
+    /// let client = Client::new(None, None).await?;
     /// // now we check the local balance
     /// let some_balance = client.get_local_balance().await;
     /// assert_eq!(some_balance, Token::from_str("0")?);
@@ -104,7 +104,7 @@ impl Client {
     /// let sk = threshold_crypto::SecretKey::random();
     /// let pk = PublicKey::from(sk.public_key());
     /// // Next we create a random client.
-    /// let mut client = create_test_client().await?;
+    /// let mut client = Client::new(None, None).await?;
     /// let target_balance = Token::from_str("100")?;
     /// // And trigger a simulated payout to our client's PublicKey, so we have token to send.
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;

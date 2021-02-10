@@ -51,7 +51,7 @@ impl Client {
     /// // (It should have 0 balance)
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let client = create_test_client_with(Some(id), None).await?;
+    /// let client = Client::new(Some(id), None).await?;
     /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance().await?;
     /// assert_eq!(balance, initial_balance);
@@ -85,7 +85,7 @@ impl Client {
     /// let pk = id.public_key();
     ///
     /// // And we use a random client to do this
-    /// let client = create_test_client().await?;
+    /// let client = Client::new(None, None).await?;
     /// let initial_balance = Token::from_str("0")?;
     /// let balance = client.get_balance_for(pk).await?;
     /// assert_eq!(balance, initial_balance);
@@ -114,7 +114,7 @@ impl Client {
     /// // And we use a random client id to do this
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
-    /// let client = create_test_client_with(Some(id), None).await?;
+    /// let client = Client::new(Some(id), None).await?;
     /// // Upon calling, history is retrieved and applied to the local AT2 actor.
     /// let _ = client.get_history().await?;
     /// # Ok(()) } ); }

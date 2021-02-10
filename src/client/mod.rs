@@ -97,7 +97,7 @@ impl Client {
     ///
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     ///
-    /// let client = create_test_client().await?;
+    /// let client = Client::new(None, None).await?;
     /// // Now for example you can perform read operations:
     /// let _some_balance = client.get_balance().await?;
     /// # Ok(()) } ); }
@@ -193,7 +193,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = create_test_client().await?;
+    /// let client = Client::new(None, None).await?;
     /// let _keypair = client.keypair().await;
     ///
     /// # Ok(()) } ); }
@@ -210,7 +210,7 @@ impl Client {
     /// # extern crate tokio; use sn_client::Error;
     /// use sn_client::Client;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
-    /// let client = create_test_client().await?;
+    /// let client = Client::new(None, None).await?;
     /// let _pk = client.public_key().await;
     /// # Ok(()) } ); }
     /// ```
@@ -359,7 +359,7 @@ mod tests {
 
     #[tokio::test]
     pub async fn long_lived_connection_survives() -> Result<()> {
-        let client = create_test_client().await?;
+        let client = Client::new(None, None).await?;
         tokio::time::delay_for(tokio::time::Duration::from_secs(40)).await;
         let balance = client.get_balance().await?;
         assert_ne!(balance, Token::from_nano(0));

@@ -47,7 +47,7 @@ impl Client {
     /// use xor_name::XorName;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// let target_blob = BlobAddress::Public(XorName::random());
-    /// let client = create_test_client().await?;
+    /// let client = Client::new(None,None).await?;
     ///
     /// // grab the random blob from the network
     /// let _data = client.read_blob(target_blob, None, None).await?;
@@ -91,7 +91,7 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = create_test_client().await?;
+    /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
@@ -119,7 +119,7 @@ impl Client {
     /// use std::str::FromStr;
     /// # #[tokio::main] async fn main() { let _: Result<(), Error> = futures::executor::block_on( async {
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = create_test_client().await?;
+    /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some data".to_vec();
     /// // grab the random blob from the network
@@ -186,7 +186,7 @@ impl Client {
     /// # #[tokio::main] async fn main() { let _: anyhow::Result<()> = futures::executor::block_on( async {
     ///
     /// // Let's use an existing client, with a pre-existing balance to be used for write payments.
-    /// let mut client = create_test_client().await?;
+    /// let mut client = Client::new(None, None).await?;
     /// # let initial_balance = Token::from_str("100")?; client.trigger_simulated_farming_payout(initial_balance).await?;
     /// let data = b"some private data".to_vec();
     /// let address = client.store_private_blob(&data).await?;

@@ -41,7 +41,7 @@ impl Client {
     /// let id = Keypair::new_ed25519(&mut OsRng);
 
     /// // Start our client
-    /// let mut client = create_test_client_with(Some(id), None).await?;
+    /// let mut client = Client::new(Some(id), None).await?;
     /// let target_balance = Token::from_str("100")?;
     /// let _ = client.trigger_simulated_farming_payout(target_balance).await?;
     ///
