@@ -47,6 +47,7 @@ impl Config {
         };
 
         if let Some(contacts) = bootstrap_config {
+            debug!("Bootstrapping contacts overriden with: {:?}", contacts);
             qp2p.hard_coded_contacts = contacts;
         }
 
